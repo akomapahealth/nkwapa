@@ -1,0 +1,29 @@
+{
+  "name": "nkwapa",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "db:generate": "prisma generate --schema=packages/db/prisma/schema.prisma",
+    "db:migrate:dev": "prisma migrate dev --schema=packages/db/prisma/schema.prisma",
+    "db:migrate:deploy": "prisma migrate deploy --schema=packages/db/prisma/schema.prisma",
+    "db:seed": "ts-node --transpile-only packages/db/prisma/seed.ts",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present"
+  },
+  "devDependencies": {
+    "dotenv": "^17.3.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@prisma/client": "^7.4.2"
+  }
+}

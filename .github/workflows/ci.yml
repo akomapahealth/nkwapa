@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: nkwapa
+          POSTGRES_USER: nkwapa
+          POSTGRES_PASSWORD: nkwapa
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U nkwapa -d nkwapa"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+
+    env:
+      DATABASE_URL: postgresql://nkwapa:nkwapa@localhost:5432/nkwapa
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint --workspaces --if-present
+
+      - name: Typecheck
+        run: npm run typecheck --workspaces --if-present
+
+      - name: Test
+        run: npm run test --workspaces --if-present
+
+      - name: Build
+        run: npm run build --workspaces --if-present
+
+      - name: Prisma generate
+        run: npm run db:generate
+
+      - name: Prisma migrate deploy (validate)
+        run: npm run db:migrate:deploy

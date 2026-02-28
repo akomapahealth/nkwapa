@@ -1,0 +1,41 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Environment (never commit secrets)
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.test
+
+# Build outputs
+dist
+.next
+out
+.turbo
+.vercel
+
+# Test & coverage
+coverage
+*.lcov
+
+# Logs & temp
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE (optional: remove .vscode if you commit workspace settings)
+.idea
+*.swp
+*.swo
+
+# Prisma
+*.tsbuildinfo

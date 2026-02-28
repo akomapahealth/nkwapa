@@ -1,0 +1,69 @@
+import { buildOutboxMutation, SYNC_OPERATION } from './outbox';
+
+describe('buildOutboxMutation', () => {
+  it('produces objects with all required fields', () => {
+    const params = {
+      clinicId: 'clinic-1',
+      entityType: 'patient',
+      entityId: 'patient-1',
+      operation: SYNC_OPERATION.UPSERT,
+      payloadJson: { firstName: 'John', lastName: 'Doe' },
+    };
+
+    const record = buildOutboxMutation(params);
+
+    expect(record).toHaveProperty('id');
+    expect(record).toHaveProperty('clinicId', 'clinic-1');
+    expect(record).toHaveProperty('entityType', 'patient');
+    expect(record).toHaveProperty('entityId', 'patient-1');
+    expect(record).toHaveProperty('operation', 'UPSERT');
+    expect(record).toHaveProperty('payloadJson', JSON.stringify(params.payloadJson));
+    expect(record).toHaveProperty('idempotencyKey');
+    expect(record).toHaveProperty('createdAt');
+  });
+
+  it('generates unique id and idempotencyKey on each call', () => {
+    const params = {
+      clinicId: 'clinic-1',
+      entityType: 'encounter',
+      entityId: 'enc-1',
+      operation: SYNC_OPERATION.UPSERT,
+      payloadJson: {},
+    };
+
+    const r1 = buildOutboxMutation(params);
+    const r2 = buildOutboxMutation(params);
+
+    expect(r1.id).not.toBe(r2.id);
+    expect(r1.idempotencyKey).not.toBe(r2.idempotencyKey);
+  });
+
+  it('uses provided idempotencyKey when given', () => {
+    const params = {
+      clinicId: 'clinic-1',
+      entityType: 'patient',
+      entityId: 'patient-1',
+      operation: SYNC_OPERATION.UPSERT,
+      payloadJson: {},
+      idempotencyKey: 'custom-key-123',
+    };
+
+    const record = buildOutboxMutation(params);
+
+    expect(record.idempotencyKey).toBe('custom-key-123');
+  });
+
+  it('serializes payloadJson as JSON string', () => {
+    const payload = { nested: { a: 1 }, list: [1, 2] };
+    const record = buildOutboxMutation({
+      clinicId: 'c1',
+      entityType: 'vitals',
+      entityId: 'v1',
+      operation: SYNC_OPERATION.UPSERT,
+      payloadJson: payload,
+    });
+
+    expect(record.payloadJson).toBe(JSON.stringify(payload));
+    expect(JSON.parse(record.payloadJson)).toEqual(payload);
+  });
+});
