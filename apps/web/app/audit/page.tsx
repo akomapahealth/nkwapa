@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { Box } from "@mui/material";
+import { dataGridSx } from "@/lib/datagrid-theme";
 
 interface AuditRow {
   id: string;
@@ -119,7 +120,7 @@ export default function AuditPage() {
   return (
     <RouteGuard requiredPermission="AUDIT.READ">
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Audit Log</h1>
+      <h1 className="text-2xl font-bold font-heading">Audit Log</h1>
       <div className="flex flex-wrap gap-4">
         <div className="space-y-2">
           <Label htmlFor="from">From</Label>
@@ -191,12 +192,13 @@ export default function AuditPage() {
           {error}
         </div>
       )}
-      <Box sx={{ height: 500, width: "100%" }}>
+      <Box sx={{ height: 500, width: "100%" }} className="overflow-x-auto">
         <DataGrid
           rows={rows}
           columns={columns}
           loading={loading}
           pageSizeOptions={[25, 50, 100]}
+          sx={dataGridSx}
         />
       </Box>
       {nextCursor && (

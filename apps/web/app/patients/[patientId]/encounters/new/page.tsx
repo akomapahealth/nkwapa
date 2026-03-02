@@ -145,7 +145,7 @@ export default function NewEncounterPage() {
         {STEPS.map((s, i) => (
           <div
             key={s}
-            className={`h-1 flex-1 rounded ${
+            className={`h-1.5 flex-1 rounded-full transition-colors ${
               i <= step ? "bg-primary" : "bg-muted"
             }`}
           />

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useBootstrap } from "@/lib/bootstrap-context";
 import { Button } from "@/components/ui/button";
+import { Lock } from "lucide-react";
 
 function hasPermission(permissions: string[], perm: string): boolean {
   return permissions.includes("*") || permissions.includes(perm);
@@ -32,7 +33,8 @@ export function RouteGuard({
 
   return (
     <div className="flex flex-col items-center justify-center gap-4 p-8 text-center">
-      <h1 className="text-xl font-semibold">No access</h1>
+      <Lock className="h-8 w-8 text-primary" />
+      <h1 className="text-xl font-semibold font-heading">No access</h1>
       <p className="text-muted-foreground max-w-md">
         You don&apos;t have permission to view this page. Contact your clinic
         administrator if you believe this is an error.

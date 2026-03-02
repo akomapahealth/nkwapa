@@ -282,7 +282,7 @@ export default function PatientDetailPage() {
 
       <Card>
         <CardHeader>
-          <h1 className="text-2xl font-semibold">
+          <h1 className="text-2xl font-semibold font-heading">
             {patient.firstName} {patient.lastName}
           </h1>
           <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
@@ -290,7 +290,7 @@ export default function PatientDetailPage() {
             {patient.phoneE164 && <span>{patient.phoneE164}</span>}
             {patient.nationalIdLast4 && <span>…{patient.nationalIdLast4}</span>}
             {hasGrantedResearchConsent && (
-              <Badge variant="default">Consent Granted</Badge>
+              <Badge variant="finalized">Consent Granted</Badge>
             )}
           </div>
         </CardHeader>
@@ -343,7 +343,7 @@ export default function PatientDetailPage() {
                     <li key={e.id}>
                       <Link
                         href={`/encounters/${e.id}`}
-                        className="flex items-center justify-between rounded-md border p-3 hover:bg-accent"
+                        className="flex items-center justify-between rounded-lg border p-3 hover:bg-accent touch-target"
                       >
                         <span>
                           {new Date(e.createdAt).toLocaleDateString()}
@@ -351,10 +351,10 @@ export default function PatientDetailPage() {
                         <Badge
                           variant={
                             e.status === "FINALIZED"
-                              ? "default"
+                              ? "finalized"
                               : e.status === "IN_REVIEW"
-                                ? "secondary"
-                                : "outline"
+                                ? "review"
+                                : "draft"
                           }
                         >
                           {e.status}

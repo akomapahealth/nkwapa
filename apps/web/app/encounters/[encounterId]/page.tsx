@@ -238,10 +238,10 @@ export default function EncounterDetailPage() {
           <Badge
             variant={
               isFinalized
-                ? "default"
+                ? "finalized"
                 : encounter.status === "IN_REVIEW"
-                  ? "secondary"
-                  : "outline"
+                  ? "review"
+                  : "draft"
             }
           >
             {encounter.status}
@@ -277,9 +277,9 @@ export default function EncounterDetailPage() {
       </div>
 
       {encounter.patient && (
-        <Card>
+        <Card className="border-l-4 border-l-secondary">
           <CardHeader>
-            <h1 className="text-xl font-semibold">
+            <h1 className="text-xl font-semibold font-heading">
               {encounter.patient.firstName} {encounter.patient.lastName}
             </h1>
             <p className="text-sm text-muted-foreground font-mono">

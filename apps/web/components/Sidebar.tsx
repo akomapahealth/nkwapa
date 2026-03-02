@@ -38,7 +38,7 @@ export function Sidebar() {
     permission?: string;
     anyOf?: string[];
   }[] = [
-    { href: "/", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     {
       href: "/queues",
       label: "Queues",
@@ -60,26 +60,25 @@ export function Sidebar() {
   });
 
   return (
-    <aside className="hidden w-48 flex-col border-r bg-muted/30 md:flex">
-      <nav className="flex flex-col gap-1 p-2">
+    <aside className="hidden w-52 flex-col border-r border-border bg-card md:flex">
+      <nav className="flex flex-col gap-1 p-3">
         {filtered.map((item) => {
           const isActive =
-            item.href === "/"
-              ? pathname === "/"
-              : pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
+            pathname === item.href || pathname.startsWith(item.href + "/");
           const isAdminRoute = item.href.startsWith("/admin");
-          const href = clinicId || item.href === "/" || isAdminRoute ? item.href : "#";
+          const isDashboard = item.href === "/dashboard";
+          const href = clinicId || isDashboard || isAdminRoute ? item.href : "#";
           const Icon = item.icon;
           return (
             <Link
               key={item.href}
               href={href}
               className={cn(
-                "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                "flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                 isActive
-                  ? "bg-primary text-primary-foreground"
+                  ? "border-l-2 border-secondary bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                !clinicId && item.href !== "/" && !isAdminRoute && "pointer-events-none opacity-50"
+                !clinicId && !isDashboard && !isAdminRoute && "pointer-events-none opacity-50"
               )}
             >
               <Icon className="h-4 w-4" />

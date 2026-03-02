@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { Box } from "@mui/material";
+import { dataGridSx } from "@/lib/datagrid-theme";
 
 interface PatientSummary {
   id: string;
@@ -146,7 +147,7 @@ export default function PatientsPage() {
     <RouteGuard requiredPermission="PATIENT.SEARCH">
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Patients</h1>
+        <h1 className="text-2xl font-bold font-heading">Patients</h1>
         <Button asChild>
           <Link href="/patients/new">New Patient</Link>
         </Button>
@@ -156,21 +157,21 @@ export default function PatientsPage() {
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder="Search by name, patient code, phone, or national ID last 4"
-        className="max-w-md"
+        className="w-full md:max-w-md"
       />
       {error && (
         <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
           {error}
         </div>
       )}
-      <Box sx={{ height: 400, width: "100%" }}>
+      <Box sx={{ height: 400, width: "100%" }} className="overflow-x-auto">
         <DataGrid
           rows={rows}
           columns={columns}
           loading={loading}
           pageSizeOptions={[10, 25]}
           onRowClick={(params) => router.push(`/patients/${params.id}`)}
-          sx={{ cursor: "pointer" }}
+          sx={{ ...dataGridSx, cursor: "pointer" }}
         />
       </Box>
       {!loading && q.trim() && results.length === 0 && (

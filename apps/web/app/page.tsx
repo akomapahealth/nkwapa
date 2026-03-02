@@ -12,13 +12,13 @@ export default function Home() {
 
   useEffect(() => {
     if (clinicId) {
-      router.replace("/queues");
+      router.replace("/dashboard");
     }
   }, [clinicId, router]);
 
   return (
     <div className="flex items-center justify-center min-h-[200px]">
-      <p className="text-muted-foreground">Redirecting to queues…</p>
+      <p className="text-muted-foreground">Redirecting to dashboard…</p>
     </div>
   );
 }

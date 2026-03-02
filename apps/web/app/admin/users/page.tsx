@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Box } from "@mui/material";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import { dataGridSx } from "@/lib/datagrid-theme";
 
 interface UserRow {
   id: string;
@@ -243,7 +244,7 @@ export default function AdminUsersPage() {
   return (
     <RouteGuard requiredPermission="CLINIC.MANAGE">
       <div className="space-y-4">
-        <h1 className="text-2xl font-bold">Staff & Roles</h1>
+        <h1 className="text-2xl font-bold font-heading">Staff & Roles</h1>
         {(users.length === 0 || users.length < 3) && !loading && (
           <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-200">
             Users appear here after they log in to Nkwapa at least once. If you created a user in Keycloak, have them log in first, then refresh this page.
@@ -254,12 +255,13 @@ export default function AdminUsersPage() {
             {error}
           </div>
         )}
-        <Box sx={{ height: 400, width: "100%" }}>
+        <Box sx={{ height: 400, width: "100%" }} className="overflow-x-auto">
           <DataGrid
             rows={users}
             columns={columns}
             loading={loading}
             getRowId={(row) => row.id}
+            sx={dataGridSx}
           />
         </Box>
       </div>

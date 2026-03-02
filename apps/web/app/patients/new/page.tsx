@@ -124,7 +124,7 @@ export default function NewPatientPage() {
           <Link href="/patients">← Back to Patients</Link>
         </Button>
       </div>
-      <h1 className="text-2xl font-bold">New Patient</h1>
+      <h1 className="text-2xl font-bold font-heading">New Patient</h1>
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && !conflictPatient && (
           <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
@@ -181,7 +181,7 @@ export default function NewPatientPage() {
           </DialogContent>
         </Dialog>
         <div className="grid gap-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="firstName">First name *</Label>
               <Input

@@ -101,7 +101,7 @@ export default function ClinicSettingsPage() {
   return (
     <RouteGuard requiredPermission="RESEARCH.SETTINGS.UPDATE">
     <div className="space-y-6 max-w-2xl">
-      <h1 className="text-2xl font-bold">Clinic Settings</h1>
+      <h1 className="text-2xl font-bold font-heading">Clinic Settings</h1>
       {error && (
         <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
           {error}

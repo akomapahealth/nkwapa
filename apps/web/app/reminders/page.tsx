@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { Box } from "@mui/material";
+import { dataGridSx } from "@/lib/datagrid-theme";
 
 interface ReminderRow {
   id: string;
@@ -111,10 +112,10 @@ export default function RemindersPage() {
         <Badge
           variant={
             params.value === "SENT"
-              ? "default"
+              ? "finalized"
               : params.value === "FAILED"
                 ? "destructive"
-                : "secondary"
+                : "draft"
           }
         >
           {String(params.value)}
@@ -149,7 +150,7 @@ export default function RemindersPage() {
   return (
     <RouteGuard requiredPermission="REMINDER.READ">
       <div className="space-y-4">
-        <h1 className="text-2xl font-bold">Reminders</h1>
+        <h1 className="text-2xl font-bold font-heading">Reminders</h1>
         <div className="flex flex-wrap gap-4">
           <div className="space-y-2">
             <Label htmlFor="status">Status</Label>
@@ -199,12 +200,13 @@ export default function RemindersPage() {
             {error}
           </div>
         )}
-        <Box sx={{ height: 500, width: "100%" }}>
+        <Box sx={{ height: 500, width: "100%" }} className="overflow-x-auto">
           <DataGrid
             rows={rows}
             columns={columns}
             loading={loading}
             pageSizeOptions={[25, 50]}
+            sx={dataGridSx}
           />
         </Box>
         {nextCursor && (

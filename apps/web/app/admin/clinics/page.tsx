@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Box } from "@mui/material";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import { dataGridSx } from "@/lib/datagrid-theme";
 
 interface ClinicRow {
   id: string;
@@ -155,7 +156,7 @@ export default function AdminClinicsPage() {
     <RouteGuard requiredPermission="CLINIC.MANAGE">
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Clinics</h1>
+          <h1 className="text-2xl font-bold font-heading">Clinics</h1>
           <Button onClick={() => setCreateOpen(true)}>Create clinic</Button>
         </div>
         {error && (
@@ -163,12 +164,13 @@ export default function AdminClinicsPage() {
             {error}
           </div>
         )}
-        <Box sx={{ height: 400, width: "100%" }}>
+        <Box sx={{ height: 400, width: "100%" }} className="overflow-x-auto">
           <DataGrid
             rows={clinics}
             columns={columns}
             loading={loading}
             getRowId={(row) => row.id}
+            sx={dataGridSx}
           />
         </Box>
       </div>

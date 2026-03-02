@@ -141,7 +141,7 @@ export default function ConsentPage() {
         <Link href={`/patients/${patientId}`}>← Back to Patient</Link>
       </Button>
 
-      <h1 className="text-2xl font-bold">Record Research Consent</h1>
+      <h1 className="text-2xl font-bold font-heading">Record Research Consent</h1>
 
       <div className="rounded-lg border bg-muted/30 p-4 whitespace-pre-wrap text-sm leading-relaxed">
         {CONSENT_TEXT_V1_EN}

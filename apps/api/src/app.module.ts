@@ -12,6 +12,7 @@ import { ConsentModule } from './consents/consent.module';
 import { UserModule } from './users/user.module';
 import { ReminderModule } from './reminders/reminder.module';
 import { AdminModule } from './admin/admin.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
 
@@ -32,6 +33,7 @@ const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
     ConsentModule,
     ReminderModule,
     AdminModule,
+    DashboardModule,
   ],
 })
 export class AppModule {}

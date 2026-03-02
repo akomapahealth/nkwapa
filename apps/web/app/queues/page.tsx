@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { Box } from "@mui/material";
+import { dataGridSx } from "@/lib/datagrid-theme";
 
 interface QueueRow {
   id: string;
@@ -145,7 +146,7 @@ export default function QueuesPage() {
       width: 100,
       renderCell: (params) =>
         params.value ? (
-          <Badge variant="outline">{String(params.value)}</Badge>
+          <Badge variant="warning">{String(params.value)}</Badge>
         ) : null,
     },
     {
@@ -184,7 +185,7 @@ export default function QueuesPage() {
   return (
     <RouteGuard requiredPermission="ENCOUNTER.READ">
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Queues</h1>
+      <h1 className="text-2xl font-bold font-heading">Queues</h1>
       {error && (
         <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
           {error}
@@ -199,7 +200,7 @@ export default function QueuesPage() {
           )}
         </TabsList>
         <TabsContent value="drafts" className="mt-4">
-          <Box sx={{ height: 400, width: "100%" }}>
+          <Box sx={{ height: 400, width: "100%" }} className="overflow-x-auto">
             <DataGrid
               rows={drafts}
               columns={columns}
@@ -207,12 +208,12 @@ export default function QueuesPage() {
               onRowClick={handleRowClick}
               pageSizeOptions={[10, 25]}
               disableRowSelectionOnClick
-              sx={{ cursor: "pointer" }}
+              sx={{ ...dataGridSx, cursor: "pointer" }}
             />
           </Box>
         </TabsContent>
         <TabsContent value="review" className="mt-4">
-          <Box sx={{ height: 400, width: "100%" }}>
+          <Box sx={{ height: 400, width: "100%" }} className="overflow-x-auto">
             <DataGrid
               rows={review}
               columns={columns}
@@ -220,12 +221,12 @@ export default function QueuesPage() {
               onRowClick={handleRowClick}
               pageSizeOptions={[10, 25]}
               disableRowSelectionOnClick
-              sx={{ cursor: "pointer" }}
+              sx={{ ...dataGridSx, cursor: "pointer" }}
             />
           </Box>
         </TabsContent>
         <TabsContent value="finalize" className="mt-4">
-          <Box sx={{ height: 400, width: "100%" }}>
+          <Box sx={{ height: 400, width: "100%" }} className="overflow-x-auto">
             <DataGrid
               rows={finalize}
               columns={columns}
@@ -233,7 +234,7 @@ export default function QueuesPage() {
               onRowClick={handleRowClick}
               pageSizeOptions={[10, 25]}
               disableRowSelectionOnClick
-              sx={{ cursor: "pointer" }}
+              sx={{ ...dataGridSx, cursor: "pointer" }}
             />
           </Box>
         </TabsContent>
