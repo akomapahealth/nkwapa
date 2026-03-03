@@ -198,11 +198,25 @@ export class EncounterService {
         actorUserId,
         requestId,
       });
-    } else {
+    } else if (!patient?.phoneE164 && !patient?.email) {
       await this.reminderService.scheduleFollowUpReminderNoContact({
         clinicId: encounter.clinicId,
         patientId: encounter.patientId,
         patientCode: patient?.patientCode ?? "?",
+        encounterId: encounter.id,
+        followUpDate: carePlan.followUpDate,
+        actorUserId,
+        requestId,
+      });
+    }
+
+    if (patient?.email) {
+      await this.reminderService.scheduleFollowUpEmailReminder({
+        clinicId: encounter.clinicId,
+        clinicName: clinic?.name ?? "Clinic",
+        patientId: encounter.patientId,
+        patientCode: patient.patientCode,
+        email: patient.email,
         encounterId: encounter.id,
         followUpDate: carePlan.followUpDate,
         actorUserId,
