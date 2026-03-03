@@ -1,7 +1,9 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import { ReminderStatus } from "@prisma/client";
 import { InjectQueue } from "@nestjs/bullmq";
 import { Queue } from "bullmq";
+import { readFileSync } from "fs";
+import { join } from "path";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuditService } from "../audit/audit.service";
 
@@ -13,6 +15,18 @@ export interface ScheduleFollowUpParams {
   patientId: string;
   patientCode: string;
   phoneE164: string;
+  encounterId: string;
+  followUpDate: Date;
+  actorUserId: string;
+  requestId?: string;
+}
+
+export interface ScheduleFollowUpEmailParams {
+  clinicId: string;
+  clinicName: string;
+  patientId: string;
+  patientCode: string;
+  email: string;
   encounterId: string;
   followUpDate: Date;
   actorUserId: string;
@@ -79,12 +93,36 @@ function encodeCursor(createdAt: Date, id: string): string {
 
 @Injectable()
 export class ReminderService {
+  private emailTemplate: string | null = null;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
     @Inject("SmsProvider") private readonly smsProvider: { send(to: string, body: string): Promise<{ success: boolean; providerMessageId?: string; error?: string }> },
+    @Optional() @Inject("EmailProvider") private readonly emailProvider: { send(to: string, subject: string, html: string): Promise<{ success: boolean; providerMessageId?: string; error?: string }> } | null,
     @InjectQueue(REMINDER_QUEUE_NAME) private readonly reminderQueue: Queue
   ) {}
+
+  private getEmailTemplate(): string {
+    if (!this.emailTemplate) {
+      try {
+        this.emailTemplate = readFileSync(
+          join(__dirname, "templates", "followup-reminder.html"),
+          "utf-8"
+        );
+      } catch {
+        this.emailTemplate = "<p>Follow-up reminder for {{patientCode}} at {{clinicName}}. Please return on {{followUpDate}}.</p>";
+      }
+    }
+    return this.emailTemplate;
+  }
+
+  private renderEmailTemplate(params: { patientCode: string; clinicName: string; followUpDate: string }): string {
+    return this.getEmailTemplate()
+      .replace(/\{\{patientCode\}\}/g, params.patientCode)
+      .replace(/\{\{clinicName\}\}/g, params.clinicName)
+      .replace(/\{\{followUpDate\}\}/g, params.followUpDate);
+  }
 
   async scheduleFollowUpReminder(params: ScheduleFollowUpParams): Promise<void> {
     const payloadJson = JSON.stringify({
@@ -120,6 +158,47 @@ export class ReminderService {
     });
 
     await this.reminderQueue.add("send", { reminderId: reminder.id });
+  }
+
+  async scheduleFollowUpEmailReminder(params: ScheduleFollowUpEmailParams): Promise<void> {
+    const payloadJson = JSON.stringify({
+      patientCode: params.patientCode,
+      clinicName: params.clinicName,
+      followUpDate: params.followUpDate.toISOString(),
+      patientId: params.patientId,
+      encounterId: params.encounterId,
+    });
+
+    const reminder = await this.prisma.reminder.create({
+      data: {
+        clinicId: params.clinicId,
+        patientId: params.patientId,
+        encounterId: params.encounterId,
+        channel: "EMAIL",
+        toAddress: params.email,
+        templateKey: "FOLLOWUP_REMINDER_V1",
+        payloadJson,
+        scheduledAt: params.followUpDate,
+        status: "QUEUED",
+      },
+    });
+
+    await this.auditService.logWrite({
+      clinicId: params.clinicId,
+      actorUserId: params.actorUserId,
+      action: "REMINDER.CREATE",
+      entityType: "Reminder",
+      entityId: reminder.id,
+      afterJson: JSON.stringify(reminder),
+      requestId: params.requestId,
+    });
+
+    const delayMs = Math.max(0, params.followUpDate.getTime() - Date.now());
+    await this.reminderQueue.add("send", { reminderId: reminder.id }, {
+      delay: delayMs,
+      attempts: 3,
+      backoff: { type: "exponential", delay: 60_000 },
+    });
   }
 
   async scheduleFollowUpReminderNoContact(
@@ -226,10 +305,25 @@ export class ReminderService {
     if (reminder.scheduledAt > new Date()) return;
 
     const payload = JSON.parse(reminder.payloadJson) as Record<string, unknown>;
-    const body = `Follow-up reminder for ${payload.patientCode ?? "patient"}: please return on ${payload.followUpDate ?? "scheduled date"}.`;
 
     try {
-      const result = await this.smsProvider.send(reminder.toAddress, body);
+      let result: { success: boolean; providerMessageId?: string; error?: string };
+
+      if (reminder.channel === "EMAIL" && this.emailProvider) {
+        const html = this.renderEmailTemplate({
+          patientCode: (payload.patientCode as string) ?? "patient",
+          clinicName: (payload.clinicName as string) ?? "Clinic",
+          followUpDate: (payload.followUpDate as string) ?? "scheduled date",
+        });
+        result = await this.emailProvider.send(
+          reminder.toAddress,
+          `Follow-Up Reminder - ${(payload.clinicName as string) ?? "Clinic"}`,
+          html
+        );
+      } else {
+        const body = `Follow-up reminder for ${payload.patientCode ?? "patient"}: please return on ${payload.followUpDate ?? "scheduled date"}.`;
+        result = await this.smsProvider.send(reminder.toAddress, body);
+      }
       if (result.success && result.providerMessageId) {
         await this.prisma.reminder.update({
           where: { id: reminderId },
