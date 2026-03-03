@@ -100,6 +100,21 @@ export interface PatientConsentRecord {
   updatedAt?: string;
 }
 
+export interface PrescriptionRecord {
+  id: string;
+  clinicId: string;
+  encounterId: string;
+  drugId: string;
+  dosage?: string;
+  frequency?: string;
+  duration?: string;
+  quantity?: number;
+  instructions?: string;
+  prescribedByUserId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface OutboxRecord {
   id: string;
   clinicId: string;
@@ -125,6 +140,7 @@ export class NkwapaDb extends Dexie {
   hypertension_assessments!: Table<HypertensionAssessmentRecord, string>;
   care_plans!: Table<CarePlanRecord, string>;
   patient_consents!: Table<PatientConsentRecord, string>;
+  prescriptions!: Table<PrescriptionRecord, string>;
   outbox!: Table<OutboxRecord, string>;
   sync_state!: Table<SyncStateRecord, string>;
 
@@ -140,6 +156,9 @@ export class NkwapaDb extends Dexie {
       patient_consents: 'id, patientId, clinicId, updatedAt',
       outbox: 'id, clinicId, createdAt, idempotencyKey',
       sync_state: 'clinicId',
+    });
+    this.version(2).stores({
+      prescriptions: 'id, clinicId, encounterId, updatedAt',
     });
   }
 }

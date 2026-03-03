@@ -114,6 +114,8 @@ model Clinic {
   diabetesScreening      DiabetesScreening[]
   hypertensionAssessment HypertensionAssessment[]
   carePlans              CarePlan[]
+  drugs                  Drug[]
+  prescriptions          Prescription[]
 
   @@index([countryCode])
   @@index([isActive])
@@ -145,6 +147,7 @@ model User {
   requestedResearchExports      ResearchExport[]         @relation("ResearchExportRequestedBy")
   approvedResearchExports       ResearchExport[]         @relation("ResearchExportApprovedBy")
   auditEvents                   AuditEvent[]             @relation("AuditActor")
+  prescriptions                 Prescription[]           @relation("PrescriptionPrescribedBy")
 
   @@index([isActive])
 }
@@ -261,7 +264,8 @@ model Encounter {
   hypertensionAssessment HypertensionAssessment?
   carePlan               CarePlan?
 
-  reminders Reminder[]
+  reminders     Reminder[]
+  prescriptions Prescription[]
 
   @@index([clinicId, updatedAt])
   @@index([patientId, updatedAt])
@@ -350,6 +354,61 @@ model CarePlan {
   encounter Encounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
   clinic    Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
+  @@index([clinicId, updatedAt])
+}
+
+enum DrugCategory {
+  ANTIHYPERTENSIVE
+  ANTIDIABETIC
+  DIURETIC
+  BETA_BLOCKER
+  OTHER
+}
+
+model Drug {
+  id         String       @id @default(uuid()) @db.Uuid
+  clinicId   String       @db.Uuid
+  name       String       @db.VarChar(200)
+  genericName String?     @db.VarChar(200)
+  category   DrugCategory @default(OTHER)
+  dosageForms String?     @db.Text // JSON text
+  contraindications String? @db.Text
+  isActive   Boolean      @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clinic        Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  prescriptions Prescription[]
+
+  @@index([clinicId, category])
+  @@index([clinicId, isActive])
+  @@index([clinicId, name])
+}
+
+model Prescription {
+  id          String @id @default(uuid()) @db.Uuid
+  encounterId String @db.Uuid
+  clinicId    String @db.Uuid
+  drugId      String @db.Uuid
+
+  dosage      String  @db.VarChar(100)
+  frequency   String  @db.VarChar(100)
+  duration    String? @db.VarChar(100)
+  quantity    Int?
+  instructions String? @db.Text
+
+  prescribedByUserId String @db.Uuid
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  encounter    Encounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+  clinic       Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  drug         Drug      @relation(fields: [drugId], references: [id])
+  prescribedBy User      @relation("PrescriptionPrescribedBy", fields: [prescribedByUserId], references: [id])
+
+  @@index([encounterId])
   @@index([clinicId, updatedAt])
 }
 
