@@ -7,4 +7,5 @@ export interface SyncPullResponseDto {
   hypertensionAssessments: Array<Record<string, unknown>>;
   carePlans: Array<Record<string, unknown>>;
   patientConsents: Array<Record<string, unknown>>;
+  prescriptions: Array<Record<string, unknown>>;
 }
