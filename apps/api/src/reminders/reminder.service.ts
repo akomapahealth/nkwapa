@@ -157,7 +157,12 @@ export class ReminderService {
       requestId: params.requestId,
     });
 
-    await this.reminderQueue.add("send", { reminderId: reminder.id });
+    const delayMs = Math.max(0, params.followUpDate.getTime() - Date.now());
+    await this.reminderQueue.add("send", { reminderId: reminder.id }, {
+      delay: delayMs,
+      attempts: 3,
+      backoff: { type: "exponential", delay: 60_000 },
+    });
   }
 
   async scheduleFollowUpEmailReminder(params: ScheduleFollowUpEmailParams): Promise<void> {
@@ -294,6 +299,38 @@ export class ReminderService {
       })),
       nextCursor,
     };
+  }
+
+  async updateDeliveryStatus(
+    providerMessageId: string,
+    status: "DELIVERED" | "FAILED",
+    errorCode?: string
+  ): Promise<void> {
+    const reminder = await this.prisma.reminder.findFirst({
+      where: { providerMessageId },
+    });
+    if (!reminder) return;
+
+    const before = JSON.stringify(reminder);
+    const data: Record<string, unknown> = { status };
+    if (status === "FAILED" && errorCode) {
+      data.failureReason = `DELIVERY_FAILED:${errorCode}`;
+    }
+
+    const updated = await this.prisma.reminder.update({
+      where: { id: reminder.id },
+      data,
+    });
+
+    await this.auditService.logWrite({
+      clinicId: reminder.clinicId,
+      actorUserId: "system",
+      action: "REMINDER.DELIVERY_UPDATE",
+      entityType: "Reminder",
+      entityId: reminder.id,
+      beforeJson: before,
+      afterJson: JSON.stringify(updated),
+    });
   }
 
   async processReminder(reminderId: string): Promise<void> {
