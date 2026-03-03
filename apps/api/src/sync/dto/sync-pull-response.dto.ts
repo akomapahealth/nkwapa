@@ -6,6 +6,7 @@ import {
   HypertensionAssessment,
   CarePlan,
   PatientConsent,
+  Prescription,
 } from '@prisma/client';
 
 export interface SyncPullResponseDto {
@@ -17,4 +18,5 @@ export interface SyncPullResponseDto {
   hypertensionAssessments: HypertensionAssessment[];
   carePlans: CarePlan[];
   patientConsents: PatientConsent[];
+  prescriptions: Prescription[];
 }

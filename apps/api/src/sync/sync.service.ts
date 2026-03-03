@@ -36,6 +36,7 @@ const ENTITY_TYPES = [
   'hypertension_assessment',
   'care_plan',
   'patient_consent',
+  'prescription',
 ] as const;
 
 export type EntityType = (typeof ENTITY_TYPES)[number];
@@ -162,6 +163,8 @@ export class SyncService {
         return this.applyCarePlanUpsert(clinicId, actorUserId, mut, payload, idempotencyKey, metadata);
       case 'patient_consent':
         return this.applyPatientConsentUpsert(clinicId, actorUserId, mut, payload, idempotencyKey, metadata);
+      case 'prescription':
+        return this.applyPrescriptionUpsert(clinicId, actorUserId, mut, payload, idempotencyKey, metadata);
       default:
         throw new Error(`Unknown entity type: ${mut.entityType}`);
     }
@@ -750,6 +753,76 @@ export class SyncService {
     return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
   }
 
+  private async applyPrescriptionUpsert(
+    clinicId: string,
+    actorUserId: string,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+    idempotencyKey: string,
+    metadata?: RequestMetadata
+  ): Promise<SyncMutationResultDto> {
+    const encounterId = payload.encounterId as string;
+    if (!encounterId) throw new Error('Prescription payload must include encounterId');
+    await this.ensureEncounterNotFinalized(encounterId);
+
+    const drugId = payload.drugId as string;
+    if (!drugId) throw new Error('Prescription payload must include drugId');
+
+    const existing = await this.prisma.prescription.findUnique({
+      where: { id: mut.entityId },
+    });
+    const before = existing ? JSON.stringify(existing) : null;
+
+    const prescription = await this.prisma.prescription.upsert({
+      where: { id: mut.entityId },
+      create: {
+        id: mut.entityId,
+        clinicId,
+        encounterId,
+        drugId,
+        dosage: (payload.dosage as string) ?? '',
+        frequency: (payload.frequency as string) ?? '',
+        duration: (payload.duration as string) ?? null,
+        quantity: (payload.quantity as number) ?? null,
+        instructions: (payload.instructions as string) ?? null,
+        prescribedByUserId: (payload.prescribedByUserId as string) ?? actorUserId,
+      },
+      update: {
+        dosage: (payload.dosage as string) ?? existing?.dosage ?? '',
+        frequency: (payload.frequency as string) ?? existing?.frequency ?? '',
+        duration: (payload.duration as string) ?? existing?.duration ?? null,
+        quantity: (payload.quantity as number) ?? existing?.quantity ?? null,
+        instructions: (payload.instructions as string) ?? existing?.instructions ?? null,
+      },
+    });
+
+    await this.auditService.logWrite({
+      clinicId,
+      actorUserId,
+      action: existing ? 'PRESCRIPTION.UPSERT' : 'PRESCRIPTION.CREATE',
+      entityType: 'Prescription',
+      entityId: prescription.id,
+      beforeJson: before,
+      afterJson: JSON.stringify(prescription),
+      requestId: idempotencyKey,
+      ipAddress: metadata?.ipAddress,
+      userAgent: metadata?.userAgent,
+    });
+
+    await this.prisma.syncMutation.create({
+      data: {
+        clinicId,
+        entityType: 'prescription',
+        entityId: mut.entityId,
+        operation: SyncOperation.UPSERT,
+        idempotencyKey,
+        status: SyncMutationStatus.APPLIED,
+      },
+    });
+
+    return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
+  }
+
   private async applyDelete(
     clinicId: string,
     actorUserId: string,
@@ -765,6 +838,7 @@ export class SyncService {
       'hypertension_assessment',
       'care_plan',
       'patient_consent',
+      'prescription',
     ];
     if (!deletableTypes.includes(entityType)) {
       const msg = `DELETE not supported for entity type: ${entityType}`;
@@ -797,6 +871,8 @@ export class SyncService {
       care_plan: (id) => this.prisma.carePlan.findUnique({ where: { id } }),
       patient_consent: (id) =>
         this.prisma.patientConsent.findUnique({ where: { id } }),
+      prescription: (id) =>
+        this.prisma.prescription.findUnique({ where: { id } }),
     };
     const finder = beforeMap[entityType];
     const beforeRecord = finder ? await finder(mut.entityId) : null;
@@ -811,6 +887,8 @@ export class SyncService {
       care_plan: () => this.prisma.carePlan.deleteMany({ where: { id: mut.entityId } }),
       patient_consent: () =>
         this.prisma.patientConsent.deleteMany({ where: { id: mut.entityId } }),
+      prescription: () =>
+        this.prisma.prescription.deleteMany({ where: { id: mut.entityId } }),
     };
     await deleteMap[entityType]!();
 
@@ -820,6 +898,7 @@ export class SyncService {
       hypertension_assessment: 'HYPERTENSION_ASSESSMENT.DELETE',
       care_plan: 'CARE_PLAN.DELETE',
       patient_consent: 'PATIENT_CONSENT.DELETE',
+      prescription: 'PRESCRIPTION.DELETE',
     };
     await this.auditService.logWrite({
       clinicId,
@@ -863,7 +942,7 @@ export class SyncService {
     const where = { clinicId };
     const updatedAtFilter = sinceDate ? { updatedAt: { gt: sinceDate } } : {};
 
-    const [patients, encounters, vitals, diabetesScreenings, hypertensionAssessments, carePlans, patientConsents] =
+    const [patients, encounters, vitals, diabetesScreenings, hypertensionAssessments, carePlans, patientConsents, prescriptions] =
       await Promise.all([
         this.prisma.patient.findMany({
           where: {
@@ -889,6 +968,9 @@ export class SyncService {
         this.prisma.patientConsent.findMany({
           where: { ...where, ...updatedAtFilter },
         }),
+        this.prisma.prescription.findMany({
+          where: { ...where, ...updatedAtFilter },
+        }),
       ]);
 
     const allRows = [
@@ -899,6 +981,7 @@ export class SyncService {
       ...hypertensionAssessments.map((h) => ({ updatedAt: h.updatedAt, id: h.id })),
       ...carePlans.map((c) => ({ updatedAt: c.updatedAt, id: c.id })),
       ...patientConsents.map((pc) => ({ updatedAt: pc.updatedAt, id: pc.id })),
+      ...prescriptions.map((p) => ({ updatedAt: p.updatedAt, id: p.id })),
     ];
     const maxRow = allRows.reduce(
       (acc, r) =>
@@ -922,6 +1005,7 @@ export class SyncService {
       hypertensionAssessments,
       carePlans,
       patientConsents,
+      prescriptions,
     };
   }
 }

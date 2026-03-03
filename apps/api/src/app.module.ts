@@ -13,6 +13,8 @@ import { UserModule } from './users/user.module';
 import { ReminderModule } from './reminders/reminder.module';
 import { AdminModule } from './admin/admin.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { DrugModule } from './drugs/drug.module';
+import { PrescriptionModule } from './prescriptions/prescription.module';
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
 
@@ -34,6 +36,8 @@ const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
     ReminderModule,
     AdminModule,
     DashboardModule,
+    DrugModule,
+    PrescriptionModule,
   ],
 })
 export class AppModule {}

@@ -146,6 +146,11 @@ export async function syncNow(
     for (const pc of pull.patientConsents) {
       await db.patient_consents.put(toRecord(pc) as unknown as Parameters<typeof db.patient_consents.put>[0]);
     }
+    if (pull.prescriptions) {
+      for (const rx of pull.prescriptions) {
+        await db.prescriptions.put(toRecord(rx) as unknown as Parameters<typeof db.prescriptions.put>[0]);
+      }
+    }
 
     await db.sync_state.put({
       clinicId,

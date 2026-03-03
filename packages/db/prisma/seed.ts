@@ -7,6 +7,7 @@ import {
   hasEncryptionKey,
   generatePatientCode,
 } from "../index";
+import { seedDrugs } from "./seed-drugs";
 
 const prisma = new PrismaClient();
 
@@ -74,6 +75,9 @@ async function main() {
         requiresDirectorApprovalEachExport: true,
       },
     });
+
+    // Seed drug catalog for the clinic
+    await seedDrugs(prisma, clinic.id);
 
     console.log("Seeded clinic + system admin user + roles + clinic research settings.");
 
