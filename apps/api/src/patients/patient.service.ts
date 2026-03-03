@@ -12,6 +12,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { AuditService } from "../audit/audit.service";
 import { PatientRepository, PatientFindManyFilters } from "./patient.repository";
 import { CreatePatientDto } from "./dto/create-patient.dto";
+import { UpdatePatientBodyDto } from "./dto/update-patient-body.dto";
 
 export interface AuditContext {
   clinicId: string;
@@ -167,6 +168,44 @@ export class PatientService {
     const hash = hashNationalId(plaintext);
     const existing = await this.patientRepository.findByNationalIdHash(hash);
     return existing !== null;
+  }
+
+  async update(
+    id: string,
+    dto: UpdatePatientBodyDto,
+    auditContext?: AuditContext
+  ): Promise<Patient> {
+    const existing = await this.patientRepository.findById(id);
+    if (!existing) throw new Error("Patient not found");
+
+    const data: Record<string, unknown> = {};
+    if (dto.firstName !== undefined) data.firstName = dto.firstName;
+    if (dto.lastName !== undefined) data.lastName = dto.lastName;
+    if (dto.dob !== undefined) data.dob = new Date(dto.dob);
+    if (dto.sex !== undefined) data.sex = dto.sex;
+    if (dto.email !== undefined) data.email = dto.email;
+    if (dto.phoneE164 !== undefined) {
+      data.phoneE164 = dto.phoneE164
+        ? normalizePhoneToE164(dto.phoneE164, "GH") ?? dto.phoneE164
+        : null;
+    }
+
+    const updated = await this.patientRepository.update(id, data);
+
+    if (auditContext) {
+      await this.auditService.logWrite({
+        clinicId: auditContext.clinicId,
+        actorUserId: auditContext.actorUserId,
+        action: "PATIENT.UPDATE",
+        entityType: "Patient",
+        entityId: id,
+        beforeJson: JSON.stringify(existing),
+        afterJson: JSON.stringify(updated),
+        requestId: auditContext.requestId,
+      });
+    }
+
+    return updated;
   }
 
   async findMany(filters: PatientFindManyFilters): Promise<Patient[]> {

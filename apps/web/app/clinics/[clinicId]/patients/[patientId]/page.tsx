@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { ArrowLeft, Stethoscope, FileCheck } from "lucide-react";
+import { ArrowLeft, Stethoscope, FileCheck, Pencil } from "lucide-react";
 
 function generateId(): string {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -63,6 +63,7 @@ export default function PatientDetailPage() {
   const userId = bootstrap?.userId ?? "";
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
   const canRecordConsent = perms.includes("*") || perms.includes("CONSENT.RECORD");
+  const canUpdatePatient = perms.includes("*") || perms.includes("PATIENT.UPDATE");
 
   const [data, setData] = useState<PatientWithEncounters | null>(null);
   const [loading, setLoading] = useState(true);
@@ -317,10 +318,20 @@ export default function PatientDetailPage() {
             Back to Patient Search
           </Link>
         </Button>
-        <Button onClick={handleCheckIn} disabled={loading}>
-          <Stethoscope className="mr-2 h-4 w-4" />
-          Start Check-in
-        </Button>
+        <div className="flex gap-2">
+          {canUpdatePatient && (
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/clinics/${clinicId}/patients/${patientId}/edit`}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit
+              </Link>
+            </Button>
+          )}
+          <Button onClick={handleCheckIn} disabled={loading}>
+            <Stethoscope className="mr-2 h-4 w-4" />
+            Start Check-in
+          </Button>
+        </div>
       </div>
 
       {error && (

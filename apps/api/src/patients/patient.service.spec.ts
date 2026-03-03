@@ -131,3 +131,121 @@ describe("PatientService - national_id dedup conflict", () => {
     }
   });
 });
+
+describe("PatientService - update", () => {
+  let service: PatientService;
+  let mockAuditLogWrite: jest.Mock;
+  let mockRepoUpdate: jest.Mock;
+  let mockRepoFindById: jest.Mock;
+
+  const updatedPatient: Patient = {
+    ...mockPatient,
+    firstName: "Jane",
+    phoneE164: "+233241234567",
+  };
+
+  beforeEach(async () => {
+    mockAuditLogWrite = jest.fn().mockResolvedValue(undefined);
+    mockRepoUpdate = jest.fn().mockResolvedValue(updatedPatient);
+    mockRepoFindById = jest.fn().mockResolvedValue(mockPatient);
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        PatientService,
+        {
+          provide: PatientRepository,
+          useValue: {
+            findByNationalIdHash: jest.fn(),
+            findById: mockRepoFindById,
+            update: mockRepoUpdate,
+            create: jest.fn(),
+            findMany: jest.fn(),
+          },
+        },
+        {
+          provide: PrismaService,
+          useValue: {
+            patient: { create: jest.fn() },
+            patientCodeSequence: {
+              upsert: jest.fn().mockResolvedValue({ year: 2025, lastNumber: 1 }),
+            },
+            $transaction: jest.fn((cb) => cb({
+              patientCodeSequence: {
+                upsert: jest.fn().mockResolvedValue({ year: 2025, lastNumber: 1 }),
+              },
+              patient: { create: jest.fn().mockResolvedValue(mockPatient) },
+            })),
+          },
+        },
+        {
+          provide: AuditService,
+          useValue: { logWrite: mockAuditLogWrite },
+        },
+        {
+          provide: EncounterService,
+          useValue: { listByPatient: jest.fn().mockResolvedValue([]) },
+        },
+        {
+          provide: ConsentService,
+          useValue: { getConsentStatusForClinic: jest.fn().mockResolvedValue([]) },
+        },
+      ],
+    }).compile();
+
+    service = module.get(PatientService);
+  });
+
+  it("updates patient and logs audit event", async () => {
+    const result = await service.update(
+      "patient-1",
+      { firstName: "Jane" },
+      { clinicId: "clinic-1", actorUserId: "user-1", requestId: "req-1" }
+    );
+
+    expect(result).toEqual(updatedPatient);
+    expect(mockRepoUpdate).toHaveBeenCalledWith("patient-1", { firstName: "Jane" });
+    expect(mockAuditLogWrite).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "PATIENT.UPDATE",
+        entityType: "Patient",
+        entityId: "patient-1",
+        beforeJson: JSON.stringify(mockPatient),
+        afterJson: JSON.stringify(updatedPatient),
+      })
+    );
+  });
+
+  it("normalizes phone number on update", async () => {
+    await service.update(
+      "patient-1",
+      { phoneE164: "0241234567" },
+      { clinicId: "clinic-1", actorUserId: "user-1" }
+    );
+
+    expect(mockRepoUpdate).toHaveBeenCalledWith(
+      "patient-1",
+      expect.objectContaining({ phoneE164: "+233241234567" })
+    );
+  });
+
+  it("throws when patient not found", async () => {
+    mockRepoFindById.mockResolvedValue(null);
+
+    await expect(
+      service.update("nonexistent", { firstName: "Test" })
+    ).rejects.toThrow("Patient not found");
+  });
+
+  it("does not include nationalId fields in update", async () => {
+    await service.update(
+      "patient-1",
+      { firstName: "Updated" },
+      { clinicId: "clinic-1", actorUserId: "user-1" }
+    );
+
+    const updateCall = mockRepoUpdate.mock.calls[0][1];
+    expect(updateCall).not.toHaveProperty("nationalIdCiphertext");
+    expect(updateCall).not.toHaveProperty("nationalIdHash");
+    expect(updateCall).not.toHaveProperty("nationalIdLast4");
+  });
+});

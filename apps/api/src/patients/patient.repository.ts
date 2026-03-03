@@ -37,6 +37,10 @@ export class PatientRepository {
     });
   }
 
+  async update(id: string, data: Prisma.PatientUpdateInput): Promise<Patient> {
+    return this.prisma.patient.update({ where: { id }, data });
+  }
+
   async findMany(filters: PatientFindManyFilters): Promise<Patient[]> {
     const where: Prisma.PatientWhereInput = {};
     if (filters.primaryClinicId) {
