@@ -466,6 +466,11 @@ model ResearchExport {
   datasetVersion        Int                  @default(1)
   policyVersionSnapshot String               @db.VarChar(64)
 
+  rejectionReason String? @db.Text
+  filePath        String? @db.VarChar(500)
+  fileFormat      String? @db.VarChar(10) // "csv" or "json"
+  recordCount     Int?
+
   requestedAt DateTime  @default(now())
   approvedAt  DateTime?
   completedAt DateTime?

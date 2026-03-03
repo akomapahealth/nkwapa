@@ -15,6 +15,7 @@ import { AdminModule } from './admin/admin.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { DrugModule } from './drugs/drug.module';
 import { PrescriptionModule } from './prescriptions/prescription.module';
+import { ResearchModule } from './research/research.module';
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
 
@@ -38,6 +39,7 @@ const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
     DashboardModule,
     DrugModule,
     PrescriptionModule,
+    ResearchModule,
   ],
 })
 export class AppModule {}
