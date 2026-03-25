@@ -39,3 +39,18 @@ Thumbs.db
 
 # Prisma
 *.tsbuildinfo
+
+.cursor/
+.cursorrules
+.cursorignore
+
+# Local research export artifacts
+data/
+
+# AI / agent memory (local only)
+memory/
+memory.md
+
+# Stale lockfiles (repo uses npm workspaces + package-lock.json)
+pnpm-lock.yaml
+apps/web/pnpm-lock.yaml
