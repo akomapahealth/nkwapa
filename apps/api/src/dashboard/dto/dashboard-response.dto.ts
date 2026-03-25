@@ -42,12 +42,15 @@ export interface DoctorMetrics {
   hypertensionDistribution: Record<string, number>;
   diabetesStats: { flagged: number; total: number };
   recentEncounters: EncounterSummary[];
+  finalizationsTrend: TrendPoint[];
 }
 
 export interface PreceptorMetrics {
   awaitingReview: number;
   reviewsCompleted: { today: number; week: number };
   recentReviews: EncounterSummary[];
+  reviewsTrend: TrendPoint[];
+  bpDistribution: Record<string, number>;
 }
 
 export interface DirectorMetrics {
@@ -57,12 +60,18 @@ export interface DirectorMetrics {
   bpDistribution: Record<string, number>;
   followUpComplianceRate: number;
   staffActivity: StaffActivityRow[];
+  encounterStatusDistribution: Record<string, number>;
 }
 
 export interface VolunteerMetrics {
   patientsRegisteredToday: number;
   encountersCreatedToday: number;
   pendingSubmissions: number;
+  patientsRegisteredTrend: TrendPoint[];
+  encountersCreatedTrend: TrendPoint[];
+  statusBreakdown: Record<string, number>;
+  bpDistribution: Record<string, number>;
+  diabetesStats: { flagged: number; total: number };
 }
 
 export interface SystemAdminMetrics {
@@ -71,6 +80,7 @@ export interface SystemAdminMetrics {
   systemWidePatients: number;
   systemWideEncounters: number;
   clinicComparison: ClinicComparisonRow[];
+  systemEncountersTrend: TrendPoint[];
 }
 
 export interface DashboardResponse {

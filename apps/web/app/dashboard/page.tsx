@@ -4,13 +4,17 @@ import { useCallback, useEffect, useState } from "react";
 import { useBootstrap } from "@/lib/bootstrap-context";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch } from "@/lib/api";
+import { AppPageHeader } from "@/components/app-shell/AppPageHeader";
 import { RouteGuard } from "@/components/RouteGuard";
+import { DashboardSectionHeader } from "@/components/dashboard/DashboardSectionHeader";
 import { SummaryCards } from "@/components/dashboard/SummaryCards";
 import { DoctorDashboard } from "@/components/dashboard/DoctorDashboard";
 import { PreceptorDashboard } from "@/components/dashboard/PreceptorDashboard";
 import { DirectorDashboard } from "@/components/dashboard/DirectorDashboard";
 import { VolunteerDashboard } from "@/components/dashboard/VolunteerDashboard";
 import { SystemAdminDashboard } from "@/components/dashboard/SystemAdminDashboard";
+import { Badge } from "@/components/ui/badge";
+import { EmptyStateCard, InlineNotice } from "@/components/ops/OpsShared";
 
 interface DashboardData {
   summary: {
@@ -33,10 +37,13 @@ interface DashboardData {
       status: string;
       createdAt: string;
     }[];
+    finalizationsTrend: { date: string; count: number }[];
   };
   preceptor?: {
     awaitingReview: number;
     reviewsCompleted: { today: number; week: number };
+    reviewsTrend: { date: string; count: number }[];
+    bpDistribution: Record<string, number>;
     recentReviews: {
       id: string;
       patientCode: string;
@@ -51,24 +58,31 @@ interface DashboardData {
     screeningRates: { hypertension: number; diabetes: number };
     bpDistribution: Record<string, number>;
     followUpComplianceRate: number;
-    staffActivity: {
+      staffActivity: {
       userId: string;
       displayName: string;
       role: string;
       encountersCreated: number;
       encountersFinalized: number;
     }[];
+    encounterStatusDistribution: Record<string, number>;
   };
   volunteer?: {
     patientsRegisteredToday: number;
     encountersCreatedToday: number;
     pendingSubmissions: number;
+    patientsRegisteredTrend: { date: string; count: number }[];
+    encountersCreatedTrend: { date: string; count: number }[];
+    statusBreakdown: Record<string, number>;
+    bpDistribution: Record<string, number>;
+    diabetesStats: { flagged: number; total: number };
   };
   systemAdmin?: {
     totalClinics: number;
     totalUsers: number;
     systemWidePatients: number;
     systemWideEncounters: number;
+    systemEncountersTrend: { date: string; count: number }[];
     clinicComparison: {
       clinicId: string;
       clinicName: string;
@@ -85,13 +99,19 @@ export default function DashboardPage() {
   const getToken = useAuth();
   const clinicId =
     bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId;
+  const activeMembership =
+    bootstrap?.memberships.find((membership) => membership.clinicId === clinicId) ?? null;
 
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchDashboard = useCallback(async () => {
-    if (!clinicId || !getToken) return;
+    if (!clinicId || !getToken) {
+      setLoading(false);
+      setData(null);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -118,9 +138,25 @@ export default function DashboardPage() {
   return (
     <RouteGuard requiredPermission="DASHBOARD.READ">
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold tracking-tight font-heading">Dashboard</h1>
-        </div>
+        <AppPageHeader
+          eyebrow="Clinic intelligence"
+          title={activeMembership?.clinicName ?? "Dashboard"}
+          description="A role-aware snapshot of clinic flow, patient activity, and operational priorities for the currently selected workspace."
+          badges={
+            activeMembership ? (
+              <Badge variant="secondary" className="rounded-full px-3 py-1">
+                {activeMembership.clinicName}
+              </Badge>
+            ) : null
+          }
+        />
+
+        {!clinicId ? (
+          <EmptyStateCard
+            title="Select an active clinic"
+            description="Choose a clinic in the header to load the role-aware dashboard and operational metrics."
+          />
+        ) : null}
 
         {loading && (
           <div className="flex items-center justify-center p-12">
@@ -136,13 +172,17 @@ export default function DashboardPage() {
         )}
 
         {error && (
-          <div className="rounded-md border border-destructive p-4 text-destructive">
+          <InlineNotice tone="error">
             {error}
-          </div>
+          </InlineNotice>
         )}
 
-        {data && !loading && (
+        {data && !loading && clinicId && (
           <>
+            <DashboardSectionHeader
+              title="Clinic overview"
+              subtitle="Pipeline and queue status"
+            />
             <SummaryCards
               totalPatients={data.summary.totalPatients}
               encountersToday={data.summary.encountersToday}
@@ -151,7 +191,8 @@ export default function DashboardPage() {
               readyToFinalize={data.summary.readyToFinalize}
             />
 
-            {data.doctor && <DoctorDashboard {...data.doctor} />}
+            <div className="border-t border-border pt-6">
+              {data.doctor && <DoctorDashboard {...data.doctor} />}
 
             {data.preceptor && <PreceptorDashboard {...data.preceptor} />}
 
@@ -162,6 +203,7 @@ export default function DashboardPage() {
             {data.systemAdmin && (
               <SystemAdminDashboard {...data.systemAdmin} />
             )}
+            </div>
           </>
         )}
       </div>

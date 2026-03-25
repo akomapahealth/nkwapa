@@ -28,9 +28,9 @@ export function TrendChart({
   color = "hsl(var(--chart-1))",
 }: TrendChartProps) {
   return (
-    <Card>
+    <Card className="overflow-hidden border-border/80 bg-card/95">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <CardTitle className="text-base font-semibold">{title}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-[250px]">
@@ -59,8 +59,9 @@ export function TrendChart({
                 type="monotone"
                 dataKey="count"
                 stroke={color}
-                strokeWidth={2}
-                dot={false}
+                strokeWidth={2.5}
+                dot={{ r: 2.5 }}
+                activeDot={{ r: 5 }}
               />
             </LineChart>
           </ResponsiveContainer>

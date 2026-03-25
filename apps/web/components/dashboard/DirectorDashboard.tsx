@@ -6,6 +6,7 @@ import { DistributionChart } from "./DistributionChart";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { Box } from "@mui/material";
 import { dataGridSx } from "@/lib/datagrid-theme";
+import { DashboardSectionHeader } from "./DashboardSectionHeader";
 
 interface StaffActivityRow {
   userId: string;
@@ -22,6 +23,7 @@ interface DirectorDashboardProps {
   bpDistribution: Record<string, number>;
   followUpComplianceRate: number;
   staffActivity: StaffActivityRow[];
+  encounterStatusDistribution: Record<string, number>;
 }
 
 const staffColumns: GridColDef[] = [
@@ -48,40 +50,51 @@ export function DirectorDashboard({
   bpDistribution,
   followUpComplianceRate,
   staffActivity,
+  encounterStatusDistribution,
 }: DirectorDashboardProps) {
   return (
-    <div className="space-y-4">
+    <section className="space-y-6">
+      <DashboardSectionHeader
+        title="Clinic overview"
+        subtitle="Population health and operational metrics"
+      />
+
       <div className="grid gap-4 md:grid-cols-2">
         <TrendChart
-          title="Patient Registrations (30 days)"
+          title="Patient registrations (30 days)"
           data={patientRegistrationTrend}
           color="hsl(var(--chart-1))"
         />
         <TrendChart
-          title="Encounter Volume (30 days)"
+          title="Encounter volume (30 days)"
           data={encounterVolumeTrend}
           color="hsl(var(--chart-2))"
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
         <DistributionChart
-          title="BP Classification"
+          title="Queue status"
+          data={encounterStatusDistribution}
+          type="bar"
+        />
+        <DistributionChart
+          title="BP classification"
           data={bpDistribution}
           type="bar"
         />
         <DistributionChart
-          title="Screening Coverage"
+          title="Screening coverage"
           data={{
             Hypertension: screeningRates.hypertension,
             Diabetes: screeningRates.diabetes,
           }}
           type="bar"
         />
-        <Card>
+        <Card className="lg:col-span-1">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">
-              Follow-up Compliance
+              Follow-up compliance
             </CardTitle>
           </CardHeader>
           <CardContent className="flex items-center justify-center pt-4">
@@ -89,7 +102,7 @@ export function DirectorDashboard({
               <div className="text-4xl font-bold text-primary">
                 {followUpComplianceRate}%
               </div>
-              <p className="text-sm text-muted-foreground mt-1">
+              <p className="mt-1 text-sm text-muted-foreground">
                 Patients with scheduled follow-up
               </p>
             </div>
@@ -100,7 +113,7 @@ export function DirectorDashboard({
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">
-            Staff Activity Summary
+            Staff activity summary
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -119,6 +132,6 @@ export function DirectorDashboard({
           </Box>
         </CardContent>
       </Card>
-    </div>
+    </section>
   );
 }

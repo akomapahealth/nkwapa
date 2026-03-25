@@ -46,9 +46,9 @@ export function DistributionChart({
   }));
 
   return (
-    <Card>
+    <Card className="overflow-hidden border-border/80 bg-card/95">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <CardTitle className="text-base font-semibold">{title}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-[250px]">

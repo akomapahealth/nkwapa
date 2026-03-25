@@ -162,6 +162,23 @@ export class DashboardService {
       createdAt: e.createdAt.toISOString(),
     }));
 
+    const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+    const finalizationsByDay = await this.prisma.encounter.groupBy({
+      by: ['updatedAt'],
+      where: {
+        clinicId,
+        doctorFinalizedById: userId,
+        status: 'FINALIZED',
+        updatedAt: { gte: fourteenDaysAgo },
+      },
+      _count: true,
+    });
+    const finalizationsTrend = aggregateByDay(
+      finalizationsByDay.map((r) => ({ date: r.updatedAt, count: r._count })),
+      fourteenDaysAgo,
+      now,
+    );
+
     return {
       awaitingFinalization,
       patientsSeen: { today: seenToday, week: seenWeek, month: seenMonth },
@@ -169,6 +186,7 @@ export class DashboardService {
       hypertensionDistribution,
       diabetesStats: { flagged: diabetesScreenings, total: totalScreenings },
       recentEncounters,
+      finalizationsTrend,
     };
   }
 
@@ -176,8 +194,16 @@ export class DashboardService {
     const now = new Date();
     const todayStart = startOfDay(now);
     const weekStart = startOfWeek(now);
+    const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
-    const [awaitingReview, reviewsToday, reviewsWeek, recentRaw] = await Promise.all([
+    const [
+      awaitingReview,
+      reviewsToday,
+      reviewsWeek,
+      recentRaw,
+      reviewsByDay,
+      htDistribution,
+    ] = await Promise.all([
       this.prisma.encounter.count({
         where: { clinicId, status: 'IN_REVIEW', preceptorReviewedById: null },
       }),
@@ -193,6 +219,22 @@ export class DashboardService {
         take: 10,
         include: { patient: { select: { patientCode: true, firstName: true, lastName: true } } },
       }),
+      this.prisma.encounter.findMany({
+        where: {
+          clinicId,
+          preceptorReviewedById: userId,
+          updatedAt: { gte: fourteenDaysAgo },
+        },
+        select: { updatedAt: true },
+      }),
+      this.prisma.hypertensionAssessment.groupBy({
+        by: ['classification'],
+        where: {
+          clinicId,
+          encounter: { preceptorReviewedById: userId },
+        },
+        _count: true,
+      }),
     ]);
 
     const recentReviews: EncounterSummary[] = recentRaw.map((e) => ({
@@ -203,10 +245,23 @@ export class DashboardService {
       createdAt: e.createdAt.toISOString(),
     }));
 
+    const reviewsTrend = aggregateByDay(
+      reviewsByDay.map((r) => ({ date: r.updatedAt, count: 1 })),
+      fourteenDaysAgo,
+      now,
+    );
+
+    const bpDistribution: Record<string, number> = {};
+    for (const row of htDistribution) {
+      bpDistribution[row.classification] = row._count;
+    }
+
     return {
       awaitingReview,
       reviewsCompleted: { today: reviewsToday, week: reviewsWeek },
       recentReviews,
+      reviewsTrend,
+      bpDistribution,
     };
   }
 
@@ -278,6 +333,16 @@ export class DashboardService {
     const followUpComplianceRate =
       carePlansTotal > 0 ? Math.round((carePlansWithFollowUp / carePlansTotal) * 100) : 0;
 
+    const encounterStatusCounts = await this.prisma.encounter.groupBy({
+      by: ['status'],
+      where: { clinicId },
+      _count: true,
+    });
+    const encounterStatusDistribution: Record<string, number> = {};
+    for (const row of encounterStatusCounts) {
+      encounterStatusDistribution[row.status] = row._count;
+    }
+
     // Get staff activity
     const userIds = [...new Set(staffRaw.map((r) => r.userId))];
     const staffActivity: StaffActivityRow[] = [];
@@ -304,30 +369,114 @@ export class DashboardService {
       bpDistribution,
       followUpComplianceRate,
       staffActivity,
+      encounterStatusDistribution,
     };
   }
 
   private async getVolunteerMetrics(clinicId: string, userId: string): Promise<VolunteerMetrics> {
-    const todayStart = startOfDay(new Date());
+    const now = new Date();
+    const todayStart = startOfDay(now);
+    const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
-    const [patientsRegisteredToday, encountersCreatedToday, pendingSubmissions] =
-      await Promise.all([
-        this.prisma.patient.count({
-          where: { primaryClinicId: clinicId, createdByUserId: userId, createdAt: { gte: todayStart } },
-        }),
-        this.prisma.encounter.count({
-          where: { clinicId, createdByUserId: userId, createdAt: { gte: todayStart } },
-        }),
-        this.prisma.encounter.count({
-          where: { clinicId, createdByUserId: userId, status: 'DRAFT' },
-        }),
-      ]);
+    const [
+      patientsRegisteredToday,
+      encountersCreatedToday,
+      pendingSubmissions,
+      patientsByDay,
+      encountersByDay,
+      statusCounts,
+      htDistribution,
+      diabetesFlagged,
+      diabetesTotal,
+    ] = await Promise.all([
+      this.prisma.patient.count({
+        where: { primaryClinicId: clinicId, createdByUserId: userId, createdAt: { gte: todayStart } },
+      }),
+      this.prisma.encounter.count({
+        where: { clinicId, createdByUserId: userId, createdAt: { gte: todayStart } },
+      }),
+      this.prisma.encounter.count({
+        where: { clinicId, createdByUserId: userId, status: 'DRAFT' },
+      }),
+      this.prisma.patient.groupBy({
+        by: ['createdAt'],
+        where: {
+          primaryClinicId: clinicId,
+          createdByUserId: userId,
+          createdAt: { gte: fourteenDaysAgo },
+        },
+        _count: true,
+      }),
+      this.prisma.encounter.groupBy({
+        by: ['createdAt'],
+        where: {
+          clinicId,
+          createdByUserId: userId,
+          createdAt: { gte: fourteenDaysAgo },
+        },
+        _count: true,
+      }),
+      this.prisma.encounter.groupBy({
+        by: ['status'],
+        where: { clinicId, createdByUserId: userId },
+        _count: true,
+      }),
+      this.prisma.hypertensionAssessment.groupBy({
+        by: ['classification'],
+        where: { clinicId, encounter: { createdByUserId: userId } },
+        _count: true,
+      }),
+      this.prisma.diabetesScreening.count({
+        where: {
+          clinicId,
+          encounter: { createdByUserId: userId },
+          OR: [
+            { glucoseType: 'FASTING', glucoseMgDl: { gte: 126 } },
+            { glucoseType: 'RANDOM', glucoseMgDl: { gte: 200 } },
+          ],
+        },
+      }),
+      this.prisma.diabetesScreening.count({
+        where: { clinicId, encounter: { createdByUserId: userId } },
+      }),
+    ]);
 
-    return { patientsRegisteredToday, encountersCreatedToday, pendingSubmissions };
+    const patientsRegisteredTrend = aggregateByDay(
+      patientsByDay.map((r) => ({ date: r.createdAt, count: r._count })),
+      fourteenDaysAgo,
+      now,
+    );
+    const encountersCreatedTrend = aggregateByDay(
+      encountersByDay.map((r) => ({ date: r.createdAt, count: r._count })),
+      fourteenDaysAgo,
+      now,
+    );
+    const statusBreakdown: Record<string, number> = {};
+    for (const row of statusCounts) {
+      statusBreakdown[row.status] = row._count;
+    }
+    const bpDistribution: Record<string, number> = {};
+    for (const row of htDistribution) {
+      bpDistribution[row.classification] = row._count;
+    }
+
+    return {
+      patientsRegisteredToday,
+      encountersCreatedToday,
+      pendingSubmissions,
+      patientsRegisteredTrend,
+      encountersCreatedTrend,
+      statusBreakdown,
+      bpDistribution,
+      diabetesStats: { flagged: diabetesFlagged, total: diabetesTotal },
+    };
   }
 
   private async getSystemAdminMetrics(): Promise<SystemAdminMetrics> {
-    const [totalClinics, totalUsers, systemWidePatients, systemWideEncounters, clinics] =
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const [totalClinics, totalUsers, systemWidePatients, systemWideEncounters, clinics, encountersByDay] =
       await Promise.all([
         this.prisma.clinic.count({ where: { isActive: true } }),
         this.prisma.user.count({ where: { isActive: true } }),
@@ -337,7 +486,18 @@ export class DashboardService {
           where: { isActive: true },
           select: { id: true, name: true },
         }),
+        this.prisma.encounter.groupBy({
+          by: ['createdAt'],
+          where: { createdAt: { gte: thirtyDaysAgo } },
+          _count: true,
+        }),
       ]);
+
+    const systemEncountersTrend = aggregateByDay(
+      encountersByDay.map((r) => ({ date: r.createdAt, count: r._count })),
+      thirtyDaysAgo,
+      now,
+    );
 
     const clinicComparison: ClinicComparisonRow[] = [];
     for (const clinic of clinics) {
@@ -355,7 +515,14 @@ export class DashboardService {
       });
     }
 
-    return { totalClinics, totalUsers, systemWidePatients, systemWideEncounters, clinicComparison };
+    return {
+      totalClinics,
+      totalUsers,
+      systemWidePatients,
+      systemWideEncounters,
+      clinicComparison,
+      systemEncountersTrend,
+    };
   }
 }
 

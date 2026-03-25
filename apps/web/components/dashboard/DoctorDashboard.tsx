@@ -5,6 +5,11 @@ import { DistributionChart } from "./DistributionChart";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { Box } from "@mui/material";
 import { dataGridSx } from "@/lib/datagrid-theme";
+import { ClipboardList, Stethoscope } from "lucide-react";
+import { DashboardSectionHeader } from "./DashboardSectionHeader";
+import { DashboardKpiCard } from "./DashboardKpiCard";
+import { DashboardActionRow } from "./DashboardActionRow";
+import { TrendChart } from "./TrendChart";
 
 interface DoctorDashboardProps {
   awaitingFinalization: number;
@@ -12,6 +17,7 @@ interface DoctorDashboardProps {
   followUpComplianceRate: number;
   hypertensionDistribution: Record<string, number>;
   diabetesStats: { flagged: number; total: number };
+  finalizationsTrend: { date: string; count: number }[];
   recentEncounters: {
     id: string;
     patientCode: string;
@@ -40,19 +46,31 @@ export function DoctorDashboard({
   followUpComplianceRate,
   hypertensionDistribution,
   diabetesStats,
+  finalizationsTrend,
   recentEncounters,
 }: DoctorDashboardProps) {
   return (
-    <div className="space-y-4">
+    <section className="space-y-6">
+      <DashboardSectionHeader
+        title="Finalization queue"
+        subtitle="Encounters ready for your sign-off"
+      />
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Awaiting Finalization" value={awaitingFinalization} />
-        <StatCard title="Seen Today" value={patientsSeen.today} />
-        <StatCard title="Seen This Week" value={patientsSeen.week} />
-        <StatCard
+        <DashboardKpiCard title="Awaiting Finalization" value={awaitingFinalization} />
+        <DashboardKpiCard title="Seen Today" value={patientsSeen.today} icon={Stethoscope} />
+        <DashboardKpiCard title="Seen This Week" value={patientsSeen.week} />
+        <DashboardKpiCard
           title="Follow-up Compliance"
           value={`${followUpComplianceRate}%`}
         />
       </div>
+
+      <TrendChart
+        title="Finalizations (14 days)"
+        data={finalizationsTrend}
+        color="hsl(var(--chart-1))"
+      />
 
       <div className="grid gap-4 md:grid-cols-2">
         <DistributionChart
@@ -73,10 +91,16 @@ export function DoctorDashboard({
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">
-            Recent Finalized Encounters
+            Recent finalized encounters
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <DashboardActionRow
+            actions={[
+              { href: "/my/assigned", label: "My Assigned", icon: Stethoscope },
+              { href: "/queues", label: "View Queues", icon: ClipboardList },
+            ]}
+          />
           <Box sx={{ height: 400, width: "100%" }} className="overflow-x-auto">
             <DataGrid
               rows={recentEncounters}
@@ -91,27 +115,6 @@ export function DoctorDashboard({
           </Box>
         </CardContent>
       </Card>
-    </div>
-  );
-}
-
-function StatCard({
-  title,
-  value,
-}: {
-  title: string;
-  value: number | string;
-}) {
-  return (
-    <Card className="border-l-4 border-l-primary">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
-          {title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold text-primary">{value}</div>
-      </CardContent>
-    </Card>
+    </section>
   );
 }

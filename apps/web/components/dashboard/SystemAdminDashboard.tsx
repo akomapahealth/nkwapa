@@ -4,6 +4,10 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { Box } from "@mui/material";
 import { dataGridSx } from "@/lib/datagrid-theme";
+import { Building2, Users, Activity } from "lucide-react";
+import { DashboardSectionHeader } from "./DashboardSectionHeader";
+import { DashboardKpiCard } from "./DashboardKpiCard";
+import { TrendChart } from "./TrendChart";
 
 interface ClinicComparisonRow {
   clinicId: string;
@@ -18,6 +22,7 @@ interface SystemAdminDashboardProps {
   totalUsers: number;
   systemWidePatients: number;
   systemWideEncounters: number;
+  systemEncountersTrend: { date: string; count: number }[];
   clinicComparison: ClinicComparisonRow[];
 }
 
@@ -48,21 +53,33 @@ export function SystemAdminDashboard({
   totalUsers,
   systemWidePatients,
   systemWideEncounters,
+  systemEncountersTrend,
   clinicComparison,
 }: SystemAdminDashboardProps) {
   return (
-    <div className="space-y-4">
+    <section className="space-y-6">
+      <DashboardSectionHeader
+        title="System overview"
+        subtitle="Cross-clinic metrics and comparison"
+      />
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Total Clinics" value={totalClinics} />
-        <StatCard title="Total Users" value={totalUsers} />
-        <StatCard title="System Patients" value={systemWidePatients} />
-        <StatCard title="System Encounters" value={systemWideEncounters} />
+        <DashboardKpiCard title="Total clinics" value={totalClinics} icon={Building2} />
+        <DashboardKpiCard title="Total users" value={totalUsers} icon={Users} />
+        <DashboardKpiCard title="System patients" value={systemWidePatients} />
+        <DashboardKpiCard title="System encounters" value={systemWideEncounters} icon={Activity} />
       </div>
+
+      <TrendChart
+        title="System encounters (30 days)"
+        data={systemEncountersTrend}
+        color="hsl(var(--chart-1))"
+      />
 
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">
-            Clinic Comparison
+            Clinic comparison
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -81,21 +98,6 @@ export function SystemAdminDashboard({
           </Box>
         </CardContent>
       </Card>
-    </div>
-  );
-}
-
-function StatCard({ title, value }: { title: string; value: number }) {
-  return (
-    <Card className="border-l-4 border-l-primary">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
-          {title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold text-primary">{value}</div>
-      </CardContent>
-    </Card>
+    </section>
   );
 }

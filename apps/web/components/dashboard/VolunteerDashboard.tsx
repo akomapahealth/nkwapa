@@ -1,63 +1,103 @@
 "use client";
 
-import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { UserPlus, ClipboardList } from "lucide-react";
+import { UserPlus, ClipboardList, Stethoscope } from "lucide-react";
+import { DashboardSectionHeader } from "./DashboardSectionHeader";
+import { DashboardKpiCard } from "./DashboardKpiCard";
+import { DashboardActionRow } from "./DashboardActionRow";
+import { TrendChart } from "./TrendChart";
+import { DistributionChart } from "./DistributionChart";
 
 interface VolunteerDashboardProps {
   patientsRegisteredToday: number;
   encountersCreatedToday: number;
   pendingSubmissions: number;
+  patientsRegisteredTrend: { date: string; count: number }[];
+  encountersCreatedTrend: { date: string; count: number }[];
+  statusBreakdown: Record<string, number>;
+  bpDistribution: Record<string, number>;
+  diabetesStats: { flagged: number; total: number };
 }
 
 export function VolunteerDashboard({
   patientsRegisteredToday,
   encountersCreatedToday,
   pendingSubmissions,
+  patientsRegisteredTrend,
+  encountersCreatedTrend,
+  statusBreakdown,
+  bpDistribution,
+  diabetesStats,
 }: VolunteerDashboardProps) {
   return (
-    <div className="space-y-4">
+    <section className="space-y-6">
+      <DashboardSectionHeader
+        title="Your activity"
+        subtitle="Patients and encounters you've registered today"
+      />
+
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard title="Registered Today" value={patientsRegisteredToday} />
-        <StatCard title="Encounters Today" value={encountersCreatedToday} />
-        <StatCard title="Pending Submissions" value={pendingSubmissions} />
+        <DashboardKpiCard
+          title="Registered Today"
+          value={patientsRegisteredToday}
+          icon={UserPlus}
+        />
+        <DashboardKpiCard
+          title="Encounters Today"
+          value={encountersCreatedToday}
+          icon={ClipboardList}
+        />
+        <DashboardKpiCard title="Pending Submissions" value={pendingSubmissions} />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <TrendChart
+          title="Patients registered (14 days)"
+          data={patientsRegisteredTrend}
+          color="hsl(var(--chart-1))"
+        />
+        <TrendChart
+          title="Encounters created (14 days)"
+          data={encountersCreatedTrend}
+          color="hsl(var(--chart-2))"
+        />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-3">
+        <DistributionChart
+          title="Encounter status"
+          data={statusBreakdown}
+          type="bar"
+        />
+        <DistributionChart
+          title="BP classification (your encounters)"
+          data={bpDistribution}
+          type="bar"
+        />
+        <DistributionChart
+          title="Diabetes screening"
+          data={{
+            Flagged: diabetesStats.flagged,
+            Normal: diabetesStats.total - diabetesStats.flagged,
+          }}
+          type="bar"
+        />
       </div>
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Quick Actions</CardTitle>
+          <CardTitle className="text-sm font-medium">Quick actions</CardTitle>
         </CardHeader>
-        <CardContent className="flex gap-3">
-          <Button asChild variant="outline">
-            <Link href="/patients/new">
-              <UserPlus className="mr-2 h-4 w-4" />
-              Register Patient
-            </Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/queues">
-              <ClipboardList className="mr-2 h-4 w-4" />
-              View Queues
-            </Link>
-          </Button>
+        <CardContent>
+          <DashboardActionRow
+            actions={[
+              { href: "/patients/new", label: "Register Patient", icon: UserPlus },
+              { href: "/my/assigned", label: "My Assigned", icon: Stethoscope },
+              { href: "/queues", label: "View Queues", icon: ClipboardList },
+            ]}
+          />
         </CardContent>
       </Card>
-    </div>
-  );
-}
-
-function StatCard({ title, value }: { title: string; value: number }) {
-  return (
-    <Card className="border-l-4 border-l-primary">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
-          {title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold text-primary">{value}</div>
-      </CardContent>
-    </Card>
+    </section>
   );
 }

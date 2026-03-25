@@ -4,10 +4,18 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { Box } from "@mui/material";
 import { dataGridSx } from "@/lib/datagrid-theme";
+import { ClipboardList } from "lucide-react";
+import { DashboardSectionHeader } from "./DashboardSectionHeader";
+import { DashboardKpiCard } from "./DashboardKpiCard";
+import { DashboardActionRow } from "./DashboardActionRow";
+import { TrendChart } from "./TrendChart";
+import { DistributionChart } from "./DistributionChart";
 
 interface PreceptorDashboardProps {
   awaitingReview: number;
   reviewsCompleted: { today: number; week: number };
+  reviewsTrend: { date: string; count: number }[];
+  bpDistribution: Record<string, number>;
   recentReviews: {
     id: string;
     patientCode: string;
@@ -33,23 +41,44 @@ const columns: GridColDef[] = [
 export function PreceptorDashboard({
   awaitingReview,
   reviewsCompleted,
+  reviewsTrend,
+  bpDistribution,
   recentReviews,
 }: PreceptorDashboardProps) {
   return (
-    <div className="space-y-4">
+    <section className="space-y-6">
+      <DashboardSectionHeader
+        title="Review queue"
+        subtitle="Encounters awaiting your review"
+      />
+
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard title="Awaiting Review" value={awaitingReview} />
-        <StatCard title="Reviews Today" value={reviewsCompleted.today} />
-        <StatCard title="Reviews This Week" value={reviewsCompleted.week} />
+        <DashboardKpiCard title="Awaiting Review" value={awaitingReview} />
+        <DashboardKpiCard title="Reviews Today" value={reviewsCompleted.today} />
+        <DashboardKpiCard title="Reviews This Week" value={reviewsCompleted.week} />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <TrendChart
+          title="Reviews completed (14 days)"
+          data={reviewsTrend}
+          color="hsl(var(--chart-1))"
+        />
+        <DistributionChart
+          title="BP classification (your reviews)"
+          data={bpDistribution}
+          type="bar"
+        />
       </div>
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">
-            Recent Reviews
-          </CardTitle>
+          <CardTitle className="text-sm font-medium">Recent reviews</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <DashboardActionRow
+            actions={[{ href: "/queues", label: "View Queues", icon: ClipboardList }]}
+          />
           <Box sx={{ height: 400, width: "100%" }} className="overflow-x-auto">
             <DataGrid
               rows={recentReviews}
@@ -64,21 +93,6 @@ export function PreceptorDashboard({
           </Box>
         </CardContent>
       </Card>
-    </div>
-  );
-}
-
-function StatCard({ title, value }: { title: string; value: number }) {
-  return (
-    <Card className="border-l-4 border-l-primary">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
-          {title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold text-primary">{value}</div>
-      </CardContent>
-    </Card>
+    </section>
   );
 }
