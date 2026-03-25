@@ -6,9 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "echo 'lint ok'",
+    "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "jest"
+    "test": "jest",
+    "lint:fix": "next lint --fix"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -26,6 +27,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dexie": "^4.3.0",
+    "gsap": "^3.14.2",
     "keycloak-js": "^26.2.3",
     "libphonenumber-js": "^1.12.38",
     "lucide-react": "^0.575.0",
@@ -34,7 +36,8 @@
     "react-dom": "^18.3.1",
     "recharts": "^3.7.0",
     "tailwind-merge": "^3.5.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "@sentry/nextjs": "^9.5.0"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
@@ -47,6 +50,11 @@
     "postcss": "^8.4.31",
     "tailwindcss": "^3.4.19",
     "ts-jest": "^29.4.6",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "^14.2.18",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "eslint-config-prettier": "^9.1.0"
   }
 }

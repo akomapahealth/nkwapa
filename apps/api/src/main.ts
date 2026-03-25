@@ -1,12 +1,17 @@
+import './instrument';
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { StructuredLogger } from './common/structured-logger.service';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    logger: process.env.NODE_ENV === 'production' ? new StructuredLogger() : undefined,
+  });
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
   const port = process.env.PORT ?? 4000;
 
-  // Allow web app origin for CORS (required for credentialed requests with Bearer token)
   const corsOrigin = process.env.CORS_ORIGIN ?? 'http://localhost:3000';
   app.enableCors({
     origin: corsOrigin,

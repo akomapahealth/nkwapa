@@ -1,0 +1,123 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main, release/dev]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  # ──────────────────────────────────────────────
+  # Database Migration
+  # ──────────────────────────────────────────────
+  migrate:
+    name: Run Migrations
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Prisma generate
+        run: npm run db:generate
+
+      - name: Run migrations
+        run: npm run db:migrate:deploy
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+  # ──────────────────────────────────────────────
+  # Deploy Frontend to Vercel
+  # ──────────────────────────────────────────────
+  deploy-web:
+    name: Deploy Web (Vercel)
+    runs-on: ubuntu-latest
+    needs: [migrate]
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install Vercel CLI
+        run: npm i -g vercel@latest
+
+      - name: Pull Vercel environment
+        run: vercel pull --yes --token=${{ secrets.VERCEL_TOKEN }}
+        working-directory: apps/web
+
+      - name: Build for Vercel
+        run: vercel build ${{ github.ref == 'refs/heads/main' && '--prod' || '' }} --token=${{ secrets.VERCEL_TOKEN }}
+        working-directory: apps/web
+
+      - name: Deploy to Vercel
+        id: deploy-web
+        run: |
+          URL=$(vercel deploy --prebuilt ${{ github.ref == 'refs/heads/main' && '--prod' || '' }} --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+        working-directory: apps/web
+
+      - name: Post deployment URL
+        run: |
+          echo "### Web deployment" >> "$GITHUB_STEP_SUMMARY"
+          echo "URL: ${{ steps.deploy-web.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
+
+  # ──────────────────────────────────────────────
+  # Deploy API to Railway
+  # ──────────────────────────────────────────────
+  deploy-api:
+    name: Deploy API (Railway)
+    runs-on: ubuntu-latest
+    needs: [migrate]
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm i -g @railway/cli@latest
+
+      - name: Deploy to Railway
+        run: |
+          railway up --service ${{ secrets.RAILWAY_SERVICE_ID }}
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Post deployment summary
+        run: |
+          echo "### API deployment" >> "$GITHUB_STEP_SUMMARY"
+          echo "Deployed to Railway (${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }})" >> "$GITHUB_STEP_SUMMARY"
+
+  # ──────────────────────────────────────────────
+  # Tag release on main
+  # ──────────────────────────────────────────────
+  tag-release:
+    name: Tag Release
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    needs: [deploy-web, deploy-api]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create release tag
+        run: |
+          TAG="v$(date +%Y%m%d.%H%M%S)"
+          git tag "$TAG"
+          git push origin "$TAG"
+          echo "### Release tagged: $TAG" >> "$GITHUB_STEP_SUMMARY"

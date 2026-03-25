@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
@@ -16,6 +16,10 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { DrugModule } from './drugs/drug.module';
 import { PrescriptionModule } from './prescriptions/prescription.module';
 import { ResearchModule } from './research/research.module';
+import { PatientPortalModule } from './patient-portal/patient-portal.module';
+import { OpsModule } from './ops/ops.module';
+import { CorrelationIdMiddleware } from './common/correlation-id.middleware';
+import { RequestLoggerMiddleware } from './common/request-logger.middleware';
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
 
@@ -40,6 +44,12 @@ const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
     DrugModule,
     PrescriptionModule,
     ResearchModule,
+    PatientPortalModule,
+    OpsModule,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(CorrelationIdMiddleware, RequestLoggerMiddleware).forRoutes('*');
+  }
+}

@@ -10,20 +10,40 @@
     "db:migrate:dev": "prisma migrate dev --schema=packages/db/prisma/schema.prisma",
     "db:migrate:deploy": "prisma migrate deploy --schema=packages/db/prisma/schema.prisma",
     "db:seed": "ts-node --transpile-only packages/db/prisma/seed.ts",
+    "db:assign-system-admin": "ts-node --transpile-only packages/db/prisma/assign-system-admin.ts",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "build": "npm run build --workspaces --if-present"
+    "build": "npm run build --workspaces --if-present",
+    "prepare": "husky",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
     "dotenv": "^17.3.1",
     "ts-node": "^10.9.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "eslint": "^8.57.0",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.3.3",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.11"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
     "@prisma/client": "^7.4.2"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
   }
 }
