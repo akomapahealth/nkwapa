@@ -6,7 +6,8 @@ export const CLINIC_ID_SOURCE_KEY = 'clinicIdSource';
 export type ClinicIdSource =
   | { type: 'param'; paramKey?: string }
   | { type: 'body'; bodyKey?: string }
-  | { type: 'query'; queryKey?: string };
+  | { type: 'query'; queryKey?: string }
+  | { type: 'header'; headerKey?: string };
 
 export function ClinicScoped(source?: ClinicIdSource) {
   if (!source) {

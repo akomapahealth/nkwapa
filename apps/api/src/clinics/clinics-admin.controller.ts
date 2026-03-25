@@ -38,6 +38,13 @@ export class ClinicsAdminController {
       userId: req.user.user.id,
       roles: req.user.roles,
     };
+    const isSystemAdmin = actor.roles.some(
+      (r) => r.role === UserRole.SYSTEM_ADMIN && r.clinicId === null
+    );
+    const isDirector = actor.roles.some((r) => r.role === UserRole.DIRECTOR);
+    if (!isSystemAdmin && !isDirector) {
+      throw new ForbiddenException('Insufficient permissions to list clinics');
+    }
     return this.clinicService.listAllForAdmin(actor);
   }
 

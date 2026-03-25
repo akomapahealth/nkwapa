@@ -1,19 +1,34 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Box } from "@mui/material";
+import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import {
+  Layers3,
+  RefreshCw,
+  ShieldAlert,
+  Users,
+} from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useBootstrap } from "@/lib/bootstrap-context";
 import { apiFetch } from "@/lib/api";
+import { formatRoleLabel, readApiError } from "@/lib/ops";
+import { dataGridSx } from "@/lib/datagrid-theme";
 import { RouteGuard } from "@/components/RouteGuard";
+import { EmptyStateCard, InlineNotice } from "@/components/ops/OpsShared";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -21,208 +36,501 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Box } from "@mui/material";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
-import { dataGridSx } from "@/lib/datagrid-theme";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
-interface UserRow {
+type RoleName =
+  | "SYSTEM_ADMIN"
+  | "DIRECTOR"
+  | "MANAGER"
+  | "DOCTOR"
+  | "PRECEPTOR"
+  | "VOLUNTEER"
+  | "PATIENT";
+
+interface ClinicRosterRow {
+  id: string;
+  keycloakSub?: string;
+  displayName: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  clinicRoles: RoleName[];
+  globalRoles: RoleName[];
+  otherClinicCount: number;
+}
+
+interface ClinicRosterResponse {
+  items: ClinicRosterRow[];
+}
+
+interface AllUsersRow {
   id: string;
   keycloakSub: string;
   displayName: string;
-  firstName?: string | null;
-  lastName?: string | null;
+  firstName: string | null;
+  lastName: string | null;
   email: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  globalRoles: RoleName[];
+  clinicMemberships: Array<{
+    id: string;
+    clinicId: string;
+    clinicName: string;
+    role: RoleName;
+  }>;
 }
 
 interface UserRoleRow {
   id: string;
   clinicId: string | null;
-  role: string;
+  role: RoleName;
   clinicName: string | null;
 }
 
-const ROLES = [
+interface StaffAccessRow {
+  id: string;
+  keycloakSub?: string;
+  displayName: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  clinicRoles: RoleName[];
+  globalRoles: RoleName[];
+  otherClinicCount: number;
+  clinicMemberships: Array<{
+    id: string;
+    clinicId: string;
+    clinicName: string;
+    role: RoleName;
+  }>;
+}
+
+type StatusFilter = "active" | "inactive" | "all";
+type ViewMode = "clinic" | "all";
+
+const ROLES: RoleName[] = [
   "SYSTEM_ADMIN",
   "DIRECTOR",
   "MANAGER",
   "DOCTOR",
   "PRECEPTOR",
   "VOLUNTEER",
-] as const;
+  "PATIENT",
+];
+
+function statusBadgeVariant(isActive: boolean) {
+  return isActive ? "finalized" : "destructive";
+}
+
+function nameForRow(row: StaffAccessRow) {
+  return (
+    [row.firstName, row.lastName].filter(Boolean).join(" ").trim() ||
+    row.displayName
+  );
+}
+
+function summarizeCurrentAccess(row: StaffAccessRow) {
+  if (row.clinicRoles.length === 0) {
+    return "No active-clinic roles";
+  }
+
+  return row.clinicRoles.map((role) => formatRoleLabel(role)).join(", ");
+}
+
+function summarizeExtraAccess(row: StaffAccessRow) {
+  const parts: string[] = [];
+  if (row.globalRoles.length > 0) {
+    parts.push(`Global: ${row.globalRoles.map((role) => formatRoleLabel(role)).join(", ")}`);
+  }
+  if (row.otherClinicCount > 0) {
+    parts.push(`Other clinics: ${row.otherClinicCount}`);
+  }
+
+  return parts.join(" • ") || "Clinic-local only";
+}
+
+function formatAdminTimestamp(value?: string) {
+  if (!value) {
+    return "Not available";
+  }
+
+  return new Date(value).toLocaleString();
+}
+
+function roleMatchesFilter(row: StaffAccessRow, roleFilter: string) {
+  if (roleFilter === "ALL") {
+    return true;
+  }
+
+  return (
+    row.clinicRoles.includes(roleFilter as RoleName) ||
+    row.globalRoles.includes(roleFilter as RoleName) ||
+    row.clinicMemberships.some((membership) => membership.role === roleFilter)
+  );
+}
+
+function normalizeClinicRow(row: ClinicRosterRow, clinicId: string, clinicName: string) {
+  return {
+    id: row.id,
+    keycloakSub: row.keycloakSub,
+    displayName: row.displayName,
+    firstName: row.firstName,
+    lastName: row.lastName,
+    email: row.email,
+    isActive: row.isActive,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    clinicRoles: row.clinicRoles,
+    globalRoles: row.globalRoles,
+    otherClinicCount: row.otherClinicCount,
+    clinicMemberships: row.clinicRoles.map((role) => ({
+      id: `${row.id}-${clinicId}-${role}`,
+      clinicId,
+      clinicName,
+      role,
+    })),
+  } satisfies StaffAccessRow;
+}
+
+function normalizeAllUsersRow(
+  row: AllUsersRow,
+  activeClinicId: string | null,
+  activeClinicName: string | null
+) {
+  const clinicRoles = activeClinicId
+    ? row.clinicMemberships
+        .filter((membership) => membership.clinicId === activeClinicId)
+        .map((membership) => membership.role)
+    : [];
+  const otherClinicCount = new Set(
+    row.clinicMemberships
+      .filter((membership) => membership.clinicId !== activeClinicId)
+      .map((membership) => membership.clinicId)
+  ).size;
+
+  return {
+    id: row.id,
+    keycloakSub: row.keycloakSub,
+    displayName: row.displayName,
+    firstName: row.firstName,
+    lastName: row.lastName,
+    email: row.email,
+    isActive: row.isActive,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    clinicRoles,
+    globalRoles: row.globalRoles,
+    otherClinicCount,
+    clinicMemberships:
+      activeClinicId && activeClinicName
+        ? [
+            ...row.clinicMemberships.filter(
+              (membership) => membership.clinicId === activeClinicId
+            ),
+            ...row.clinicMemberships.filter(
+              (membership) => membership.clinicId !== activeClinicId
+            ),
+          ]
+        : row.clinicMemberships,
+  } satisfies StaffAccessRow;
+}
 
 export default function AdminUsersPage() {
   const getToken = useAuth();
-  const bootstrap = useBootstrap()?.bootstrap ?? null;
-  const clinics = bootstrap?.memberships ?? [];
+  const bootstrapCtx = useBootstrap();
+  const bootstrap = bootstrapCtx?.bootstrap ?? null;
+  const activeClinicId =
+    bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
+  const activeMembership =
+    bootstrap?.memberships.find((membership) => membership.clinicId === activeClinicId) ??
+    null;
+  const activeClinicName = activeMembership?.clinicName ?? null;
   const isSystemAdmin = bootstrap?.globalRoles?.includes("SYSTEM_ADMIN") ?? false;
+  const directorMemberships = (bootstrap?.memberships ?? []).filter((membership) =>
+    membership.roles.includes("DIRECTOR")
+  );
+  const activeClinicRoles = activeMembership?.roles ?? [];
+  const canAssignRoles = isSystemAdmin || directorMemberships.length > 0;
+  const canManageLifecycle =
+    isSystemAdmin ||
+    activeClinicRoles.includes("DIRECTOR") ||
+    activeClinicRoles.includes("MANAGER");
 
-  const [users, setUsers] = useState<UserRow[]>([]);
+  const lifecycleRoles: RoleName[] = isSystemAdmin
+    ? ROLES
+    : activeClinicRoles.includes("DIRECTOR")
+      ? ["MANAGER", "DOCTOR", "PRECEPTOR", "VOLUNTEER", "PATIENT"]
+      : ["DOCTOR", "PRECEPTOR", "VOLUNTEER", "PATIENT"];
+  const assignableRoles: RoleName[] = isSystemAdmin
+    ? ROLES
+    : ["MANAGER", "DOCTOR", "PRECEPTOR", "VOLUNTEER", "PATIENT"];
+
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    isSystemAdmin && !activeClinicId ? "all" : "clinic"
+  );
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
+  const [roleFilter, setRoleFilter] = useState<string>("ALL");
+  const [rows, setRows] = useState<StaffAccessRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [assignOpen, setAssignOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<StaffAccessRow | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [userRoles, setUserRoles] = useState<UserRoleRow[]>([]);
-  const [assignClinicId, setAssignClinicId] = useState<string>("");
   const [assignRole, setAssignRole] = useState<string>("");
-  const [saving, setSaving] = useState(false);
-  const [allClinics, setAllClinics] = useState<{ id: string; name: string }[]>([]);
+  const [assignClinicId, setAssignClinicId] = useState<string>("");
+  const [allClinics, setAllClinics] = useState<Array<{ id: string; name: string }>>([]);
+  const [savingAssignment, setSavingAssignment] = useState(false);
+  const [revokingRole, setRevokingRole] = useState<UserRoleRow | null>(null);
+  const [deactivateOpen, setDeactivateOpen] = useState(false);
+  const [mutationLoading, setMutationLoading] = useState(false);
 
-  const fetchUsers = useCallback(async () => {
-    if (!getToken) return;
-    setLoading(true);
-    setError(null);
+  useEffect(() => {
+    if (!isSystemAdmin) {
+      setViewMode("clinic");
+      return;
+    }
+
+    if (!activeClinicId && viewMode === "clinic") {
+      setViewMode("all");
+    }
+  }, [activeClinicId, isSystemAdmin, viewMode]);
+
+  const fetchAllClinics = useCallback(async () => {
+    if (!getToken || !isSystemAdmin) {
+      return;
+    }
+
     try {
-      const res = await apiFetch("/admin/users", {
+      const res = await apiFetch("/admin/clinics", {
         getToken,
         skipClinicHeader: true,
       });
-      if (!res.ok) throw new Error(await res.text());
-      const data = (await res.json()) as UserRow[];
-      setUsers(data);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      setUsers([]);
-    } finally {
-      setLoading(false);
+      if (!res.ok) {
+        throw new Error(await readApiError(res));
+      }
+      setAllClinics((await res.json()) as Array<{ id: string; name: string }>);
+    } catch {
+      setAllClinics([]);
     }
-  }, [getToken]);
+  }, [getToken, isSystemAdmin]);
+
+  const fetchRows = useCallback(
+    async (options?: { background?: boolean }) => {
+      if (!getToken) {
+        return [];
+      }
+
+      if (viewMode === "clinic" && !activeClinicId) {
+        setRows([]);
+        setLoading(false);
+        return [];
+      }
+
+      if (options?.background) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      setError(null);
+
+      try {
+        if (viewMode === "clinic" && activeClinicId) {
+          const res = await apiFetch(
+            `/clinics/${encodeURIComponent(activeClinicId)}/users?status=${encodeURIComponent(
+              statusFilter
+            )}`,
+            {
+              getToken,
+              activeClinicId,
+            }
+          );
+          if (!res.ok) {
+            throw new Error(await readApiError(res));
+          }
+          const data = (await res.json()) as ClinicRosterResponse;
+          const nextRows = data.items.map((row) =>
+            normalizeClinicRow(row, activeClinicId, activeClinicName ?? "Active clinic")
+          );
+          setRows(nextRows);
+          return nextRows;
+        }
+
+        const res = await apiFetch(
+          `/admin/users?status=${encodeURIComponent(statusFilter)}`,
+          {
+            getToken,
+            skipClinicHeader: true,
+          }
+        );
+        if (!res.ok) {
+          throw new Error(await readApiError(res));
+        }
+        const data = (await res.json()) as AllUsersRow[];
+        const nextRows = data.map((row) =>
+          normalizeAllUsersRow(row, activeClinicId, activeClinicName)
+        );
+        setRows(nextRows);
+        return nextRows;
+      } catch (nextError) {
+        setError(nextError instanceof Error ? nextError.message : String(nextError));
+        setRows([]);
+        return [];
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [activeClinicId, activeClinicName, getToken, statusFilter, viewMode]
+  );
 
   const fetchUserRoles = useCallback(
     async (userId: string) => {
-      if (!getToken) return;
+      if (!getToken) {
+        return;
+      }
+
+      setDetailLoading(true);
       try {
         const res = await apiFetch(`/admin/users/${encodeURIComponent(userId)}/roles`, {
           getToken,
           skipClinicHeader: true,
         });
-        if (!res.ok) throw new Error(await res.text());
-        const data = (await res.json()) as UserRoleRow[];
-        setUserRoles(data);
-      } catch (e) {
+        if (!res.ok) {
+          throw new Error(await readApiError(res));
+        }
+        setUserRoles((await res.json()) as UserRoleRow[]);
+      } catch (nextError) {
+        setError(nextError instanceof Error ? nextError.message : String(nextError));
         setUserRoles([]);
+      } finally {
+        setDetailLoading(false);
       }
     },
     [getToken]
   );
 
   useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+    void fetchRows();
+  }, [fetchRows]);
 
-  const fetchClinics = useCallback(async () => {
-    if (!getToken) return;
-    try {
-      const res = await apiFetch("/admin/clinics", {
-        getToken,
-        skipClinicHeader: true,
-      });
-      if (!res.ok) return;
-      const data = (await res.json()) as { id: string; name: string }[];
-      setAllClinics(data);
-    } catch {
-      setAllClinics([]);
+  useEffect(() => {
+    if (isSystemAdmin) {
+      void fetchAllClinics();
     }
-  }, [getToken]);
+  }, [fetchAllClinics, isSystemAdmin]);
 
-  const handleAssignOpen = (user: UserRow) => {
-    setSelectedUser(user);
-    setAssignClinicId("");
-    setAssignRole("");
+  const openDetails = (row: StaffAccessRow) => {
+    setSelectedUser(row);
+    setDetailOpen(true);
     setUserRoles([]);
-    setAssignOpen(true);
-    fetchUserRoles(user.id);
-    if (isSystemAdmin) fetchClinics();
-  };
-
-  const handleAssignRole = async () => {
-    if (!getToken || !selectedUser) return;
-    const clinicId = assignRole === "SYSTEM_ADMIN" ? null : assignClinicId;
-    if (assignRole !== "SYSTEM_ADMIN" && !clinicId) {
-      setError("Select a clinic for this role");
-      return;
-    }
-    setSaving(true);
+    setAssignRole("");
+    setAssignClinicId(activeClinicId ?? "");
     setError(null);
-    try {
-      const res = await apiFetch(
-        `/admin/users/${encodeURIComponent(selectedUser.id)}/roles`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            clinicId: clinicId || undefined,
-            role: assignRole,
-          }),
-          getToken,
-          skipClinicHeader: true,
-        }
-      );
-      if (!res.ok) throw new Error(await res.text());
-      setAssignClinicId("");
-      setAssignRole("");
-      await fetchUserRoles(selectedUser.id);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleRemoveRole = async (userId: string, clinicId: string | null, role: string) => {
-    if (!getToken) return;
-    if (!confirm("Remove this role?")) return;
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      if (clinicId) params.set("clinicId", clinicId);
-      params.set("role", role);
-      const res = await apiFetch(
-        `/admin/users/${encodeURIComponent(userId)}/roles?${params.toString()}`,
-        {
-          method: "DELETE",
-          getToken,
-          skipClinicHeader: true,
-        }
-      );
-      if (!res.ok) throw new Error(await res.text());
-      if (selectedUser?.id === userId) {
-        await fetchUserRoles(userId);
-      }
-      await fetchUsers();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
+    void fetchUserRoles(row.id);
   };
 
   const availableClinics = isSystemAdmin
-    ? allClinics.map((c) => ({ clinicId: c.id, clinicName: c.name }))
-    : clinics.filter((m) => m.roles.includes("DIRECTOR"));
+    ? allClinics
+    : directorMemberships.map((membership) => ({
+        id: membership.clinicId,
+        name: membership.clinicName,
+      }));
 
-  const displayFirstName = (row: UserRow) =>
-    row.firstName ?? (row.displayName ? row.displayName.split(" ")[0] ?? row.displayName : "");
-  const displayLastName = (row: UserRow) =>
-    row.lastName ?? (row.displayName ? row.displayName.split(" ").slice(1).join(" ") ?? "" : "");
+  const visibleRows = rows.filter((row) => roleMatchesFilter(row, roleFilter));
+  const activeCount = rows.filter((row) => row.isActive).length;
+  const inactiveCount = rows.filter((row) => !row.isActive).length;
+  const sharedAccessCount = rows.filter(
+    (row) => row.globalRoles.length > 0 || row.otherClinicCount > 0
+  ).length;
+
+  const selectedCurrentClinicRoles = activeClinicId
+    ? userRoles.filter((role) => role.clinicId === activeClinicId)
+    : [];
+  const selectedHasProtectedExternalAccess =
+    (selectedUser?.globalRoles.length ?? 0) > 0 ||
+    (selectedUser?.otherClinicCount ?? 0) > 0;
+  const selectedCanDeactivate = Boolean(
+    selectedUser?.isActive &&
+      canManageLifecycle &&
+      ((viewMode === "clinic" &&
+        activeClinicId &&
+        selectedUser.clinicRoles.length > 0 &&
+        selectedUser.clinicRoles.every((role) => lifecycleRoles.includes(role)) &&
+        (!selectedHasProtectedExternalAccess || isSystemAdmin)) ||
+        (viewMode === "all" && isSystemAdmin))
+  );
 
   const columns: GridColDef[] = [
     {
-      field: "firstName",
-      headerName: "First name",
-      flex: 1,
-      minWidth: 120,
-      valueGetter: (_, row) => displayFirstName(row as UserRow),
+      field: "displayName",
+      headerName: "Staff member",
+      minWidth: 220,
+      flex: 1.2,
+      valueGetter: (_, row) => nameForRow(row as StaffAccessRow),
+      renderCell: (params) => {
+        const row = params.row as StaffAccessRow;
+        return (
+          <div className="flex min-w-0 flex-col py-2">
+            <span className="truncate font-medium text-foreground">
+              {nameForRow(row)}
+            </span>
+            <span className="truncate text-xs text-muted-foreground">
+              {row.email || "No email on file"}
+            </span>
+          </div>
+        );
+      },
     },
     {
-      field: "lastName",
-      headerName: "Last name",
-      flex: 1,
-      minWidth: 120,
-      valueGetter: (_, row) => displayLastName(row as UserRow),
+      field: "isActive",
+      headerName: "Status",
+      width: 130,
+      sortable: false,
+      renderCell: (params) => (
+        <Badge variant={statusBadgeVariant(Boolean(params.value))}>
+          {params.value ? "Active" : "Deactivated"}
+        </Badge>
+      ),
     },
     {
-      field: "email",
-      headerName: "Email",
+      field: "clinicRoles",
+      headerName: viewMode === "clinic" ? "Current clinic access" : "Active clinic access",
+      minWidth: 220,
       flex: 1,
-      minWidth: 180,
-      valueGetter: (value: string | null) => value || "—",
+      sortable: false,
+      renderCell: (params) => {
+        const row = params.row as StaffAccessRow;
+        return (
+          <span className="text-sm text-foreground">
+            {summarizeCurrentAccess(row)}
+          </span>
+        );
+      },
+    },
+    {
+      field: "extraAccess",
+      headerName: "Broader access",
+      minWidth: 220,
+      flex: 1,
+      sortable: false,
+      valueGetter: (_, row) => summarizeExtraAccess(row as StaffAccessRow),
     },
     {
       field: "actions",
@@ -233,118 +541,809 @@ export default function AdminUsersPage() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => handleAssignOpen(params.row as UserRow)}
+          onClick={() => openDetails(params.row as StaffAccessRow)}
         >
-          Manage roles
+          Manage
         </Button>
       ),
     },
   ];
 
+  async function refreshAfterMutation(options?: { closeDetail?: boolean }) {
+    const nextRows = await fetchRows({ background: true });
+    await bootstrapCtx?.refetch?.();
+
+    if (options?.closeDetail || !selectedUser) {
+      if (options?.closeDetail) {
+        setDetailOpen(false);
+        setSelectedUser(null);
+      }
+      return;
+    }
+
+    const refreshedRow = nextRows.find((row) => row.id === selectedUser.id) ?? null;
+    if (!refreshedRow) {
+      setDetailOpen(false);
+      setSelectedUser(null);
+      return;
+    }
+
+    setSelectedUser(refreshedRow);
+    await fetchUserRoles(refreshedRow.id);
+  }
+
+  async function handleAssignRole() {
+    if (!getToken || !selectedUser || !assignRole) {
+      return;
+    }
+    if (!selectedUser.isActive) {
+      setError(
+        "This account is inactive. Ask the replacement user to sign in first, then assign roles to the new active account."
+      );
+      return;
+    }
+
+    const clinicIdForRole = assignRole === "SYSTEM_ADMIN" ? null : assignClinicId;
+    if (assignRole !== "SYSTEM_ADMIN" && !clinicIdForRole) {
+      setError("Select a clinic before assigning this role.");
+      return;
+    }
+
+    setSavingAssignment(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const res = await apiFetch(`/admin/users/${encodeURIComponent(selectedUser.id)}/roles`, {
+        method: "POST",
+        body: JSON.stringify({
+          clinicId: clinicIdForRole || undefined,
+          role: assignRole,
+        }),
+        getToken,
+        skipClinicHeader: true,
+      });
+      if (!res.ok) {
+        throw new Error(await readApiError(res));
+      }
+
+      setAssignRole("");
+      setAssignClinicId(activeClinicId ?? "");
+      setNotice(`Assigned ${formatRoleLabel(assignRole)} successfully.`);
+      await refreshAfterMutation();
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : String(nextError));
+    } finally {
+      setSavingAssignment(false);
+    }
+  }
+
+  async function handleConfirmRoleRevoke() {
+    if (!getToken || !selectedUser || !revokingRole || !activeClinicId) {
+      return;
+    }
+
+    setMutationLoading(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const res = await apiFetch(
+        `/clinics/${encodeURIComponent(activeClinicId)}/users/${encodeURIComponent(
+          selectedUser.id
+        )}/roles/${encodeURIComponent(revokingRole.role)}`,
+        {
+          method: "DELETE",
+          getToken,
+          activeClinicId,
+        }
+      );
+      if (!res.ok) {
+        throw new Error(await readApiError(res));
+      }
+
+      setRevokingRole(null);
+      setNotice(`Removed ${formatRoleLabel(revokingRole.role)} from the active clinic.`);
+      await refreshAfterMutation();
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : String(nextError));
+    } finally {
+      setMutationLoading(false);
+    }
+  }
+
+  async function handleConfirmDeactivate() {
+    if (!getToken || !selectedUser) {
+      return;
+    }
+
+    setMutationLoading(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const useClinicDeactivation = viewMode === "clinic" && Boolean(activeClinicId);
+      const path = useClinicDeactivation
+        ? `/clinics/${encodeURIComponent(activeClinicId!)}/users/${encodeURIComponent(
+            selectedUser.id
+          )}/deactivate`
+        : `/users/${encodeURIComponent(selectedUser.id)}/deactivate`;
+
+      const res = await apiFetch(path, {
+        method: "PATCH",
+        getToken,
+        ...(useClinicDeactivation
+          ? { activeClinicId }
+          : { skipClinicHeader: true }),
+      });
+
+      if (!res.ok) {
+        throw new Error(await readApiError(res));
+      }
+
+      setDeactivateOpen(false);
+      setNotice(`${nameForRow(selectedUser)} has been deactivated.`);
+      await refreshAfterMutation({ closeDetail: true });
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : String(nextError));
+    } finally {
+      setMutationLoading(false);
+    }
+  }
+
+  const emptyState =
+    viewMode === "clinic" && !activeClinicId ? (
+      <EmptyStateCard
+        title="Select a clinic"
+        description="Choose an active clinic in the header to review the roster and manage clinic-scoped access."
+      />
+    ) : (
+      <EmptyStateCard
+        title="No staff records match these filters"
+        description="Adjust the status or role filters, or wait until the user signs into Nkwapa for the first time."
+      />
+    );
+
   return (
     <RouteGuard requiredPermission="CLINIC.MANAGE">
-      <div className="space-y-4">
-        <h1 className="text-2xl font-bold font-heading">Staff & Roles</h1>
-        {(users.length === 0 || users.length < 3) && !loading && (
-          <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-200">
-            Users appear here after they log in to Nkwapa at least once. If you created a user in Keycloak, have them log in first, then refresh this page.
-          </div>
-        )}
-        {error && (
-          <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-            {error}
-          </div>
-        )}
-        <Box sx={{ height: 400, width: "100%" }} className="overflow-x-auto">
-          <DataGrid
-            rows={users}
-            columns={columns}
-            loading={loading}
-            getRowId={(row) => row.id}
-            sx={dataGridSx}
-          />
-        </Box>
-      </div>
-
-      <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
-              Manage roles
-            {selectedUser
-              ? ` — ${[displayFirstName(selectedUser), displayLastName(selectedUser)].filter(Boolean).join(" ") || selectedUser.displayName}`
-              : ""}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
-              <Label className="mb-2 block">Current roles</Label>
-              {userRoles.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No roles assigned</p>
-              ) : (
-                <ul className="space-y-2">
-                  {userRoles.map((r) => (
-                    <li
-                      key={r.id}
-                      className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
-                    >
-                      <span>
-                        {r.role}
-                        {r.clinicName && ` @ ${r.clinicName}`}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() =>
-                          handleRemoveRole(selectedUser!.id, r.clinicId, r.role)
-                        }
-                      >
-                        Remove
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+      <div className="space-y-6">
+        <section className="overflow-hidden rounded-[28px] border border-primary/15 bg-gradient-to-br from-primary/15 via-card to-secondary/15 p-6 shadow-xl shadow-primary/5">
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+            <div className="max-w-2xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary/80">
+                Access Lifecycle
+              </p>
+              <h1 className="mt-3 font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+                Staff & Access
+              </h1>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">
+                Manage the active-clinic roster, revoke clinic roles, and deactivate
+                accounts safely without deleting history.
+              </p>
             </div>
-            <div className="space-y-2">
-              <Label>Assign new role</Label>
-              <div className="flex gap-2">
-                <Select value={assignRole} onValueChange={setAssignRole}>
-                  <SelectTrigger className="w-[140px]">
-                    <SelectValue placeholder="Role" />
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+              {isSystemAdmin ? (
+                <div className="flex rounded-2xl border border-border/80 bg-card/85 p-1 shadow-sm">
+                  <Button
+                    type="button"
+                    variant={viewMode === "clinic" ? "default" : "ghost"}
+                    className="rounded-xl"
+                    onClick={() => setViewMode("clinic")}
+                    disabled={!activeClinicId}
+                  >
+                    Active clinic
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={viewMode === "all" ? "default" : "ghost"}
+                    className="rounded-xl"
+                    onClick={() => setViewMode("all")}
+                  >
+                    All users
+                  </Button>
+                </div>
+              ) : null}
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void fetchRows({ background: true })}
+                disabled={refreshing || loading}
+                className="h-11 rounded-2xl border-border/80 bg-card/85 px-4"
+              >
+                <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-2xl border border-border/80 bg-card/85 p-4 shadow-sm backdrop-blur-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                Scope
+              </p>
+              <p className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
+                {viewMode === "clinic"
+                  ? activeClinicName ?? "Clinic roster"
+                  : "All users"}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {viewMode === "clinic"
+                  ? "Current clinic access and lifecycle actions"
+                  : "System-wide visibility for system admin review"}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border/80 bg-card/85 p-4 shadow-sm backdrop-blur-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                Visible records
+              </p>
+              <p className="mt-3 text-3xl font-semibold tracking-tight text-foreground">
+                {visibleRows.length}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {rows.length} loaded before role filtering
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border/80 bg-card/85 p-4 shadow-sm backdrop-blur-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                Account status
+              </p>
+              <p className="mt-3 text-3xl font-semibold tracking-tight text-foreground">
+                {activeCount} / {inactiveCount}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Active vs deactivated in this dataset
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border/80 bg-card/85 p-4 shadow-sm backdrop-blur-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                Broader access
+              </p>
+              <p className="mt-3 text-3xl font-semibold tracking-tight text-foreground">
+                {sharedAccessCount}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Users with global roles or other-clinic access
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {(rows.length === 0 || rows.length < 3) && !loading ? (
+          <InlineNotice>
+            Users appear here after they log in to Nkwapa at least once. If you
+            created a user in Keycloak, have them sign in first and then refresh.
+          </InlineNotice>
+        ) : null}
+        {isSystemAdmin ? (
+          <InlineNotice>
+            Keycloak remains the source of truth for identity. If a legacy Nkwapa
+            account no longer maps to a real Keycloak user, deactivate the stale
+            row, have the real user sign in again, then reassign access to the new
+            active account created from that login.
+          </InlineNotice>
+        ) : null}
+        {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
+        {notice ? <InlineNotice tone="success">{notice}</InlineNotice> : null}
+
+        <section className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
+          <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Layers3 className="h-5 w-5 text-primary" />
+                Filters
+              </CardTitle>
+              <CardDescription>
+                Refine the roster before opening a user’s access panel.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="staff-status-filter">Account status</Label>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(value) => setStatusFilter(value as StatusFilter)}
+                >
+                  <SelectTrigger id="staff-status-filter">
+                    <SelectValue placeholder="Filter by status" />
                   </SelectTrigger>
                   <SelectContent>
-                    {ROLES.map((r) => (
-                      <SelectItem key={r} value={r}>
-                        {r}
+                    <SelectItem value="active">Active only</SelectItem>
+                    <SelectItem value="inactive">Deactivated only</SelectItem>
+                    <SelectItem value="all">All accounts</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="staff-role-filter">Role focus</Label>
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                  <SelectTrigger id="staff-role-filter">
+                    <SelectValue placeholder="Filter by role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All roles</SelectItem>
+                    {ROLES.map((role) => (
+                      <SelectItem key={role} value={role}>
+                        {formatRoleLabel(role)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {assignRole && assignRole !== "SYSTEM_ADMIN" && (
-                  <Select value={assignClinicId} onValueChange={setAssignClinicId}>
-                    <SelectTrigger className="flex-1">
-                      <SelectValue placeholder="Clinic" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableClinics.map((c) => (
-                        <SelectItem key={c.clinicId} value={c.clinicId}>
-                          {c.clinicName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-                <Button
-                  onClick={handleAssignRole}
-                  disabled={saving || !assignRole || (assignRole !== "SYSTEM_ADMIN" && !assignClinicId)}
-                >
-                  {saving ? "Adding…" : "Add"}
-                </Button>
               </div>
+
+              <div className="rounded-2xl border border-border/70 bg-background/80 p-4 text-sm text-muted-foreground">
+                <p className="font-medium text-foreground">Safety rules</p>
+                <p className="mt-2 leading-6">
+                  Deactivation is soft only. Audit history, encounters, and clinic
+                  records remain intact after access is disabled.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+            <CardHeader className="space-y-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-xl">
+                    <Users className="h-5 w-5 text-primary" />
+                    {viewMode === "clinic" ? "Clinic roster" : "All users"}
+                  </CardTitle>
+                  <CardDescription className="mt-1">
+                    {viewMode === "clinic"
+                      ? activeClinicName
+                        ? `Lifecycle controls for ${activeClinicName}.`
+                        : "Choose a clinic to load the roster."
+                      : "System-wide user visibility for platform administration."}
+                  </CardDescription>
+                </div>
+                <div className="hidden rounded-2xl border border-border bg-background/80 px-4 py-3 text-right sm:block">
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                    Showing
+                  </p>
+                  <p className="mt-1 text-xl font-semibold">{visibleRows.length}</p>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {loading ? (
+                <div className="space-y-4">
+                  <div className="h-28 animate-pulse rounded-3xl bg-muted" />
+                  <div className="h-[420px] animate-pulse rounded-3xl bg-muted" />
+                </div>
+              ) : visibleRows.length === 0 ? (
+                emptyState
+              ) : (
+                <>
+                  <div className="md:hidden space-y-3">
+                    {visibleRows.map((row) => (
+                      <article
+                        key={row.id}
+                        className="rounded-3xl border border-border/80 bg-background/80 p-4 shadow-sm"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <h3 className="truncate text-base font-semibold text-foreground">
+                              {nameForRow(row)}
+                            </h3>
+                            <p className="mt-1 truncate text-sm text-muted-foreground">
+                              {row.email || "No email on file"}
+                            </p>
+                          </div>
+                          <Badge variant={statusBadgeVariant(row.isActive)}>
+                            {row.isActive ? "Active" : "Deactivated"}
+                          </Badge>
+                        </div>
+
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {row.clinicRoles.map((role) => (
+                            <Badge key={`${row.id}-${role}`} variant="outline">
+                              {formatRoleLabel(role)}
+                            </Badge>
+                          ))}
+                          {row.clinicRoles.length === 0 ? (
+                            <Badge variant="outline">No clinic role in view</Badge>
+                          ) : null}
+                        </div>
+
+                        <div className="mt-4 rounded-2xl border border-border/70 bg-card/70 p-3 text-sm text-muted-foreground">
+                          <p>{summarizeExtraAccess(row)}</p>
+                        </div>
+
+                        <Button
+                          variant="outline"
+                          className="mt-4 w-full"
+                          onClick={() => openDetails(row)}
+                        >
+                          Manage access
+                        </Button>
+                      </article>
+                    ))}
+                  </div>
+
+                  <Box sx={{ height: 560, width: "100%" }} className="hidden overflow-x-auto md:block">
+                    <DataGrid
+                      rows={visibleRows}
+                      columns={columns}
+                      getRowId={(row) => row.id}
+                      loading={loading}
+                      disableRowSelectionOnClick
+                      pageSizeOptions={[10, 25, 50]}
+                      sx={dataGridSx}
+                    />
+                  </Box>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+      </div>
+
+      <Sheet
+        open={detailOpen}
+        onOpenChange={(open) => {
+          setDetailOpen(open);
+          if (!open) {
+            setSelectedUser(null);
+            setUserRoles([]);
+            setAssignRole("");
+            setRevokingRole(null);
+            setDeactivateOpen(false);
+          }
+        }}
+      >
+        <SheetContent className="w-full overflow-y-auto border-border/80 bg-card/95 sm:max-w-2xl">
+          <SheetHeader className="pr-10">
+            <SheetTitle className="font-heading text-2xl">
+              {selectedUser ? nameForRow(selectedUser) : "Manage access"}
+            </SheetTitle>
+            <SheetDescription className="leading-6">
+              Review clinic access, broader memberships, and safe lifecycle actions
+              before making changes.
+            </SheetDescription>
+          </SheetHeader>
+
+          {selectedUser ? (
+            <div className="mt-8 space-y-6">
+              <Card className="rounded-[28px] border-border/80 bg-background/70">
+                <CardHeader>
+                  <CardTitle className="text-lg">Identity and cleanup</CardTitle>
+                  <CardDescription>
+                    Use identity metadata to confirm whether this is the current
+                    sign-in account or a stale legacy record.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-border/80 bg-card/70 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                      Keycloak subject
+                    </p>
+                    <p className="mt-2 break-all text-sm font-medium text-foreground">
+                      {selectedUser.keycloakSub ?? "Not exposed in this view"}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-border/80 bg-card/70 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                      Account lifecycle
+                    </p>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Created {formatAdminTimestamp(selectedUser.createdAt)}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Updated {formatAdminTimestamp(selectedUser.updatedAt)}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-border/80 bg-card/70 p-4 sm:col-span-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                      Replacement workflow
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                      If this account no longer represents a real Keycloak user,
+                      deactivate it, ask the real user to sign in again, and assign
+                      roles to the newly created active account instead of trying to
+                      recreate the old identity manually.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-[28px] border-border/80 bg-background/70">
+                <CardHeader>
+                  <CardTitle className="text-lg">Account status</CardTitle>
+                  <CardDescription>
+                    Lifecycle changes affect sign-in access globally.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedUser.email || "No email on file"}
+                    </p>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {selectedUser.globalRoles.length > 0 || selectedUser.otherClinicCount > 0
+                        ? "This user also has broader system access outside the active clinic."
+                        : "This account is currently scoped to clinic-local access."}
+                    </p>
+                  </div>
+                  <Badge variant={statusBadgeVariant(selectedUser.isActive)}>
+                    {selectedUser.isActive ? "Active" : "Deactivated"}
+                  </Badge>
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-[28px] border-border/80 bg-background/70">
+                <CardHeader>
+                  <CardTitle className="text-lg">
+                    {viewMode === "clinic" ? "Current clinic access" : "Active clinic access"}
+                  </CardTitle>
+                  <CardDescription>
+                    Role removal stays clinic-local and does not delete history.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {detailLoading ? (
+                    <div className="h-24 animate-pulse rounded-2xl bg-muted" />
+                  ) : selectedCurrentClinicRoles.length > 0 ? (
+                    selectedCurrentClinicRoles.map((role) => {
+                      const canRevokeRole = Boolean(
+                        canManageLifecycle &&
+                          activeClinicId &&
+                          lifecycleRoles.includes(role.role)
+                      );
+
+                      return (
+                        <div
+                          key={role.id}
+                          className="flex flex-col gap-3 rounded-2xl border border-border/80 bg-card/70 p-4 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div>
+                            <p className="font-medium text-foreground">
+                              {formatRoleLabel(role.role)}
+                            </p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              {role.clinicName ?? activeClinicName ?? "Active clinic"}
+                            </p>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={!canRevokeRole || mutationLoading}
+                            onClick={() => setRevokingRole(role)}
+                          >
+                            Remove role
+                          </Button>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <EmptyStateCard
+                      title="No roles in the active clinic"
+                      description="Switch the header clinic or open the clinic roster view to manage a different clinic-scoped membership."
+                    />
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-[28px] border-border/80 bg-background/70">
+                <CardHeader>
+                  <CardTitle className="text-lg">Broader access summary</CardTitle>
+                  <CardDescription>
+                    Use this section to spot global roles or memberships outside the
+                    clinic before deactivating the account.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {detailLoading ? (
+                    <div className="h-24 animate-pulse rounded-2xl bg-muted" />
+                  ) : userRoles.length > 0 ? (
+                    userRoles.map((role) => (
+                      <div
+                        key={role.id}
+                        className="rounded-2xl border border-border/80 bg-card/70 p-4"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge
+                            variant={role.clinicId === null ? "secondary" : "outline"}
+                          >
+                            {formatRoleLabel(role.role)}
+                          </Badge>
+                          <span className="text-sm text-muted-foreground">
+                            {role.clinicId === null
+                              ? "Global scope"
+                              : role.clinicName ?? "Clinic access"}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <EmptyStateCard
+                      title="No role records found"
+                      description="This usually means the user has not been granted any clinic or global access yet."
+                    />
+                  )}
+                </CardContent>
+              </Card>
+
+              {canAssignRoles ? (
+                <Card className="rounded-[28px] border-border/80 bg-background/70">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Assign a new role</CardTitle>
+                    <CardDescription>
+                      Directors can assign roles only for clinics they direct. System
+                      Admins can assign any role.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid gap-4 sm:grid-cols-[minmax(0,180px),minmax(0,1fr),auto]">
+                      <div className="space-y-2">
+                        <Label htmlFor="staff-assign-role">Role</Label>
+                        <Select value={assignRole} onValueChange={setAssignRole}>
+                          <SelectTrigger id="staff-assign-role">
+                            <SelectValue placeholder="Choose role" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {assignableRoles.map((role) => (
+                              <SelectItem key={role} value={role}>
+                                {formatRoleLabel(role)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {assignRole && assignRole !== "SYSTEM_ADMIN" ? (
+                        <div className="space-y-2">
+                          <Label htmlFor="staff-assign-clinic">Clinic</Label>
+                          <Select value={assignClinicId} onValueChange={setAssignClinicId}>
+                            <SelectTrigger id="staff-assign-clinic">
+                              <SelectValue placeholder="Select clinic" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {availableClinics.map((clinic) => (
+                                <SelectItem key={clinic.id} value={clinic.id}>
+                                  {clinic.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <Label htmlFor="staff-assign-context">Context</Label>
+                          <Input
+                            id="staff-assign-context"
+                            value="Global role"
+                            readOnly
+                            disabled
+                          />
+                        </div>
+                      )}
+
+                      <div className="flex items-end">
+                      <Button
+                          onClick={() => void handleAssignRole()}
+                          disabled={
+                            savingAssignment ||
+                            !selectedUser.isActive ||
+                            !assignRole ||
+                            (assignRole !== "SYSTEM_ADMIN" && !assignClinicId)
+                          }
+                          className="w-full sm:w-auto"
+                        >
+                          {savingAssignment ? "Adding..." : "Add role"}
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              <Card className="rounded-[28px] border-destructive/20 bg-destructive/5">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg text-foreground">
+                    <ShieldAlert className="h-5 w-5 text-destructive" />
+                    Deactivate account
+                  </CardTitle>
+                  <CardDescription>
+                    This blocks API and app access without deleting audit or clinical history.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {selectedHasProtectedExternalAccess && !isSystemAdmin && viewMode === "clinic" ? (
+                    <InlineNotice tone="error">
+                      Only System Admin can deactivate users who still have global roles
+                      or access in other clinics.
+                    </InlineNotice>
+                  ) : null}
+                  {selectedUser.clinicRoles.some(
+                    (role) => !lifecycleRoles.includes(role)
+                  ) && !isSystemAdmin ? (
+                    <InlineNotice tone="error">
+                      This user holds a role above your clinic lifecycle authority in the
+                      active clinic.
+                    </InlineNotice>
+                  ) : null}
+                  <Button
+                    variant="destructive"
+                    onClick={() => setDeactivateOpen(true)}
+                    disabled={!selectedCanDeactivate || mutationLoading}
+                    className="w-full sm:w-auto"
+                  >
+                    Deactivate account
+                  </Button>
+                </CardContent>
+              </Card>
             </div>
+          ) : null}
+        </SheetContent>
+      </Sheet>
+
+      <Dialog open={Boolean(revokingRole)} onOpenChange={(open) => !open && setRevokingRole(null)}>
+        <DialogContent className="max-w-lg rounded-[28px] border-border/80">
+          <DialogHeader>
+            <DialogTitle>Remove clinic role</DialogTitle>
+            <DialogDescription className="leading-6">
+              This removes the selected role from the active clinic only. Audit
+              history stays intact and any other clinic or global access remains untouched.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-2xl border border-border/80 bg-card/70 p-4 text-sm">
+            <p className="font-medium text-foreground">
+              {selectedUser ? nameForRow(selectedUser) : "Selected user"}
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              {revokingRole ? formatRoleLabel(revokingRole.role) : "Role"}
+              {activeClinicName ? ` • ${activeClinicName}` : ""}
+            </p>
           </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRevokingRole(null)} disabled={mutationLoading}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void handleConfirmRoleRevoke()}
+              disabled={mutationLoading}
+            >
+              {mutationLoading ? "Removing..." : "Remove role"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deactivateOpen} onOpenChange={setDeactivateOpen}>
+        <DialogContent className="max-w-lg rounded-[28px] border-border/80">
+          <DialogHeader>
+            <DialogTitle>Deactivate account</DialogTitle>
+            <DialogDescription className="leading-6">
+              This sets the user to inactive and blocks API access globally. Existing
+              audit logs, encounters, and clinic records are preserved.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-4 text-sm">
+            <p className="font-medium text-foreground">
+              {selectedUser ? nameForRow(selectedUser) : "Selected user"}
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              {viewMode === "clinic" && activeClinicName
+                ? `Requested from ${activeClinicName}; impact remains global.`
+                : "This action applies to the account across all clinic access."}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDeactivateOpen(false)} disabled={mutationLoading}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void handleConfirmDeactivate()}
+              disabled={mutationLoading || !selectedCanDeactivate}
+            >
+              {mutationLoading ? "Deactivating..." : "Deactivate account"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </RouteGuard>

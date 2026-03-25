@@ -10,6 +10,7 @@ import {
   Request,
   BadRequestException,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 import { RbacGuard } from '../auth/guards/rbac.guard';
@@ -26,13 +27,27 @@ export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   @Get('users')
-  async listUsers() {
-    return this.adminService.listUsers();
+  async listUsers(
+    @Query('status') status: string | undefined,
+    @Request() req: { user: ReqUserWithRoles }
+  ) {
+    const actor = {
+      userId: req.user.user.id,
+      roles: req.user.roles,
+    };
+    return this.adminService.listUsers(actor, status);
   }
 
   @Get('users/:userId/roles')
-  async getUserRoles(@Param('userId') userId: string) {
-    return this.adminService.getUserRoles(userId);
+  async getUserRoles(
+    @Param('userId') userId: string,
+    @Request() req: { user: ReqUserWithRoles }
+  ) {
+    const actor = {
+      userId: req.user.user.id,
+      roles: req.user.roles,
+    };
+    return this.adminService.getUserRoles(actor, userId);
   }
 
   @Post('users/:userId/roles')
@@ -62,7 +77,11 @@ export class AdminController {
     @Param('userId') userId: string,
     @Query('clinicId') clinicIdParam: string | undefined,
     @Query('role') roleParam: string,
-    @Request() req: { user: ReqUserWithRoles }
+    @Request()
+    req: {
+      user: ReqUserWithRoles;
+      headers?: { 'x-request-id'?: string };
+    }
   ) {
     const actor = {
       userId: req.user.user.id,
@@ -74,6 +93,12 @@ export class AdminController {
     if (!roleParam || !Object.values(UserRole).includes(role)) {
       throw new BadRequestException('Valid role query parameter is required');
     }
-    return this.adminService.removeRole(actor, userId, clinicId, role);
+    return this.adminService.removeRole(
+      actor,
+      userId,
+      clinicId,
+      role,
+      req.headers?.['x-request-id'] ?? randomUUID()
+    );
   }
 }

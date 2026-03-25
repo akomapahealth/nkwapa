@@ -55,13 +55,17 @@ export class ClinicScopeGuard implements CanActivate {
       } else if (source.type === 'query') {
         const key = source.queryKey ?? 'clinicId';
         clinicId = request.query?.[key];
+      } else if (source.type === 'header') {
+        const key = (source.headerKey ?? 'x-clinic-id').toLowerCase();
+        clinicId = request.headers?.[key];
       }
       clinicId = typeof clinicId === 'string' ? clinicId.trim() || undefined : undefined;
     } else {
       clinicId =
         request.params?.clinicId ??
         request.params?.id ??
-        request.query?.clinicId;
+        request.query?.clinicId ??
+        request.headers?.['x-clinic-id'];
       clinicId = typeof clinicId === 'string' ? clinicId.trim() || undefined : undefined;
     }
 

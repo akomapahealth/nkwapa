@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { User, UserRole } from '@prisma/client';
+import { DisabledUserException } from '../auth/disabled-user.exception';
 import { UserRepository } from './user.repository';
 
 export interface UserWithRoles {
@@ -20,6 +21,9 @@ export class UserService {
   ): Promise<UserWithRoles> {
     const existing = await this.userRepository.findByKeycloakSub(sub);
     if (existing) {
+      if (!existing.isActive) {
+        throw new DisabledUserException();
+      }
       const updated = await this.userRepository.syncKeycloakProfile(existing.id, {
         firstName: firstName ?? undefined,
         lastName: lastName ?? undefined,
