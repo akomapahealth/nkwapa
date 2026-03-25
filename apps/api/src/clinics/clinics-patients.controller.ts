@@ -18,14 +18,19 @@ import { ClinicScoped } from "../auth/decorators/clinic-scoped.decorator";
 import { RbacGuard } from "../auth/guards/rbac.guard";
 import { ClinicScopeGuard } from "../auth/guards/clinic-scope.guard";
 import { PatientService } from "../patients/patient.service";
+import { PatientPortalService } from "../patient-portal/patient-portal.service";
 import { CreatePatientBodyDto } from "../patients/dto/create-patient-body.dto";
+import { LinkPortalDto } from "../patient-portal/dto/link-portal.dto";
 import { UpdatePatientBodyDto } from "../patients/dto/update-patient-body.dto";
 import { PERMISSIONS } from "../auth/constants/permissions";
 
 @Controller("clinics/:clinicId/patients")
 @UseGuards(JwtAuthGuard, ClinicScopeGuard, RbacGuard)
 export class ClinicsPatientsController {
-  constructor(private readonly patientService: PatientService) {}
+  constructor(
+    private readonly patientService: PatientService,
+    private readonly patientPortalService: PatientPortalService,
+  ) {}
 
   @Post()
   @ClinicScoped({ type: "param", paramKey: "clinicId" })
@@ -79,5 +84,36 @@ export class ClinicsPatientsController {
   ) {
     const takeNum = take ? parseInt(take, 10) : 50;
     return this.patientService.search(clinicId, q ?? "", Math.min(takeNum, 100));
+  }
+
+  @Post(":patientId/portal-link")
+  @ClinicScoped({ type: "param", paramKey: "clinicId" })
+  @RequirePermission(PERMISSIONS.PATIENT_PORTAL_LINK)
+  async linkPortal(
+    @Param("clinicId") clinicId: string,
+    @Param("patientId") patientId: string,
+    @Body() dto: LinkPortalDto,
+    @Request() req: { user: { user: { id: string } } },
+  ) {
+    return this.patientPortalService.linkPortalUser(
+      clinicId,
+      patientId,
+      dto.userId,
+      req.user.user.id,
+      randomUUID(),
+    );
+  }
+
+  @Get(":patientId/self-reports")
+  @ClinicScoped({ type: "param", paramKey: "clinicId" })
+  @RequirePermission(PERMISSIONS.PATIENT_SELF_REPORT_READ)
+  async listSelfReports(
+    @Param("clinicId") clinicId: string,
+    @Param("patientId") patientId: string,
+  ) {
+    return this.patientPortalService.listSelfReportsForStaff(
+      patientId,
+      clinicId,
+    );
   }
 }

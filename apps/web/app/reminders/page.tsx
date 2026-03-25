@@ -1,16 +1,29 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Bell, Clock3, SendHorizontal } from "lucide-react";
 import { useBootstrap } from "@/lib/bootstrap-context";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch } from "@/lib/api";
+import { AppMetricCard } from "@/components/app-shell/AppMetricCard";
+import { AppPageHeader } from "@/components/app-shell/AppPageHeader";
 import { RouteGuard } from "@/components/RouteGuard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { Box } from "@mui/material";
 import { dataGridSx } from "@/lib/datagrid-theme";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { EmptyStateCard, InlineNotice } from "@/components/ops/OpsShared";
 
 interface ReminderRow {
   id: string;
@@ -147,80 +160,170 @@ export default function RemindersPage() {
     );
   }
 
+  const queuedCount = rows.filter((row) => row.status === "QUEUED").length;
+  const sentCount = rows.filter((row) => row.status === "SENT").length;
+
   return (
     <RouteGuard requiredPermission="REMINDER.READ">
-      <div className="space-y-4">
-        <h1 className="text-2xl font-bold font-heading">Reminders</h1>
-        <div className="flex flex-wrap gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="status">Status</Label>
-            <select
-              id="status"
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="flex h-9 w-[140px] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-            >
-              <option value="">All</option>
-              <option value="QUEUED">Queued</option>
-              <option value="SENT">Sent</option>
-              <option value="FAILED">Failed</option>
-            </select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="from">From</Label>
-            <Input
-              id="from"
-              type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="to">To</Label>
-            <Input
-              id="to"
-              type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-            />
-          </div>
-          <div className="flex items-end">
-            <button
-              type="button"
-              onClick={() => fetchReminders()}
-              disabled={loading}
-              className="rounded-md bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-            >
-              {loading ? "Loading…" : "Apply"}
-            </button>
-          </div>
-        </div>
-        {error && (
-          <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-            {error}
-          </div>
-        )}
-        <Box sx={{ height: 500, width: "100%" }} className="overflow-x-auto">
-          <DataGrid
-            rows={rows}
-            columns={columns}
-            loading={loading}
-            pageSizeOptions={[25, 50]}
-            sx={dataGridSx}
+      <div className="space-y-6">
+        <AppPageHeader
+          eyebrow="Follow-up delivery"
+          title="Reminders"
+          description="Track queued, delivered, and failed reminder traffic with a responsive history view."
+        />
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <AppMetricCard
+            title="Visible reminders"
+            value={rows.length}
+            icon={Bell}
+            detail="Rows currently loaded into the active reminder view."
           />
-        </Box>
-        {nextCursor && (
-          <div className="flex justify-center pt-4">
-            <button
-              type="button"
-              onClick={() => fetchReminders(nextCursor, true)}
-              disabled={loadingMore}
-              className="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
-            >
-              {loadingMore ? "Loading…" : "Load more"}
-            </button>
-          </div>
-        )}
+          <AppMetricCard
+            title="Queued"
+            value={queuedCount}
+            icon={Clock3}
+            detail="Reminders waiting to be processed or delivered."
+          />
+          <AppMetricCard
+            title="Sent"
+            value={sentCount}
+            icon={SendHorizontal}
+            detail="Reminders already delivered successfully."
+          />
+        </div>
+
+        <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+          <CardHeader>
+            <CardTitle className="text-xl">Filters</CardTitle>
+            <CardDescription>
+              Narrow the reminder history by delivery status and scheduled date.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="space-y-2">
+              <Label htmlFor="status">Status</Label>
+              <Select value={status || "ALL"} onValueChange={(value) => setStatus(value === "ALL" ? "" : value)}>
+                <SelectTrigger id="status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All</SelectItem>
+                  <SelectItem value="QUEUED">Queued</SelectItem>
+                  <SelectItem value="SENT">Sent</SelectItem>
+                  <SelectItem value="FAILED">Failed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="from">From</Label>
+              <Input
+                id="from"
+                type="date"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="to">To</Label>
+              <Input
+                id="to"
+                type="date"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+              />
+            </div>
+            <div className="flex items-end">
+              <Button onClick={() => fetchReminders()} disabled={loading} className="w-full rounded-2xl">
+                {loading ? "Loading..." : "Apply filters"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
+
+        <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+          <CardHeader>
+            <CardTitle className="text-xl">Reminder history</CardTitle>
+            <CardDescription>
+              Review delivery timing, channel, and failure details from the active clinic.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {!loading && rows.length === 0 ? (
+              <EmptyStateCard
+                title="No reminders match the current filters"
+                description="Try a wider date range or a broader status filter to review reminder activity."
+              />
+            ) : (
+              <>
+                <div className="space-y-3 md:hidden">
+                  {rows.map((row) => (
+                    <article
+                      key={row.id}
+                      className="rounded-3xl border border-border/80 bg-background/80 p-4 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h3 className="text-sm font-semibold text-foreground">
+                            {row.templateKey}
+                          </h3>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            {new Date(row.scheduledAt).toLocaleString()}
+                          </p>
+                        </div>
+                        <Badge
+                          variant={
+                            row.status === "SENT"
+                              ? "finalized"
+                              : row.status === "FAILED"
+                                ? "destructive"
+                                : "draft"
+                          }
+                        >
+                          {row.status}
+                        </Badge>
+                      </div>
+                      <p className="mt-3 text-sm text-muted-foreground">
+                        {row.toAddress}
+                      </p>
+                      {row.failureReason ? (
+                        <p className="mt-2 text-sm text-destructive">
+                          {row.failureReason}
+                        </p>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+
+                <Box sx={{ height: 500, width: "100%" }} className="hidden overflow-x-auto md:block">
+                  <DataGrid
+                    rows={rows}
+                    columns={columns}
+                    loading={loading}
+                    pageSizeOptions={[25, 50]}
+                    sx={dataGridSx}
+                  />
+                </Box>
+              </>
+            )}
+
+            {nextCursor && (
+              <div className="flex justify-center pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fetchReminders(nextCursor, true)}
+                  disabled={loadingMore}
+                  className="rounded-2xl"
+                >
+                  {loadingMore ? "Loading..." : "Load more"}
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </RouteGuard>
   );

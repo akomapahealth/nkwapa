@@ -8,10 +8,13 @@ import { useBootstrap } from "@/lib/bootstrap-context";
 import { apiFetch } from "@/lib/api";
 import { db } from "@/lib/db";
 import { enqueueOutboxMutation, SYNC_OPERATION } from "@/lib/outbox";
+import { AppMetricCard } from "@/components/app-shell/AppMetricCard";
+import { AppPageHeader } from "@/components/app-shell/AppPageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { InlineNotice } from "@/components/ops/OpsShared";
 import {
   Select,
   SelectContent,
@@ -19,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FilePenLine, ShieldCheck, UserRoundPen } from "lucide-react";
 
 interface PatientData {
   id: string;
@@ -199,22 +202,43 @@ export default function EditPatientPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <Button asChild variant="ghost" size="sm">
-          <Link href={`/clinics/${clinicId}/patients/${patientId}`}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Patient
-          </Link>
-        </Button>
+      <Button asChild variant="ghost" className="w-fit rounded-2xl">
+        <Link href={`/clinics/${clinicId}/patients/${patientId}`}>
+          <ArrowLeft className="h-4 w-4" />
+          Back to Patient
+        </Link>
+      </Button>
+
+      <AppPageHeader
+        eyebrow="Clinic chart maintenance"
+        title={`Edit Patient ${patient.patientCode}`}
+        description="Update core demographics and contact information while preserving immutable identity history for the clinic record."
+      />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <AppMetricCard
+          title="Record"
+          value={patient.patientCode}
+          icon={UserRoundPen}
+          detail="The patient code remains constant while demographic details are updated."
+        />
+        <AppMetricCard
+          title="National ID"
+          value={patient.nationalIdLast4 ? `...${patient.nationalIdLast4}` : "Not stored"}
+          icon={ShieldCheck}
+          detail="National ID details are treated as immutable during edit mode."
+        />
+        <AppMetricCard
+          title="Workflow"
+          value="Editable"
+          icon={FilePenLine}
+          detail="Changes save back to the clinic chart and sync through the offline queue when needed."
+        />
       </div>
 
-      {error && (
-        <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
-          {error}
-        </div>
-      )}
+      {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
 
-      <Card>
+      <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
         <CardHeader>
           <h1 className="text-2xl font-semibold">
             Edit Patient: {patient.patientCode}
@@ -286,11 +310,11 @@ export default function EditPatientPage() {
             </div>
           </div>
 
-          <div className="flex gap-2 pt-4">
-            <Button onClick={handleSave} disabled={saving}>
+          <div className="flex flex-wrap gap-2 pt-4">
+            <Button onClick={handleSave} disabled={saving} className="rounded-2xl">
               {saving ? "Saving..." : "Save Changes"}
             </Button>
-            <Button asChild variant="outline">
+            <Button asChild variant="outline" className="rounded-2xl">
               <Link href={`/clinics/${clinicId}/patients/${patientId}`}>
                 Cancel
               </Link>

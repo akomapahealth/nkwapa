@@ -1,248 +1,439 @@
-# Nkwapa EMR: User-Side Testing Guide (by Role)
+# Nkwapa User Testing Guide
 
-This guide describes how to perform thorough manual testing of the Basic UI with different user roles. Use it for QA, UAT, or regression testing.
+This guide is the current manual QA and user acceptance checklist for the implemented product surface.
+
+Use it when testing releases, validating new role setup, or checking whether a workflow still behaves as expected after code changes.
 
 ---
 
-## Prerequisites
+## 1. Prerequisites
 
-### 1. Keycloak Setup
+### Infrastructure
 
-**Keycloak creates users for login only.** Roles are **not** stored in Keycloak. Create users in Keycloak Admin Console (Users → Add user), then assign roles via Nkwapa Admin UI or the seed script.
+Make sure these are available:
 
-See [USER_AND_ROLE_SETUP_GUIDE.md](./USER_AND_ROLE_SETUP_GUIDE.md) for the full workflow.
+- Postgres
+- Redis
+- Keycloak
+- API
+- Web app
 
-| Role | Assigned via | Clinic Scope |
-|------|---------------|--------------|
-| VOLUNTEER | Nkwapa Admin → Staff | Per-clinic |
-| PRECEPTOR | Nkwapa Admin → Staff | Per-clinic |
-| DOCTOR | Nkwapa Admin → Staff | Per-clinic |
-| MANAGER | Nkwapa Admin → Staff | Per-clinic |
-| DIRECTOR | Nkwapa Admin → Staff (System Admin only) | Per-clinic |
-| SYSTEM_ADMIN | Seed script or Nkwapa Admin (System Admin only) | Global (clinicId=null) |
-
-Ensure each test user has at least one clinic membership (UserClinicRole in DB) with the desired role. Run the seed first, then assign roles via Admin → Staff.
-
-### 2. Database Seed
+Local infra shortcut:
 
 ```bash
-pnpm db:seed
+cd infra/nkwapa
+docker compose up -d
 ```
 
-Set environment variables:
+### Database and seed
 
-- `SEED_SYSTEM_ADMIN_SUB` – Keycloak `sub` of your admin user
-- `SEED_SAMPLE_PATIENT=true` – Creates a demo patient and encounters (requires `NATIONAL_ID_ENCRYPTION_KEY`)
-
-### 3. Redis (for Reminders)
-
-The reminder worker uses Redis (BullMQ). Ensure Redis is running:
+Run:
 
 ```bash
-# If using docker-compose
-cd infra/nkwapa && docker compose up -d redis
+npm run db:generate
+npm run db:migrate:dev
+npm run db:seed
 ```
 
-Set `REDIS_URL=redis://localhost:6379` in `.env`.
+Recommended seed inputs:
 
-### 4. Multi-Role Test User (Optional)
+- `SEED_SYSTEM_ADMIN_SUB`
+- `SEED_SYSTEM_ADMIN_NAME`
+- `SEED_SAMPLE_PATIENT=true` if you want quick demo data
 
-Assign VOLUNTEER + PRECEPTOR + DOCTOR to one user to test tab switching and role-based UI in a single session.
+### Auth setup
 
----
+Create test users in Keycloak first.
 
-## Test Matrix by Role
+Then have each test user log into Nkwapa once before expecting them to appear in the admin tables.
 
-### VOLUNTEER
+See:
 
-| Flow | Steps | Expected |
-|------|-------|----------|
-| Login + redirect | Log in → app loads | Redirect to `/queues` |
-| Queues | View Queues page | Only "Drafts" tab visible |
-| Create patient | Patients → New Patient → fill form → submit | Success, redirect to patient profile |
-| Start visit | Patient profile → Start New Visit | Encounter wizard opens |
-| Encounter wizard | Vitals → HTN → Diabetes → Review → Submit | Encounter moves to Review queue |
-| Submit for review | Encounter detail (DRAFT) → Submit for Review | Status → IN_REVIEW |
-| Cannot finalize | Encounter detail (IN_REVIEW) | No "Finalize" or "Preceptor Review" buttons |
-| Cannot see audit | Sidebar / direct URL | Audit link hidden or "No access" |
-| Cannot see settings | Sidebar / direct URL | Settings link hidden or "No access" |
-| Cannot see reminders | Sidebar / direct URL | Reminders link hidden or "No access" |
-| Sync button | Header | Disabled if user lacks SYNC.PUSH or SYNC.PULL |
-
-### PRECEPTOR
-
-| Flow | Steps | Expected |
-|------|-------|----------|
-| Queues | View Queues page | "Needs Review" tab visible (default if no Doctor) |
-| Preceptor review | Open encounter from Review → Preceptor Review | Encounter moves to Finalize queue |
-| Cannot finalize | Encounter detail (IN_REVIEW, preceptor-reviewed) | No "Finalize" button |
-| Cannot see settings | Sidebar | Settings link hidden or 403 |
-
-### DOCTOR
-
-| Flow | Steps | Expected |
-|------|-------|----------|
-| Queues | View Queues page | "Ready to Finalize" tab visible and default |
-| Care plan | Encounter detail → Care Plan tab → fill form → Save | Care plan saved |
-| Finalize | Encounter detail → Finalize | Status → FINALIZED, read-only |
-| Follow-up reminder | Set follow-up date in care plan → Finalize | Reminder created (QUEUED); worker processes → SENT (check Reminders page or DB) |
-| Read-only finalized | Open finalized encounter | No edit controls, care plan displayed |
-
-### MANAGER
-
-| Flow | Steps | Expected |
-|------|-------|----------|
-| Audit | Sidebar → Audit | Audit page loads |
-| Audit filters | Set date range, action, actor, entityType, requestId → Apply | Filtered results |
-| Audit pagination | Scroll / Load more | Next page loads via cursor |
-| Reminders | Sidebar → Reminders | Reminders page loads (REMINDER_READ) |
-| Cannot see settings | Sidebar | Settings link hidden or "No access" |
-
-### DIRECTOR
-
-| Flow | Steps | Expected |
-|------|-------|----------|
-| Settings | Sidebar → Settings | Clinic settings page loads |
-| Toggle research | Toggle research_enabled → Save | Settings persist |
-| Audit | Audit page | RESEARCH_SETTINGS.UPDATE event visible after toggle |
-| Reminders | Sidebar → Reminders | List reminders; filter by status, date range |
-| Clinics | Sidebar → Clinics | List clinics (only those they direct); create clinic; edit clinic |
-| Staff | Sidebar → Staff | List users; assign MANAGER/DOCTOR/PRECEPTOR/VOLUNTEER for their clinics |
+- `docs/USER_AND_ROLE_SETUP_GUIDE.md`
 
 ---
 
-## Scenario Checklist
+## 2. Suggested Test Accounts
 
-### 1. Login + Bootstrap
+At minimum create these users:
 
-- [ ] Redirect to Keycloak login
-- [ ] After login, redirect to `/queues`
-- [ ] Single clinic: clinic auto-selected
-- [ ] Multiple clinics: clinic selector in header
-- [ ] `activeClinicId` persisted in localStorage
+- one `SYSTEM_ADMIN`
+- one `DIRECTOR`
+- one `MANAGER`
+- one `DOCTOR`
+- one `PRECEPTOR`
+- one `VOLUNTEER`
+- one `PATIENT`
 
-### 2. Queues
+Optional power-user account:
 
-- [ ] Default tab: Finalize (Doctor) > Review (Preceptor) > Drafts (Volunteer)
-- [ ] Tabs hidden when user lacks permission
-- [ ] Row click navigates to encounter detail
-- [ ] Empty states render correctly
-
-### 3. Patient Create
-
-- [ ] Online: success → redirect to patient profile
-- [ ] Offline: pending banner → sync → success
-- [ ] Duplicate national ID (409): Dialog with "Open existing patient" and "Search again" actions
-
-### 3b. Encounter Data Persistence
-
-- [ ] Switching tabs (Vitals → Screening → Hypertension) auto-saves current section before switching
-- [ ] Submit for Review saves all sections and triggers sync before changing status
-- [ ] Data is visible to Preceptor/Doctor after sync completes (click Sync if "Pend" count > 0)
-
-### 4. Encounter Workflow
-
-- [ ] Volunteer: create → vitals → HTN → DM → submit → disappears from Drafts, appears in Review
-- [ ] Preceptor: open from Review → Preceptor Review → disappears from Review, appears in Finalize
-- [ ] Doctor: open from Finalize → care plan → Finalize → read-only
-- [ ] FINALIZED encounter: no edit controls
-
-### 5. Consent
-
-- [ ] Consent tab visible only if user has CONSENT.RECORD
-- [ ] Grant: status GRANTED, snapshot stored
-- [ ] Revoke: status REVOKED
-- [ ] Consent badge on patient profile
-
-### 6. Sync
-
-- [ ] Indicator: online/offline, pending count
-- [ ] "Sync now" enabled only if user has both SYNC.PUSH and SYNC.PULL
-- [ ] "Sync now" drains outbox when enabled
-- [ ] Offline create → sync → data appears on server
-
-### 7. Audit
-
-- [ ] Manager/Director: `/audit` loads, filters work (from, to, action, actor, entityType, requestId)
-- [ ] "Load more" appears when more results available (cursor pagination)
-- [ ] Volunteer: nav link hidden or "No access"
-
-### 8. Settings
-
-- [ ] Director: `/settings/clinic` loads, toggles persist
-- [ ] Volunteer: nav link hidden or "No access"
-
-### 9. Reminders
-
-- [ ] Director/Manager: `/reminders` loads (REMINDER.READ)
-- [ ] Filters: status (QUEUED/SENT/FAILED), date range
-- [ ] Finalize encounter with follow-up date + patient phone → reminder created (QUEUED)
-- [ ] Worker running → reminder transitions to SENT (check Reminders page)
+- one user with `VOLUNTEER`, `PRECEPTOR`, and `DOCTOR` in the same clinic to test role switching and combined visibility
 
 ---
 
-## Quick Manual Test Script
+## 3. Global Smoke Test
 
-Run this sequence for a fast smoke test:
+Run this first before deep role testing:
 
-```
-1. Login as VOLUNTEER
-   → Create patient "Test A"
-   → Start New Visit
-   → Complete wizard (vitals, HTN, DM)
-   → Submit for Preceptor Review
-
-2. Login as PRECEPTOR
-   → Open encounter from Needs Review
-   → Preceptor Review
-
-3. Login as DOCTOR
-   → Open encounter from Ready to Finalize
-   → Add care plan (counseling, meds, follow-up date)
-   → Finalize
-
-4. Login as MANAGER
-   → /audit
-   → Verify ENCOUNTER.* events
-   → /reminders (if REMINDER_READ)
-
-5. Login as DIRECTOR
-   → /settings/clinic
-   → Toggle research_enabled
-   → /audit → verify RESEARCH_SETTINGS.UPDATE
-   → /reminders → verify follow-up reminder (SENT if worker ran)
-```
+1. open the web app
+2. confirm login redirects to Keycloak
+3. log in
+4. confirm the app loads without console-breaking behavior
+5. confirm clinic selector is present for multi-clinic users
+6. confirm active clinic switching updates accessible screens
+7. confirm logout/login roundtrip still works
 
 ---
 
-## Routes Reference
+## 4. System Admin Test Matrix
 
-| Route | Purpose | Permissions |
-|-------|---------|-------------|
-| `/` | Redirect to `/queues` | Any |
-| `/queues` | Queue landing (Drafts/Review/Finalize tabs) | ENCOUNTER.READ |
-| `/patients` | Patient search | PATIENT.SEARCH |
-| `/patients/new` | New patient form | PATIENT.CREATE |
-| `/patients/[patientId]` | Patient profile | PATIENT.READ |
-| `/patients/[patientId]/consent` | Record consent | CONSENT.RECORD |
-| `/patients/[patientId]/encounters/new` | Check-in wizard | ENCOUNTER.CREATE |
-| `/encounters/[encounterId]` | Encounter detail | ENCOUNTER.READ |
-| `/audit` | Audit log | AUDIT.READ |
-| `/reminders` | Reminder queue | REMINDER.READ |
-| `/settings/clinic` | Clinic research settings | RESEARCH.SETTINGS.UPDATE |
-| `/admin/clinics` | Admin: list, create, edit clinics | CLINIC.MANAGE |
-| `/admin/users` | Admin: list users, assign/remove roles | CLINIC.MANAGE |
+### Access and setup
+
+- [ ] `/admin/clinics` loads
+- [ ] `/admin/users` loads
+- [ ] all-users view is available
+- [ ] clinic-scoped view is available when a clinic is selected
+
+### Clinic management
+
+- [ ] create clinic works
+- [ ] newly created clinic appears in listings
+
+### User role management
+
+- [ ] assign `DIRECTOR` role to a clinic user
+- [ ] assign `MANAGER` role to a clinic user
+- [ ] assign `PATIENT` role to a patient user
+- [ ] assign `SYSTEM_ADMIN` globally when appropriate
+
+### Lifecycle
+
+- [ ] deactivate a user globally
+- [ ] deactivated user cannot successfully bootstrap into the app
+- [ ] self-deactivation is blocked
 
 ---
 
-## Troubleshooting
+## 5. Director Test Matrix
 
-- **403 on API calls**: Check `X-Clinic-Id` header and user's clinic membership (UserClinicRole in DB).
-- **"No access" page**: User lacks required permission; check role assignments in Nkwapa Admin → Staff (roles are in the database, not Keycloak).
-- **Volunteer gets "No access" on New Patient**: Verify the user has **VOLUNTEER** (not MANAGER or PRECEPTOR) assigned for the active clinic in Admin → Staff. MANAGER and PRECEPTOR do not have PATIENT.CREATE. Also ensure the correct clinic is selected in the header dropdown (multi-clinic users).
-- **Sync button disabled**: User needs both SYNC.PUSH and SYNC.PULL; VOLUNTEER/PRECEPTOR/DOCTOR/MANAGER/DIRECTOR have these by default.
-- **Encounter not in queue**: Verify `status` and `preceptorReviewedById` / `doctorFinalizedById` match queue stage.
-- **Sync not clearing**: Check network, token validity, and server logs for mutation errors.
-- **Audit empty**: Ensure `from`/`to` date range includes recent events.
-- **Reminder stays QUEUED**: Ensure Redis is running and API server is up (BullMQ worker runs in same process).
-- **Encounter data not visible after Submit for Review**: Data auto-saves when switching tabs and before submit. If the Preceptor still doesn't see vitals/screening, ensure the volunteer clicked Sync (or Sync ran automatically) before submitting. "Pend: N" in the header indicates outbox items awaiting sync.
+### Research and clinic settings
+
+- [ ] `/settings/clinic` loads
+- [ ] research enabled toggle persists
+- [ ] "director approval required" toggle persists
+
+### Research export console
+
+- [ ] `/clinics/[clinicId]/research/exports` loads
+- [ ] export request with date range succeeds
+- [ ] pending export can be approved
+- [ ] pending export can be rejected
+- [ ] completed export shows metadata and download action
+- [ ] failed export shows retry action
+
+### Admin and oversight
+
+- [ ] `/admin/users` loads in clinic-scoped mode
+- [ ] clinic roster visibility is correct
+- [ ] allowed role assignments work
+- [ ] audit page loads
+- [ ] dashboard loads director metrics
+
+---
+
+## 6. Manager Test Matrix
+
+### Today board
+
+- [ ] `/today` loads
+- [ ] selected date changes data set
+- [ ] active shifts list renders
+- [ ] check-ins group by status
+- [ ] assignment modal opens for waiting patient
+- [ ] only active staff appear in assignment options
+- [ ] reassignment flow works
+
+### Clinic operations
+
+- [ ] manager can check into a shift
+- [ ] manager can check out own shift
+- [ ] manager can see active shifts for the clinic
+- [ ] manager can create patient check-ins if that flow is available in the UI/API path under test
+
+### Management views
+
+- [ ] audit page loads
+- [ ] dashboard loads manager/director-level metrics
+- [ ] `/admin/users` allows allowed lifecycle actions
+
+---
+
+## 7. Volunteer Test Matrix
+
+### Patient and encounter flow
+
+- [ ] `/patients` loads
+- [ ] new patient form works
+- [ ] patient profile loads
+- [ ] new encounter starts successfully
+- [ ] vitals form saves
+- [ ] diabetes screening form saves
+- [ ] hypertension form saves
+- [ ] submit for review works
+
+### Consent
+
+- [ ] patient consent page loads
+- [ ] consent grant works
+- [ ] consent revoke works
+
+### Ops
+
+- [ ] `/my/assigned` loads
+- [ ] volunteer can check in for shift
+- [ ] volunteer sees assigned patients
+- [ ] volunteer can start intake from assigned list
+- [ ] start intake routes into encounter page
+
+---
+
+## 8. Preceptor Test Matrix
+
+- [ ] queues page shows review workload
+- [ ] encounter in review is visible
+- [ ] preceptor review action works
+- [ ] preceptor cannot finalize if not permitted
+- [ ] dashboard loads preceptor metrics
+- [ ] assigned or clinical visibility behaves correctly in current clinic
+
+---
+
+## 9. Doctor Test Matrix
+
+- [ ] queues page shows finalize-ready encounters
+- [ ] encounter detail loads for in-review encounter
+- [ ] care plan can be saved
+- [ ] prescriptions can be created
+- [ ] prescriptions can be edited before finalization
+- [ ] encounter finalization works
+- [ ] finalized encounter becomes read-only
+- [ ] follow-up reminder is created when follow-up date exists
+- [ ] `/my/assigned` shows assigned patients when relevant
+- [ ] dashboard loads doctor metrics
+
+---
+
+## 10. Patient Portal Test Matrix
+
+### Bootstrap
+
+- [ ] patient can log into the portal app shell
+- [ ] `/portal` loads
+- [ ] patient sees summary content, not staff admin pages
+
+### Measurements and self-reports
+
+- [ ] `/portal/health` loads
+- [ ] new BP reading can be added
+- [ ] new glucose reading can be added
+- [ ] new weight reading can be added if exposed in current UI
+- [ ] trend charts update
+- [ ] `/portal/self-reports` loads
+- [ ] `/portal/self-reports/new` works
+
+### Appointments
+
+- [ ] `/portal/appointments/request` loads
+- [ ] valid date range request submits
+- [ ] invalid end-before-start is rejected
+- [ ] `/portal/appointments` shows new request
+
+---
+
+## 11. Admin Lifecycle Test Matrix
+
+Use `/admin/users`.
+
+- [ ] inactive filter works
+- [ ] active filter works
+- [ ] role filter works
+- [ ] user detail sheet opens
+- [ ] role revoke works for allowed targets
+- [ ] clinic deactivate works for allowed targets
+- [ ] global deactivate works for system admin
+
+After deactivation:
+
+- [ ] affected user receives disabled-user behavior on next auth/bootstrap
+
+---
+
+## 12. Reminder Test Matrix
+
+- [ ] `/reminders` loads for roles with reminder read permission
+- [ ] queued reminder records appear after finalization with follow-up date
+- [ ] reminder statuses can be filtered
+- [ ] if fake provider is used, queue still processes without external service
+- [ ] if Twilio mode is enabled, webhook route accepts delivery callback correctly
+
+---
+
+## 13. Research Export Test Matrix
+
+### Settings
+
+- [ ] research-disabled clinic blocks export request
+- [ ] research-enabled clinic accepts request
+- [ ] approval-required clinic keeps request pending
+- [ ] auto-approved clinic queues immediately
+
+### Export behavior
+
+- [ ] export list renders
+- [ ] detail metadata renders
+- [ ] row counts render when available
+- [ ] completed export can download ZIP
+- [ ] failed export can retry
+
+### Data safety checks
+
+- [ ] exported artifact contains manifest and CSV pack
+- [ ] no patient names in exported files
+- [ ] no phone numbers in exported files
+- [ ] no raw internal IDs in de-identified CSV output
+
+---
+
+## 14. Dashboard Test Matrix
+
+- [ ] dashboard loads with correct clinic context
+- [ ] summary cards render
+- [ ] role-specific sections appear only for matching roles
+- [ ] charts render without errors
+- [ ] recent activity or trend sections contain expected values for seeded data
+
+---
+
+## 15. Offline and Sync Test Matrix
+
+Core staff flows only:
+
+- [ ] offline create or draft behavior still works where supported
+- [ ] outbox count increases when local changes are queued
+- [ ] sync button or sync provider drains outbox when online
+- [ ] synced data becomes visible in server-backed views
+
+Known caveat:
+
+- newer ops and portal features should be tested with connectivity because they are more online-first
+
+---
+
+## 16. Recommended End-to-End Smoke Script
+
+### Staff path
+
+1. Log in as `VOLUNTEER`.
+2. Create a patient.
+3. Start a new encounter.
+4. Fill vitals and screening.
+5. Submit for review.
+
+6. Log in as `PRECEPTOR`.
+7. Open the encounter.
+8. Complete preceptor review.
+
+9. Log in as `DOCTOR`.
+10. Open the encounter.
+11. Add care plan and prescription.
+12. Finalize encounter.
+
+### Ops path
+
+13. Log in as `MANAGER`.
+14. Open `/today`.
+15. Check in as manager or confirm other staff active shifts.
+16. Create or confirm a patient check-in.
+17. Assign volunteer and doctor.
+
+18. Log in as `VOLUNTEER`.
+19. Open `/my/assigned`.
+20. Start intake for assigned patient.
+
+### Research path
+
+21. Log in as `DIRECTOR`.
+22. Enable research settings if needed.
+23. Open research exports page.
+24. Request export.
+25. Approve export if required.
+26. Confirm processing completes and download is available.
+
+### Portal path
+
+27. Log in as `PATIENT`.
+28. Open `/portal`.
+29. Log a measurement.
+30. Request an appointment.
+
+### Admin path
+
+31. Log in as `SYSTEM_ADMIN`.
+32. Open `/admin/users`.
+33. Deactivate a non-critical test user.
+34. Confirm disabled user can no longer bootstrap.
+
+---
+
+## 17. Common QA Failure Patterns
+
+### "No access" in UI
+
+Check:
+
+- role assignment in Nkwapa
+- active clinic
+- effective permissions from `/auth/whoami`
+
+### API 403 even though login worked
+
+Check:
+
+- `X-Clinic-Id`
+- clinic membership
+- whether the route expects global or clinic-scoped permission
+
+### Reminder never sends
+
+Check:
+
+- Redis
+- API worker process
+- provider config
+
+### Research export never completes
+
+Check:
+
+- research enabled setting
+- approval state
+- Redis
+- GitHub env vars
+- API logs for transform or sync failure
+
+### Portal data missing
+
+Check:
+
+- patient role
+- patient account link
+- clinic context
+
+---
+
+## 18. Related Guides
+
+- `docs/FEATURE_WORKFLOWS_GUIDE.md`
+- `docs/USER_AND_ROLE_SETUP_GUIDE.md`
+- `IMPLEMENTATION_STATUS.md`
+- `memory.md`

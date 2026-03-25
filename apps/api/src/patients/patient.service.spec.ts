@@ -23,6 +23,7 @@ const mockPatient: Patient = {
   nationalIdHash: "hash123",
   nationalIdLast4: "1234",
   createdByUserId: null,
+  portalUserId: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };

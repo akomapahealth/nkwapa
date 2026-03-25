@@ -7,6 +7,9 @@ import { useAuth } from "@/lib/auth-context";
 import { useBootstrap } from "@/lib/bootstrap-context";
 import { useSync } from "@/app/ServiceWorkerAndSyncProvider";
 import { apiFetch } from "@/lib/api";
+import { AppMetricCard } from "@/components/app-shell/AppMetricCard";
+import { AppPageHeader } from "@/components/app-shell/AppPageHeader";
+import { EmptyStateCard, InlineNotice } from "@/components/ops/OpsShared";
 import { RouteGuard } from "@/components/RouteGuard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -17,7 +20,7 @@ import { DiabetesScreeningForm } from "@/components/DiabetesScreeningForm";
 import { HypertensionForm } from "@/components/HypertensionForm";
 import { CarePlanForm } from "@/components/CarePlanForm";
 import { db } from "@/lib/db";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ClipboardPlus, HeartPulse, ShieldCheck } from "lucide-react";
 
 function hasPermission(permissions: string[], perm: string): boolean {
   return permissions.includes("*") || permissions.includes(perm);
@@ -227,57 +230,101 @@ export default function EncounterDetailPage() {
   return (
     <RouteGuard requiredPermission="ENCOUNTER.READ">
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <Button asChild variant="ghost" size="sm">
-          <Link href={`/patients/${encounter.patientId}`}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Patient
-          </Link>
-        </Button>
-        <div className="flex items-center gap-2">
-          <Badge
-            variant={
-              isFinalized
-                ? "finalized"
-                : encounter.status === "IN_REVIEW"
-                  ? "review"
-                  : "draft"
-            }
-          >
-            {encounter.status}
-          </Badge>
-          {canSubmit && (
-            <Button
-              size="sm"
-              onClick={() => doTransition("submit")}
-              disabled={transitioning}
+      <AppPageHeader
+        eyebrow="Encounter workspace"
+        title={
+          encounter.patient
+            ? `${encounter.patient.firstName} ${encounter.patient.lastName}`
+            : "Encounter Workspace"
+        }
+        description="Capture vitals, screening assessments, hypertension evaluation, and care plan decisions from a shared charting flow."
+        badges={
+          <>
+            {encounter.patient ? (
+              <Badge variant="outline" className="border-primary/25 bg-background/80 font-mono">
+                {encounter.patient.patientCode}
+              </Badge>
+            ) : null}
+            <Badge
+              variant={
+                isFinalized
+                  ? "finalized"
+                  : encounter.status === "IN_REVIEW"
+                    ? "review"
+                    : "draft"
+              }
             >
-              Submit for Review
+              {encounter.status}
+            </Badge>
+          </>
+        }
+        actions={
+          <>
+            <Button asChild variant="ghost" className="rounded-2xl">
+              <Link href={`/patients/${encounter.patientId}`}>
+                <ArrowLeft className="h-4 w-4" />
+                Back to Patient
+              </Link>
             </Button>
-          )}
-          {canPreceptorReview && (
-            <Button
-              size="sm"
-              onClick={() => doTransition("preceptor-review")}
-              disabled={transitioning}
-            >
-              Preceptor Review
-            </Button>
-          )}
-          {canFinalize && (
-            <Button
-              size="sm"
-              onClick={() => doTransition("finalize")}
-              disabled={transitioning}
-            >
-              Finalize
-            </Button>
-          )}
-        </div>
+            {canSubmit ? (
+              <Button
+                size="sm"
+                onClick={() => doTransition("submit")}
+                disabled={transitioning}
+                className="rounded-2xl"
+              >
+                Submit for Review
+              </Button>
+            ) : null}
+            {canPreceptorReview ? (
+              <Button
+                size="sm"
+                onClick={() => doTransition("preceptor-review")}
+                disabled={transitioning}
+                className="rounded-2xl"
+              >
+                Preceptor Review
+              </Button>
+            ) : null}
+            {canFinalize ? (
+              <Button
+                size="sm"
+                onClick={() => doTransition("finalize")}
+                disabled={transitioning}
+                className="rounded-2xl"
+              >
+                Finalize
+              </Button>
+            ) : null}
+          </>
+        }
+      />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <AppMetricCard
+          title="Encounter state"
+          value={encounter.status}
+          icon={ClipboardPlus}
+          detail="The current review stage for this encounter."
+        />
+        <AppMetricCard
+          title="Forms"
+          value={canFinalize ? "4" : "3"}
+          icon={HeartPulse}
+          detail="Vitals, screening, hypertension, and care plan appear based on workflow state."
+        />
+        <AppMetricCard
+          title="Editability"
+          value={isFinalized ? "Locked" : "Open"}
+          icon={ShieldCheck}
+          detail="Finalized encounters are preserved as read-only records."
+        />
       </div>
 
-      {encounter.patient && (
-        <Card className="border-l-4 border-l-secondary">
+      {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
+
+      {encounter.patient ? (
+        <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
           <CardHeader>
             <h1 className="text-xl font-semibold font-heading">
               {encounter.patient.firstName} {encounter.patient.lastName}
@@ -290,11 +337,11 @@ export default function EncounterDetailPage() {
             </p>
           </CardHeader>
         </Card>
-      )}
+      ) : null}
 
       {!isFinalized && clinicId && (
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-          <TabsList>
+          <TabsList className="h-auto flex-wrap justify-start gap-2 rounded-3xl border border-border/80 bg-card/75 p-2">
             <TabsTrigger value="vitals" disabled={savingBeforeSwitch}>
               Vitals
             </TabsTrigger>
@@ -353,11 +400,12 @@ export default function EncounterDetailPage() {
       )}
 
       {isFinalized && (
-        <Card>
+        <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
           <CardContent className="pt-6">
-            <p className="text-muted-foreground">
-              This encounter is finalized. No further edits allowed.
-            </p>
+            <EmptyStateCard
+              title="Encounter finalized"
+              description="This encounter is complete and no further edits are allowed."
+            />
             {carePlan && (
               <div className="mt-4 space-y-2">
                 <p>

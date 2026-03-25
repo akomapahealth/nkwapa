@@ -1,5 +1,7 @@
 // packages/db/prisma/seed.ts
+import "dotenv/config";
 import { PrismaClient, UserRole, Sex, NationalIdType, EncounterStatus } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 import {
   encryptNationalId,
   hashNationalId,
@@ -9,7 +11,10 @@ import {
 } from "../index";
 import { seedDrugs } from "./seed-drugs";
 
-const prisma = new PrismaClient();
+const adapter = new PrismaPg({
+  connectionString: process.env.DATABASE_URL ?? "",
+});
+const prisma = new PrismaClient({ adapter });
 
 async function main() {
   const clinicName = process.env.SEED_CLINIC_NAME ?? "Nkwapa Clinic - Demo";

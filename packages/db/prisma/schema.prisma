@@ -22,6 +22,7 @@ enum UserRole {
   DOCTOR
   PRECEPTOR
   VOLUNTEER
+  PATIENT
 }
 
 enum ConsentType {
@@ -39,10 +40,75 @@ enum EncounterStatus {
   FINALIZED
 }
 
+enum ShiftStatus {
+  ACTIVE
+  CLOSED
+}
+
+enum ShiftRole {
+  VOLUNTEER
+  DOCTOR
+  PRECEPTOR
+  MANAGER
+}
+
+enum CheckInSource {
+  STAFF
+  PATIENT_SELF
+}
+
+enum CheckInStatus {
+  WAITING
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum AssignmentStatus {
+  ACTIVE
+  REASSIGNED
+  CANCELLED
+}
+
 enum GlucoseType {
   FASTING
   RANDOM
   UNKNOWN
+}
+
+enum PatientSelfReportType {
+  FOLLOW_UP_UPDATE
+  HOME_BP
+  HOME_GLUCOSE
+  SYMPTOMS
+  GENERAL
+}
+
+enum PatientMeasurementSource {
+  PATIENT
+  STAFF
+}
+
+enum PatientMeasurementType {
+  BP
+  GLUCOSE
+  WEIGHT
+}
+
+enum AppointmentRequestStatus {
+  REQUESTED
+  TRIAGED
+  CONFIRMED
+  REJECTED
+  CANCELLED
+}
+
+enum AppointmentStatus {
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
 }
 
 enum HypertensionClassification {
@@ -67,10 +133,12 @@ enum ReminderStatus {
 }
 
 enum ResearchExportStatus {
-  PENDING
+  PENDING_APPROVAL
   APPROVED
-  REJECTED
+  PROCESSING
   COMPLETED
+  FAILED
+  REJECTED
 }
 
 enum NationalIdType {
@@ -117,6 +185,13 @@ model Clinic {
   carePlans              CarePlan[]
   drugs                  Drug[]
   prescriptions          Prescription[]
+  patientSelfReports     PatientSelfReport[]
+  patientMeasurements    PatientMeasurement[]
+  staffShifts            StaffShift[]
+  patientCheckIns        PatientCheckIn[]
+  patientAssignments     PatientAssignment[]
+  appointmentRequests    AppointmentRequest[]
+  appointments           Appointment[]
 
   @@index([countryCode])
   @@index([isActive])
@@ -139,6 +214,7 @@ model User {
 
   // relations
   clinicRoles                   UserClinicRole[]
+  portalPatient                 Patient?                 @relation("PatientPortalUser")
   createdPatients               Patient[]                @relation("PatientCreatedBy")
   createdEncounters             Encounter[]              @relation("EncounterCreatedBy")
   preceptorReviewedEncounters   Encounter[]              @relation("EncounterPreceptorReviewedBy")
@@ -149,6 +225,14 @@ model User {
   approvedResearchExports       ResearchExport[]         @relation("ResearchExportApprovedBy")
   auditEvents                   AuditEvent[]             @relation("AuditActor")
   prescriptions                 Prescription[]           @relation("PrescriptionPrescribedBy")
+  patientSelfReports            PatientSelfReport[]      @relation("PatientSelfReportSubmittedBy")
+  triagedAppointmentRequests    AppointmentRequest[]     @relation("AppointmentRequestTriagedBy")
+  staffShifts                   StaffShift[]
+  volunteerAssignments          PatientAssignment[]      @relation("AssignmentVolunteer")
+  doctorAssignments             PatientAssignment[]      @relation("AssignmentDoctor")
+  createdAssignments            PatientAssignment[]      @relation("AssignmentAssignedBy")
+  doctorAppointments            Appointment[]            @relation("AppointmentAssignedDoctor")
+  volunteerAppointments         Appointment[]            @relation("AppointmentAssignedVolunteer")
 
   @@index([isActive])
 }
@@ -189,6 +273,7 @@ model Patient {
   nationalIdLast4      String?        @db.VarChar(8)
 
   createdByUserId String? @db.Uuid
+  portalUserId    String? @unique @db.Uuid
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -196,11 +281,19 @@ model Patient {
   // relations
   primaryClinic Clinic           @relation("PrimaryClinicPatients", fields: [primaryClinicId], references: [id])
   createdBy     User?            @relation("PatientCreatedBy", fields: [createdByUserId], references: [id])
+  portalUser    User?            @relation("PatientPortalUser", fields: [portalUserId], references: [id], onDelete: SetNull)
+  accountLink   PatientAccountLink?
   encounters    Encounter[]
   consents      PatientConsent[]
   reminders     Reminder[]
+  selfReports   PatientSelfReport[]
+  measurements  PatientMeasurement[]
+  checkIns      PatientCheckIn[]
+  appointmentRequests AppointmentRequest[]
+  appointments Appointment[]
 
   @@index([primaryClinicId])
+  @@index([portalUserId])
   @@index([lastName, firstName])
   @@index([phoneE164])
   @@index([updatedAt])
@@ -264,6 +357,8 @@ model Encounter {
   diabetesScreening      DiabetesScreening?
   hypertensionAssessment HypertensionAssessment?
   carePlan               CarePlan?
+  patientCheckIn         PatientCheckIn?
+  patientMeasurements    PatientMeasurement[]
 
   reminders     Reminder[]
   prescriptions Prescription[]
@@ -271,6 +366,69 @@ model Encounter {
   @@index([clinicId, updatedAt])
   @@index([patientId, updatedAt])
   @@index([status])
+}
+
+model StaffShift {
+  id          String      @id @default(uuid()) @db.Uuid
+  clinicId    String      @db.Uuid
+  userId      String      @db.Uuid
+  roleAtShift ShiftRole
+  checkedInAt DateTime
+  checkedOutAt DateTime?
+  status      ShiftStatus @default(ACTIVE)
+  notes       String?     @db.Text
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId, status, checkedInAt])
+  @@index([userId, checkedInAt])
+}
+
+model PatientCheckIn {
+  id          String        @id @default(uuid()) @db.Uuid
+  clinicId    String        @db.Uuid
+  patientId   String        @db.Uuid
+  checkedInAt DateTime
+  source      CheckInSource @default(STAFF)
+  status      CheckInStatus @default(WAITING)
+  encounterId String?       @unique @db.Uuid
+  notes       String?       @db.Text
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  clinic      Clinic               @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient     Patient              @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  encounter   Encounter?           @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+  assignments PatientAssignment[]
+
+  @@index([clinicId, status, checkedInAt])
+  @@index([patientId, checkedInAt])
+}
+
+model PatientAssignment {
+  id                  String           @id @default(uuid()) @db.Uuid
+  clinicId            String           @db.Uuid
+  patientCheckInId    String           @db.Uuid
+  assignedVolunteerId String           @db.Uuid
+  assignedDoctorId    String           @db.Uuid
+  assignedByUserId    String           @db.Uuid
+  assignedAt          DateTime
+  status              AssignmentStatus @default(ACTIVE)
+  reason              String?          @db.Text
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  clinic            Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patientCheckIn    PatientCheckIn @relation(fields: [patientCheckInId], references: [id], onDelete: Cascade)
+  assignedVolunteer User           @relation("AssignmentVolunteer", fields: [assignedVolunteerId], references: [id], onDelete: Cascade)
+  assignedDoctor    User           @relation("AssignmentDoctor", fields: [assignedDoctorId], references: [id], onDelete: Cascade)
+  assignedBy        User           @relation("AssignmentAssignedBy", fields: [assignedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId, status, assignedAt])
+  @@index([patientCheckInId])
 }
 
 model Vitals {
@@ -442,6 +600,110 @@ model Reminder {
   @@index([patientId])
 }
 
+model PatientAccountLink {
+  id          String   @id @default(uuid()) @db.Uuid
+  patientId   String   @unique @db.Uuid
+  keycloakSub String   @unique @db.VarChar(255)
+  createdAt   DateTime @default(now())
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}
+
+model PatientMeasurement {
+  id                String                   @id @default(uuid()) @db.Uuid
+  patientId         String                   @db.Uuid
+  clinicId          String                   @db.Uuid
+  recordedAt        DateTime
+  source            PatientMeasurementSource
+  type              PatientMeasurementType
+  payloadJson       String                   @db.Text
+  notes             String?                  @db.Text
+  linkedEncounterId String?                  @db.Uuid
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  patient         Patient    @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  clinic          Clinic     @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  linkedEncounter Encounter? @relation(fields: [linkedEncounterId], references: [id], onDelete: SetNull)
+
+  @@index([patientId, recordedAt])
+  @@index([patientId, type, recordedAt])
+}
+
+model AppointmentRequest {
+  id                 String                   @id @default(uuid()) @db.Uuid
+  clinicId           String                   @db.Uuid
+  patientId          String                   @db.Uuid
+  preferredStartDate DateTime
+  preferredEndDate   DateTime
+  reason             String?                  @db.VarChar(120)
+  notes              String?                  @db.Text
+  status             AppointmentRequestStatus @default(REQUESTED)
+  triagedByUserId    String?                  @db.Uuid
+  triagedAt          DateTime?
+  rejectionReason    String?                  @db.Text
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  clinic     Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient    Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  triagedBy  User?         @relation("AppointmentRequestTriagedBy", fields: [triagedByUserId], references: [id], onDelete: SetNull)
+  appointment Appointment?
+
+  @@index([clinicId, status, createdAt])
+  @@index([patientId, createdAt])
+}
+
+model Appointment {
+  id                  String            @id @default(uuid()) @db.Uuid
+  clinicId            String            @db.Uuid
+  patientId           String            @db.Uuid
+  startsAt            DateTime
+  endsAt              DateTime
+  status              AppointmentStatus @default(CONFIRMED)
+  linkedRequestId     String?           @unique @db.Uuid
+  assignedDoctorId    String?           @db.Uuid
+  assignedVolunteerId String?           @db.Uuid
+  notes               String?           @db.Text
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  clinic             Clinic              @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient            Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  linkedRequest      AppointmentRequest? @relation(fields: [linkedRequestId], references: [id], onDelete: SetNull)
+  assignedDoctor     User?               @relation("AppointmentAssignedDoctor", fields: [assignedDoctorId], references: [id], onDelete: SetNull)
+  assignedVolunteer  User?               @relation("AppointmentAssignedVolunteer", fields: [assignedVolunteerId], references: [id], onDelete: SetNull)
+
+  @@index([clinicId, startsAt])
+  @@index([patientId, startsAt])
+}
+
+model PatientSelfReport {
+  id               String               @id @default(uuid()) @db.Uuid
+  patientId        String               @db.Uuid
+  clinicId         String               @db.Uuid
+  submittedByUserId String              @db.Uuid
+
+  type PatientSelfReportType
+
+  systolicBp    Int?
+  diastolicBp   Int?
+  glucoseMgDl  Int?
+  glucoseType   GlucoseType?            @default(UNKNOWN)
+  symptomsJson  String?                 @db.Text
+  notes         String?                 @db.Text
+
+  recordedAt DateTime
+  createdAt  DateTime @default(now())
+
+  patient  Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  clinic   Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  submittedBy User @relation("PatientSelfReportSubmittedBy", fields: [submittedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, createdAt])
+  @@index([clinicId, createdAt])
+}
+
 model ClinicResearchSettings {
   clinicId                           String  @id @db.Uuid
   researchEnabled                    Boolean @default(false)
@@ -462,16 +724,30 @@ model ResearchExport {
   requestedByUserId String  @db.Uuid
   approvedByUserId  String? @db.Uuid
 
-  status                ResearchExportStatus @default(PENDING)
+  fromDate              String               @db.VarChar(10)
+  toDate                String               @db.VarChar(10)
+  status                ResearchExportStatus @default(PENDING_APPROVAL)
   datasetVersion        Int                  @default(1)
   policyVersionSnapshot String               @db.VarChar(64)
 
   rejectionReason String? @db.Text
+  failureReason   String? @db.Text
   filePath        String? @db.VarChar(500)
-  fileFormat      String? @db.VarChar(10) // "csv" or "json"
+  fileFormat      String? @db.VarChar(10) // "zip" for the download artifact
   recordCount     Int?
+  rowCountsJson   String? @db.Text
+
+  artifactSha256    String? @db.VarChar(128)
+  artifactSizeBytes Int?
+
+  repoProvider  String?   @db.VarChar(40)
+  repoPath      String?   @db.VarChar(500)
+  repoCommitSha String?   @db.VarChar(80)
+  repoCommitUrl String?   @db.VarChar(500)
+  syncedAt      DateTime?
 
   requestedAt DateTime  @default(now())
+  startedAt   DateTime?
   approvedAt  DateTime?
   completedAt DateTime?
 

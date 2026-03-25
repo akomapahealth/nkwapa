@@ -41,6 +41,7 @@ services:
       - "8080:8080"
     volumes:
       - ./keycloak/realm-export:/opt/keycloak/data/import:ro
+      - ./keycloak/themes/nkwapa:/opt/keycloak/themes/nkwapa:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/ready || exit 1"]
       interval: 5s

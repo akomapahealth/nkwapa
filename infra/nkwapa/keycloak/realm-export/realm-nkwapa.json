@@ -1,6 +1,7 @@
 {
   "realm": "nkwapa",
   "enabled": true,
+  "loginTheme": "nkwapa",
   "sslRequired": "external",
   "registrationAllowed": false,
   "loginWithEmailAllowed": true,
@@ -41,6 +42,10 @@
       {
         "name": "VOLUNTEER",
         "description": "Volunteer"
+      },
+      {
+        "name": "PATIENT",
+        "description": "Patient portal user"
       }
     ]
   },

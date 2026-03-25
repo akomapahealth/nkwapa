@@ -3,9 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { ArrowLeft, FilePenLine, ShieldCheck, UserPlus } from "lucide-react";
 import { useBootstrap } from "@/lib/bootstrap-context";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch } from "@/lib/api";
+import { AppMetricCard } from "@/components/app-shell/AppMetricCard";
+import { AppPageHeader } from "@/components/app-shell/AppPageHeader";
 import { RouteGuard } from "@/components/RouteGuard";
 import { PhoneInput } from "@/components/PhoneInput";
 import { Button } from "@/components/ui/button";
@@ -19,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -26,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { InlineNotice } from "@/components/ops/OpsShared";
 
 interface CreatePatientBody {
   firstName: string;
@@ -67,12 +72,13 @@ export default function NewPatientPage() {
   const [error, setError] = useState<string | null>(null);
   const [conflictPatient, setConflictPatient] = useState<ExistingPatient | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (!clinicId || !getToken) return;
     setLoading(true);
     setError(null);
     setConflictPatient(null);
+
     try {
       const body: CreatePatientBody = {
         ...form,
@@ -80,7 +86,7 @@ export default function NewPatientPage() {
         phoneE164: form.phoneE164 || undefined,
         email: form.email || undefined,
       };
-      const res = await apiFetch(
+      const response = await apiFetch(
         `/clinics/${encodeURIComponent(clinicId)}/patients`,
         {
           method: "POST",
@@ -88,19 +94,23 @@ export default function NewPatientPage() {
           getToken,
         }
       );
-      if (res.status === 409) {
-        const json = (await res.json()) as {
+
+      if (response.status === 409) {
+        const payload = (await response.json()) as {
           existingPatient?: ExistingPatient;
-          message?: string;
         };
-        setConflictPatient(json.existingPatient ?? null);
+        setConflictPatient(payload.existingPatient ?? null);
         return;
       }
-      if (!res.ok) throw new Error(await res.text());
-      const patient = (await res.json()) as { id: string };
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const patient = (await response.json()) as { id: string };
       router.push(`/patients/${patient.id}`);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : String(nextError));
     } finally {
       setLoading(false);
     }
@@ -118,178 +128,231 @@ export default function NewPatientPage() {
 
   return (
     <RouteGuard requiredPermission="PATIENT.CREATE">
-    <div className="space-y-6 max-w-lg">
-      <div>
-        <Button variant="ghost" asChild>
-          <Link href="/patients">← Back to Patients</Link>
+      <div className="space-y-6">
+        <Button variant="ghost" asChild className="w-fit rounded-2xl">
+          <Link href="/patients">
+            <ArrowLeft className="h-4 w-4" />
+            Back to Patients
+          </Link>
         </Button>
-      </div>
-      <h1 className="text-2xl font-bold font-heading">New Patient</h1>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {error && !conflictPatient && (
-          <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-            {error}
-          </div>
-        )}
-        <Dialog
-          open={!!conflictPatient}
-          onOpenChange={(open) => {
-            if (!open) {
-              setConflictPatient(null);
-            }
-          }}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Patient already exists</DialogTitle>
-              <DialogDescription>
-                A patient with this national ID already exists in the system.
-              </DialogDescription>
-            </DialogHeader>
-            {conflictPatient && (
-              <div className="rounded-md border p-4 text-sm">
-                <p className="font-medium">
-                  {conflictPatient.firstName} {conflictPatient.lastName}
-                </p>
-                <p className="text-muted-foreground font-mono">
-                  {conflictPatient.patientCode}
-                </p>
-                {conflictPatient.nationalIdLast4 && (
-                  <p className="text-muted-foreground">
-                    ID …{conflictPatient.nationalIdLast4}
-                  </p>
-                )}
-              </div>
-            )}
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setConflictPatient(null);
+
+        <AppPageHeader
+          eyebrow="Patient intake"
+          title="Register a new patient"
+          description="Capture a complete demographic record for the active clinic while checking for duplicates before the patient enters care."
+        />
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <AppMetricCard
+            title="Registration mode"
+            value="Clinic"
+            icon={UserPlus}
+            detail="The patient record will be created for the active clinic."
+          />
+          <AppMetricCard
+            title="Duplicate check"
+            value="Enabled"
+            icon={ShieldCheck}
+            detail="National ID checks help prevent accidental duplicate patient records."
+          />
+          <AppMetricCard
+            title="Workflow"
+            value="Guided"
+            icon={FilePenLine}
+            detail="Complete the form once, then move directly into the patient record."
+          />
+        </div>
+
+        <Card className="max-w-4xl rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+          <CardHeader>
+            <CardTitle className="text-xl">Patient registration form</CardTitle>
+            <CardDescription>
+              Enter demographics, contact details, and the patient’s national ID information.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {error && !conflictPatient ? (
+                <InlineNotice tone="error">{error}</InlineNotice>
+              ) : null}
+
+              <Dialog
+                open={!!conflictPatient}
+                onOpenChange={(open) => {
+                  if (!open) {
+                    setConflictPatient(null);
+                  }
                 }}
               >
-                Search again
-              </Button>
-              {conflictPatient && (
-                <Button asChild>
-                  <Link href={`/patients/${conflictPatient.id}`}>
-                    Open existing patient
-                  </Link>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Patient already exists</DialogTitle>
+                    <DialogDescription>
+                      A patient with this national ID already exists in the system.
+                    </DialogDescription>
+                  </DialogHeader>
+                  {conflictPatient && (
+                    <div className="rounded-md border p-4 text-sm">
+                      <p className="font-medium">
+                        {conflictPatient.firstName} {conflictPatient.lastName}
+                      </p>
+                      <p className="font-mono text-muted-foreground">
+                        {conflictPatient.patientCode}
+                      </p>
+                      {conflictPatient.nationalIdLast4 && (
+                        <p className="text-muted-foreground">
+                          ID ...{conflictPatient.nationalIdLast4}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setConflictPatient(null)}>
+                      Search again
+                    </Button>
+                    {conflictPatient && (
+                      <Button asChild>
+                        <Link href={`/patients/${conflictPatient.id}`}>
+                          Open existing patient
+                        </Link>
+                      </Button>
+                    )}
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              <div className="grid gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName">First name *</Label>
+                    <Input
+                      id="firstName"
+                      required
+                      value={form.firstName}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, firstName: event.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Last name *</Label>
+                    <Input
+                      id="lastName"
+                      required
+                      value={form.lastName}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, lastName: event.target.value }))
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="dob">DOB</Label>
+                  <Input
+                    id="dob"
+                    type="date"
+                    value={form.dob}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, dob: event.target.value }))
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Sex</Label>
+                  <Select
+                    value={form.sex}
+                    onValueChange={(value) =>
+                      setForm((current) => ({
+                        ...current,
+                        sex: value as CreatePatientBody["sex"],
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="UNKNOWN">Unknown</SelectItem>
+                      <SelectItem value="MALE">Male</SelectItem>
+                      <SelectItem value="FEMALE">Female</SelectItem>
+                      <SelectItem value="OTHER">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Phone (Ghana)</Label>
+                  <PhoneInput
+                    value={form.phoneE164}
+                    onChange={(value) =>
+                      setForm((current) => ({ ...current, phoneE164: value }))
+                    }
+                    placeholder="024 123 4567"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={form.email}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, email: event.target.value }))
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>National ID type</Label>
+                  <Select
+                    value={form.nationalIdType}
+                    onValueChange={(value) =>
+                      setForm((current) => ({
+                        ...current,
+                        nationalIdType: value as CreatePatientBody["nationalIdType"],
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="OTHER">Other</SelectItem>
+                      <SelectItem value="VOTER_ID">Voter ID</SelectItem>
+                      <SelectItem value="NATIONAL_ID">National ID</SelectItem>
+                      <SelectItem value="PASSPORT">Passport</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="nationalId">National ID *</Label>
+                  <Input
+                    id="nationalId"
+                    required
+                    value={form.nationalId}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, nationalId: event.target.value }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Button type="submit" disabled={loading} className="rounded-2xl">
+                  {loading ? "Creating..." : "Create Patient"}
                 </Button>
-              )}
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-        <div className="grid gap-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="firstName">First name *</Label>
-              <Input
-                id="firstName"
-                required
-                value={form.firstName}
-                onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="lastName">Last name *</Label>
-              <Input
-                id="lastName"
-                required
-                value={form.lastName}
-                onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))}
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="dob">DOB</Label>
-            <Input
-              id="dob"
-              type="date"
-              value={form.dob}
-              onChange={(e) => setForm((f) => ({ ...f, dob: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Sex</Label>
-            <Select
-              value={form.sex}
-              onValueChange={(v) =>
-                setForm((f) => ({ ...f, sex: v as CreatePatientBody["sex"] }))
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="UNKNOWN">Unknown</SelectItem>
-                <SelectItem value="MALE">Male</SelectItem>
-                <SelectItem value="FEMALE">Female</SelectItem>
-                <SelectItem value="OTHER">Other</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Phone (Ghana)</Label>
-            <PhoneInput
-              value={form.phoneE164}
-              onChange={(v) => setForm((f) => ({ ...f, phoneE164: v }))}
-              placeholder="024 123 4567"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>National ID type</Label>
-            <Select
-              value={form.nationalIdType}
-              onValueChange={(v) =>
-                setForm((f) => ({
-                  ...f,
-                  nationalIdType: v as CreatePatientBody["nationalIdType"],
-                }))
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="OTHER">Other</SelectItem>
-                <SelectItem value="VOTER_ID">Voter ID</SelectItem>
-                <SelectItem value="NATIONAL_ID">National ID</SelectItem>
-                <SelectItem value="PASSPORT">Passport</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="nationalId">National ID *</Label>
-            <Input
-              id="nationalId"
-              required
-              value={form.nationalId}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, nationalId: e.target.value }))
-              }
-            />
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <Button type="submit" disabled={loading}>
-            {loading ? "Creating…" : "Create Patient"}
-          </Button>
-          <Button variant="outline" asChild>
-            <Link href="/patients">Cancel</Link>
-          </Button>
-        </div>
-      </form>
-    </div>
+                <Button variant="outline" asChild className="rounded-2xl">
+                  <Link href="/patients">Cancel</Link>
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </RouteGuard>
   );
 }

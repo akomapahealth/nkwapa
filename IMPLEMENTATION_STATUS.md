@@ -1,263 +1,691 @@
-# Nkwapa EMR — Implementation Status
+# Nkwapa EMR - Implementation Status
 
-> **Last updated:** 2026-03-03
+> Last updated: 2026-03-22
 >
-> Nkwapa is an offline-first Electronic Medical Records (EMR) system for hypertension and diabetes care in Ghana.
+> This document reflects the current codebase in the repository, not the older branch-by-branch rollout plan.
 
 ---
 
-## Architecture Overview
+## Executive Summary
 
-### Monorepo Layout
+Nkwapa is now a clinic-scoped EMR platform with:
 
-```
+- staff-facing patient and encounter workflows
+- consent-aware research settings and export pipeline
+- offline-first sync foundations for core EMR records
+- follow-up and appointment reminder infrastructure
+- medication catalog and prescribing
+- role-aware dashboards and analytics
+- clinic operations tooling for shifts, patient check-ins, and assignments
+- patient portal surfaces for measurements, trends, self-reports, and appointment requests
+- user lifecycle and access management for clinic and system administrators
+
+The codebase is no longer a minimal EMR. It is now a multi-surface system spanning staff operations, patient self-service, and research-safe data movement.
+
+---
+
+## Monorepo and Runtime
+
+### Repository layout
+
+```text
 nkwapa/
 ├── apps/
-│   ├── api/          NestJS backend (port 4000)
-│   └── web/          Next.js 14 frontend (port 3000)
+│   ├── api/                NestJS API
+│   └── web/                Next.js App Router frontend
 ├── packages/
-│   └── db/           Prisma schema + shared DB utilities
-├── package.json      NPM workspaces root
-└── docker-compose.yml
+│   └── db/                 Prisma schema, migrations, seed scripts, shared helpers
+├── infra/
+│   └── nkwapa/             Docker Compose for Postgres, Redis, Keycloak
+├── docs/                   Specs, guides, workflow docs
+├── memory.md               Agent memory index
+└── memory/                 Detailed codebase memory files
 ```
 
-### Tech Stack
+### Runtime services
+
+| Service | Default |
+| --- | --- |
+| Web app | `http://localhost:3000` |
+| API | `http://localhost:4000` |
+| Postgres | `localhost:5433` |
+| Redis | `localhost:6379` |
+| Keycloak | `http://localhost:8080` |
+
+### Core stack
 
 | Layer | Technology |
-|-------|-----------|
-| **Backend** | NestJS 10, TypeScript, Prisma 7, PostgreSQL |
-| **Frontend** | Next.js 14 (App Router), React 18, Tailwind CSS, shadcn/ui (Radix), MUI DataGrid |
-| **Auth** | Keycloak (OAuth/OIDC), passport-jwt, JWKS |
-| **Task Queue** | BullMQ + Redis |
-| **Offline** | Dexie (IndexedDB), Service Worker, outbox-based sync |
-| **Email** | Nodemailer (SMTP), configurable provider (fake/nodemailer) |
-| **SMS** | Twilio (REST API via native fetch), configurable provider (fake/twilio) |
-| **Infrastructure** | Docker Compose (Keycloak, PostgreSQL, Redis) |
+| --- | --- |
+| Backend | NestJS 10, TypeScript, BullMQ |
+| Frontend | Next.js 14, React 18, Tailwind, shadcn/ui, MUI DataGrid |
+| Database | PostgreSQL + Prisma 7 |
+| Auth | Keycloak JWT + local DB-backed RBAC |
+| Offline | Dexie IndexedDB + outbox sync |
+| Charts | Recharts |
+| Messaging | Twilio-compatible SMS, Nodemailer email |
+| Research sync | GitHub API-based snapshot sync |
 
 ---
 
-## Fully Implemented Features
+## Core Architectural Rules
 
-| # | Feature | Backend | Frontend | Tests |
-|---|---------|---------|----------|-------|
-| 1 | **Patient Management** — create, search, view, edit/update, national ID encryption (AES-256), duplicate detection via hash, patient code generation (NKP-YYYY-######) | Yes | Yes | `patient.service.spec.ts` (5 tests) |
-| 2 | **Patient Edit/Update** — PATCH endpoint for demographics (firstName, lastName, dob, sex, phone, email), phone re-normalization to E.164, national ID immutable, audit logging with beforeJson/afterJson | Yes | Yes | `patient.service.spec.ts` |
-| 3 | **Encounter Workflow** — DRAFT → IN_REVIEW → FINALIZED, preceptor review step, doctor finalize step | Yes | Yes | — |
-| 4 | **Clinical Forms** — Vitals (BP, HR, BMI), Diabetes Screening (glucose, HbA1c), Hypertension Assessment (classification), Care Plan (counseling, medication, follow-up) | Yes | Yes | — |
-| 5 | **Consent Management** — research consent grant/revoke with witness info, consent version snapshots | Yes | Yes | — |
-| 6 | **Encounter Queues** — 3-tab view: Drafts, Needs Review, Ready to Finalize; permission-gated tabs | Yes | Yes | — |
-| 7 | **Audit Trail** — all write operations logged with before/after JSON, cursor-based pagination, filtering by action/actor/entity/date | Yes | Yes | `auth.controller.spec.ts` |
-| 8 | **RBAC** — 6 roles (SYSTEM_ADMIN, DIRECTOR, MANAGER, DOCTOR, PRECEPTOR, VOLUNTEER), 30+ permissions, clinic scoping, route guards, wildcard admin | Yes | Yes | — |
-| 9 | **Offline Sync** — push/pull mutations, idempotency keys, conflict detection (APPLIED/CONFLICT/ERROR), Dexie outbox, service worker; supports patients, encounters, vitals, diabetes screenings, hypertension assessments, care plans, consents, prescriptions | Yes | Yes | `sync.service.spec.ts`, `sync.controller.spec.ts`, `outbox.test.ts` |
-| 10 | **Admin** — clinic CRUD, user-clinic-role assignment, system-admin scoped | Yes | Yes | `clinics.controller.spec.ts` |
-| 11 | **Research Settings** — enable/disable per clinic, director approval toggle for exports | Yes | Yes | — |
-| 12 | **SMS Reminders (Twilio)** — real Twilio provider via native fetch (no npm dep), configurable fake/twilio via `SMS_PROVIDER` env var, delivery receipt webhook (`POST /webhooks/sms/status`) with Twilio signature validation, DELIVERED/FAILED status tracking, BullMQ retry with exponential backoff (3 attempts, 60s base delay), scheduled send at `scheduledAt` time | Yes | — | `twilio-sms.provider.spec.ts` (4 tests), `reminder-webhook.controller.spec.ts` (3 tests) |
-| 13 | **Email Reminders** — EmailProvider interface, FakeEmailProvider and NodemailerEmailProvider (SMTP), configurable via `EMAIL_PROVIDER` env var, HTML follow-up reminder template with `{{patientCode}}`/`{{clinicName}}`/`{{followUpDate}}` placeholders, dual-channel support (patients with both phone + email get two reminders), encounter finalize auto-schedules email when patient has email | Yes | — | `nodemailer-email.provider.spec.ts` (2 tests) |
-| 14 | **Prescriptions (Drug Catalog)** — Drug model (per-clinic scoping, 5 categories: ANTIHYPERTENSIVE/ANTIDIABETIC/DIURETIC/BETA_BLOCKER/OTHER), Prescription model (dosage, frequency, duration, quantity, instructions), CRUD endpoints for drugs and prescriptions, encounter-finalized lock (no create/update/delete on finalized encounters), drug seed data (8 common HTN/DM medications), sync push/pull support, Dexie offline storage | Yes | Yes | `drug.service.spec.ts` (2 tests), `prescription.service.spec.ts` (5 tests) |
-| 15 | **Research Export** — full request→approve/reject→execute→download workflow, de-identification pipeline (HMAC-SHA256 subject IDs, PII stripping, DOB year-only generalization), CSV/JSON output, consent-gated (only RESEARCH_DEIDENTIFIED GRANTED patients), cursor-paginated listing, RBAC-gated (RESEARCH.EXPORT.REQUEST / RESEARCH.EXPORT.APPROVE permissions), audit logging on every action | Yes | Yes | `research-export.service.spec.ts` (8 tests), `de-identification.service.spec.ts` (4 tests) |
+1. Keycloak is the identity provider only. App roles are stored in `UserClinicRole`.
+2. `X-Clinic-Id` is part of the normal request contract for clinic-scoped features.
+3. `/auth/whoami` is the main frontend bootstrap endpoint.
+4. Redis is required for reminders and research export background processing.
+5. The API process currently hosts both HTTP routes and queue workers.
+6. Research exports are now asynchronous and approval-aware.
+7. Core EMR surfaces are more offline-capable than the newer ops and portal pages.
 
 ---
 
-## Feature Branches (Pending Merge to `release/dev`)
+## What Is Implemented
 
-All features are implemented on separate branches off `release/dev`. Each needs to be merged via PR:
+### 1. Authentication and RBAC
 
-| Branch | Feature | Files Changed | Lines Added |
-|--------|---------|---------------|-------------|
-| `feature/patient-update` | Patient Edit/Update | 8 | ~520 |
-| `feature/sms-provider` | Twilio SMS + Webhooks | 9 | ~374 |
-| `feature/email-reminders` | Email Reminders + Templates | 9 | ~250 |
-| `feature/prescriptions` | Drug Catalog + Prescriptions | 26 | ~1,379 |
-| `feature/research-export` | Research Export + De-identification | 13 | ~1,297 |
+Status: implemented
 
-**Recommended merge order** (due to schema/permission dependencies):
-1. `feature/patient-update` (permissions only, no schema changes)
-2. `feature/sms-provider` (adds DELIVERED to ReminderStatus enum)
-3. `feature/email-reminders` (extends reminder service, depends on #2 module changes)
-4. `feature/prescriptions` (new Drug + Prescription models, new permissions)
-5. `feature/research-export` (extends ResearchExport model)
+Backend:
+
+- JWT auth via Keycloak JWKS
+- local user hydration and provisioning
+- clinic-scoped and global role support
+- effective permission computation
+- disabled user handling
+- clinic scope guard and permission decorators
+
+Frontend:
+
+- Keycloak login bootstrap
+- active clinic persistence
+- route-level permission gating
+- role-aware sidebar and navigation
+
+Current roles:
+
+- `SYSTEM_ADMIN`
+- `DIRECTOR`
+- `MANAGER`
+- `DOCTOR`
+- `PRECEPTOR`
+- `VOLUNTEER`
+- `PATIENT`
+
+### 2. Patient Management
+
+Status: implemented
+
+Backend:
+
+- create patient
+- update patient demographics
+- patient search
+- patient detail reads
+- patient code generation
+- phone normalization
+- encrypted national ID storage with hash-based duplicate protection
+
+Frontend:
+
+- patient list/search
+- new patient form
+- patient detail page
+- clinic-prefixed patient route variants
+- edit patient page under clinic-prefixed route
+
+### 3. Encounter Workflow and Clinical Forms
+
+Status: implemented
+
+Workflow:
+
+- draft encounter creation
+- volunteer/intake data entry
+- preceptor review
+- doctor finalize
+- finalized read-only behavior
+
+Clinical forms persisted as separate relational models:
+
+- `Vitals`
+- `DiabetesScreening`
+- `HypertensionAssessment`
+- `CarePlan`
+
+Frontend includes:
+
+- encounter detail page
+- vitals form
+- diabetes screening form
+- hypertension form
+- care plan form
+
+### 4. Consent Management
+
+Status: implemented
+
+Capabilities:
+
+- grant research consent
+- revoke consent
+- store witness data and consent snapshots
+- surface patient consent workflow in UI
+- use consent as a gate for research export inclusion
+
+### 5. Offline Sync Foundations
+
+Status: implemented for core EMR surfaces
+
+Current offline-oriented local stores:
+
+- patients
+- encounters
+- vitals
+- diabetes screenings
+- hypertension assessments
+- care plans
+- patient consents
+- prescriptions
+- outbox
+- sync state
+
+Current sync features:
+
+- outbox mutation construction
+- idempotency keys
+- sync push/pull endpoints
+- conflict tracking via `SyncMutation`
+
+Note:
+
+- the newest ops and portal screens are more online-first than the older EMR flow
+
+### 6. Audit Trail
+
+Status: implemented
+
+Capabilities:
+
+- write audit events for major mutations
+- filterable audit history
+- cursor-based or paginated read flows
+- surfaced in management UI
+
+### 7. Clinic and Admin Management
+
+Status: implemented
+
+Capabilities:
+
+- clinic list/create/update for admin
+- clinic roster views
+- user role assignment
+- user role revocation
+- clinic-scoped deactivation
+- global user deactivation
+- lifecycle safety rules to prevent unsafe self-action
+
+Frontend:
+
+- `/admin/clinics`
+- `/admin/users`
+
+### 8. Research Settings
+
+Status: implemented
+
+Per-clinic settings:
+
+- `researchEnabled`
+- `requiresDirectorApprovalEachExport`
+
+Frontend:
+
+- clinic settings page for research settings
+
+### 9. Reminder Infrastructure
+
+Status: implemented
+
+Reminder features:
+
+- BullMQ queue processing
+- reminder list UI
+- fake and real SMS providers
+- fake and real email providers
+- Twilio delivery callback route
+- follow-up reminder scheduling
+- appointment reminder scaffolding and templates
+
+Channels:
+
+- SMS
+- email
+
+### 10. Drug Catalog and Prescriptions
+
+Status: implemented
+
+Drug catalog:
+
+- clinic-scoped drugs
+- create/update/list/read APIs
+
+Prescriptions:
+
+- create/read/update/delete on encounter
+- finalized encounter lock
+- dedicated frontend components for list and form
+
+### 11. Dashboard Analytics
+
+Status: implemented
+
+Backend:
+
+- clinic summary metrics
+- doctor metrics
+- preceptor metrics
+- director/manager metrics
+- volunteer metrics
+- system admin metrics
+- trend series and distributions
+
+Frontend:
+
+- role-aware dashboard page
+- KPI cards
+- chart cards
+- distribution and trend charts
+
+### 12. Clinic Ops: Shifts, Check-Ins, Assignments
+
+Status: implemented
+
+Backend models:
+
+- `StaffShift`
+- `PatientCheckIn`
+- `PatientAssignment`
+
+Capabilities:
+
+- staff shift check-in
+- shift check-out
+- list active shifts
+- create patient check-in
+- list check-ins
+- create assignments
+- reassign assignments with history preservation
+- list clinic assignments
+- list my assignments
+- start intake from a check-in
+
+Frontend:
+
+- `/today` manager-oriented operations board
+- `/my/assigned` staff worklist
+- shift controls
+- assignment modal
+- grouped check-in views
+
+### 13. Patient Portal
+
+Status: implemented for core portal flows
+
+Portal features:
+
+- patient overview page
+- measurement logging
+- trend visualization
+- self-reports
+- appointment request creation
+- appointment request history
+- recommendation and reminder summary
+
+Portal-related backend models:
+
+- `PatientAccountLink`
+- `PatientMeasurement`
+- `PatientSelfReport`
+- `AppointmentRequest`
+- `Appointment`
+
+Portal routes:
+
+- `/portal`
+- `/portal/health`
+- `/portal/self-reports`
+- `/portal/self-reports/new`
+- `/portal/appointments`
+- `/portal/appointments/request`
+
+Staff-facing portal-related capabilities:
+
+- read patient measurements
+- read patient trends
+- list patient self-reports
+- link portal account to patient
+- confirm or reject appointment requests via API
+
+### 14. Research Export Pipeline V1
+
+Status: implemented
+
+Current v1 design:
+
+- export request requires clinic research enablement
+- separate request and approval permissions
+- auto-approval supported per clinic settings
+- async processing via BullMQ
+- stable clinic-scoped HMAC research keys
+- 15-minute timestamp rounding
+- PII and free-text stripping
+- fixed CSV pack + `manifest.json` + `SHA256SUMS.txt`
+- local ZIP artifact generation
+- GitHub repo snapshot sync
+- failure tracking and retry flow
+
+Current fixed pack files:
+
+- `manifest.json`
+- `SHA256SUMS.txt`
+- `research_subjects.csv`
+- `research_ops_checkins.csv`
+- `research_ops_assignments.csv`
+- `research_clinical_vitals.csv`
+- `research_clinical_screenings.csv`
+- `research_measurements.csv`
+- `research_appointments.csv`
+- `research_revocations.csv`
+
+Frontend:
+
+- research export console with date presets
+- approve, reject, retry, and download actions
+- row counts and repo commit metadata
 
 ---
 
-## Permissions Added (by Feature)
+## Backend Route Surface
 
-### Patient Update
-- `PATIENT.UPDATE` → DOCTOR, MANAGER, DIRECTOR
+### Auth
 
-### Prescriptions
-- `PRESCRIPTION.WRITE` → DOCTOR
-- `PRESCRIPTION.READ` → DOCTOR, DIRECTOR, MANAGER, PRECEPTOR
-- `DRUG.READ` → DOCTOR, DIRECTOR, MANAGER, PRECEPTOR, VOLUNTEER
-- `DRUG.MANAGE` → MANAGER, DIRECTOR
+- `GET /auth/me`
+- `GET /auth/whoami`
 
-### Research Export (pre-existing, now fully wired)
-- `RESEARCH.EXPORT.REQUEST` → DIRECTOR
-- `RESEARCH.EXPORT.APPROVE` → DIRECTOR
+### Clinics and admin
 
----
+- `GET /clinics/:id`
+- `GET /admin/clinics`
+- `POST /admin/clinics`
+- `GET /admin/users`
+- `GET /admin/users/:userId/roles`
+- `POST /admin/users/:userId/roles`
+- `DELETE /admin/users/:userId/roles`
+- `GET /clinics/:clinicId/users`
+- `PATCH /clinics/:clinicId/users/:userId/deactivate`
+- `DELETE /clinics/:clinicId/users/:userId/roles/:role`
+- `PATCH /users/:userId/deactivate`
 
-## API Endpoints Added (by Feature)
+### Patients
 
-### Patient Update
-| Method | Path | Permission |
-|--------|------|------------|
-| PATCH | `/clinics/:clinicId/patients/:patientId` | `PATIENT.UPDATE` |
+- `GET /patients/:patientId`
+- `POST /clinics/:clinicId/patients`
+- `PATCH /clinics/:clinicId/patients/:patientId`
+- `GET /clinics/:clinicId/patients/search`
+- `POST /clinics/:clinicId/patients/:patientId/portal-link`
+- `GET /clinics/:clinicId/patients/:patientId/self-reports`
 
-### SMS Webhooks
-| Method | Path | Permission |
-|--------|------|------------|
-| POST | `/webhooks/sms/status` | None (Twilio callback, signature validated) |
+### Encounter workflow
 
-### Prescriptions — Drugs
-| Method | Path | Permission |
-|--------|------|------------|
-| GET | `/clinics/:clinicId/drugs` | `DRUG.READ` |
-| GET | `/clinics/:clinicId/drugs/:drugId` | `DRUG.READ` |
-| POST | `/clinics/:clinicId/drugs` | `DRUG.MANAGE` |
-| PATCH | `/clinics/:clinicId/drugs/:drugId` | `DRUG.MANAGE` |
+- `GET /clinics/:clinicId/encounters`
+- `GET /clinics/:clinicId/encounters/:encounterId`
+- `POST /clinics/:clinicId/encounters`
+- `POST /clinics/:clinicId/encounters/:encounterId/submit`
+- `POST /clinics/:clinicId/encounters/:encounterId/preceptor-review`
+- `POST /clinics/:clinicId/encounters/:encounterId/finalize`
+- duplicate by-id convenience routes under `/encounters/:encounterId/...`
 
-### Prescriptions — Prescriptions
-| Method | Path | Permission |
-|--------|------|------------|
-| GET | `/clinics/:clinicId/encounters/:encounterId/prescriptions` | `PRESCRIPTION.READ` |
-| POST | `/clinics/:clinicId/encounters/:encounterId/prescriptions` | `PRESCRIPTION.WRITE` |
-| PATCH | `/clinics/:clinicId/encounters/:encounterId/prescriptions/:id` | `PRESCRIPTION.WRITE` |
-| DELETE | `/clinics/:clinicId/encounters/:encounterId/prescriptions/:id` | `PRESCRIPTION.WRITE` |
+### Consents
 
-### Research Export
-| Method | Path | Permission |
-|--------|------|------------|
-| POST | `/clinics/:clinicId/research/exports` | `RESEARCH.EXPORT.REQUEST` |
-| GET | `/clinics/:clinicId/research/exports` | `RESEARCH.EXPORT.REQUEST` |
-| GET | `/clinics/:clinicId/research/exports/:exportId` | `RESEARCH.EXPORT.REQUEST` |
-| POST | `/clinics/:clinicId/research/exports/:exportId/approve` | `RESEARCH.EXPORT.APPROVE` |
-| POST | `/clinics/:clinicId/research/exports/:exportId/reject` | `RESEARCH.EXPORT.APPROVE` |
-| POST | `/clinics/:clinicId/research/exports/:exportId/execute` | `RESEARCH.EXPORT.APPROVE` |
-| GET | `/clinics/:clinicId/research/exports/:exportId/download` | `RESEARCH.EXPORT.REQUEST` |
+- `POST /clinics/:clinicId/patients/:patientId/consents`
+- `POST /clinics/:clinicId/patients/:patientId/consents/revoke`
 
----
+### Sync
 
-## Database Migrations Added
+- `POST /sync/push`
+- `GET /sync/pull`
 
-| Migration | Description |
-|-----------|-------------|
-| `20260302000000_add_reminder_delivered_status` | Adds `DELIVERED` to `ReminderStatus` enum |
-| `20260302010000_add_drug_prescription_models` | Adds `DrugCategory` enum, `Drug` model, `Prescription` model with relations |
-| `20260303000000_extend_research_export` | Adds `rejectionReason`, `filePath`, `fileFormat`, `recordCount` to `ResearchExport` |
+### Audit
 
----
+- `GET /clinics/:clinicId/audit`
 
-## Frontend Pages Added
+### Reminders
 
-| Path | Feature | Branch |
-|------|---------|--------|
-| `/clinics/[clinicId]/patients/[patientId]/edit` | Patient edit form with offline fallback | `feature/patient-update` |
-| `/clinics/[clinicId]/research/exports` | Research exports list with approve/reject/execute/download | `feature/research-export` |
+- `GET /clinics/:clinicId/reminders`
+- `POST /webhooks/sms/status`
 
-## Frontend Components Added
+### Drugs and prescriptions
 
-| Component | Feature | Branch |
-|-----------|---------|--------|
-| `PrescriptionForm.tsx` | Drug search autocomplete, dosage form with offline outbox | `feature/prescriptions` |
-| `PrescriptionList.tsx` | Prescription list with delete, finalization lock | `feature/prescriptions` |
+- `GET /clinics/:clinicId/drugs`
+- `GET /clinics/:clinicId/drugs/:drugId`
+- `POST /clinics/:clinicId/drugs`
+- `PATCH /clinics/:clinicId/drugs/:drugId`
+- `POST /clinics/:clinicId/encounters/:encounterId/prescriptions`
+- `GET /clinics/:clinicId/encounters/:encounterId/prescriptions`
+- `PATCH /clinics/:clinicId/encounters/:encounterId/prescriptions/:id`
+- `DELETE /clinics/:clinicId/encounters/:encounterId/prescriptions/:id`
 
----
+### Dashboard
 
-## Environment Variables Added
+- `GET /clinics/:clinicId/dashboard`
 
-### SMS (feature/sms-provider)
-| Variable | Description |
-|----------|-------------|
-| `SMS_PROVIDER` | `fake` (default) or `twilio` |
-| `TWILIO_ACCOUNT_SID` | Twilio account SID |
-| `TWILIO_AUTH_TOKEN` | Twilio auth token |
-| `TWILIO_FROM_NUMBER` | Twilio sender phone number |
-| `TWILIO_STATUS_CALLBACK_URL` | URL for delivery receipt webhooks |
+### Ops
 
-### Email (feature/email-reminders)
-| Variable | Description |
-|----------|-------------|
-| `EMAIL_PROVIDER` | `fake` (default) or `nodemailer` |
-| `SMTP_HOST` | SMTP server hostname |
-| `SMTP_PORT` | SMTP server port |
-| `SMTP_USER` | SMTP username |
-| `SMTP_PASS` | SMTP password |
-| `EMAIL_FROM` | Sender email address |
+- `POST /clinics/:clinicId/shifts/check-in`
+- `POST /clinics/:clinicId/shifts/:shiftId/check-out`
+- `GET /clinics/:clinicId/shifts/active`
+- `POST /clinics/:clinicId/checkins`
+- `GET /clinics/:clinicId/checkins`
+- `POST /clinics/:clinicId/assignments`
+- `PATCH /clinics/:clinicId/assignments/:assignmentId/reassign`
+- `GET /clinics/:clinicId/assignments`
+- `GET /clinics/:clinicId/my/assignments`
+- `POST /clinics/:clinicId/checkins/:checkinId/start-intake`
 
-### Research (feature/research-export)
-| Variable | Description |
-|----------|-------------|
-| `EXPORT_DIR` | Directory for research export files (default: `./data/exports`) |
+### Patient portal and appointments
 
----
+- `GET /clinics/:clinicId/patient-portal/me`
+- `GET /clinics/:clinicId/patient-portal/self-reports`
+- `POST /clinics/:clinicId/patient-portal/self-reports`
+- `POST /patients/me/measurements`
+- `GET /patients/me/measurements`
+- `GET /patients/me/trends`
+- `POST /patients/me/appointment-requests`
+- `GET /patients/me/appointment-requests`
+- `GET /patients/:patientId/measurements`
+- `GET /patients/:patientId/trends`
+- `GET /clinics/:clinicId/appointment-requests`
+- `POST /clinics/:clinicId/appointment-requests/:requestId/confirm`
+- `POST /clinics/:clinicId/appointment-requests/:requestId/reject`
 
-## Not Implemented (Future Roadmap)
+### Research
 
-| # | Feature | Description |
-|---|---------|-------------|
-| 1 | **Dashboard Analytics** | Role-based analytics dashboard with clinical metrics, trend charts, and staff activity summaries |
-| 2 | **Appointment Scheduling** | Appointment model, calendar UI, provider availability, patient booking |
-| 3 | **Billing/Invoicing** | Invoice model, line items, payment tracking, mobile money integration (MTN MoMo, Vodafone Cash) |
-| 4 | **Lab Results/Orders** | Lab order model, result entry, reference ranges, abnormal flagging, trending |
-| 5 | **Real-time Notifications** | WebSocket gateway, push notifications, in-app notification center |
-| 6 | **Reporting** | PDF/CSV export, configurable report templates, clinic comparison reports, MOH reporting formats |
-| 7 | **File/Document Uploads** | S3/MinIO integration, Document model, patient document attachments |
-| 8 | **Patient Portal** | Patient-facing app, appointment booking, result viewing, medication reminders |
-| 9 | **Referrals** | Inter-clinic referral workflow, referral tracking, acceptance/rejection |
-| 10 | **Multi-language / i18n** | Currently English only; Twi, Ga, Ewe, Hausa translations needed for Ghana context |
-| 11 | **Inventory / Supplies Management** | Drug and supplies inventory, stock levels, reorder alerts |
-| 12 | **Telemedicine Integration** | Video consultation, remote triage, teleconsultation notes |
-| 13 | **Patient Vitals Trending** | Historical charts per patient showing BP, glucose, BMI over time |
-| 14 | **Drug Allergy / Interaction Checking** | Allergy records, drug-drug interaction database, prescribing alerts |
-| 15 | **Dispensing Workflow** | Track actual medication dispensing, pharmacy integration, refill tracking |
+- `GET /clinics/:clinicId/research/settings`
+- `PUT /clinics/:clinicId/research/settings`
+- `POST /clinics/:clinicId/research/exports`
+- `GET /clinics/:clinicId/research/exports`
+- `GET /clinics/:clinicId/research/exports/:exportId`
+- `POST /clinics/:clinicId/research/exports/:exportId/approve`
+- `POST /clinics/:clinicId/research/exports/:exportId/reject`
+- `PATCH /clinics/:clinicId/research/exports/:exportId/retry`
+- `GET /clinics/:clinicId/research/exports/:exportId/download`
 
 ---
 
-## Test Coverage Summary
+## Frontend Route Surface
 
-### Test Files (32 tests total across API)
+### Public and shell
 
-| File | Covers | Tests |
-|------|--------|-------|
-| `apps/api/src/patients/patient.service.spec.ts` | Patient create, update, phone normalization, national ID immutability, duplicate detection | 5 |
-| `apps/api/src/auth/auth.controller.spec.ts` | WhoAmI endpoint, role computation, permission mapping | 3 |
-| `apps/api/src/sync/sync.service.spec.ts` | Push/pull sync logic, idempotency, conflict detection | 3 |
-| `apps/api/src/sync/sync.controller.spec.ts` | Sync API endpoints | 2 |
-| `apps/api/src/clinics/clinics.controller.spec.ts` | Clinic CRUD endpoints | 2 |
-| `apps/api/src/reminders/twilio-sms.provider.spec.ts` | Twilio send success/failure, env validation | 4 |
-| `apps/api/src/reminders/reminder-webhook.controller.spec.ts` | Twilio delivery callback, signature validation | 3 |
-| `apps/api/src/reminders/nodemailer-email.provider.spec.ts` | Email send, template rendering | 2 |
-| `apps/api/src/drugs/drug.service.spec.ts` | Drug search, category filter | 2 |
-| `apps/api/src/prescriptions/prescription.service.spec.ts` | Create, update, delete, finalized encounter lock, audit | 5 |
-| `apps/api/src/research/research-export.service.spec.ts` | Request, approve, reject, execute, gating (disabled research), status validation | 8 |
-| `apps/api/src/research/de-identification.service.spec.ts` | PII stripping, HMAC subject IDs, consent gating, empty dataset | 4 |
-| `packages/db/src/phone.spec.ts` | Phone number validation and E.164 formatting | — |
-| `packages/db/src/patient-code.spec.ts` | Patient code generation (NKP-YYYY-######) | — |
-| `apps/web/lib/outbox.test.ts` | Offline outbox queue logic | — |
+- `/`
 
-### Missing Test Coverage
+### Staff and admin
 
-- Encounter service and controller (workflow transitions, guards)
-- Clinical form services (vitals, diabetes screening, hypertension assessment, care plan)
-- Consent service and controller
-- Reminder service (scheduling, BullMQ worker processing)
-- Admin module (user-role assignment)
-- Research settings service
-- RBAC guard unit tests (role-permission denial scenarios)
-- Frontend component tests
-- E2E / integration tests
+- `/queues`
+- `/patients`
+- `/patients/new`
+- `/patients/[patientId]`
+- `/patients/[patientId]/consent`
+- `/patients/[patientId]/encounters/new`
+- `/encounters/[encounterId]`
+- `/dashboard`
+- `/audit`
+- `/reminders`
+- `/settings/clinic`
+- `/today`
+- `/my/assigned`
+- `/admin/clinics`
+- `/admin/users`
+
+### Clinic-prefixed aliases
+
+- `/clinics/[clinicId]/patients`
+- `/clinics/[clinicId]/patients/new`
+- `/clinics/[clinicId]/patients/[patientId]`
+- `/clinics/[clinicId]/patients/[patientId]/edit`
+- `/clinics/[clinicId]/patients/[patientId]/consent`
+- `/clinics/[clinicId]/encounters`
+- `/clinics/[clinicId]/encounters/[encounterId]`
+- `/clinics/[clinicId]/research/exports`
+
+### Patient portal
+
+- `/portal`
+- `/portal/health`
+- `/portal/self-reports`
+- `/portal/self-reports/new`
+- `/portal/appointments`
+- `/portal/appointments/request`
 
 ---
 
-## Infrastructure Status
+## Background Jobs and Integrations
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| **Docker Compose** | Working | Keycloak, PostgreSQL, Redis containers |
-| **Keycloak** | Configured | `nkwapa` realm, `nkwapa-web` client, login-required flow |
-| **PostgreSQL** | Configured | Prisma migrations, seed scripts (includes 8 common drug seeds) |
-| **Redis** | Configured | BullMQ connection for reminder queue |
-| **CI/CD** | Not configured | No GitHub Actions, no deployment pipeline |
-| **Production Deployment** | Not configured | No Dockerfile for apps, no cloud deployment |
-| **Monitoring / Logging** | Not configured | No structured logging, no APM, no error tracking |
-| **Backups** | Not configured | No automated database backups |
+### Queues
+
+| Queue | Purpose |
+| --- | --- |
+| `reminders` | send follow-up and appointment reminders |
+| `research-exports` | generate pack, zip artifact, and GitHub snapshot |
+
+### External services
+
+| Integration | Current role |
+| --- | --- |
+| Keycloak | identity provider |
+| PostgreSQL | primary operational database |
+| Redis | BullMQ broker/state |
+| Twilio-compatible SMS | optional real SMS provider |
+| SMTP/Nodemailer | optional real email provider |
+| GitHub | research export data repo sync target |
+
+---
+
+## Database and Migration Status
+
+### Major model families present in schema
+
+- organization and access
+- patients and consents
+- encounters and clinical forms
+- medications
+- reminders
+- ops
+- patient portal and appointments
+- research settings and exports
+- audit and sync
+
+### Current migration history in repo
+
+- `20250225120000_add_patient_code_sequence`
+- `20250226000000_init`
+- `20260226142050_add_sync_mutation`
+- `20260228205620_add_user_first_last_name`
+- `20260302000000_add_reminder_delivered_status`
+- `20260302010000_add_drug_prescription_models`
+- `20260303000000_extend_research_export`
+- `20260304063017_prescriptions_and_research`
+- `20260319000000_patient_portal_and_self_reports`
+- `20260321000000_ops_api_v1`
+- `20260321100000_patient_api_v1`
+- `20260321120000_research_export_pipeline_v1`
+
+---
+
+## Testing Coverage Snapshot
+
+### API test files currently present
+
+- auth controller and permission tests
+- clinics controller/admin controller tests
+- patient service tests
+- encounter service tests
+- sync controller/service tests
+- drug service tests
+- prescription service tests
+- reminder provider and webhook tests
+- admin service tests
+- ops controller/service tests
+- patient portal service and patient-api controller tests
+- research de-identification, transform, repo sync, and export service tests
+- user service tests
+
+### Web test files currently present
+
+- `lib/outbox.test.ts`
+- `lib/patient-portal.test.ts`
+- `lib/patient-trends.test.ts`
+
+### Shared utility tests currently present
+
+- `packages/db/src/phone.spec.ts`
+- `packages/db/src/patient-code.spec.ts`
+
+---
+
+## Current Documentation and Memory Surface
+
+Primary docs now intended to stay current:
+
+- `IMPLEMENTATION_STATUS.md`
+- `memory.md`
+- `memory/01_architecture_runtime.md`
+- `memory/02_backend_api_modules.md`
+- `memory/03_frontend_routes_state.md`
+- `memory/04_domain_models_workflows.md`
+- `docs/FEATURE_WORKFLOWS_GUIDE.md`
+- `docs/USER_AND_ROLE_SETUP_GUIDE.md`
+- `docs/USER_TESTING_GUIDE.md`
+- `docs/clinic-ops/26_RESEARCH_EXPORT_TRANSFORMS_V1.md`
+
+---
+
+## Partial or Still-Evolving Areas
+
+These are important to describe precisely:
+
+1. Staff appointment triage is implemented in the backend API, but there is not yet a dedicated staff appointment management calendar page in the web app.
+2. Offline capability is strongest in the original patient and encounter flow; newer ops and portal surfaces are more online-first.
+3. Research GitHub sync is implemented and tested with mocks, but live credentials and a live repo were not exercised in this workspace session.
+4. Older spec documents outside the updated guide set may still describe an earlier design shape.
+
+---
+
+## Immediate Operational Next Steps for Any Deployment
+
+1. Ensure `.env` includes research GitHub settings before using research exports in non-fake mode.
+2. Run Prisma migrate flow against the target database.
+3. Seed or manually create a system admin and clinic memberships.
+4. Confirm Keycloak users log in once before expecting them in app admin tables.
+5. Keep Redis running if reminders or research exports are expected to process.

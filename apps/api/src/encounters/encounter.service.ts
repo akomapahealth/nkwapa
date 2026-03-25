@@ -166,8 +166,45 @@ export class EncounterService {
         requestId: auditContext.requestId,
       });
     }
+    await this.markLinkedCheckInCompleted(updated, auditContext);
     await this.createFollowUpReminderIfNeeded(updated, auditContext);
     return updated;
+  }
+
+  private async markLinkedCheckInCompleted(
+    encounter: Encounter,
+    auditContext?: AuditContext
+  ): Promise<void> {
+    const linkedCheckIn = await this.prisma.patientCheckIn.findFirst({
+      where: { encounterId: encounter.id },
+    });
+    if (!linkedCheckIn || linkedCheckIn.status === "COMPLETED") {
+      return;
+    }
+
+    const updatedCheckIn = await this.prisma.patientCheckIn.update({
+      where: { id: linkedCheckIn.id },
+      data: { status: "COMPLETED" },
+    });
+
+    await this.auditService.logWrite({
+      clinicId: encounter.clinicId,
+      actorUserId: auditContext?.actorUserId ?? encounter.doctorFinalizedById ?? "system",
+      action: "CHECKIN.STATUS.UPDATE",
+      entityType: "PatientCheckIn",
+      entityId: linkedCheckIn.id,
+      beforeJson: JSON.stringify({
+        id: linkedCheckIn.id,
+        status: linkedCheckIn.status,
+        encounterId: linkedCheckIn.encounterId,
+      }),
+      afterJson: JSON.stringify({
+        id: updatedCheckIn.id,
+        status: updatedCheckIn.status,
+        encounterId: updatedCheckIn.encounterId,
+      }),
+      requestId: auditContext?.requestId,
+    });
   }
 
   private async createFollowUpReminderIfNeeded(

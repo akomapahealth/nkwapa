@@ -1,15 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { ActivitySquare, FileClock, Shield } from "lucide-react";
 import { useBootstrap } from "@/lib/bootstrap-context";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch } from "@/lib/api";
+import { AppMetricCard } from "@/components/app-shell/AppMetricCard";
+import { AppPageHeader } from "@/components/app-shell/AppPageHeader";
 import { RouteGuard } from "@/components/RouteGuard";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { Box } from "@mui/material";
 import { dataGridSx } from "@/lib/datagrid-theme";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyStateCard, InlineNotice } from "@/components/ops/OpsShared";
 
 interface AuditRow {
   id: string;
@@ -119,101 +125,178 @@ export default function AuditPage() {
 
   return (
     <RouteGuard requiredPermission="AUDIT.READ">
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold font-heading">Audit Log</h1>
-      <div className="flex flex-wrap gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="from">From</Label>
-          <Input
-            id="from"
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="to">To</Label>
-          <Input
-            id="to"
-            type="date"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="action">Action</Label>
-          <Input
-            id="action"
-            value={action}
-            onChange={(e) => setAction(e.target.value)}
-            placeholder="e.g. ENCOUNTER.CREATE"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="actor">Actor (user ID)</Label>
-          <Input
-            id="actor"
-            value={actor}
-            onChange={(e) => setActor(e.target.value)}
-            placeholder="Filter by actor"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="entityType">Entity type</Label>
-          <Input
-            id="entityType"
-            value={entityType}
-            onChange={(e) => setEntityType(e.target.value)}
-            placeholder="e.g. Encounter"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="requestId">Request ID</Label>
-          <Input
-            id="requestId"
-            value={requestId}
-            onChange={(e) => setRequestId(e.target.value)}
-            placeholder="Filter by request ID"
-          />
-        </div>
-        <div className="flex items-end">
-          <button
-            type="button"
-            onClick={() => fetchAudit()}
-            disabled={loading}
-            className="rounded-md bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          >
-            {loading ? "Loading…" : "Apply"}
-          </button>
-        </div>
-      </div>
-      {error && (
-        <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-          {error}
-        </div>
-      )}
-      <Box sx={{ height: 500, width: "100%" }} className="overflow-x-auto">
-        <DataGrid
-          rows={rows}
-          columns={columns}
-          loading={loading}
-          pageSizeOptions={[25, 50, 100]}
-          sx={dataGridSx}
+      <div className="space-y-6">
+        <AppPageHeader
+          eyebrow="Governance"
+          title="Audit log"
+          description="Review user actions, request trails, and entity changes with a cleaner filter and investigation workflow."
         />
-      </Box>
-      {nextCursor && (
-        <div className="flex justify-center pt-4">
-          <button
-            type="button"
-            onClick={() => fetchAudit(nextCursor, true)}
-            disabled={loadingMore}
-            className="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
-          >
-            {loadingMore ? "Loading…" : "Load more"}
-          </button>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <AppMetricCard
+            title="Visible events"
+            value={rows.length}
+            icon={ActivitySquare}
+            detail="Events currently loaded into the investigation view."
+          />
+          <AppMetricCard
+            title="Has more results"
+            value={nextCursor ? "Yes" : "No"}
+            icon={FileClock}
+            detail="Cursor pagination remains available when more history exists."
+          />
+          <AppMetricCard
+            title="Audit scope"
+            value="Clinic"
+            icon={Shield}
+            detail="Audit records are filtered to the active clinic context."
+          />
         </div>
-      )}
-    </div>
+
+        <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+          <CardHeader>
+            <CardTitle className="text-xl">Filters</CardTitle>
+            <CardDescription>
+              Narrow the timeline by date, actor, entity, or request chain before loading results.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+              <div className="space-y-2">
+                <Label htmlFor="from">From</Label>
+                <Input
+                  id="from"
+                  type="date"
+                  value={from}
+                  onChange={(e) => setFrom(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="to">To</Label>
+                <Input
+                  id="to"
+                  type="date"
+                  value={to}
+                  onChange={(e) => setTo(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="action">Action</Label>
+                <Input
+                  id="action"
+                  value={action}
+                  onChange={(e) => setAction(e.target.value)}
+                  placeholder="ENCOUNTER.CREATE"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="actor">Actor</Label>
+                <Input
+                  id="actor"
+                  value={actor}
+                  onChange={(e) => setActor(e.target.value)}
+                  placeholder="User ID"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="entityType">Entity type</Label>
+                <Input
+                  id="entityType"
+                  value={entityType}
+                  onChange={(e) => setEntityType(e.target.value)}
+                  placeholder="Encounter"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="requestId">Request ID</Label>
+                <Input
+                  id="requestId"
+                  value={requestId}
+                  onChange={(e) => setRequestId(e.target.value)}
+                  placeholder="Trace a request"
+                />
+              </div>
+            </div>
+            <Button onClick={() => fetchAudit()} disabled={loading} className="rounded-2xl">
+              {loading ? "Loading..." : "Apply filters"}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
+
+        <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+          <CardHeader>
+            <CardTitle className="text-xl">Audit events</CardTitle>
+            <CardDescription>
+              Recent activity for the active clinic, with mobile-friendly cards and a richer desktop table.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {!loading && rows.length === 0 ? (
+              <EmptyStateCard
+                title="No audit events match the current filters"
+                description="Adjust your filters or widen the date range to pull more activity into view."
+              />
+            ) : (
+              <>
+                <div className="space-y-3 md:hidden">
+                  {rows.map((row) => (
+                    <article
+                      key={row.id}
+                      className="rounded-3xl border border-border/80 bg-background/80 p-4 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h3 className="text-sm font-semibold text-foreground">
+                            {row.action}
+                          </h3>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            {row.entityType} • {row.actorDisplayName}
+                          </p>
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(row.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <p className="mt-3 break-all text-xs text-muted-foreground">
+                        Entity ID: {row.entityId}
+                      </p>
+                      <p className="mt-2 break-all text-xs text-muted-foreground">
+                        Request ID: {row.requestId}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+
+                <Box sx={{ height: 500, width: "100%" }} className="hidden overflow-x-auto md:block">
+                  <DataGrid
+                    rows={rows}
+                    columns={columns}
+                    loading={loading}
+                    pageSizeOptions={[25, 50, 100]}
+                    sx={dataGridSx}
+                  />
+                </Box>
+              </>
+            )}
+
+            {nextCursor && (
+              <div className="flex justify-center pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fetchAudit(nextCursor, true)}
+                  disabled={loadingMore}
+                  className="rounded-2xl"
+                >
+                  {loadingMore ? "Loading..." : "Load more"}
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </RouteGuard>
   );
 }

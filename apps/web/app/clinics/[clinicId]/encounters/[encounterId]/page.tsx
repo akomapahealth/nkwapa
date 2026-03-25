@@ -7,6 +7,9 @@ import { useAuth } from "@/lib/auth-context";
 import { useBootstrap } from "@/lib/bootstrap-context";
 import { useSync } from "@/app/ServiceWorkerAndSyncProvider";
 import { apiFetch } from "@/lib/api";
+import { AppMetricCard } from "@/components/app-shell/AppMetricCard";
+import { AppPageHeader } from "@/components/app-shell/AppPageHeader";
+import { EmptyStateCard, InlineNotice } from "@/components/ops/OpsShared";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +20,7 @@ import { HypertensionForm } from "@/components/HypertensionForm";
 import { db } from "@/lib/db";
 import { enqueueOutboxMutation } from "@/lib/outbox";
 import { SYNC_OPERATION } from "@/lib/outbox";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ClipboardPlus, HeartPulse, ShieldCheck } from "lucide-react";
 
 interface EncounterDetail {
   id: string;
@@ -267,14 +270,11 @@ export default function EncounterDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <Button asChild variant="ghost" size="sm">
-          <Link href={`/clinics/${clinicId}/patients/${encounter.patientId}`}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Patient
-          </Link>
-        </Button>
-        <div className="flex items-center gap-2">
+      <AppPageHeader
+        eyebrow="Clinic encounter"
+        title="Encounter Workspace"
+        description="Capture vitals, screening data, and hypertension findings in a cleaner encounter flow with clearer state transitions."
+        badges={
           <Badge
             variant={
               isFinalized ? "default" : encounter.status === "IN_REVIEW" ? "secondary" : "outline"
@@ -282,28 +282,63 @@ export default function EncounterDetailPage() {
           >
             {encounter.status}
           </Badge>
-          {canTransitionToReview && (
-            <Button
-              size="sm"
-              onClick={() => handleStatusTransition("IN_REVIEW")}
-              disabled={transitioning}
-            >
-              Submit for Review
+        }
+        actions={
+          <>
+            <Button asChild variant="ghost" className="rounded-2xl">
+              <Link href={`/clinics/${clinicId}/patients/${encounter.patientId}`}>
+                <ArrowLeft className="h-4 w-4" />
+                Back to Patient
+              </Link>
             </Button>
-          )}
-          {canTransitionToFinalized && (
-            <Button
-              size="sm"
-              onClick={() => handleStatusTransition("FINALIZED")}
-              disabled={transitioning}
-            >
-              Finalize
-            </Button>
-          )}
-        </div>
+            {canTransitionToReview ? (
+              <Button
+                size="sm"
+                onClick={() => handleStatusTransition("IN_REVIEW")}
+                disabled={transitioning}
+                className="rounded-2xl"
+              >
+                Submit for Review
+              </Button>
+            ) : null}
+            {canTransitionToFinalized ? (
+              <Button
+                size="sm"
+                onClick={() => handleStatusTransition("FINALIZED")}
+                disabled={transitioning}
+                className="rounded-2xl"
+              >
+                Finalize
+              </Button>
+            ) : null}
+          </>
+        }
+      />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <AppMetricCard
+          title="Encounter state"
+          value={encounter.status}
+          icon={ClipboardPlus}
+          detail="The current charting stage for this clinic encounter."
+        />
+        <AppMetricCard
+          title="Forms"
+          value="3"
+          icon={HeartPulse}
+          detail="Vitals, diabetes screening, and hypertension assessment are available here."
+        />
+        <AppMetricCard
+          title="Editability"
+          value={isFinalized ? "Locked" : "Open"}
+          icon={ShieldCheck}
+          detail="Finalized encounters are read-only and preserved for review."
+        />
       </div>
 
-      <Card>
+      {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
+
+      <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
         <CardHeader>
           <h1 className="text-xl font-semibold">Encounter</h1>
           <p className="text-sm text-muted-foreground">
@@ -314,7 +349,7 @@ export default function EncounterDetailPage() {
 
       {!isFinalized && (
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-          <TabsList>
+          <TabsList className="h-auto flex-wrap justify-start gap-2 rounded-3xl border border-border/80 bg-card/75 p-2">
             <TabsTrigger value="vitals" disabled={savingBeforeSwitch}>
               Vitals
             </TabsTrigger>
@@ -357,11 +392,12 @@ export default function EncounterDetailPage() {
       )}
 
       {isFinalized && (
-        <Card>
+        <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
           <CardContent className="pt-6">
-            <p className="text-muted-foreground">
-              This encounter is finalized. No further edits allowed.
-            </p>
+            <EmptyStateCard
+              title="Encounter finalized"
+              description="This encounter is complete and no further edits are allowed on the clinic chart."
+            />
           </CardContent>
         </Card>
       )}

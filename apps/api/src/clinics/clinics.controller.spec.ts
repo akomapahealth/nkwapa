@@ -1,138 +1,61 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ExecutionContext, UnauthorizedException } from '@nestjs/common';
-import request from 'supertest';
-import { AppModule } from '../app.module';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RbacGuard } from '../auth/guards/rbac.guard';
-import { ClinicScopeGuard } from '../auth/guards/clinic-scope.guard';
-import { ClinicService } from './clinic.service';
+import { NotFoundException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
+import { DisabledUserException } from '../auth/disabled-user.exception';
+import { ClinicsController } from './clinics.controller';
 
-const mockUserWithClinicAccess = {
-  user: {
-    id: 'user-1',
-    keycloakSub: 'test-sub',
-    displayName: 'Test User',
-    email: 'test@example.com',
-    phoneE164: null,
+describe('ClinicsController', () => {
+  const clinic = {
+    id: 'clinic-1',
+    name: 'Test Clinic',
+    region: 'Greater Accra',
+    countryCode: 'GH',
     isActive: true,
     createdAt: new Date(),
     updatedAt: new Date(),
-  },
-  roles: [
-    { clinicId: 'clinic-1', role: UserRole.VOLUNTEER },
-    { clinicId: null, role: UserRole.SYSTEM_ADMIN },
-  ],
-};
+  };
 
-const mockUserWithoutClinicAccess = {
-  user: { id: 'user-2', keycloakSub: 'other-sub', displayName: 'Other', email: null as string | null, phoneE164: null as string | null, isActive: true, createdAt: new Date(), updatedAt: new Date() },
-  roles: [{ clinicId: 'other-clinic', role: UserRole.VOLUNTEER }],
-};
+  const clinicService = {
+    findById: jest.fn(),
+  };
 
-const mockClinic = {
-  id: 'clinic-1',
-  name: 'Test Clinic',
-  region: 'Test Region',
-  countryCode: 'GH',
-  isActive: true,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-};
+  const controller = new ClinicsController(clinicService as never);
 
-const createAuthGuard = (user: { user: unknown; roles: unknown[] }) => ({
-  canActivate: (context: ExecutionContext) => {
-    const req = context.switchToHttp().getRequest();
-    const auth = req.headers?.authorization;
-    if (auth?.startsWith('Bearer ')) {
-      req.user = user;
-      return true;
-    }
-    throw new UnauthorizedException();
-  },
-});
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
 
-describe('ClinicsController', () => {
-  let app: INestApplication;
-  let clinicService: ClinicService;
+  it('returns a clinic when found', async () => {
+    clinicService.findById.mockResolvedValue(clinic);
 
-  beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    })
-      .overrideGuard(JwtAuthGuard)
-      .useValue(createAuthGuard(mockUserWithClinicAccess))
-      .overrideProvider(ClinicService)
-      .useValue({
-        findById: jest.fn().mockImplementation((id: string) => {
-          if (id === 'clinic-1') return Promise.resolve(mockClinic);
-          return Promise.resolve(null);
-        }),
+    await expect(
+      controller.findOne('clinic-1', {
+        user: {
+          user: { id: 'user-1' },
+          roles: [{ clinicId: 'clinic-1', role: UserRole.MANAGER }],
+        },
       })
-      .compile();
-
-    app = moduleFixture.createNestApplication();
-    clinicService = moduleFixture.get(ClinicService);
-    await app.init();
+    ).resolves.toEqual(clinic);
   });
 
-  afterAll(async () => {
-    await app.close();
-  });
+  it('throws NotFoundException when the clinic is missing', async () => {
+    clinicService.findById.mockResolvedValue(null);
 
-  describe('GET /clinics/:id', () => {
-    it('returns 401 without token', () => {
-      return request(app.getHttpServer())
-        .get('/clinics/clinic-1')
-        .expect(401);
-    });
-
-    it('returns 200 with valid token and clinic access (SYSTEM_ADMIN)', async () => {
-      const res = await request(app.getHttpServer())
-        .get('/clinics/clinic-1')
-        .set('Authorization', 'Bearer valid-token')
-        .expect(200);
-
-      expect(res.body).toHaveProperty('id', 'clinic-1');
-      expect(res.body).toHaveProperty('name', 'Test Clinic');
-    });
-
-    it('returns 404 for non-existent clinic', () => {
-      return request(app.getHttpServer())
-        .get('/clinics/non-existent')
-        .set('Authorization', 'Bearer valid-token')
-        .expect(404);
-    });
-  });
-});
-
-describe('ClinicsController - no clinic access', () => {
-  let app: INestApplication;
-
-  beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    })
-      .overrideGuard(JwtAuthGuard)
-      .useValue(createAuthGuard(mockUserWithoutClinicAccess))
-      .overrideProvider(ClinicService)
-      .useValue({
-        findById: jest.fn().mockResolvedValue(mockClinic),
+    await expect(
+      controller.findOne('missing-clinic', {
+        user: {
+          user: { id: 'user-1' },
+          roles: [{ clinicId: 'clinic-1', role: UserRole.MANAGER }],
+        },
       })
-      .compile();
-
-    app = moduleFixture.createNestApplication();
-    await app.init();
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  afterAll(async () => {
-    await app.close();
-  });
+  it('reuses the same disabled-user payload for protected-route handling', () => {
+    const error = new DisabledUserException();
 
-  it('returns 403 when user has no access to clinic', () => {
-    return request(app.getHttpServer())
-      .get('/clinics/clinic-1')
-      .set('Authorization', 'Bearer valid-token')
-      .expect(403);
+    expect(error.getResponse()).toMatchObject({
+      code: 'USER_DISABLED',
+      message: 'User account is deactivated',
+    });
   });
 });

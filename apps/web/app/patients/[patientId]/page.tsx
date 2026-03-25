@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { useBootstrap } from "@/lib/bootstrap-context";
 import { apiFetch } from "@/lib/api";
+import { getOpsDestination, hasPermission, readApiError } from "@/lib/ops";
 import { RouteGuard } from "@/components/RouteGuard";
 import { db } from "@/lib/db";
 import { enqueueOutboxMutation } from "@/lib/outbox";
@@ -15,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ArrowLeft, Stethoscope, FileCheck } from "lucide-react";
+import { PatientTrendsPanel } from "@/components/patients/PatientTrendsPanel";
 
 interface ConsentStatusItem {
   consentType: string;
@@ -53,10 +55,13 @@ export default function PatientDetailPage() {
     bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
   const canRecordConsent = perms.includes("*") || perms.includes("CONSENT.RECORD");
+  const canCreateOpsCheckIn = hasPermission(perms, "OPS.CHECKIN.CREATE");
+  const opsDestination = getOpsDestination(perms);
 
   const [data, setData] = useState<PatientWithEncounters | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const fetchPatient = useCallback(async () => {
     if (!clinicId || !getToken) return;
@@ -209,8 +214,35 @@ export default function PatientDetailPage() {
     }
   };
 
-  const handleStartVisit = () => {
-    router.push(`/patients/${patientId}/encounters/new`);
+  const handleCheckIn = async () => {
+    if (!clinicId || !getToken) return;
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await apiFetch(
+        `/clinics/${encodeURIComponent(clinicId)}/checkins`,
+        {
+          method: "POST",
+          body: JSON.stringify({ patientId }),
+          getToken,
+          activeClinicId: clinicId,
+        }
+      );
+      if (!res.ok) throw new Error(await readApiError(res));
+      setSuccess(
+        opsDestination
+          ? "Patient added to the clinic board successfully."
+          : "Patient checked in successfully."
+      );
+      if (opsDestination === "/today") {
+        router.prefetch("/today");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!clinicId) {
@@ -268,15 +300,30 @@ export default function PatientDetailPage() {
             Back to Patients
           </Link>
         </Button>
-        <Button onClick={handleStartVisit}>
-          <Stethoscope className="mr-2 h-4 w-4" />
-          Start New Visit
-        </Button>
+        {canCreateOpsCheckIn ? (
+          <Button onClick={() => void handleCheckIn()} disabled={loading}>
+            <Stethoscope className="mr-2 h-4 w-4" />
+            Check In Patient
+          </Button>
+        ) : null}
       </div>
 
       {error && (
         <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
           {error}
+        </div>
+      )}
+      {success && (
+        <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+          <span>{success}</span>
+          {opsDestination ? (
+            <>
+              {" "}
+              <Link href={opsDestination} className="font-medium underline underline-offset-4">
+                Open OPS view
+              </Link>
+            </>
+          ) : null}
         </div>
       )}
 
@@ -299,6 +346,7 @@ export default function PatientDetailPage() {
       <Tabs defaultValue="overview" className="w-full">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="trends">Trends</TabsTrigger>
           <TabsTrigger value="encounters">Encounters</TabsTrigger>
           {canRecordConsent && <TabsTrigger value="consent">Consent</TabsTrigger>}
         </TabsList>
@@ -328,6 +376,9 @@ export default function PatientDetailPage() {
               </p>
             </CardContent>
           </Card>
+        </TabsContent>
+        <TabsContent value="trends">
+          <PatientTrendsPanel patientId={patientId} clinicId={clinicId} />
         </TabsContent>
         <TabsContent value="encounters">
           <Card>
