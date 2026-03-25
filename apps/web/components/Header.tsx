@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,256 +27,259 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AppNavList } from "@/components/app-shell/AppNavList";
 import { useBootstrap } from "@/lib/bootstrap-context";
 import { useSync } from "@/app/ServiceWorkerAndSyncProvider";
 import { useKeycloak } from "@/app/KeycloakProvider";
 import { db } from "@/lib/db";
 import { setStoredActiveClinicId } from "@/lib/bootstrap-storage";
-import { cn } from "@/lib/utils";
 import {
+  ArrowRightLeft,
   LogOut,
-  Building2,
-  User,
   Menu,
-  LayoutDashboard,
-  Users,
-  ClipboardList,
-  FileEdit,
-  Shield,
-  Settings,
-  Bell,
-  UserCog,
+  PanelLeft,
+  PanelLeftClose,
+  RefreshCw,
+  ShieldCheck,
+  User,
 } from "lucide-react";
 
-function hasPermission(permissions: string[], perm: string): boolean {
-  return permissions.includes("*") || permissions.includes(perm);
-}
-
-function hasAnyPermission(permissions: string[], perms: string[]): boolean {
-  return permissions.includes("*") || perms.some((p) => permissions.includes(p));
-}
-
-export function Header() {
-  const pathname = usePathname();
-  const bootstrap = useBootstrap()?.bootstrap ?? null;
-  const { setActiveClinicId } = useBootstrap() ?? {};
+export function Header({
+  sidebarCollapsed = false,
+  onToggleSidebar = () => undefined,
+  mobileOpen = false,
+  onMobileOpenChange = () => undefined,
+}: {
+  sidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
+  mobileOpen?: boolean;
+  onMobileOpenChange?: (open: boolean) => void;
+}) {
+  const bootstrapCtx = useBootstrap();
+  const bootstrap = bootstrapCtx?.bootstrap ?? null;
+  const { setActiveClinicId } = bootstrapCtx ?? {};
   const { isOnline, syncStatus, syncError, syncNow } = useSync();
   const { logout } = useKeycloak() ?? {};
   const [pendingCount, setPendingCount] = useState(0);
-  const [mobileOpen, setMobileOpen] = useState(false);
 
   const clinicId =
     bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
   const memberships = bootstrap?.memberships ?? [];
-  const activeMembership = memberships.find((m) => m.clinicId === clinicId);
+  const activeMembership = memberships.find((membership) => membership.clinicId === clinicId);
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
   const canSync =
     (perms.includes("*") || perms.includes("SYNC.PUSH")) &&
     (perms.includes("*") || perms.includes("SYNC.PULL"));
-  const roles = [
+  const roleLabels = [
     ...(activeMembership?.roles ?? []),
     ...(bootstrap?.globalRoles ?? []),
-  ];
-
-  const navItems: {
-    href: string;
-    label: string;
-    icon: React.ComponentType<{ className?: string }>;
-    permission?: string;
-    anyOf?: string[];
-  }[] = [
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    {
-      href: "/queues",
-      label: "Queues",
-      icon: ClipboardList,
-      anyOf: ["ENCOUNTER.READ", "ENCOUNTER.CREATE", "PRECEPTOR.REVIEW", "DOCTOR.FINALIZE"],
-    },
-    { href: "/patients", label: "Patients", icon: Users, permission: "PATIENT.SEARCH" },
-    { href: "/patients/new", label: "New Patient", icon: FileEdit, permission: "PATIENT.CREATE" },
-    { href: "/audit", label: "Audit", icon: Shield, permission: "AUDIT.READ" },
-    { href: "/reminders", label: "Reminders", icon: Bell, permission: "REMINDER.READ" },
-    { href: "/settings/clinic", label: "Settings", icon: Settings, permission: "RESEARCH.SETTINGS.UPDATE" },
-    { href: "/admin/clinics", label: "Clinics", icon: Building2, permission: "CLINIC.MANAGE" },
-    { href: "/admin/users", label: "Staff", icon: UserCog, permission: "CLINIC.MANAGE" },
-  ];
-
-  const filteredNav = navItems.filter((item) => {
-    if (item.anyOf) return hasAnyPermission(perms, item.anyOf);
-    return !item.permission || hasPermission(perms, item.permission);
-  });
+  ].slice(0, 3);
 
   useEffect(() => {
-    if (!clinicId) return;
+    if (!clinicId) {
+      setPendingCount(0);
+      return;
+    }
+
     const updateCount = async () => {
       const count = await db.outbox.where("clinicId").equals(clinicId).count();
       setPendingCount(count);
     };
-    updateCount();
-    const interval = setInterval(updateCount, 2000);
-    return () => clearInterval(interval);
+
+    void updateCount();
+    const interval = window.setInterval(updateCount, 2500);
+    return () => window.clearInterval(interval);
   }, [clinicId]);
 
   const handleClinicChange = (value: string) => {
     setStoredActiveClinicId(value);
     setActiveClinicId?.(value);
     if (value) {
-      window.location.href = "/queues";
+      window.location.href = "/dashboard";
     }
   };
 
   const handleSync = () => {
-    if (clinicId) syncNow(clinicId);
+    if (clinicId) {
+      syncNow(clinicId);
+    }
   };
 
   const initials = bootstrap?.displayName
     ?.split(/\s+/)
-    .map((s) => s[0])
+    .map((segment) => segment[0])
     .slice(0, 2)
     .join("")
     .toUpperCase() ?? "?";
 
   return (
-    <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b border-border bg-card px-4 shadow-sm">
-      {/* Mobile hamburger */}
-      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetTrigger asChild>
-          <Button variant="ghost" size="icon" className="md:hidden">
-            <Menu className="h-5 w-5" />
-            <span className="sr-only">Open menu</span>
-          </Button>
-        </SheetTrigger>
-        <SheetContent side="left" className="w-64 bg-card p-0">
-          <SheetHeader className="border-b border-border p-4">
-            <SheetTitle className="font-heading text-lg text-primary">
-              Nkwapa EMR
-            </SheetTitle>
-          </SheetHeader>
-          <nav className="flex flex-col gap-1 p-3">
-            {filteredNav.map((item) => {
-              const isActive =
-                pathname === item.href || pathname.startsWith(item.href + "/");
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setMobileOpen(false)}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors touch-target",
-                    isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
-        </SheetContent>
-      </Sheet>
+    <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur">
+      <div className="flex h-16 items-center gap-3 px-4 md:px-6">
+        <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
+          <SheetTrigger asChild>
+            <Button variant="ghost" size="icon" className="md:hidden">
+              <Menu className="h-5 w-5" />
+              <span className="sr-only">Open navigation</span>
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="w-[88vw] max-w-[340px] border-border/70 bg-card/95 p-0">
+            <SheetHeader className="border-b border-border/70 p-5 text-left">
+              <SheetTitle className="text-left">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-lg font-heading font-semibold text-primary-foreground">
+                    N
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary/80">
+                      Nkwapa EMR
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Mobile workspace navigation
+                    </p>
+                  </div>
+                </div>
+              </SheetTitle>
+            </SheetHeader>
+            <div className="h-full overflow-y-auto p-4">
+              <AppNavList
+                bootstrap={bootstrap}
+                mobile
+                onNavigate={() => onMobileOpenChange(false)}
+              />
+            </div>
+          </SheetContent>
+        </Sheet>
 
-      <Link href="/" className="flex items-center gap-2">
-        <span className="font-heading text-lg font-semibold text-primary">
-          Nkwapa EMR
-        </span>
-      </Link>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onToggleSidebar}
+          className="hidden md:inline-flex"
+        >
+          {sidebarCollapsed ? (
+            <PanelLeft className="h-[18px] w-[18px]" />
+          ) : (
+            <PanelLeftClose className="h-[18px] w-[18px]" />
+          )}
+          <span className="sr-only">Toggle sidebar</span>
+        </Button>
 
-      <div className="flex flex-1 items-center justify-end gap-3">
-        {memberships.length > 1 && (
-          <div className="hidden items-center gap-2 sm:flex">
-            <Building2 className="h-4 w-4 text-muted-foreground" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="hidden rounded-full px-3 py-1 text-[11px] md:inline-flex">
+              Authenticated workspace
+            </Badge>
+            <p className="truncate text-sm font-medium text-foreground">
+              {activeMembership?.clinicName ?? "Choose an active clinic"}
+            </p>
+          </div>
+          <p className="hidden text-xs text-muted-foreground sm:block">
+            Operations, patient records, reminders, and oversight tools in one responsive shell.
+          </p>
+        </div>
+
+        <div className="hidden items-center gap-2 lg:flex">
+          {memberships.length > 1 ? (
             <Select value={clinicId ?? ""} onValueChange={handleClinicChange}>
-              <SelectTrigger className="w-[200px]">
+              <SelectTrigger className="h-10 w-[220px] rounded-2xl border-border/70 bg-card/70">
                 <SelectValue placeholder="Select clinic" />
               </SelectTrigger>
               <SelectContent>
-                {memberships.map((m) => (
-                  <SelectItem key={m.clinicId} value={m.clinicId}>
-                    {m.clinicName}
+                {memberships.map((membership) => (
+                  <SelectItem key={membership.clinicId} value={membership.clinicId}>
+                    {membership.clinicName}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
-        )}
+          ) : clinicId ? (
+            <div className="inline-flex items-center gap-2 rounded-2xl border border-border/70 bg-card/70 px-3 py-2 text-sm text-muted-foreground">
+              <ArrowRightLeft className="h-4 w-4 text-primary" />
+              {activeMembership?.clinicName ?? "Clinic"}
+            </div>
+          ) : null}
 
-        {memberships.length === 1 && clinicId && (
-          <span className="hidden text-sm text-muted-foreground sm:inline">
-            {activeMembership?.clinicName ?? "Clinic"}
-          </span>
-        )}
-
-        {roles.length > 0 && (
-          <div className="hidden items-center gap-1 md:flex">
-            {roles.map((r) => (
-              <Badge key={r} variant="secondary" className="text-xs">
-                {r}
-              </Badge>
-            ))}
-          </div>
-        )}
-
-        <div className="flex items-center gap-2 rounded-lg border border-border px-2 py-1.5 text-sm">
-          <span
-            className={`h-2.5 w-2.5 rounded-full ${
-              isOnline ? "bg-emerald-500" : "bg-red-500"
-            }`}
-          />
-          <span className="hidden text-muted-foreground sm:inline">
-            {isOnline ? "Online" : "Offline"}
-          </span>
-          <span className="hidden sm:inline">Pend: {pendingCount}</span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleSync}
-            disabled={!isOnline || syncStatus === "syncing" || !canSync}
-          >
-            {syncStatus === "syncing" ? "Syncing…" : "Sync"}
-          </Button>
-          {syncError && (
-            <span className="hidden max-w-[120px] truncate text-xs text-destructive sm:inline">
-              {syncError}
-            </span>
+          {roleLabels.length > 0 && (
+            <div className="hidden items-center gap-2 xl:flex">
+              {roleLabels.map((role) => (
+                <Badge key={role} variant="secondary" className="rounded-full">
+                  {role}
+                </Badge>
+              ))}
+            </div>
           )}
         </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
+        <div className="flex items-center gap-2">
+          <div className="hidden items-center gap-2 rounded-2xl border border-border/70 bg-card/75 px-3 py-2 text-sm md:flex">
+            <span
+              className={`h-2.5 w-2.5 rounded-full ${
+                isOnline ? "bg-emerald-500" : "bg-destructive"
+              }`}
+            />
+            <span className="text-muted-foreground">
+              {isOnline ? "Online" : "Offline"}
+            </span>
+            <span className="text-muted-foreground">Pending {pendingCount}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSync}
+              disabled={!isOnline || syncStatus === "syncing" || !canSync}
+              className="h-8 rounded-xl border-border/70"
+            >
+              <RefreshCw className={syncStatus === "syncing" ? "animate-spin" : ""} />
+              {syncStatus === "syncing" ? "Syncing" : "Sync"}
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>
-              <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium">{bootstrap?.displayName}</p>
-                <p className="text-xs text-muted-foreground">
-                  {bootstrap?.keycloakSub}
-                </p>
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/">
-                <User className="mr-2 h-4 w-4" />
-                Dashboard
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={logout} className="text-destructive">
-              <LogOut className="mr-2 h-4 w-4" />
-              Log out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="rounded-full">
+                <Avatar className="h-9 w-9">
+                  <AvatarFallback className="bg-primary text-xs text-primary-foreground">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64 rounded-2xl border-border/70">
+              <DropdownMenuLabel>
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                    <ShieldCheck className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 space-y-1">
+                    <p className="truncate text-sm font-medium">{bootstrap?.displayName}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {bootstrap?.keycloakSub}
+                    </p>
+                  </div>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard">
+                  <User className="mr-2 h-4 w-4" />
+                  Dashboard
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {syncError ? (
+                <>
+                  <div className="px-2 py-2 text-xs text-destructive">
+                    {syncError}
+                  </div>
+                  <DropdownMenuSeparator />
+                </>
+              ) : null}
+              <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive">
+                <LogOut className="mr-2 h-4 w-4" />
+                Log out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     </header>
   );

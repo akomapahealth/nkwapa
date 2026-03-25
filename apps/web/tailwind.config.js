@@ -15,6 +15,9 @@ module.exports = {
   		fontFamily: {
   			heading: ['var(--font-heading)', 'Georgia', 'serif'],
   			body: ['var(--font-body)', 'system-ui', 'sans-serif'],
+  			'landing-heading': ['Circular Std', 'var(--font-landing)', 'Poppins', 'Sofia Pro', 'Averta', 'Gilroy', 'sans-serif'],
+  			'landing-body': ['Circular Std', 'var(--font-landing)', 'Poppins', 'sans-serif'],
+  			'landing-nav': ['Circular Std', 'var(--font-landing)', 'Poppins', 'sans-serif'],
   		},
   		colors: {
   			border: 'hsl(var(--border))',

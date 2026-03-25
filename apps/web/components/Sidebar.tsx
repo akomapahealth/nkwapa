@@ -1,92 +1,96 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
+import { AppNavList } from "@/components/app-shell/AppNavList";
 import { useBootstrap } from "@/lib/bootstrap-context";
 import { cn } from "@/lib/utils";
-import {
-  LayoutDashboard,
-  Users,
-  ClipboardList,
-  FileEdit,
-  Shield,
-  Settings,
-  Bell,
-  Building2,
-  UserCog,
-} from "lucide-react";
 
-function hasPermission(permissions: string[], perm: string): boolean {
-  return permissions.includes("*") || permissions.includes(perm);
-}
-
-function hasAnyPermission(permissions: string[], perms: string[]): boolean {
-  return permissions.includes("*") || perms.some((p) => permissions.includes(p));
-}
-
-export function Sidebar() {
-  const pathname = usePathname();
+export function Sidebar({ collapsed }: { collapsed: boolean }) {
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const clinicId =
     bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
-  const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
-
-  const navItems: {
-    href: string;
-    label: string;
-    icon: React.ComponentType<{ className?: string }>;
-    permission?: string;
-    anyOf?: string[];
-  }[] = [
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    {
-      href: "/queues",
-      label: "Queues",
-      icon: ClipboardList,
-      anyOf: ["ENCOUNTER.READ", "ENCOUNTER.CREATE", "PRECEPTOR.REVIEW", "DOCTOR.FINALIZE"],
-    },
-    { href: "/patients", label: "Patients", icon: Users, permission: "PATIENT.SEARCH" },
-    { href: "/patients/new", label: "New Patient", icon: FileEdit, permission: "PATIENT.CREATE" },
-    { href: "/audit", label: "Audit", icon: Shield, permission: "AUDIT.READ" },
-    { href: "/reminders", label: "Reminders", icon: Bell, permission: "REMINDER.READ" },
-    { href: "/settings/clinic", label: "Settings", icon: Settings, permission: "RESEARCH.SETTINGS.UPDATE" },
-    { href: "/admin/clinics", label: "Clinics", icon: Building2, permission: "CLINIC.MANAGE" },
-    { href: "/admin/users", label: "Staff", icon: UserCog, permission: "CLINIC.MANAGE" },
-  ];
-
-  const filtered = navItems.filter((item) => {
-    if (item.anyOf) return hasAnyPermission(perms, item.anyOf);
-    return !item.permission || hasPermission(perms, item.permission!);
-  });
+  const memberships = bootstrap?.memberships ?? [];
+  const activeMembership = memberships.find((membership) => membership.clinicId === clinicId);
+  const roleLabels = [
+    ...(activeMembership?.roles ?? []),
+    ...(bootstrap?.globalRoles ?? []),
+  ].slice(0, 3);
 
   return (
-    <aside className="hidden w-52 flex-col border-r border-border bg-card md:flex">
-      <nav className="flex flex-col gap-1 p-3">
-        {filtered.map((item) => {
-          const isActive =
-            pathname === item.href || pathname.startsWith(item.href + "/");
-          const isAdminRoute = item.href.startsWith("/admin");
-          const isDashboard = item.href === "/dashboard";
-          const href = clinicId || isDashboard || isAdminRoute ? item.href : "#";
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.href}
-              href={href}
-              className={cn(
-                "flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                isActive
-                  ? "border-l-2 border-secondary bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                !clinicId && !isDashboard && !isAdminRoute && "pointer-events-none opacity-50"
+    <aside
+      className={cn(
+        "sticky top-0 hidden h-screen shrink-0 border-r border-border/70 bg-card/65 backdrop-blur md:flex",
+        "transition-[width] duration-300 ease-out",
+        collapsed ? "w-[96px]" : "w-[320px]"
+      )}
+    >
+      <div className="flex h-full w-full flex-col gap-5 p-4">
+        <div className="overflow-hidden rounded-[30px] border border-primary/15 bg-gradient-to-br from-primary/14 via-card to-secondary/12 shadow-lg shadow-primary/5">
+          <div className={cn("p-4", collapsed ? "px-3 py-4" : "p-5")}>
+            <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-xl font-heading font-semibold text-primary-foreground shadow-lg shadow-primary/25">
+                N
+              </div>
+              {!collapsed && (
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary/80">
+                    Nkwapa EMR
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-foreground">
+                    Clinical operations workspace
+                  </p>
+                </div>
               )}
-            >
-              <Icon className="h-4 w-4" />
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
+            </div>
+
+            {!collapsed && (
+              <div className="mt-5 rounded-[24px] border border-border/70 bg-background/80 p-4">
+                <p className="text-sm font-medium text-foreground">
+                  Modern clinic coordination
+                </p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  Track patients, move work through queues, and manage access from
+                  one calm, responsive control surface.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          <AppNavList bootstrap={bootstrap} collapsed={collapsed} />
+        </div>
+
+        <div className="rounded-[26px] border border-border/70 bg-background/80 p-3 shadow-sm">
+          {collapsed ? (
+            <div className="flex justify-center">
+              <Badge variant="outline" className="rounded-full px-2.5 py-1 text-[10px]">
+                {activeMembership?.clinicName?.slice(0, 1) ?? "C"}
+              </Badge>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                  Active clinic
+                </p>
+                <p className="mt-2 text-sm font-semibold text-foreground">
+                  {activeMembership?.clinicName ?? "Select a clinic"}
+                </p>
+              </div>
+              {roleLabels.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {roleLabels.map((role) => (
+                    <Badge key={role} variant="secondary" className="rounded-full">
+                      {role}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </aside>
   );
 }

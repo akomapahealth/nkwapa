@@ -1,4 +1,4 @@
-import { Source_Serif_4, IBM_Plex_Sans } from "next/font/google";
+import { Source_Serif_4, IBM_Plex_Sans, Poppins } from "next/font/google";
 import { KeycloakProvider } from "./KeycloakProvider";
 import "./globals.css";
 
@@ -15,6 +15,13 @@ const ibmPlexSans = IBM_Plex_Sans({
   display: "swap",
 });
 
+const poppins = Poppins({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800", "900"],
+  variable: "--font-landing",
+  display: "swap",
+});
+
 export const metadata = {
   title: "Nkwapa EMR",
   description:
@@ -27,8 +34,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${sourceSerif.variable} ${ibmPlexSans.variable}`}>
-      <body>
+    <html lang="en" className={`${sourceSerif.variable} ${ibmPlexSans.variable} ${poppins.variable}`}>
+      <head>
+        <link
+          href="https://fonts.cdnfonts.com/css/circular-std"
+          rel="stylesheet"
+        />
+      </head>
+      <body suppressHydrationWarning>
         <KeycloakProvider>{children}</KeycloakProvider>
       </body>
     </html>

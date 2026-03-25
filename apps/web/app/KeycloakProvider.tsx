@@ -11,6 +11,7 @@ const KeycloakContext = createContext<{
   isAuthenticated: boolean;
   error: string | null;
   logout: () => void;
+  login: () => void;
 } | null>(null);
 
 export function useKeycloak() {
@@ -45,6 +46,11 @@ export function KeycloakProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const login = useCallback(() => {
+    const kc = getKeycloak();
+    if (kc) kc.login();
+  }, []);
+
   useEffect(() => {
     const kc = getKeycloak();
     if (!kc) {
@@ -58,9 +64,12 @@ export function KeycloakProvider({ children }: { children: React.ReactNode }) {
       setError("Keycloak initialization timed out. Check your connection and try refreshing.");
     }, 15000);
 
+    const origin =
+      typeof window !== "undefined" ? window.location.origin : "";
     initKeycloak({
-      onLoad: "login-required",
-      checkLoginIframe: false,
+      onLoad: "check-sso",
+      checkLoginIframe: true,
+      silentCheckSsoRedirectUri: `${origin}/silent-check-sso.html`,
     })
       .then((authenticated) => {
         clearTimeout(timeout);
@@ -77,7 +86,7 @@ export function KeycloakProvider({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(timeout);
   }, []);
 
-  const value = { isReady, isAuthenticated, error, logout };
+  const value = { isReady, isAuthenticated, error, logout, login };
 
   if (!isReady) {
     return (
