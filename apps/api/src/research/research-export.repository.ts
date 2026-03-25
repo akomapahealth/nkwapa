@@ -1,28 +1,47 @@
-import { Injectable } from '@nestjs/common';
-import { Prisma, ResearchExport } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { Injectable } from "@nestjs/common";
+import { Prisma, ResearchExport } from "@prisma/client";
+import { PrismaService } from "../prisma/prisma.service";
+
+export const researchExportInclude = {
+  requestedBy: { select: { id: true, displayName: true } },
+  approvedBy: { select: { id: true, displayName: true } },
+} satisfies Prisma.ResearchExportInclude;
+
+export type ResearchExportRecord = Prisma.ResearchExportGetPayload<{
+  include: typeof researchExportInclude;
+}>;
 
 @Injectable()
 export class ResearchExportRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(data: Prisma.ResearchExportCreateInput): Promise<ResearchExport> {
-    return this.prisma.researchExport.create({ data });
+  async create(data: Prisma.ResearchExportCreateInput): Promise<ResearchExportRecord> {
+    return this.prisma.researchExport.create({
+      data,
+      include: researchExportInclude,
+    });
   }
 
-  async findById(id: string): Promise<ResearchExport | null> {
-    return this.prisma.researchExport.findUnique({ where: { id } });
+  async findById(id: string): Promise<ResearchExportRecord | null> {
+    return this.prisma.researchExport.findUnique({
+      where: { id },
+      include: researchExportInclude,
+    });
   }
 
-  async update(id: string, data: Prisma.ResearchExportUpdateInput): Promise<ResearchExport> {
-    return this.prisma.researchExport.update({ where: { id }, data });
+  async update(id: string, data: Prisma.ResearchExportUpdateInput): Promise<ResearchExportRecord> {
+    return this.prisma.researchExport.update({
+      where: { id },
+      data,
+      include: researchExportInclude,
+    });
   }
 
   async listByClinic(
     clinicId: string,
     cursor?: string,
     limit = 20,
-  ): Promise<{ items: ResearchExport[]; nextCursor: string | null }> {
+  ): Promise<{ items: ResearchExportRecord[]; nextCursor: string | null }> {
     const take = Math.min(limit, 100);
     const where: Prisma.ResearchExportWhereInput = { clinicId };
 
@@ -39,11 +58,8 @@ export class ResearchExportRepository {
     const items = await this.prisma.researchExport.findMany({
       where,
       take: take + 1,
-      orderBy: [{ requestedAt: 'desc' }, { id: 'desc' }],
-      include: {
-        requestedBy: { select: { id: true, displayName: true } },
-        approvedBy: { select: { id: true, displayName: true } },
-      },
+      orderBy: [{ requestedAt: "desc" }, { id: "desc" }],
+      include: researchExportInclude,
     });
 
     const hasMore = items.length > take;
@@ -56,7 +72,7 @@ export class ResearchExportRepository {
 
   private decodeCursor(cursor: string): { requestedAt: Date; id: string } | null {
     try {
-      const decoded = Buffer.from(cursor, 'base64').toString('utf-8');
+      const decoded = Buffer.from(cursor, "base64").toString("utf-8");
       const parsed = JSON.parse(decoded) as { requestedAt: string; id: string };
       const requestedAt = new Date(parsed.requestedAt);
       if (isNaN(requestedAt.getTime())) return null;
@@ -69,7 +85,7 @@ export class ResearchExportRepository {
   private encodeCursor(requestedAt: Date, id: string): string {
     return Buffer.from(
       JSON.stringify({ requestedAt: requestedAt.toISOString(), id }),
-      'utf-8',
-    ).toString('base64');
+      "utf-8"
+    ).toString("base64");
   }
 }

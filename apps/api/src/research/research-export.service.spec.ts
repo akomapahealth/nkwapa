@@ -1,176 +1,296 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { ResearchExportService } from './research-export.service';
-import { ResearchExportRepository } from './research-export.repository';
-import { PrismaService } from '../prisma/prisma.service';
-import { AuditService } from '../audit/audit.service';
-import { DeIdentificationService } from './de-identification.service';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from "@nestjs/common";
+import type { ResearchExportStatus } from "@prisma/client";
+import { ResearchExportService } from "./research-export.service";
+import type { ResearchExportRecord } from "./research-export.repository";
 
-describe('ResearchExportService', () => {
-  let service: ResearchExportService;
-  let repo: jest.Mocked<ResearchExportRepository>;
-  let prisma: { clinicResearchSettings: { findUnique: jest.Mock } };
+function makeExportRecord(
+  overrides: Partial<ResearchExportRecord> = {}
+): ResearchExportRecord {
+  return {
+    id: "exp-1",
+    clinicId: "clinic-1",
+    requestedByUserId: "user-1",
+    approvedByUserId: null,
+    fromDate: "2026-03-01",
+    toDate: "2026-03-21",
+    status: "PENDING_APPROVAL" as ResearchExportStatus,
+    datasetVersion: 1,
+    policyVersionSnapshot: "research-export-v1",
+    rejectionReason: null,
+    failureReason: null,
+    filePath: null,
+    fileFormat: "zip",
+    recordCount: null,
+    rowCountsJson: null,
+    artifactSha256: null,
+    artifactSizeBytes: null,
+    repoProvider: null,
+    repoPath: null,
+    repoCommitSha: null,
+    repoCommitUrl: null,
+    syncedAt: null,
+    requestedAt: new Date("2026-03-21T12:00:00.000Z"),
+    startedAt: null,
+    approvedAt: null,
+    completedAt: null,
+    requestedBy: { id: "user-1", displayName: "Requester" },
+    approvedBy: null,
+    ...overrides,
+  };
+}
+
+describe("ResearchExportService", () => {
+  const clinicId = "clinic-1";
+  const userId = "user-1";
+
+  let repo: {
+    create: jest.Mock;
+    findById: jest.Mock;
+    update: jest.Mock;
+    listByClinic: jest.Mock;
+  };
+  let prisma: {
+    clinicResearchSettings: { findUnique: jest.Mock };
+  };
   let auditService: { logWrite: jest.Mock };
-  let deIdService: { generateDataset: jest.Mock };
+  let transformService: { generatePack: jest.Mock };
+  let repoSyncService: { sync: jest.Mock };
+  let exportQueue: { add: jest.Mock };
+  let service: ResearchExportService;
 
-  const clinicId = 'clinic-1';
-  const userId = 'user-1';
-
-  beforeEach(async () => {
+  beforeEach(() => {
     repo = {
       create: jest.fn(),
       findById: jest.fn(),
       update: jest.fn(),
       listByClinic: jest.fn(),
-    } as unknown as jest.Mocked<ResearchExportRepository>;
-
+    };
     prisma = {
       clinicResearchSettings: { findUnique: jest.fn() },
     };
     auditService = { logWrite: jest.fn() };
-    deIdService = { generateDataset: jest.fn() };
+    transformService = { generatePack: jest.fn() };
+    repoSyncService = { sync: jest.fn() };
+    exportQueue = { add: jest.fn() };
 
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        ResearchExportService,
-        { provide: ResearchExportRepository, useValue: repo },
-        { provide: PrismaService, useValue: prisma },
-        { provide: AuditService, useValue: auditService },
-        { provide: DeIdentificationService, useValue: deIdService },
-      ],
-    }).compile();
-
-    service = module.get(ResearchExportService);
+    service = new ResearchExportService(
+      repo as never,
+      prisma as never,
+      auditService as never,
+      transformService as never,
+      repoSyncService as never,
+      exportQueue as never
+    );
   });
 
-  describe('requestExport', () => {
-    it('throws if research not enabled', async () => {
-      prisma.clinicResearchSettings.findUnique.mockResolvedValue(null);
-      await expect(
-        service.requestExport(clinicId, userId, 'csv'),
-      ).rejects.toThrow(BadRequestException);
+  it("queues an auto-approved export request when director approval is disabled", async () => {
+    prisma.clinicResearchSettings.findUnique.mockResolvedValue({
+      clinicId,
+      researchEnabled: true,
+      requiresDirectorApprovalEachExport: false,
     });
+    repo.create.mockResolvedValue(
+      makeExportRecord({
+        status: "APPROVED" as ResearchExportStatus,
+        approvedByUserId: userId,
+        approvedAt: new Date("2026-03-21T12:01:00.000Z"),
+        approvedBy: { id: userId, displayName: "Requester" },
+      })
+    );
+    exportQueue.add.mockResolvedValue(undefined);
 
-    it('creates PENDING export when approval required', async () => {
-      prisma.clinicResearchSettings.findUnique.mockResolvedValue({
-        clinicId,
-        researchEnabled: true,
-        requiresDirectorApprovalEachExport: true,
-      });
-      const created = { id: 'exp-1', clinicId, status: 'PENDING' };
-      repo.create.mockResolvedValue(created as never);
+    const result = await service.requestExport(
+      clinicId,
+      userId,
+      { fromDate: "2026-03-01", toDate: "2026-03-21" },
+      { clinicId, actorUserId: userId, requestId: "req-1" }
+    );
 
-      const result = await service.requestExport(clinicId, userId, 'csv', {
-        clinicId,
-        actorUserId: userId,
-      });
-
-      expect(result).toEqual(created);
-      expect(repo.create).toHaveBeenCalled();
-      const createArg = repo.create.mock.calls[0]![0];
-      expect(createArg.status).toBe('PENDING');
-      expect(auditService.logWrite).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'RESEARCH_EXPORT.REQUEST' }),
-      );
-    });
-
-    it('auto-approves when director approval not required', async () => {
-      prisma.clinicResearchSettings.findUnique.mockResolvedValue({
-        clinicId,
-        researchEnabled: true,
-        requiresDirectorApprovalEachExport: false,
-      });
-      const created = { id: 'exp-2', clinicId, status: 'APPROVED' };
-      repo.create.mockResolvedValue(created as never);
-
-      await service.requestExport(clinicId, userId, 'json');
-
-      const createArg = repo.create.mock.calls[0]![0];
-      expect(createArg.status).toBe('APPROVED');
-      expect(createArg.fileFormat).toBe('json');
-    });
+    expect(result.status).toBe("APPROVED");
+    expect(repo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fromDate: "2026-03-01",
+        toDate: "2026-03-21",
+        fileFormat: "zip",
+      })
+    );
+    expect(exportQueue.add).toHaveBeenCalledWith(
+      "process",
+      { exportId: "exp-1" },
+      expect.objectContaining({ jobId: "exp-1" })
+    );
   });
 
-  describe('approveExport', () => {
-    it('approves a PENDING export', async () => {
-      const existing = { id: 'exp-1', clinicId, status: 'PENDING' };
-      repo.findById.mockResolvedValue(existing as never);
-      const updated = { ...existing, status: 'APPROVED' };
-      repo.update.mockResolvedValue(updated as never);
-
-      const result = await service.approveExport('exp-1', userId, {
-        clinicId,
-        actorUserId: userId,
-      });
-
-      expect(result.status).toBe('APPROVED');
-      expect(auditService.logWrite).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'RESEARCH_EXPORT.APPROVE' }),
-      );
+  it("approves and queues a pending export", async () => {
+    const pending = makeExportRecord();
+    const approved = makeExportRecord({
+      status: "APPROVED" as ResearchExportStatus,
+      approvedByUserId: "director-1",
+      approvedAt: new Date("2026-03-21T12:05:00.000Z"),
+      approvedBy: { id: "director-1", displayName: "Director" },
     });
 
-    it('rejects approval if not PENDING', async () => {
-      repo.findById.mockResolvedValue({ id: 'exp-1', status: 'COMPLETED' } as never);
-      await expect(
-        service.approveExport('exp-1', userId),
-      ).rejects.toThrow(BadRequestException);
+    repo.findById.mockResolvedValue(pending);
+    repo.update.mockResolvedValue(approved);
+    exportQueue.add.mockResolvedValue(undefined);
+
+    const result = await service.approveExport("exp-1", "director-1", {
+      clinicId,
+      actorUserId: "director-1",
+      requestId: "req-2",
     });
+
+    expect(result.status).toBe("APPROVED");
+    expect(repo.update).toHaveBeenCalledWith(
+      "exp-1",
+      expect.objectContaining({
+        status: "APPROVED",
+      })
+    );
+    expect(exportQueue.add).toHaveBeenCalled();
   });
 
-  describe('rejectExport', () => {
-    it('rejects a PENDING export with reason', async () => {
-      const existing = { id: 'exp-1', clinicId, status: 'PENDING' };
-      repo.findById.mockResolvedValue(existing as never);
-      const updated = { ...existing, status: 'REJECTED', rejectionReason: 'Not ready' };
-      repo.update.mockResolvedValue(updated as never);
-
-      const result = await service.rejectExport('exp-1', userId, 'Not ready', {
-        clinicId,
-        actorUserId: userId,
-      });
-
-      expect(result.status).toBe('REJECTED');
-      expect(auditService.logWrite).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'RESEARCH_EXPORT.REJECT' }),
-      );
+  it("retries a failed export by re-queueing it", async () => {
+    const failed = makeExportRecord({
+      status: "FAILED" as ResearchExportStatus,
+      failureReason: "GitHub sync failed",
+      startedAt: new Date("2026-03-21T12:10:00.000Z"),
     });
+    const retried = makeExportRecord({
+      status: "APPROVED" as ResearchExportStatus,
+      failureReason: null,
+      startedAt: null,
+    });
+
+    repo.findById.mockResolvedValue(failed);
+    repo.update.mockResolvedValue(retried);
+    exportQueue.add.mockResolvedValue(undefined);
+
+    const result = await service.retryExport("exp-1", userId, {
+      clinicId,
+      actorUserId: userId,
+      requestId: "req-3",
+    });
+
+    expect(result.status).toBe("APPROVED");
+    expect(exportQueue.add).toHaveBeenCalled();
   });
 
-  describe('executeExport', () => {
-    it('executes an APPROVED export', async () => {
-      const existing = { id: 'exp-1', clinicId, status: 'APPROVED', fileFormat: 'csv' };
-      repo.findById.mockResolvedValue(existing as never);
-      deIdService.generateDataset.mockResolvedValue({
-        filePath: '/data/exports/exp-1.csv',
-        recordCount: 42,
-      });
-      const updated = { ...existing, status: 'COMPLETED', recordCount: 42 };
-      repo.update.mockResolvedValue(updated as never);
-
-      const result = await service.executeExport('exp-1', userId, {
-        clinicId,
-        actorUserId: userId,
-      });
-
-      expect(result.status).toBe('COMPLETED');
-      expect(deIdService.generateDataset).toHaveBeenCalledWith(clinicId, 'exp-1', 'csv');
-      expect(auditService.logWrite).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'RESEARCH_EXPORT.EXECUTE' }),
-      );
+  it("marks a queued export completed after transform and sync succeed", async () => {
+    const approved = makeExportRecord({
+      status: "APPROVED" as ResearchExportStatus,
+      approvedByUserId: "director-1",
+      approvedBy: { id: "director-1", displayName: "Director" },
+    });
+    const processing = makeExportRecord({
+      status: "PROCESSING" as ResearchExportStatus,
+      approvedByUserId: "director-1",
+      approvedBy: { id: "director-1", displayName: "Director" },
+      startedAt: new Date("2026-03-21T12:15:00.000Z"),
+    });
+    const completed = makeExportRecord({
+      status: "COMPLETED" as ResearchExportStatus,
+      approvedByUserId: "director-1",
+      approvedBy: { id: "director-1", displayName: "Director" },
+      startedAt: new Date("2026-03-21T12:15:00.000Z"),
+      completedAt: new Date("2026-03-21T12:16:00.000Z"),
+      filePath: "/tmp/research-export-exp-1.zip",
+      fileFormat: "zip",
+      recordCount: 42,
+      rowCountsJson: JSON.stringify({ research_measurements: 12 }),
+      artifactSha256: "artifact-sha",
+      artifactSizeBytes: 4096,
+      repoProvider: "GITHUB",
+      repoPath: "clinics/abc/exports/snapshot",
+      repoCommitSha: "commit-sha",
+      repoCommitUrl: "https://github.com/example/research/commit/commit-sha",
+      syncedAt: new Date("2026-03-21T12:16:00.000Z"),
     });
 
-    it('throws if export not APPROVED', async () => {
-      repo.findById.mockResolvedValue({ id: 'exp-1', status: 'PENDING' } as never);
-      await expect(
-        service.executeExport('exp-1', userId),
-      ).rejects.toThrow(BadRequestException);
+    repo.findById.mockResolvedValueOnce(approved);
+    repo.update
+      .mockResolvedValueOnce(processing)
+      .mockResolvedValueOnce(completed);
+    transformService.generatePack.mockResolvedValue({
+      manifest: {
+        exportId: "exp-1",
+        clinicKey: "clinic-key",
+        datasetVersion: 1,
+        policyVersion: "research-export-v1",
+        fromDate: "2026-03-01",
+        toDate: "2026-03-21",
+        generatedAt: "2026-03-21T12:15:30.000Z",
+        timestampRoundingMinutes: 15,
+        rowCounts: { research_measurements: 12 },
+        files: [],
+      },
+      repoFiles: [],
+      artifactPath: "/tmp/research-export-exp-1.zip",
+      artifactSha256: "artifact-sha",
+      artifactSizeBytes: 4096,
+      recordCount: 42,
+      rowCounts: { research_measurements: 12 },
+    });
+    repoSyncService.sync.mockResolvedValue({
+      provider: "GITHUB",
+      repoPath: "clinics/abc/exports/snapshot",
+      commitSha: "commit-sha",
+      commitUrl: "https://github.com/example/research/commit/commit-sha",
+      syncedAt: new Date("2026-03-21T12:16:00.000Z"),
     });
 
-    it('throws if export not found', async () => {
-      repo.findById.mockResolvedValue(null);
-      await expect(
-        service.executeExport('nonexistent', userId),
-      ).rejects.toThrow(NotFoundException);
+    const result = await service.processQueuedExport("exp-1");
+
+    expect(result.status).toBe("COMPLETED");
+    expect(transformService.generatePack).toHaveBeenCalledWith(
+      clinicId,
+      "2026-03-01",
+      "2026-03-21",
+      "exp-1",
+      "research-export-v1"
+    );
+    expect(repoSyncService.sync).toHaveBeenCalled();
+  });
+
+  it("marks a queued export failed when transform or sync throws", async () => {
+    const approved = makeExportRecord({
+      status: "APPROVED" as ResearchExportStatus,
     });
+    const processing = makeExportRecord({
+      status: "PROCESSING" as ResearchExportStatus,
+      startedAt: new Date("2026-03-21T12:20:00.000Z"),
+    });
+    const failed = makeExportRecord({
+      status: "FAILED" as ResearchExportStatus,
+      failureReason: "missing RESEARCH_GITHUB_TOKEN",
+      startedAt: new Date("2026-03-21T12:20:00.000Z"),
+    });
+
+    repo.findById.mockResolvedValueOnce(approved);
+    repo.update
+      .mockResolvedValueOnce(processing)
+      .mockResolvedValueOnce(failed);
+    transformService.generatePack.mockRejectedValue(
+      new BadRequestException("missing RESEARCH_GITHUB_TOKEN")
+    );
+
+    await expect(service.processQueuedExport("exp-1")).rejects.toThrow(
+      BadRequestException
+    );
+    expect(repo.update).toHaveBeenLastCalledWith(
+      "exp-1",
+      expect.objectContaining({
+        status: "FAILED",
+        failureReason: expect.stringContaining("missing RESEARCH_GITHUB_TOKEN"),
+      })
+    );
+  });
+
+  it("throws when a queued export cannot be found", async () => {
+    repo.findById.mockResolvedValue(null);
+
+    await expect(service.processQueuedExport("missing")).rejects.toThrow(
+      NotFoundException
+    );
   });
 });

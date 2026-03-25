@@ -1,170 +1,120 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { createHmac } from 'crypto';
-import * as fs from 'fs';
-import * as path from 'path';
-
-export interface DeIdentifiedRecord {
-  researchSubjectId: string;
-  sex: string;
-  dobYear: number | null;
-  encounterId: string;
-  encounterStatus: string;
-  encounterCreatedAt: string;
-  // vitals
-  systolicBp: number | null;
-  diastolicBp: number | null;
-  heartRate: number | null;
-  weightKg: number | null;
-  heightCm: number | null;
-  bmi: number | null;
-  // diabetes
-  glucoseMgDl: number | null;
-  glucoseType: string | null;
-  hba1cPercent: number | null;
-  // hypertension
-  htClassification: string | null;
-  htSuspected: boolean | null;
-  htConfirmed: boolean | null;
-  // care plan
-  counselingGiven: boolean | null;
-  medicationPrescribed: boolean | null;
-  followUpDate: string | null;
-}
+import { BadRequestException, Injectable } from "@nestjs/common";
+import { createHmac } from "crypto";
+import { RESEARCH_TIMESTAMP_ROUNDING_MINUTES } from "./research-policy";
 
 @Injectable()
 export class DeIdentificationService {
-  constructor(private readonly prisma: PrismaService) {}
+  private hmacKey: string | null = null;
 
-  async generateDataset(
-    clinicId: string,
-    exportId: string,
-    format: 'csv' | 'json' = 'csv',
-  ): Promise<{ filePath: string; recordCount: number }> {
-    // 1. Fetch consented patients
-    const consentedPatients = await this.prisma.patientConsent.findMany({
-      where: {
-        clinicId,
-        consentType: 'RESEARCH_DEIDENTIFIED',
-        status: 'GRANTED',
-      },
-      select: { patientId: true },
-      distinct: ['patientId'],
-    });
-
-    const patientIds = consentedPatients.map((c) => c.patientId);
-
-    if (patientIds.length === 0) {
-      return this.writeEmptyDataset(exportId, format);
-    }
-
-    // 2. Fetch patients + all encounters with sub-records
-    const patients = await this.prisma.patient.findMany({
-      where: { id: { in: patientIds }, primaryClinicId: clinicId },
-      include: {
-        encounters: {
-          where: { clinicId },
-          include: {
-            vitals: true,
-            diabetesScreening: true,
-            hypertensionAssessment: true,
-            carePlan: true,
-          },
-        },
-      },
-    });
-
-    // 3. De-identify
-    const records: DeIdentifiedRecord[] = [];
-    for (const patient of patients) {
-      const researchSubjectId = this.generateResearchSubjectId(patient.id, exportId);
-      const dobYear = this.generalizeDob(patient.dob, patient.sex);
-
-      for (const enc of patient.encounters) {
-        const v = enc.vitals;
-        const d = enc.diabetesScreening;
-        const h = enc.hypertensionAssessment;
-        const cp = enc.carePlan;
-
-        records.push({
-          researchSubjectId,
-          sex: patient.sex,
-          dobYear,
-          encounterId: enc.id,
-          encounterStatus: enc.status,
-          encounterCreatedAt: enc.createdAt.toISOString(),
-          systolicBp: v?.systolicBp ?? null,
-          diastolicBp: v?.diastolicBp ?? null,
-          heartRate: v?.heartRate ?? null,
-          weightKg: v?.weightKg ?? null,
-          heightCm: v?.heightCm ?? null,
-          bmi: v?.bmi ?? null,
-          glucoseMgDl: d?.glucoseMgDl ?? null,
-          glucoseType: d?.glucoseType ?? null,
-          hba1cPercent: d?.hba1cPercent ?? null,
-          htClassification: h?.classification ?? null,
-          htSuspected: h?.suspected ?? null,
-          htConfirmed: h?.confirmed ?? null,
-          counselingGiven: cp?.counselingGiven ?? null,
-          medicationPrescribed: cp?.medicationPrescribed ?? null,
-          followUpDate: cp?.followUpDate?.toISOString() ?? null,
-        });
-      }
-    }
-
-    // 4. Write file
-    const exportDir = process.env.EXPORT_DIR ?? './data/exports';
-    fs.mkdirSync(exportDir, { recursive: true });
-    const filePath = path.join(exportDir, `${exportId}.${format}`);
-
-    if (format === 'json') {
-      fs.writeFileSync(filePath, JSON.stringify(records, null, 2), 'utf-8');
-    } else {
-      const csv = this.recordsToCsv(records);
-      fs.writeFileSync(filePath, csv, 'utf-8');
-    }
-
-    return { filePath, recordCount: records.length };
+  clinicKey(clinicId: string): string {
+    return this.entityKey(clinicId, "clinic", clinicId);
   }
 
-  private generateResearchSubjectId(patientId: string, exportId: string): string {
-    const hmac = createHmac('sha256', exportId);
-    hmac.update(patientId);
-    return hmac.digest('hex').substring(0, 16);
+  patientKey(clinicId: string, patientId: string): string {
+    return this.entityKey(clinicId, "patient", patientId);
   }
 
-  private generalizeDob(dob: Date | null, _sex: string): number | null {
-    if (!dob) return null;
-    return dob.getFullYear();
+  entityKey(clinicId: string, entityType: string, internalId: string | null | undefined): string {
+    if (!internalId) {
+      return "";
+    }
+
+    const hmac = createHmac("sha256", this.getHmacKey());
+    hmac.update(`${clinicId}:${entityType}:${internalId}`);
+    return hmac.digest("hex").slice(0, 32);
   }
 
-  private recordsToCsv(records: DeIdentifiedRecord[]): string {
-    if (records.length === 0) return '';
-    const headers = Object.keys(records[0]!) as (keyof DeIdentifiedRecord)[];
-    const headerLine = headers.join(',');
-    const rows = records.map((r) =>
-      headers.map((h) => {
-        const val = r[h];
-        if (val === null || val === undefined) return '';
-        if (typeof val === 'string') return `"${val.replace(/"/g, '""')}"`;
-        return String(val);
-      }).join(','),
+  birthYear(dob: Date | null): number | null {
+    return dob ? dob.getUTCFullYear() : null;
+  }
+
+  roundTimestamp(value: Date | null | undefined): string | null {
+    if (!value) {
+      return null;
+    }
+
+    const roundedMs = RESEARCH_TIMESTAMP_ROUNDING_MINUTES * 60 * 1000;
+    const floored = Math.floor(value.getTime() / roundedMs) * roundedMs;
+    return new Date(floored).toISOString();
+  }
+
+  formatDate(value: Date | null | undefined): string | null {
+    if (!value) {
+      return null;
+    }
+    return value.toISOString().slice(0, 10);
+  }
+
+  csvFromRows(headers: string[], rows: Array<Record<string, unknown>>): string {
+    const headerLine = headers.join(",");
+    const dataLines = rows.map((row) =>
+      headers.map((header) => this.escapeCsvValue(row[header])).join(",")
     );
-    return [headerLine, ...rows].join('\n');
+    return [headerLine, ...dataLines].join("\n");
   }
 
-  private writeEmptyDataset(
-    exportId: string,
-    format: 'csv' | 'json',
-  ): { filePath: string; recordCount: number } {
-    const exportDir = process.env.EXPORT_DIR ?? './data/exports';
-    fs.mkdirSync(exportDir, { recursive: true });
-    const filePath = path.join(exportDir, `${exportId}.${format}`);
-    if (format === 'json') {
-      fs.writeFileSync(filePath, '[]', 'utf-8');
-    } else {
-      fs.writeFileSync(filePath, '', 'utf-8');
+  parseJsonObject(payloadJson: string | null | undefined): Record<string, unknown> {
+    if (!payloadJson) {
+      return {};
     }
-    return { filePath, recordCount: 0 };
+
+    try {
+      const parsed = JSON.parse(payloadJson) as unknown;
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : {};
+    } catch {
+      return {};
+    }
+  }
+
+  numberFromUnknown(value: unknown): number | null {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === "string" && value.trim() !== "") {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
+  }
+
+  stringFromUnknown(value: unknown): string | null {
+    if (typeof value !== "string") {
+      return null;
+    }
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  booleanFromUnknown(value: unknown): boolean | null {
+    if (typeof value === "boolean") {
+      return value;
+    }
+    return null;
+  }
+
+  private escapeCsvValue(value: unknown): string {
+    if (value === null || value === undefined) {
+      return "";
+    }
+    if (typeof value === "string") {
+      return `"${value.replace(/"/g, '""')}"`;
+    }
+    return String(value);
+  }
+
+  private getHmacKey(): string {
+    if (this.hmacKey) {
+      return this.hmacKey;
+    }
+
+    const value = process.env.RESEARCH_HMAC_KEY?.trim();
+    if (!value) {
+      throw new BadRequestException("RESEARCH_HMAC_KEY must be configured for research exports");
+    }
+
+    this.hmacKey = value;
+    return value;
   }
 }
