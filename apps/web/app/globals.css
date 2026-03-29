@@ -1,0 +1,142 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 54 63% 97%;
+    --foreground: 200 25% 15%;
+    --card: 50 33% 98%;
+    --card-foreground: 200 25% 15%;
+    --popover: 50 33% 98%;
+    --popover-foreground: 200 25% 15%;
+    --primary: 191 98% 36%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 43 84% 55%;
+    --secondary-foreground: 200 25% 15%;
+    --muted: 45 30% 93%;
+    --muted-foreground: 200 10% 45%;
+    --accent: 43 60% 92%;
+    --accent-foreground: 200 25% 15%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 45 20% 87%;
+    --input: 45 20% 87%;
+    --ring: 191 98% 36%;
+    --radius: 0.625rem;
+    --chart-1: 191 98% 36%;
+    --chart-2: 43 84% 55%;
+    --chart-3: 191 60% 25%;
+    --chart-4: 43 60% 70%;
+    --chart-5: 200 25% 45%;
+  }
+
+  .dark {
+    --background: 200 25% 8%;
+    --foreground: 54 20% 92%;
+    --card: 200 20% 11%;
+    --card-foreground: 54 20% 92%;
+    --popover: 200 20% 11%;
+    --popover-foreground: 54 20% 92%;
+    --primary: 191 80% 45%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 43 70% 50%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 200 15% 18%;
+    --muted-foreground: 200 10% 60%;
+    --accent: 200 15% 18%;
+    --accent-foreground: 54 20% 92%;
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 200 15% 20%;
+    --input: 200 15% 20%;
+    --ring: 191 80% 45%;
+    --chart-1: 191 80% 50%;
+    --chart-2: 43 80% 60%;
+    --chart-3: 191 50% 35%;
+    --chart-4: 43 50% 45%;
+    --chart-5: 200 20% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading;
+  }
+}
+
+/* MUI DataGrid global overrides */
+.MuiDataGrid-root {
+  font-family: var(--font-body), system-ui, sans-serif !important;
+  border-color: hsl(var(--border)) !important;
+  border-radius: var(--radius) !important;
+}
+.MuiDataGrid-columnHeaders {
+  background-color: hsl(var(--muted)) !important;
+  font-family: var(--font-body), system-ui, sans-serif !important;
+}
+.MuiDataGrid-columnHeaderTitle {
+  font-weight: 600 !important;
+  color: hsl(var(--foreground)) !important;
+}
+.MuiDataGrid-cell {
+  border-color: hsl(var(--border)) !important;
+  color: hsl(var(--foreground)) !important;
+  font-family: var(--font-body), system-ui, sans-serif !important;
+}
+.MuiDataGrid-row:hover {
+  background-color: hsl(var(--accent)) !important;
+}
+.MuiDataGrid-footerContainer {
+  border-color: hsl(var(--border)) !important;
+}
+.MuiTablePagination-root {
+  color: hsl(var(--muted-foreground)) !important;
+}
+.MuiDataGrid-overlay {
+  background-color: hsl(var(--background) / 0.8) !important;
+}
+
+@media (max-width: 768px) {
+  .MuiDataGrid-root {
+    --DataGrid-rowHeight: 52px;
+  }
+}
+
+/* Utility classes */
+@layer utilities {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .bg-clinical-grid {
+    background-image: radial-gradient(circle, hsl(var(--border)) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  /* Landing: soft mesh + noise for contemporary SaaS hero (21st-style depth) */
+  .landing-hero-mesh {
+    background-color: hsl(var(--background));
+    background-image:
+      radial-gradient(ellipse 80% 60% at 70% 0%, hsl(var(--primary) / 0.12) 0%, transparent 55%),
+      radial-gradient(ellipse 60% 50% at 10% 90%, hsl(var(--secondary) / 0.14) 0%, transparent 50%),
+      radial-gradient(ellipse 50% 40% at 90% 70%, hsl(191 60% 92% / 0.8) 0%, transparent 45%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

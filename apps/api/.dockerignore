@@ -1,0 +1,12 @@
+node_modules
+dist
+.next
+coverage
+.env
+.env.*
+*.log
+.DS_Store
+.git
+.github
+memory
+memory.md

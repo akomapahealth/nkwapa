@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "Drug" ALTER COLUMN "id" DROP DEFAULT;
+
+-- AlterTable
+ALTER TABLE "Prescription" ALTER COLUMN "id" DROP DEFAULT;

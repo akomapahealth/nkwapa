@@ -1,0 +1,78 @@
+{
+  "realm": "nkwapa",
+  "enabled": true,
+  "loginTheme": "nkwapa",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": false,
+  "permanentLockout": false,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "defaultRoles": [
+    "uma_authorization",
+    "offline_access"
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "SYSTEM_ADMIN",
+        "description": "Global admin"
+      },
+      {
+        "name": "DIRECTOR",
+        "description": "Clinic director"
+      },
+      {
+        "name": "MANAGER",
+        "description": "Clinic manager"
+      },
+      {
+        "name": "DOCTOR",
+        "description": "Doctor"
+      },
+      {
+        "name": "PRECEPTOR",
+        "description": "Preceptor"
+      },
+      {
+        "name": "VOLUNTEER",
+        "description": "Volunteer"
+      },
+      {
+        "name": "PATIENT",
+        "description": "Patient portal user"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "nkwapa-web",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "redirectUris": [
+        "http://localhost:3000/*",
+        "http://localhost:3000",
+        "http://localhost:4000/*",
+        "http://localhost:4000"
+      ],
+      "webOrigins": [
+        "http://localhost:3000",
+        "http://localhost:4000"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:3000/*##http://localhost:3000##http://localhost:4000/*##http://localhost:4000"
+      },
+      "protocol": "openid-connect",
+      "fullScopeAllowed": true
+    }
+  ],
+  "users": []
+}

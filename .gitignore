@@ -1,0 +1,56 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Environment (never commit secrets)
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.test
+
+# Build outputs
+dist
+.next
+out
+.turbo
+.vercel
+
+# Test & coverage
+coverage
+*.lcov
+
+# Logs & temp
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE (optional: remove .vscode if you commit workspace settings)
+.idea
+*.swp
+*.swo
+
+# Prisma
+*.tsbuildinfo
+
+.cursor/
+.cursorrules
+.cursorignore
+
+# Local research export artifacts
+data/
+
+# AI / agent memory (local only)
+memory/
+memory.md
+
+# Stale lockfiles (repo uses npm workspaces + package-lock.json)
+pnpm-lock.yaml
+apps/web/pnpm-lock.yaml

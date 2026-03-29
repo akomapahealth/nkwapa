@@ -1,0 +1,55 @@
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { BullModule } from '@nestjs/bullmq';
+import { HealthModule } from './health/health.module';
+import { AuthModule } from './auth/auth.module';
+import { PrismaModule } from './prisma/prisma.module';
+import { AuditModule } from './audit/audit.module';
+import { PatientModule } from './patients/patient.module';
+import { EncounterModule } from './encounters/encounter.module';
+import { ClinicModule } from './clinics/clinic.module';
+import { SyncModule } from './sync/sync.module';
+import { ConsentModule } from './consents/consent.module';
+import { UserModule } from './users/user.module';
+import { ReminderModule } from './reminders/reminder.module';
+import { AdminModule } from './admin/admin.module';
+import { DashboardModule } from './dashboard/dashboard.module';
+import { DrugModule } from './drugs/drug.module';
+import { PrescriptionModule } from './prescriptions/prescription.module';
+import { ResearchModule } from './research/research.module';
+import { PatientPortalModule } from './patient-portal/patient-portal.module';
+import { OpsModule } from './ops/ops.module';
+import { CorrelationIdMiddleware } from './common/correlation-id.middleware';
+import { RequestLoggerMiddleware } from './common/request-logger.middleware';
+
+const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
+
+@Module({
+  imports: [
+    BullModule.forRoot({
+      connection: { url: REDIS_URL },
+    }),
+    PrismaModule,
+    HealthModule,
+    AuthModule,
+    AuditModule,
+    UserModule,
+    PatientModule,
+    EncounterModule,
+    ClinicModule,
+    SyncModule,
+    ConsentModule,
+    ReminderModule,
+    AdminModule,
+    DashboardModule,
+    DrugModule,
+    PrescriptionModule,
+    ResearchModule,
+    PatientPortalModule,
+    OpsModule,
+  ],
+})
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(CorrelationIdMiddleware, RequestLoggerMiddleware).forRoutes('*');
+  }
+}
