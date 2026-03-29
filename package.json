@@ -17,7 +17,8 @@
     "build": "npm run build --workspaces --if-present",
     "prepare": "husky",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "postinstall": "npm run db:generate"
   },
   "devDependencies": {
     "dotenv": "^17.3.1",
