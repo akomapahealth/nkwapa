@@ -1,19 +1,20 @@
-"use client";
+'use client';
 
-import { useRef, useEffect } from "react";
-import { gsap, ScrollTrigger } from "@/lib/gsap";
-import { landingCardHover } from "@/lib/landing-card-hover";
+/* eslint-disable @next/next/no-img-element -- Marketing static assets */
+import { useRef, useEffect } from 'react';
+import { gsap } from '@/lib/gsap';
+import { landingCardHover } from '@/lib/landing-card-hover';
 
 export function OurStorySection() {
   const sectionRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (typeof window === 'undefined') return;
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (prefersReducedMotion) return;
 
     const ctx = gsap.context(() => {
-      const els = sectionRef.current?.querySelectorAll("[data-animate]");
+      const els = sectionRef.current?.querySelectorAll('[data-animate]');
       if (!els?.length) return;
 
       gsap.fromTo(
@@ -24,13 +25,13 @@ export function OurStorySection() {
           y: 0,
           duration: 0.6,
           stagger: 0.15,
-          ease: "power3.out",
+          ease: 'power3.out',
           scrollTrigger: {
             trigger: sectionRef.current,
-            start: "top 80%",
-            toggleActions: "play none none reverse",
+            start: 'top 80%',
+            toggleActions: 'play none none reverse',
           },
-        }
+        },
       );
     }, sectionRef);
 
@@ -47,19 +48,24 @@ export function OurStorySection() {
           >
             our story
           </h2>
-          <div data-animate className="mt-6 space-y-4 font-landing-body text-base text-muted-foreground">
+          <div
+            data-animate
+            className="mt-6 space-y-4 font-landing-body text-base text-muted-foreground"
+          >
             <p>
               Nkwapa is an open-source EMR built for clinics managing hypertension and diabetes in
-              low-resource settings. We believe that{" "}
-              <strong className="font-semibold text-foreground">reliable patient records should not depend on internet connectivity.</strong>
+              low-resource settings. We believe that{' '}
+              <strong className="font-semibold text-foreground">
+                reliable patient records should not depend on internet connectivity.
+              </strong>
             </p>
             <p>
-              Our offline-first PWA syncs automatically when connectivity returns, with role-based access
-              control and audit-by-default so every action is traceable.
+              Our offline-first PWA syncs automatically when connectivity returns, with role-based
+              access control and audit-by-default so every action is traceable.
             </p>
             <p>
-              Built as a multi-clinic platform, Nkwapa lets health systems manage
-              multiple sites from a single dashboard with clinic-scoped data isolation.
+              Built as a multi-clinic platform, Nkwapa lets health systems manage multiple sites
+              from a single dashboard with clinic-scoped data isolation.
             </p>
           </div>
           <a

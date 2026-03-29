@@ -3,24 +3,30 @@
  * Used for national_id_ciphertext (AES-256-GCM) and national_id_hash (SHA-256).
  */
 
-import * as crypto from "node:crypto";
+import * as crypto from 'node:crypto';
 
-const ALGORITHM = "aes-256-gcm";
+const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12;
 const AUTH_TAG_LENGTH = 16;
 const KEY_LENGTH = 32;
 
 function getKey(keyOverride?: string): Buffer {
   const raw = keyOverride ?? process.env.NATIONAL_ID_ENCRYPTION_KEY;
-  if (!raw || raw.length < 32) {
+  if (!raw) {
     throw new Error(
-      "NATIONAL_ID_ENCRYPTION_KEY must be set (32-byte hex or base64 string)"
+      'NATIONAL_ID_ENCRYPTION_KEY must be set (32-byte key as 64-char hex or base64)',
     );
   }
+  let buf: Buffer;
   if (raw.length === 64 && /^[0-9a-fA-F]+$/.test(raw)) {
-    return Buffer.from(raw, "hex");
+    buf = Buffer.from(raw, 'hex');
+  } else {
+    buf = Buffer.from(raw, 'base64');
   }
-  return Buffer.from(raw, "base64");
+  if (buf.length !== KEY_LENGTH) {
+    throw new Error(`NATIONAL_ID_ENCRYPTION_KEY must decode to ${KEY_LENGTH} bytes (AES-256)`);
+  }
+  return buf;
 }
 
 function normalize(plaintext: string): string {
@@ -31,40 +37,31 @@ function normalize(plaintext: string): string {
  * Encrypt national ID with AES-256-GCM.
  * Returns base64 string: iv (12) + authTag (16) + ciphertext.
  */
-export function encryptNationalId(
-  plaintext: string,
-  key?: string
-): string {
+export function encryptNationalId(plaintext: string, key?: string): string {
   const normalized = normalize(plaintext);
   const keyBuf = getKey(key);
   const iv = crypto.randomBytes(IV_LENGTH);
   const cipher = crypto.createCipheriv(ALGORITHM, keyBuf, iv);
-  const enc = Buffer.concat([
-    cipher.update(normalized, "utf8"),
-    cipher.final(),
-  ]);
+  const enc = Buffer.concat([cipher.update(normalized, 'utf8'), cipher.final()]);
   const authTag = cipher.getAuthTag();
-  return Buffer.concat([iv, authTag, enc]).toString("base64");
+  return Buffer.concat([iv, authTag, enc]).toString('base64');
 }
 
 /**
  * Decrypt national ID from base64 (iv + authTag + ciphertext).
  */
-export function decryptNationalId(
-  ciphertextBase64: string,
-  key?: string
-): string {
+export function decryptNationalId(ciphertextBase64: string, key?: string): string {
   const keyBuf = getKey(key);
-  const buf = Buffer.from(ciphertextBase64, "base64");
+  const buf = Buffer.from(ciphertextBase64, 'base64');
   if (buf.length < IV_LENGTH + AUTH_TAG_LENGTH) {
-    throw new Error("Invalid ciphertext");
+    throw new Error('Invalid ciphertext');
   }
   const iv = buf.subarray(0, IV_LENGTH);
   const authTag = buf.subarray(IV_LENGTH, IV_LENGTH + AUTH_TAG_LENGTH);
   const ciphertext = buf.subarray(IV_LENGTH + AUTH_TAG_LENGTH);
   const decipher = crypto.createDecipheriv(ALGORITHM, keyBuf, iv);
   decipher.setAuthTag(authTag);
-  return decipher.update(ciphertext) + decipher.final("utf8");
+  return decipher.update(ciphertext) + decipher.final('utf8');
 }
 
 /**
@@ -74,9 +71,9 @@ export function decryptNationalId(
  */
 export function hashNationalId(plaintext: string, pepper?: string): string {
   const normalized = normalize(plaintext);
-  const p = pepper ?? process.env.NATIONAL_ID_PEPPER ?? "";
+  const p = pepper ?? process.env.NATIONAL_ID_PEPPER ?? '';
   const toHash = normalized + p;
-  return crypto.createHash("sha256").update(toHash, "utf8").digest("hex");
+  return crypto.createHash('sha256').update(toHash, 'utf8').digest('hex');
 }
 
 /**

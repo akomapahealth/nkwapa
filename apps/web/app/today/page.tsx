@@ -1,16 +1,11 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import {
-  ArrowRight,
-  CalendarDays,
-  RefreshCw,
-  Users,
-} from "lucide-react";
-import { useAuth } from "@/lib/auth-context";
-import { useBootstrap } from "@/lib/bootstrap-context";
-import { apiFetch } from "@/lib/api";
+import Link from 'next/link';
+import { useCallback, useEffect, useState } from 'react';
+import { ArrowRight, CalendarDays, RefreshCw, Users } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
+import { useBootstrap } from '@/lib/bootstrap-context';
+import { apiFetch } from '@/lib/api';
 import {
   CHECKIN_STATUS_ORDER,
   OPS_DEFAULT_TIMEZONE,
@@ -28,9 +23,9 @@ import {
   getTodayInTimeZone,
   hasPermission,
   readApiError,
-} from "@/lib/ops";
-import { useSync } from "@/app/ServiceWorkerAndSyncProvider";
-import { RouteGuard } from "@/components/RouteGuard";
+} from '@/lib/ops';
+import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { RouteGuard } from '@/components/RouteGuard';
 import {
   CheckInStatusBadge,
   EmptyStateCard,
@@ -39,9 +34,9 @@ import {
   OpsMetricCard,
   ShiftControlCard,
   ShiftRoleBadge,
-} from "@/components/ops/OpsShared";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+} from '@/components/ops/OpsShared';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -49,31 +44,29 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
-type AssignmentDialogState =
-  | {
-      mode: "assign" | "reassign";
-      checkIn: CheckInSummary;
-    }
-  | null;
+type AssignmentDialogState = {
+  mode: 'assign' | 'reassign';
+  checkIn: CheckInSummary;
+} | null;
 
-const SHIFT_FILTERS: Array<"ALL" | ShiftRole> = [
-  "ALL",
-  "VOLUNTEER",
-  "DOCTOR",
-  "PRECEPTOR",
-  "MANAGER",
+const SHIFT_FILTERS: Array<'ALL' | ShiftRole> = [
+  'ALL',
+  'VOLUNTEER',
+  'DOCTOR',
+  'PRECEPTOR',
+  'MANAGER',
 ];
 
 function countByRole(items: ActiveShift[], role: ShiftRole) {
@@ -86,24 +79,23 @@ export default function TodayBoardPage() {
   const getToken = useAuth();
   const { isOnline } = useSync();
 
-  const clinicId =
-    bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
+  const clinicId = bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
   const activeMembership = bootstrap?.memberships?.find(
-    (membership) => membership.clinicId === clinicId
+    (membership) => membership.clinicId === clinicId,
   );
   const permissions = bootstrap?.effectivePermissionsForActiveClinic ?? [];
   const rolePool = Array.from(
     new Set([
       ...(bootstrap?.effectiveRolesForActiveClinic ?? []),
       ...(activeMembership?.roles ?? []),
-    ])
+    ]),
   );
   const eligibleShiftRoles = getEligibleShiftRoles(rolePool);
-  const canManageAssignments = hasPermission(permissions, "OPS.ASSIGNMENT.MANAGE");
+  const canManageAssignments = hasPermission(permissions, 'OPS.ASSIGNMENT.MANAGE');
 
   const [selectedDate, setSelectedDate] = useState(getTodayInTimeZone());
-  const [shiftRoleFilter, setShiftRoleFilter] = useState<ShiftRole | "ALL">("ALL");
-  const [selectedShiftRole, setSelectedShiftRole] = useState<ShiftRole | "">("");
+  const [shiftRoleFilter, setShiftRoleFilter] = useState<ShiftRole | 'ALL'>('ALL');
+  const [selectedShiftRole, setSelectedShiftRole] = useState<ShiftRole | ''>('');
   const [shiftsData, setShiftsData] = useState<ActiveShiftsResponse | null>(null);
   const [checkinsData, setCheckinsData] = useState<CheckInsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -113,11 +105,10 @@ export default function TodayBoardPage() {
   const [pageError, setPageError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [assignmentDialog, setAssignmentDialog] =
-    useState<AssignmentDialogState>(null);
-  const [selectedVolunteerId, setSelectedVolunteerId] = useState("");
-  const [selectedDoctorId, setSelectedDoctorId] = useState("");
-  const [reassignReason, setReassignReason] = useState("");
+  const [assignmentDialog, setAssignmentDialog] = useState<AssignmentDialogState>(null);
+  const [selectedVolunteerId, setSelectedVolunteerId] = useState('');
+  const [selectedDoctorId, setSelectedDoctorId] = useState('');
+  const [reassignReason, setReassignReason] = useState('');
 
   useEffect(() => {
     if (!selectedShiftRole || eligibleShiftRoles.includes(selectedShiftRole)) {
@@ -126,53 +117,56 @@ export default function TodayBoardPage() {
       }
     }
 
-    setSelectedShiftRole(eligibleShiftRoles[0] ?? "");
+    setSelectedShiftRole(eligibleShiftRoles[0] ?? '');
   }, [eligibleShiftRoles, selectedShiftRole]);
 
-  async function loadBoard(options?: { background?: boolean }) {
-    if (!clinicId || !getToken) {
-      return;
-    }
-
-    if (options?.background) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-
-    setPageError(null);
-
-    try {
-      const [shiftsResponse, checkinsResponse] = await Promise.all([
-        apiFetch(
-          `/clinics/${encodeURIComponent(clinicId)}/shifts/active?date=${encodeURIComponent(selectedDate)}`,
-          { getToken, activeClinicId: clinicId }
-        ),
-        apiFetch(
-          `/clinics/${encodeURIComponent(clinicId)}/checkins?date=${encodeURIComponent(selectedDate)}`,
-          { getToken, activeClinicId: clinicId }
-        ),
-      ]);
-
-      if (!shiftsResponse.ok) {
-        throw new Error(await readApiError(shiftsResponse));
-      }
-      if (!checkinsResponse.ok) {
-        throw new Error(await readApiError(checkinsResponse));
+  const loadBoard = useCallback(
+    async (options?: { background?: boolean }) => {
+      if (!clinicId || !getToken) {
+        return;
       }
 
-      const nextShifts = (await shiftsResponse.json()) as ActiveShiftsResponse;
-      const nextCheckins = (await checkinsResponse.json()) as CheckInsResponse;
+      if (options?.background) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
 
-      setShiftsData(nextShifts);
-      setCheckinsData(nextCheckins);
-    } catch (error) {
-      setPageError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }
+      setPageError(null);
+
+      try {
+        const [shiftsResponse, checkinsResponse] = await Promise.all([
+          apiFetch(
+            `/clinics/${encodeURIComponent(clinicId)}/shifts/active?date=${encodeURIComponent(selectedDate)}`,
+            { getToken, activeClinicId: clinicId },
+          ),
+          apiFetch(
+            `/clinics/${encodeURIComponent(clinicId)}/checkins?date=${encodeURIComponent(selectedDate)}`,
+            { getToken, activeClinicId: clinicId },
+          ),
+        ]);
+
+        if (!shiftsResponse.ok) {
+          throw new Error(await readApiError(shiftsResponse));
+        }
+        if (!checkinsResponse.ok) {
+          throw new Error(await readApiError(checkinsResponse));
+        }
+
+        const nextShifts = (await shiftsResponse.json()) as ActiveShiftsResponse;
+        const nextCheckins = (await checkinsResponse.json()) as CheckInsResponse;
+
+        setShiftsData(nextShifts);
+        setCheckinsData(nextCheckins);
+      } catch (error) {
+        setPageError(error instanceof Error ? error.message : String(error));
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [clinicId, getToken, selectedDate],
+  );
 
   useEffect(() => {
     if (!clinicId || !getToken) {
@@ -186,20 +180,18 @@ export default function TodayBoardPage() {
     }
 
     void loadBoard();
-  }, [clinicId, getToken, isOnline, selectedDate]);
+  }, [clinicId, getToken, isOnline, loadBoard]);
 
   const shifts = shiftsData?.items ?? [];
-  const timezone =
-    checkinsData?.timezone ?? shiftsData?.timezone ?? OPS_DEFAULT_TIMEZONE;
+  const timezone = checkinsData?.timezone ?? shiftsData?.timezone ?? OPS_DEFAULT_TIMEZONE;
   const checkins = checkinsData?.items ?? [];
   const filteredShifts =
-    shiftRoleFilter === "ALL"
+    shiftRoleFilter === 'ALL'
       ? shifts
       : shifts.filter((shift) => shift.roleAtShift === shiftRoleFilter);
-  const currentShift =
-    shifts.find((shift) => shift.userId === bootstrap?.userId) ?? null;
-  const volunteerOptions = shifts.filter((shift) => shift.roleAtShift === "VOLUNTEER");
-  const doctorOptions = shifts.filter((shift) => shift.roleAtShift === "DOCTOR");
+  const currentShift = shifts.find((shift) => shift.userId === bootstrap?.userId) ?? null;
+  const volunteerOptions = shifts.filter((shift) => shift.roleAtShift === 'VOLUNTEER');
+  const doctorOptions = shifts.filter((shift) => shift.roleAtShift === 'DOCTOR');
 
   const groupedCheckins = CHECKIN_STATUS_ORDER.reduce<Record<CheckInStatus, CheckInSummary[]>>(
     (accumulator, status) => {
@@ -212,24 +204,24 @@ export default function TodayBoardPage() {
       IN_PROGRESS: [],
       COMPLETED: [],
       CANCELLED: [],
-    }
+    },
   );
 
   const visibleStatuses = CHECKIN_STATUS_ORDER.filter(
-    (status) => status !== "CANCELLED" || groupedCheckins.CANCELLED.length > 0
+    (status) => status !== 'CANCELLED' || groupedCheckins.CANCELLED.length > 0,
   );
 
-  function openAssignmentDialog(mode: "assign" | "reassign", checkIn: CheckInSummary) {
+  function openAssignmentDialog(mode: 'assign' | 'reassign', checkIn: CheckInSummary) {
     setActionError(null);
     setNotice(null);
     setAssignmentDialog({ mode, checkIn });
     setSelectedVolunteerId(
-      checkIn.assignmentSummary?.assignedVolunteer.id ?? volunteerOptions[0]?.userId ?? ""
+      checkIn.assignmentSummary?.assignedVolunteer.id ?? volunteerOptions[0]?.userId ?? '',
     );
     setSelectedDoctorId(
-      checkIn.assignmentSummary?.assignedDoctor.id ?? doctorOptions[0]?.userId ?? ""
+      checkIn.assignmentSummary?.assignedDoctor.id ?? doctorOptions[0]?.userId ?? '',
     );
-    setReassignReason("");
+    setReassignReason('');
   }
 
   async function handleShiftCheckIn() {
@@ -242,15 +234,12 @@ export default function TodayBoardPage() {
     setNotice(null);
 
     try {
-      const response = await apiFetch(
-        `/clinics/${encodeURIComponent(clinicId)}/shifts/check-in`,
-        {
-          method: "POST",
-          body: JSON.stringify({ roleAtShift: selectedShiftRole }),
-          getToken,
-          activeClinicId: clinicId,
-        }
-      );
+      const response = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}/shifts/check-in`, {
+        method: 'POST',
+        body: JSON.stringify({ roleAtShift: selectedShiftRole }),
+        getToken,
+        activeClinicId: clinicId,
+      });
 
       if (!response.ok) {
         throw new Error(await readApiError(response));
@@ -278,17 +267,17 @@ export default function TodayBoardPage() {
       const response = await apiFetch(
         `/clinics/${encodeURIComponent(clinicId)}/shifts/${encodeURIComponent(currentShift.shiftId)}/check-out`,
         {
-          method: "POST",
+          method: 'POST',
           getToken,
           activeClinicId: clinicId,
-        }
+        },
       );
 
       if (!response.ok) {
         throw new Error(await readApiError(response));
       }
 
-      setNotice("Shift ended successfully.");
+      setNotice('Shift ended successfully.');
       await loadBoard({ background: true });
     } catch (error) {
       setActionError(error instanceof Error ? error.message : String(error));
@@ -303,12 +292,12 @@ export default function TodayBoardPage() {
     }
 
     if (!selectedVolunteerId || !selectedDoctorId) {
-      setActionError("Choose both a volunteer and a doctor before saving.");
+      setActionError('Choose both a volunteer and a doctor before saving.');
       return;
     }
 
-    if (assignmentDialog.mode === "reassign" && !reassignReason.trim()) {
-      setActionError("A reason is required when reassigning a patient.");
+    if (assignmentDialog.mode === 'reassign' && !reassignReason.trim()) {
+      setActionError('A reason is required when reassigning a patient.');
       return;
     }
 
@@ -318,14 +307,14 @@ export default function TodayBoardPage() {
 
     try {
       const path =
-        assignmentDialog.mode === "assign"
+        assignmentDialog.mode === 'assign'
           ? `/clinics/${encodeURIComponent(clinicId)}/assignments`
           : `/clinics/${encodeURIComponent(clinicId)}/assignments/${encodeURIComponent(
-              assignmentDialog.checkIn.assignmentSummary?.id ?? ""
+              assignmentDialog.checkIn.assignmentSummary?.id ?? '',
             )}/reassign`;
 
       const body =
-        assignmentDialog.mode === "assign"
+        assignmentDialog.mode === 'assign'
           ? {
               patientCheckInId: assignmentDialog.checkIn.id,
               assignedVolunteerId: selectedVolunteerId,
@@ -338,7 +327,7 @@ export default function TodayBoardPage() {
             };
 
       const response = await apiFetch(path, {
-        method: assignmentDialog.mode === "assign" ? "POST" : "PATCH",
+        method: assignmentDialog.mode === 'assign' ? 'POST' : 'PATCH',
         body: JSON.stringify(body),
         getToken,
         activeClinicId: clinicId,
@@ -349,12 +338,12 @@ export default function TodayBoardPage() {
       }
 
       setNotice(
-        assignmentDialog.mode === "assign"
+        assignmentDialog.mode === 'assign'
           ? `${assignmentDialog.checkIn.patient.displayName} assigned successfully.`
-          : `${assignmentDialog.checkIn.patient.displayName} reassigned successfully.`
+          : `${assignmentDialog.checkIn.patient.displayName} reassigned successfully.`,
       );
       setAssignmentDialog(null);
-      setReassignReason("");
+      setReassignReason('');
       await loadBoard({ background: true });
     } catch (error) {
       setActionError(error instanceof Error ? error.message : String(error));
@@ -367,9 +356,7 @@ export default function TodayBoardPage() {
     return (
       <RouteGuard requiredPermission="OPS.CHECKIN.READ">
         <div className="p-4">
-          <p className="text-muted-foreground">
-            Select a clinic to load the Today Board.
-          </p>
+          <p className="text-muted-foreground">Select a clinic to load the Today Board.</p>
         </div>
       </RouteGuard>
     );
@@ -388,14 +375,16 @@ export default function TodayBoardPage() {
                 Today Board
               </h1>
               <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">
-                Live staff availability, patient arrivals, and assignment flow
-                for the clinic day.
+                Live staff availability, patient arrivals, and assignment flow for the clinic day.
               </p>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <div className="rounded-2xl border border-border/80 bg-card/85 px-4 py-3 shadow-sm">
-                <Label htmlFor="today-board-date" className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                <Label
+                  htmlFor="today-board-date"
+                  className="text-xs uppercase tracking-[0.2em] text-muted-foreground"
+                >
                   Clinic day
                 </Label>
                 <div className="mt-2 flex items-center gap-2">
@@ -411,9 +400,7 @@ export default function TodayBoardPage() {
               </div>
 
               <div className="rounded-2xl border border-border/80 bg-card/85 px-4 py-3 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                  Timezone
-                </p>
+                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Timezone</p>
                 <p className="mt-2 text-sm font-medium text-foreground">{timezone}</p>
               </div>
 
@@ -424,9 +411,7 @@ export default function TodayBoardPage() {
                 disabled={!isOnline || refreshing || loading}
                 className="h-12 rounded-2xl border-border/80 bg-card/85 px-4"
               >
-                <RefreshCw
-                  className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
-                />
+                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
             </div>
@@ -446,7 +431,7 @@ export default function TodayBoardPage() {
             <OpsMetricCard
               label="Staff on duty"
               value={shifts.length}
-              detail={`${countByRole(shifts, "VOLUNTEER")} volunteers, ${countByRole(shifts, "DOCTOR")} doctors`}
+              detail={`${countByRole(shifts, 'VOLUNTEER')} volunteers, ${countByRole(shifts, 'DOCTOR')} doctors`}
             />
             <OpsMetricCard
               label="Completed today"
@@ -510,23 +495,21 @@ export default function TodayBoardPage() {
                         Volunteers
                       </p>
                       <p className="mt-2 text-2xl font-semibold">
-                        {countByRole(shifts, "VOLUNTEER")}
+                        {countByRole(shifts, 'VOLUNTEER')}
                       </p>
                     </div>
                     <div className="rounded-2xl border border-border/70 bg-background/80 p-3">
                       <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
                         Doctors
                       </p>
-                      <p className="mt-2 text-2xl font-semibold">
-                        {countByRole(shifts, "DOCTOR")}
-                      </p>
+                      <p className="mt-2 text-2xl font-semibold">{countByRole(shifts, 'DOCTOR')}</p>
                     </div>
                     <div className="rounded-2xl border border-border/70 bg-background/80 p-3">
                       <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
                         Preceptors
                       </p>
                       <p className="mt-2 text-2xl font-semibold">
-                        {countByRole(shifts, "PRECEPTOR")}
+                        {countByRole(shifts, 'PRECEPTOR')}
                       </p>
                     </div>
                     <div className="rounded-2xl border border-border/70 bg-background/80 p-3">
@@ -534,7 +517,7 @@ export default function TodayBoardPage() {
                         Managers
                       </p>
                       <p className="mt-2 text-2xl font-semibold">
-                        {countByRole(shifts, "MANAGER")}
+                        {countByRole(shifts, 'MANAGER')}
                       </p>
                     </div>
                   </div>
@@ -544,12 +527,12 @@ export default function TodayBoardPage() {
                       <Button
                         key={value}
                         type="button"
-                        variant={shiftRoleFilter === value ? "default" : "outline"}
+                        variant={shiftRoleFilter === value ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => setShiftRoleFilter(value)}
                         className="rounded-full"
                       >
-                        {value === "ALL" ? "All roles" : formatRoleLabel(value)}
+                        {value === 'ALL' ? 'All roles' : formatRoleLabel(value)}
                       </Button>
                     ))}
                   </div>
@@ -568,9 +551,7 @@ export default function TodayBoardPage() {
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className="font-medium text-foreground">
-                              {shift.displayName}
-                            </p>
+                            <p className="font-medium text-foreground">{shift.displayName}</p>
                             <p className="mt-1 text-sm text-muted-foreground">
                               Checked in at {formatOpsTime(shift.checkedInAt, timezone)}
                             </p>
@@ -622,13 +603,11 @@ export default function TodayBoardPage() {
                         <div className="flex items-center justify-between gap-3">
                           <div>
                             <CardTitle className="text-lg">
-                              {status === "IN_PROGRESS"
-                                ? "In Progress"
-                                : formatRoleLabel(status)}
+                              {status === 'IN_PROGRESS' ? 'In Progress' : formatRoleLabel(status)}
                             </CardTitle>
                             <CardDescription className="mt-1">
                               {groupedCheckins[status].length} patient
-                              {groupedCheckins[status].length === 1 ? "" : "s"}
+                              {groupedCheckins[status].length === 1 ? '' : 's'}
                             </CardDescription>
                           </div>
                           <CheckInStatusBadge status={status} />
@@ -689,25 +668,25 @@ export default function TodayBoardPage() {
                               ) : null}
 
                               <div className="mt-5 flex flex-wrap gap-2">
-                                {checkIn.status === "WAITING" && canManageAssignments ? (
+                                {checkIn.status === 'WAITING' && canManageAssignments ? (
                                   <Button
                                     type="button"
                                     size="sm"
-                                    onClick={() => openAssignmentDialog("assign", checkIn)}
+                                    onClick={() => openAssignmentDialog('assign', checkIn)}
                                     disabled={!isOnline}
                                   >
                                     Assign
                                   </Button>
                                 ) : null}
 
-                                {checkIn.status === "ASSIGNED" &&
+                                {checkIn.status === 'ASSIGNED' &&
                                 canManageAssignments &&
                                 checkIn.assignmentSummary ? (
                                   <Button
                                     type="button"
                                     size="sm"
                                     variant="outline"
-                                    onClick={() => openAssignmentDialog("reassign", checkIn)}
+                                    onClick={() => openAssignmentDialog('reassign', checkIn)}
                                     disabled={!isOnline}
                                   >
                                     Reassign
@@ -747,19 +726,19 @@ export default function TodayBoardPage() {
           onOpenChange={(open) => {
             if (!open) {
               setAssignmentDialog(null);
-              setReassignReason("");
+              setReassignReason('');
             }
           }}
         >
           <DialogContent className="max-w-xl rounded-[28px] border-border/80">
             <DialogHeader>
               <DialogTitle className="font-heading text-2xl">
-                {assignmentDialog?.mode === "reassign" ? "Reassign patient" : "Assign patient"}
+                {assignmentDialog?.mode === 'reassign' ? 'Reassign patient' : 'Assign patient'}
               </DialogTitle>
               <DialogDescription className="leading-6">
                 {assignmentDialog ? (
                   <>
-                    {assignmentDialog.checkIn.patient.patientCode} ·{" "}
+                    {assignmentDialog.checkIn.patient.patientCode} ·{' '}
                     {assignmentDialog.checkIn.patient.displayName}
                   </>
                 ) : null}
@@ -769,18 +748,15 @@ export default function TodayBoardPage() {
             <div className="space-y-5">
               {volunteerOptions.length === 0 || doctorOptions.length === 0 ? (
                 <InlineNotice tone="error">
-                  At least one active volunteer shift and one active doctor shift
-                  are required before a patient can be assigned.
+                  At least one active volunteer shift and one active doctor shift are required
+                  before a patient can be assigned.
                 </InlineNotice>
               ) : null}
 
               <div className="grid gap-5 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="assignment-volunteer">Volunteer</Label>
-                  <Select
-                    value={selectedVolunteerId}
-                    onValueChange={setSelectedVolunteerId}
-                  >
+                  <Select value={selectedVolunteerId} onValueChange={setSelectedVolunteerId}>
                     <SelectTrigger id="assignment-volunteer">
                       <SelectValue placeholder="Select volunteer" />
                     </SelectTrigger>
@@ -811,7 +787,7 @@ export default function TodayBoardPage() {
                 </div>
               </div>
 
-              {assignmentDialog?.mode === "reassign" ? (
+              {assignmentDialog?.mode === 'reassign' ? (
                 <div className="space-y-2">
                   <Label htmlFor="assignment-reason">Reason (required)</Label>
                   <Textarea
@@ -844,12 +820,12 @@ export default function TodayBoardPage() {
                 }
               >
                 {savingAssignment
-                  ? assignmentDialog?.mode === "reassign"
-                    ? "Reassigning..."
-                    : "Assigning..."
-                  : assignmentDialog?.mode === "reassign"
-                    ? "Reassign patient"
-                    : "Assign patient"}
+                  ? assignmentDialog?.mode === 'reassign'
+                    ? 'Reassigning...'
+                    : 'Assigning...'
+                  : assignmentDialog?.mode === 'reassign'
+                    ? 'Reassign patient'
+                    : 'Assign patient'}
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -18,7 +18,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ReminderService } from '../reminders/reminder.service';
 import type { CreateSelfReportDto } from './dto/create-self-report.dto';
-import type { CreatePatientMeasurementDto, ListPatientMeasurementsQueryDto } from './dto/patient-measurements.dto';
+import type {
+  CreatePatientMeasurementDto,
+  ListPatientMeasurementsQueryDto,
+} from './dto/patient-measurements.dto';
 import type { ListPatientTrendsQueryDto } from './dto/patient-trends.dto';
 import type {
   ConfirmAppointmentRequestDto,
@@ -26,8 +29,6 @@ import type {
   ListAppointmentRequestsQueryDto,
   RejectAppointmentRequestDto,
 } from './dto/appointment-requests.dto';
-
-type TxClient = Prisma.TransactionClient;
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -190,11 +191,7 @@ export class PatientPortalService {
     return this.listTrends(patient.id, clinicId, query, ['FINALIZED']);
   }
 
-  async listTrendsForStaff(
-    patientId: string,
-    clinicId: string,
-    query: ListPatientTrendsQueryDto,
-  ) {
+  async listTrendsForStaff(patientId: string, clinicId: string, query: ListPatientTrendsQueryDto) {
     await this.assertPatientInClinic(patientId, clinicId);
     return this.listTrends(patientId, clinicId, query, ['DRAFT', 'IN_REVIEW', 'FINALIZED']);
   }
@@ -229,7 +226,9 @@ export class PatientPortalService {
       throw new BadRequestException('clinicId must match the active clinic context');
     }
     if (requestClinicId !== patient.primaryClinicId) {
-      throw new ForbiddenException('Patient portal access is limited to the patient primary clinic');
+      throw new ForbiddenException(
+        'Patient portal access is limited to the patient primary clinic',
+      );
     }
 
     const preferredStartDate = this.parseDateOnly(dto.preferredStartDate, 'preferredStartDate');
@@ -280,10 +279,7 @@ export class PatientPortalService {
     return items.map((item) => this.serializeAppointmentRequest(item));
   }
 
-  async listAppointmentRequestsForClinic(
-    clinicId: string,
-    query: ListAppointmentRequestsQueryDto,
-  ) {
+  async listAppointmentRequestsForClinic(clinicId: string, query: ListAppointmentRequestsQueryDto) {
     const where = this.buildAppointmentRequestWhere(clinicId, query);
     const items = await this.prisma.appointmentRequest.findMany({
       where,
@@ -379,7 +375,12 @@ export class PatientPortalService {
       requestId,
     });
 
-    await this.scheduleAppointmentReminder(updatedRequest.patient, appointment, actorUserId, requestId);
+    await this.scheduleAppointmentReminder(
+      updatedRequest.patient,
+      appointment,
+      actorUserId,
+      requestId,
+    );
 
     return {
       request: this.serializeAppointmentRequest(updatedRequest, true),
@@ -568,7 +569,10 @@ export class PatientPortalService {
     return this.listCompatibilitySelfReports(patientId, clinicId);
   }
 
-  private async resolvePortalPatient(clinicId: string, userId: string): Promise<PortalPatientSummary> {
+  private async resolvePortalPatient(
+    clinicId: string,
+    userId: string,
+  ): Promise<PortalPatientSummary> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, keycloakSub: true, isActive: true },
@@ -755,10 +759,7 @@ export class PatientPortalService {
 
     const bp: BloodPressureTrendPoint[] = [
       ...encounters.flatMap((encounter) => {
-        if (
-          encounter.vitals?.systolicBp == null ||
-          encounter.vitals.diastolicBp == null
-        ) {
+        if (encounter.vitals?.systolicBp == null || encounter.vitals.diastolicBp == null) {
           return [];
         }
 
@@ -1036,10 +1037,14 @@ export class PatientPortalService {
     ]);
 
     if (!user) {
-      throw new BadRequestException('Assigned appointment staff member does not exist or is inactive');
+      throw new BadRequestException(
+        'Assigned appointment staff member does not exist or is inactive',
+      );
     }
     if (!membership) {
-      throw new BadRequestException(`Assigned appointment user is not a ${role.toLowerCase()} in this clinic`);
+      throw new BadRequestException(
+        `Assigned appointment user is not a ${role.toLowerCase()} in this clinic`,
+      );
     }
   }
 
@@ -1064,7 +1069,9 @@ export class PatientPortalService {
     ]);
 
     const combined = [
-      ...measurements.map((item) => this.serializeLegacySelfReportFromMeasurement(this.serializeMeasurement(item))),
+      ...measurements.map((item) =>
+        this.serializeLegacySelfReportFromMeasurement(this.serializeMeasurement(item)),
+      ),
       ...legacyReports.map((item) => this.serializeLegacySelfReport(item)),
     ];
 
@@ -1077,7 +1084,9 @@ export class PatientPortalService {
     return combined.slice(0, 50);
   }
 
-  private translateLegacySelfReportToMeasurement(dto: CreateSelfReportDto): CreatePatientMeasurementDto {
+  private translateLegacySelfReportToMeasurement(
+    dto: CreateSelfReportDto,
+  ): CreatePatientMeasurementDto {
     if (dto.type === 'HOME_BP') {
       return {
         type: 'BP',
@@ -1101,21 +1110,19 @@ export class PatientPortalService {
     };
   }
 
-  private serializeMeasurement(
-    measurement: {
-      id: string;
-      patientId: string;
-      clinicId: string;
-      recordedAt: Date;
-      source: PatientMeasurementSource;
-      type: PatientMeasurementType;
-      payloadJson: string;
-      notes: string | null;
-      linkedEncounterId: string | null;
-      createdAt: Date;
-      updatedAt: Date;
-    },
-  ) {
+  private serializeMeasurement(measurement: {
+    id: string;
+    patientId: string;
+    clinicId: string;
+    recordedAt: Date;
+    source: PatientMeasurementSource;
+    type: PatientMeasurementType;
+    payloadJson: string;
+    notes: string | null;
+    linkedEncounterId: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }) {
     return {
       id: measurement.id,
       patientId: measurement.patientId,
@@ -1165,24 +1172,22 @@ export class PatientPortalService {
     };
   }
 
-  private serializeAppointment(
-    appointment: {
-      id: string;
-      clinicId: string;
-      patientId: string;
-      startsAt: Date;
-      endsAt: Date;
-      status: AppointmentStatus;
-      linkedRequestId: string | null;
-      assignedDoctorId?: string | null;
-      assignedVolunteerId?: string | null;
-      notes: string | null;
-      createdAt: Date;
-      updatedAt: Date;
-      assignedDoctor?: { id: string; displayName: string } | null;
-      assignedVolunteer?: { id: string; displayName: string } | null;
-    },
-  ) {
+  private serializeAppointment(appointment: {
+    id: string;
+    clinicId: string;
+    patientId: string;
+    startsAt: Date;
+    endsAt: Date;
+    status: AppointmentStatus;
+    linkedRequestId: string | null;
+    assignedDoctorId?: string | null;
+    assignedVolunteerId?: string | null;
+    notes: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+    assignedDoctor?: { id: string; displayName: string } | null;
+    assignedVolunteer?: { id: string; displayName: string } | null;
+  }) {
     return {
       id: appointment.id,
       clinicId: appointment.clinicId,
@@ -1213,20 +1218,18 @@ export class PatientPortalService {
     };
   }
 
-  private serializeLegacySelfReport(
-    report: {
-      id: string;
-      type: PatientSelfReportType;
-      systolicBp?: number | null;
-      diastolicBp?: number | null;
-      glucoseMgDl?: number | null;
-      glucoseType?: string | null;
-      symptomsJson?: string | null;
-      notes?: string | null;
-      recordedAt: Date;
-      createdAt: Date;
-    },
-  ) {
+  private serializeLegacySelfReport(report: {
+    id: string;
+    type: PatientSelfReportType;
+    systolicBp?: number | null;
+    diastolicBp?: number | null;
+    glucoseMgDl?: number | null;
+    glucoseType?: string | null;
+    symptomsJson?: string | null;
+    notes?: string | null;
+    recordedAt: Date;
+    createdAt: Date;
+  }) {
     return {
       id: report.id,
       type: report.type,

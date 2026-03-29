@@ -5,13 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  AssignmentStatus,
-  CheckInStatus,
-  Prisma,
-  ShiftRole,
-  UserRole,
-} from '@prisma/client';
+import { AssignmentStatus, CheckInStatus, Prisma, ShiftRole, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import {
@@ -34,6 +28,26 @@ interface DayRange {
   end: Date;
 }
 
+type PatientAssignmentSummaryPayload = Prisma.PatientAssignmentGetPayload<{
+  include: {
+    patientCheckIn: {
+      include: {
+        patient: {
+          select: {
+            id: true;
+            patientCode: true;
+            firstName: true;
+            lastName: true;
+          };
+        };
+      };
+    };
+    assignedVolunteer: { select: { id: true; displayName: true } };
+    assignedDoctor: { select: { id: true; displayName: true } };
+    assignedBy: { select: { id: true; displayName: true } };
+  };
+}>;
+
 interface ShiftWithUser {
   id: string;
   clinicId: string;
@@ -50,15 +64,10 @@ interface ShiftWithUser {
 export class OpsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly auditService: AuditService
+    private readonly auditService: AuditService,
   ) {}
 
-  async checkIn(
-    clinicId: string,
-    actorUserId: string,
-    dto: ShiftCheckInDto,
-    requestId?: string
-  ) {
+  async checkIn(clinicId: string, actorUserId: string, dto: ShiftCheckInDto, requestId?: string) {
     await this.assertActiveClinic(clinicId);
     await this.assertShiftRoleMembership(clinicId, actorUserId, dto.roleAtShift);
 
@@ -98,12 +107,7 @@ export class OpsService {
     return this.toShiftDetail(created);
   }
 
-  async checkOut(
-    clinicId: string,
-    shiftId: string,
-    actorUserId: string,
-    requestId?: string
-  ) {
+  async checkOut(clinicId: string, shiftId: string, actorUserId: string, requestId?: string) {
     const existing = await this.prisma.staffShift.findUnique({
       where: { id: shiftId },
       include: { user: { select: { id: true, displayName: true } } },
@@ -117,7 +121,9 @@ export class OpsService {
 
     const canManage = await this.canManageClinicShift(clinicId, actorUserId);
     if (existing.userId !== actorUserId && !canManage) {
-      throw new ForbiddenException('Only the shift owner or clinic managers can check out this shift');
+      throw new ForbiddenException(
+        'Only the shift owner or clinic managers can check out this shift',
+      );
     }
 
     const updated = await this.prisma.staffShift.update({
@@ -168,7 +174,7 @@ export class OpsService {
     clinicId: string,
     actorUserId: string,
     dto: CreatePatientCheckInDto,
-    requestId?: string
+    requestId?: string,
   ) {
     await this.assertActiveClinic(clinicId);
     const patient = await this.prisma.patient.findFirst({
@@ -263,7 +269,7 @@ export class OpsService {
     clinicId: string,
     actorUserId: string,
     dto: CreateAssignmentDto,
-    requestId?: string
+    requestId?: string,
   ) {
     const { checkIn } = await this.getCheckInForAssignment(clinicId, dto.patientCheckInId);
     if (!['WAITING', 'ASSIGNED'].includes(checkIn.status)) {
@@ -322,7 +328,7 @@ export class OpsService {
     assignmentId: string,
     actorUserId: string,
     dto: ReassignAssignmentDto,
-    requestId?: string
+    requestId?: string,
   ) {
     const existing = await this.prisma.patientAssignment.findUnique({
       where: { id: assignmentId },
@@ -419,10 +425,7 @@ export class OpsService {
       where: {
         clinicId,
         status: 'ACTIVE',
-        OR: [
-          { assignedVolunteerId: actorUserId },
-          { assignedDoctorId: actorUserId },
-        ],
+        OR: [{ assignedVolunteerId: actorUserId }, { assignedDoctorId: actorUserId }],
         patientCheckIn: {
           checkedInAt: {
             gte: dayRange.start,
@@ -441,12 +444,7 @@ export class OpsService {
     };
   }
 
-  async startIntake(
-    clinicId: string,
-    checkinId: string,
-    actorUserId: string,
-    requestId?: string
-  ) {
+  async startIntake(clinicId: string, checkinId: string, actorUserId: string, requestId?: string) {
     const existing = await this.prisma.patientCheckIn.findUnique({
       where: { id: checkinId },
       include: {
@@ -604,7 +602,7 @@ export class OpsService {
   private async assertShiftRoleMembership(
     clinicId: string,
     actorUserId: string,
-    roleAtShift: ShiftRole
+    roleAtShift: ShiftRole,
   ) {
     const membership = await this.prisma.userClinicRole.findFirst({
       where: {
@@ -614,7 +612,9 @@ export class OpsService {
       },
     });
     if (!membership) {
-      throw new ForbiddenException('Requested shift role is not assigned to this user in the clinic');
+      throw new ForbiddenException(
+        'Requested shift role is not assigned to this user in the clinic',
+      );
     }
   }
 
@@ -652,11 +652,7 @@ export class OpsService {
     return { checkIn };
   }
 
-  private async assertAssignableStaff(
-    clinicId: string,
-    userId: string,
-    requiredRole: ShiftRole
-  ) {
+  private async assertAssignableStaff(clinicId: string, userId: string, requiredRole: ShiftRole) {
     const [user, membership, shift] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: userId },
@@ -685,7 +681,9 @@ export class OpsService {
       throw new BadRequestException('Assigned staff member is inactive or does not exist');
     }
     if (!membership) {
-      throw new BadRequestException(`Assigned user is not a ${requiredRole.toLowerCase()} in this clinic`);
+      throw new BadRequestException(
+        `Assigned user is not a ${requiredRole.toLowerCase()} in this clinic`,
+      );
     }
     if (!shift) {
       throw new BadRequestException('Assigned staff member is not checked in');
@@ -698,7 +696,7 @@ export class OpsService {
       clinicId: string;
       patientId: string;
       createdByUserId: string;
-    }
+    },
   ) {
     const [clinic, patient, user] = await Promise.all([
       tx.clinic.findFirst({ where: { id: data.clinicId, isActive: true } }),
@@ -763,32 +761,30 @@ export class OpsService {
     };
   }
 
-  private toCheckInSummary(
-    checkIn: {
+  private toCheckInSummary(checkIn: {
+    id: string;
+    clinicId: string;
+    patientId: string;
+    checkedInAt: Date;
+    source: string;
+    status: CheckInStatus;
+    encounterId: string | null;
+    notes: string | null;
+    patient: {
       id: string;
-      clinicId: string;
-      patientId: string;
-      checkedInAt: Date;
-      source: string;
-      status: CheckInStatus;
-      encounterId: string | null;
-      notes: string | null;
-      patient: {
-        id: string;
-        patientCode: string;
-        firstName: string;
-        lastName: string;
-      };
-      assignments?: Array<{
-        id: string;
-        assignedAt: Date;
-        status: AssignmentStatus;
-        assignedVolunteer: { id: string; displayName: string };
-        assignedDoctor: { id: string; displayName: string };
-        assignedBy: { id: string; displayName: string };
-      }>;
-    }
-  ) {
+      patientCode: string;
+      firstName: string;
+      lastName: string;
+    };
+    assignments?: Array<{
+      id: string;
+      assignedAt: Date;
+      status: AssignmentStatus;
+      assignedVolunteer: { id: string; displayName: string };
+      assignedDoctor: { id: string; displayName: string };
+      assignedBy: { id: string; displayName: string };
+    }>;
+  }) {
     const assignment = checkIn.assignments?.[0] ?? null;
     return {
       id: checkIn.id,
@@ -819,7 +815,7 @@ export class OpsService {
     };
   }
 
-  private toAssignmentSummary(assignment: any) {
+  private toAssignmentSummary(assignment: PatientAssignmentSummaryPayload) {
     return {
       id: assignment.id,
       clinicId: assignment.clinicId,
@@ -841,17 +837,17 @@ export class OpsService {
         patientCode: assignment.patientCheckIn.patient.patientCode,
         firstName: assignment.patientCheckIn.patient.firstName,
         lastName: assignment.patientCheckIn.patient.lastName,
-        displayName: `${assignment.patientCheckIn.patient.firstName} ${assignment.patientCheckIn.patient.lastName}`.trim(),
+        displayName:
+          `${assignment.patientCheckIn.patient.firstName} ${assignment.patientCheckIn.patient.lastName}`.trim(),
       },
     };
   }
 
-  private toMyAssignmentSummary(assignment: any, actorUserId: string) {
+  private toMyAssignmentSummary(assignment: PatientAssignmentSummaryPayload, actorUserId: string) {
     return {
       id: assignment.id,
       patientCheckInId: assignment.patientCheckInId,
-      assignedRole:
-        assignment.assignedVolunteerId === actorUserId ? 'VOLUNTEER' : 'DOCTOR',
+      assignedRole: assignment.assignedVolunteerId === actorUserId ? 'VOLUNTEER' : 'DOCTOR',
       assignedAt: assignment.assignedAt.toISOString(),
       checkInStatus: assignment.patientCheckIn.status,
       checkedInAt: assignment.patientCheckIn.checkedInAt.toISOString(),
@@ -861,7 +857,8 @@ export class OpsService {
         patientCode: assignment.patientCheckIn.patient.patientCode,
         firstName: assignment.patientCheckIn.patient.firstName,
         lastName: assignment.patientCheckIn.patient.lastName,
-        displayName: `${assignment.patientCheckIn.patient.firstName} ${assignment.patientCheckIn.patient.lastName}`.trim(),
+        displayName:
+          `${assignment.patientCheckIn.patient.firstName} ${assignment.patientCheckIn.patient.lastName}`.trim(),
       },
       assignedVolunteer: assignment.assignedVolunteer,
       assignedDoctor: assignment.assignedDoctor,

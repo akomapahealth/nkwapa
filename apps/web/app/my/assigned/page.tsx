@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { CalendarDays, ClipboardList, RefreshCw, Stethoscope } from "lucide-react";
-import { Box } from "@mui/material";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
-import { useAuth } from "@/lib/auth-context";
-import { useBootstrap } from "@/lib/bootstrap-context";
-import { apiFetch } from "@/lib/api";
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
+import { CalendarDays, ClipboardList, RefreshCw, Stethoscope } from 'lucide-react';
+import { Box } from '@mui/material';
+import { DataGrid, type GridColDef } from '@mui/x-data-grid';
+import { useAuth } from '@/lib/auth-context';
+import { useBootstrap } from '@/lib/bootstrap-context';
+import { apiFetch } from '@/lib/api';
 import {
   OPS_DEFAULT_TIMEZONE,
   type ActiveShift,
@@ -20,11 +20,10 @@ import {
   formatOpsDateTime,
   getEligibleShiftRoles,
   getTodayInTimeZone,
-  hasPermission,
   readApiError,
-} from "@/lib/ops";
-import { useSync } from "@/app/ServiceWorkerAndSyncProvider";
-import { RouteGuard } from "@/components/RouteGuard";
+} from '@/lib/ops';
+import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { RouteGuard } from '@/components/RouteGuard';
 import {
   AssignedRoleBadge,
   CheckInStatusBadge,
@@ -33,14 +32,14 @@ import {
   OnlineOnlyBanner,
   OpsMetricCard,
   ShiftControlCard,
-} from "@/components/ops/OpsShared";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { dataGridSx } from "@/lib/datagrid-theme";
+} from '@/components/ops/OpsShared';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { dataGridSx } from '@/lib/datagrid-theme';
 
-type StaffFilter = "ALL" | "ASSIGNED" | "IN_PROGRESS" | "COMPLETED";
+type StaffFilter = 'ALL' | 'ASSIGNED' | 'IN_PROGRESS' | 'COMPLETED';
 
 function activeShiftForUser(items: ActiveShift[], userId?: string | null) {
   return items.find((item) => item.userId === userId) ?? null;
@@ -53,27 +52,23 @@ export default function MyAssignedPage() {
   const getToken = useAuth();
   const { isOnline } = useSync();
 
-  const clinicId =
-    bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
+  const clinicId = bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
   const activeMembership = bootstrap?.memberships?.find(
-    (membership) => membership.clinicId === clinicId
+    (membership) => membership.clinicId === clinicId,
   );
-  const permissions = bootstrap?.effectivePermissionsForActiveClinic ?? [];
   const eligibleShiftRoles = getEligibleShiftRoles(
     Array.from(
       new Set([
         ...(bootstrap?.effectiveRolesForActiveClinic ?? []),
         ...(activeMembership?.roles ?? []),
-      ])
-    )
+      ]),
+    ),
   );
 
   const [selectedDate, setSelectedDate] = useState(getTodayInTimeZone());
-  const [selectedShiftRole, setSelectedShiftRole] = useState<ShiftRole | "">("");
-  const [statusFilter, setStatusFilter] = useState<StaffFilter>("ALL");
-  const [assignmentsData, setAssignmentsData] = useState<MyAssignmentsResponse | null>(
-    null
-  );
+  const [selectedShiftRole, setSelectedShiftRole] = useState<ShiftRole | ''>('');
+  const [statusFilter, setStatusFilter] = useState<StaffFilter>('ALL');
+  const [assignmentsData, setAssignmentsData] = useState<MyAssignmentsResponse | null>(null);
   const [shiftsData, setShiftsData] = useState<ActiveShiftsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -90,50 +85,53 @@ export default function MyAssignedPage() {
       }
     }
 
-    setSelectedShiftRole(eligibleShiftRoles[0] ?? "");
+    setSelectedShiftRole(eligibleShiftRoles[0] ?? '');
   }, [eligibleShiftRoles, selectedShiftRole]);
 
-  async function loadAssignments(options?: { background?: boolean }) {
-    if (!clinicId || !getToken) {
-      return;
-    }
-
-    if (options?.background) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-
-    setPageError(null);
-
-    try {
-      const [assignmentsResponse, shiftsResponse] = await Promise.all([
-        apiFetch(
-          `/clinics/${encodeURIComponent(clinicId)}/my/assignments?date=${encodeURIComponent(selectedDate)}`,
-          { getToken, activeClinicId: clinicId }
-        ),
-        apiFetch(
-          `/clinics/${encodeURIComponent(clinicId)}/shifts/active?date=${encodeURIComponent(selectedDate)}`,
-          { getToken, activeClinicId: clinicId }
-        ),
-      ]);
-
-      if (!assignmentsResponse.ok) {
-        throw new Error(await readApiError(assignmentsResponse));
-      }
-      if (!shiftsResponse.ok) {
-        throw new Error(await readApiError(shiftsResponse));
+  const loadAssignments = useCallback(
+    async (options?: { background?: boolean }) => {
+      if (!clinicId || !getToken) {
+        return;
       }
 
-      setAssignmentsData((await assignmentsResponse.json()) as MyAssignmentsResponse);
-      setShiftsData((await shiftsResponse.json()) as ActiveShiftsResponse);
-    } catch (error) {
-      setPageError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }
+      if (options?.background) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
+      setPageError(null);
+
+      try {
+        const [assignmentsResponse, shiftsResponse] = await Promise.all([
+          apiFetch(
+            `/clinics/${encodeURIComponent(clinicId)}/my/assignments?date=${encodeURIComponent(selectedDate)}`,
+            { getToken, activeClinicId: clinicId },
+          ),
+          apiFetch(
+            `/clinics/${encodeURIComponent(clinicId)}/shifts/active?date=${encodeURIComponent(selectedDate)}`,
+            { getToken, activeClinicId: clinicId },
+          ),
+        ]);
+
+        if (!assignmentsResponse.ok) {
+          throw new Error(await readApiError(assignmentsResponse));
+        }
+        if (!shiftsResponse.ok) {
+          throw new Error(await readApiError(shiftsResponse));
+        }
+
+        setAssignmentsData((await assignmentsResponse.json()) as MyAssignmentsResponse);
+        setShiftsData((await shiftsResponse.json()) as ActiveShiftsResponse);
+      } catch (error) {
+        setPageError(error instanceof Error ? error.message : String(error));
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [clinicId, getToken, selectedDate],
+  );
 
   useEffect(() => {
     if (!clinicId || !getToken) {
@@ -147,16 +145,15 @@ export default function MyAssignedPage() {
     }
 
     void loadAssignments();
-  }, [clinicId, getToken, isOnline, selectedDate]);
+  }, [clinicId, getToken, isOnline, loadAssignments]);
 
   const assignments = assignmentsData?.items ?? [];
   const shifts = shiftsData?.items ?? [];
-  const timezone =
-    assignmentsData?.timezone ?? shiftsData?.timezone ?? OPS_DEFAULT_TIMEZONE;
+  const timezone = assignmentsData?.timezone ?? shiftsData?.timezone ?? OPS_DEFAULT_TIMEZONE;
   const currentShift = activeShiftForUser(shifts, bootstrap?.userId);
 
   const filteredAssignments = assignments.filter((assignment) => {
-    if (statusFilter === "ALL") {
+    if (statusFilter === 'ALL') {
       return true;
     }
 
@@ -173,21 +170,18 @@ export default function MyAssignedPage() {
     setNotice(null);
 
     try {
-      const response = await apiFetch(
-        `/clinics/${encodeURIComponent(clinicId)}/shifts/check-in`,
-        {
-          method: "POST",
-          body: JSON.stringify({ roleAtShift: selectedShiftRole }),
-          getToken,
-          activeClinicId: clinicId,
-        }
-      );
+      const response = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}/shifts/check-in`, {
+        method: 'POST',
+        body: JSON.stringify({ roleAtShift: selectedShiftRole }),
+        getToken,
+        activeClinicId: clinicId,
+      });
 
       if (!response.ok) {
         throw new Error(await readApiError(response));
       }
 
-      setNotice("Shift started successfully.");
+      setNotice('Shift started successfully.');
       await loadAssignments({ background: true });
     } catch (error) {
       setActionError(error instanceof Error ? error.message : String(error));
@@ -209,17 +203,17 @@ export default function MyAssignedPage() {
       const response = await apiFetch(
         `/clinics/${encodeURIComponent(clinicId)}/shifts/${encodeURIComponent(currentShift.shiftId)}/check-out`,
         {
-          method: "POST",
+          method: 'POST',
           getToken,
           activeClinicId: clinicId,
-        }
+        },
       );
 
       if (!response.ok) {
         throw new Error(await readApiError(response));
       }
 
-      setNotice("Shift ended successfully.");
+      setNotice('Shift ended successfully.');
       await loadAssignments({ background: true });
     } catch (error) {
       setActionError(error instanceof Error ? error.message : String(error));
@@ -241,10 +235,10 @@ export default function MyAssignedPage() {
       const response = await apiFetch(
         `/clinics/${encodeURIComponent(clinicId)}/checkins/${encodeURIComponent(assignment.patientCheckInId)}/start-intake`,
         {
-          method: "POST",
+          method: 'POST',
           getToken,
           activeClinicId: clinicId,
-        }
+        },
       );
 
       if (!response.ok) {
@@ -270,54 +264,55 @@ export default function MyAssignedPage() {
 
   const columns: GridColDef[] = [
     {
-      field: "patientCode",
-      headerName: "Patient",
+      field: 'patientCode',
+      headerName: 'Patient',
       minWidth: 230,
       flex: 1,
-      valueGetter: (_, row) =>
-        `${row.patient.patientCode} · ${row.patient.displayName}`.trim(),
+      valueGetter: (_, row) => `${row.patient.patientCode} · ${row.patient.displayName}`.trim(),
     },
     {
-      field: "checkedInAt",
-      headerName: "Checked In",
+      field: 'checkedInAt',
+      headerName: 'Checked In',
       width: 160,
       valueGetter: (_, row) => formatOpsDateTime(row.checkedInAt, timezone),
     },
     {
-      field: "assignedRole",
-      headerName: "My Role",
+      field: 'assignedRole',
+      headerName: 'My Role',
       width: 120,
       sortable: false,
       renderCell: (params) => (
-        <AssignedRoleBadge role={params.row.assignedRole as "VOLUNTEER" | "DOCTOR"} />
+        <AssignedRoleBadge role={params.row.assignedRole as 'VOLUNTEER' | 'DOCTOR'} />
       ),
     },
     {
-      field: "checkInStatus",
-      headerName: "Status",
+      field: 'checkInStatus',
+      headerName: 'Status',
       width: 140,
       sortable: false,
       renderCell: (params) => (
-        <CheckInStatusBadge status={params.row.checkInStatus as MyAssignmentSummary["checkInStatus"]} />
+        <CheckInStatusBadge
+          status={params.row.checkInStatus as MyAssignmentSummary['checkInStatus']}
+        />
       ),
     },
     {
-      field: "team",
-      headerName: "Care Team",
+      field: 'team',
+      headerName: 'Care Team',
       minWidth: 220,
       flex: 1,
       valueGetter: (_, row) =>
         `${row.assignedVolunteer.displayName} / ${row.assignedDoctor.displayName}`,
     },
     {
-      field: "actions",
-      headerName: "",
+      field: 'actions',
+      headerName: '',
       width: 190,
       sortable: false,
       renderCell: (params) => {
         const assignment = params.row as MyAssignmentSummary;
 
-        if (assignment.assignedRole === "VOLUNTEER") {
+        if (assignment.assignedRole === 'VOLUNTEER') {
           if (assignment.encounterId) {
             return (
               <Button asChild size="sm">
@@ -332,7 +327,7 @@ export default function MyAssignedPage() {
               onClick={() => void handleStartIntake(assignment)}
               disabled={!isOnline || startingIntakeId === assignment.id}
             >
-              {startingIntakeId === assignment.id ? "Starting..." : "Start intake"}
+              {startingIntakeId === assignment.id ? 'Starting...' : 'Start intake'}
             </Button>
           );
         }
@@ -345,11 +340,7 @@ export default function MyAssignedPage() {
           );
         }
 
-        return (
-          <span className="text-xs text-muted-foreground">
-            Waiting for intake
-          </span>
-        );
+        return <span className="text-xs text-muted-foreground">Waiting for intake</span>;
       },
     },
   ];
@@ -358,9 +349,7 @@ export default function MyAssignedPage() {
     return (
       <RouteGuard requiredPermission="OPS.ASSIGNMENT.READ_SELF">
         <div className="p-4">
-          <p className="text-muted-foreground">
-            Select a clinic to load your assignments.
-          </p>
+          <p className="text-muted-foreground">Select a clinic to load your assignments.</p>
         </div>
       </RouteGuard>
     );
@@ -385,7 +374,10 @@ export default function MyAssignedPage() {
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <div className="rounded-2xl border border-border/80 bg-card/85 px-4 py-3 shadow-sm">
-                <Label htmlFor="my-assigned-date" className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                <Label
+                  htmlFor="my-assigned-date"
+                  className="text-xs uppercase tracking-[0.2em] text-muted-foreground"
+                >
                   Clinic day
                 </Label>
                 <div className="mt-2 flex items-center gap-2">
@@ -401,9 +393,7 @@ export default function MyAssignedPage() {
               </div>
 
               <div className="rounded-2xl border border-border/80 bg-card/85 px-4 py-3 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                  Timezone
-                </p>
+                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Timezone</p>
                 <p className="mt-2 text-sm font-medium text-foreground">{timezone}</p>
               </div>
 
@@ -414,9 +404,7 @@ export default function MyAssignedPage() {
                 disabled={!isOnline || refreshing || loading}
                 className="h-12 rounded-2xl border-border/80 bg-card/85 px-4"
               >
-                <RefreshCw
-                  className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
-                />
+                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
             </div>
@@ -433,9 +421,9 @@ export default function MyAssignedPage() {
               value={
                 assignments.filter(
                   (assignment) =>
-                    assignment.assignedRole === "VOLUNTEER" &&
-                    assignment.checkInStatus === "ASSIGNED" &&
-                    !assignment.encounterId
+                    assignment.assignedRole === 'VOLUNTEER' &&
+                    assignment.checkInStatus === 'ASSIGNED' &&
+                    !assignment.encounterId,
                 ).length
               }
               detail="Volunteer-owned intake starts"
@@ -445,8 +433,7 @@ export default function MyAssignedPage() {
               value={
                 assignments.filter(
                   (assignment) =>
-                    assignment.checkInStatus === "IN_PROGRESS" &&
-                    Boolean(assignment.encounterId)
+                    assignment.checkInStatus === 'IN_PROGRESS' && Boolean(assignment.encounterId),
                 ).length
               }
               detail="Cases with active encounters"
@@ -454,9 +441,7 @@ export default function MyAssignedPage() {
             <OpsMetricCard
               label="Completed"
               value={
-                assignments.filter(
-                  (assignment) => assignment.checkInStatus === "COMPLETED"
-                ).length
+                assignments.filter((assignment) => assignment.checkInStatus === 'COMPLETED').length
               }
               detail="Finished clinic flow"
             />
@@ -498,19 +483,18 @@ export default function MyAssignedPage() {
                     Workflow Notes
                   </CardTitle>
                   <CardDescription className="leading-6">
-                    Volunteers start intake and generate the draft encounter.
-                    Doctors can enter as soon as intake has begun.
+                    Volunteers start intake and generate the draft encounter. Doctors can enter as
+                    soon as intake has begun.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm text-muted-foreground">
                   <p>
-                    If you do not see a patient yet, refresh after the manager
-                    assigns the care pair.
+                    If you do not see a patient yet, refresh after the manager assigns the care
+                    pair.
                   </p>
                   <p>
-                    Intake and assignment actions require connectivity in this
-                    release, even if the main clinical chart still has offline
-                    support elsewhere in the app.
+                    Intake and assignment actions require connectivity in this release, even if the
+                    main clinical chart still has offline support elsewhere in the app.
                   </p>
                 </CardContent>
               </Card>
@@ -529,24 +513,22 @@ export default function MyAssignedPage() {
                     </CardDescription>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {(["ALL", "ASSIGNED", "IN_PROGRESS", "COMPLETED"] as const).map(
-                      (value) => (
-                        <Button
-                          key={value}
-                          type="button"
-                          variant={statusFilter === value ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => setStatusFilter(value)}
-                          className="rounded-full"
-                        >
-                          {value === "ALL"
-                            ? "All"
-                            : value === "IN_PROGRESS"
-                              ? "In Progress"
-                              : value.charAt(0) + value.slice(1).toLowerCase()}
-                        </Button>
-                      )
-                    )}
+                    {(['ALL', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED'] as const).map((value) => (
+                      <Button
+                        key={value}
+                        type="button"
+                        variant={statusFilter === value ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setStatusFilter(value)}
+                        className="rounded-full"
+                      >
+                        {value === 'ALL'
+                          ? 'All'
+                          : value === 'IN_PROGRESS'
+                            ? 'In Progress'
+                            : value.charAt(0) + value.slice(1).toLowerCase()}
+                      </Button>
+                    ))}
                   </div>
                 </div>
               </CardHeader>
@@ -557,7 +539,7 @@ export default function MyAssignedPage() {
                     description="As soon as the manager pairs you to a patient, the case will appear here."
                   />
                 ) : (
-                  <Box sx={{ height: 460, width: "100%" }} className="overflow-x-auto">
+                  <Box sx={{ height: 460, width: '100%' }} className="overflow-x-auto">
                     <DataGrid
                       rows={rows}
                       columns={columns}

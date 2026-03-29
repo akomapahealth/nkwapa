@@ -196,46 +196,40 @@ export class DashboardService {
     const weekStart = startOfWeek(now);
     const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
-    const [
-      awaitingReview,
-      reviewsToday,
-      reviewsWeek,
-      recentRaw,
-      reviewsByDay,
-      htDistribution,
-    ] = await Promise.all([
-      this.prisma.encounter.count({
-        where: { clinicId, status: 'IN_REVIEW', preceptorReviewedById: null },
-      }),
-      this.prisma.encounter.count({
-        where: { clinicId, preceptorReviewedById: userId, updatedAt: { gte: todayStart } },
-      }),
-      this.prisma.encounter.count({
-        where: { clinicId, preceptorReviewedById: userId, updatedAt: { gte: weekStart } },
-      }),
-      this.prisma.encounter.findMany({
-        where: { clinicId, preceptorReviewedById: userId },
-        orderBy: { updatedAt: 'desc' },
-        take: 10,
-        include: { patient: { select: { patientCode: true, firstName: true, lastName: true } } },
-      }),
-      this.prisma.encounter.findMany({
-        where: {
-          clinicId,
-          preceptorReviewedById: userId,
-          updatedAt: { gte: fourteenDaysAgo },
-        },
-        select: { updatedAt: true },
-      }),
-      this.prisma.hypertensionAssessment.groupBy({
-        by: ['classification'],
-        where: {
-          clinicId,
-          encounter: { preceptorReviewedById: userId },
-        },
-        _count: true,
-      }),
-    ]);
+    const [awaitingReview, reviewsToday, reviewsWeek, recentRaw, reviewsByDay, htDistribution] =
+      await Promise.all([
+        this.prisma.encounter.count({
+          where: { clinicId, status: 'IN_REVIEW', preceptorReviewedById: null },
+        }),
+        this.prisma.encounter.count({
+          where: { clinicId, preceptorReviewedById: userId, updatedAt: { gte: todayStart } },
+        }),
+        this.prisma.encounter.count({
+          where: { clinicId, preceptorReviewedById: userId, updatedAt: { gte: weekStart } },
+        }),
+        this.prisma.encounter.findMany({
+          where: { clinicId, preceptorReviewedById: userId },
+          orderBy: { updatedAt: 'desc' },
+          take: 10,
+          include: { patient: { select: { patientCode: true, firstName: true, lastName: true } } },
+        }),
+        this.prisma.encounter.findMany({
+          where: {
+            clinicId,
+            preceptorReviewedById: userId,
+            updatedAt: { gte: fourteenDaysAgo },
+          },
+          select: { updatedAt: true },
+        }),
+        this.prisma.hypertensionAssessment.groupBy({
+          by: ['classification'],
+          where: {
+            clinicId,
+            encounter: { preceptorReviewedById: userId },
+          },
+          _count: true,
+        }),
+      ]);
 
     const recentReviews: EncounterSummary[] = recentRaw.map((e) => ({
       id: e.id,
@@ -326,8 +320,10 @@ export class DashboardService {
     }
 
     const screeningRates = {
-      hypertension: totalEncounters > 0 ? Math.round((htScreeningCount / totalEncounters) * 100) : 0,
-      diabetes: totalEncounters > 0 ? Math.round((diabetesScreeningCount / totalEncounters) * 100) : 0,
+      hypertension:
+        totalEncounters > 0 ? Math.round((htScreeningCount / totalEncounters) * 100) : 0,
+      diabetes:
+        totalEncounters > 0 ? Math.round((diabetesScreeningCount / totalEncounters) * 100) : 0,
     };
 
     const followUpComplianceRate =
@@ -344,7 +340,6 @@ export class DashboardService {
     }
 
     // Get staff activity
-    const userIds = [...new Set(staffRaw.map((r) => r.userId))];
     const staffActivity: StaffActivityRow[] = [];
 
     for (const ur of staffRaw) {
@@ -390,7 +385,11 @@ export class DashboardService {
       diabetesTotal,
     ] = await Promise.all([
       this.prisma.patient.count({
-        where: { primaryClinicId: clinicId, createdByUserId: userId, createdAt: { gte: todayStart } },
+        where: {
+          primaryClinicId: clinicId,
+          createdByUserId: userId,
+          createdAt: { gte: todayStart },
+        },
       }),
       this.prisma.encounter.count({
         where: { clinicId, createdByUserId: userId, createdAt: { gte: todayStart } },
@@ -476,22 +475,28 @@ export class DashboardService {
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    const [totalClinics, totalUsers, systemWidePatients, systemWideEncounters, clinics, encountersByDay] =
-      await Promise.all([
-        this.prisma.clinic.count({ where: { isActive: true } }),
-        this.prisma.user.count({ where: { isActive: true } }),
-        this.prisma.patient.count(),
-        this.prisma.encounter.count(),
-        this.prisma.clinic.findMany({
-          where: { isActive: true },
-          select: { id: true, name: true },
-        }),
-        this.prisma.encounter.groupBy({
-          by: ['createdAt'],
-          where: { createdAt: { gte: thirtyDaysAgo } },
-          _count: true,
-        }),
-      ]);
+    const [
+      totalClinics,
+      totalUsers,
+      systemWidePatients,
+      systemWideEncounters,
+      clinics,
+      encountersByDay,
+    ] = await Promise.all([
+      this.prisma.clinic.count({ where: { isActive: true } }),
+      this.prisma.user.count({ where: { isActive: true } }),
+      this.prisma.patient.count(),
+      this.prisma.encounter.count(),
+      this.prisma.clinic.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true },
+      }),
+      this.prisma.encounter.groupBy({
+        by: ['createdAt'],
+        where: { createdAt: { gte: thirtyDaysAgo } },
+        _count: true,
+      }),
+    ]);
 
     const systemEncountersTrend = aggregateByDay(
       encountersByDay.map((r) => ({ date: r.createdAt, count: r._count })),
@@ -552,11 +557,7 @@ function formatDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-function aggregateByDay(
-  rows: { date: Date; count: number }[],
-  from: Date,
-  to: Date,
-): TrendPoint[] {
+function aggregateByDay(rows: { date: Date; count: number }[], from: Date, to: Date): TrendPoint[] {
   const map = new Map<string, number>();
   // Initialize all days with 0
   const cursor = new Date(from);

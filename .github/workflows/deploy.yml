@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  NODE_VERSION: "20"
+  NODE_VERSION: '20'
 
 jobs:
   # ──────────────────────────────────────────────
@@ -34,7 +34,12 @@ jobs:
         run: npm run db:generate
 
       - name: Run migrations
-        run: npm run db:migrate:deploy
+        run: |
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "::notice::DATABASE_URL secret is not set for this environment; skipping Prisma migrate deploy."
+            exit 0
+          fi
+          npm run db:migrate:deploy
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 

@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Get,
-  Param,
-  UseGuards,
-  Request,
-  NotFoundException,
-} from '@nestjs/common';
+import { Controller, Get, Param, UseGuards, Request, NotFoundException } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 import { ClinicScoped } from '../auth/decorators/clinic-scoped.decorator';
@@ -24,7 +17,7 @@ export class ClinicsController {
   @Get(':id')
   async findOne(
     @Param('id') id: string,
-    @Request() req: { user: { user: { id: string }; roles: unknown[] } }
+    @Request() _req: { user: { user: { id: string }; roles: unknown[] } },
   ) {
     const clinic = await this.clinicService.findById(id);
     if (!clinic) {

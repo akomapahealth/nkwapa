@@ -18,8 +18,6 @@ describe('SyncService', () => {
   let patientRepo: jest.Mocked<PatientRepository>;
   let encounterRepo: jest.Mocked<EncounterRepository>;
   let prisma: jest.Mocked<PrismaService>;
-  let auditService: jest.Mocked<AuditService>;
-
   beforeEach(async () => {
     const mockPrisma = {
       syncMutation: {
@@ -63,7 +61,6 @@ describe('SyncService', () => {
     service = module.get(SyncService);
     patientRepo = module.get(PatientRepository);
     prisma = module.get(PrismaService);
-    auditService = module.get(AuditService);
     encounterRepo = module.get(EncounterRepository);
   });
 

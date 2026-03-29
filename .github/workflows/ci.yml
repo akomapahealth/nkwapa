@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: "20"
+  NODE_VERSION: '20'
   DATABASE_URL: postgresql://nkwapa:nkwapa@localhost:5432/nkwapa
 
 jobs:
@@ -73,6 +73,9 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    env:
+      # Matches the Postgres service; explicit so migrate + Prisma always see DATABASE_URL
+      DATABASE_URL: postgresql://nkwapa:nkwapa@localhost:5432/nkwapa
     services:
       postgres:
         image: postgres:16

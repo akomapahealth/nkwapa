@@ -1,29 +1,29 @@
-"use client";
+'use client';
 
-import { useRef, useEffect } from "react";
-import { gsap, ScrollTrigger } from "@/lib/gsap";
-import { landingCardHover } from "@/lib/landing-card-hover";
+import { useRef, useEffect } from 'react';
+import { gsap } from '@/lib/gsap';
+import { landingCardHover } from '@/lib/landing-card-hover';
 
 const STEPS = [
   {
-    phase: "01 · Intake",
-    title: "Register & triage",
-    body: "Fast patient capture with codes, demographics, and clinic context—optimized for high-volume screening days.",
+    phase: '01 · Intake',
+    title: 'Register & triage',
+    body: 'Fast patient capture with codes, demographics, and clinic context—optimized for high-volume screening days.',
   },
   {
-    phase: "02 · Encounter",
-    title: "Document the visit",
-    body: "Vitals, chronic-disease forms, drafts, and peer review in one coordinated flow.",
+    phase: '02 · Encounter',
+    title: 'Document the visit',
+    body: 'Vitals, chronic-disease forms, drafts, and peer review in one coordinated flow.',
   },
   {
-    phase: "03 · Prescribe",
-    title: "Mediate safely",
-    body: "Prescriptions tied to encounters and roles, so medication history stays anchored to the clinical record.",
+    phase: '03 · Prescribe',
+    title: 'Mediate safely',
+    body: 'Prescriptions tied to encounters and roles, so medication history stays anchored to the clinical record.',
   },
   {
-    phase: "04 · Sync",
-    title: "Reconcile everywhere",
-    body: "Push and pull across clinics with an outbox model—built for intermittent connectivity.",
+    phase: '04 · Sync',
+    title: 'Reconcile everywhere',
+    body: 'Push and pull across clinics with an outbox model—built for intermittent connectivity.',
   },
 ];
 
@@ -31,11 +31,11 @@ export function WorkflowSection() {
   const ref = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (typeof window === 'undefined') return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     const ctx = gsap.context(() => {
-      const items = ref.current?.querySelectorAll("[data-step]");
+      const items = ref.current?.querySelectorAll('[data-step]');
       if (!items?.length) return;
       gsap.fromTo(
         items,
@@ -45,13 +45,13 @@ export function WorkflowSection() {
           y: 0,
           duration: 0.5,
           stagger: 0.12,
-          ease: "power3.out",
+          ease: 'power3.out',
           scrollTrigger: {
             trigger: ref.current,
-            start: "top 85%",
-            toggleActions: "play none none reverse",
+            start: 'top 85%',
+            toggleActions: 'play none none reverse',
           },
-        }
+        },
       );
     }, ref);
     return () => ctx.revert();
@@ -73,8 +73,8 @@ export function WorkflowSection() {
               from waiting room to longitudinal care
             </h2>
             <p className="mt-4 font-landing-body text-muted-foreground">
-              Nkwapa connects the moments that matter: intake, encounter documentation, prescribing, and
-              reliable sync—so teams measure outcomes, not tool friction.
+              Nkwapa connects the moments that matter: intake, encounter documentation, prescribing,
+              and reliable sync—so teams measure outcomes, not tool friction.
             </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:col-span-8">

@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { parsePhoneNumberFromString } from "libphonenumber-js";
+import { useCallback, useEffect, useState } from 'react';
+import { parsePhoneNumberFromString } from 'libphonenumber-js';
 
-const DEFAULT_REGION: "GH" = "GH";
+const DEFAULT_REGION = 'GH' as const;
 
 export interface PhoneInputProps {
   value?: string;
@@ -19,9 +19,9 @@ export interface PhoneInputProps {
  * Country selector is fixed to +233. Outputs E.164 when valid.
  */
 export function PhoneInput({
-  value = "",
+  value = '',
   onChange,
-  placeholder = "024 123 4567",
+  placeholder = '024 123 4567',
   disabled = false,
   className,
   id,
@@ -29,7 +29,7 @@ export function PhoneInput({
   const [raw, setRaw] = useState(value);
 
   useEffect(() => {
-    if (value !== raw) setRaw(value);
+    setRaw(value);
   }, [value]);
 
   const handleChange = useCallback(
@@ -37,22 +37,22 @@ export function PhoneInput({
       const next = e.target.value;
       setRaw(next);
       const parsed = parsePhoneNumberFromString(next, DEFAULT_REGION);
-      const e164 = parsed?.isValid() ? parsed.format("E.164") : "";
+      const e164 = parsed?.isValid() ? parsed.format('E.164') : '';
       onChange?.(e164);
     },
-    [onChange]
+    [onChange],
   );
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
       <span
         style={{
-          padding: "0.375rem 0.5rem",
-          background: "#f5f5f5",
-          border: "1px solid #ccc",
-          borderRadius: "4px 0 0 4px",
-          fontSize: "0.875rem",
-          color: "#666",
+          padding: '0.375rem 0.5rem',
+          background: '#f5f5f5',
+          border: '1px solid #ccc',
+          borderRadius: '4px 0 0 4px',
+          fontSize: '0.875rem',
+          color: '#666',
         }}
         title="Ghana"
       >
@@ -69,9 +69,9 @@ export function PhoneInput({
         autoComplete="tel"
         aria-label="Phone number (Ghana)"
         style={{
-          padding: "0.375rem 0.5rem",
-          border: "1px solid #ccc",
-          borderRadius: "0 4px 4px 0",
+          padding: '0.375rem 0.5rem',
+          border: '1px solid #ccc',
+          borderRadius: '0 4px 4px 0',
           flex: 1,
         }}
       />

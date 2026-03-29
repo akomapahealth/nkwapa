@@ -1,27 +1,40 @@
-"use client";
+'use client';
 
-import { useRef, useEffect } from "react";
-import { gsap, ScrollTrigger } from "@/lib/gsap";
-import { useKeycloak } from "@/app/KeycloakProvider";
-import { landingCardHover, landingPrimaryPanelHover } from "@/lib/landing-card-hover";
+/* eslint-disable @next/next/no-img-element -- Marketing static assets */
+import { useRef, useEffect } from 'react';
+import { gsap } from '@/lib/gsap';
+import { useKeycloak } from '@/app/KeycloakProvider';
+import { landingCardHover } from '@/lib/landing-card-hover';
 
 export function TalentSection() {
   const sectionRef = useRef<HTMLElement>(null);
   const { login } = useKeycloak() ?? {};
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (typeof window === 'undefined') return;
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (prefersReducedMotion) return;
 
     const ctx = gsap.context(() => {
-      const els = sectionRef.current?.querySelectorAll("[data-animate]");
+      const els = sectionRef.current?.querySelectorAll('[data-animate]');
       if (!els?.length) return;
 
-      gsap.fromTo(els, { opacity: 0, y: 40 }, {
-        opacity: 1, y: 0, duration: 0.6, stagger: 0.15, ease: "power3.out",
-        scrollTrigger: { trigger: sectionRef.current, start: "top 80%", toggleActions: "play none none reverse" },
-      });
+      gsap.fromTo(
+        els,
+        { opacity: 0, y: 40 },
+        {
+          opacity: 1,
+          y: 0,
+          duration: 0.6,
+          stagger: 0.15,
+          ease: 'power3.out',
+          scrollTrigger: {
+            trigger: sectionRef.current,
+            start: 'top 80%',
+            toggleActions: 'play none none reverse',
+          },
+        },
+      );
     }, sectionRef);
 
     return () => ctx.revert();
@@ -41,9 +54,9 @@ export function TalentSection() {
             built for clinical teams
           </h2>
           <p className="mt-4 font-landing-body text-base text-white/90">
-            Nkwapa is designed for doctors, preceptors, clinic directors, and community health volunteers.
-            Each role gets purpose-built workflows — from patient screening to prescription management
-            to research exports.
+            Nkwapa is designed for doctors, preceptors, clinic directors, and community health
+            volunteers. Each role gets purpose-built workflows — from patient screening to
+            prescription management to research exports.
           </p>
           <p className="mt-3 font-landing-body text-base text-white/90">
             The platform handles the complexity of multi-clinic operations so your team can focus on

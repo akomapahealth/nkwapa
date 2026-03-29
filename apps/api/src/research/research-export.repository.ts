@@ -1,6 +1,6 @@
-import { Injectable } from "@nestjs/common";
-import { Prisma, ResearchExport } from "@prisma/client";
-import { PrismaService } from "../prisma/prisma.service";
+import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 
 export const researchExportInclude = {
   requestedBy: { select: { id: true, displayName: true } },
@@ -58,7 +58,7 @@ export class ResearchExportRepository {
     const items = await this.prisma.researchExport.findMany({
       where,
       take: take + 1,
-      orderBy: [{ requestedAt: "desc" }, { id: "desc" }],
+      orderBy: [{ requestedAt: 'desc' }, { id: 'desc' }],
       include: researchExportInclude,
     });
 
@@ -72,7 +72,7 @@ export class ResearchExportRepository {
 
   private decodeCursor(cursor: string): { requestedAt: Date; id: string } | null {
     try {
-      const decoded = Buffer.from(cursor, "base64").toString("utf-8");
+      const decoded = Buffer.from(cursor, 'base64').toString('utf-8');
       const parsed = JSON.parse(decoded) as { requestedAt: string; id: string };
       const requestedAt = new Date(parsed.requestedAt);
       if (isNaN(requestedAt.getTime())) return null;
@@ -85,7 +85,7 @@ export class ResearchExportRepository {
   private encodeCursor(requestedAt: Date, id: string): string {
     return Buffer.from(
       JSON.stringify({ requestedAt: requestedAt.toISOString(), id }),
-      "utf-8"
-    ).toString("base64");
+      'utf-8',
+    ).toString('base64');
   }
 }

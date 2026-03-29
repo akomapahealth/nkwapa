@@ -1,32 +1,27 @@
-"use client";
+'use client';
 
-import { useState, useCallback, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { db } from "@/lib/db";
-import { enqueueOutboxMutation } from "@/lib/outbox";
-import { SYNC_OPERATION } from "@/lib/outbox";
+import { useState, useCallback, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { db } from '@/lib/db';
+import { enqueueOutboxMutation } from '@/lib/outbox';
+import { SYNC_OPERATION } from '@/lib/outbox';
 
 function generateId(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
   }
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
 }
 
 function computeBmi(weightKg?: number, heightCm?: number): number | null {
-  if (
-    weightKg != null &&
-    weightKg > 0 &&
-    heightCm != null &&
-    heightCm > 0
-  ) {
+  if (weightKg != null && weightKg > 0 && heightCm != null && heightCm > 0) {
     const heightM = heightCm / 100;
     return Math.round((weightKg / (heightM * heightM)) * 10) / 10;
   }
@@ -54,27 +49,17 @@ interface VitalsFormProps {
 export function VitalsForm({
   clinicId,
   encounterId,
-  recordedByUserId,
+  recordedByUserId: _recordedByUserId,
   initialData,
   onSaved,
   saveRef,
 }: VitalsFormProps) {
-  const [systolicBp, setSystolicBp] = useState<string>(
-    String(initialData?.systolicBp ?? "")
-  );
-  const [diastolicBp, setDiastolicBp] = useState<string>(
-    String(initialData?.diastolicBp ?? "")
-  );
-  const [heartRate, setHeartRate] = useState<string>(
-    String(initialData?.heartRate ?? "")
-  );
-  const [weightKg, setWeightKg] = useState<string>(
-    String(initialData?.weightKg ?? "")
-  );
-  const [heightCm, setHeightCm] = useState<string>(
-    String(initialData?.heightCm ?? "")
-  );
-  const [notes, setNotes] = useState<string>(initialData?.notes ?? "");
+  const [systolicBp, setSystolicBp] = useState<string>(String(initialData?.systolicBp ?? ''));
+  const [diastolicBp, setDiastolicBp] = useState<string>(String(initialData?.diastolicBp ?? ''));
+  const [heartRate, setHeartRate] = useState<string>(String(initialData?.heartRate ?? ''));
+  const [weightKg, setWeightKg] = useState<string>(String(initialData?.weightKg ?? ''));
+  const [heightCm, setHeightCm] = useState<string>(String(initialData?.heightCm ?? ''));
+  const [notes, setNotes] = useState<string>(initialData?.notes ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -119,14 +104,14 @@ export function VitalsForm({
       await db.vitals.put(record);
       await enqueueOutboxMutation(db, {
         clinicId,
-        entityType: "vitals",
+        entityType: 'vitals',
         entityId: vitalsId,
         operation: SYNC_OPERATION.UPSERT,
         payloadJson: payload,
       });
       onSaved?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save vitals");
+      setError(err instanceof Error ? err.message : 'Failed to save vitals');
     } finally {
       setSaving(false);
     }
@@ -136,8 +121,7 @@ export function VitalsForm({
     systolicBp,
     diastolicBp,
     heartRate,
-    weightKg,
-    heightCm,
+    heightNum,
     notes,
     weightNum,
     bmi,
@@ -213,7 +197,7 @@ export function VitalsForm({
           <div className="space-y-2">
             <Label>BMI</Label>
             <div className="flex h-9 items-center rounded-md border px-3 py-2 text-sm">
-              {bmi != null ? bmi : "—"}
+              {bmi != null ? bmi : '—'}
             </div>
           </div>
         </div>
@@ -228,7 +212,7 @@ export function VitalsForm({
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
         <Button onClick={handleSave} disabled={saving}>
-          {saving ? "Saving…" : "Save Vitals"}
+          {saving ? 'Saving…' : 'Save Vitals'}
         </Button>
       </CardContent>
     </Card>

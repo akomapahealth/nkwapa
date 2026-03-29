@@ -1,120 +1,114 @@
-import { Injectable } from "@nestjs/common";
-import { PrismaService } from "../prisma/prisma.service";
-import { DeIdentificationService } from "./de-identification.service";
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { DeIdentificationService } from './de-identification.service';
 import {
   GeneratedResearchPack,
   RESEARCH_DATASET_VERSION,
   RESEARCH_FILE_FORMAT,
   RESEARCH_POLICY_VERSION,
-  RESEARCH_TABLE_NAMES,
   type ResearchPackFile,
   sha256Hex,
-} from "./research-policy";
-import { createStoredZip } from "./zip.util";
-import * as fs from "fs";
-import * as path from "path";
+} from './research-policy';
+import { createStoredZip } from './zip.util';
+import * as fs from 'fs';
+import * as path from 'path';
 
-const DEFAULT_EXPORT_DIR = "./data/research-exports";
+const DEFAULT_EXPORT_DIR = './data/research-exports';
 const DEFAULT_RETENTION_DAYS = 30;
 const SUBJECT_HEADERS = [
-  "research_patient_key",
-  "research_clinic_key",
-  "sex",
-  "birth_year",
-  "latest_consent_status",
+  'research_patient_key',
+  'research_clinic_key',
+  'sex',
+  'birth_year',
+  'latest_consent_status',
 ];
 
 const CHECKIN_HEADERS = [
-  "research_checkin_key",
-  "research_patient_key",
-  "research_clinic_key",
-  "checked_in_at",
-  "source",
-  "status",
-  "research_encounter_key",
+  'research_checkin_key',
+  'research_patient_key',
+  'research_clinic_key',
+  'checked_in_at',
+  'source',
+  'status',
+  'research_encounter_key',
 ];
 
 const ASSIGNMENT_HEADERS = [
-  "research_assignment_key",
-  "research_checkin_key",
-  "research_patient_key",
-  "research_clinic_key",
-  "assigned_at",
-  "status",
-  "assigned_volunteer_role",
-  "assigned_doctor_role",
+  'research_assignment_key',
+  'research_checkin_key',
+  'research_patient_key',
+  'research_clinic_key',
+  'assigned_at',
+  'status',
+  'assigned_volunteer_role',
+  'assigned_doctor_role',
 ];
 
 const VITALS_HEADERS = [
-  "research_encounter_key",
-  "research_patient_key",
-  "research_clinic_key",
-  "encounter_status",
-  "encounter_created_at",
-  "recorded_at",
-  "systolic_bp",
-  "diastolic_bp",
-  "heart_rate",
-  "weight_kg",
-  "height_cm",
-  "bmi",
+  'research_encounter_key',
+  'research_patient_key',
+  'research_clinic_key',
+  'encounter_status',
+  'encounter_created_at',
+  'recorded_at',
+  'systolic_bp',
+  'diastolic_bp',
+  'heart_rate',
+  'weight_kg',
+  'height_cm',
+  'bmi',
 ];
 
 const SCREENING_HEADERS = [
-  "research_encounter_key",
-  "research_patient_key",
-  "research_clinic_key",
-  "encounter_status",
-  "encounter_created_at",
-  "recorded_at",
-  "glucose_mg_dl",
-  "glucose_type",
-  "hba1c_percent",
-  "hypertension_classification",
-  "hypertension_suspected",
-  "hypertension_confirmed",
+  'research_encounter_key',
+  'research_patient_key',
+  'research_clinic_key',
+  'encounter_status',
+  'encounter_created_at',
+  'recorded_at',
+  'glucose_mg_dl',
+  'glucose_type',
+  'hba1c_percent',
+  'hypertension_classification',
+  'hypertension_suspected',
+  'hypertension_confirmed',
 ];
 
 const MEASUREMENT_HEADERS = [
-  "research_measurement_key",
-  "research_patient_key",
-  "research_clinic_key",
-  "recorded_at",
-  "source",
-  "source_schema",
-  "type",
-  "systolic_bp",
-  "diastolic_bp",
-  "pulse",
-  "glucose_mg_dl",
-  "glucose_type",
-  "weight_kg",
-  "research_linked_encounter_key",
+  'research_measurement_key',
+  'research_patient_key',
+  'research_clinic_key',
+  'recorded_at',
+  'source',
+  'source_schema',
+  'type',
+  'systolic_bp',
+  'diastolic_bp',
+  'pulse',
+  'glucose_mg_dl',
+  'glucose_type',
+  'weight_kg',
+  'research_linked_encounter_key',
 ];
 
 const APPOINTMENT_HEADERS = [
-  "research_request_key",
-  "research_appointment_key",
-  "research_patient_key",
-  "research_clinic_key",
-  "request_created_at",
-  "preferred_start_date",
-  "preferred_end_date",
-  "request_status",
-  "triaged_at",
-  "confirmed_starts_at",
-  "confirmed_ends_at",
-  "appointment_status",
-  "has_assigned_doctor",
-  "has_assigned_volunteer",
+  'research_request_key',
+  'research_appointment_key',
+  'research_patient_key',
+  'research_clinic_key',
+  'request_created_at',
+  'preferred_start_date',
+  'preferred_end_date',
+  'request_status',
+  'triaged_at',
+  'confirmed_starts_at',
+  'confirmed_ends_at',
+  'appointment_status',
+  'has_assigned_doctor',
+  'has_assigned_volunteer',
 ];
 
-const REVOCATION_HEADERS = [
-  "research_patient_key",
-  "research_clinic_key",
-  "revoked_at",
-  "status",
-];
+const REVOCATION_HEADERS = ['research_patient_key', 'research_clinic_key', 'revoked_at', 'status'];
 
 interface TransformContext {
   clinicId: string;
@@ -129,7 +123,7 @@ interface TransformContext {
 export class ResearchTransformService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly deIdService: DeIdentificationService
+    private readonly deIdService: DeIdentificationService,
   ) {}
 
   async generatePack(
@@ -137,7 +131,7 @@ export class ResearchTransformService {
     fromDate: string,
     toDate: string,
     exportId: string,
-    policyVersion = RESEARCH_POLICY_VERSION
+    policyVersion = RESEARCH_POLICY_VERSION,
   ): Promise<GeneratedResearchPack> {
     const { start, end } = this.getWindow(fromDate, toDate);
     const generatedAt = new Date();
@@ -155,22 +149,22 @@ export class ResearchTransformService {
       this.prisma.patientConsent.findMany({
         where: {
           clinicId,
-          consentType: "RESEARCH_DEIDENTIFIED",
-          status: "GRANTED",
+          consentType: 'RESEARCH_DEIDENTIFIED',
+          status: 'GRANTED',
         },
-        orderBy: [{ grantedAt: "desc" }],
+        orderBy: [{ grantedAt: 'desc' }],
       }),
       this.prisma.researchExport.findFirst({
         where: {
           clinicId,
-          status: "COMPLETED",
+          status: 'COMPLETED',
           id: { not: exportId },
         },
-        orderBy: { completedAt: "desc" },
+        orderBy: { completedAt: 'desc' },
       }),
     ]);
 
-    const consentByPatientId = new Map<string, typeof activeConsents[number]>();
+    const consentByPatientId = new Map<string, (typeof activeConsents)[number]>();
     for (const consent of activeConsents) {
       if (!consentByPatientId.has(consent.patientId)) {
         consentByPatientId.set(consent.patientId, consent);
@@ -196,7 +190,7 @@ export class ResearchTransformService {
               patientId: { in: consentedPatientIds },
               checkedInAt: { gte: start, lte: end },
             },
-            orderBy: [{ checkedInAt: "asc" }, { id: "asc" }],
+            orderBy: [{ checkedInAt: 'asc' }, { id: 'asc' }],
           }),
       consentedPatientIds.length === 0
         ? Promise.resolve([])
@@ -216,7 +210,7 @@ export class ResearchTransformService {
                 },
               },
             },
-            orderBy: [{ assignedAt: "asc" }, { id: "asc" }],
+            orderBy: [{ assignedAt: 'asc' }, { id: 'asc' }],
           }),
       consentedPatientIds.length === 0
         ? Promise.resolve([])
@@ -231,7 +225,7 @@ export class ResearchTransformService {
               diabetesScreening: true,
               hypertensionAssessment: true,
             },
-            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
           }),
       consentedPatientIds.length === 0
         ? Promise.resolve([])
@@ -241,7 +235,7 @@ export class ResearchTransformService {
               patientId: { in: consentedPatientIds },
               recordedAt: { gte: start, lte: end },
             },
-            orderBy: [{ recordedAt: "asc" }, { id: "asc" }],
+            orderBy: [{ recordedAt: 'asc' }, { id: 'asc' }],
           }),
       consentedPatientIds.length === 0
         ? Promise.resolve([])
@@ -250,9 +244,9 @@ export class ResearchTransformService {
               clinicId,
               patientId: { in: consentedPatientIds },
               recordedAt: { gte: start, lte: end },
-              type: { in: ["HOME_BP", "HOME_GLUCOSE"] },
+              type: { in: ['HOME_BP', 'HOME_GLUCOSE'] },
             },
-            orderBy: [{ recordedAt: "asc" }, { id: "asc" }],
+            orderBy: [{ recordedAt: 'asc' }, { id: 'asc' }],
           }),
       consentedPatientIds.length === 0
         ? Promise.resolve([])
@@ -273,19 +267,19 @@ export class ResearchTransformService {
             include: {
               appointment: true,
             },
-            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
           }),
       this.prisma.patientConsent.findMany({
         where: {
           clinicId,
-          consentType: "RESEARCH_DEIDENTIFIED",
-          status: "REVOKED",
+          consentType: 'RESEARCH_DEIDENTIFIED',
+          status: 'REVOKED',
           revokedAt: {
             gt: previousCompletedExport?.completedAt ?? new Date(0),
             lte: generatedAt,
           },
         },
-        orderBy: [{ revokedAt: "asc" }, { id: "asc" }],
+        orderBy: [{ revokedAt: 'asc' }, { id: 'asc' }],
       }),
     ]);
 
@@ -331,26 +325,28 @@ export class ResearchTransformService {
 
     const patientMap = new Map(patients.map((patient) => [patient.id, patient]));
 
-    const subjectRows = [...referencedPatientIds]
-      .sort()
-      .map((patientId) => {
-        const patient = patientMap.get(patientId);
-        const currentConsent = consentByPatientId.get(patientId);
-        const latestRevocation = revokedConsents
-          .filter((consent) => consent.patientId === patientId)
-          .sort((a, b) => b.revokedAt!.getTime() - a.revokedAt!.getTime())[0];
+    const subjectRows = [...referencedPatientIds].sort().map((patientId) => {
+      const patient = patientMap.get(patientId);
+      const currentConsent = consentByPatientId.get(patientId);
+      const latestRevocation = revokedConsents
+        .filter((consent) => consent.patientId === patientId)
+        .sort((a, b) => b.revokedAt!.getTime() - a.revokedAt!.getTime())[0];
 
-        return {
-          research_patient_key: this.deIdService.patientKey(clinicId, patientId),
-          research_clinic_key: clinicKey,
-          sex: patient?.sex ?? "UNKNOWN",
-          birth_year: this.deIdService.birthYear(patient?.dob ?? null),
-          latest_consent_status: currentConsent ? "GRANTED" : latestRevocation ? "REVOKED" : "UNKNOWN",
-        };
-      });
+      return {
+        research_patient_key: this.deIdService.patientKey(clinicId, patientId),
+        research_clinic_key: clinicKey,
+        sex: patient?.sex ?? 'UNKNOWN',
+        birth_year: this.deIdService.birthYear(patient?.dob ?? null),
+        latest_consent_status: currentConsent
+          ? 'GRANTED'
+          : latestRevocation
+            ? 'REVOKED'
+            : 'UNKNOWN',
+      };
+    });
 
     const checkInRows = checkIns.map((checkIn) => ({
-      research_checkin_key: this.deIdService.entityKey(clinicId, "checkin", checkIn.id),
+      research_checkin_key: this.deIdService.entityKey(clinicId, 'checkin', checkIn.id),
       research_patient_key: this.deIdService.patientKey(clinicId, checkIn.patientId),
       research_clinic_key: clinicKey,
       checked_in_at: this.deIdService.roundTimestamp(checkIn.checkedInAt),
@@ -358,33 +354,33 @@ export class ResearchTransformService {
       status: checkIn.status,
       research_encounter_key: this.deIdService.entityKey(
         clinicId,
-        "encounter",
-        checkIn.encounterId
+        'encounter',
+        checkIn.encounterId,
       ),
     }));
 
     const assignmentRows = assignments.map((assignment) => ({
-      research_assignment_key: this.deIdService.entityKey(clinicId, "assignment", assignment.id),
+      research_assignment_key: this.deIdService.entityKey(clinicId, 'assignment', assignment.id),
       research_checkin_key: this.deIdService.entityKey(
         clinicId,
-        "checkin",
-        assignment.patientCheckInId
+        'checkin',
+        assignment.patientCheckInId,
       ),
       research_patient_key: this.deIdService.patientKey(
         clinicId,
-        assignment.patientCheckIn.patientId
+        assignment.patientCheckIn.patientId,
       ),
       research_clinic_key: clinicKey,
       assigned_at: this.deIdService.roundTimestamp(assignment.assignedAt),
       status: assignment.status,
-      assigned_volunteer_role: "VOLUNTEER",
-      assigned_doctor_role: "DOCTOR",
+      assigned_volunteer_role: 'VOLUNTEER',
+      assigned_doctor_role: 'DOCTOR',
     }));
 
     const vitalsRows = encounters
       .filter((encounter) => encounter.vitals !== null)
       .map((encounter) => ({
-        research_encounter_key: this.deIdService.entityKey(clinicId, "encounter", encounter.id),
+        research_encounter_key: this.deIdService.entityKey(clinicId, 'encounter', encounter.id),
         research_patient_key: this.deIdService.patientKey(clinicId, encounter.patientId),
         research_clinic_key: clinicKey,
         encounter_status: encounter.status,
@@ -401,11 +397,10 @@ export class ResearchTransformService {
     const screeningRows = encounters
       .filter(
         (encounter) =>
-          encounter.diabetesScreening !== null ||
-          encounter.hypertensionAssessment !== null
+          encounter.diabetesScreening !== null || encounter.hypertensionAssessment !== null,
       )
       .map((encounter) => ({
-        research_encounter_key: this.deIdService.entityKey(clinicId, "encounter", encounter.id),
+        research_encounter_key: this.deIdService.entityKey(clinicId, 'encounter', encounter.id),
         research_patient_key: this.deIdService.patientKey(clinicId, encounter.patientId),
         research_clinic_key: clinicKey,
         encounter_status: encounter.status,
@@ -413,13 +408,12 @@ export class ResearchTransformService {
         recorded_at: this.deIdService.roundTimestamp(
           encounter.diabetesScreening?.createdAt ??
             encounter.hypertensionAssessment?.createdAt ??
-            null
+            null,
         ),
         glucose_mg_dl: encounter.diabetesScreening?.glucoseMgDl ?? null,
         glucose_type: encounter.diabetesScreening?.glucoseType ?? null,
         hba1c_percent: encounter.diabetesScreening?.hba1cPercent ?? null,
-        hypertension_classification:
-          encounter.hypertensionAssessment?.classification ?? null,
+        hypertension_classification: encounter.hypertensionAssessment?.classification ?? null,
         hypertension_suspected: encounter.hypertensionAssessment?.suspected ?? null,
         hypertension_confirmed: encounter.hypertensionAssessment?.confirmed ?? null,
       }));
@@ -429,13 +423,13 @@ export class ResearchTransformService {
         this.serializeMeasurementRow(ctx, {
           type: measurement.type,
           source: measurement.source,
-          sourceSchema: "PATIENT_MEASUREMENT",
+          sourceSchema: 'PATIENT_MEASUREMENT',
           id: measurement.id,
           patientId: measurement.patientId,
           recordedAt: measurement.recordedAt,
           linkedEncounterId: measurement.linkedEncounterId,
           payloadJson: measurement.payloadJson,
-        })
+        }),
       ),
       ...legacySelfReports
         .map((report) => this.serializeLegacySelfReportRow(ctx, report))
@@ -443,15 +437,11 @@ export class ResearchTransformService {
     ];
 
     const appointmentRows = appointmentRequests.map((request) => ({
-      research_request_key: this.deIdService.entityKey(
-        clinicId,
-        "appointment_request",
-        request.id
-      ),
+      research_request_key: this.deIdService.entityKey(clinicId, 'appointment_request', request.id),
       research_appointment_key: this.deIdService.entityKey(
         clinicId,
-        "appointment",
-        request.appointment?.id
+        'appointment',
+        request.appointment?.id,
       ),
       research_patient_key: this.deIdService.patientKey(clinicId, request.patientId),
       research_clinic_key: clinicKey,
@@ -471,38 +461,22 @@ export class ResearchTransformService {
       research_patient_key: this.deIdService.patientKey(clinicId, consent.patientId),
       research_clinic_key: clinicKey,
       revoked_at: this.deIdService.roundTimestamp(consent.revokedAt),
-      status: "REVOKED",
+      status: 'REVOKED',
     }));
 
     const csvFiles = [
-      this.createCsvFile("research_subjects.csv", SUBJECT_HEADERS, subjectRows),
-      this.createCsvFile("research_ops_checkins.csv", CHECKIN_HEADERS, checkInRows),
-      this.createCsvFile(
-        "research_ops_assignments.csv",
-        ASSIGNMENT_HEADERS,
-        assignmentRows
-      ),
-      this.createCsvFile("research_clinical_vitals.csv", VITALS_HEADERS, vitalsRows),
-      this.createCsvFile(
-        "research_clinical_screenings.csv",
-        SCREENING_HEADERS,
-        screeningRows
-      ),
-      this.createCsvFile(
-        "research_measurements.csv",
-        MEASUREMENT_HEADERS,
-        measurementRows
-      ),
-      this.createCsvFile(
-        "research_appointments.csv",
-        APPOINTMENT_HEADERS,
-        appointmentRows
-      ),
-      this.createCsvFile("research_revocations.csv", REVOCATION_HEADERS, revocationRows),
+      this.createCsvFile('research_subjects.csv', SUBJECT_HEADERS, subjectRows),
+      this.createCsvFile('research_ops_checkins.csv', CHECKIN_HEADERS, checkInRows),
+      this.createCsvFile('research_ops_assignments.csv', ASSIGNMENT_HEADERS, assignmentRows),
+      this.createCsvFile('research_clinical_vitals.csv', VITALS_HEADERS, vitalsRows),
+      this.createCsvFile('research_clinical_screenings.csv', SCREENING_HEADERS, screeningRows),
+      this.createCsvFile('research_measurements.csv', MEASUREMENT_HEADERS, measurementRows),
+      this.createCsvFile('research_appointments.csv', APPOINTMENT_HEADERS, appointmentRows),
+      this.createCsvFile('research_revocations.csv', REVOCATION_HEADERS, revocationRows),
     ];
 
     const rowCounts: Record<string, number> = Object.fromEntries(
-      csvFiles.map((file) => [file.file.name.replace(".csv", ""), file.rows])
+      csvFiles.map((file) => [file.file.name.replace('.csv', ''), file.rows]),
     );
 
     const manifestBase = {
@@ -524,18 +498,14 @@ export class ResearchTransformService {
     };
 
     const manifestContent = `${JSON.stringify(manifestBase, null, 2)}\n`;
-    const manifestFile = this.toPackFile("manifest.json", manifestContent);
+    const manifestFile = this.toPackFile('manifest.json', manifestContent);
     const checksumsContent =
       [...csvFiles.map((file) => file.file), manifestFile]
         .map((file) => `${file.sha256}  ${file.name}`)
-        .join("\n") + "\n";
-    const checksumFile = this.toPackFile("SHA256SUMS.txt", checksumsContent);
+        .join('\n') + '\n';
+    const checksumFile = this.toPackFile('SHA256SUMS.txt', checksumsContent);
 
-    const repoFiles = [
-      ...csvFiles.map((file) => file.file),
-      manifestFile,
-      checksumFile,
-    ];
+    const repoFiles = [...csvFiles.map((file) => file.file), manifestFile, checksumFile];
 
     const artifactDir = path.join(this.getExportDir(), exportId);
     fs.mkdirSync(artifactDir, { recursive: true });
@@ -543,12 +513,15 @@ export class ResearchTransformService {
     const zipBuffer = createStoredZip(
       repoFiles.map((file) => ({
         name: file.name,
-        content: Buffer.from(file.content, "utf-8"),
+        content: Buffer.from(file.content, 'utf-8'),
       })),
-      generatedAt
+      generatedAt,
     );
 
-    const artifactPath = path.join(artifactDir, `research-export-${exportId}.${RESEARCH_FILE_FORMAT}`);
+    const artifactPath = path.join(
+      artifactDir,
+      `research-export-${exportId}.${RESEARCH_FILE_FORMAT}`,
+    );
     fs.writeFileSync(artifactPath, zipBuffer);
 
     this.cleanupArtifacts(artifactDir);
@@ -556,20 +529,20 @@ export class ResearchTransformService {
     return {
       manifest: {
         ...manifestBase,
-        files: [...manifestBase.files, {
-          name: "manifest.json",
-          bytes: manifestFile.bytes,
-          sha256: manifestFile.sha256,
-        }],
+        files: [
+          ...manifestBase.files,
+          {
+            name: 'manifest.json',
+            bytes: manifestFile.bytes,
+            sha256: manifestFile.sha256,
+          },
+        ],
       },
       repoFiles,
       artifactPath,
       artifactSha256: sha256Hex(zipBuffer),
       artifactSizeBytes: zipBuffer.length,
-      recordCount: Object.values(rowCounts).reduce<number>(
-        (sum, value) => sum + value,
-        0
-      ),
+      recordCount: Object.values(rowCounts).reduce<number>((sum, value) => sum + value, 0),
       rowCounts,
     };
   }
@@ -585,7 +558,7 @@ export class ResearchTransformService {
       recordedAt: Date;
       linkedEncounterId: string | null;
       payloadJson: string;
-    }
+    },
   ): Record<string, unknown> {
     const payload = this.deIdService.parseJsonObject(input.payloadJson);
     const systolic =
@@ -606,16 +579,10 @@ export class ResearchTransformService {
     const weight =
       this.deIdService.numberFromUnknown(payload.weightKg) ??
       this.deIdService.numberFromUnknown(payload.kg) ??
-      (input.type === "WEIGHT"
-        ? this.deIdService.numberFromUnknown(payload.value)
-        : null);
+      (input.type === 'WEIGHT' ? this.deIdService.numberFromUnknown(payload.value) : null);
 
     return {
-      research_measurement_key: this.deIdService.entityKey(
-        ctx.clinicId,
-        "measurement",
-        input.id
-      ),
+      research_measurement_key: this.deIdService.entityKey(ctx.clinicId, 'measurement', input.id),
       research_patient_key: this.deIdService.patientKey(ctx.clinicId, input.patientId),
       research_clinic_key: ctx.clinicKey,
       recorded_at: this.deIdService.roundTimestamp(input.recordedAt),
@@ -630,8 +597,8 @@ export class ResearchTransformService {
       weight_kg: weight,
       research_linked_encounter_key: this.deIdService.entityKey(
         ctx.clinicId,
-        "encounter",
-        input.linkedEncounterId
+        'encounter',
+        input.linkedEncounterId,
       ),
     };
   }
@@ -647,39 +614,35 @@ export class ResearchTransformService {
       diastolicBp: number | null;
       glucoseMgDl: number | null;
       glucoseType: string | null;
-    }
+    },
   ): Record<string, unknown> | null {
-    if (report.type !== "HOME_BP" && report.type !== "HOME_GLUCOSE") {
+    if (report.type !== 'HOME_BP' && report.type !== 'HOME_GLUCOSE') {
       return null;
     }
 
     return {
       research_measurement_key: this.deIdService.entityKey(
         ctx.clinicId,
-        "legacy_self_report",
-        report.id
+        'legacy_self_report',
+        report.id,
       ),
       research_patient_key: this.deIdService.patientKey(ctx.clinicId, report.patientId),
       research_clinic_key: ctx.clinicKey,
       recorded_at: this.deIdService.roundTimestamp(report.recordedAt),
-      source: "PATIENT",
-      source_schema: "PATIENT_SELF_REPORT",
-      type: report.type === "HOME_BP" ? "BP" : "GLUCOSE",
-      systolic_bp: report.type === "HOME_BP" ? report.systolicBp : null,
-      diastolic_bp: report.type === "HOME_BP" ? report.diastolicBp : null,
+      source: 'PATIENT',
+      source_schema: 'PATIENT_SELF_REPORT',
+      type: report.type === 'HOME_BP' ? 'BP' : 'GLUCOSE',
+      systolic_bp: report.type === 'HOME_BP' ? report.systolicBp : null,
+      diastolic_bp: report.type === 'HOME_BP' ? report.diastolicBp : null,
       pulse: null,
-      glucose_mg_dl: report.type === "HOME_GLUCOSE" ? report.glucoseMgDl : null,
-      glucose_type: report.type === "HOME_GLUCOSE" ? report.glucoseType : null,
+      glucose_mg_dl: report.type === 'HOME_GLUCOSE' ? report.glucoseMgDl : null,
+      glucose_type: report.type === 'HOME_GLUCOSE' ? report.glucoseType : null,
       weight_kg: null,
-      research_linked_encounter_key: "",
+      research_linked_encounter_key: '',
     };
   }
 
-  private createCsvFile(
-    name: string,
-    headers: string[],
-    rows: Array<Record<string, unknown>>
-  ) {
+  private createCsvFile(name: string, headers: string[], rows: Array<Record<string, unknown>>) {
     const content = `${this.deIdService.csvFromRows(headers, rows)}\n`;
     return {
       rows: rows.length,
@@ -691,7 +654,7 @@ export class ResearchTransformService {
     return {
       name,
       content,
-      bytes: Buffer.byteLength(content, "utf-8"),
+      bytes: Buffer.byteLength(content, 'utf-8'),
       sha256: sha256Hex(content),
     };
   }
@@ -708,8 +671,15 @@ export class ResearchTransformService {
 
   private cleanupArtifacts(currentArtifactDir: string) {
     const exportDir = this.getExportDir();
-    const retentionDays = Number(process.env.RESEARCH_EXPORT_RETENTION_DAYS ?? DEFAULT_RETENTION_DAYS);
-    const ttlMs = (Number.isFinite(retentionDays) ? retentionDays : DEFAULT_RETENTION_DAYS) * 24 * 60 * 60 * 1000;
+    const retentionDays = Number(
+      process.env.RESEARCH_EXPORT_RETENTION_DAYS ?? DEFAULT_RETENTION_DAYS,
+    );
+    const ttlMs =
+      (Number.isFinite(retentionDays) ? retentionDays : DEFAULT_RETENTION_DAYS) *
+      24 *
+      60 *
+      60 *
+      1000;
     const cutoff = Date.now() - ttlMs;
 
     if (!fs.existsSync(exportDir)) {

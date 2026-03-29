@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import type { ReactNode } from "react";
-import { useRef, useEffect } from "react";
-import { gsap, ScrollTrigger } from "@/lib/gsap";
-import { landingCardHover } from "@/lib/landing-card-hover";
-import { cn } from "@/lib/utils";
+import type { ReactNode } from 'react';
+import { useRef, useEffect } from 'react';
+import { gsap } from '@/lib/gsap';
+import { landingCardHover } from '@/lib/landing-card-hover';
+import { cn } from '@/lib/utils';
 
 export interface BentoFeature {
   title: string;
@@ -76,75 +76,75 @@ function AuditMark() {
 
 const NKWAPA_BENTO_FEATURES: BentoFeature[] = [
   {
-    title: "Offline sync",
+    title: 'Offline sync',
     description:
-      "Document encounters without connectivity. Nkwapa reconciles quietly when the network returns—no lost vitals, no duplicate rows.",
-    meta: "Outbox model",
-    status: "Always on",
-    tags: ["PWA", "Resilience"],
+      'Document encounters without connectivity. Nkwapa reconciles quietly when the network returns—no lost vitals, no duplicate rows.',
+    meta: 'Outbox model',
+    status: 'Always on',
+    tags: ['PWA', 'Resilience'],
     colSpan: 2,
     rowSpan: 2,
-    accentClass: "bg-primary/15 text-primary ring-1 ring-primary/25",
+    accentClass: 'bg-primary/15 text-primary ring-1 ring-primary/25',
     icon: <OfflineMark />,
   },
   {
-    title: "Role-based access",
+    title: 'Role-based access',
     description:
-      "Doctors, preceptors, directors, and volunteers see only what their role and clinic allow—scoped with clear guardrails.",
-    meta: "RBAC",
-    status: "Enforced",
-    tags: ["Security", "Multi-site"],
+      'Doctors, preceptors, directors, and volunteers see only what their role and clinic allow—scoped with clear guardrails.',
+    meta: 'RBAC',
+    status: 'Enforced',
+    tags: ['Security', 'Multi-site'],
     colSpan: 1,
     rowSpan: 1,
-    accentClass: "bg-secondary/25 text-secondary-foreground ring-1 ring-secondary/40",
+    accentClass: 'bg-secondary/25 text-secondary-foreground ring-1 ring-secondary/40',
     icon: <RBACMark />,
   },
   {
-    title: "Structured encounters",
+    title: 'Structured encounters',
     description:
-      "Hypertension and diabetes flows with vitals, drafts, peer review, and finalization built for real clinic velocity.",
-    meta: "HTN · DM",
-    status: "Live",
-    tags: ["Workflow", "Quality"],
+      'Hypertension and diabetes flows with vitals, drafts, peer review, and finalization built for real clinic velocity.',
+    meta: 'HTN · DM',
+    status: 'Live',
+    tags: ['Workflow', 'Quality'],
     colSpan: 1,
     rowSpan: 1,
-    accentClass: "bg-accent text-accent-foreground ring-1 ring-border",
+    accentClass: 'bg-accent text-accent-foreground ring-1 ring-border',
     icon: <EncountersMark />,
   },
   {
-    title: "Prescriptions",
+    title: 'Prescriptions',
     description:
-      "Medications tied to encounters and roles so the record stays coherent from screening to follow-up.",
-    meta: "In-context",
-    status: "Clinical",
-    tags: ["Medication", "Safety"],
+      'Medications tied to encounters and roles so the record stays coherent from screening to follow-up.',
+    meta: 'In-context',
+    status: 'Clinical',
+    tags: ['Medication', 'Safety'],
     colSpan: 1,
     rowSpan: 1,
-    accentClass: "bg-primary/10 text-primary ring-1 ring-primary/20",
+    accentClass: 'bg-primary/10 text-primary ring-1 ring-primary/20',
     icon: <RxMark />,
   },
   {
-    title: "Audit by default",
+    title: 'Audit by default',
     description:
-      "Sensitive actions leave an immutable trail so compliance and quality teams can trust what happened, when, and by whom.",
-    meta: "Immutable",
-    status: "Compliant",
-    tags: ["Audit", "Research"],
+      'Sensitive actions leave an immutable trail so compliance and quality teams can trust what happened, when, and by whom.',
+    meta: 'Immutable',
+    status: 'Compliant',
+    tags: ['Audit', 'Research'],
     colSpan: 1,
     rowSpan: 1,
-    accentClass: "bg-muted text-foreground ring-1 ring-border",
+    accentClass: 'bg-muted text-foreground ring-1 ring-border',
     icon: <AuditMark />,
   },
   {
-    title: "Multi-clinic operations",
+    title: 'Multi-clinic operations',
     description:
-      "One platform, many clinics: isolated patient data, per-site queues, and leadership dashboards without data bleed.",
-    meta: "Unlimited sites",
-    status: "Scale",
-    tags: ["Operations", "Reporting"],
+      'One platform, many clinics: isolated patient data, per-site queues, and leadership dashboards without data bleed.',
+    meta: 'Unlimited sites',
+    status: 'Scale',
+    tags: ['Operations', 'Reporting'],
     colSpan: 1,
     rowSpan: 1,
-    accentClass: "bg-chart-3/20 text-chart-3 ring-1 ring-chart-3/30",
+    accentClass: 'bg-chart-3/20 text-chart-3 ring-1 ring-chart-3/30',
     icon: <MultiClinicMark />,
   },
 ];
@@ -159,18 +159,18 @@ export function ChronicCareEMRBentoGrid({
   className,
 }: ChronicCareEMRBentoGridProps) {
   return (
-    <div className={cn("w-full", className)}>
+    <div className={cn('w-full', className)}>
       <div className="grid auto-rows-[minmax(168px,auto)] grid-cols-1 gap-3 sm:gap-4 md:grid-cols-3">
         {features.map((feature, index) => (
           <div
             key={`${feature.title}-${index}`}
             data-bento-card
             className={cn(
-              "group relative overflow-hidden rounded-2xl border border-border/70 bg-card/90 p-5 shadow-sm backdrop-blur-sm sm:p-6",
-              "hover:bg-card",
+              'group relative overflow-hidden rounded-2xl border border-border/70 bg-card/90 p-5 shadow-sm backdrop-blur-sm sm:p-6',
+              'hover:bg-card',
               landingCardHover,
-              feature.colSpan === 2 ? "md:col-span-2" : "md:col-span-1",
-              feature.rowSpan === 2 ? "md:row-span-2" : "md:row-span-1"
+              feature.colSpan === 2 ? 'md:col-span-2' : 'md:col-span-1',
+              feature.rowSpan === 2 ? 'md:row-span-2' : 'md:row-span-1',
             )}
           >
             {/* Soft grid texture — visible at rest, stronger on hover */}
@@ -179,7 +179,7 @@ export function ChronicCareEMRBentoGrid({
               aria-hidden
               style={{
                 backgroundImage: `radial-gradient(circle at center, hsl(var(--foreground) / 0.06) 1px, transparent 1px)`,
-                backgroundSize: "14px 14px",
+                backgroundSize: '14px 14px',
               }}
             />
 
@@ -198,7 +198,13 @@ export function ChronicCareEMRBentoGrid({
             {/* Outer gradient frame (pseudo-border glow) */}
             <div
               className="pointer-events-none absolute -inset-px rounded-2xl bg-gradient-to-br from-primary/25 via-transparent to-secondary/20 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-              style={{ maskImage: "linear-gradient(white, white) content-box, linear-gradient(white, white)", WebkitMaskComposite: "xor", maskComposite: "exclude", padding: "1px" }}
+              style={{
+                maskImage:
+                  'linear-gradient(white, white) content-box, linear-gradient(white, white)',
+                WebkitMaskComposite: 'xor',
+                maskComposite: 'exclude',
+                padding: '1px',
+              }}
               aria-hidden
             />
             <div
@@ -210,8 +216,8 @@ export function ChronicCareEMRBentoGrid({
               <div className="flex items-start justify-between gap-3">
                 <div
                   className={cn(
-                    "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-105",
-                    feature.accentClass ?? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                    'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-105',
+                    feature.accentClass ?? 'bg-primary/10 text-primary ring-1 ring-primary/20',
                   )}
                 >
                   {feature.icon ?? (
@@ -220,12 +226,12 @@ export function ChronicCareEMRBentoGrid({
                 </div>
                 <span
                   className={cn(
-                    "shrink-0 rounded-full px-2.5 py-1 font-landing-nav text-[10px] font-semibold uppercase tracking-wide",
-                    "border border-border/80 bg-muted/80 text-muted-foreground backdrop-blur-sm",
-                    "transition-colors duration-300 group-hover:border-primary/25 group-hover:bg-primary/10 group-hover:text-primary"
+                    'shrink-0 rounded-full px-2.5 py-1 font-landing-nav text-[10px] font-semibold uppercase tracking-wide',
+                    'border border-border/80 bg-muted/80 text-muted-foreground backdrop-blur-sm',
+                    'transition-colors duration-300 group-hover:border-primary/25 group-hover:bg-primary/10 group-hover:text-primary',
                   )}
                 >
-                  {feature.status ?? "Active"}
+                  {feature.status ?? 'Active'}
                 </span>
               </div>
 
@@ -267,11 +273,11 @@ export function BentoFeaturesSection() {
   const sectionRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (typeof window === 'undefined') return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     const ctx = gsap.context(() => {
-      const cards = sectionRef.current?.querySelectorAll("[data-bento-card]");
+      const cards = sectionRef.current?.querySelectorAll('[data-bento-card]');
       if (!cards?.length) return;
       gsap.fromTo(
         cards,
@@ -281,13 +287,13 @@ export function BentoFeaturesSection() {
           y: 0,
           duration: 0.6,
           stagger: 0.07,
-          ease: "power3.out",
+          ease: 'power3.out',
           scrollTrigger: {
             trigger: sectionRef.current,
-            start: "top 82%",
-            toggleActions: "play none none reverse",
+            start: 'top 82%',
+            toggleActions: 'play none none reverse',
           },
-        }
+        },
       );
     }, sectionRef);
     return () => ctx.revert();
@@ -304,8 +310,8 @@ export function BentoFeaturesSection() {
             chronic-care emr capabilities—designed to feel inevitable
           </h2>
           <p className="mt-4 font-landing-body text-base text-muted-foreground sm:text-lg">
-            Enterprise-grade patterns for patient management: structured workflows, resilient sync, and
-            accountability without the legacy bloat.
+            Enterprise-grade patterns for patient management: structured workflows, resilient sync,
+            and accountability without the legacy bloat.
           </p>
         </div>
 

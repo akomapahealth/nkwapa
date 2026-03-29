@@ -1,21 +1,21 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
-import { useAuth } from "@/lib/auth-context";
-import { useBootstrap } from "@/lib/bootstrap-context";
-import { apiFetch } from "@/lib/api";
-import { getOpsDestination, hasPermission, readApiError } from "@/lib/ops";
-import { AppMetricCard } from "@/components/app-shell/AppMetricCard";
-import { AppPageHeader } from "@/components/app-shell/AppPageHeader";
-import { db } from "@/lib/db";
-import { enqueueOutboxMutation } from "@/lib/outbox";
-import { SYNC_OPERATION } from "@/lib/outbox";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { useCallback, useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { useAuth } from '@/lib/auth-context';
+import { useBootstrap } from '@/lib/bootstrap-context';
+import { apiFetch } from '@/lib/api';
+import { getOpsDestination, hasPermission, readApiError } from '@/lib/ops';
+import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
+import { db } from '@/lib/db';
+import { enqueueOutboxMutation } from '@/lib/outbox';
+import { SYNC_OPERATION } from '@/lib/outbox';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import {
   Activity,
   ArrowLeft,
@@ -25,34 +25,23 @@ import {
   ShieldCheck,
   Stethoscope,
   UserPlus,
-} from "lucide-react";
-import { PatientTrendsPanel } from "@/components/patients/PatientTrendsPanel";
-import { EmptyStateCard, InlineNotice } from "@/components/ops/OpsShared";
+} from 'lucide-react';
+import { PatientTrendsPanel } from '@/components/patients/PatientTrendsPanel';
+import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-
-function generateId(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
+} from '@/components/ui/select';
 
 interface ConsentStatusItem {
   consentType: string;
@@ -89,29 +78,33 @@ export default function PatientDetailPage() {
   const getToken = useAuth();
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
-  const canRecordConsent = perms.includes("*") || perms.includes("CONSENT.RECORD");
-  const canUpdatePatient = perms.includes("*") || perms.includes("PATIENT.UPDATE");
-  const canViewSelfReports = perms.includes("*") || perms.includes("PATIENT.SELF_REPORT.READ");
-  const canLinkPortal = perms.includes("*") || perms.includes("PATIENT.PORTAL.LINK");
-  const canCreateOpsCheckIn = hasPermission(perms, "OPS.CHECKIN.CREATE");
+  const canRecordConsent = perms.includes('*') || perms.includes('CONSENT.RECORD');
+  const canUpdatePatient = perms.includes('*') || perms.includes('PATIENT.UPDATE');
+  const canViewSelfReports = perms.includes('*') || perms.includes('PATIENT.SELF_REPORT.READ');
+  const canLinkPortal = perms.includes('*') || perms.includes('PATIENT.PORTAL.LINK');
+  const canCreateOpsCheckIn = hasPermission(perms, 'OPS.CHECKIN.CREATE');
   const opsDestination = getOpsDestination(perms);
 
   const [data, setData] = useState<PatientWithEncounters | null>(null);
   const [portalLinkOpen, setPortalLinkOpen] = useState(false);
-  const [portalLinkUserId, setPortalLinkUserId] = useState("");
+  const [portalLinkUserId, setPortalLinkUserId] = useState('');
   const [portalLinkSaving, setPortalLinkSaving] = useState(false);
   const [portalLinkError, setPortalLinkError] = useState<string | null>(null);
-  const [allUsers, setAllUsers] = useState<Array<{ id: string; displayName: string; email: string | null }>>([]);
-  const [selfReports, setSelfReports] = useState<Array<{
-    id: string;
-    type: string;
-    systolicBp?: number;
-    diastolicBp?: number;
-    glucoseMgDl?: number;
-    notes?: string;
-    recordedAt: string;
-    createdAt: string;
-  }>>([]);
+  const [allUsers, setAllUsers] = useState<
+    Array<{ id: string; displayName: string; email: string | null }>
+  >([]);
+  const [selfReports, setSelfReports] = useState<
+    Array<{
+      id: string;
+      type: string;
+      systolicBp?: number;
+      diastolicBp?: number;
+      glucoseMgDl?: number;
+      notes?: string;
+      recordedAt: string;
+      createdAt: string;
+    }>
+  >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -121,7 +114,7 @@ export default function PatientDetailPage() {
     try {
       const res = await apiFetch(
         `/clinics/${encodeURIComponent(clinicId)}/patients/${encodeURIComponent(patientId)}/self-reports`,
-        { getToken, activeClinicId: clinicId }
+        { getToken, activeClinicId: clinicId },
       );
       if (res.ok) {
         const json = (await res.json()) as Array<{
@@ -148,7 +141,7 @@ export default function PatientDetailPage() {
   const fetchUsersForPortalLink = useCallback(async () => {
     if (!getToken) return;
     try {
-      const res = await apiFetch("/admin/users", {
+      const res = await apiFetch('/admin/users', {
         getToken,
         skipClinicHeader: true,
       });
@@ -168,7 +161,7 @@ export default function PatientDetailPage() {
   const handlePortalLinkOpen = () => {
     setPortalLinkOpen(true);
     setPortalLinkError(null);
-    setPortalLinkUserId("");
+    setPortalLinkUserId('');
     fetchUsersForPortalLink();
   };
 
@@ -180,11 +173,11 @@ export default function PatientDetailPage() {
       const res = await apiFetch(
         `/clinics/${encodeURIComponent(clinicId)}/patients/${encodeURIComponent(patientId)}/portal-link`,
         {
-          method: "POST",
+          method: 'POST',
           body: JSON.stringify({ userId: portalLinkUserId }),
           getToken,
           activeClinicId: clinicId,
-        }
+        },
       );
       if (!res.ok) throw new Error(await res.text());
       setPortalLinkOpen(false);
@@ -205,7 +198,7 @@ export default function PatientDetailPage() {
         {
           getToken,
           activeClinicId: clinicId,
-        }
+        },
       );
       if (!res.ok) throw new Error(await res.text());
       const json = (await res.json()) as PatientWithEncounters;
@@ -214,23 +207,24 @@ export default function PatientDetailPage() {
       try {
         const patient = await db.patients.get(patientId);
         const allConsents = await db.patient_consents
-          .where("patientId")
+          .where('patientId')
           .equals(patientId)
           .toArray();
         const consents = allConsents
           .filter((c) => c.clinicId === clinicId)
           .sort(
-            (a, b) =>
-              new Date(b.updatedAt ?? 0).getTime() -
-              new Date(a.updatedAt ?? 0).getTime()
+            (a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime(),
           );
-        const byType = new Map<string, { consentType: string; status: string; grantedAt?: string }>();
+        const byType = new Map<
+          string,
+          { consentType: string; status: string; grantedAt?: string }
+        >();
         for (let i = consents.length - 1; i >= 0; i--) {
           const c = consents[i];
-          if (!byType.has(c.consentType ?? "")) {
-            byType.set(c.consentType ?? "", {
-              consentType: c.consentType ?? "",
-              status: c.status ?? "REVOKED",
+          if (!byType.has(c.consentType ?? '')) {
+            byType.set(c.consentType ?? '', {
+              consentType: c.consentType ?? '',
+              status: c.status ?? 'REVOKED',
               grantedAt: c.grantedAt,
             });
           }
@@ -238,17 +232,15 @@ export default function PatientDetailPage() {
         const consentStatus = Array.from(byType.values());
         if (patient) {
           const localEncounters = await db.encounters
-            .where("patientId")
+            .where('patientId')
             .equals(patientId)
             .toArray();
           const sorted = localEncounters.sort(
-            (a, b) =>
-              new Date(b.updatedAt ?? 0).getTime() -
-              new Date(a.updatedAt ?? 0).getTime()
+            (a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime(),
           );
           const recentEncounters = sorted.slice(0, 10).map((e) => ({
             id: e.id,
-            status: e.status ?? "DRAFT",
+            status: e.status ?? 'DRAFT',
             clinicId: e.clinicId,
             patientId: e.patientId,
             createdAt: e.createdAt ?? new Date().toISOString(),
@@ -260,7 +252,7 @@ export default function PatientDetailPage() {
               firstName: patient.firstName,
               lastName: patient.lastName,
               dob: patient.dob ?? null,
-              sex: patient.sex ?? "UNKNOWN",
+              sex: patient.sex ?? 'UNKNOWN',
               phoneE164: patient.phoneE164 ?? null,
               nationalIdLast4: patient.nationalIdLast4 ?? null,
             },
@@ -271,7 +263,7 @@ export default function PatientDetailPage() {
           setData(null);
         }
       } catch (localErr) {
-        setError(localErr instanceof Error ? localErr.message : "Failed to load patient");
+        setError(localErr instanceof Error ? localErr.message : 'Failed to load patient');
         setData(null);
       }
     } finally {
@@ -284,9 +276,9 @@ export default function PatientDetailPage() {
   }, [fetchPatient]);
 
   const researchConsent = data?.consentStatus?.find(
-    (c) => c.consentType === "RESEARCH_DEIDENTIFIED"
+    (c) => c.consentType === 'RESEARCH_DEIDENTIFIED',
   );
-  const hasGrantedResearchConsent = researchConsent?.status === "GRANTED";
+  const hasGrantedResearchConsent = researchConsent?.status === 'GRANTED';
 
   const handleRevoke = async () => {
     if (!hasGrantedResearchConsent) return;
@@ -296,42 +288,42 @@ export default function PatientDetailPage() {
       const res = await apiFetch(
         `/clinics/${encodeURIComponent(clinicId)}/patients/${encodeURIComponent(patientId)}/consents/revoke`,
         {
-          method: "POST",
-          body: JSON.stringify({ consentType: "RESEARCH_DEIDENTIFIED" }),
+          method: 'POST',
+          body: JSON.stringify({ consentType: 'RESEARCH_DEIDENTIFIED' }),
           getToken,
           activeClinicId: clinicId,
-        }
+        },
       );
       if (!res.ok) throw new Error(await res.text());
       await fetchPatient();
     } catch {
       try {
         const consents = await db.patient_consents
-          .where("patientId")
+          .where('patientId')
           .equals(patientId)
-          .filter((c) => c.clinicId === clinicId && c.status === "GRANTED")
+          .filter((c) => c.clinicId === clinicId && c.status === 'GRANTED')
           .toArray();
         const consent = consents[0];
         if (consent) {
           const revokedAt = new Date().toISOString();
           await db.patient_consents.put({
             ...consent,
-            status: "REVOKED",
+            status: 'REVOKED',
             revokedAt,
             updatedAt: revokedAt,
           });
           await enqueueOutboxMutation(db, {
             clinicId,
-            entityType: "patient_consent",
+            entityType: 'patient_consent',
             entityId: consent.id,
             operation: SYNC_OPERATION.UPSERT,
             payloadJson: {
               patientId,
               clinicId,
-              consentType: "RESEARCH_DEIDENTIFIED",
-              status: "REVOKED",
-              consentVersion: "v1-en",
-              consentTextSnapshot: consent.consentTextSnapshot ?? "",
+              consentType: 'RESEARCH_DEIDENTIFIED',
+              status: 'REVOKED',
+              consentVersion: 'v1-en',
+              consentTextSnapshot: consent.consentTextSnapshot ?? '',
               grantedAt: consent.grantedAt,
               revokedAt,
               recordedByUserId: consent.recordedByUserId,
@@ -340,9 +332,7 @@ export default function PatientDetailPage() {
           await fetchPatient();
         }
       } catch (revokeErr) {
-        setError(
-          revokeErr instanceof Error ? revokeErr.message : "Failed to revoke consent"
-        );
+        setError(revokeErr instanceof Error ? revokeErr.message : 'Failed to revoke consent');
       }
     } finally {
       setLoading(false);
@@ -355,38 +345,30 @@ export default function PatientDetailPage() {
     setError(null);
     setSuccess(null);
     try {
-      const res = await apiFetch(
-        `/clinics/${encodeURIComponent(clinicId)}/checkins`,
-        {
-          method: "POST",
-          body: JSON.stringify({ patientId }),
-          getToken,
-          activeClinicId: clinicId,
-        }
-      );
+      const res = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}/checkins`, {
+        method: 'POST',
+        body: JSON.stringify({ patientId }),
+        getToken,
+        activeClinicId: clinicId,
+      });
       if (!res.ok) throw new Error(await readApiError(res));
 
       setSuccess(
         opsDestination
-          ? "Patient added to the clinic board successfully."
-          : "Patient checked in successfully."
+          ? 'Patient added to the clinic board successfully.'
+          : 'Patient checked in successfully.',
       );
-      if (opsDestination === "/today") {
-        router.prefetch("/today");
+      if (opsDestination === '/today') {
+        router.prefetch('/today');
       }
     } catch (checkInErr) {
-      setError(
-        checkInErr instanceof Error ? checkInErr.message : "Failed to check in patient"
-      );
+      setError(checkInErr instanceof Error ? checkInErr.message : 'Failed to check in patient');
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading && !data)
-    return (
-      <div className="flex items-center justify-center p-8">Loading…</div>
-    );
+  if (loading && !data) return <div className="flex items-center justify-center p-8">Loading…</div>;
   if (error && !data)
     return (
       <div className="space-y-4">
@@ -425,9 +407,7 @@ export default function PatientDetailPage() {
             <Badge variant="outline" className="border-primary/25 bg-background/80 font-mono">
               {patient.patientCode}
             </Badge>
-            {hasGrantedResearchConsent ? (
-              <Badge variant="finalized">Consent Granted</Badge>
-            ) : null}
+            {hasGrantedResearchConsent ? <Badge variant="finalized">Consent Granted</Badge> : null}
           </>
         }
         actions={
@@ -447,7 +427,11 @@ export default function PatientDetailPage() {
               </Button>
             ) : null}
             {canCreateOpsCheckIn ? (
-              <Button onClick={() => void handleCheckIn()} disabled={loading} className="rounded-2xl">
+              <Button
+                onClick={() => void handleCheckIn()}
+                disabled={loading}
+                className="rounded-2xl"
+              >
                 <Stethoscope className="h-4 w-4" />
                 Check In Patient
               </Button>
@@ -465,22 +449,22 @@ export default function PatientDetailPage() {
         />
         <AppMetricCard
           title="Patient-reported updates"
-          value={canViewSelfReports ? selfReports.length : "Locked"}
+          value={canViewSelfReports ? selfReports.length : 'Locked'}
           icon={Activity}
           detail={
             canViewSelfReports
-              ? "Portal submissions visible to your role."
-              : "Your role does not include patient-reported data access."
+              ? 'Portal submissions visible to your role.'
+              : 'Your role does not include patient-reported data access.'
           }
         />
         <AppMetricCard
           title="Research consent"
           value={
             hasGrantedResearchConsent
-              ? "Granted"
-              : researchConsent?.status === "REVOKED"
-                ? "Revoked"
-                : "Pending"
+              ? 'Granted'
+              : researchConsent?.status === 'REVOKED'
+                ? 'Revoked'
+                : 'Pending'
           }
           icon={ShieldCheck}
           detail="Current de-identified research consent status for this patient."
@@ -493,7 +477,7 @@ export default function PatientDetailPage() {
           <span>{success}</span>
           {opsDestination ? (
             <>
-              {" "}
+              {' '}
               <Link href={opsDestination} className="font-medium underline underline-offset-4">
                 Open OPS view
               </Link>
@@ -533,7 +517,7 @@ export default function PatientDetailPage() {
                     Contact
                   </p>
                   <p className="mt-2 text-sm text-foreground">
-                    {patient.phoneE164 || "No phone on file"}
+                    {patient.phoneE164 || 'No phone on file'}
                   </p>
                 </div>
                 <div className="rounded-3xl border border-border/80 bg-background/75 p-4">
@@ -541,7 +525,7 @@ export default function PatientDetailPage() {
                     Date of birth
                   </p>
                   <p className="mt-2 text-sm text-foreground">
-                    {patient.dob ? new Date(patient.dob).toLocaleDateString() : "Not recorded"}
+                    {patient.dob ? new Date(patient.dob).toLocaleDateString() : 'Not recorded'}
                   </p>
                 </div>
                 <div className="rounded-3xl border border-border/80 bg-background/75 p-4">
@@ -572,7 +556,8 @@ export default function PatientDetailPage() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="rounded-3xl border border-dashed border-border bg-background/60 p-4 text-sm text-muted-foreground">
-                      Portal access should be linked after the patient’s app account has signed in at least once.
+                      Portal access should be linked after the patient’s app account has signed in
+                      at least once.
                     </div>
                     <Button
                       variant="outline"
@@ -595,7 +580,9 @@ export default function PatientDetailPage() {
                   <p>Open Trends to review longitudinal readings and measurement changes.</p>
                   <p>Use Encounters to continue from prior visits or start chart review.</p>
                   {canCreateOpsCheckIn ? (
-                    <p>Use Check In Patient to move this chart straight into today’s clinic workflow.</p>
+                    <p>
+                      Use Check In Patient to move this chart straight into today’s clinic workflow.
+                    </p>
                   ) : null}
                 </CardContent>
               </Card>
@@ -620,7 +607,7 @@ export default function PatientDetailPage() {
                         {allUsers.map((user) => (
                           <SelectItem key={user.id} value={user.id}>
                             {user.displayName}
-                            {user.email ? ` (${user.email})` : ""}
+                            {user.email ? ` (${user.email})` : ''}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -636,7 +623,7 @@ export default function PatientDetailPage() {
                     disabled={!portalLinkUserId || portalLinkSaving}
                     className="cursor-pointer"
                   >
-                    {portalLinkSaving ? "Linking..." : "Link"}
+                    {portalLinkSaving ? 'Linking...' : 'Link'}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -670,11 +657,11 @@ export default function PatientDetailPage() {
                         <span>{new Date(encounter.createdAt).toLocaleDateString()}</span>
                         <Badge
                           variant={
-                            encounter.status === "FINALIZED"
-                              ? "default"
-                              : encounter.status === "IN_REVIEW"
-                                ? "secondary"
-                                : "outline"
+                            encounter.status === 'FINALIZED'
+                              ? 'default'
+                              : encounter.status === 'IN_REVIEW'
+                                ? 'secondary'
+                                : 'outline'
                           }
                         >
                           {encounter.status}
@@ -711,16 +698,14 @@ export default function PatientDetailPage() {
                         className="flex flex-col gap-1 rounded-3xl border border-border/80 bg-background/75 p-4"
                       >
                         <div className="flex items-center justify-between">
-                          <span className="font-medium">
-                            {report.type.replace(/_/g, " ")}
-                          </span>
+                          <span className="font-medium">{report.type.replace(/_/g, ' ')}</span>
                           <span className="text-sm text-muted-foreground">
                             {new Date(report.recordedAt).toLocaleDateString()}
                           </span>
                         </div>
                         {report.systolicBp != null || report.diastolicBp != null ? (
                           <p className="text-sm">
-                            BP: {report.systolicBp ?? "—"}/{report.diastolicBp ?? "—"}
+                            BP: {report.systolicBp ?? '—'}/{report.diastolicBp ?? '—'}
                           </p>
                         ) : null}
                         {report.glucoseMgDl != null ? (
@@ -747,10 +732,10 @@ export default function PatientDetailPage() {
               <CardContent className="space-y-4">
                 <p className="text-sm text-muted-foreground">
                   {hasGrantedResearchConsent
-                    ? "Research consent is currently granted."
-                    : researchConsent?.status === "REVOKED"
-                      ? "Research consent has been revoked."
-                      : "Research consent has not been recorded yet."}
+                    ? 'Research consent is currently granted.'
+                    : researchConsent?.status === 'REVOKED'
+                      ? 'Research consent has been revoked.'
+                      : 'Research consent has not been recorded yet.'}
                 </p>
                 <div className="flex gap-2">
                   {hasGrantedResearchConsent ? (

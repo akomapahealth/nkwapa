@@ -1,13 +1,14 @@
-"use client";
+'use client';
 
-import { useRef, useEffect } from "react";
-import { MoveRight, ShieldCheck } from "lucide-react";
-import { gsap } from "@/lib/gsap";
-import { useKeycloak } from "@/app/KeycloakProvider";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { trackEvent } from "@/lib/analytics";
-import { landingCardHover } from "@/lib/landing-card-hover";
+/* eslint-disable @next/next/no-img-element -- Marketing static assets */
+import { useRef, useEffect } from 'react';
+import { MoveRight, ShieldCheck } from 'lucide-react';
+import { gsap } from '@/lib/gsap';
+import { useKeycloak } from '@/app/KeycloakProvider';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { trackEvent } from '@/lib/analytics';
+import { landingCardHover } from '@/lib/landing-card-hover';
 
 export function HeroSection() {
   const rootRef = useRef<HTMLElement>(null);
@@ -16,26 +17,26 @@ export function HeroSection() {
   const { login } = useKeycloak() ?? {};
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (typeof window === 'undefined') return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     const ctx = gsap.context(() => {
       gsap.fromTo(
         leftRef.current,
         { opacity: 0, y: 28 },
-        { opacity: 1, y: 0, duration: 0.75, ease: "power3.out" }
+        { opacity: 1, y: 0, duration: 0.75, ease: 'power3.out' },
       );
       gsap.fromTo(
         rightRef.current,
         { opacity: 0, y: 36 },
-        { opacity: 1, y: 0, duration: 0.8, delay: 0.12, ease: "power3.out" }
+        { opacity: 1, y: 0, duration: 0.8, delay: 0.12, ease: 'power3.out' },
       );
     }, rootRef);
     return () => ctx.revert();
   }, []);
 
   const scrollToProduct = () => {
-    document.getElementById("product")?.scrollIntoView({ behavior: "smooth" });
+    document.getElementById('product')?.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
@@ -43,17 +44,22 @@ export function HeroSection() {
       ref={rootRef}
       className="landing-hero-mesh relative overflow-hidden pt-28 pb-16 md:pt-36 md:pb-24"
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,hsl(var(--border))_1px,transparent_0)] [background-size:24px_24px] opacity-[0.35]" aria-hidden />
+      <div
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,hsl(var(--border))_1px,transparent_0)] [background-size:24px_24px] opacity-[0.35]"
+        aria-hidden
+      />
 
       <div className="relative mx-auto max-w-7xl px-6 lg:px-8">
         <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
           <div ref={leftRef}>
-            <Badge variant="outline" className="mb-6 rounded-full border-primary/30 bg-primary/5 px-3 py-1 font-landing-nav text-xs font-medium text-primary">
+            <Badge
+              variant="outline"
+              className="mb-6 rounded-full border-primary/30 bg-primary/5 px-3 py-1 font-landing-nav text-xs font-medium text-primary"
+            >
               Offline-first · Audit-ready
             </Badge>
             <h1 className="font-landing-heading text-4xl font-black lowercase leading-[1.08] tracking-tight text-foreground sm:text-5xl md:text-6xl">
-              Patient management built for{" "}
-              <span className="text-primary">hypertension</span> &{" "}
+              Patient management built for <span className="text-primary">hypertension</span> &{' '}
               <span className="text-secondary">diabetes</span> programs
             </h1>
             <p className="mt-6 max-w-xl font-landing-body text-base leading-relaxed text-muted-foreground sm:text-lg">
@@ -66,7 +72,10 @@ export function HeroSection() {
                 size="lg"
                 className="cursor-pointer gap-2 rounded-full px-8 font-landing-nav font-semibold"
                 onClick={() => {
-                  trackEvent({ name: "landing_cta_sign_in", properties: { source: "hero_primary" } });
+                  trackEvent({
+                    name: 'landing_cta_sign_in',
+                    properties: { source: 'hero_primary' },
+                  });
                   login?.();
                 }}
               >
@@ -78,7 +87,7 @@ export function HeroSection() {
                 size="lg"
                 className="cursor-pointer rounded-full border-2 px-8 font-landing-nav font-medium"
                 onClick={() => {
-                  trackEvent({ name: "landing_scroll_product", properties: {} });
+                  trackEvent({ name: 'landing_scroll_product', properties: {} });
                   scrollToProduct();
                 }}
               >
@@ -97,7 +106,10 @@ export function HeroSection() {
             <div
               className={`relative overflow-hidden rounded-3xl border border-border bg-muted/40 shadow-2xl ring-1 ring-black/5 ${landingCardHover}`}
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-secondary/15" aria-hidden />
+              <div
+                className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-secondary/15"
+                aria-hidden
+              />
               <img
                 src="https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=1200&q=85"
                 alt="Clinical team using technology for patient care"
@@ -113,7 +125,9 @@ export function HeroSection() {
                   </p>
                   <div className="mt-3 space-y-2">
                     <div className="flex items-center justify-between rounded-lg bg-muted/80 px-3 py-2">
-                      <span className="font-landing-body text-xs font-medium text-foreground">Today&apos;s queue</span>
+                      <span className="font-landing-body text-xs font-medium text-foreground">
+                        Today&apos;s queue
+                      </span>
                       <span className="rounded-full bg-primary/15 px-2 py-0.5 font-landing-nav text-[10px] font-semibold text-primary">
                         12 active
                       </span>
