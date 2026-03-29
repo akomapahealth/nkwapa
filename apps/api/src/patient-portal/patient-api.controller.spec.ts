@@ -22,17 +22,17 @@ type RequestShape = {
 function createExecutionContext(
   controller: PatientApiController,
   handlerName: keyof PatientApiController,
-  request: RequestShape
+  request: RequestShape,
 ): ExecutionContext {
   return {
-    getHandler: () => controller[handlerName] as unknown as Function,
+    getHandler: () => controller[handlerName] as unknown as (...args: unknown[]) => unknown,
     getClass: () => PatientApiController,
     switchToHttp: () => ({
       getRequest: () => request,
       getResponse: () => undefined,
       getNext: () => undefined,
     }),
-  } as ExecutionContext;
+  } as unknown as ExecutionContext;
 }
 
 const patientUser = {
@@ -102,16 +102,19 @@ describe('PatientApiController', () => {
     expect(request.clinicId).toBe('clinic-1');
     expect(rbacGuard.canActivate(context)).toBe(true);
 
-    await controller.listMeasurements({}, {
-      clinicId: request.clinicId,
-      headers: {},
-      user: request.user,
-    });
+    await controller.listMeasurements(
+      {},
+      {
+        clinicId: request.clinicId,
+        headers: {},
+        user: request.user,
+      },
+    );
 
     expect(patientPortalService.listMeasurementsForAuthenticatedPatient).toHaveBeenCalledWith(
       'clinic-1',
       'patient-user-1',
-      {}
+      {},
     );
   });
 
@@ -144,13 +147,13 @@ describe('PatientApiController', () => {
         clinicId: request.clinicId,
         headers: {},
         user: request.user,
-      }
+      },
     );
 
     expect(patientPortalService.listTrendsForAuthenticatedPatient).toHaveBeenCalledWith(
       'clinic-1',
       'patient-user-1',
-      { from: '2026-03-01', to: '2026-03-31' }
+      { from: '2026-03-01', to: '2026-03-31' },
     );
   });
 
@@ -174,13 +177,11 @@ describe('PatientApiController', () => {
         clinicId: request.clinicId,
         headers: {},
         user: request.user,
-      }
+      },
     );
 
-    expect(patientPortalService.listTrendsForStaff).toHaveBeenCalledWith(
-      'patient-1',
-      'clinic-1',
-      { from: '2026-03-01' }
-    );
+    expect(patientPortalService.listTrendsForStaff).toHaveBeenCalledWith('patient-1', 'clinic-1', {
+      from: '2026-03-01',
+    });
   });
 });

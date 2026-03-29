@@ -1,8 +1,11 @@
+const path = require('path');
+
 /** @type {import('eslint').Linter.Config} */
 module.exports = {
   extends: ['../../.eslintrc.js'],
   parserOptions: {
-    project: './tsconfig.json',
+    project: path.join(__dirname, 'tsconfig.eslint.json'),
+    tsconfigRootDir: __dirname,
     sourceType: 'module',
   },
   rules: {

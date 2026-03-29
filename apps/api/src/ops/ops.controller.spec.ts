@@ -27,17 +27,17 @@ type RequestShape = {
 function createExecutionContext(
   controller: OpsController,
   handlerName: keyof OpsController,
-  request: RequestShape
+  request: RequestShape,
 ): ExecutionContext {
   return {
-    getHandler: () => controller[handlerName] as unknown as Function,
+    getHandler: () => controller[handlerName] as unknown as (...args: unknown[]) => unknown,
     getClass: () => OpsController,
     switchToHttp: () => ({
       getRequest: () => request,
       getResponse: () => undefined,
       getNext: () => undefined,
     }),
-  } as ExecutionContext;
+  } as unknown as ExecutionContext;
 }
 
 const managerUser = {
@@ -172,14 +172,18 @@ describe('OpsController', () => {
     expect(clinicScopeGuard.canActivate(context)).toBe(true);
     expect(rbacGuard.canActivate(context)).toBe(true);
 
-    await controller.listMyAssignments('clinic-1', { date: '2026-03-21' }, {
-      user: volunteerUser,
-    });
+    await controller.listMyAssignments(
+      'clinic-1',
+      { date: '2026-03-21' },
+      {
+        user: volunteerUser,
+      },
+    );
 
     expect(opsService.listMyAssignments).toHaveBeenCalledWith(
       'clinic-1',
       'volunteer-1',
-      '2026-03-21'
+      '2026-03-21',
     );
   });
 
@@ -196,9 +200,7 @@ describe('OpsController', () => {
   });
 
   it('propagates 409 conflicts from assignment creation', async () => {
-    opsService.createAssignment.mockRejectedValueOnce(
-      new ConflictException('Already assigned')
-    );
+    opsService.createAssignment.mockRejectedValueOnce(new ConflictException('Already assigned'));
 
     await expect(
       controller.createAssignment(
@@ -211,8 +213,8 @@ describe('OpsController', () => {
         {
           user: managerUser,
           headers: {},
-        }
-      )
+        },
+      ),
     ).rejects.toThrow(ConflictException);
   });
 
@@ -223,7 +225,7 @@ describe('OpsController', () => {
       controller.checkOut('clinic-1', 'shift-missing', {
         user: managerUser,
         headers: {},
-      })
+      }),
     ).rejects.toThrow(NotFoundException);
   });
 });
