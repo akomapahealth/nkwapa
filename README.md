@@ -1,80 +1,39 @@
 # Nkwapa EMR
 
-Multi-clinic EMR for Hypertension and Diabetes workflows. Offline-first PWA with sync, RBAC, and audit-by-default.
+[![Akomapa website](https://img.shields.io/badge/Akomapa-akomapa.org-2e7d32?style=for-the-badge)](https://akomapa.org)
+[![CI](https://github.com/akomapahealth/nkwapa/actions/workflows/ci.yml/badge.svg)](https://github.com/akomapahealth/nkwapa/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
 
-## Local Development (Docker-first)
+**Nkwapa** is a multi-clinic electronic medical record (EMR) platform focused on **hypertension** and **diabetes** care pathways. It is built for community health programs that need dependable clinical documentation, operational visibility, and responsible handling of sensitive patient data.
 
-### Prerequisites
+The system is developed in support of [**Akomapa**](https://akomapa.org)—the nonprofit behind community-driven screening, education, and longitudinal care for non-communicable diseases.
 
-- Node.js 20+
-- Docker and Docker Compose
+---
 
-### Setup
+## What the platform does
 
-```bash
-# 1. Copy env and start services
-cp .env.example .env
-docker compose -f infra/nkwapa/docker-compose.yml up -d
+Nkwapa ties together **frontline intake**, **structured encounters**, **vitals and screening workflows**, **care planning**, **prescribing**, **patient engagement** (including reminders), and **research-grade export**—all under **role-based access** and **clinic-level isolation**. The goal is a single source of truth for clinic operations while staying practical for low-connectivity and high-throughput field settings.
 
-# 2. Wait for Postgres/Keycloak (Keycloak may take 30–60s)
-# Check: curl http://localhost:8080/health/ready
+---
 
-# 3. Run migrations
-npm run db:migrate:dev -- --name init
+## Capabilities
 
-# 4. Optional: seed demo clinic and system admin
-# Add SEED_SYSTEM_ADMIN_SUB to .env (Keycloak user sub) to create SYSTEM_ADMIN
-# Obtain sub: login as user, decode JWT at jwt.io, or Keycloak Admin → Users → ID
-npm run db:seed
+- **Clinic operations** — Shifts, check-ins, queue-style boards, and assignments so teams can coordinate who is working, who is waiting, and who is responsible for each step of care.
+- **Clinical documentation** — Encounters with screening modules (e.g. vitals, diabetes, hypertension), care plans, and prescriptions tied to a shared patient record and drug catalog.
+- **Identity-aware access** — Staff permissions are modeled explicitly; actions are scoped to the clinic context so users only work within what they are authorized to see and change.
+- **Audit and accountability** — Important writes are recorded for traceability, supporting quality improvement and governance expectations.
+- **Offline-first web experience** — The patient-facing and field workflows are designed around resilient sync: capture data locally when connectivity is poor, then reconcile when the network is available.
+- **Research and reporting** — Controlled export pipelines support de-identified datasets and approval workflows, so program data can support evidence and partnerships without sacrificing patient trust.
+- **Patient touchpoints** — Appointment requests, portal-style self-service where appropriate, and reminder channels help close the loop between visits.
 
-# 5. Start API and Web
-npm run dev --workspace=@nkwapa/api
-npm run dev --workspace=@nkwapa/web
-```
+---
 
-- API: http://localhost:4000
-- Web: http://localhost:3000
-- Keycloak: http://localhost:8080 (admin/admin)
-- Postgres: localhost:5433 (avoids conflict with existing Postgres on 5432)
+## Architecture (overview)
 
-### Vertical Slice: Verify Login Token
+Nkwapa is maintained as a **TypeScript monorepo**: a **NestJS** API for business rules and integrations, a **Next.js** progressive web application for staff and patients, and a **PostgreSQL** data layer with a versioned schema. Authentication integrates with **Keycloak** (OpenID Connect / JWT), aligning enterprise identity practices with nonprofit deployment realities.
 
-1. Get a token from Keycloak:
+---
 
-```bash
-curl -X POST http://localhost:8080/realms/nkwapa/protocol/openid-connect/token \
-  -d "grant_type=password" \
-  -d "client_id=nkwapa-web" \
-  -d "username=testuser" \
-  -d "password=testuser"
-```
+## License and organization
 
-2. Call health (public): `GET http://localhost:4000/health` → `{ "status": "ok" }`
-3. Call auth/me (protected): `GET http://localhost:4000/auth/me` with `Authorization: Bearer <access_token>`
-
-## Monorepo Structure
-
-- `apps/api` – NestJS API (auth, health, RBAC)
-- `apps/web` – Next.js PWA
-- `packages/db` – Prisma schema, migrations, seed
-
-## Auth and RBAC
-
-- **JWT**: Verified via Keycloak JWKS (`KEYCLOAK_JWKS_URI`).
-- **Auto-provision**: On first login, User is created from Keycloak `sub`.
-- **RBAC**: `@RequirePermission()` and `RbacGuard` enforce role permissions.
-- **Clinic scoping**: `@ClinicScoped()` and `ClinicScopeGuard` ensure user has access to the target clinic.
-- **Protected endpoints**: `GET /auth/me`, `GET /clinics/:id`, `GET /patients/:id`, `POST /patients`.
-
-## Scripts
-
-| Script | Description |
-|--------|-------------|
-| `npm run db:generate` | Generate Prisma client |
-| `npm run db:migrate:dev` | Run migrations (dev, creates migration files) |
-| `npm run db:migrate:deploy` | Apply migrations (CI/production) |
-| `npm run db:seed` | Seed demo clinic + optional system admin (`SEED_SYSTEM_ADMIN_SUB`) |
-
-## CI
-
-GitHub Actions runs on PR/push to `main`: lint, typecheck, test, build, and `prisma migrate deploy` against a Postgres service.
+This project is licensed under the **GNU General Public License v3.0**—see [`LICENSE`](LICENSE). For more about Akomapa’s mission, programs, and how to engage with the organization, visit **[akomapa.org](https://akomapa.org)**.
