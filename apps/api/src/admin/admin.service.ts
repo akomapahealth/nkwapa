@@ -14,6 +14,16 @@ export interface AdminActor {
   roles: { clinicId: string | null; role: UserRole }[];
 }
 
+export type PatientPortalStatus = 'LINKED' | 'ROLE_ONLY' | 'LINK_ONLY' | 'NONE';
+
+export interface PatientPortalSummary {
+  status: PatientPortalStatus;
+  patientId: string | null;
+  patientCode: string | null;
+  clinicId: string | null;
+  clinicName: string | null;
+}
+
 type UserWithRolesAndClinics = Prisma.UserGetPayload<{
   include: {
     clinicRoles: {
@@ -45,16 +55,13 @@ const MANAGER_LIFECYCLE_ROLES = new Set<UserRole>([
   UserRole.PATIENT,
 ]);
 
-const DIRECTOR_LIFECYCLE_ROLES = new Set<UserRole>([
-  ...MANAGER_LIFECYCLE_ROLES,
-  UserRole.MANAGER,
-]);
+const DIRECTOR_LIFECYCLE_ROLES = new Set<UserRole>([...MANAGER_LIFECYCLE_ROLES, UserRole.MANAGER]);
 
 @Injectable()
 export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly auditService: AuditService
+    private readonly auditService: AuditService,
   ) {}
 
   async listUsers(actor: AdminActor, status?: string) {
@@ -66,14 +73,10 @@ export class AdminService {
       orderBy: [{ displayName: 'asc' }, { createdAt: 'asc' }],
     });
 
-    return users.map((user) => this.toAdminUserSummary(user));
+    return this.toAdminUserSummaries(users);
   }
 
-  async listClinicUsers(
-    actor: AdminActor,
-    clinicId: string,
-    status?: string
-  ) {
+  async listClinicUsers(actor: AdminActor, clinicId: string, status?: string) {
     await this.assertActiveClinic(clinicId);
     this.assertCanViewClinicRoster(actor, clinicId);
 
@@ -113,7 +116,7 @@ export class AdminService {
     actor: AdminActor,
     targetUserId: string,
     clinicId: string | null,
-    role: UserRole
+    role: UserRole,
   ) {
     this.validateAssignRole(actor, clinicId, role);
 
@@ -125,7 +128,7 @@ export class AdminService {
     }
     if (!targetExists.isActive) {
       throw new ConflictException(
-        'Cannot assign roles to an inactive user. Ask the replacement user to sign in, then reassign access to the new account.'
+        'Cannot assign roles to an inactive user. Ask the replacement user to sign in, then reassign access to the new account.',
       );
     }
 
@@ -161,7 +164,7 @@ export class AdminService {
     targetUserId: string,
     clinicId: string | null,
     role: UserRole,
-    requestId?: string
+    requestId?: string,
   ) {
     this.assertNotSelf(targetUserId, actor.userId, 'You cannot revoke your own roles');
     this.validateRemoveRole(actor, clinicId, role);
@@ -201,12 +204,273 @@ export class AdminService {
     return { deleted: true };
   }
 
+  async mergePatients(
+    actor: AdminActor,
+    canonicalPatientId: string,
+    sourcePatientId: string,
+    options?: {
+      portalLinkStrategy?: 'CANONICAL' | 'SOURCE';
+      inviteStrategy?: 'CANONICAL' | 'SOURCE' | 'MERGE';
+    },
+    requestId?: string,
+  ) {
+    this.assertSystemAdmin(actor, 'Only System Admin can merge patient records');
+
+    if (canonicalPatientId === sourcePatientId) {
+      throw new BadRequestException('Canonical and source patient must be different records');
+    }
+
+    const [
+      canonicalPatient,
+      sourcePatient,
+      canonicalLink,
+      sourceLink,
+      canonicalInvites,
+      sourceInvites,
+    ] = await Promise.all([
+      this.prisma.patient.findUnique({
+        where: { id: canonicalPatientId },
+        include: {
+          codeAliases: true,
+        },
+      }),
+      this.prisma.patient.findUnique({
+        where: { id: sourcePatientId },
+        include: {
+          codeAliases: true,
+        },
+      }),
+      this.prisma.patientAccountLink.findUnique({
+        where: { patientId: canonicalPatientId },
+      }),
+      this.prisma.patientAccountLink.findUnique({
+        where: { patientId: sourcePatientId },
+      }),
+      this.prisma.patientPortalInvite.findMany({
+        where: { patientId: canonicalPatientId },
+      }),
+      this.prisma.patientPortalInvite.findMany({
+        where: { patientId: sourcePatientId },
+      }),
+    ]);
+
+    if (!canonicalPatient || !sourcePatient) {
+      throw new NotFoundException('Patient not found');
+    }
+    if (canonicalPatient.mergedIntoPatientId) {
+      throw new ConflictException('Canonical patient has already been merged into another chart');
+    }
+    if (sourcePatient.mergedIntoPatientId) {
+      throw new ConflictException('Source patient has already been merged into another chart');
+    }
+    if (canonicalPatient.primaryClinicId !== sourcePatient.primaryClinicId) {
+      throw new BadRequestException('Patient merge is limited to records in the same clinic');
+    }
+
+    const retainedPortalLink =
+      options?.portalLinkStrategy === 'SOURCE' && sourceLink
+        ? sourceLink
+        : (canonicalLink ?? sourceLink ?? null);
+    const retainedPortalUser =
+      retainedPortalLink != null
+        ? await this.prisma.user.findUnique({
+            where: { keycloakSub: retainedPortalLink.keycloakSub },
+            select: { id: true },
+          })
+        : null;
+    const retainedPortalUserId =
+      options?.portalLinkStrategy === 'SOURCE' && sourcePatient.portalUserId
+        ? sourcePatient.portalUserId
+        : (canonicalPatient.portalUserId ??
+          sourcePatient.portalUserId ??
+          retainedPortalUser?.id ??
+          null);
+    const inviteStrategy = options?.inviteStrategy ?? 'MERGE';
+    const mergedAt = new Date();
+    const sourceLegacyCode = sourcePatient.patientCode;
+    const tombstonePatientCode = this.buildMergedPatientCode(sourceLegacyCode, sourcePatient.id);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.encounter.updateMany({
+        where: { patientId: sourcePatientId },
+        data: { patientId: canonicalPatientId },
+      });
+      await tx.patientConsent.updateMany({
+        where: { patientId: sourcePatientId },
+        data: { patientId: canonicalPatientId },
+      });
+      await tx.reminder.updateMany({
+        where: { patientId: sourcePatientId },
+        data: { patientId: canonicalPatientId },
+      });
+      await tx.patientSelfReport.updateMany({
+        where: { patientId: sourcePatientId },
+        data: { patientId: canonicalPatientId },
+      });
+      await tx.patientMeasurement.updateMany({
+        where: { patientId: sourcePatientId },
+        data: { patientId: canonicalPatientId },
+      });
+      await tx.patientCheckIn.updateMany({
+        where: { patientId: sourcePatientId },
+        data: { patientId: canonicalPatientId },
+      });
+      await tx.appointmentRequest.updateMany({
+        where: { patientId: sourcePatientId },
+        data: { patientId: canonicalPatientId },
+      });
+      await tx.appointment.updateMany({
+        where: { patientId: sourcePatientId },
+        data: { patientId: canonicalPatientId },
+      });
+
+      await tx.patientAccountLink.deleteMany({
+        where: {
+          patientId: {
+            in: [canonicalPatientId, sourcePatientId],
+          },
+        },
+      });
+
+      if (retainedPortalLink) {
+        await tx.patientAccountLink.create({
+          data: {
+            patientId: canonicalPatientId,
+            keycloakSub: retainedPortalLink.keycloakSub,
+          },
+        });
+      }
+
+      const sourcePendingInviteIds = sourceInvites
+        .filter((invite) => invite.status === 'PENDING')
+        .map((invite) => invite.id);
+      const canonicalPendingInviteIds = canonicalInvites
+        .filter((invite) => invite.status === 'PENDING')
+        .map((invite) => invite.id);
+
+      if (inviteStrategy === 'CANONICAL' && sourcePendingInviteIds.length > 0) {
+        await tx.patientPortalInvite.updateMany({
+          where: { id: { in: sourcePendingInviteIds } },
+          data: {
+            patientId: canonicalPatientId,
+            status: 'CANCELLED',
+            cancelledAt: mergedAt,
+          },
+        });
+      } else if (inviteStrategy === 'SOURCE') {
+        if (canonicalPendingInviteIds.length > 0) {
+          await tx.patientPortalInvite.updateMany({
+            where: { id: { in: canonicalPendingInviteIds } },
+            data: {
+              status: 'CANCELLED',
+              cancelledAt: mergedAt,
+            },
+          });
+        }
+        await tx.patientPortalInvite.updateMany({
+          where: { patientId: sourcePatientId },
+          data: { patientId: canonicalPatientId },
+        });
+      } else {
+        await tx.patientPortalInvite.updateMany({
+          where: { patientId: sourcePatientId },
+          data: { patientId: canonicalPatientId },
+        });
+      }
+
+      if (sourcePatient.codeAliases.length > 0) {
+        await tx.patientCodeAlias.createMany({
+          data: sourcePatient.codeAliases.map((alias) => ({
+            patientId: canonicalPatientId,
+            code: alias.code,
+          })),
+          skipDuplicates: true,
+        });
+        await tx.patientCodeAlias.deleteMany({
+          where: { patientId: sourcePatientId },
+        });
+      }
+
+      await tx.patient.update({
+        where: { id: canonicalPatientId },
+        data: {
+          portalUserId: retainedPortalUserId,
+        },
+      });
+
+      await tx.patient.update({
+        where: { id: sourcePatientId },
+        data: {
+          patientCode: tombstonePatientCode,
+          portalUserId: null,
+          mergedIntoPatientId: canonicalPatientId,
+          mergedAt,
+          mergedByUserId: actor.userId,
+        },
+      });
+
+      await tx.patientCodeAlias.create({
+        data: {
+          patientId: canonicalPatientId,
+          code: sourceLegacyCode,
+        },
+      });
+
+      if (retainedPortalUserId) {
+        await tx.userClinicRole.upsert({
+          where: {
+            userId_clinicId_role: {
+              userId: retainedPortalUserId,
+              clinicId: canonicalPatient.primaryClinicId,
+              role: UserRole.PATIENT,
+            },
+          },
+          create: {
+            userId: retainedPortalUserId,
+            clinicId: canonicalPatient.primaryClinicId,
+            role: UserRole.PATIENT,
+          },
+          update: {},
+        });
+      }
+    });
+
+    await this.auditService.logWrite({
+      clinicId: canonicalPatient.primaryClinicId,
+      actorUserId: actor.userId,
+      action: 'PATIENT.MERGE',
+      entityType: 'Patient',
+      entityId: canonicalPatientId,
+      beforeJson: JSON.stringify({
+        canonicalPatientId,
+        sourcePatientId,
+        sourcePatientCode: sourceLegacyCode,
+      }),
+      afterJson: JSON.stringify({
+        canonicalPatientId,
+        sourcePatientId,
+        sourcePatientCode: sourceLegacyCode,
+        retainedPortalLinkKeycloakSub: retainedPortalLink?.keycloakSub ?? null,
+        retainedPortalUserId,
+      }),
+      requestId,
+    });
+
+    return {
+      success: true,
+      canonicalPatientId,
+      canonicalPatientCode: canonicalPatient.patientCode,
+      mergedPatientId: sourcePatientId,
+      mergedPatientCodeAlias: sourceLegacyCode,
+    };
+  }
+
   async revokeClinicRole(
     actor: AdminActor,
     clinicId: string,
     targetUserId: string,
     role: UserRole,
-    requestId?: string
+    requestId?: string,
   ) {
     await this.assertActiveClinic(clinicId);
     this.assertNotSelf(targetUserId, actor.userId, 'You cannot revoke your own roles');
@@ -253,14 +517,10 @@ export class AdminService {
     actor: AdminActor,
     clinicId: string,
     targetUserId: string,
-    requestId?: string
+    requestId?: string,
   ) {
     await this.assertActiveClinic(clinicId);
-    this.assertNotSelf(
-      targetUserId,
-      actor.userId,
-      'You cannot deactivate your own account'
-    );
+    this.assertNotSelf(targetUserId, actor.userId, 'You cannot deactivate your own account');
     this.assertCanManageClinicLifecycle(actor, clinicId);
 
     const target = await this.findUserWithRoles(targetUserId);
@@ -296,17 +556,9 @@ export class AdminService {
     return this.toLifecycleUserSummary(updated);
   }
 
-  async deactivateUserGlobally(
-    actor: AdminActor,
-    targetUserId: string,
-    requestId?: string
-  ) {
+  async deactivateUserGlobally(actor: AdminActor, targetUserId: string, requestId?: string) {
     this.assertSystemAdmin(actor, 'Only System Admin can deactivate users globally');
-    this.assertNotSelf(
-      targetUserId,
-      actor.userId,
-      'You cannot deactivate your own account'
-    );
+    this.assertNotSelf(targetUserId, actor.userId, 'You cannot deactivate your own account');
 
     const target = await this.findUserWithRoles(targetUserId);
     if (!target) {
@@ -350,7 +602,7 @@ export class AdminService {
 
   private buildUserStatusWhere(
     status: string | undefined,
-    defaultStatus: 'active' | 'inactive' | 'all'
+    defaultStatus: 'active' | 'inactive' | 'all',
   ) {
     const resolved = (status ?? defaultStatus).toLowerCase();
     if (resolved === 'active') {
@@ -413,18 +665,18 @@ export class AdminService {
 
     const managedClinicIds = actor.roles
       .filter(
-        (r) =>
-          r.clinicId != null &&
-          (r.role === UserRole.MANAGER || r.role === UserRole.DIRECTOR)
+        (r) => r.clinicId != null && (r.role === UserRole.MANAGER || r.role === UserRole.DIRECTOR),
       )
       .map((r) => r.clinicId as string);
 
     const canView = target.clinicRoles.some(
-      (entry) => entry.clinicId != null && managedClinicIds.includes(entry.clinicId)
+      (entry) => entry.clinicId != null && managedClinicIds.includes(entry.clinicId),
     );
 
     if (!canView) {
-      throw new ForbiddenException('You can only view access details for users in clinics you manage');
+      throw new ForbiddenException(
+        'You can only view access details for users in clinics you manage',
+      );
     }
   }
 
@@ -435,13 +687,12 @@ export class AdminService {
 
     const canManage = actor.roles.some(
       (r) =>
-        r.clinicId === clinicId &&
-        (r.role === UserRole.MANAGER || r.role === UserRole.DIRECTOR)
+        r.clinicId === clinicId && (r.role === UserRole.MANAGER || r.role === UserRole.DIRECTOR),
     );
 
     if (!canManage) {
       throw new ForbiddenException(
-        'Only managers, directors, or system admins can manage staff lifecycle'
+        'Only managers, directors, or system admins can manage staff lifecycle',
       );
     }
   }
@@ -449,18 +700,16 @@ export class AdminService {
   private assertCanDeactivateInClinic(
     actor: AdminActor,
     clinicId: string,
-    target: UserWithRolesAndClinics
+    target: UserWithRolesAndClinics,
   ) {
     if (this.isSystemAdmin(actor)) {
       return;
     }
 
-    const hasOutsideAccess = target.clinicRoles.some(
-      (entry) => entry.clinicId !== clinicId
-    );
+    const hasOutsideAccess = target.clinicRoles.some((entry) => entry.clinicId !== clinicId);
     if (hasOutsideAccess) {
       throw new ForbiddenException(
-        'Only System Admin can deactivate users who have access outside this clinic'
+        'Only System Admin can deactivate users who have access outside this clinic',
       );
     }
 
@@ -469,16 +718,12 @@ export class AdminService {
 
     if (clinicRoles.some((entry) => !allowedRoles.has(entry.role))) {
       throw new ForbiddenException(
-        'You cannot deactivate a user with access above your clinic lifecycle authority'
+        'You cannot deactivate a user with access above your clinic lifecycle authority',
       );
     }
   }
 
-  private assertCanRevokeLifecycleRole(
-    actor: AdminActor,
-    clinicId: string,
-    role: UserRole
-  ) {
+  private assertCanRevokeLifecycleRole(actor: AdminActor, clinicId: string, role: UserRole) {
     if (this.isSystemAdmin(actor)) {
       return;
     }
@@ -486,7 +731,7 @@ export class AdminService {
     const allowedRoles = this.getLifecycleRoles(actor, clinicId);
     if (!allowedRoles.has(role)) {
       throw new ForbiddenException(
-        'You cannot revoke that role with your current clinic lifecycle authority'
+        'You cannot revoke that role with your current clinic lifecycle authority',
       );
     }
   }
@@ -508,24 +753,148 @@ export class AdminService {
     }
 
     throw new ForbiddenException(
-      'Only managers, directors, or system admins can manage staff lifecycle'
+      'Only managers, directors, or system admins can manage staff lifecycle',
     );
   }
 
   private isSystemAdmin(actor: AdminActor) {
-    return actor.roles.some(
-      (r) => r.role === UserRole.SYSTEM_ADMIN && r.clinicId === null
+    return actor.roles.some((r) => r.role === UserRole.SYSTEM_ADMIN && r.clinicId === null);
+  }
+
+  private async toAdminUserSummaries(users: UserWithRolesAndClinics[]) {
+    const patientPortalByUserId = await this.buildPatientPortalSummaryMap(users);
+    return users.map((user) =>
+      this.toAdminUserSummary(
+        user,
+        patientPortalByUserId.get(user.id) ?? this.emptyPatientPortalSummary(),
+      ),
     );
   }
 
-  private toAdminUserSummary(user: UserWithRolesAndClinics) {
+  private async buildPatientPortalSummaryMap(users: UserWithRolesAndClinics[]) {
+    const userIds = [...new Set(users.map((user) => user.id))];
+    const keycloakSubs = [
+      ...new Set(
+        users.map((user) => user.keycloakSub).filter((value): value is string => Boolean(value)),
+      ),
+    ];
+
+    const accountLinks =
+      keycloakSubs.length > 0
+        ? await this.prisma.patientAccountLink.findMany({
+            where: {
+              keycloakSub: { in: keycloakSubs },
+            },
+            select: {
+              keycloakSub: true,
+              patient: {
+                select: {
+                  id: true,
+                  patientCode: true,
+                  primaryClinicId: true,
+                  primaryClinic: {
+                    select: {
+                      name: true,
+                    },
+                  },
+                },
+              },
+            },
+          })
+        : [];
+
+    const legacyLinks =
+      userIds.length > 0
+        ? await this.prisma.patient.findMany({
+            where: {
+              portalUserId: { in: userIds },
+            },
+            select: {
+              id: true,
+              patientCode: true,
+              primaryClinicId: true,
+              portalUserId: true,
+              primaryClinic: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          })
+        : [];
+
+    const accountLinkByKeycloakSub = new Map(
+      accountLinks.map((link) => [
+        link.keycloakSub,
+        {
+          patientId: link.patient.id,
+          patientCode: link.patient.patientCode,
+          clinicId: link.patient.primaryClinicId,
+          clinicName: link.patient.primaryClinic.name,
+        },
+      ]),
+    );
+    const legacyLinkByUserId = new Map(
+      legacyLinks
+        .filter((patient) => Boolean(patient.portalUserId))
+        .map((patient) => [
+          patient.portalUserId as string,
+          {
+            patientId: patient.id,
+            patientCode: patient.patientCode,
+            clinicId: patient.primaryClinicId,
+            clinicName: patient.primaryClinic.name,
+          },
+        ]),
+    );
+
+    return new Map(
+      users.map((user) => {
+        const linkedPatient =
+          accountLinkByKeycloakSub.get(user.keycloakSub) ?? legacyLinkByUserId.get(user.id) ?? null;
+        const patientRoleClinicIds = new Set(
+          user.clinicRoles
+            .filter((entry) => entry.clinicId != null && entry.role === UserRole.PATIENT)
+            .map((entry) => entry.clinicId as string),
+        );
+
+        let status: PatientPortalStatus = 'NONE';
+        if (linkedPatient) {
+          status = patientRoleClinicIds.has(linkedPatient.clinicId) ? 'LINKED' : 'LINK_ONLY';
+        } else if (patientRoleClinicIds.size > 0) {
+          status = 'ROLE_ONLY';
+        }
+
+        return [
+          user.id,
+          {
+            status,
+            patientId: linkedPatient?.patientId ?? null,
+            patientCode: linkedPatient?.patientCode ?? null,
+            clinicId: linkedPatient?.clinicId ?? null,
+            clinicName: linkedPatient?.clinicName ?? null,
+          } satisfies PatientPortalSummary,
+        ];
+      }),
+    );
+  }
+
+  private emptyPatientPortalSummary(): PatientPortalSummary {
+    return {
+      status: 'NONE',
+      patientId: null,
+      patientCode: null,
+      clinicId: null,
+      clinicName: null,
+    };
+  }
+
+  private toAdminUserSummary(user: UserWithRolesAndClinics, patientPortal: PatientPortalSummary) {
     const globalRoles = this.sortRoles(
-      user.clinicRoles
-        .filter((entry) => entry.clinicId === null)
-        .map((entry) => entry.role)
+      user.clinicRoles.filter((entry) => entry.clinicId === null).map((entry) => entry.role),
     );
     const clinicMemberships = this.sortRoleEntries(
-      user.clinicRoles.filter((entry) => entry.clinicId !== null)
+      user.clinicRoles.filter((entry) => entry.clinicId !== null),
     ).map((entry) => ({
       id: entry.id,
       clinicId: entry.clinicId as string,
@@ -545,26 +914,21 @@ export class AdminService {
       updatedAt: user.updatedAt.toISOString(),
       globalRoles,
       clinicMemberships,
+      patientPortal,
     };
   }
 
   private toClinicUserSummary(user: UserWithRolesAndClinics, clinicId: string) {
     const clinicRoles = this.sortRoles(
-      user.clinicRoles
-        .filter((entry) => entry.clinicId === clinicId)
-        .map((entry) => entry.role)
+      user.clinicRoles.filter((entry) => entry.clinicId === clinicId).map((entry) => entry.role),
     );
     const globalRoles = this.sortRoles(
-      user.clinicRoles
-        .filter((entry) => entry.clinicId === null)
-        .map((entry) => entry.role)
+      user.clinicRoles.filter((entry) => entry.clinicId === null).map((entry) => entry.role),
     );
     const otherClinicCount = new Set(
       user.clinicRoles
-        .filter(
-          (entry) => entry.clinicId != null && entry.clinicId !== clinicId
-        )
-        .map((entry) => entry.clinicId as string)
+        .filter((entry) => entry.clinicId != null && entry.clinicId !== clinicId)
+        .map((entry) => entry.clinicId as string),
     ).size;
 
     return {
@@ -593,69 +957,63 @@ export class AdminService {
 
   private sortRoles(roles: UserRole[]) {
     return [...new Set(roles)].sort(
-      (left, right) =>
-        ROLE_ORDER.indexOf(left) - ROLE_ORDER.indexOf(right)
+      (left, right) => ROLE_ORDER.indexOf(left) - ROLE_ORDER.indexOf(right),
     );
   }
 
   private sortRoleEntries<T extends { role: UserRole }>(roles: T[]) {
     return [...roles].sort(
-      (left, right) =>
-        ROLE_ORDER.indexOf(left.role) - ROLE_ORDER.indexOf(right.role)
+      (left, right) => ROLE_ORDER.indexOf(left.role) - ROLE_ORDER.indexOf(right.role),
     );
   }
 
-  private validateAssignRole(
-    actor: AdminActor,
-    clinicId: string | null,
-    role: UserRole
-  ) {
+  private validateAssignRole(actor: AdminActor, clinicId: string | null, role: UserRole) {
+    if (role === UserRole.PATIENT) {
+      throw new BadRequestException(
+        'Patient access must be granted from a patient record via portal link.',
+      );
+    }
+
     const isSystemAdmin = actor.roles.some(
-      (r) => r.role === UserRole.SYSTEM_ADMIN && r.clinicId === null
+      (r) => r.role === UserRole.SYSTEM_ADMIN && r.clinicId === null,
     );
     if (isSystemAdmin) return;
 
     if (role === UserRole.SYSTEM_ADMIN || role === UserRole.DIRECTOR) {
-      throw new ForbiddenException(
-        'Only System Admin can assign SYSTEM_ADMIN or DIRECTOR roles'
-      );
+      throw new ForbiddenException('Only System Admin can assign SYSTEM_ADMIN or DIRECTOR roles');
     }
 
     if (clinicId == null) return;
     const isDirectorOfClinic = actor.roles.some(
-      (r) => r.clinicId === clinicId && r.role === UserRole.DIRECTOR
+      (r) => r.clinicId === clinicId && r.role === UserRole.DIRECTOR,
     );
     if (!isDirectorOfClinic) {
-      throw new ForbiddenException(
-        'You can only assign roles for clinics you direct'
-      );
+      throw new ForbiddenException('You can only assign roles for clinics you direct');
     }
   }
 
-  private validateRemoveRole(
-    actor: AdminActor,
-    clinicId: string | null,
-    role: UserRole
-  ) {
+  private validateRemoveRole(actor: AdminActor, clinicId: string | null, role: UserRole) {
     const isSystemAdmin = actor.roles.some(
-      (r) => r.role === UserRole.SYSTEM_ADMIN && r.clinicId === null
+      (r) => r.role === UserRole.SYSTEM_ADMIN && r.clinicId === null,
     );
     if (isSystemAdmin) return;
 
     if (role === UserRole.SYSTEM_ADMIN || role === UserRole.DIRECTOR) {
-      throw new ForbiddenException(
-        'Only System Admin can remove SYSTEM_ADMIN or DIRECTOR roles'
-      );
+      throw new ForbiddenException('Only System Admin can remove SYSTEM_ADMIN or DIRECTOR roles');
     }
 
     if (clinicId == null) return;
     const isDirectorOfClinic = actor.roles.some(
-      (r) => r.clinicId === clinicId && r.role === UserRole.DIRECTOR
+      (r) => r.clinicId === clinicId && r.role === UserRole.DIRECTOR,
     );
     if (!isDirectorOfClinic) {
-      throw new ForbiddenException(
-        'You can only remove roles for clinics you direct'
-      );
+      throw new ForbiddenException('You can only remove roles for clinics you direct');
     }
+  }
+
+  private buildMergedPatientCode(sourceCode: string, patientId: string) {
+    const suffix = patientId.replace(/-/g, '').slice(0, 8).toUpperCase();
+    const candidate = `${sourceCode}-M-${suffix}`;
+    return candidate.slice(0, 32);
   }
 }

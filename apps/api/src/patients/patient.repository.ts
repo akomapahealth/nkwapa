@@ -1,14 +1,16 @@
-import { Injectable } from "@nestjs/common";
-import { Patient, Prisma } from "@prisma/client";
-import { PrismaService } from "../prisma/prisma.service";
+import { Injectable } from '@nestjs/common';
+import { Patient, Prisma } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 
 export interface PatientFindManyFilters {
   primaryClinicId?: string;
   search?: string;
   /** When q matches phone pattern, service sets normalized E.164 for exact match. */
   phoneE164?: string;
+  cursor?: string;
   skip?: number;
   take?: number;
+  includeMerged?: boolean;
 }
 
 @Injectable()
@@ -19,16 +21,41 @@ export class PatientRepository {
     return this.prisma.patient.create({ data });
   }
 
-  async findById(id: string): Promise<Patient | null> {
-    return this.prisma.patient.findUnique({
+  async findById(id: string, options?: { resolveMerged?: boolean }): Promise<Patient | null> {
+    const patient = await this.prisma.patient.findUnique({
       where: { id },
     });
+
+    if (!patient) {
+      return null;
+    }
+
+    if (options?.resolveMerged && patient.mergedIntoPatientId) {
+      return this.findById(patient.mergedIntoPatientId, options);
+    }
+
+    return patient;
   }
 
   async findByPatientCode(patientCode: string): Promise<Patient | null> {
-    return this.prisma.patient.findUnique({
+    const direct = await this.prisma.patient.findUnique({
       where: { patientCode },
     });
+    if (direct) {
+      if (direct.mergedIntoPatientId) {
+        return this.findById(direct.mergedIntoPatientId, { resolveMerged: true });
+      }
+      return direct;
+    }
+
+    const alias = await this.prisma.patientCodeAlias.findUnique({
+      where: { code: patientCode },
+      include: {
+        patient: true,
+      },
+    });
+
+    return alias?.patient ?? null;
   }
 
   async findByNationalIdHash(hash: string): Promise<Patient | null> {
@@ -42,18 +69,51 @@ export class PatientRepository {
   }
 
   async findMany(filters: PatientFindManyFilters): Promise<Patient[]> {
+    const where = this.buildFindManyWhere(filters);
+    return this.prisma.patient.findMany({
+      where,
+      ...(filters.cursor
+        ? {
+            cursor: { id: filters.cursor },
+            skip: 1,
+          }
+        : {
+            skip: filters.skip,
+          }),
+      take: filters.take ?? 50,
+      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+    });
+  }
+
+  async count(filters: PatientFindManyFilters): Promise<number> {
+    return this.prisma.patient.count({
+      where: this.buildFindManyWhere(filters),
+    });
+  }
+
+  private buildFindManyWhere(filters: PatientFindManyFilters): Prisma.PatientWhereInput {
     const where: Prisma.PatientWhereInput = {};
     if (filters.primaryClinicId) {
       where.primaryClinicId = filters.primaryClinicId;
+    }
+    if (!filters.includeMerged) {
+      where.mergedIntoPatientId = null;
     }
     if (filters.search || filters.phoneE164) {
       const orConditions: Prisma.PatientWhereInput[] = [];
       if (filters.search) {
         const s = filters.search.trim();
         orConditions.push(
-          { firstName: { contains: s, mode: "insensitive" } },
-          { lastName: { contains: s, mode: "insensitive" } },
-          { patientCode: { contains: s, mode: "insensitive" } }
+          { firstName: { contains: s, mode: 'insensitive' } },
+          { lastName: { contains: s, mode: 'insensitive' } },
+          { patientCode: { contains: s, mode: 'insensitive' } },
+          {
+            codeAliases: {
+              some: {
+                code: { contains: s, mode: 'insensitive' },
+              },
+            },
+          },
         );
         if (s.length === 4) {
           orConditions.push({ nationalIdLast4: s });
@@ -64,11 +124,6 @@ export class PatientRepository {
       }
       where.OR = orConditions;
     }
-    return this.prisma.patient.findMany({
-      where,
-      skip: filters.skip,
-      take: filters.take ?? 50,
-      orderBy: { updatedAt: "desc" },
-    });
+    return where;
   }
 }

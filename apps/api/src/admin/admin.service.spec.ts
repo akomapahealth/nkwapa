@@ -1,39 +1,37 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { AdminService, type AdminActor } from './admin.service';
 
-function buildRoleEntry(overrides: Partial<{
-  id: string;
-  clinicId: string | null;
-  role: UserRole;
-  clinicName: string | null;
-}> = {}) {
+function buildRoleEntry(
+  overrides: Partial<{
+    id: string;
+    clinicId: string | null;
+    role: UserRole;
+    clinicName: string | null;
+  }> = {},
+) {
   return {
     id: overrides.id ?? `${overrides.role ?? UserRole.VOLUNTEER}-role`,
     clinicId: overrides.clinicId ?? 'clinic-1',
     role: overrides.role ?? UserRole.VOLUNTEER,
-    clinic: overrides.clinicId === null
-      ? null
-      : { name: overrides.clinicName ?? 'Clinic One' },
+    clinic: overrides.clinicId === null ? null : { name: overrides.clinicName ?? 'Clinic One' },
   };
 }
 
-function buildUser(overrides: Partial<{
-  id: string;
-  keycloakSub: string;
-  displayName: string;
-  firstName: string | null;
-  lastName: string | null;
-  email: string | null;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-  clinicRoles: ReturnType<typeof buildRoleEntry>[];
-}> = {}) {
+function buildUser(
+  overrides: Partial<{
+    id: string;
+    keycloakSub: string;
+    displayName: string;
+    firstName: string | null;
+    lastName: string | null;
+    email: string | null;
+    isActive: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+    clinicRoles: ReturnType<typeof buildRoleEntry>[];
+  }> = {},
+) {
   return {
     id: overrides.id ?? 'user-1',
     keycloakSub: overrides.keycloakSub ?? 'sub-1',
@@ -69,6 +67,55 @@ describe('AdminService', () => {
       clinic: {
         findFirst: jest.fn().mockResolvedValue({ id: 'clinic-1' }),
       },
+      encounter: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      patientConsent: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      reminder: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      patientSelfReport: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      patientMeasurement: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      patientCheckIn: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      appointmentRequest: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      appointment: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      patientPortalInvite: {
+        findMany: jest.fn().mockResolvedValue([]),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      patientCodeAlias: {
+        createMany: jest.fn().mockResolvedValue({ count: 0 }),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        create: jest.fn().mockResolvedValue({ id: 'alias-1' }),
+      },
+      patientAccountLink: {
+        findMany: jest.fn().mockResolvedValue([]),
+        findUnique: jest.fn().mockResolvedValue(null),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        create: jest.fn().mockResolvedValue({
+          id: 'link-1',
+          patientId: 'patient-1',
+          keycloakSub: 'kc-1',
+          createdAt: new Date('2026-04-04T12:00:00.000Z'),
+        }),
+      },
+      patient: {
+        findMany: jest.fn().mockResolvedValue([]),
+        findUnique: jest.fn(),
+        update: jest.fn().mockResolvedValue({ id: 'patient-1' }),
+      },
       user: {
         findMany: jest.fn(),
         findUnique: jest.fn(),
@@ -78,8 +125,14 @@ describe('AdminService', () => {
         findFirst: jest.fn(),
         create: jest.fn(),
         delete: jest.fn(),
+        upsert: jest.fn().mockResolvedValue({ id: 'patient-role-1' }),
       },
+      $transaction: jest.fn(),
     };
+
+    prisma.$transaction.mockImplementation(async (callback: (tx: typeof prisma) => unknown) =>
+      callback(prisma),
+    );
 
     const auditService = {
       logWrite: jest.fn().mockResolvedValue(undefined),
@@ -104,7 +157,7 @@ describe('AdminService', () => {
           isActive: false,
           clinicRoles: { some: { clinicId: 'clinic-1' } },
         }),
-      })
+      }),
     );
   });
 
@@ -123,6 +176,62 @@ describe('AdminService', () => {
         keycloakSub: 'kc-123',
         createdAt: '2026-03-20T08:00:00.000Z',
         updatedAt: '2026-03-21T10:30:00.000Z',
+        patientPortal: expect.objectContaining({
+          status: 'NONE',
+        }),
+      }),
+    ]);
+  });
+
+  it('reports ROLE_ONLY when a user has PATIENT access without a portal link', async () => {
+    const { prisma, service } = createService();
+    prisma.user.findMany.mockResolvedValue([
+      buildUser({
+        id: 'patient-role-only',
+        clinicRoles: [buildRoleEntry({ clinicId: 'clinic-1', role: UserRole.PATIENT })],
+      }),
+    ]);
+
+    await expect(service.listUsers(systemAdminActor, 'all')).resolves.toEqual([
+      expect.objectContaining({
+        id: 'patient-role-only',
+        patientPortal: expect.objectContaining({
+          status: 'ROLE_ONLY',
+          patientId: null,
+        }),
+      }),
+    ]);
+  });
+
+  it('reports LINKED when a portal-linked user also has the matching PATIENT role', async () => {
+    const { prisma, service } = createService();
+    prisma.user.findMany.mockResolvedValue([
+      buildUser({
+        id: 'linked-user',
+        keycloakSub: 'linked-sub',
+        clinicRoles: [buildRoleEntry({ clinicId: 'clinic-1', role: UserRole.PATIENT })],
+      }),
+    ]);
+    prisma.patientAccountLink.findMany.mockResolvedValue([
+      {
+        keycloakSub: 'linked-sub',
+        patient: {
+          id: 'patient-1',
+          patientCode: 'NKP-2026-000001',
+          primaryClinicId: 'clinic-1',
+          primaryClinic: { name: 'Clinic One' },
+        },
+      },
+    ]);
+
+    await expect(service.listUsers(systemAdminActor, 'all')).resolves.toEqual([
+      expect.objectContaining({
+        id: 'linked-user',
+        patientPortal: expect.objectContaining({
+          status: 'LINKED',
+          patientId: 'patient-1',
+          clinicId: 'clinic-1',
+        }),
       }),
     ]);
   });
@@ -140,7 +249,7 @@ describe('AdminService', () => {
       managerActor,
       'clinic-1',
       'volunteer-1',
-      'req-1'
+      'req-1',
     );
 
     expect(result).toMatchObject({ id: 'volunteer-1', isActive: false });
@@ -148,14 +257,14 @@ describe('AdminService', () => {
       expect.objectContaining({
         where: { id: 'volunteer-1' },
         data: { isActive: false },
-      })
+      }),
     );
     expect(auditService.logWrite).toHaveBeenCalledWith(
       expect.objectContaining({
         clinicId: 'clinic-1',
         action: 'USER.DEACTIVATE',
         entityId: 'volunteer-1',
-      })
+      }),
     );
   });
 
@@ -165,11 +274,11 @@ describe('AdminService', () => {
       buildUser({
         id: 'manager-2',
         clinicRoles: [buildRoleEntry({ role: UserRole.MANAGER })],
-      })
+      }),
     );
 
     await expect(
-      service.deactivateUserInClinic(managerActor, 'clinic-1', 'manager-2', 'req-2')
+      service.deactivateUserInClinic(managerActor, 'clinic-1', 'manager-2', 'req-2'),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
@@ -183,7 +292,7 @@ describe('AdminService', () => {
     prisma.user.update.mockResolvedValue({ ...target, isActive: false });
 
     await expect(
-      service.deactivateUserInClinic(directorActor, 'clinic-1', 'manager-2', 'req-3')
+      service.deactivateUserInClinic(directorActor, 'clinic-1', 'manager-2', 'req-3'),
     ).resolves.toMatchObject({
       id: 'manager-2',
       isActive: false,
@@ -204,11 +313,11 @@ describe('AdminService', () => {
             clinicName: 'Clinic Two',
           }),
         ],
-      })
+      }),
     );
 
     await expect(
-      service.deactivateUserInClinic(managerActor, 'clinic-1', 'shared-1', 'req-4')
+      service.deactivateUserInClinic(managerActor, 'clinic-1', 'shared-1', 'req-4'),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
@@ -230,7 +339,7 @@ describe('AdminService', () => {
     prisma.user.update.mockResolvedValue({ ...target, isActive: false });
 
     await expect(
-      service.deactivateUserGlobally(systemAdminActor, 'shared-1', 'req-5')
+      service.deactivateUserGlobally(systemAdminActor, 'shared-1', 'req-5'),
     ).resolves.toMatchObject({
       id: 'shared-1',
       isActive: false,
@@ -240,7 +349,7 @@ describe('AdminService', () => {
       expect.objectContaining({
         clinicId: null,
         action: 'USER.DEACTIVATE',
-      })
+      }),
     );
   });
 
@@ -251,7 +360,7 @@ describe('AdminService', () => {
         id: 'doctor-role-1',
         clinicId: 'clinic-1',
         role: UserRole.DOCTOR,
-      })
+      }),
     );
 
     const result = await service.revokeClinicRole(
@@ -259,7 +368,7 @@ describe('AdminService', () => {
       'clinic-1',
       'doctor-1',
       UserRole.DOCTOR,
-      'req-6'
+      'req-6',
     );
 
     expect(result).toEqual({ deleted: true });
@@ -271,7 +380,7 @@ describe('AdminService', () => {
         clinicId: 'clinic-1',
         action: 'ROLE.REVOKE',
         entityId: 'doctor-role-1',
-      })
+      }),
     );
   });
 
@@ -279,17 +388,11 @@ describe('AdminService', () => {
     const { service } = createService();
 
     await expect(
-      service.deactivateUserInClinic(managerActor, 'clinic-1', 'manager-1', 'req-7')
+      service.deactivateUserInClinic(managerActor, 'clinic-1', 'manager-1', 'req-7'),
     ).rejects.toBeInstanceOf(BadRequestException);
 
     await expect(
-      service.revokeClinicRole(
-        managerActor,
-        'clinic-1',
-        'manager-1',
-        UserRole.DOCTOR,
-        'req-8'
-      )
+      service.revokeClinicRole(managerActor, 'clinic-1', 'manager-1', UserRole.DOCTOR, 'req-8'),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -300,11 +403,11 @@ describe('AdminService', () => {
         id: 'inactive-1',
         isActive: false,
         clinicRoles: [buildRoleEntry({ role: UserRole.VOLUNTEER })],
-      })
+      }),
     );
 
     await expect(
-      service.deactivateUserGlobally(systemAdminActor, 'inactive-1', 'req-9')
+      service.deactivateUserGlobally(systemAdminActor, 'inactive-1', 'req-9'),
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
@@ -314,14 +417,102 @@ describe('AdminService', () => {
       buildUser({
         id: 'inactive-2',
         isActive: false,
-      })
+      }),
     );
 
     await expect(
-      service.assignRole(systemAdminActor, 'inactive-2', 'clinic-1', UserRole.DOCTOR)
+      service.assignRole(systemAdminActor, 'inactive-2', 'clinic-1', UserRole.DOCTOR),
     ).rejects.toThrow(
-      'Cannot assign roles to an inactive user. Ask the replacement user to sign in, then reassign access to the new account.'
+      'Cannot assign roles to an inactive user. Ask the replacement user to sign in, then reassign access to the new account.',
     );
     expect(prisma.userClinicRole.create).not.toHaveBeenCalled();
+  });
+
+  it('blocks generic PATIENT role assignment and directs admins to use portal linking', async () => {
+    const { prisma, service } = createService();
+
+    await expect(
+      service.assignRole(systemAdminActor, 'user-1', 'clinic-1', UserRole.PATIENT),
+    ).rejects.toThrow('Patient access must be granted from a patient record via portal link.');
+
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    expect(prisma.userClinicRole.create).not.toHaveBeenCalled();
+  });
+
+  it('merges a duplicate patient into the canonical chart and records the legacy code as an alias', async () => {
+    const { prisma, auditService, service } = createService();
+    prisma.patient.findUnique
+      .mockResolvedValueOnce({
+        id: 'patient-1',
+        patientCode: 'NKP-2026-000001',
+        primaryClinicId: 'clinic-1',
+        portalUserId: 'user-1',
+        mergedIntoPatientId: null,
+        codeAliases: [],
+      })
+      .mockResolvedValueOnce({
+        id: 'patient-2',
+        patientCode: 'NKP-2026-000099',
+        primaryClinicId: 'clinic-1',
+        portalUserId: null,
+        mergedIntoPatientId: null,
+        codeAliases: [],
+      });
+    prisma.patientAccountLink.findUnique
+      .mockResolvedValueOnce({
+        id: 'link-1',
+        patientId: 'patient-1',
+        keycloakSub: 'kc-1',
+        createdAt: new Date('2026-04-04T12:00:00.000Z'),
+      })
+      .mockResolvedValueOnce(null);
+
+    const result = await service.mergePatients(
+      systemAdminActor,
+      'patient-1',
+      'patient-2',
+      {
+        portalLinkStrategy: 'CANONICAL',
+        inviteStrategy: 'MERGE',
+      },
+      'req-merge-1',
+    );
+
+    expect(prisma.encounter.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { patientId: 'patient-2' },
+        data: { patientId: 'patient-1' },
+      }),
+    );
+    expect(prisma.patient.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'patient-2' },
+        data: expect.objectContaining({
+          mergedIntoPatientId: 'patient-1',
+          mergedByUserId: 'sysadmin-1',
+        }),
+      }),
+    );
+    expect(prisma.patientCodeAlias.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          patientId: 'patient-1',
+          code: 'NKP-2026-000099',
+        },
+      }),
+    );
+    expect(auditService.logWrite).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'PATIENT.MERGE',
+        entityId: 'patient-1',
+      }),
+    );
+    expect(result).toEqual({
+      success: true,
+      canonicalPatientId: 'patient-1',
+      canonicalPatientCode: 'NKP-2026-000001',
+      mergedPatientId: 'patient-2',
+      mergedPatientCodeAlias: 'NKP-2026-000099',
+    });
   });
 });

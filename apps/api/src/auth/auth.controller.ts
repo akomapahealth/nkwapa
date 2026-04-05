@@ -3,6 +3,8 @@ import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { ClinicService } from '../clinics/clinic.service';
 import { computeEffectivePermissions } from './constants/permissions';
+import { PrismaService } from '../prisma/prisma.service';
+import { RateLimit } from '../common/rate-limit.decorator';
 
 export interface ReqUser {
   user: { id: string; keycloakSub: string; displayName: string; email: string | null };
@@ -24,21 +26,43 @@ export interface WhoAmIResponse {
   activeClinicId: string | null;
   effectiveRolesForActiveClinic: string[];
   effectivePermissionsForActiveClinic: string[];
+  onboarding: {
+    state: 'PATIENT_CLAIM_REQUIRED';
+    pendingInvites: Array<{
+      id: string;
+      clinicId: string;
+      clinicName: string;
+      patientId: string;
+      patientName: string;
+      patientCode: string;
+      email: string | null;
+      phoneE164: string | null;
+      createdAt: string;
+      expiresAt: string | null;
+    }>;
+  } | null;
 }
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly clinicService: ClinicService) {}
+  constructor(
+    private readonly clinicService: ClinicService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @UseGuards(JwtAuthGuard)
   @Get('me')
+  @RateLimit({ key: 'auth_me', limit: 120, windowSeconds: 60, scope: 'user-or-ip' })
   getProfile(@Request() req: { user: ReqUser }) {
     return req.user;
   }
 
   @UseGuards(JwtAuthGuard)
   @Get('whoami')
-  async whoami(@Request() req: { user: ReqUser; headers?: { 'x-clinic-id'?: string } }): Promise<WhoAmIResponse> {
+  @RateLimit({ key: 'auth_whoami', limit: 60, windowSeconds: 60, scope: 'user-or-ip' })
+  async whoami(
+    @Request() req: { user: ReqUser; headers?: { 'x-clinic-id'?: string } },
+  ): Promise<WhoAmIResponse> {
     const { user, roles } = req.user;
 
     const byClinicId = new Map<string | 'global', { clinicId: string | null; role: string }[]>();
@@ -49,9 +73,7 @@ export class AuthController {
       byClinicId.set(key, list);
     }
 
-    const clinicIds = [...byClinicId.keys()].filter(
-      (k): k is string => k !== 'global'
-    );
+    const clinicIds = [...byClinicId.keys()].filter((k): k is string => k !== 'global');
     const clinics = clinicIds.length > 0 ? await this.clinicService.findByIds(clinicIds) : [];
     const clinicMap = new Map(clinics.map((c) => [c.id, c]));
 
@@ -74,8 +96,7 @@ export class AuthController {
     const sortedClinicIds = [...clinicIds].sort();
     const headerClinicId = req.headers?.['x-clinic-id']?.trim();
     const isSystemAdmin = roles.some((r) => r.role === 'SYSTEM_ADMIN' && r.clinicId === null);
-    const hasMembership = (cid: string) =>
-      roles.some((r) => r.clinicId === cid) || isSystemAdmin;
+    const hasMembership = (cid: string) => roles.some((r) => r.clinicId === cid) || isSystemAdmin;
 
     let activeClinicId: string | null;
     if (headerClinicId && hasMembership(headerClinicId)) {
@@ -92,6 +113,8 @@ export class AuthController {
     const allEffectiveRoles = [...new Set([...activeRoles, ...globalRoleList])];
     const effectiveRolesForActiveClinic = allEffectiveRoles;
     const effectivePermissionsForActiveClinic = computeEffectivePermissions(allEffectiveRoles);
+    const onboarding =
+      roles.length === 0 ? await this.findPendingPatientClaimOnboarding(user.id) : null;
 
     return {
       userId: user.id,
@@ -102,6 +125,90 @@ export class AuthController {
       activeClinicId,
       effectiveRolesForActiveClinic,
       effectivePermissionsForActiveClinic,
+      onboarding,
+    };
+  }
+
+  private async findPendingPatientClaimOnboarding(
+    userId: string,
+  ): Promise<WhoAmIResponse['onboarding']> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        email: true,
+        phoneE164: true,
+        isActive: true,
+      },
+    });
+
+    if (!user?.isActive) {
+      return null;
+    }
+
+    const orConditions = [];
+    if (user.email) {
+      orConditions.push({
+        email: {
+          equals: user.email,
+          mode: 'insensitive' as const,
+        },
+      });
+    }
+    if (user.phoneE164) {
+      orConditions.push({
+        phoneE164: user.phoneE164,
+      });
+    }
+
+    if (orConditions.length === 0) {
+      return null;
+    }
+
+    const invites = await this.prisma.patientPortalInvite.findMany({
+      where: {
+        status: 'PENDING',
+        OR: orConditions,
+        patient: {
+          mergedIntoPatientId: null,
+        },
+      },
+      include: {
+        clinic: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        patient: {
+          select: {
+            id: true,
+            patientCode: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+      orderBy: [{ createdAt: 'desc' }],
+    });
+
+    if (invites.length === 0) {
+      return null;
+    }
+
+    return {
+      state: 'PATIENT_CLAIM_REQUIRED',
+      pendingInvites: invites.map((invite) => ({
+        id: invite.id,
+        clinicId: invite.clinicId,
+        clinicName: invite.clinic.name,
+        patientId: invite.patientId,
+        patientName: `${invite.patient.firstName} ${invite.patient.lastName}`.trim(),
+        patientCode: invite.patient.patientCode,
+        email: invite.email,
+        phoneE164: invite.phoneE164,
+        createdAt: invite.createdAt.toISOString(),
+        expiresAt: invite.expiresAt?.toISOString() ?? null,
+      })),
     };
   }
 }

@@ -111,6 +111,13 @@ enum AppointmentStatus {
   NO_SHOW
 }
 
+enum PatientPortalInviteStatus {
+  PENDING
+  CLAIMED
+  CANCELLED
+  EXPIRED
+}
+
 enum HypertensionClassification {
   NORMAL
   ELEVATED
@@ -159,17 +166,34 @@ enum SyncMutationStatus {
   ERROR
 }
 
+model Organization {
+  id       String @id @default(uuid()) @db.Uuid
+  name     String
+  slug     String @unique @db.VarChar(120)
+  timezone String @default("Africa/Accra") @db.VarChar(64)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clinics Clinic[]
+}
+
 model Clinic {
-  id          String  @id @default(uuid()) @db.Uuid
-  name        String
-  region      String?
-  countryCode String  @default("GH") @db.VarChar(2) // ISO-3166 alpha-2, v1 default GH
-  isActive    Boolean @default(true)
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @db.Uuid
+  name           String
+  region         String?
+  countryCode    String  @default("GH") @db.VarChar(2) // ISO-3166 alpha-2, v1 default GH
+  timezone       String  @default("Africa/Accra") @db.VarChar(64)
+  locationCode   String  @db.VarChar(64)
+  zoneCode       String? @db.VarChar(64)
+  isActive       Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // relations
+  organization           Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   userRoles              UserClinicRole[]
   patients               Patient[]                @relation("PrimaryClinicPatients")
   encounters             Encounter[]
@@ -192,7 +216,12 @@ model Clinic {
   patientAssignments     PatientAssignment[]
   appointmentRequests    AppointmentRequest[]
   appointments           Appointment[]
+  patientPortalInvites   PatientPortalInvite[]
 
+  @@unique([organizationId, locationCode])
+  @@index([organizationId])
+  @@index([organizationId, zoneCode])
+  @@index([organizationId, name])
   @@index([countryCode])
   @@index([isActive])
 }
@@ -233,6 +262,9 @@ model User {
   createdAssignments            PatientAssignment[]      @relation("AssignmentAssignedBy")
   doctorAppointments            Appointment[]            @relation("AppointmentAssignedDoctor")
   volunteerAppointments         Appointment[]            @relation("AppointmentAssignedVolunteer")
+  createdPatientPortalInvites   PatientPortalInvite[]    @relation("PatientPortalInviteCreatedBy")
+  claimedPatientPortalInvites   PatientPortalInvite[]    @relation("PatientPortalInviteClaimedBy")
+  mergedPatients                Patient[]                @relation("PatientMergedBy")
 
   @@index([isActive])
 }
@@ -274,6 +306,9 @@ model Patient {
 
   createdByUserId String? @db.Uuid
   portalUserId    String? @unique @db.Uuid
+  mergedIntoPatientId String? @db.Uuid
+  mergedAt            DateTime?
+  mergedByUserId      String? @db.Uuid
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -282,6 +317,9 @@ model Patient {
   primaryClinic Clinic           @relation("PrimaryClinicPatients", fields: [primaryClinicId], references: [id])
   createdBy     User?            @relation("PatientCreatedBy", fields: [createdByUserId], references: [id])
   portalUser    User?            @relation("PatientPortalUser", fields: [portalUserId], references: [id], onDelete: SetNull)
+  mergedIntoPatient Patient?     @relation("PatientMerge", fields: [mergedIntoPatientId], references: [id], onDelete: SetNull)
+  mergedSourcePatients Patient[] @relation("PatientMerge")
+  mergedBy User?                 @relation("PatientMergedBy", fields: [mergedByUserId], references: [id], onDelete: SetNull)
   accountLink   PatientAccountLink?
   encounters    Encounter[]
   consents      PatientConsent[]
@@ -291,12 +329,16 @@ model Patient {
   checkIns      PatientCheckIn[]
   appointmentRequests AppointmentRequest[]
   appointments Appointment[]
+  portalInvites PatientPortalInvite[]
+  codeAliases   PatientCodeAlias[]
 
   @@index([primaryClinicId])
   @@index([portalUserId])
+  @@index([mergedIntoPatientId])
   @@index([lastName, firstName])
   @@index([phoneE164])
   @@index([updatedAt])
+  @@index([primaryClinicId, updatedAt, id])
 }
 
 model PatientConsent {
@@ -609,6 +651,43 @@ model PatientAccountLink {
   patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
 }
 
+model PatientPortalInvite {
+  id              String                    @id @default(uuid()) @db.Uuid
+  patientId       String                    @db.Uuid
+  clinicId        String                    @db.Uuid
+  status          PatientPortalInviteStatus @default(PENDING)
+  email           String?                   @db.VarChar(320)
+  phoneE164       String?                   @db.VarChar(32)
+  createdByUserId String                    @db.Uuid
+  claimedByUserId String?                   @db.Uuid
+  claimedAt       DateTime?
+  cancelledAt     DateTime?
+  expiresAt       DateTime?
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  clinic    Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  createdBy User    @relation("PatientPortalInviteCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  claimedBy User?   @relation("PatientPortalInviteClaimedBy", fields: [claimedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([patientId, status])
+  @@index([clinicId, status, createdAt])
+  @@index([email, status])
+  @@index([phoneE164, status])
+}
+
+model PatientCodeAlias {
+  id        String   @id @default(uuid()) @db.Uuid
+  patientId String   @db.Uuid
+  code      String   @unique @db.VarChar(32)
+  createdAt DateTime @default(now())
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+}
+
 model PatientMeasurement {
   id                String                   @id @default(uuid()) @db.Uuid
   patientId         String                   @db.Uuid
@@ -757,6 +836,7 @@ model ResearchExport {
 
   @@index([clinicId, status])
   @@index([requestedAt])
+  @@index([clinicId, requestedAt, id])
 }
 
 model AuditEvent {
@@ -783,6 +863,7 @@ model AuditEvent {
   @@index([clinicId, createdAt])
   @@index([actorUserId, createdAt])
   @@index([action])
+  @@index([clinicId, createdAt, id])
 }
 
 model SyncMutation {
@@ -803,6 +884,7 @@ model SyncMutation {
 
   @@unique([clinicId, idempotencyKey])
   @@index([clinicId])
+  @@index([clinicId, createdAt, id])
 }
 
 model PatientCodeSequence {

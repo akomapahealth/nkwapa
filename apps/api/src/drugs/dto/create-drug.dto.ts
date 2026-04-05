@@ -1,9 +1,32 @@
-import { DrugCategory } from "@prisma/client";
+import { DrugCategory } from '@prisma/client';
+import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { ToSanitizedString } from '../../common/validation';
 
-export interface CreateDrugDto {
-  name: string;
+export class CreateDrugDto {
+  @ToSanitizedString({ maxLength: 120 })
+  @IsString()
+  @MaxLength(120)
+  name!: string;
+
+  @IsOptional()
+  @ToSanitizedString({ maxLength: 120 })
+  @IsString()
+  @MaxLength(120)
   genericName?: string;
+
+  @IsOptional()
+  @IsEnum(DrugCategory)
   category?: DrugCategory;
+
+  @IsOptional()
+  @ToSanitizedString({ maxLength: 500, preserveNewlines: true })
+  @IsString()
+  @MaxLength(500)
   dosageForms?: string;
+
+  @IsOptional()
+  @ToSanitizedString({ maxLength: 2000, preserveNewlines: true })
+  @IsString()
+  @MaxLength(2000)
   contraindications?: string;
 }

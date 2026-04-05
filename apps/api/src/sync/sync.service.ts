@@ -18,14 +18,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { PatientRepository } from '../patients/patient.repository';
 import { EncounterRepository } from '../encounters/encounter.repository';
-import {
-  SyncMutationDto,
-  SYNC_OPERATION,
-} from './dto/sync-mutation.dto';
-import {
-  SyncMutationResultDto,
-  SYNC_MUTATION_RESULT_STATUS,
-} from './dto/sync-push-response.dto';
+import { SyncMutationDto, SYNC_OPERATION } from './dto/sync-mutation.dto';
+import { SyncMutationResultDto, SYNC_MUTATION_RESULT_STATUS } from './dto/sync-push-response.dto';
 import { SyncPullResponseDto } from './dto/sync-pull-response.dto';
 
 const ENTITY_TYPES = [
@@ -57,14 +51,14 @@ export class SyncService {
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
     private readonly patientRepository: PatientRepository,
-    private readonly encounterRepository: EncounterRepository
+    private readonly encounterRepository: EncounterRepository,
   ) {}
 
   async applyMutations(
     clinicId: string,
     user: UserWithId,
     mutations: SyncMutationDto[],
-    metadata?: RequestMetadata
+    metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto[]> {
     const actorUserId = user.user.id;
     const results: SyncMutationResultDto[] = [];
@@ -102,12 +96,7 @@ export class SyncService {
       }
 
       try {
-        const result = await this.applyOne(
-          clinicId,
-          actorUserId,
-          mut,
-          metadata
-        );
+        const result = await this.applyOne(clinicId, actorUserId, mut, metadata);
         results.push(result);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -139,7 +128,7 @@ export class SyncService {
     clinicId: string,
     actorUserId: string,
     mut: SyncMutationDto,
-    metadata?: RequestMetadata
+    metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
     const payload = mut.payloadJson ?? {};
     const idempotencyKey = mut.idempotencyKey;
@@ -150,21 +139,77 @@ export class SyncService {
 
     switch (mut.entityType as EntityType) {
       case 'patient':
-        return this.applyPatientUpsert(clinicId, actorUserId, mut, payload, idempotencyKey, metadata);
+        return this.applyPatientUpsert(
+          clinicId,
+          actorUserId,
+          mut,
+          payload,
+          idempotencyKey,
+          metadata,
+        );
       case 'encounter':
-        return this.applyEncounterUpsert(clinicId, actorUserId, mut, payload, idempotencyKey, metadata);
+        return this.applyEncounterUpsert(
+          clinicId,
+          actorUserId,
+          mut,
+          payload,
+          idempotencyKey,
+          metadata,
+        );
       case 'vitals':
-        return this.applyVitalsUpsert(clinicId, actorUserId, mut, payload, idempotencyKey, metadata);
+        return this.applyVitalsUpsert(
+          clinicId,
+          actorUserId,
+          mut,
+          payload,
+          idempotencyKey,
+          metadata,
+        );
       case 'diabetes_screening':
-        return this.applyDiabetesScreeningUpsert(clinicId, actorUserId, mut, payload, idempotencyKey, metadata);
+        return this.applyDiabetesScreeningUpsert(
+          clinicId,
+          actorUserId,
+          mut,
+          payload,
+          idempotencyKey,
+          metadata,
+        );
       case 'hypertension_assessment':
-        return this.applyHypertensionAssessmentUpsert(clinicId, actorUserId, mut, payload, idempotencyKey, metadata);
+        return this.applyHypertensionAssessmentUpsert(
+          clinicId,
+          actorUserId,
+          mut,
+          payload,
+          idempotencyKey,
+          metadata,
+        );
       case 'care_plan':
-        return this.applyCarePlanUpsert(clinicId, actorUserId, mut, payload, idempotencyKey, metadata);
+        return this.applyCarePlanUpsert(
+          clinicId,
+          actorUserId,
+          mut,
+          payload,
+          idempotencyKey,
+          metadata,
+        );
       case 'patient_consent':
-        return this.applyPatientConsentUpsert(clinicId, actorUserId, mut, payload, idempotencyKey, metadata);
+        return this.applyPatientConsentUpsert(
+          clinicId,
+          actorUserId,
+          mut,
+          payload,
+          idempotencyKey,
+          metadata,
+        );
       case 'prescription':
-        return this.applyPrescriptionUpsert(clinicId, actorUserId, mut, payload, idempotencyKey, metadata);
+        return this.applyPrescriptionUpsert(
+          clinicId,
+          actorUserId,
+          mut,
+          payload,
+          idempotencyKey,
+          metadata,
+        );
       default:
         throw new Error(`Unknown entity type: ${mut.entityType}`);
     }
@@ -176,7 +221,7 @@ export class SyncService {
     mut: SyncMutationDto,
     payload: Record<string, unknown>,
     idempotencyKey: string,
-    metadata?: RequestMetadata
+    metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
     const nationalId = payload.nationalId as string | undefined;
     if (!nationalId) {
@@ -213,16 +258,13 @@ export class SyncService {
 
     const patientCode =
       (payload.patientCode as string) ??
-      (existingById?.patientCode) ??
+      existingById?.patientCode ??
       (await generatePatientCode(this.prisma));
     const primaryClinicId = (payload.primaryClinicId as string) ?? clinicId;
     const createdByUserId = (payload.createdByUserId as string) ?? actorUserId;
 
-    const rawPhone =
-      (payload.phoneE164 as string) ?? (payload.phone as string) ?? null;
-    const phoneE164 = rawPhone
-      ? (normalizePhoneToE164(rawPhone, 'GH') ?? null)
-      : null;
+    const rawPhone = (payload.phoneE164 as string) ?? (payload.phone as string) ?? null;
+    const phoneE164 = rawPhone ? (normalizePhoneToE164(rawPhone, 'GH') ?? null) : null;
 
     const before = existingById ? JSON.stringify(existingById) : null;
     const patient = await this.prisma.patient.upsert({
@@ -290,7 +332,7 @@ export class SyncService {
     mut: SyncMutationDto,
     payload: Record<string, unknown>,
     idempotencyKey: string,
-    metadata?: RequestMetadata
+    metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
     const existing = await this.encounterRepository.findById(mut.entityId);
     if (existing && existing.status === EncounterStatus.FINALIZED) {
@@ -382,7 +424,7 @@ export class SyncService {
     mut: SyncMutationDto,
     payload: Record<string, unknown>,
     idempotencyKey: string,
-    metadata?: RequestMetadata
+    metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
     const encounterId = payload.encounterId as string;
     if (!encounterId) throw new Error('Vitals payload must include encounterId');
@@ -451,7 +493,7 @@ export class SyncService {
     mut: SyncMutationDto,
     payload: Record<string, unknown>,
     idempotencyKey: string,
-    metadata?: RequestMetadata
+    metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
     const encounterId = payload.encounterId as string;
     if (!encounterId) throw new Error('DiabetesScreening payload must include encounterId');
@@ -476,7 +518,10 @@ export class SyncService {
       },
       update: {
         glucoseMgDl: (payload.glucoseMgDl as number) ?? existing?.glucoseMgDl ?? null,
-        glucoseType: (payload.glucoseType as 'FASTING' | 'RANDOM' | 'UNKNOWN') ?? existing?.glucoseType ?? 'UNKNOWN',
+        glucoseType:
+          (payload.glucoseType as 'FASTING' | 'RANDOM' | 'UNKNOWN') ??
+          existing?.glucoseType ??
+          'UNKNOWN',
         hba1cPercent: (payload.hba1cPercent as number) ?? existing?.hba1cPercent ?? null,
         symptomsJson: (payload.symptomsJson as string) ?? existing?.symptomsJson ?? null,
         notes: (payload.notes as string) ?? existing?.notes ?? null,
@@ -516,7 +561,7 @@ export class SyncService {
     mut: SyncMutationDto,
     payload: Record<string, unknown>,
     idempotencyKey: string,
-    metadata?: RequestMetadata
+    metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
     const encounterId = payload.encounterId as string;
     if (!encounterId) throw new Error('HypertensionAssessment payload must include encounterId');
@@ -527,7 +572,8 @@ export class SyncService {
     });
     const before = existing ? JSON.stringify(existing) : null;
 
-    const classification = (payload.classification as HypertensionClassification) ?? HypertensionClassification.UNKNOWN;
+    const classification =
+      (payload.classification as HypertensionClassification) ?? HypertensionClassification.UNKNOWN;
     const assessment = await this.prisma.hypertensionAssessment.upsert({
       where: { encounterId },
       create: {
@@ -540,7 +586,10 @@ export class SyncService {
         notes: (payload.notes as string) ?? null,
       },
       update: {
-        classification: (payload.classification as HypertensionClassification) ?? existing?.classification ?? HypertensionClassification.UNKNOWN,
+        classification:
+          (payload.classification as HypertensionClassification) ??
+          existing?.classification ??
+          HypertensionClassification.UNKNOWN,
         suspected: (payload.suspected as boolean) ?? existing?.suspected ?? false,
         confirmed: (payload.confirmed as boolean) ?? existing?.confirmed ?? false,
         notes: (payload.notes as string) ?? existing?.notes ?? null,
@@ -580,7 +629,7 @@ export class SyncService {
     mut: SyncMutationDto,
     payload: Record<string, unknown>,
     idempotencyKey: string,
-    metadata?: RequestMetadata
+    metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
     const encounterId = payload.encounterId as string;
     if (!encounterId) throw new Error('CarePlan payload must include encounterId');
@@ -604,8 +653,11 @@ export class SyncService {
       },
       update: {
         counselingGiven: (payload.counselingGiven as boolean) ?? existing?.counselingGiven ?? false,
-        medicationPrescribed: (payload.medicationPrescribed as boolean) ?? existing?.medicationPrescribed ?? false,
-        followUpDate: payload.followUpDate ? new Date(payload.followUpDate as string) : existing?.followUpDate ?? null,
+        medicationPrescribed:
+          (payload.medicationPrescribed as boolean) ?? existing?.medicationPrescribed ?? false,
+        followUpDate: payload.followUpDate
+          ? new Date(payload.followUpDate as string)
+          : (existing?.followUpDate ?? null),
         notes: (payload.notes as string) ?? existing?.notes ?? null,
       },
     });
@@ -643,7 +695,7 @@ export class SyncService {
     mut: SyncMutationDto,
     payload: Record<string, unknown>,
     idempotencyKey: string,
-    metadata?: RequestMetadata
+    metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
     const patientId = payload.patientId as string;
     const consentType = payload.consentType as string;
@@ -689,7 +741,11 @@ export class SyncService {
             entityType: 'PatientConsent',
             entityId: g.id,
             beforeJson: beforeRevoke,
-            afterJson: JSON.stringify({ ...g, status: 'REVOKED', revokedAt: new Date().toISOString() }),
+            afterJson: JSON.stringify({
+              ...g,
+              status: 'REVOKED',
+              revokedAt: new Date().toISOString(),
+            }),
             requestId: idempotencyKey,
             ipAddress: metadata?.ipAddress,
             userAgent: metadata?.userAgent,
@@ -718,10 +774,13 @@ export class SyncService {
         consentVersion,
         consentTextSnapshot,
         grantedAt: payload.grantedAt ? new Date(payload.grantedAt as string) : existing!.grantedAt,
-        revokedAt: payload.revokedAt ? new Date(payload.revokedAt as string) : existing?.revokedAt ?? null,
+        revokedAt: payload.revokedAt
+          ? new Date(payload.revokedAt as string)
+          : (existing?.revokedAt ?? null),
         status: status as 'GRANTED' | 'REVOKED',
         witnessName: (payload.witnessName as string) ?? existing?.witnessName ?? null,
-        witnessPhoneE164: (payload.witnessPhoneE164 as string) ?? existing?.witnessPhoneE164 ?? null,
+        witnessPhoneE164:
+          (payload.witnessPhoneE164 as string) ?? existing?.witnessPhoneE164 ?? null,
       },
     });
 
@@ -759,7 +818,7 @@ export class SyncService {
     mut: SyncMutationDto,
     payload: Record<string, unknown>,
     idempotencyKey: string,
-    metadata?: RequestMetadata
+    metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
     const encounterId = payload.encounterId as string;
     if (!encounterId) throw new Error('Prescription payload must include encounterId');
@@ -827,7 +886,7 @@ export class SyncService {
     clinicId: string,
     actorUserId: string,
     mut: SyncMutationDto,
-    metadata?: RequestMetadata
+    metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
     const entityType = mut.entityType as EntityType;
     const idempotencyKey = mut.idempotencyKey;
@@ -864,15 +923,12 @@ export class SyncService {
 
     const beforeMap: Record<string, (id: string) => Promise<unknown>> = {
       vitals: (id) => this.prisma.vitals.findUnique({ where: { id } }),
-      diabetes_screening: (id) =>
-        this.prisma.diabetesScreening.findUnique({ where: { id } }),
+      diabetes_screening: (id) => this.prisma.diabetesScreening.findUnique({ where: { id } }),
       hypertension_assessment: (id) =>
         this.prisma.hypertensionAssessment.findUnique({ where: { id } }),
       care_plan: (id) => this.prisma.carePlan.findUnique({ where: { id } }),
-      patient_consent: (id) =>
-        this.prisma.patientConsent.findUnique({ where: { id } }),
-      prescription: (id) =>
-        this.prisma.prescription.findUnique({ where: { id } }),
+      patient_consent: (id) => this.prisma.patientConsent.findUnique({ where: { id } }),
+      prescription: (id) => this.prisma.prescription.findUnique({ where: { id } }),
     };
     const finder = beforeMap[entityType];
     const beforeRecord = finder ? await finder(mut.entityId) : null;
@@ -885,10 +941,8 @@ export class SyncService {
       hypertension_assessment: () =>
         this.prisma.hypertensionAssessment.deleteMany({ where: { id: mut.entityId } }),
       care_plan: () => this.prisma.carePlan.deleteMany({ where: { id: mut.entityId } }),
-      patient_consent: () =>
-        this.prisma.patientConsent.deleteMany({ where: { id: mut.entityId } }),
-      prescription: () =>
-        this.prisma.prescription.deleteMany({ where: { id: mut.entityId } }),
+      patient_consent: () => this.prisma.patientConsent.deleteMany({ where: { id: mut.entityId } }),
+      prescription: () => this.prisma.prescription.deleteMany({ where: { id: mut.entityId } }),
     };
     await deleteMap[entityType]!();
 
@@ -927,10 +981,7 @@ export class SyncService {
     return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
   }
 
-  async pull(
-    clinicId: string,
-    since?: string
-  ): Promise<SyncPullResponseDto> {
+  async pull(clinicId: string, since?: string): Promise<SyncPullResponseDto> {
     const sinceDate = since
       ? (() => {
           const [ts] = since.split('|');
@@ -942,36 +993,45 @@ export class SyncService {
     const where = { clinicId };
     const updatedAtFilter = sinceDate ? { updatedAt: { gt: sinceDate } } : {};
 
-    const [patients, encounters, vitals, diabetesScreenings, hypertensionAssessments, carePlans, patientConsents, prescriptions] =
-      await Promise.all([
-        this.prisma.patient.findMany({
-          where: {
-            primaryClinicId: clinicId,
-            ...updatedAtFilter,
-          },
-        }),
-        this.prisma.encounter.findMany({
-          where: { ...where, ...updatedAtFilter },
-        }),
-        this.prisma.vitals.findMany({
-          where: { ...where, ...updatedAtFilter },
-        }),
-        this.prisma.diabetesScreening.findMany({
-          where: { ...where, ...updatedAtFilter },
-        }),
-        this.prisma.hypertensionAssessment.findMany({
-          where: { ...where, ...updatedAtFilter },
-        }),
-        this.prisma.carePlan.findMany({
-          where: { ...where, ...updatedAtFilter },
-        }),
-        this.prisma.patientConsent.findMany({
-          where: { ...where, ...updatedAtFilter },
-        }),
-        this.prisma.prescription.findMany({
-          where: { ...where, ...updatedAtFilter },
-        }),
-      ]);
+    const [
+      patients,
+      encounters,
+      vitals,
+      diabetesScreenings,
+      hypertensionAssessments,
+      carePlans,
+      patientConsents,
+      prescriptions,
+    ] = await Promise.all([
+      this.prisma.patient.findMany({
+        where: {
+          primaryClinicId: clinicId,
+          mergedIntoPatientId: null,
+          ...updatedAtFilter,
+        },
+      }),
+      this.prisma.encounter.findMany({
+        where: { ...where, ...updatedAtFilter },
+      }),
+      this.prisma.vitals.findMany({
+        where: { ...where, ...updatedAtFilter },
+      }),
+      this.prisma.diabetesScreening.findMany({
+        where: { ...where, ...updatedAtFilter },
+      }),
+      this.prisma.hypertensionAssessment.findMany({
+        where: { ...where, ...updatedAtFilter },
+      }),
+      this.prisma.carePlan.findMany({
+        where: { ...where, ...updatedAtFilter },
+      }),
+      this.prisma.patientConsent.findMany({
+        where: { ...where, ...updatedAtFilter },
+      }),
+      this.prisma.prescription.findMany({
+        where: { ...where, ...updatedAtFilter },
+      }),
+    ]);
 
     const allRows = [
       ...patients.map((p) => ({ updatedAt: p.updatedAt, id: p.id })),
@@ -990,11 +1050,9 @@ export class SyncService {
           : acc.updatedAt.getTime() === r.updatedAt.getTime() && r.id > acc.id
             ? r
             : acc,
-      null as { updatedAt: Date; id: string } | null
+      null as { updatedAt: Date; id: string } | null,
     );
-    const nextCursor = maxRow
-      ? `${maxRow.updatedAt.toISOString()}|${maxRow.id}`
-      : since ?? '';
+    const nextCursor = maxRow ? `${maxRow.updatedAt.toISOString()}|${maxRow.id}` : (since ?? '');
 
     return {
       cursor: nextCursor,

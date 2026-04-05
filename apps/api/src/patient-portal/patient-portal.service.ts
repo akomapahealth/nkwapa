@@ -1,3 +1,4 @@
+import { normalizePhoneToE164 } from '@nkwapa/db';
 import {
   BadRequestException,
   ConflictException,
@@ -13,6 +14,7 @@ import {
   PatientMeasurementType,
   PatientSelfReportType,
   Prisma,
+  UserRole,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -29,8 +31,11 @@ import type {
   ListAppointmentRequestsQueryDto,
   RejectAppointmentRequestDto,
 } from './dto/appointment-requests.dto';
+import type { CreatePatientPortalInviteDto } from './dto/portal-invite.dto';
+import type { ClaimPatientRecordDto } from './dto/claim-record.dto';
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+export const PATIENT_PORTAL_LINK_MISSING = 'PATIENT_PORTAL_LINK_MISSING';
 
 const appointmentRequestInclude = {
   patient: {
@@ -548,6 +553,18 @@ export class PatientPortalService {
         update: {},
       });
 
+      await tx.patientPortalInvite.updateMany({
+        where: {
+          patientId,
+          clinicId,
+          status: 'PENDING',
+        },
+        data: {
+          status: 'CANCELLED',
+          cancelledAt: new Date(),
+        },
+      });
+
       return link;
     });
 
@@ -562,6 +579,556 @@ export class PatientPortalService {
     });
 
     return { success: true, patientId, userId, keycloakSub: user.keycloakSub };
+  }
+
+  async listPortalLinkCandidates(clinicId: string, patientId: string, q?: string) {
+    const patient = await this.prisma.patient.findFirst({
+      where: {
+        id: patientId,
+        primaryClinicId: clinicId,
+        mergedIntoPatientId: null,
+      },
+      select: {
+        id: true,
+        email: true,
+        phoneE164: true,
+        portalUserId: true,
+      },
+    });
+    if (!patient) {
+      throw new NotFoundException('Patient not found');
+    }
+
+    const trimmedQuery = q?.trim() ?? '';
+    const queryPhone = trimmedQuery
+      ? (normalizePhoneToE164(trimmedQuery, 'GH') ?? trimmedQuery.replace(/\s+/g, ''))
+      : null;
+
+    const clauses: Prisma.UserWhereInput[] = [];
+
+    if (patient.portalUserId) {
+      clauses.push({ id: patient.portalUserId });
+    }
+
+    if (trimmedQuery) {
+      clauses.push(
+        { email: { contains: trimmedQuery, mode: 'insensitive' } },
+        { displayName: { contains: trimmedQuery, mode: 'insensitive' } },
+        { firstName: { contains: trimmedQuery, mode: 'insensitive' } },
+        { lastName: { contains: trimmedQuery, mode: 'insensitive' } },
+      );
+      if (queryPhone) {
+        clauses.push({ phoneE164: { contains: queryPhone } });
+      }
+    } else {
+      if (patient.email) {
+        clauses.push({ email: { equals: patient.email, mode: 'insensitive' } });
+      }
+      if (patient.phoneE164) {
+        clauses.push({ phoneE164: patient.phoneE164 });
+      }
+    }
+
+    if (clauses.length === 0) {
+      return [];
+    }
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        isActive: true,
+        OR: clauses,
+      },
+      select: {
+        id: true,
+        keycloakSub: true,
+        displayName: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phoneE164: true,
+      },
+      orderBy: [{ displayName: 'asc' }, { createdAt: 'asc' }],
+      take: 20,
+    });
+
+    if (users.length === 0) {
+      return [];
+    }
+
+    const userIds = users.map((user) => user.id);
+    const keycloakSubs = [
+      ...new Set(
+        users.map((user) => user.keycloakSub).filter((value): value is string => Boolean(value)),
+      ),
+    ];
+
+    const [accountLinks, legacyLinks] = await Promise.all([
+      keycloakSubs.length > 0
+        ? this.prisma.patientAccountLink.findMany({
+            where: {
+              keycloakSub: { in: keycloakSubs },
+            },
+            select: {
+              keycloakSub: true,
+              patientId: true,
+              patient: {
+                select: {
+                  patientCode: true,
+                },
+              },
+            },
+          })
+        : Promise.resolve([]),
+      userIds.length > 0
+        ? this.prisma.patient.findMany({
+            where: {
+              portalUserId: { in: userIds },
+            },
+            select: {
+              id: true,
+              portalUserId: true,
+              patientCode: true,
+            },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const linkedByKeycloakSub = new Map(
+      accountLinks.map((link) => [
+        link.keycloakSub,
+        {
+          patientId: link.patientId,
+          patientCode: link.patient.patientCode,
+        },
+      ]),
+    );
+    const linkedByUserId = new Map(
+      legacyLinks
+        .filter((linkedPatient) => Boolean(linkedPatient.portalUserId))
+        .map((linkedPatient) => [
+          linkedPatient.portalUserId as string,
+          {
+            patientId: linkedPatient.id,
+            patientCode: linkedPatient.patientCode,
+          },
+        ]),
+    );
+
+    const normalizedPatientEmail = patient.email?.trim().toLowerCase() ?? null;
+    const normalizedPatientPhone = patient.phoneE164 ?? null;
+
+    return users
+      .map((user) => {
+        const existingLink =
+          linkedByKeycloakSub.get(user.keycloakSub) ?? linkedByUserId.get(user.id) ?? null;
+
+        if (existingLink && existingLink.patientId !== patientId) {
+          return null;
+        }
+
+        let score = 0;
+        if (patient.portalUserId && user.id === patient.portalUserId) {
+          score += 100;
+        }
+        if (normalizedPatientEmail && user.email?.trim().toLowerCase() === normalizedPatientEmail) {
+          score += 50;
+        }
+        if (normalizedPatientPhone && user.phoneE164 === normalizedPatientPhone) {
+          score += 40;
+        }
+        if (trimmedQuery) {
+          const loweredQuery = trimmedQuery.toLowerCase();
+          if (user.email?.trim().toLowerCase() === loweredQuery) {
+            score += 25;
+          }
+          if (queryPhone && user.phoneE164 === queryPhone) {
+            score += 20;
+          }
+        }
+
+        return {
+          id: user.id,
+          displayName:
+            user.displayName ||
+            `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() ||
+            user.email ||
+            user.keycloakSub,
+          email: user.email,
+          phoneE164: user.phoneE164,
+          alreadyLinked: existingLink?.patientId === patientId,
+          isSuggestedMatch: score >= 40,
+          score,
+        };
+      })
+      .filter(
+        (
+          user,
+        ): user is {
+          id: string;
+          displayName: string;
+          email: string | null;
+          phoneE164: string | null;
+          alreadyLinked: boolean;
+          isSuggestedMatch: boolean;
+          score: number;
+        } => Boolean(user),
+      )
+      .sort((left, right) => {
+        if (right.score !== left.score) {
+          return right.score - left.score;
+        }
+        return left.displayName.localeCompare(right.displayName);
+      });
+  }
+
+  async createPortalInvite(
+    clinicId: string,
+    patientId: string,
+    dto: CreatePatientPortalInviteDto,
+    actorUserId: string,
+    requestId?: string,
+  ) {
+    const patient = await this.prisma.patient.findFirst({
+      where: {
+        id: patientId,
+        primaryClinicId: clinicId,
+        mergedIntoPatientId: null,
+      },
+      select: {
+        id: true,
+        portalUserId: true,
+      },
+    });
+    if (!patient) {
+      throw new NotFoundException('Patient not found');
+    }
+
+    const email = dto.email?.trim().toLowerCase() || null;
+    const phoneE164 = dto.phoneE164
+      ? (normalizePhoneToE164(dto.phoneE164, 'GH') ?? dto.phoneE164.trim())
+      : null;
+
+    if (!email && !phoneE164) {
+      throw new BadRequestException('Provide an email or phone number to create a portal invite');
+    }
+
+    const existingLink = await this.prisma.patientAccountLink.findUnique({
+      where: { patientId },
+      select: { id: true },
+    });
+    if (existingLink || patient.portalUserId) {
+      throw new ConflictException('This patient already has a linked portal account');
+    }
+
+    const expiresAt = dto.expiresAt ? this.parseDateTime(dto.expiresAt, 'expiresAt') : null;
+
+    const invite = await this.prisma.$transaction(async (tx) => {
+      await tx.patientPortalInvite.updateMany({
+        where: {
+          patientId,
+          clinicId,
+          status: 'PENDING',
+        },
+        data: {
+          status: 'CANCELLED',
+          cancelledAt: new Date(),
+        },
+      });
+
+      return tx.patientPortalInvite.create({
+        data: {
+          patientId,
+          clinicId,
+          email,
+          phoneE164,
+          expiresAt,
+          createdByUserId: actorUserId,
+        },
+      });
+    });
+
+    await this.auditService.logWrite({
+      clinicId,
+      actorUserId,
+      action: 'PATIENT.PORTAL.INVITE',
+      entityType: 'PatientPortalInvite',
+      entityId: invite.id,
+      afterJson: JSON.stringify(invite),
+      requestId,
+    });
+
+    return this.serializePortalInvite(invite);
+  }
+
+  async cancelPortalInvite(
+    clinicId: string,
+    patientId: string,
+    inviteId: string,
+    actorUserId: string,
+    requestId?: string,
+  ) {
+    const invite = await this.prisma.patientPortalInvite.findFirst({
+      where: {
+        id: inviteId,
+        patientId,
+        clinicId,
+      },
+    });
+    if (!invite) {
+      throw new NotFoundException('Portal invite not found');
+    }
+    if (invite.status !== 'PENDING') {
+      throw new BadRequestException('Only pending portal invites can be cancelled');
+    }
+
+    const updated = await this.prisma.patientPortalInvite.update({
+      where: { id: inviteId },
+      data: {
+        status: 'CANCELLED',
+        cancelledAt: new Date(),
+      },
+    });
+
+    await this.auditService.logWrite({
+      clinicId,
+      actorUserId,
+      action: 'PATIENT.PORTAL.INVITE.CANCEL',
+      entityType: 'PatientPortalInvite',
+      entityId: updated.id,
+      beforeJson: JSON.stringify(invite),
+      afterJson: JSON.stringify(updated),
+      requestId,
+    });
+
+    return this.serializePortalInvite(updated);
+  }
+
+  async listPendingInvitesForUser(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        isActive: true,
+        email: true,
+        phoneE164: true,
+      },
+    });
+    if (!user?.isActive) {
+      return [];
+    }
+
+    const orConditions: Prisma.PatientPortalInviteWhereInput[] = [];
+    if (user.email) {
+      orConditions.push({
+        email: {
+          equals: user.email,
+          mode: 'insensitive',
+        },
+      });
+    }
+    if (user.phoneE164) {
+      orConditions.push({
+        phoneE164: user.phoneE164,
+      });
+    }
+
+    if (orConditions.length === 0) {
+      return [];
+    }
+
+    const invites = await this.prisma.patientPortalInvite.findMany({
+      where: {
+        status: 'PENDING',
+        OR: orConditions,
+        patient: {
+          mergedIntoPatientId: null,
+        },
+      },
+      include: {
+        clinic: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        patient: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            patientCode: true,
+            primaryClinicId: true,
+          },
+        },
+      },
+      orderBy: [{ createdAt: 'desc' }],
+    });
+
+    return invites.map((invite) => ({
+      id: invite.id,
+      clinicId: invite.clinicId,
+      clinicName: invite.clinic.name,
+      patientId: invite.patientId,
+      patientName: `${invite.patient.firstName} ${invite.patient.lastName}`.trim(),
+      patientCode: invite.patient.patientCode,
+      email: invite.email,
+      phoneE164: invite.phoneE164,
+      createdAt: invite.createdAt.toISOString(),
+      expiresAt: invite.expiresAt?.toISOString() ?? null,
+    }));
+  }
+
+  async claimPatientRecord(userId: string, dto: ClaimPatientRecordDto, requestId?: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        keycloakSub: true,
+        isActive: true,
+        email: true,
+        phoneE164: true,
+      },
+    });
+    if (!user?.isActive) {
+      throw new NotFoundException('User not found');
+    }
+
+    const invite = await this.prisma.patientPortalInvite.findFirst({
+      where: {
+        id: dto.inviteId,
+        status: 'PENDING',
+      },
+      include: {
+        patient: {
+          include: {
+            codeAliases: {
+              select: {
+                code: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!invite) {
+      throw new NotFoundException('Pending portal invite not found');
+    }
+    if (invite.patient.mergedIntoPatientId) {
+      throw new ConflictException('This patient record has been merged into another chart');
+    }
+
+    const matchesEmail =
+      Boolean(invite.email) &&
+      Boolean(user.email) &&
+      invite.email!.toLowerCase() === user.email!.toLowerCase();
+    const matchesPhone =
+      Boolean(invite.phoneE164) && Boolean(user.phoneE164) && invite.phoneE164 === user.phoneE164;
+
+    if (!matchesEmail && !matchesPhone) {
+      throw new ForbiddenException(
+        'This account does not match the email or phone number staged for the patient portal invite',
+      );
+    }
+
+    const acceptedCodes = new Set([
+      invite.patient.patientCode.toUpperCase(),
+      ...invite.patient.codeAliases.map((alias) => alias.code.toUpperCase()),
+    ]);
+    if (!acceptedCodes.has(dto.patientCode.trim().toUpperCase())) {
+      throw new BadRequestException('Patient code does not match this invited record');
+    }
+
+    const expectedDob = invite.patient.dob?.toISOString().slice(0, 10) ?? null;
+    if (!expectedDob) {
+      throw new BadRequestException(
+        'This patient record is missing a date of birth. Ask clinic staff to update the chart before portal claim.',
+      );
+    }
+    if (dto.dob !== expectedDob) {
+      throw new BadRequestException('Date of birth does not match this invited record');
+    }
+
+    const existingLink = await this.prisma.patientAccountLink.findUnique({
+      where: { keycloakSub: user.keycloakSub },
+    });
+    if (existingLink && existingLink.patientId !== invite.patientId) {
+      throw new ConflictException('This account is already linked to another patient record');
+    }
+
+    const link = await this.prisma.$transaction(async (tx) => {
+      const createdLink = await tx.patientAccountLink.upsert({
+        where: { patientId: invite.patientId },
+        create: {
+          patientId: invite.patientId,
+          keycloakSub: user.keycloakSub,
+        },
+        update: {
+          keycloakSub: user.keycloakSub,
+        },
+      });
+
+      await tx.patient.update({
+        where: { id: invite.patientId },
+        data: { portalUserId: user.id },
+      });
+
+      await tx.userClinicRole.upsert({
+        where: {
+          userId_clinicId_role: {
+            userId,
+            clinicId: invite.clinicId,
+            role: 'PATIENT',
+          },
+        },
+        create: {
+          userId,
+          clinicId: invite.clinicId,
+          role: 'PATIENT',
+        },
+        update: {},
+      });
+
+      await tx.patientPortalInvite.update({
+        where: { id: invite.id },
+        data: {
+          status: 'CLAIMED',
+          claimedByUserId: user.id,
+          claimedAt: new Date(),
+        },
+      });
+
+      await tx.patientPortalInvite.updateMany({
+        where: {
+          patientId: invite.patientId,
+          clinicId: invite.clinicId,
+          status: 'PENDING',
+          id: { not: invite.id },
+        },
+        data: {
+          status: 'CANCELLED',
+          cancelledAt: new Date(),
+        },
+      });
+
+      return createdLink;
+    });
+
+    await this.auditService.logWrite({
+      clinicId: invite.clinicId,
+      actorUserId: user.id,
+      action: 'PATIENT.PORTAL.CLAIM',
+      entityType: 'PatientAccountLink',
+      entityId: link.id,
+      afterJson: JSON.stringify(link),
+      requestId,
+    });
+
+    return {
+      success: true,
+      clinicId: invite.clinicId,
+      patientId: invite.patientId,
+      patientCode: invite.patient.patientCode,
+    };
   }
 
   async listSelfReportsForStaff(patientId: string, clinicId: string) {
@@ -623,6 +1190,41 @@ export class PatientPortalService {
     });
     if (legacyPatient) {
       return legacyPatient;
+    }
+
+    const [clinicPatientRole, linkedPatientAnywhere, legacyPatientAnywhere] = await Promise.all([
+      this.prisma.userClinicRole.findFirst({
+        where: {
+          userId,
+          clinicId,
+          role: UserRole.PATIENT,
+        },
+        select: { id: true },
+      }),
+      this.prisma.patientAccountLink.findFirst({
+        where: { keycloakSub: user.keycloakSub },
+        select: {
+          patient: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      }),
+      this.prisma.patient.findFirst({
+        where: { portalUserId: userId },
+        select: { id: true },
+      }),
+    ]);
+
+    if (clinicPatientRole || linkedPatientAnywhere?.patient || legacyPatientAnywhere) {
+      throw new NotFoundException({
+        statusCode: 404,
+        error: 'Not Found',
+        code: PATIENT_PORTAL_LINK_MISSING,
+        message:
+          'This patient account is not linked to a patient record for the active clinic. Ask clinic staff to link portal access from the patient record.',
+      });
     }
 
     throw new NotFoundException('Patient record not found for this clinic');
@@ -1135,6 +1737,36 @@ export class PatientPortalService {
       linkedEncounterId: measurement.linkedEncounterId,
       createdAt: measurement.createdAt.toISOString(),
       updatedAt: measurement.updatedAt.toISOString(),
+    };
+  }
+
+  private serializePortalInvite(invite: {
+    id: string;
+    patientId: string;
+    clinicId: string;
+    status: string;
+    email: string | null;
+    phoneE164: string | null;
+    claimedByUserId?: string | null;
+    claimedAt?: Date | null;
+    cancelledAt?: Date | null;
+    expiresAt?: Date | null;
+    createdAt: Date;
+    updatedAt?: Date;
+  }) {
+    return {
+      id: invite.id,
+      patientId: invite.patientId,
+      clinicId: invite.clinicId,
+      status: invite.status,
+      email: invite.email,
+      phoneE164: invite.phoneE164,
+      claimedByUserId: invite.claimedByUserId ?? null,
+      claimedAt: invite.claimedAt?.toISOString() ?? null,
+      cancelledAt: invite.cancelledAt?.toISOString() ?? null,
+      expiresAt: invite.expiresAt?.toISOString() ?? null,
+      createdAt: invite.createdAt.toISOString(),
+      updatedAt: invite.updatedAt?.toISOString() ?? null,
     };
   }
 

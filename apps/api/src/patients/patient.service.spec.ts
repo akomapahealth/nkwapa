@@ -1,34 +1,37 @@
-import { ConflictException } from "@nestjs/common";
-import { Test, TestingModule } from "@nestjs/testing";
-import { Patient } from "@prisma/client";
-import { PatientService } from "./patient.service";
-import { PatientRepository } from "./patient.repository";
-import { PrismaService } from "../prisma/prisma.service";
-import { AuditService } from "../audit/audit.service";
-import { EncounterService } from "../encounters/encounter.service";
-import { ConsentService } from "../consents/consent.service";
+import { ConflictException } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import { Patient } from '@prisma/client';
+import { PatientService } from './patient.service';
+import { PatientRepository } from './patient.repository';
+import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
+import { EncounterService } from '../encounters/encounter.service';
+import { ConsentService } from '../consents/consent.service';
 
 const mockPatient: Patient = {
-  id: "patient-1",
-  patientCode: "NKP-2025-000001",
-  primaryClinicId: "clinic-1",
-  firstName: "John",
-  lastName: "Doe",
+  id: 'patient-1',
+  patientCode: 'NKP-2025-000001',
+  primaryClinicId: 'clinic-1',
+  firstName: 'John',
+  lastName: 'Doe',
   dob: null,
-  sex: "UNKNOWN",
+  sex: 'UNKNOWN',
   phoneE164: null,
   email: null,
-  nationalIdType: "OTHER",
-  nationalIdCiphertext: "encrypted",
-  nationalIdHash: "hash123",
-  nationalIdLast4: "1234",
+  nationalIdType: 'OTHER',
+  nationalIdCiphertext: 'encrypted',
+  nationalIdHash: 'hash123',
+  nationalIdLast4: '1234',
   createdByUserId: null,
   portalUserId: null,
+  mergedIntoPatientId: null,
+  mergedAt: null,
+  mergedByUserId: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
 
-describe("PatientService - national_id dedup conflict", () => {
+describe('PatientService - national_id dedup conflict', () => {
   let service: PatientService;
 
   beforeEach(async () => {
@@ -82,34 +85,32 @@ describe("PatientService - national_id dedup conflict", () => {
 
     service = module.get(PatientService);
     const patientRepository = module.get(PatientRepository);
-    jest
-      .spyOn(patientRepository, "findByNationalIdHash")
-      .mockResolvedValue(mockPatient);
+    jest.spyOn(patientRepository, 'findByNationalIdHash').mockResolvedValue(mockPatient);
   });
 
-  it("throws ConflictException with existing patient summary when national ID already exists", async () => {
+  it('throws ConflictException with existing patient summary when national ID already exists', async () => {
     const dto = {
-      primaryClinicId: "clinic-1",
-      firstName: "Jane",
-      lastName: "Doe",
-      nationalIdType: "OTHER" as const,
-      nationalId: "same-national-id",
-      createdByUserId: "user-1",
+      primaryClinicId: 'clinic-1',
+      firstName: 'Jane',
+      lastName: 'Doe',
+      nationalIdType: 'OTHER' as const,
+      nationalId: 'same-national-id',
+      createdByUserId: 'user-1',
     };
 
     await expect(
       service.create(dto, {
-        clinicId: "clinic-1",
-        actorUserId: "user-1",
-        requestId: "req-1",
-      })
+        clinicId: 'clinic-1',
+        actorUserId: 'user-1',
+        requestId: 'req-1',
+      }),
     ).rejects.toThrow(ConflictException);
 
     try {
       await service.create(dto, {
-        clinicId: "clinic-1",
-        actorUserId: "user-1",
-        requestId: "req-1",
+        clinicId: 'clinic-1',
+        actorUserId: 'user-1',
+        requestId: 'req-1',
       });
     } catch (err) {
       expect(err).toBeInstanceOf(ConflictException);
@@ -133,7 +134,7 @@ describe("PatientService - national_id dedup conflict", () => {
   });
 });
 
-describe("PatientService - update", () => {
+describe('PatientService - update', () => {
   let service: PatientService;
   let mockAuditLogWrite: jest.Mock;
   let mockRepoUpdate: jest.Mock;
@@ -141,8 +142,8 @@ describe("PatientService - update", () => {
 
   const updatedPatient: Patient = {
     ...mockPatient,
-    firstName: "Jane",
-    phoneE164: "+233241234567",
+    firstName: 'Jane',
+    phoneE164: '+233241234567',
   };
 
   beforeEach(async () => {
@@ -170,12 +171,14 @@ describe("PatientService - update", () => {
             patientCodeSequence: {
               upsert: jest.fn().mockResolvedValue({ year: 2025, lastNumber: 1 }),
             },
-            $transaction: jest.fn((cb) => cb({
-              patientCodeSequence: {
-                upsert: jest.fn().mockResolvedValue({ year: 2025, lastNumber: 1 }),
-              },
-              patient: { create: jest.fn().mockResolvedValue(mockPatient) },
-            })),
+            $transaction: jest.fn((cb) =>
+              cb({
+                patientCodeSequence: {
+                  upsert: jest.fn().mockResolvedValue({ year: 2025, lastNumber: 1 }),
+                },
+                patient: { create: jest.fn().mockResolvedValue(mockPatient) },
+              }),
+            ),
           },
         },
         {
@@ -196,57 +199,57 @@ describe("PatientService - update", () => {
     service = module.get(PatientService);
   });
 
-  it("updates patient and logs audit event", async () => {
+  it('updates patient and logs audit event', async () => {
     const result = await service.update(
-      "patient-1",
-      { firstName: "Jane" },
-      { clinicId: "clinic-1", actorUserId: "user-1", requestId: "req-1" }
+      'patient-1',
+      { firstName: 'Jane' },
+      { clinicId: 'clinic-1', actorUserId: 'user-1', requestId: 'req-1' },
     );
 
     expect(result).toEqual(updatedPatient);
-    expect(mockRepoUpdate).toHaveBeenCalledWith("patient-1", { firstName: "Jane" });
+    expect(mockRepoUpdate).toHaveBeenCalledWith('patient-1', { firstName: 'Jane' });
     expect(mockAuditLogWrite).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: "PATIENT.UPDATE",
-        entityType: "Patient",
-        entityId: "patient-1",
+        action: 'PATIENT.UPDATE',
+        entityType: 'Patient',
+        entityId: 'patient-1',
         beforeJson: JSON.stringify(mockPatient),
         afterJson: JSON.stringify(updatedPatient),
-      })
+      }),
     );
   });
 
-  it("normalizes phone number on update", async () => {
+  it('normalizes phone number on update', async () => {
     await service.update(
-      "patient-1",
-      { phoneE164: "0241234567" },
-      { clinicId: "clinic-1", actorUserId: "user-1" }
+      'patient-1',
+      { phoneE164: '0241234567' },
+      { clinicId: 'clinic-1', actorUserId: 'user-1' },
     );
 
     expect(mockRepoUpdate).toHaveBeenCalledWith(
-      "patient-1",
-      expect.objectContaining({ phoneE164: "+233241234567" })
+      'patient-1',
+      expect.objectContaining({ phoneE164: '+233241234567' }),
     );
   });
 
-  it("throws when patient not found", async () => {
+  it('throws when patient not found', async () => {
     mockRepoFindById.mockResolvedValue(null);
 
-    await expect(
-      service.update("nonexistent", { firstName: "Test" })
-    ).rejects.toThrow("Patient not found");
+    await expect(service.update('nonexistent', { firstName: 'Test' })).rejects.toThrow(
+      'Patient not found',
+    );
   });
 
-  it("does not include nationalId fields in update", async () => {
+  it('does not include nationalId fields in update', async () => {
     await service.update(
-      "patient-1",
-      { firstName: "Updated" },
-      { clinicId: "clinic-1", actorUserId: "user-1" }
+      'patient-1',
+      { firstName: 'Updated' },
+      { clinicId: 'clinic-1', actorUserId: 'user-1' },
     );
 
     const updateCall = mockRepoUpdate.mock.calls[0][1];
-    expect(updateCall).not.toHaveProperty("nationalIdCiphertext");
-    expect(updateCall).not.toHaveProperty("nationalIdHash");
-    expect(updateCall).not.toHaveProperty("nationalIdLast4");
+    expect(updateCall).not.toHaveProperty('nationalIdCiphertext');
+    expect(updateCall).not.toHaveProperty('nationalIdHash');
+    expect(updateCall).not.toHaveProperty('nationalIdLast4');
   });
 });

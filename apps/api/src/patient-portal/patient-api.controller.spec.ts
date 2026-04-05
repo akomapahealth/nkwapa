@@ -159,9 +159,8 @@ describe('PatientApiController', () => {
 
   it('allows staff trend routes when the user has PATIENT.READ for the clinic', async () => {
     const request: RequestShape = {
-      headers: { 'x-clinic-id': 'clinic-1' },
       params: { patientId: 'patient-1' },
-      query: { from: '2026-03-01' },
+      query: { clinicId: 'clinic-1', from: '2026-03-01' },
       user: doctorUser,
     };
     const context = createExecutionContext(controller, 'listTrendsForStaff', request);
@@ -171,16 +170,12 @@ describe('PatientApiController', () => {
     expect(rbacGuard.canActivate(context)).toBe(true);
 
     await controller.listTrendsForStaff(
-      'patient-1',
-      { from: '2026-03-01' },
-      {
-        clinicId: request.clinicId,
-        headers: {},
-        user: request.user,
-      },
+      { patientId: 'patient-1' },
+      { clinicId: 'clinic-1', from: '2026-03-01' },
     );
 
     expect(patientPortalService.listTrendsForStaff).toHaveBeenCalledWith('patient-1', 'clinic-1', {
+      clinicId: 'clinic-1',
       from: '2026-03-01',
     });
   });

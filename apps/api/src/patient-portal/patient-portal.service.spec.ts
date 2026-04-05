@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { PatientPortalService } from './patient-portal.service';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { PATIENT_PORTAL_LINK_MISSING, PatientPortalService } from './patient-portal.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ReminderService } from '../reminders/reminder.service';
@@ -10,15 +10,28 @@ function createPrismaMock() {
     user: {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
+      findMany: jest.fn(),
     },
     patientAccountLink: {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
+      findMany: jest.fn(),
       upsert: jest.fn(),
+      create: jest.fn(),
+      deleteMany: jest.fn(),
     },
     patient: {
       findFirst: jest.fn(),
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
       update: jest.fn(),
+    },
+    patientPortalInvite: {
+      create: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
     },
     encounter: {
       findFirst: jest.fn(),
@@ -56,7 +69,9 @@ function createPrismaMock() {
     $transaction: jest.fn(),
   };
 
-  prisma.$transaction.mockImplementation(async (callback: (tx: typeof prisma) => unknown) => callback(prisma));
+  prisma.$transaction.mockImplementation(async (callback: (tx: typeof prisma) => unknown) =>
+    callback(prisma),
+  );
   return prisma;
 }
 
@@ -101,10 +116,37 @@ describe('PatientPortalService', () => {
     prisma.encounter.findMany.mockResolvedValue([]);
     prisma.reminder.findMany.mockResolvedValue([]);
     prisma.patient.findFirst.mockResolvedValue({ id: 'patient-1' });
+    prisma.patient.findUnique.mockResolvedValue({
+      ...portalPatient,
+      portalUserId: null,
+      mergedIntoPatientId: null,
+      codeAliases: [],
+    });
+    prisma.patientAccountLink.upsert.mockResolvedValue({
+      id: 'patient-link-1',
+      patientId: 'patient-1',
+      keycloakSub: 'kc-sub-1',
+      createdAt: new Date('2026-04-04T12:00:00.000Z'),
+    });
     prisma.clinic.findUnique.mockResolvedValue({ name: 'Clinic One' });
     prisma.patientMeasurement.findMany.mockResolvedValue([]);
     prisma.appointmentRequest.count.mockResolvedValue(0);
     prisma.appointment.count.mockResolvedValue(0);
+    prisma.patientPortalInvite.findMany.mockResolvedValue([]);
+    prisma.patientPortalInvite.updateMany.mockResolvedValue({ count: 0 });
+    prisma.user.findMany.mockResolvedValue([]);
+    prisma.patientAccountLink.findMany.mockResolvedValue([]);
+    prisma.patient.findMany.mockResolvedValue([]);
+    prisma.patientPortalInvite.create.mockImplementation(async ({ data }) => ({
+      id: 'invite-1',
+      ...data,
+      status: 'PENDING',
+      claimedByUserId: null,
+      claimedAt: null,
+      cancelledAt: null,
+      createdAt: new Date('2026-04-04T12:00:00.000Z'),
+      updatedAt: new Date('2026-04-04T12:00:00.000Z'),
+    }));
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -126,9 +168,52 @@ describe('PatientPortalService', () => {
         where: expect.objectContaining({
           keycloakSub: 'kc-sub-1',
         }),
-      })
+      }),
     );
     expect(result.patient.patientCode).toBe('NKP-2026-000001');
+  });
+
+  it('returns a structured link-missing error when a PATIENT role exists without a linked patient record', async () => {
+    prisma.patientAccountLink.findFirst.mockReset();
+    prisma.patientAccountLink.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+    prisma.patient.findFirst.mockReset();
+    prisma.patient.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+    prisma.userClinicRole.findFirst.mockResolvedValueOnce({ id: 'patient-role-1' });
+
+    try {
+      await service.getMe('clinic-1', 'user-1');
+      fail('Expected getMe to throw a portal link error');
+    } catch (error) {
+      expect(error).toBeInstanceOf(NotFoundException);
+      const response = (error as NotFoundException).getResponse();
+      expect(response).toMatchObject({
+        code: PATIENT_PORTAL_LINK_MISSING,
+        message: expect.stringContaining('not linked'),
+      });
+    }
+  });
+
+  it('keeps clinic scoping strict when a patient link exists for another clinic', async () => {
+    prisma.patientAccountLink.findFirst.mockReset();
+    prisma.patientAccountLink.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      patient: {
+        id: 'patient-2',
+      },
+    });
+    prisma.patient.findFirst.mockReset();
+    prisma.patient.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+    prisma.userClinicRole.findFirst.mockResolvedValueOnce(null);
+
+    try {
+      await service.getMe('clinic-1', 'user-1');
+      fail('Expected getMe to throw for a link in another clinic');
+    } catch (error) {
+      expect(error).toBeInstanceOf(NotFoundException);
+      const response = (error as NotFoundException).getResponse();
+      expect(response).toMatchObject({
+        code: PATIENT_PORTAL_LINK_MISSING,
+      });
+    }
   });
 
   it('creates a BP measurement for the authenticated patient and audits it', async () => {
@@ -154,12 +239,12 @@ describe('PatientPortalService', () => {
         payload: { systolic: 120, diastolic: 80, pulse: 70 },
         notes: 'Morning check',
       },
-      'req-1'
+      'req-1',
     );
 
     expect(prisma.patientMeasurement.create).toHaveBeenCalled();
     expect(auditService.logWrite).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'MEASUREMENT.CREATE', entityId: 'measurement-1' })
+      expect.objectContaining({ action: 'MEASUREMENT.CREATE', entityId: 'measurement-1' }),
     );
     expect(result.payload).toEqual({ systolic: 120, diastolic: 80, pulse: 70 });
   });
@@ -173,8 +258,8 @@ describe('PatientPortalService', () => {
           type: 'GLUCOSE',
           payload: { value: 130 },
         },
-        'req-1'
-      )
+        'req-1',
+      ),
     ).rejects.toThrow(BadRequestException);
   });
 
@@ -202,7 +287,7 @@ describe('PatientPortalService', () => {
         diastolicBp: 77,
         notes: 'Legacy route',
       },
-      'req-1'
+      'req-1',
     );
 
     expect(prisma.patientMeasurement.create).toHaveBeenCalled();
@@ -284,20 +369,17 @@ describe('PatientPortalService', () => {
         diabetesScreening: { glucoseMgDl: 201, glucoseType: 'RANDOM' },
       },
     ]);
-    prisma.appointmentRequest.count
-      .mockResolvedValueOnce(2)
-      .mockResolvedValueOnce(1);
+    prisma.appointmentRequest.count.mockResolvedValueOnce(2).mockResolvedValueOnce(1);
     prisma.appointment.count
       .mockResolvedValueOnce(3)
       .mockResolvedValueOnce(4)
       .mockResolvedValueOnce(1)
       .mockResolvedValueOnce(2);
 
-    const result = await service.listTrendsForAuthenticatedPatient(
-      'clinic-1',
-      'user-1',
-      { from: '2026-03-01', to: '2026-03-31' }
-    );
+    const result = await service.listTrendsForAuthenticatedPatient('clinic-1', 'user-1', {
+      from: '2026-03-01',
+      to: '2026-03-31',
+    });
 
     expect(prisma.patientMeasurement.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -310,7 +392,7 @@ describe('PatientPortalService', () => {
             lte: new Date('2026-03-31T23:59:59.999Z'),
           },
         }),
-      })
+      }),
     );
     expect(prisma.encounter.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -323,7 +405,7 @@ describe('PatientPortalService', () => {
             lte: new Date('2026-03-31T23:59:59.999Z'),
           },
         }),
-      })
+      }),
     );
     expect(result.bp).toEqual([
       {
@@ -378,11 +460,7 @@ describe('PatientPortalService', () => {
       return [];
     });
 
-    const patientResult = await service.listTrendsForAuthenticatedPatient(
-      'clinic-1',
-      'user-1',
-      {}
-    );
+    const patientResult = await service.listTrendsForAuthenticatedPatient('clinic-1', 'user-1', {});
     const staffResult = await service.listTrendsForStaff('patient-1', 'clinic-1', {});
 
     expect(patientResult.bp).toEqual([]);
@@ -432,14 +510,113 @@ describe('PatientPortalService', () => {
         reason: 'Follow-up',
         notes: 'Afternoon is best',
       },
-      'req-1'
+      'req-1',
     );
 
     expect(prisma.appointmentRequest.create).toHaveBeenCalled();
     expect(auditService.logWrite).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'APPT.REQUEST.CREATE', entityId: 'appt-req-1' })
+      expect.objectContaining({ action: 'APPT.REQUEST.CREATE', entityId: 'appt-req-1' }),
     );
     expect(result.status).toBe('REQUESTED');
+  });
+
+  it('creates and reissues a pending portal invite for a patient chart', async () => {
+    prisma.patient.findFirst.mockResolvedValue({
+      id: 'patient-1',
+      portalUserId: null,
+    });
+    prisma.patientAccountLink.findUnique.mockResolvedValue(null);
+
+    const result = await service.createPortalInvite(
+      'clinic-1',
+      'patient-1',
+      {
+        email: 'ama@example.com',
+      },
+      'manager-1',
+      'req-portal-invite',
+    );
+
+    expect(prisma.patientPortalInvite.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          patientId: 'patient-1',
+          clinicId: 'clinic-1',
+          status: 'PENDING',
+        }),
+      }),
+    );
+    expect(prisma.patientPortalInvite.create).toHaveBeenCalled();
+    expect(result).toMatchObject({
+      patientId: 'patient-1',
+      clinicId: 'clinic-1',
+      status: 'PENDING',
+      email: 'ama@example.com',
+    });
+  });
+
+  it('claims a pending portal invite into the existing clinical patient record', async () => {
+    prisma.user.findUnique.mockResolvedValueOnce({
+      id: 'user-1',
+      keycloakSub: 'kc-sub-1',
+      isActive: true,
+      email: 'ama@example.com',
+      phoneE164: null,
+    });
+    prisma.patientPortalInvite.findFirst.mockResolvedValueOnce({
+      id: 'invite-1',
+      patientId: 'patient-1',
+      clinicId: 'clinic-1',
+      status: 'PENDING',
+      email: 'ama@example.com',
+      phoneE164: null,
+      claimedByUserId: null,
+      claimedAt: null,
+      cancelledAt: null,
+      expiresAt: null,
+      createdAt: new Date('2026-04-04T12:00:00.000Z'),
+      updatedAt: new Date('2026-04-04T12:00:00.000Z'),
+      patient: {
+        ...portalPatient,
+        dob: new Date('1998-07-22T00:00:00.000Z'),
+        mergedIntoPatientId: null,
+        codeAliases: [],
+      },
+    });
+    prisma.patientAccountLink.findUnique.mockResolvedValueOnce(null);
+
+    const result = await service.claimPatientRecord(
+      'user-1',
+      {
+        inviteId: 'invite-1',
+        patientCode: 'NKP-2026-000001',
+        dob: '1998-07-22',
+      },
+      'req-claim',
+    );
+
+    expect(prisma.patientAccountLink.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { patientId: 'patient-1' },
+      }),
+    );
+    expect(prisma.userClinicRole.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId_clinicId_role: {
+            userId: 'user-1',
+            clinicId: 'clinic-1',
+            role: 'PATIENT',
+          },
+        },
+      }),
+    );
+    expect(result).toEqual({
+      success: true,
+      clinicId: 'clinic-1',
+      patientId: 'patient-1',
+      patientCode: 'NKP-2026-000001',
+    });
   });
 
   it('confirms appointment requests, creates appointments, and schedules reminders', async () => {
@@ -516,15 +693,15 @@ describe('PatientPortalService', () => {
         endsAt: '2026-03-26T14:30:00.000Z',
         notes: 'Bring logs',
       },
-      'req-1'
+      'req-1',
     );
 
     expect(prisma.appointment.create).toHaveBeenCalled();
     expect(auditService.logWrite).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'APPT.CREATE', entityId: 'appointment-1' })
+      expect.objectContaining({ action: 'APPT.CREATE', entityId: 'appointment-1' }),
     );
     expect(auditService.logWrite).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'APPT.REQUEST.CONFIRM', entityId: 'appt-req-2' })
+      expect.objectContaining({ action: 'APPT.REQUEST.CONFIRM', entityId: 'appt-req-2' }),
     );
     expect(reminderService.scheduleAppointmentReminder).toHaveBeenCalled();
     expect(result.request.status).toBe('CONFIRMED');
@@ -587,7 +764,7 @@ describe('PatientPortalService', () => {
       'appt-req-3',
       'manager-1',
       { reason: 'No slots available' },
-      'req-1'
+      'req-1',
     );
 
     expect(result.status).toBe('REJECTED');
@@ -608,7 +785,45 @@ describe('PatientPortalService', () => {
     });
 
     await expect(
-      service.linkPortalUser('clinic-1', 'patient-1', 'user-2', 'manager-1', 'req-1')
+      service.linkPortalUser('clinic-1', 'patient-1', 'user-2', 'manager-1', 'req-1'),
     ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('lists portal link candidates for a patient chart using matching contact details', async () => {
+    prisma.patient.findFirst.mockResolvedValueOnce({
+      id: 'patient-1',
+      email: 'testpatient@example.com',
+      phoneE164: '+233243563312',
+      portalUserId: null,
+    });
+    prisma.user.findMany.mockResolvedValueOnce([
+      {
+        id: 'user-7',
+        keycloakSub: 'kc-sub-7',
+        displayName: 'Test Patient',
+        firstName: 'Test',
+        lastName: 'Patient',
+        email: 'testpatient@example.com',
+        phoneE164: '+233243563312',
+      },
+    ]);
+
+    const result = await service.listPortalLinkCandidates('clinic-1', 'patient-1');
+
+    expect(prisma.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          isActive: true,
+        }),
+      }),
+    );
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: 'user-7',
+        displayName: 'Test Patient',
+        email: 'testpatient@example.com',
+        isSuggestedMatch: true,
+      }),
+    ]);
   });
 });

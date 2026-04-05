@@ -1,17 +1,6 @@
-import {
-  AssignmentStatus,
-  CheckInSource,
-  CheckInStatus,
-  ShiftRole,
-} from '@prisma/client';
-import {
-  IsEnum,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Matches,
-  MaxLength,
-} from 'class-validator';
+import { AssignmentStatus, CheckInSource, CheckInStatus, ShiftRole } from '@prisma/client';
+import { IsEnum, IsOptional, IsString, IsUUID, Matches, MaxLength } from 'class-validator';
+import { ToSanitizedString } from '../../common/validation';
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -20,6 +9,7 @@ export class ShiftCheckInDto {
   roleAtShift!: ShiftRole;
 
   @IsOptional()
+  @ToSanitizedString({ maxLength: 2000, preserveNewlines: true })
   @IsString()
   @MaxLength(2000)
   notes?: string;
@@ -40,6 +30,7 @@ export class CreatePatientCheckInDto {
   source?: CheckInSource;
 
   @IsOptional()
+  @ToSanitizedString({ maxLength: 2000, preserveNewlines: true })
   @IsString()
   @MaxLength(2000)
   notes?: string;
@@ -73,6 +64,7 @@ export class ReassignAssignmentDto {
   @IsUUID()
   assignedDoctorId!: string;
 
+  @ToSanitizedString({ maxLength: 2000, preserveNewlines: true })
   @IsString()
   @MaxLength(2000)
   reason!: string;

@@ -18,6 +18,7 @@ import { AdminService } from './admin.service';
 import { PERMISSIONS } from '../auth/constants/permissions';
 import { UserRole } from '@prisma/client';
 import { AssignRoleDto } from './dto/assign-role.dto';
+import { MergePatientsDto } from './dto/merge-patients.dto';
 import type { ReqUserWithRoles } from '../auth/guards/rbac.guard';
 
 @Controller('admin')
@@ -29,7 +30,7 @@ export class AdminController {
   @Get('users')
   async listUsers(
     @Query('status') status: string | undefined,
-    @Request() req: { user: ReqUserWithRoles }
+    @Request() req: { user: ReqUserWithRoles },
   ) {
     const actor = {
       userId: req.user.user.id,
@@ -39,10 +40,7 @@ export class AdminController {
   }
 
   @Get('users/:userId/roles')
-  async getUserRoles(
-    @Param('userId') userId: string,
-    @Request() req: { user: ReqUserWithRoles }
-  ) {
+  async getUserRoles(@Param('userId') userId: string, @Request() req: { user: ReqUserWithRoles }) {
     const actor = {
       userId: req.user.user.id,
       roles: req.user.roles,
@@ -54,22 +52,14 @@ export class AdminController {
   async assignRole(
     @Param('userId') userId: string,
     @Body() dto: AssignRoleDto,
-    @Request() req: { user: ReqUserWithRoles }
+    @Request() req: { user: ReqUserWithRoles },
   ) {
     const actor = {
       userId: req.user.user.id,
       roles: req.user.roles,
     };
-    const clinicId =
-      dto.clinicId === undefined || dto.clinicId === ''
-        ? null
-        : dto.clinicId;
-    return this.adminService.assignRole(
-      actor,
-      userId,
-      clinicId,
-      dto.role as UserRole
-    );
+    const clinicId = dto.clinicId === undefined || dto.clinicId === '' ? null : dto.clinicId;
+    return this.adminService.assignRole(actor, userId, clinicId, dto.role as UserRole);
   }
 
   @Delete('users/:userId/roles')
@@ -81,14 +71,13 @@ export class AdminController {
     req: {
       user: ReqUserWithRoles;
       headers?: { 'x-request-id'?: string };
-    }
+    },
   ) {
     const actor = {
       userId: req.user.user.id,
       roles: req.user.roles,
     };
-    const clinicId =
-      clinicIdParam === undefined || clinicIdParam === '' ? null : clinicIdParam;
+    const clinicId = clinicIdParam === undefined || clinicIdParam === '' ? null : clinicIdParam;
     const role = roleParam as UserRole;
     if (!roleParam || !Object.values(UserRole).includes(role)) {
       throw new BadRequestException('Valid role query parameter is required');
@@ -98,7 +87,28 @@ export class AdminController {
       userId,
       clinicId,
       role,
-      req.headers?.['x-request-id'] ?? randomUUID()
+      req.headers?.['x-request-id'] ?? randomUUID(),
+    );
+  }
+
+  @Post('patients/merge')
+  async mergePatients(
+    @Body() dto: MergePatientsDto,
+    @Request() req: { user: ReqUserWithRoles; headers?: { 'x-request-id'?: string } },
+  ) {
+    const actor = {
+      userId: req.user.user.id,
+      roles: req.user.roles,
+    };
+    return this.adminService.mergePatients(
+      actor,
+      dto.canonicalPatientId,
+      dto.sourcePatientId,
+      {
+        portalLinkStrategy: dto.portalLinkStrategy,
+        inviteStrategy: dto.inviteStrategy,
+      },
+      req.headers?.['x-request-id'] ?? randomUUID(),
     );
   }
 }

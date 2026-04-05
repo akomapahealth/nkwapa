@@ -7,16 +7,26 @@
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": true,
+  "verifyEmail": true,
   "editUsernameAllowed": false,
-  "bruteForceProtected": false,
+  "bruteForceProtected": true,
   "permanentLockout": false,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "minimumQuickLoginWaitSeconds": 60,
+  "maxFailureWaitSeconds": 900,
+  "maxDeltaTimeSeconds": 43200,
+  "passwordPolicy": "length(12) and upperCase(1) and lowerCase(1) and digits(1) and specialChars(1) and passwordHistory(5) and notUsername(undefined)",
   "accessTokenLifespan": 300,
   "ssoSessionIdleTimeout": 1800,
   "ssoSessionMaxLifespan": 36000,
-  "defaultRoles": [
-    "uma_authorization",
-    "offline_access"
-  ],
+  "actionTokenGeneratedByUserLifespan": 900,
+  "attributes": {
+    "actionTokenGeneratedByUserLifespan.reset-credentials": "900",
+    "actionTokenGeneratedByUserLifespan.verify-email": "86400"
+  },
+  "defaultRoles": ["uma_authorization", "offline_access"],
   "roles": {
     "realm": [
       {
@@ -58,17 +68,20 @@
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,
       "redirectUris": [
+        "https://app.nkwapa.app/*",
+        "https://app.nkwapa.app",
+        "https://staging.nkwapa.app/*",
+        "https://staging.nkwapa.app",
         "http://localhost:3000/*",
-        "http://localhost:3000",
-        "http://localhost:4000/*",
-        "http://localhost:4000"
+        "http://localhost:3000"
       ],
       "webOrigins": [
-        "http://localhost:3000",
-        "http://localhost:4000"
+        "https://app.nkwapa.app",
+        "https://staging.nkwapa.app",
+        "http://localhost:3000"
       ],
       "attributes": {
-        "post.logout.redirect.uris": "http://localhost:3000/*##http://localhost:3000##http://localhost:4000/*##http://localhost:4000"
+        "post.logout.redirect.uris": "https://app.nkwapa.app/*##https://app.nkwapa.app##https://staging.nkwapa.app/*##https://staging.nkwapa.app##http://localhost:3000/*##http://localhost:3000"
       },
       "protocol": "openid-connect",
       "fullScopeAllowed": true

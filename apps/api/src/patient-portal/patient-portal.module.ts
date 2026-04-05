@@ -6,6 +6,7 @@ import { ReminderModule } from '../reminders/reminder.module';
 import { PatientPortalController } from './patient-portal.controller';
 import { PatientApiController } from './patient-api.controller';
 import { ClinicAppointmentRequestsController } from './clinic-appointment-requests.controller';
+import { PatientClaimController } from './patient-claim.controller';
 import { PatientPortalService } from './patient-portal.service';
 
 @Module({
@@ -14,6 +15,7 @@ import { PatientPortalService } from './patient-portal.service';
     PatientPortalController,
     PatientApiController,
     ClinicAppointmentRequestsController,
+    PatientClaimController,
   ],
   providers: [PatientPortalService],
   exports: [PatientPortalService],

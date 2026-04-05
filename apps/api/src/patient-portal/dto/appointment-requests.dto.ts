@@ -1,29 +1,26 @@
 import { AppointmentRequestStatus } from '@prisma/client';
-import {
-  IsEnum,
-  IsOptional,
-  IsString,
-  IsUUID,
-  MaxLength,
-} from 'class-validator';
+import { IsDateString, IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { ToSanitizedString } from '../../common/validation';
 
 export class CreateAppointmentRequestDto {
   @IsOptional()
   @IsUUID()
   clinicId?: string;
 
-  @IsString()
+  @IsDateString()
   preferredStartDate!: string;
 
-  @IsString()
+  @IsDateString()
   preferredEndDate!: string;
 
   @IsOptional()
+  @ToSanitizedString({ maxLength: 120 })
   @IsString()
   @MaxLength(120)
   reason?: string;
 
   @IsOptional()
+  @ToSanitizedString({ maxLength: 2000, preserveNewlines: true })
   @IsString()
   @MaxLength(2000)
   notes?: string;
@@ -35,19 +32,19 @@ export class ListAppointmentRequestsQueryDto {
   status?: AppointmentRequestStatus;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   from?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   to?: string;
 }
 
 export class ConfirmAppointmentRequestDto {
-  @IsString()
+  @IsDateString()
   startsAt!: string;
 
-  @IsString()
+  @IsDateString()
   endsAt!: string;
 
   @IsOptional()
@@ -59,12 +56,14 @@ export class ConfirmAppointmentRequestDto {
   assignedVolunteerId?: string;
 
   @IsOptional()
+  @ToSanitizedString({ maxLength: 2000, preserveNewlines: true })
   @IsString()
   @MaxLength(2000)
   notes?: string;
 }
 
 export class RejectAppointmentRequestDto {
+  @ToSanitizedString({ maxLength: 2000, preserveNewlines: true })
   @IsString()
   @MaxLength(2000)
   reason!: string;

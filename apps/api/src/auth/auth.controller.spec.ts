@@ -9,8 +9,16 @@ describe('AuthController', () => {
       { id: 'clinic-2', name: 'Second Clinic', region: 'Ashanti' },
     ]),
   };
+  const prisma = {
+    user: {
+      findUnique: jest.fn(),
+    },
+    patientPortalInvite: {
+      findMany: jest.fn(),
+    },
+  };
 
-  const controller = new AuthController(clinicService as never);
+  const controller = new AuthController(clinicService as never, prisma as never);
 
   const reqUser: ReqUser = {
     user: {
@@ -28,6 +36,12 @@ describe('AuthController', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    prisma.user.findUnique.mockResolvedValue({
+      email: 'test@example.com',
+      phoneE164: null,
+      isActive: true,
+    });
+    prisma.patientPortalInvite.findMany.mockResolvedValue([]);
   });
 
   it('returns the raw profile for /auth/me', () => {
@@ -74,6 +88,66 @@ describe('AuthController', () => {
     expect(error.getResponse()).toMatchObject({
       code: 'USER_DISABLED',
       message: 'User account is deactivated',
+    });
+  });
+
+  it('returns patient-claim onboarding details for role-less users with a pending invite', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      email: 'patient@example.com',
+      phoneE164: null,
+      isActive: true,
+    });
+    prisma.patientPortalInvite.findMany.mockResolvedValue([
+      {
+        id: 'invite-1',
+        clinicId: 'clinic-3',
+        patientId: 'patient-7',
+        email: 'patient@example.com',
+        phoneE164: null,
+        createdAt: new Date('2026-04-04T12:00:00.000Z'),
+        expiresAt: null,
+        clinic: {
+          id: 'clinic-3',
+          name: 'Patient Clinic',
+        },
+        patient: {
+          id: 'patient-7',
+          patientCode: 'NKP-2026-000007',
+          firstName: 'Prince',
+          lastName: 'Tuffour',
+        },
+      },
+    ]);
+
+    const response = await controller.whoami({
+      user: {
+        user: {
+          id: 'patient-user-1',
+          keycloakSub: 'patient-sub',
+          displayName: 'Prince Tuffour',
+          email: 'patient@example.com',
+        },
+        roles: [],
+      },
+      headers: {},
+    });
+
+    expect(response.onboarding).toEqual({
+      state: 'PATIENT_CLAIM_REQUIRED',
+      pendingInvites: [
+        {
+          id: 'invite-1',
+          clinicId: 'clinic-3',
+          clinicName: 'Patient Clinic',
+          patientId: 'patient-7',
+          patientName: 'Prince Tuffour',
+          patientCode: 'NKP-2026-000007',
+          email: 'patient@example.com',
+          phoneE164: null,
+          createdAt: '2026-04-04T12:00:00.000Z',
+          expiresAt: null,
+        },
+      ],
     });
   });
 });

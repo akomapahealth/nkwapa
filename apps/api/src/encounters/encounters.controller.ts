@@ -9,150 +9,153 @@ import {
   UseGuards,
   NotFoundException,
   BadRequestException,
-} from "@nestjs/common";
-import { randomUUID } from "crypto";
-import { JwtAuthGuard } from "../auth/jwt-auth.guard";
-import { RequirePermission } from "../auth/decorators/require-permission.decorator";
-import { ClinicScoped } from "../auth/decorators/clinic-scoped.decorator";
-import { RbacGuard } from "../auth/guards/rbac.guard";
-import { ClinicScopeGuard } from "../auth/guards/clinic-scope.guard";
-import { EncounterService } from "./encounter.service";
-import { PERMISSIONS } from "../auth/constants/permissions";
-import type { QueueStage } from "./encounter.repository";
+} from '@nestjs/common';
+import { randomUUID } from 'crypto';
+import { EncounterStatus } from '@prisma/client';
+import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RequirePermission } from '../auth/decorators/require-permission.decorator';
+import { ClinicScoped } from '../auth/decorators/clinic-scoped.decorator';
+import { RbacGuard } from '../auth/guards/rbac.guard';
+import { ClinicScopeGuard } from '../auth/guards/clinic-scope.guard';
+import { EncounterService } from './encounter.service';
+import { PERMISSIONS } from '../auth/constants/permissions';
+import type { QueueStage } from './encounter.repository';
+import { ClinicAndEncounterParamsDto, ClinicIdParamDto } from '../common/request-dto';
+import { ToOptionalNumber } from '../common/validation';
 
-interface CreateEncounterBodyDto {
-  patientId: string;
+class CreateEncounterBodyDto {
+  @IsUUID()
+  patientId!: string;
 }
 
-@Controller("clinics/:clinicId/encounters")
+class EncounterListQueryDto {
+  @IsOptional()
+  @IsEnum(EncounterStatus)
+  status?: EncounterStatus;
+
+  @IsOptional()
+  @IsString()
+  stage?: QueueStage;
+
+  @IsOptional()
+  @ToOptionalNumber()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  take?: number;
+}
+
+@Controller('clinics/:clinicId/encounters')
 @UseGuards(JwtAuthGuard, ClinicScopeGuard, RbacGuard)
 export class EncountersController {
   constructor(private readonly encounterService: EncounterService) {}
 
   @Get()
-  @ClinicScoped({ type: "param", paramKey: "clinicId" })
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.ENCOUNTER_READ)
-  async list(
-    @Param("clinicId") clinicId: string,
-    @Query("status") status?: "DRAFT" | "IN_REVIEW" | "FINALIZED",
-    @Query("stage") stage?: QueueStage,
-    @Query("take") take?: string
-  ) {
-    if (status === "IN_REVIEW" && stage) {
-      return this.encounterService.listByClinic(clinicId, {
-        status: "IN_REVIEW",
-        stage,
-        take: take ? parseInt(take, 10) : 50,
+  async list(@Param() params: ClinicIdParamDto, @Query() query: EncounterListQueryDto) {
+    if (query.status === 'IN_REVIEW' && query.stage) {
+      return this.encounterService.listByClinic(params.clinicId, {
+        status: 'IN_REVIEW',
+        stage: query.stage,
+        take: query.take ?? 50,
       });
     }
-    if (status) {
-      return this.encounterService.listByClinic(clinicId, {
-        status,
-        take: take ? parseInt(take, 10) : 50,
+    if (query.status) {
+      return this.encounterService.listByClinic(params.clinicId, {
+        status: query.status,
+        take: query.take ?? 50,
       });
     }
-    return this.encounterService.listByClinic(clinicId, {
-      take: take ? parseInt(take, 10) : 50,
+    return this.encounterService.listByClinic(params.clinicId, {
+      take: query.take ?? 50,
     });
   }
 
-  @Get(":encounterId")
-  @ClinicScoped({ type: "param", paramKey: "clinicId" })
+  @Get(':encounterId')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.ENCOUNTER_READ)
-  async findOne(
-    @Param("clinicId") clinicId: string,
-    @Param("encounterId") encounterId: string
-  ) {
-    const encounter = await this.encounterService.findById(encounterId, true);
-    if (!encounter || encounter.clinicId !== clinicId) {
-      throw new NotFoundException("Encounter not found");
+  async findOne(@Param() params: ClinicAndEncounterParamsDto) {
+    const encounter = await this.encounterService.findById(params.encounterId, true);
+    if (!encounter || encounter.clinicId !== params.clinicId) {
+      throw new NotFoundException('Encounter not found');
     }
     return encounter;
   }
 
-  @Post(":encounterId/submit")
-  @ClinicScoped({ type: "param", paramKey: "clinicId" })
+  @Post(':encounterId/submit')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.ENCOUNTER_SUBMIT_FOR_REVIEW)
   async submit(
-    @Param("clinicId") clinicId: string,
-    @Param("encounterId") encounterId: string,
-    @Request() req: { user: { user: { id: string } } }
+    @Param() params: ClinicAndEncounterParamsDto,
+    @Request() req: { user: { user: { id: string } } },
   ) {
-    const encounter = await this.encounterService.findById(encounterId);
-    if (!encounter || encounter.clinicId !== clinicId) {
-      throw new NotFoundException("Encounter not found");
+    const encounter = await this.encounterService.findById(params.encounterId);
+    if (!encounter || encounter.clinicId !== params.clinicId) {
+      throw new NotFoundException('Encounter not found');
     }
     try {
-      return await this.encounterService.submitForReview(encounterId, {
-        clinicId,
+      return await this.encounterService.submitForReview(params.encounterId, {
+        clinicId: params.clinicId,
         actorUserId: req.user.user.id,
         requestId: randomUUID(),
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("Cannot submit")) {
+      if (msg.includes('Cannot submit')) {
         throw new BadRequestException(msg);
       }
       throw err;
     }
   }
 
-  @Post(":encounterId/preceptor-review")
-  @ClinicScoped({ type: "param", paramKey: "clinicId" })
+  @Post(':encounterId/preceptor-review')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.PRECEPTOR_REVIEW)
   async preceptorReview(
-    @Param("clinicId") clinicId: string,
-    @Param("encounterId") encounterId: string,
-    @Request() req: { user: { user: { id: string } } }
+    @Param() params: ClinicAndEncounterParamsDto,
+    @Request() req: { user: { user: { id: string } } },
   ) {
-    const encounter = await this.encounterService.findById(encounterId);
-    if (!encounter || encounter.clinicId !== clinicId) {
-      throw new NotFoundException("Encounter not found");
+    const encounter = await this.encounterService.findById(params.encounterId);
+    if (!encounter || encounter.clinicId !== params.clinicId) {
+      throw new NotFoundException('Encounter not found');
     }
     try {
-      return await this.encounterService.preceptorReview(
-        encounterId,
-        req.user.user.id,
-        {
-          clinicId,
-          actorUserId: req.user.user.id,
-          requestId: randomUUID(),
-        }
-      );
+      return await this.encounterService.preceptorReview(params.encounterId, req.user.user.id, {
+        clinicId: params.clinicId,
+        actorUserId: req.user.user.id,
+        requestId: randomUUID(),
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("Cannot preceptor") || msg.includes("already preceptor")) {
+      if (msg.includes('Cannot preceptor') || msg.includes('already preceptor')) {
         throw new BadRequestException(msg);
       }
       throw err;
     }
   }
 
-  @Post(":encounterId/finalize")
-  @ClinicScoped({ type: "param", paramKey: "clinicId" })
+  @Post(':encounterId/finalize')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.DOCTOR_FINALIZE)
   async finalize(
-    @Param("clinicId") clinicId: string,
-    @Param("encounterId") encounterId: string,
-    @Request() req: { user: { user: { id: string } } }
+    @Param() params: ClinicAndEncounterParamsDto,
+    @Request() req: { user: { user: { id: string } } },
   ) {
-    const encounter = await this.encounterService.findById(encounterId);
-    if (!encounter || encounter.clinicId !== clinicId) {
-      throw new NotFoundException("Encounter not found");
+    const encounter = await this.encounterService.findById(params.encounterId);
+    if (!encounter || encounter.clinicId !== params.clinicId) {
+      throw new NotFoundException('Encounter not found');
     }
     try {
-      return await this.encounterService.finalize(
-        encounterId,
-        req.user.user.id,
-        {
-          clinicId,
-          actorUserId: req.user.user.id,
-          requestId: randomUUID(),
-        }
-      );
+      return await this.encounterService.finalize(params.encounterId, req.user.user.id, {
+        clinicId: params.clinicId,
+        actorUserId: req.user.user.id,
+        requestId: randomUUID(),
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("Cannot finalize") || msg.includes("must be preceptor")) {
+      if (msg.includes('Cannot finalize') || msg.includes('must be preceptor')) {
         throw new BadRequestException(msg);
       }
       throw err;
@@ -160,27 +163,27 @@ export class EncountersController {
   }
 
   @Post()
-  @ClinicScoped({ type: "param", paramKey: "clinicId" })
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.ENCOUNTER_CREATE)
   async create(
-    @Param("clinicId") clinicId: string,
+    @Param() params: ClinicIdParamDto,
     @Body() body: CreateEncounterBodyDto,
-    @Request() req: { user: { user: { id: string }; roles: unknown[] } }
+    @Request() req: { user: { user: { id: string }; roles: unknown[] } },
   ) {
     const dto = {
-      clinicId,
+      clinicId: params.clinicId,
       patientId: body.patientId,
       createdByUserId: req.user.user.id,
     };
     try {
       return await this.encounterService.create(dto, {
-        clinicId,
+        clinicId: params.clinicId,
         actorUserId: req.user.user.id,
         requestId: randomUUID(),
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("Clinic not found") || msg.includes("Patient not found")) {
+      if (msg.includes('Clinic not found') || msg.includes('Patient not found')) {
         throw new NotFoundException(msg);
       }
       throw err;

@@ -1,11 +1,15 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsDateString, IsOptional, IsUUID } from 'class-validator';
 
 export class ListPatientTrendsQueryDto {
   @IsOptional()
-  @IsString()
+  @IsUUID()
+  clinicId?: string;
+
+  @IsOptional()
+  @IsDateString()
   from?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   to?: string;
 }

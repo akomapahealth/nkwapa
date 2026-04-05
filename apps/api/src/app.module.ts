@@ -20,6 +20,8 @@ import { PatientPortalModule } from './patient-portal/patient-portal.module';
 import { OpsModule } from './ops/ops.module';
 import { CorrelationIdMiddleware } from './common/correlation-id.middleware';
 import { RequestLoggerMiddleware } from './common/request-logger.middleware';
+import { SecurityHeadersMiddleware } from './common/security-headers.middleware';
+import { RateLimitGuard } from './common/rate-limit.guard';
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
 
@@ -47,9 +49,12 @@ const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
     PatientPortalModule,
     OpsModule,
   ],
+  providers: [RateLimitGuard],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(CorrelationIdMiddleware, RequestLoggerMiddleware).forRoutes('*');
+    consumer
+      .apply(SecurityHeadersMiddleware, CorrelationIdMiddleware, RequestLoggerMiddleware)
+      .forRoutes('*');
   }
 }
