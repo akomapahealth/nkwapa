@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 import {
   CalendarClock,
   CalendarDays,
@@ -10,83 +10,77 @@ import {
   Clock3,
   FileClock,
   Plus,
-} from "lucide-react";
-import { useAuth } from "@/lib/auth-context";
-import { useBootstrap } from "@/lib/bootstrap-context";
+} from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
+import { useBootstrap } from '@/lib/bootstrap-context';
 import {
   fetchAppointmentRequests,
+  getPortalErrorMessage,
   formatPortalDate,
   formatPortalDateTime,
   getPortalClinicId,
   getPortalClinicName,
+  isPortalLinkMissingError,
   type AppointmentRequestRecord,
-} from "@/lib/patient-portal";
-import { RouteGuard } from "@/components/RouteGuard";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+} from '@/lib/patient-portal';
+import { PortalLinkRequiredState } from '@/components/portal/PortalLinkRequiredState';
+import { RouteGuard } from '@/components/RouteGuard';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-type RequestTab = "all" | "pending" | "confirmed" | "closed";
+type RequestTab = 'all' | 'pending' | 'confirmed' | 'closed';
 
 function isPending(request: AppointmentRequestRecord) {
-  return request.status === "REQUESTED" || request.status === "TRIAGED";
+  return request.status === 'REQUESTED' || request.status === 'TRIAGED';
 }
 
 function isClosed(request: AppointmentRequestRecord) {
-  return request.status === "REJECTED" || request.status === "CANCELLED";
+  return request.status === 'REJECTED' || request.status === 'CANCELLED';
 }
 
 function getStatusBadgeVariant(
-  status: AppointmentRequestRecord["status"]
-): "secondary" | "warning" | "finalized" | "destructive" | "outline" {
+  status: AppointmentRequestRecord['status'],
+): 'secondary' | 'warning' | 'finalized' | 'destructive' | 'outline' {
   switch (status) {
-    case "REQUESTED":
-      return "secondary";
-    case "TRIAGED":
-      return "warning";
-    case "CONFIRMED":
-      return "finalized";
-    case "REJECTED":
-      return "destructive";
-    case "CANCELLED":
-      return "outline";
+    case 'REQUESTED':
+      return 'secondary';
+    case 'TRIAGED':
+      return 'warning';
+    case 'CONFIRMED':
+      return 'finalized';
+    case 'REJECTED':
+      return 'destructive';
+    case 'CANCELLED':
+      return 'outline';
   }
 }
 
-function getStatusLabel(status: AppointmentRequestRecord["status"]) {
+function getStatusLabel(status: AppointmentRequestRecord['status']) {
   switch (status) {
-    case "REQUESTED":
-      return "Requested";
-    case "TRIAGED":
-      return "Under review";
-    case "CONFIRMED":
-      return "Confirmed";
-    case "REJECTED":
-      return "Not approved";
-    case "CANCELLED":
-      return "Cancelled";
+    case 'REQUESTED':
+      return 'Requested';
+    case 'TRIAGED':
+      return 'Under review';
+    case 'CONFIRMED':
+      return 'Confirmed';
+    case 'REJECTED':
+      return 'Not approved';
+    case 'CANCELLED':
+      return 'Cancelled';
   }
 }
 
-function getRequestsForTab(
-  requests: AppointmentRequestRecord[],
-  tab: RequestTab
-) {
+function getRequestsForTab(requests: AppointmentRequestRecord[], tab: RequestTab) {
   switch (tab) {
-    case "pending":
+    case 'pending':
       return requests.filter(isPending);
-    case "confirmed":
-      return requests.filter((request) => request.status === "CONFIRMED");
-    case "closed":
+    case 'confirmed':
+      return requests.filter((request) => request.status === 'CONFIRMED');
+    case 'closed':
       return requests.filter(isClosed);
-    case "all":
+    case 'all':
     default:
       return requests;
   }
@@ -94,23 +88,20 @@ function getRequestsForTab(
 
 function getNextAppointment(requests: AppointmentRequestRecord[]) {
   const now = Date.now();
-  return requests
-    .map((request) => request.appointment)
-    .filter(
-      (
-        appointment
-      ): appointment is NonNullable<AppointmentRequestRecord["appointment"]> =>
-        Boolean(appointment)
-    )
-    .filter(
-      (appointment) =>
-        appointment.status === "CONFIRMED" &&
-        new Date(appointment.startsAt).getTime() >= now
-    )
-    .sort(
-      (left, right) =>
-        new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime()
-    )[0] ?? null;
+  return (
+    requests
+      .map((request) => request.appointment)
+      .filter((appointment): appointment is NonNullable<AppointmentRequestRecord['appointment']> =>
+        Boolean(appointment),
+      )
+      .filter(
+        (appointment) =>
+          appointment.status === 'CONFIRMED' && new Date(appointment.startsAt).getTime() >= now,
+      )
+      .sort(
+        (left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime(),
+      )[0] ?? null
+  );
 }
 
 function getRequestWindow(request: AppointmentRequestRecord) {
@@ -118,7 +109,7 @@ function getRequestWindow(request: AppointmentRequestRecord) {
     return formatPortalDate(request.preferredStartDate);
   }
   return `${formatPortalDate(request.preferredStartDate)} to ${formatPortalDate(
-    request.preferredEndDate
+    request.preferredEndDate,
   )}`;
 }
 
@@ -129,9 +120,9 @@ export function AppointmentsPortalScreen() {
   const clinicName = getPortalClinicName(bootstrap, clinicId);
 
   const [requests, setRequests] = useState<AppointmentRequestRecord[]>([]);
-  const [activeTab, setActiveTab] = useState<RequestTab>("all");
+  const [activeTab, setActiveTab] = useState<RequestTab>('all');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -151,7 +142,7 @@ export function AppointmentsPortalScreen() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err));
+          setError(err);
         }
       } finally {
         if (!cancelled) {
@@ -167,23 +158,29 @@ export function AppointmentsPortalScreen() {
     };
   }, [clinicId, getToken]);
 
-  const pendingCount = useMemo(
-    () => requests.filter(isPending).length,
-    [requests]
-  );
+  const pendingCount = useMemo(() => requests.filter(isPending).length, [requests]);
   const confirmedCount = useMemo(
-    () => requests.filter((request) => request.status === "CONFIRMED").length,
-    [requests]
+    () => requests.filter((request) => request.status === 'CONFIRMED').length,
+    [requests],
   );
-  const closedCount = useMemo(
-    () => requests.filter(isClosed).length,
-    [requests]
-  );
+  const closedCount = useMemo(() => requests.filter(isClosed).length, [requests]);
   const nextAppointment = useMemo(() => getNextAppointment(requests), [requests]);
   const visibleRequests = useMemo(
     () => getRequestsForTab(requests, activeTab),
-    [activeTab, requests]
+    [activeTab, requests],
   );
+  const isLinkMissing = isPortalLinkMissingError(error);
+  const errorMessage = error ? getPortalErrorMessage(error) : null;
+
+  if (isLinkMissing && !loading) {
+    return (
+      <RouteGuard requiredPermission="PATIENT.PORTAL.READ_SELF">
+        <div className="space-y-6">
+          <PortalLinkRequiredState clinicName={clinicName} />
+        </div>
+      </RouteGuard>
+    );
+  }
 
   return (
     <RouteGuard requiredPermission="PATIENT.PORTAL.READ_SELF">
@@ -196,10 +193,7 @@ export function AppointmentsPortalScreen() {
                   Appointment center
                 </Badge>
                 {clinicName && (
-                  <Badge
-                    variant="outline"
-                    className="rounded-full bg-background/80 px-3 py-1"
-                  >
+                  <Badge variant="outline" className="rounded-full bg-background/80 px-3 py-1">
                     {clinicName}
                   </Badge>
                 )}
@@ -209,9 +203,8 @@ export function AppointmentsPortalScreen() {
                   Keep visit requests and confirmed appointments in one place.
                 </CardTitle>
                 <CardDescription className="max-w-2xl text-sm md:text-base">
-                  Review the status of every request, see your confirmed visit
-                  details, and submit a new scheduling request whenever you need
-                  support.
+                  Review the status of every request, see your confirmed visit details, and submit a
+                  new scheduling request whenever you need support.
                 </CardDescription>
               </div>
             </CardHeader>
@@ -232,8 +225,7 @@ export function AppointmentsPortalScreen() {
             <CardHeader>
               <CardTitle className="text-lg">Next confirmed visit</CardTitle>
               <CardDescription>
-                Your clinic confirms the exact date and time once a request is
-                approved.
+                Your clinic confirms the exact date and time once a request is approved.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -253,9 +245,7 @@ export function AppointmentsPortalScreen() {
                     </Badge>
                   </div>
                   {nextAppointment.notes && (
-                    <p className="text-sm text-muted-foreground">
-                      {nextAppointment.notes}
-                    </p>
+                    <p className="text-sm text-muted-foreground">{nextAppointment.notes}</p>
                   )}
                 </div>
               ) : (
@@ -278,9 +268,7 @@ export function AppointmentsPortalScreen() {
               </div>
               <div>
                 <CardTitle className="text-2xl">{pendingCount}</CardTitle>
-                <CardDescription>
-                  Requests waiting for clinic review or scheduling.
-                </CardDescription>
+                <CardDescription>Requests waiting for clinic review or scheduling.</CardDescription>
               </div>
             </CardHeader>
           </Card>
@@ -295,9 +283,7 @@ export function AppointmentsPortalScreen() {
               </div>
               <div>
                 <CardTitle className="text-2xl">{confirmedCount}</CardTitle>
-                <CardDescription>
-                  Requests that have turned into scheduled visits.
-                </CardDescription>
+                <CardDescription>Requests that have turned into scheduled visits.</CardDescription>
               </div>
             </CardHeader>
           </Card>
@@ -323,19 +309,16 @@ export function AppointmentsPortalScreen() {
         {loading && (
           <div className="grid gap-4 md:grid-cols-2">
             {Array.from({ length: 2 }).map((_, index) => (
-              <Card
-                key={index}
-                className="h-40 animate-pulse border-border/70 bg-muted/30"
-              />
+              <Card key={index} className="h-40 animate-pulse border-border/70 bg-muted/30" />
             ))}
           </div>
         )}
 
-        {error && (
+        {error ? (
           <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-            {error}
+            {errorMessage}
           </div>
-        )}
+        ) : null}
 
         {!loading && !error && (
           <section className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
@@ -343,8 +326,7 @@ export function AppointmentsPortalScreen() {
               <CardHeader>
                 <CardTitle className="text-lg">Request history</CardTitle>
                 <CardDescription>
-                  Track your preferred dates, clinic decisions, and confirmed
-                  appointments.
+                  Track your preferred dates, clinic decisions, and confirmed appointments.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -374,8 +356,7 @@ export function AppointmentsPortalScreen() {
                         <div className="space-y-1">
                           <p className="font-medium">No requests in this view</p>
                           <p className="text-sm text-muted-foreground">
-                            Submit a new appointment request when you need a
-                            follow-up or check-in.
+                            Submit a new appointment request when you need a follow-up or check-in.
                           </p>
                         </div>
                       </div>
@@ -406,7 +387,7 @@ export function AppointmentsPortalScreen() {
                               <div className="text-sm text-muted-foreground">
                                 {request.triagedAt
                                   ? `Updated ${formatPortalDate(request.triagedAt)}`
-                                  : "Awaiting review"}
+                                  : 'Awaiting review'}
                               </div>
                             </div>
 
@@ -417,7 +398,7 @@ export function AppointmentsPortalScreen() {
                                     Visit reason
                                   </p>
                                   <p className="mt-2 text-sm">
-                                    {request.reason || "No reason provided"}
+                                    {request.reason || 'No reason provided'}
                                   </p>
                                 </div>
                                 <div>
@@ -425,7 +406,7 @@ export function AppointmentsPortalScreen() {
                                     Notes
                                   </p>
                                   <p className="mt-2 text-sm text-muted-foreground">
-                                    {request.notes || "No notes were added to this request."}
+                                    {request.notes || 'No notes were added to this request.'}
                                   </p>
                                 </div>
                               </div>
@@ -440,15 +421,10 @@ export function AppointmentsPortalScreen() {
                                       </p>
                                     </div>
                                     <p className="mt-2 text-sm text-emerald-900">
-                                      {formatPortalDateTime(
-                                        request.appointment.startsAt
-                                      )}
+                                      {formatPortalDateTime(request.appointment.startsAt)}
                                     </p>
                                     <p className="text-sm text-emerald-800/80">
-                                      Ends{" "}
-                                      {formatPortalDateTime(
-                                        request.appointment.endsAt
-                                      )}
+                                      Ends {formatPortalDateTime(request.appointment.endsAt)}
                                     </p>
                                     {request.appointment.notes && (
                                       <p className="mt-2 text-sm text-emerald-800/80">
@@ -458,8 +434,8 @@ export function AppointmentsPortalScreen() {
                                   </div>
                                 ) : (
                                   <div className="rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
-                                    The clinic has not attached a confirmed visit
-                                    to this request yet.
+                                    The clinic has not attached a confirmed visit to this request
+                                    yet.
                                   </div>
                                 )}
 
@@ -496,22 +472,21 @@ export function AppointmentsPortalScreen() {
                   <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
                     <p className="font-medium">1. Share your preferred dates</p>
                     <p className="mt-2 text-sm text-muted-foreground">
-                      Pick the days that work best and tell your clinic why you
-                      need a visit.
+                      Pick the days that work best and tell your clinic why you need a visit.
                     </p>
                   </div>
                   <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
                     <p className="font-medium">2. Clinic review</p>
                     <p className="mt-2 text-sm text-muted-foreground">
-                      Staff review your request and may add scheduling notes or
-                      confirm a specific slot.
+                      Staff review your request and may add scheduling notes or confirm a specific
+                      slot.
                     </p>
                   </div>
                   <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
                     <p className="font-medium">3. Confirmation and reminder</p>
                     <p className="mt-2 text-sm text-muted-foreground">
-                      Once confirmed, your appointment details appear here and
-                      reminder messages are scheduled automatically.
+                      Once confirmed, your appointment details appear here and reminder messages are
+                      scheduled automatically.
                     </p>
                   </div>
                 </CardContent>
@@ -521,8 +496,8 @@ export function AppointmentsPortalScreen() {
                 <CardHeader>
                   <CardTitle className="text-lg">Need a new visit?</CardTitle>
                   <CardDescription>
-                    Start a new request with your preferred timing and a short
-                    description of what you need.
+                    Start a new request with your preferred timing and a short description of what
+                    you need.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>

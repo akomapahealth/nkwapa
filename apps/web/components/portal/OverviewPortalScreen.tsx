@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import {
   BellRing,
   CalendarDays,
@@ -10,64 +10,63 @@ import {
   HeartPulse,
   Scale,
   Syringe,
-} from "lucide-react";
-import { useAuth } from "@/lib/auth-context";
-import { useBootstrap } from "@/lib/bootstrap-context";
+} from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
+import { useBootstrap } from '@/lib/bootstrap-context';
 import {
   fetchAppointmentRequests,
   fetchMeasurements,
   fetchPortalMe,
   formatPortalDate,
   formatPortalDateTime,
+  getPortalErrorMessage,
   getPortalClinicId,
   getPortalClinicName,
+  isPortalLinkMissingError,
   type AppointmentRequestRecord,
   type MeasurementRecord,
   type PortalMeResponse,
-} from "@/lib/patient-portal";
-import { RouteGuard } from "@/components/RouteGuard";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+} from '@/lib/patient-portal';
+import { PortalLinkRequiredState } from '@/components/portal/PortalLinkRequiredState';
+import { RouteGuard } from '@/components/RouteGuard';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 function readNumber(value: unknown) {
   const parsed =
-    typeof value === "number"
+    typeof value === 'number'
       ? value
-      : typeof value === "string" && value.trim() !== ""
+      : typeof value === 'string' && value.trim() !== ''
         ? Number(value)
         : NaN;
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function getLatestMeasurement(measurements: MeasurementRecord[], type: MeasurementRecord["type"]) {
+function getLatestMeasurement(measurements: MeasurementRecord[], type: MeasurementRecord['type']) {
   return measurements.find((measurement) => measurement.type === type) ?? null;
 }
 
 function getNextConfirmedAppointment(requests: AppointmentRequestRecord[]) {
   const now = Date.now();
-  return requests
-    .filter((request) => request.appointment?.status === "CONFIRMED")
-    .map((request) => request.appointment)
-    .filter((appointment): appointment is NonNullable<AppointmentRequestRecord["appointment"]> =>
-      Boolean(appointment)
-    )
-    .filter((appointment) => new Date(appointment.startsAt).getTime() >= now)
-    .sort(
-      (left, right) =>
-        new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime()
-    )[0] ?? null;
+  return (
+    requests
+      .filter((request) => request.appointment?.status === 'CONFIRMED')
+      .map((request) => request.appointment)
+      .filter((appointment): appointment is NonNullable<AppointmentRequestRecord['appointment']> =>
+        Boolean(appointment),
+      )
+      .filter((appointment) => new Date(appointment.startsAt).getTime() >= now)
+      .sort(
+        (left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime(),
+      )[0] ?? null
+  );
 }
 
 function getPendingRequestCount(requests: AppointmentRequestRecord[]) {
-  return requests.filter((request) => request.status === "REQUESTED" || request.status === "TRIAGED")
-    .length;
+  return requests.filter(
+    (request) => request.status === 'REQUESTED' || request.status === 'TRIAGED',
+  ).length;
 }
 
 export function OverviewPortalScreen() {
@@ -80,13 +79,16 @@ export function OverviewPortalScreen() {
   const [measurements, setMeasurements] = useState<MeasurementRecord[]>([]);
   const [requests, setRequests] = useState<AppointmentRequestRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
-      if (!clinicId || !getToken) return;
+      if (!clinicId || !getToken) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       setError(null);
       try {
@@ -104,7 +106,7 @@ export function OverviewPortalScreen() {
         setRequests(requestResponse);
       } catch (err) {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : String(err));
+        setError(err);
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -119,11 +121,23 @@ export function OverviewPortalScreen() {
     };
   }, [clinicId, getToken]);
 
-  const latestBp = getLatestMeasurement(measurements, "BP");
-  const latestGlucose = getLatestMeasurement(measurements, "GLUCOSE");
-  const latestWeight = getLatestMeasurement(measurements, "WEIGHT");
+  const latestBp = getLatestMeasurement(measurements, 'BP');
+  const latestGlucose = getLatestMeasurement(measurements, 'GLUCOSE');
+  const latestWeight = getLatestMeasurement(measurements, 'WEIGHT');
   const nextAppointment = getNextConfirmedAppointment(requests);
   const pendingRequests = getPendingRequestCount(requests);
+  const isLinkMissing = isPortalLinkMissingError(error);
+  const errorMessage = error ? getPortalErrorMessage(error) : null;
+
+  if (isLinkMissing && !loading) {
+    return (
+      <RouteGuard requiredPermission="PATIENT.PORTAL.READ_SELF">
+        <div className="space-y-6">
+          <PortalLinkRequiredState clinicName={clinicName} />
+        </div>
+      </RouteGuard>
+    );
+  }
 
   return (
     <RouteGuard requiredPermission="PATIENT.PORTAL.READ_SELF">
@@ -143,10 +157,11 @@ export function OverviewPortalScreen() {
               </div>
               <div className="space-y-2">
                 <CardTitle className="text-2xl md:text-3xl">
-                  {me ? `${me.patient.firstName} ${me.patient.lastName}` : "Your care snapshot"}
+                  {me ? `${me.patient.firstName} ${me.patient.lastName}` : 'Your care snapshot'}
                 </CardTitle>
                 <CardDescription className="max-w-2xl text-sm md:text-base">
-                  See the latest guidance from your care team, recent measurements, and appointment progress without leaving your dashboard.
+                  See the latest guidance from your care team, recent measurements, and appointment
+                  progress without leaving your dashboard.
                 </CardDescription>
               </div>
             </CardHeader>
@@ -155,9 +170,7 @@ export function OverviewPortalScreen() {
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   Patient code
                 </p>
-                <p className="mt-2 font-mono text-sm">
-                  {me?.patient.patientCode ?? "Loading..."}
-                </p>
+                <p className="mt-2 font-mono text-sm">{me?.patient.patientCode ?? 'Loading...'}</p>
               </div>
               <div className="rounded-2xl border border-border/70 bg-background/80 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -172,7 +185,7 @@ export function OverviewPortalScreen() {
                   Pending requests
                 </p>
                 <p className="mt-2 text-sm font-medium">
-                  {pendingRequests} {pendingRequests === 1 ? "request" : "requests"}
+                  {pendingRequests} {pendingRequests === 1 ? 'request' : 'requests'}
                 </p>
               </div>
             </CardContent>
@@ -181,9 +194,7 @@ export function OverviewPortalScreen() {
           <Card className="border-border/70 bg-card/95">
             <CardHeader>
               <CardTitle className="text-lg">Quick actions</CardTitle>
-              <CardDescription>
-                Move quickly between the most common portal tasks.
-              </CardDescription>
+              <CardDescription>Move quickly between the most common portal tasks.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <Button asChild className="w-full justify-between">
@@ -216,11 +227,11 @@ export function OverviewPortalScreen() {
           </div>
         )}
 
-        {error && (
+        {error ? (
           <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-            {error}
+            {errorMessage}
           </div>
-        )}
+        ) : null}
 
         {!loading && !error && (
           <>
@@ -236,11 +247,13 @@ export function OverviewPortalScreen() {
                   <div>
                     <CardTitle className="text-xl">
                       {latestBp
-                        ? `${readNumber(latestBp.payload.systolic) ?? "—"}/${readNumber(latestBp.payload.diastolic) ?? "—"}`
-                        : "No reading"}
+                        ? `${readNumber(latestBp.payload.systolic) ?? '—'}/${readNumber(latestBp.payload.diastolic) ?? '—'}`
+                        : 'No reading'}
                     </CardTitle>
                     <CardDescription>
-                      {latestBp ? formatPortalDate(latestBp.recordedAt) : "Add your first blood pressure reading"}
+                      {latestBp
+                        ? formatPortalDate(latestBp.recordedAt)
+                        : 'Add your first blood pressure reading'}
                     </CardDescription>
                   </div>
                 </CardHeader>
@@ -257,11 +270,13 @@ export function OverviewPortalScreen() {
                   <div>
                     <CardTitle className="text-xl">
                       {latestGlucose
-                        ? `${readNumber(latestGlucose.payload.value) ?? "—"} mg/dL`
-                        : "No reading"}
+                        ? `${readNumber(latestGlucose.payload.value) ?? '—'} mg/dL`
+                        : 'No reading'}
                     </CardTitle>
                     <CardDescription>
-                      {latestGlucose ? formatPortalDate(latestGlucose.recordedAt) : "Add a glucose reading"}
+                      {latestGlucose
+                        ? formatPortalDate(latestGlucose.recordedAt)
+                        : 'Add a glucose reading'}
                     </CardDescription>
                   </div>
                 </CardHeader>
@@ -278,11 +293,13 @@ export function OverviewPortalScreen() {
                   <div>
                     <CardTitle className="text-xl">
                       {latestWeight
-                        ? `${readNumber(latestWeight.payload.kg) ?? "—"} kg`
-                        : "No reading"}
+                        ? `${readNumber(latestWeight.payload.kg) ?? '—'} kg`
+                        : 'No reading'}
                     </CardTitle>
                     <CardDescription>
-                      {latestWeight ? formatPortalDate(latestWeight.recordedAt) : "Add a weight reading"}
+                      {latestWeight
+                        ? formatPortalDate(latestWeight.recordedAt)
+                        : 'Add a weight reading'}
                     </CardDescription>
                   </div>
                 </CardHeader>
@@ -294,8 +311,11 @@ export function OverviewPortalScreen() {
                 <CardHeader className="space-y-3">
                   <div className="flex items-center justify-between">
                     <CalendarDays className="h-5 w-5 text-primary" />
-                    <Badge variant={nextAppointment ? "secondary" : "outline"} className="rounded-full">
-                      {nextAppointment ? "Confirmed visit" : "No visit booked"}
+                    <Badge
+                      variant={nextAppointment ? 'secondary' : 'outline'}
+                      className="rounded-full"
+                    >
+                      {nextAppointment ? 'Confirmed visit' : 'No visit booked'}
                     </Badge>
                   </div>
                   <div>
@@ -303,7 +323,7 @@ export function OverviewPortalScreen() {
                     <CardDescription>
                       {nextAppointment
                         ? `Your next confirmed appointment is ${formatPortalDateTime(nextAppointment.startsAt)}.`
-                        : "Request a visit and your clinic will confirm the exact time."}
+                        : 'Request a visit and your clinic will confirm the exact time.'}
                     </CardDescription>
                   </div>
                 </CardHeader>
@@ -312,7 +332,9 @@ export function OverviewPortalScreen() {
                     <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <p className="font-medium">{formatPortalDateTime(nextAppointment.startsAt)}</p>
+                          <p className="font-medium">
+                            {formatPortalDateTime(nextAppointment.startsAt)}
+                          </p>
                           <p className="text-sm text-muted-foreground">
                             Ends {formatPortalDateTime(nextAppointment.endsAt)}
                           </p>
@@ -322,7 +344,9 @@ export function OverviewPortalScreen() {
                         </Badge>
                       </div>
                       {nextAppointment.notes && (
-                        <p className="mt-3 text-sm text-muted-foreground">{nextAppointment.notes}</p>
+                        <p className="mt-3 text-sm text-muted-foreground">
+                          {nextAppointment.notes}
+                        </p>
                       )}
                     </div>
                   ) : (
@@ -412,7 +436,7 @@ export function OverviewPortalScreen() {
                   </p>
                   <p className="mt-3 text-sm text-muted-foreground">
                     {me?.recommendations?.carePlanNotes ||
-                      "No care plan notes have been published for your latest visit yet."}
+                      'No care plan notes have been published for your latest visit yet.'}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-border/70 bg-background/70 p-4">

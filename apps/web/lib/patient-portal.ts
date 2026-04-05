@@ -1,6 +1,8 @@
-import type { GetToken } from "@/lib/api";
-import { apiFetch } from "@/lib/api";
-import type { WhoAmIResponse } from "@/lib/bootstrap-context";
+import type { GetToken } from '@/lib/api';
+import { apiFetch } from '@/lib/api';
+import type { WhoAmIResponse } from '@/lib/bootstrap-context';
+
+export const PATIENT_PORTAL_LINK_MISSING = 'PATIENT_PORTAL_LINK_MISSING';
 
 export interface PortalMeResponse {
   patient: {
@@ -35,7 +37,7 @@ export interface MeasurementRecord {
   clinicId: string;
   recordedAt: string;
   source: string;
-  type: "BP" | "GLUCOSE" | "WEIGHT";
+  type: 'BP' | 'GLUCOSE' | 'WEIGHT';
   payload: MeasurementPayload;
   notes: string | null;
   linkedEncounterId: string | null;
@@ -49,7 +51,7 @@ export interface AppointmentSummary {
   patientId: string;
   startsAt: string;
   endsAt: string;
-  status: "CONFIRMED" | "CANCELLED" | "COMPLETED" | "NO_SHOW";
+  status: 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW';
   linkedRequestId: string | null;
   assignedDoctor: { id: string; displayName: string | null } | null;
   assignedVolunteer: { id: string; displayName: string | null } | null;
@@ -62,14 +64,14 @@ export interface BloodPressureTrendPoint {
   t: string;
   sys: number;
   dia: number;
-  source: "ENCOUNTER" | "PATIENT";
+  source: 'ENCOUNTER' | 'PATIENT';
 }
 
 export interface GlucoseTrendPoint {
   t: string;
   value: number;
-  type: "FASTING" | "RANDOM" | "UNKNOWN";
-  source: "ENCOUNTER" | "PATIENT";
+  type: 'FASTING' | 'RANDOM' | 'UNKNOWN';
+  source: 'ENCOUNTER' | 'PATIENT';
 }
 
 export interface FollowUpSummary {
@@ -94,7 +96,7 @@ export interface AppointmentRequestRecord {
   preferredEndDate: string;
   reason: string | null;
   notes: string | null;
-  status: "REQUESTED" | "TRIAGED" | "CONFIRMED" | "REJECTED" | "CANCELLED";
+  status: 'REQUESTED' | 'TRIAGED' | 'CONFIRMED' | 'REJECTED' | 'CANCELLED';
   triagedAt: string | null;
   triagedBy: { id: string; displayName: string } | null;
   rejectionReason: string | null;
@@ -117,6 +119,65 @@ export interface LegacySelfReport {
   createdAt: string;
 }
 
+interface PortalApiErrorBody {
+  code?: string;
+  message?: string | string[];
+}
+
+export class PortalApiError extends Error {
+  status: number;
+  code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = 'PortalApiError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
+async function readPortalApiError(response: Response) {
+  const raw = await response.text();
+  if (!raw) {
+    return new PortalApiError(`Request failed with status ${response.status}`, response.status);
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as PortalApiErrorBody | string;
+    if (typeof parsed === 'string') {
+      return new PortalApiError(parsed, response.status);
+    }
+
+    const message = Array.isArray(parsed.message)
+      ? parsed.message.join(', ')
+      : parsed.message || raw;
+
+    return new PortalApiError(message, response.status, parsed.code);
+  } catch {
+    return new PortalApiError(raw, response.status);
+  }
+}
+
+async function parsePortalResponse<T>(response: Response) {
+  if (!response.ok) {
+    throw await readPortalApiError(response);
+  }
+
+  return (await response.json()) as T;
+}
+
+export function isPortalLinkMissingError(error: unknown) {
+  return error instanceof PortalApiError && error.code === PATIENT_PORTAL_LINK_MISSING;
+}
+
+export function getPortalErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
+}
+
 export function getPortalClinicId(bootstrap: WhoAmIResponse | null) {
   return bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
 }
@@ -124,96 +185,91 @@ export function getPortalClinicId(bootstrap: WhoAmIResponse | null) {
 export function getPortalClinicName(bootstrap: WhoAmIResponse | null, clinicId: string | null) {
   if (!bootstrap || !clinicId) return null;
   return (
-    bootstrap.memberships.find((membership) => membership.clinicId === clinicId)?.clinicName ??
-    null
+    bootstrap.memberships.find((membership) => membership.clinicId === clinicId)?.clinicName ?? null
   );
 }
 
 export async function fetchPortalMe(clinicId: string, getToken: GetToken) {
-  const res = await apiFetch(
-    `/clinics/${encodeURIComponent(clinicId)}/patient-portal/me`,
-    { getToken, activeClinicId: clinicId }
-  );
-  if (!res.ok) throw new Error(await res.text());
-  return (await res.json()) as PortalMeResponse;
+  const res = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}/patient-portal/me`, {
+    getToken,
+    activeClinicId: clinicId,
+  });
+  return parsePortalResponse<PortalMeResponse>(res);
 }
 
 export async function fetchMeasurements(
   clinicId: string,
   getToken: GetToken,
-  params?: { from?: string; to?: string; type?: MeasurementRecord["type"] }
+  params?: { from?: string; to?: string; type?: MeasurementRecord['type'] },
 ) {
   const search = new URLSearchParams();
-  if (params?.from) search.set("from", params.from);
-  if (params?.to) search.set("to", params.to);
-  if (params?.type) search.set("type", params.type);
-  const suffix = search.toString() ? `?${search.toString()}` : "";
+  if (params?.from) search.set('from', params.from);
+  if (params?.to) search.set('to', params.to);
+  if (params?.type) search.set('type', params.type);
+  const suffix = search.toString() ? `?${search.toString()}` : '';
   const res = await apiFetch(`/patients/me/measurements${suffix}`, {
     getToken,
     activeClinicId: clinicId,
   });
-  if (!res.ok) throw new Error(await res.text());
-  return (await res.json()) as MeasurementRecord[];
+  return parsePortalResponse<MeasurementRecord[]>(res);
 }
 
 function buildDateRangeQuery(params?: { from?: string; to?: string }) {
   const search = new URLSearchParams();
-  if (params?.from) search.set("from", params.from);
-  if (params?.to) search.set("to", params.to);
-  const suffix = search.toString() ? `?${search.toString()}` : "";
+  if (params?.from) search.set('from', params.from);
+  if (params?.to) search.set('to', params.to);
+  const suffix = search.toString() ? `?${search.toString()}` : '';
   return suffix;
 }
 
 export async function fetchPatientTrends(
   clinicId: string,
   getToken: GetToken,
-  params?: { from?: string; to?: string }
+  params?: { from?: string; to?: string },
 ) {
   const suffix = buildDateRangeQuery(params);
   const res = await apiFetch(`/patients/me/trends${suffix}`, {
     getToken,
     activeClinicId: clinicId,
   });
-  if (!res.ok) throw new Error(await res.text());
-  return (await res.json()) as PatientTrendsResponse;
+  return parsePortalResponse<PatientTrendsResponse>(res);
 }
 
 export async function fetchStaffPatientTrends(
   patientId: string,
   clinicId: string,
   getToken: GetToken,
-  params?: { from?: string; to?: string }
+  params?: { from?: string; to?: string },
 ) {
-  const suffix = buildDateRangeQuery(params);
-  const res = await apiFetch(
-    `/patients/${encodeURIComponent(patientId)}/trends${suffix}`,
-    {
-      getToken,
-      activeClinicId: clinicId,
-    }
-  );
-  if (!res.ok) throw new Error(await res.text());
-  return (await res.json()) as PatientTrendsResponse;
+  const search = new URLSearchParams();
+  search.set('clinicId', clinicId);
+  if (params?.from) search.set('from', params.from);
+  if (params?.to) search.set('to', params.to);
+  const suffix = search.toString() ? `?${search.toString()}` : '';
+  const res = await apiFetch(`/patients/${encodeURIComponent(patientId)}/trends${suffix}`, {
+    getToken,
+    activeClinicId: clinicId,
+  });
+  return parsePortalResponse<PatientTrendsResponse>(res);
 }
 
 export async function createMeasurement(
   clinicId: string,
   getToken: GetToken,
   body: {
-    type: MeasurementRecord["type"];
+    type: MeasurementRecord['type'];
     payload: Record<string, unknown>;
     notes?: string;
     recordedAt?: string;
-  }
+  },
 ) {
   const res = await apiFetch(`/patients/me/measurements`, {
-    method: "POST",
+    method: 'POST',
     body: JSON.stringify(body),
     getToken,
     activeClinicId: clinicId,
   });
-  if (!res.ok) throw new Error(await res.text());
-  return (await res.json()) as MeasurementRecord;
+  return parsePortalResponse<MeasurementRecord>(res);
 }
 
 export async function fetchAppointmentRequests(clinicId: string, getToken: GetToken) {
@@ -221,8 +277,7 @@ export async function fetchAppointmentRequests(clinicId: string, getToken: GetTo
     getToken,
     activeClinicId: clinicId,
   });
-  if (!res.ok) throw new Error(await res.text());
-  return (await res.json()) as AppointmentRequestRecord[];
+  return parsePortalResponse<AppointmentRequestRecord[]>(res);
 }
 
 export async function createAppointmentRequest(
@@ -233,129 +288,125 @@ export async function createAppointmentRequest(
     preferredEndDate: string;
     reason?: string;
     notes?: string;
-  }
+  },
 ) {
   const res = await apiFetch(`/patients/me/appointment-requests`, {
-    method: "POST",
+    method: 'POST',
     body: JSON.stringify(body),
     getToken,
     activeClinicId: clinicId,
   });
-  if (!res.ok) throw new Error(await res.text());
-  return (await res.json()) as AppointmentRequestRecord;
+  return parsePortalResponse<AppointmentRequestRecord>(res);
 }
 
 export async function fetchLegacySelfReports(clinicId: string, getToken: GetToken) {
   const res = await apiFetch(
     `/clinics/${encodeURIComponent(clinicId)}/patient-portal/self-reports`,
-    { getToken, activeClinicId: clinicId }
+    { getToken, activeClinicId: clinicId },
   );
-  if (!res.ok) throw new Error(await res.text());
-  return (await res.json()) as LegacySelfReport[];
+  return parsePortalResponse<LegacySelfReport[]>(res);
 }
 
 export function formatPortalDate(value: string | null | undefined) {
-  if (!value) return "Not set";
+  if (!value) return 'Not set';
   return new Date(value).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
   });
 }
 
 export function formatPortalDateTime(value: string | null | undefined) {
-  if (!value) return "Not scheduled";
+  if (!value) return 'Not scheduled';
   return new Date(value).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
   });
 }
 
-export function formatMeasurementLabel(type: MeasurementRecord["type"] | string) {
+export function formatMeasurementLabel(type: MeasurementRecord['type'] | string) {
   switch (type) {
-    case "BP":
-    case "HOME_BP":
-      return "Blood pressure";
-    case "GLUCOSE":
-    case "HOME_GLUCOSE":
-      return "Glucose";
-    case "WEIGHT":
-      return "Weight";
-    case "FOLLOW_UP_UPDATE":
-      return "Follow-up update";
-    case "SYMPTOMS":
-      return "Symptoms";
-    case "GENERAL":
-      return "General note";
+    case 'BP':
+    case 'HOME_BP':
+      return 'Blood pressure';
+    case 'GLUCOSE':
+    case 'HOME_GLUCOSE':
+      return 'Glucose';
+    case 'WEIGHT':
+      return 'Weight';
+    case 'FOLLOW_UP_UPDATE':
+      return 'Follow-up update';
+    case 'SYMPTOMS':
+      return 'Symptoms';
+    case 'GENERAL':
+      return 'General note';
     default:
-      return type.replace(/_/g, " ").toLowerCase();
+      return type.replace(/_/g, ' ').toLowerCase();
   }
 }
 
 export function formatMeasurementValue(record: MeasurementRecord | LegacySelfReport) {
-  if ("payload" in record) {
-    if (record.type === "BP") {
+  if ('payload' in record) {
+    if (record.type === 'BP') {
       const systolic = readNumber(record.payload.systolic);
       const diastolic = readNumber(record.payload.diastolic);
       return systolic != null && diastolic != null
         ? `${systolic}/${diastolic} mmHg`
-        : "Blood pressure";
+        : 'Blood pressure';
     }
-    if (record.type === "GLUCOSE") {
+    if (record.type === 'GLUCOSE') {
       const value = readNumber(record.payload.value);
       const glucoseType =
-        typeof record.payload.glucoseType === "string"
+        typeof record.payload.glucoseType === 'string'
           ? record.payload.glucoseType.toLowerCase()
           : null;
-      return value != null
-        ? `${value} mg/dL${glucoseType ? ` • ${glucoseType}` : ""}`
-        : "Glucose";
+      return value != null ? `${value} mg/dL${glucoseType ? ` • ${glucoseType}` : ''}` : 'Glucose';
     }
-    if (record.type === "WEIGHT") {
+    if (record.type === 'WEIGHT') {
       const kg = readNumber(record.payload.kg);
-      return kg != null ? `${kg} kg` : "Weight";
+      return kg != null ? `${kg} kg` : 'Weight';
     }
   }
 
   const legacyRecord = record as LegacySelfReport;
 
-  if (legacyRecord.type === "HOME_BP") {
+  if (legacyRecord.type === 'HOME_BP') {
     return legacyRecord.systolicBp != null && legacyRecord.diastolicBp != null
       ? `${legacyRecord.systolicBp}/${legacyRecord.diastolicBp} mmHg`
-      : "Blood pressure";
+      : 'Blood pressure';
   }
-  if (legacyRecord.type === "HOME_GLUCOSE") {
+  if (legacyRecord.type === 'HOME_GLUCOSE') {
     return legacyRecord.glucoseMgDl != null
-      ? `${legacyRecord.glucoseMgDl} mg/dL${legacyRecord.glucoseType ? ` • ${legacyRecord.glucoseType.toLowerCase()}` : ""}`
-      : "Glucose";
+      ? `${legacyRecord.glucoseMgDl} mg/dL${legacyRecord.glucoseType ? ` • ${legacyRecord.glucoseType.toLowerCase()}` : ''}`
+      : 'Glucose';
   }
-  if (legacyRecord.type === "WEIGHT") {
-    return legacyRecord.weightKg != null ? `${legacyRecord.weightKg} kg` : "Weight";
+  if (legacyRecord.type === 'WEIGHT') {
+    return legacyRecord.weightKg != null ? `${legacyRecord.weightKg} kg` : 'Weight';
   }
-  return legacyRecord.notes?.trim() || "Patient submission";
+  return legacyRecord.notes?.trim() || 'Patient submission';
 }
 
 export function measurementTypeFromPreset(value: string | null) {
-  switch ((value ?? "").toLowerCase()) {
-    case "bp":
-      return "BP" as const;
-    case "glucose":
-      return "GLUCOSE" as const;
-    case "weight":
-      return "WEIGHT" as const;
+  switch ((value ?? '').toLowerCase()) {
+    case 'bp':
+      return 'BP' as const;
+    case 'glucose':
+      return 'GLUCOSE' as const;
+    case 'weight':
+      return 'WEIGHT' as const;
     default:
-      return "BP" as const;
+      return 'BP' as const;
   }
 }
 
 function readNumber(value: unknown) {
   const parsed =
-    typeof value === "number"
+    typeof value === 'number'
       ? value
-      : typeof value === "string" && value.trim() !== ""
+      : typeof value === 'string' && value.trim() !== ''
         ? Number(value)
         : NaN;
   return Number.isFinite(parsed) ? parsed : null;

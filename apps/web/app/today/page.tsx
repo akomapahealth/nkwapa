@@ -702,7 +702,9 @@ export default function TodayBoardPage() {
                                   </Button>
                                 ) : (
                                   <Button asChild size="sm" variant="ghost">
-                                    <Link href={`/patients/${checkIn.patient.id}`}>
+                                    <Link
+                                      href={`/clinics/${clinicId}/patients/${checkIn.patient.id}`}
+                                    >
                                       View patient
                                       <ArrowRight className="h-4 w-4" />
                                     </Link>

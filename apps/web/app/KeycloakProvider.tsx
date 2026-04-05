@@ -1,10 +1,11 @@
-"use client";
+'use client';
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import type { GetToken } from "@/lib/api";
-import { getKeycloak, initKeycloak, resetKeycloak } from "@/lib/keycloak";
-import { AuthBootstrapWrapper } from "./AuthBootstrapWrapper";
-import { SyncWithAuth } from "./SyncWithAuth";
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import type { GetToken } from '@/lib/api';
+import { FullscreenStatus, PageSkeleton } from '@/components/feedback/AppState';
+import { getKeycloak, initKeycloak, resetKeycloak } from '@/lib/keycloak';
+import { AuthBootstrapWrapper } from './AuthBootstrapWrapper';
+import { SyncWithAuth } from './SyncWithAuth';
 
 const KeycloakContext = createContext<{
   isReady: boolean;
@@ -55,19 +56,18 @@ export function KeycloakProvider({ children }: { children: React.ReactNode }) {
     const kc = getKeycloak();
     if (!kc) {
       setIsReady(true);
-      setError("Keycloak not available (SSR)");
+      setError('Keycloak not available (SSR)');
       return;
     }
 
     const timeout = setTimeout(() => {
       setIsReady(true);
-      setError("Keycloak initialization timed out. Check your connection and try refreshing.");
+      setError('Keycloak initialization timed out. Check your connection and try refreshing.');
     }, 15000);
 
-    const origin =
-      typeof window !== "undefined" ? window.location.origin : "";
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
     initKeycloak({
-      onLoad: "check-sso",
+      onLoad: 'check-sso',
       checkLoginIframe: true,
       silentCheckSsoRedirectUri: `${origin}/silent-check-sso.html`,
     })
@@ -91,21 +91,18 @@ export function KeycloakProvider({ children }: { children: React.ReactNode }) {
   if (!isReady) {
     return (
       <KeycloakContext.Provider value={value}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            minHeight: "100vh",
-            fontFamily: "system-ui, sans-serif",
-          }}
-        >
-          {error ? (
-            <div style={{ color: "red", maxWidth: 400 }}>{error}</div>
-          ) : (
-            <span>Loading...</span>
-          )}
-        </div>
+        {error ? (
+          <FullscreenStatus
+            eyebrow="Authentication"
+            title="We couldn't finish secure sign in"
+            description={error}
+          />
+        ) : (
+          <PageSkeleton
+            title="Starting secure access"
+            description="Connecting to Keycloak, restoring your session, and preparing the safest route into the app."
+          />
+        )}
       </KeycloakContext.Provider>
     );
   }

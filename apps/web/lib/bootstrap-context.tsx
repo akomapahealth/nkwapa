@@ -1,20 +1,10 @@
-"use client";
+'use client';
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-import type { GetToken } from "./api";
-import {
-  getStoredActiveClinicId,
-  setStoredActiveClinicId,
-} from "./bootstrap-storage";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { apiFetch, getErrorMessage, type GetToken, readApiError } from './api';
+import { getStoredActiveClinicId, setStoredActiveClinicId } from './bootstrap-storage';
 
-export { BOOTSTRAP_STORAGE_KEY } from "./bootstrap-storage";
+export { BOOTSTRAP_STORAGE_KEY } from './bootstrap-storage';
 
 export interface WhoAmIMembership {
   clinicId: string;
@@ -31,11 +21,27 @@ export interface WhoAmIResponse {
   activeClinicId: string | null;
   effectiveRolesForActiveClinic: string[];
   effectivePermissionsForActiveClinic: string[];
+  onboarding: {
+    state: 'PATIENT_CLAIM_REQUIRED';
+    pendingInvites: Array<{
+      id: string;
+      clinicId: string;
+      clinicName: string;
+      patientId: string;
+      patientName: string;
+      patientCode: string;
+      email: string | null;
+      phoneE164: string | null;
+      createdAt: string;
+      expiresAt: string | null;
+    }>;
+  } | null;
 }
 
 interface BootstrapContextValue {
   bootstrap: WhoAmIResponse | null;
   isLoading: boolean;
+  isRefreshing: boolean;
   error: string | null;
   errorCode: string | null;
   activeClinicId: string | null;
@@ -44,42 +50,6 @@ interface BootstrapContextValue {
 }
 
 const BootstrapContext = createContext<BootstrapContextValue | null>(null);
-
-function parseBootstrapError(raw: string, status: number) {
-  if (!raw) {
-    return {
-      message: `whoami failed: ${status}`,
-      code: null,
-    };
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as
-      | { message?: string | string[]; code?: string }
-      | string;
-
-    if (typeof parsed === "string") {
-      return {
-        message: parsed,
-        code: null,
-      };
-    }
-
-    const message = Array.isArray(parsed.message)
-      ? parsed.message.join(", ")
-      : parsed.message ?? `whoami failed: ${status}`;
-
-    return {
-      message,
-      code: parsed.code ?? null,
-    };
-  } catch {
-    return {
-      message: raw,
-      code: null,
-    };
-  }
-}
 
 export function BootstrapProvider({
   children,
@@ -90,14 +60,17 @@ export function BootstrapProvider({
 }) {
   const [bootstrap, setBootstrap] = useState<WhoAmIResponse | null>(null);
   const [isLoading, setIsLoading] = useState(() => !!getToken);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
-  const [activeClinicIdOverride, setActiveClinicIdOverride] = useState<string | null | undefined>(undefined);
+  const [activeClinicIdOverride, setActiveClinicIdOverride] = useState<string | null | undefined>(
+    undefined,
+  );
 
   const activeClinicId =
     activeClinicIdOverride !== undefined
       ? activeClinicIdOverride
-      : bootstrap?.activeClinicId ?? getStoredActiveClinicId();
+      : (bootstrap?.activeClinicId ?? getStoredActiveClinicId());
 
   const setActiveClinicId = useCallback((id: string | null) => {
     setStoredActiveClinicId(id);
@@ -107,7 +80,12 @@ export function BootstrapProvider({
   const fetchWhoami = useCallback(async () => {
     if (!getToken) return;
 
-    setIsLoading(true);
+    const initialLoad = bootstrap == null;
+    if (initialLoad) {
+      setIsLoading(true);
+    } else {
+      setIsRefreshing(true);
+    }
     setError(null);
     setErrorCode(null);
     try {
@@ -123,19 +101,15 @@ export function BootstrapProvider({
         Authorization: `Bearer ${token}`,
       };
       if (storedClinicId) {
-        headers["X-Clinic-Id"] = storedClinicId;
+        headers['X-Clinic-Id'] = storedClinicId;
       }
-
-      const API_BASE =
-        process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
-      const res = await fetch(`${API_BASE}/auth/whoami`, { headers });
+      const res = await apiFetch('/auth/whoami', {
+        headers,
+        skipClinicHeader: true,
+      });
 
       if (!res.ok) {
-        const text = await res.text();
-        const parsedError = parseBootstrapError(text, res.status);
-        const error = new Error(parsedError.message) as Error & { code?: string };
-        error.code = parsedError.code ?? undefined;
-        throw error;
+        throw await readApiError(res);
       }
 
       const data = (await res.json()) as WhoAmIResponse;
@@ -146,19 +120,16 @@ export function BootstrapProvider({
         setStoredActiveClinicId(data.activeClinicId);
       }
     } catch (e) {
-      const nextError =
-        e instanceof Error ? e : new Error(String(e));
+      const nextError = e instanceof Error ? e : new Error(String(e));
       const nextCode =
-        "code" in nextError && typeof nextError.code === "string"
-          ? nextError.code
-          : null;
-      setError(nextError.message);
+        'code' in nextError && typeof nextError.code === 'string' ? nextError.code : null;
+      setError(getErrorMessage(nextError));
       setErrorCode(nextCode);
-      setBootstrap(null);
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
-  }, [getToken]);
+  }, [bootstrap, getToken]);
 
   useEffect(() => {
     fetchWhoami();
@@ -168,6 +139,7 @@ export function BootstrapProvider({
     () => ({
       bootstrap,
       isLoading,
+      isRefreshing,
       error,
       errorCode,
       activeClinicId,
@@ -177,19 +149,16 @@ export function BootstrapProvider({
     [
       bootstrap,
       isLoading,
+      isRefreshing,
       error,
       errorCode,
       activeClinicId,
       setActiveClinicId,
       fetchWhoami,
-    ]
+    ],
   );
 
-  return (
-    <BootstrapContext.Provider value={value}>
-      {children}
-    </BootstrapContext.Provider>
-  );
+  return <BootstrapContext.Provider value={value}>{children}</BootstrapContext.Provider>;
 }
 
 export function useBootstrap() {

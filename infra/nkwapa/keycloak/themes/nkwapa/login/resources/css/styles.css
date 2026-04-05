@@ -1,493 +1,510 @@
-/* ============================================================
-   Nkwapa Keycloak Login Theme
-   Matches the Nkwapa landing page design system:
-   - Primary teal: hsl(191 98% 36%) = #0891B2
-   - Font: Poppins (Circular Std fallback)
-   - Clean white background, rounded inputs, pill buttons
-   ============================================================ */
-
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
 @import url('https://fonts.cdnfonts.com/css/circular-std');
 
-/* ---- Reset & Base ---- */
-
-html, body {
-  height: 100%;
+:root {
+  --nkwapa-bg: #f4f8fa;
+  --nkwapa-surface: rgba(255, 255, 255, 0.96);
+  --nkwapa-border: rgba(15, 23, 42, 0.1);
+  --nkwapa-border-strong: #d7e2ea;
+  --nkwapa-text: #0f172a;
+  --nkwapa-muted: #53657a;
+  --nkwapa-primary: #1698b7;
+  --nkwapa-primary-deep: #0c4a5b;
+  --nkwapa-primary-soft: #e7f7fb;
+  --nkwapa-danger: #c2410c;
+  --nkwapa-danger-soft: #fff2eb;
+  --nkwapa-success: #166534;
+  --nkwapa-success-soft: #effcf2;
+  --nkwapa-shadow: 0 36px 90px rgba(15, 23, 42, 0.15);
 }
 
+* {
+  box-sizing: border-box;
+}
+
+html,
 body {
-  font-family: 'Circular Std', 'Poppins', 'Sofia Pro', 'Averta', 'Gilroy', sans-serif !important;
-  background: #ffffff !important;
-  color: #0F172A !important;
+  min-height: 100%;
+  margin: 0;
+}
+
+body.nkwapa-auth-body {
+  font-family: 'Circular Std', 'Poppins', 'Segoe UI', sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(22, 152, 183, 0.14), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(12, 74, 91, 0.12), transparent 34%),
+    linear-gradient(180deg, #f9fcfd 0%, var(--nkwapa-bg) 100%);
+  color: var(--nkwapa-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ---- Hide default Keycloak chrome ---- */
-
-#kc-header {
-  display: none !important;
+.nkwapa-auth-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
 }
 
-#kc-header-wrapper {
-  display: none !important;
+.nkwapa-auth-card {
+  width: min(1180px, 100%);
+  display: grid;
+  grid-template-columns: minmax(0, 1.04fr) minmax(420px, 0.96fr);
+  border-radius: 36px;
+  overflow: hidden;
+  background: var(--nkwapa-surface);
+  border: 1px solid var(--nkwapa-border);
+  box-shadow: var(--nkwapa-shadow);
 }
 
-.login-pf-page .card-pf {
-  box-shadow: none !important;
-  border: none !important;
-  background: transparent !important;
+.nkwapa-auth-showcase {
+  position: relative;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.1), transparent 26%),
+    radial-gradient(circle at bottom right, rgba(22, 152, 183, 0.18), transparent 32%),
+    linear-gradient(155deg, #12253b 0%, #123f53 55%, #188c9c 100%);
+  color: #f8fafc;
 }
 
-/* ---- Main container ---- */
-
-.login-pf {
-  background: #ffffff !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  min-height: 100vh !important;
+.nkwapa-auth-showcase__inner {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 28px;
+  padding: 40px 40px 34px;
 }
 
-.login-pf-page {
-  max-width: 100% !important;
-  width: 100% !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  min-height: 100vh !important;
-  padding: 2rem 1rem !important;
+.nkwapa-auth-logo {
+  width: 196px;
+  max-width: 100%;
+  height: auto;
 }
 
-#kc-content {
-  width: 100% !important;
-  max-width: 420px !important;
-  margin: 0 auto !important;
+.nkwapa-auth-copy {
+  max-width: 420px;
 }
 
-#kc-content-wrapper {
-  width: 100% !important;
+.nkwapa-auth-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
 }
 
-/* ---- Card / Form container ---- */
+.nkwapa-auth-headline {
+  margin: 20px 0 12px;
+  font-size: clamp(2rem, 4vw, 3.3rem);
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+  font-weight: 800;
+}
 
+.nkwapa-auth-description {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.7;
+  color: rgba(248, 250, 252, 0.84);
+}
+
+.nkwapa-auth-feature-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+  max-width: 420px;
+}
+
+.nkwapa-auth-feature-list li {
+  position: relative;
+  padding-left: 22px;
+  font-size: 0.94rem;
+  line-height: 1.55;
+  color: rgba(248, 250, 252, 0.9);
+}
+
+.nkwapa-auth-feature-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.58rem;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #7be5ea;
+  box-shadow: 0 0 0 5px rgba(123, 229, 234, 0.16);
+}
+
+.nkwapa-auth-illustration {
+  width: 100%;
+  max-width: 520px;
+  align-self: center;
+  height: auto;
+  object-fit: contain;
+}
+
+.nkwapa-auth-panel {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 252, 253, 0.98) 100%);
+}
+
+.nkwapa-auth-panel__inner {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 24px;
+  padding: 52px 56px;
+}
+
+.nkwapa-auth-panel__eyebrow {
+  margin: 0 0 12px;
+  color: var(--nkwapa-primary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.nkwapa-auth-title {
+  margin: 0;
+  font-size: clamp(2rem, 3vw, 3rem);
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+  font-weight: 800;
+  color: var(--nkwapa-text);
+}
+
+.nkwapa-auth-panel__description {
+  margin: 14px 0 0;
+  max-width: 520px;
+  color: var(--nkwapa-muted);
+  font-size: 0.98rem;
+  line-height: 1.7;
+}
+
+.nkwapa-alert {
+  border-radius: 18px;
+  padding: 14px 16px;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  border: 1px solid transparent;
+}
+
+.nkwapa-alert--error,
+.alert-error {
+  color: var(--nkwapa-danger);
+  background: var(--nkwapa-danger-soft);
+  border-color: rgba(194, 65, 12, 0.16);
+}
+
+.nkwapa-alert--success,
+.alert-success {
+  color: var(--nkwapa-success);
+  background: var(--nkwapa-success-soft);
+  border-color: rgba(22, 101, 52, 0.14);
+}
+
+.nkwapa-alert--warning,
+.nkwapa-alert--info {
+  color: #0b4f60;
+  background: #ecfbff;
+  border-color: rgba(22, 152, 183, 0.16);
+}
+
+.nkwapa-required-note {
+  margin: -6px 0 0;
+  font-size: 0.85rem;
+  color: var(--nkwapa-muted);
+}
+
+.nkwapa-auth-form,
+#kc-form,
+#kc-form-wrapper,
 #kc-form-login,
-#kc-form {
-  width: 100% !important;
+#kc-reset-password-form,
+#kc-register-form {
+  width: 100%;
 }
-
-.card-pf {
-  max-width: 420px !important;
-  width: 100% !important;
-  margin: 0 auto !important;
-  padding: 0 !important;
-}
-
-/* ---- Page title (header section) ---- */
-
-#kc-page-title {
-  font-family: 'Circular Std', 'Poppins', sans-serif !important;
-  font-weight: 900 !important;
-  font-size: 2rem !important;
-  line-height: 1.1 !important;
-  color: #0F172A !important;
-  text-transform: lowercase !important;
-  text-align: center !important;
-  margin-bottom: 2rem !important;
-  letter-spacing: -0.02em !important;
-}
-
-/* ---- Wordmark above form ---- */
-
-#kc-page-title::before {
-  content: 'nkwapa';
-  display: block;
-  font-family: 'Circular Std', 'Poppins', sans-serif;
-  font-weight: 900;
-  font-size: 1.25rem;
-  color: #0891B2;
-  text-transform: lowercase;
-  letter-spacing: -0.02em;
-  margin-bottom: 1.5rem;
-}
-
-/* ---- Form groups ---- */
 
 .nkwapa-form-group {
-  margin-bottom: 1.25rem;
+  margin-bottom: 18px;
 }
 
-.nkwapa-label,
-.login-pf-page .login-pf-accounts label,
-label[for="username"],
-label[for="password"],
-label[for="password-new"],
-label[for="password-confirm"],
-label[for="email"],
-label[for="firstName"],
-label[for="lastName"] {
-  font-family: 'Circular Std', 'Poppins', sans-serif !important;
-  font-weight: 500 !important;
-  font-size: 0.875rem !important;
-  color: #0F172A !important;
-  display: block !important;
-  margin-bottom: 0.5rem !important;
+.nkwapa-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--nkwapa-text);
 }
 
-.nkwapa-input,
-.login-pf-page input[type="text"],
-.login-pf-page input[type="password"],
-.login-pf-page input[type="email"] {
-  width: 100% !important;
-  padding: 0.75rem 1rem !important;
-  font-family: 'Circular Std', 'Poppins', sans-serif !important;
-  font-size: 0.875rem !important;
-  font-weight: 400 !important;
-  color: #0F172A !important;
-  background: #ffffff !important;
-  border: 2px solid #E2E8F0 !important;
-  border-radius: 0.75rem !important;
-  outline: none !important;
-  transition: border-color 0.2s ease !important;
-  box-sizing: border-box !important;
-  box-shadow: none !important;
-  -webkit-appearance: none !important;
+.nkwapa-input {
+  width: 100%;
+  min-height: 58px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid var(--nkwapa-border-strong);
+  background: #ffffff;
+  color: var(--nkwapa-text);
+  font-family: inherit;
+  font-size: 0.98rem;
+  line-height: 1.4;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.nkwapa-input:hover {
+  border-color: #b8ccd8;
 }
 
 .nkwapa-input:focus,
-.login-pf-page input[type="text"]:focus,
-.login-pf-page input[type="password"]:focus,
-.login-pf-page input[type="email"]:focus {
-  border-color: #0891B2 !important;
-  box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.1) !important;
+.nkwapa-input[aria-invalid='true'] {
+  border-color: var(--nkwapa-primary);
+  box-shadow: 0 0 0 4px rgba(22, 152, 183, 0.14);
 }
 
-.nkwapa-input::placeholder,
-.login-pf-page input::placeholder {
-  color: #94A3B8 !important;
+.nkwapa-input::placeholder {
+  color: #8ea0af;
 }
-
-/* ---- Password field + visibility toggle ---- */
 
 .nkwapa-password-wrap {
   position: relative;
-  display: block;
 }
 
-.nkwapa-password-wrap .nkwapa-input--with-toggle,
-.nkwapa-password-wrap input[type="password"],
-.nkwapa-password-wrap input[type="text"] {
-  padding-right: 2.85rem !important;
+.nkwapa-input--with-toggle {
+  padding-right: 54px;
 }
 
 .nkwapa-password-toggle {
   position: absolute;
-  right: 0.5rem;
+  right: 10px;
   top: 50%;
   transform: translateY(-50%);
+  width: 38px;
+  height: 38px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  padding: 0;
-  margin: 0;
-  border: none;
-  border-radius: 0.5rem;
+  border: 0;
+  border-radius: 12px;
   background: transparent;
-  color: #64748b;
+  color: #6b7c8f;
   cursor: pointer;
-  transition: color 0.15s ease, background-color 0.15s ease;
-  -webkit-appearance: none;
-  appearance: none;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-.nkwapa-password-toggle:hover {
-  color: #0891B2;
-  background: rgba(8, 145, 178, 0.08);
-}
-
-.nkwapa-password-toggle:focus {
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(8, 145, 178, 0.35);
-}
-
-.nkwapa-password-toggle:focus:not(:focus-visible) {
-  box-shadow: none;
-}
-
+.nkwapa-password-toggle:hover,
 .nkwapa-password-toggle:focus-visible {
-  box-shadow: 0 0 0 2px rgba(8, 145, 178, 0.35);
+  background: var(--nkwapa-primary-soft);
+  color: var(--nkwapa-primary-deep);
+  outline: none;
 }
 
-/* [hidden] must win — PatternFly / theme rules can otherwise show both icons */
 .nkwapa-icon-eye[hidden] {
   display: none !important;
 }
-
-.nkwapa-icon-eye:not([hidden]) {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 0;
-}
-
-.nkwapa-icon-eye svg {
-  display: block;
-}
-
-/* ---- Error messages ---- */
-
-.nkwapa-error,
-.kc-feedback-text,
-.pf-c-alert__title {
-  font-family: 'Circular Std', 'Poppins', sans-serif !important;
-  font-size: 0.8125rem !important;
-  color: #DC2626 !important;
-  margin-top: 0.375rem !important;
-  display: block !important;
-}
-
-.alert-error,
-.pf-c-alert.pf-m-danger {
-  background: #FEF2F2 !important;
-  border: 1px solid #FECACA !important;
-  border-radius: 0.75rem !important;
-  padding: 0.75rem 1rem !important;
-  margin-bottom: 1.25rem !important;
-  color: #DC2626 !important;
-}
-
-.alert-success,
-.pf-c-alert.pf-m-success {
-  background: #F0FDF4 !important;
-  border: 1px solid #BBF7D0 !important;
-  border-radius: 0.75rem !important;
-  padding: 0.75rem 1rem !important;
-  margin-bottom: 1.25rem !important;
-  color: #166534 !important;
-}
-
-/* ---- Options row (remember me + forgot password) ---- */
 
 .nkwapa-form-options {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1.5rem;
-  gap: 1rem;
+  gap: 12px;
+  margin: 2px 0 24px;
 }
 
 .nkwapa-checkbox-group {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 8px;
 }
 
-.nkwapa-checkbox-group input[type="checkbox"] {
-  width: 1rem;
-  height: 1rem;
-  accent-color: #0891B2;
-  cursor: pointer;
+.nkwapa-checkbox-group input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--nkwapa-primary);
 }
 
-.nkwapa-checkbox-group label {
-  font-family: 'Circular Std', 'Poppins', sans-serif !important;
-  font-size: 0.8125rem !important;
-  font-weight: 400 !important;
-  color: #475569 !important;
-  cursor: pointer;
-  margin-bottom: 0 !important;
+.nkwapa-checkbox-group label,
+.nkwapa-register-link,
+.nkwapa-register-link p {
+  font-size: 0.88rem;
+  color: var(--nkwapa-muted);
 }
 
 .nkwapa-forgot-link,
-#kc-form-options a,
-a[href*="login-reset-credentials"] {
-  font-family: 'Circular Std', 'Poppins', sans-serif !important;
-  font-size: 0.8125rem !important;
-  font-weight: 500 !important;
-  color: #0891B2 !important;
-  text-decoration: none !important;
-  transition: opacity 0.2s ease !important;
+.nkwapa-register-link a {
+  color: var(--nkwapa-primary);
+  font-weight: 600;
+  text-decoration: none;
 }
 
 .nkwapa-forgot-link:hover,
-#kc-form-options a:hover {
-  opacity: 0.7 !important;
+.nkwapa-register-link a:hover {
+  text-decoration: underline;
 }
 
-/* ---- Primary button ---- */
-
-.nkwapa-btn-primary,
-.login-pf-page input[type="submit"],
-.login-pf-page button[type="submit"],
-#kc-login {
-  width: 100% !important;
-  padding: 0.75rem 1.5rem !important;
-  font-family: 'Circular Std', 'Poppins', sans-serif !important;
-  font-size: 0.9375rem !important;
-  font-weight: 600 !important;
-  color: #ffffff !important;
-  background: #0891B2 !important;
-  border: none !important;
-  border-radius: 9999px !important;
-  cursor: pointer !important;
-  transition: background-color 0.2s ease !important;
-  box-shadow: none !important;
-  text-transform: none !important;
-  letter-spacing: 0 !important;
-  -webkit-appearance: none !important;
+.nkwapa-btn-primary {
+  width: 100%;
+  min-height: 58px;
+  border: 0;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #1da4c2 0%, #12728a 100%);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  box-shadow: 0 18px 36px rgba(18, 114, 138, 0.22);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
 }
 
-.nkwapa-btn-primary:hover,
-.login-pf-page input[type="submit"]:hover,
-.login-pf-page button[type="submit"]:hover,
-#kc-login:hover {
-  background: #0E7490 !important;
+.nkwapa-btn-primary:hover {
+  filter: brightness(1.03);
+  transform: translateY(-1px);
 }
 
-.nkwapa-btn-primary:focus,
-#kc-login:focus {
-  outline: none !important;
-  box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.25) !important;
+.nkwapa-btn-primary:focus-visible {
+  outline: none;
+  box-shadow:
+    0 18px 36px rgba(18, 114, 138, 0.22),
+    0 0 0 4px rgba(22, 152, 183, 0.16);
 }
 
-.nkwapa-submit-group {
-  margin-top: 0.5rem;
+.nkwapa-error {
+  display: block;
+  margin-top: 8px;
+  color: var(--nkwapa-danger);
+  font-size: 0.84rem;
+  line-height: 1.45;
 }
 
-/* ---- Register link ---- */
-
-.nkwapa-register-link,
-#kc-registration {
-  text-align: center !important;
-  margin-top: 1.5rem !important;
-  font-family: 'Circular Std', 'Poppins', sans-serif !important;
-  font-size: 0.875rem !important;
-  color: #475569 !important;
+.nkwapa-auth-info {
+  margin-top: -6px;
 }
 
-.nkwapa-register-link a,
-#kc-registration a {
-  color: #0891B2 !important;
-  font-weight: 600 !important;
-  text-decoration: none !important;
-  transition: opacity 0.2s ease !important;
+.nkwapa-auth-info .nkwapa-register-link {
+  margin: 0;
+  text-align: left;
 }
 
-.nkwapa-register-link a:hover,
-#kc-registration a:hover {
-  opacity: 0.7 !important;
+#kc-header,
+#kc-header-wrapper {
+  display: none !important;
 }
 
-/* ---- Social / Identity Provider buttons ---- */
-
-#kc-social-providers {
-  margin-top: 1.5rem !important;
-  border-top: 1px solid #E2E8F0 !important;
-  padding-top: 1.5rem !important;
-}
-
-#kc-social-providers ul {
-  list-style: none !important;
-  padding: 0 !important;
+.login-pf,
+.login-pf-page {
   margin: 0 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 0.75rem !important;
+  min-height: auto !important;
+  background: transparent !important;
 }
 
-#kc-social-providers a,
-.zocial {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 100% !important;
-  padding: 0.75rem 1rem !important;
-  font-family: 'Circular Std', 'Poppins', sans-serif !important;
-  font-size: 0.875rem !important;
-  font-weight: 500 !important;
-  color: #0F172A !important;
-  background: #ffffff !important;
-  border: 2px solid #E2E8F0 !important;
-  border-radius: 9999px !important;
-  text-decoration: none !important;
-  transition: border-color 0.2s ease !important;
-  cursor: pointer !important;
-}
-
-#kc-social-providers a:hover,
-.zocial:hover {
-  border-color: #0891B2 !important;
-}
-
-/* ---- Keycloak default overrides ---- */
-
-.pf-c-form__label-text,
-.pf-c-form__label {
-  font-family: 'Circular Std', 'Poppins', sans-serif !important;
-  font-weight: 500 !important;
-  font-size: 0.875rem !important;
-  color: #0F172A !important;
-}
-
-.pf-c-form-control {
-  font-family: 'Circular Std', 'Poppins', sans-serif !important;
-  border: 2px solid #E2E8F0 !important;
-  border-radius: 0.75rem !important;
-  padding: 0.75rem 1rem !important;
-  font-size: 0.875rem !important;
+.card-pf {
   box-shadow: none !important;
 }
 
-.pf-c-form-control:focus {
-  border-color: #0891B2 !important;
-  box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.1) !important;
-}
-
-.pf-c-button.pf-m-primary {
-  font-family: 'Circular Std', 'Poppins', sans-serif !important;
-  background: #0891B2 !important;
-  border: none !important;
-  border-radius: 9999px !important;
-  font-weight: 600 !important;
-  padding: 0.75rem 1.5rem !important;
-  transition: background-color 0.2s ease !important;
-}
-
-.pf-c-button.pf-m-primary:hover {
-  background: #0E7490 !important;
-}
-
-/* ---- Info/attempt selectors ---- */
-
-#kc-info,
-#kc-info-wrapper {
-  text-align: center !important;
-}
-
-#kc-form-options {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  margin-bottom: 1rem !important;
-}
-
-/* ---- Responsive ---- */
-
-@media (max-width: 480px) {
-  #kc-content {
-    max-width: 100% !important;
-    padding: 0 0.5rem !important;
+@media (max-width: 1080px) {
+  .nkwapa-auth-card {
+    grid-template-columns: minmax(0, 1fr) minmax(380px, 0.92fr);
   }
 
-  #kc-page-title {
-    font-size: 1.5rem !important;
+  .nkwapa-auth-showcase__inner {
+    padding: 34px 28px 28px;
+  }
+
+  .nkwapa-auth-panel__inner {
+    padding: 42px 36px;
+  }
+}
+
+@media (max-width: 920px) {
+  .nkwapa-auth-shell {
+    padding: 18px;
+  }
+
+  .nkwapa-auth-card {
+    grid-template-columns: 1fr;
+  }
+
+  .nkwapa-auth-showcase__inner {
+    padding: 26px 22px 14px;
+    gap: 18px;
+  }
+
+  .nkwapa-auth-copy {
+    max-width: none;
+  }
+
+  .nkwapa-auth-headline {
+    margin-top: 16px;
+    font-size: 2.1rem;
+  }
+
+  .nkwapa-auth-feature-list {
+    display: none;
+  }
+
+  .nkwapa-auth-illustration {
+    max-width: 360px;
+  }
+
+  .nkwapa-auth-panel__inner {
+    padding: 28px 22px 26px;
+  }
+}
+
+@media (max-width: 560px) {
+  .nkwapa-auth-shell {
+    padding: 0;
+  }
+
+  .nkwapa-auth-card {
+    min-height: 100vh;
+    border-radius: 0;
+    border: 0;
+    box-shadow: none;
+  }
+
+  .nkwapa-auth-showcase__inner {
+    padding: 22px 18px 8px;
+  }
+
+  .nkwapa-auth-logo {
+    width: 160px;
+  }
+
+  .nkwapa-auth-headline {
+    font-size: 1.8rem;
+  }
+
+  .nkwapa-auth-description {
+    font-size: 0.94rem;
+  }
+
+  .nkwapa-auth-panel__inner {
+    padding: 24px 18px 28px;
+  }
+
+  .nkwapa-auth-title {
+    font-size: 2rem;
+  }
+
+  .nkwapa-auth-panel__description {
+    font-size: 0.92rem;
   }
 
   .nkwapa-form-options {
     flex-direction: column;
     align-items: flex-start;
-    gap: 0.75rem;
   }
 }

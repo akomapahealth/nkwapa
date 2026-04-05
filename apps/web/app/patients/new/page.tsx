@@ -1,17 +1,17 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft, FilePenLine, ShieldCheck, UserPlus } from "lucide-react";
-import { useBootstrap } from "@/lib/bootstrap-context";
-import { useAuth } from "@/lib/auth-context";
-import { apiFetch } from "@/lib/api";
-import { AppMetricCard } from "@/components/app-shell/AppMetricCard";
-import { AppPageHeader } from "@/components/app-shell/AppPageHeader";
-import { RouteGuard } from "@/components/RouteGuard";
-import { PhoneInput } from "@/components/PhoneInput";
-import { Button } from "@/components/ui/button";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { ArrowLeft, FilePenLine, ShieldCheck, UserPlus } from 'lucide-react';
+import { useBootstrap } from '@/lib/bootstrap-context';
+import { useAuth } from '@/lib/auth-context';
+import { apiFetch } from '@/lib/api';
+import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
+import { RouteGuard } from '@/components/RouteGuard';
+import { PhoneInput } from '@/components/PhoneInput';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -19,27 +19,27 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { InlineNotice } from "@/components/ops/OpsShared";
+} from '@/components/ui/select';
+import { InlineNotice } from '@/components/ops/OpsShared';
 
 interface CreatePatientBody {
   firstName: string;
   lastName: string;
   dob?: string;
-  sex?: "MALE" | "FEMALE" | "OTHER" | "UNKNOWN";
+  sex?: 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN';
   phoneE164?: string;
   email?: string;
-  nationalIdType: "VOTER_ID" | "NATIONAL_ID" | "PASSPORT" | "OTHER";
+  nationalIdType: 'VOTER_ID' | 'NATIONAL_ID' | 'PASSPORT' | 'OTHER';
   nationalId: string;
 }
 
@@ -53,20 +53,24 @@ interface ExistingPatient {
 
 export default function NewPatientPage() {
   const router = useRouter();
-  const bootstrap = useBootstrap()?.bootstrap ?? null;
+  const bootstrapContext = useBootstrap();
+  const bootstrap = bootstrapContext?.bootstrap ?? null;
   const getToken = useAuth();
   const clinicId =
-    bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
+    bootstrapContext?.activeClinicId ??
+    bootstrap?.activeClinicId ??
+    bootstrap?.memberships?.[0]?.clinicId ??
+    null;
 
   const [form, setForm] = useState<CreatePatientBody>({
-    firstName: "",
-    lastName: "",
-    dob: "",
-    sex: "UNKNOWN",
-    phoneE164: "",
-    email: "",
-    nationalIdType: "OTHER",
-    nationalId: "",
+    firstName: '',
+    lastName: '',
+    dob: '',
+    sex: 'UNKNOWN',
+    phoneE164: '',
+    email: '',
+    nationalIdType: 'OTHER',
+    nationalId: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,14 +90,11 @@ export default function NewPatientPage() {
         phoneE164: form.phoneE164 || undefined,
         email: form.email || undefined,
       };
-      const response = await apiFetch(
-        `/clinics/${encodeURIComponent(clinicId)}/patients`,
-        {
-          method: "POST",
-          body: JSON.stringify(body),
-          getToken,
-        }
-      );
+      const response = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}/patients`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+        getToken,
+      });
 
       if (response.status === 409) {
         const payload = (await response.json()) as {
@@ -108,7 +109,7 @@ export default function NewPatientPage() {
       }
 
       const patient = (await response.json()) as { id: string };
-      router.push(`/patients/${patient.id}`);
+      router.push(`/clinics/${clinicId}/patients/${patient.id}`);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : String(nextError));
     } finally {
@@ -130,7 +131,7 @@ export default function NewPatientPage() {
     <RouteGuard requiredPermission="PATIENT.CREATE">
       <div className="space-y-6">
         <Button variant="ghost" asChild className="w-fit rounded-2xl">
-          <Link href="/patients">
+          <Link href={`/clinics/${clinicId}/patients`}>
             <ArrowLeft className="h-4 w-4" />
             Back to Patients
           </Link>
@@ -172,9 +173,7 @@ export default function NewPatientPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              {error && !conflictPatient ? (
-                <InlineNotice tone="error">{error}</InlineNotice>
-              ) : null}
+              {error && !conflictPatient ? <InlineNotice tone="error">{error}</InlineNotice> : null}
 
               <Dialog
                 open={!!conflictPatient}
@@ -212,7 +211,7 @@ export default function NewPatientPage() {
                     </Button>
                     {conflictPatient && (
                       <Button asChild>
-                        <Link href={`/patients/${conflictPatient.id}`}>
+                        <Link href={`/clinics/${clinicId}/patients/${conflictPatient.id}`}>
                           Open existing patient
                         </Link>
                       </Button>
@@ -266,7 +265,7 @@ export default function NewPatientPage() {
                     onValueChange={(value) =>
                       setForm((current) => ({
                         ...current,
-                        sex: value as CreatePatientBody["sex"],
+                        sex: value as CreatePatientBody['sex'],
                       }))
                     }
                   >
@@ -286,9 +285,7 @@ export default function NewPatientPage() {
                   <Label>Phone (Ghana)</Label>
                   <PhoneInput
                     value={form.phoneE164}
-                    onChange={(value) =>
-                      setForm((current) => ({ ...current, phoneE164: value }))
-                    }
+                    onChange={(value) => setForm((current) => ({ ...current, phoneE164: value }))}
                     placeholder="024 123 4567"
                   />
                 </div>
@@ -312,7 +309,7 @@ export default function NewPatientPage() {
                     onValueChange={(value) =>
                       setForm((current) => ({
                         ...current,
-                        nationalIdType: value as CreatePatientBody["nationalIdType"],
+                        nationalIdType: value as CreatePatientBody['nationalIdType'],
                       }))
                     }
                   >
@@ -343,7 +340,7 @@ export default function NewPatientPage() {
 
               <div className="flex flex-wrap gap-2">
                 <Button type="submit" disabled={loading} className="rounded-2xl">
-                  {loading ? "Creating..." : "Create Patient"}
+                  {loading ? 'Creating...' : 'Create Patient'}
                 </Button>
                 <Button variant="outline" asChild className="rounded-2xl">
                   <Link href="/patients">Cancel</Link>

@@ -1,23 +1,18 @@
-export const OPS_DEFAULT_TIMEZONE = "Africa/Accra";
+export const OPS_DEFAULT_TIMEZONE = 'Africa/Accra';
 
-export const SHIFT_ROLES = [
-  "VOLUNTEER",
-  "DOCTOR",
-  "PRECEPTOR",
-  "MANAGER",
-] as const;
+export const SHIFT_ROLES = ['VOLUNTEER', 'DOCTOR', 'PRECEPTOR', 'MANAGER'] as const;
 
 export const CHECKIN_STATUS_ORDER = [
-  "WAITING",
-  "ASSIGNED",
-  "IN_PROGRESS",
-  "COMPLETED",
-  "CANCELLED",
+  'WAITING',
+  'ASSIGNED',
+  'IN_PROGRESS',
+  'COMPLETED',
+  'CANCELLED',
 ] as const;
 
 export type ShiftRole = (typeof SHIFT_ROLES)[number];
 export type CheckInStatus = (typeof CHECKIN_STATUS_ORDER)[number];
-export type AssignmentStatus = "ACTIVE" | "REASSIGNED" | "CANCELLED";
+export type AssignmentStatus = 'ACTIVE' | 'REASSIGNED' | 'CANCELLED';
 
 export interface ActiveShift {
   shiftId: string;
@@ -25,7 +20,7 @@ export interface ActiveShift {
   displayName: string;
   roleAtShift: ShiftRole;
   checkedInAt: string;
-  status: "ACTIVE" | "CLOSED";
+  status: 'ACTIVE' | 'CLOSED';
 }
 
 export interface ActiveShiftsResponse {
@@ -97,7 +92,7 @@ export interface AssignmentSummary {
 export interface MyAssignmentSummary {
   id: string;
   patientCheckInId: string;
-  assignedRole: "VOLUNTEER" | "DOCTOR";
+  assignedRole: 'VOLUNTEER' | 'DOCTOR';
   assignedAt: string;
   checkInStatus: CheckInStatus;
   checkedInAt: string;
@@ -121,72 +116,67 @@ export interface ShiftDetail {
   roleAtShift: ShiftRole;
   checkedInAt: string;
   checkedOutAt: string | null;
-  status: "ACTIVE" | "CLOSED";
+  status: 'ACTIVE' | 'CLOSED';
   notes: string | null;
 }
 
 function formatInTimeZone(
   value: string | number | Date,
   timeZone: string,
-  options: Intl.DateTimeFormatOptions
+  options: Intl.DateTimeFormatOptions,
 ) {
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat('en-US', {
     timeZone,
     ...options,
   }).format(new Date(value));
 }
 
 export function getTodayInTimeZone(timeZone = OPS_DEFAULT_TIMEZONE) {
-  const parts = new Intl.DateTimeFormat("en-US", {
+  const parts = new Intl.DateTimeFormat('en-US', {
     timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
   }).formatToParts(new Date());
 
   const values = Object.fromEntries(
-    parts
-      .filter((part) => part.type !== "literal")
-      .map((part) => [part.type, part.value])
-  ) as Record<"year" | "month" | "day", string>;
+    parts.filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]),
+  ) as Record<'year' | 'month' | 'day', string>;
 
   return `${values.year}-${values.month}-${values.day}`;
 }
 
 export function formatOpsDate(date: string, timeZone = OPS_DEFAULT_TIMEZONE) {
   return formatInTimeZone(`${date}T12:00:00.000Z`, timeZone, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
   });
 }
 
-export function formatOpsDateTime(
-  value: string,
-  timeZone = OPS_DEFAULT_TIMEZONE
-) {
+export function formatOpsDateTime(value: string, timeZone = OPS_DEFAULT_TIMEZONE) {
   return formatInTimeZone(value, timeZone, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
   });
 }
 
 export function formatOpsTime(value: string, timeZone = OPS_DEFAULT_TIMEZONE) {
   return formatInTimeZone(value, timeZone, {
-    hour: "numeric",
-    minute: "2-digit",
+    hour: 'numeric',
+    minute: '2-digit',
   });
 }
 
 export function formatRoleLabel(role: string) {
   return role
     .toLowerCase()
-    .split("_")
+    .split('_')
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-    .join(" ");
+    .join(' ');
 }
 
 export function formatStatusLabel(status: string) {
@@ -194,31 +184,24 @@ export function formatStatusLabel(status: string) {
 }
 
 export function getEligibleShiftRoles(roles: string[]) {
-  return roles.filter((role): role is ShiftRole =>
-    SHIFT_ROLES.includes(role as ShiftRole)
-  );
+  return roles.filter((role): role is ShiftRole => SHIFT_ROLES.includes(role as ShiftRole));
 }
 
 export function hasPermission(permissions: string[], permission: string) {
-  return permissions.includes("*") || permissions.includes(permission);
+  return permissions.includes('*') || permissions.includes(permission);
 }
 
 export function hasAnyPermission(permissions: string[], candidates: string[]) {
-  return permissions.includes("*") || candidates.some((perm) => permissions.includes(perm));
+  return permissions.includes('*') || candidates.some((perm) => permissions.includes(perm));
 }
 
 export function getOpsDestination(permissions: string[]) {
-  if (
-    hasAnyPermission(permissions, [
-      "OPS.ASSIGNMENT.MANAGE",
-      "OPS.CHECKIN.READ",
-    ])
-  ) {
-    return "/today";
+  if (hasAnyPermission(permissions, ['OPS.ASSIGNMENT.MANAGE', 'OPS.CHECKIN.READ'])) {
+    return '/today';
   }
 
-  if (hasPermission(permissions, "OPS.ASSIGNMENT.READ_SELF")) {
-    return "/my/assigned";
+  if (hasPermission(permissions, 'OPS.ASSIGNMENT.READ_SELF')) {
+    return '/my/assigned';
   }
 
   return null;
@@ -226,26 +209,39 @@ export function getOpsDestination(permissions: string[]) {
 
 export async function readApiError(response: Response) {
   const raw = await response.text();
+  const requestId =
+    response.headers.get('x-request-id') ?? response.headers.get('x-correlation-id');
 
   if (!raw) {
-    return `Request failed with status ${response.status}`;
+    return requestId
+      ? `Request failed with status ${response.status}. Reference: ${requestId}`
+      : `Request failed with status ${response.status}`;
   }
 
   try {
     const parsed = JSON.parse(raw) as
-      | { message?: string | string[] }
+      | {
+          message?: string | string[];
+          recoveryAction?: string;
+          fieldErrors?: Array<{ message: string }>;
+        }
       | string;
 
-    if (typeof parsed === "string") {
+    if (typeof parsed === 'string') {
       return parsed;
     }
 
     if (Array.isArray(parsed.message)) {
-      return parsed.message.join(", ");
+      return parsed.message.join(', ');
     }
 
     if (parsed.message) {
-      return parsed.message;
+      const message = parsed.message;
+      const fieldMessage = parsed.fieldErrors?.[0]?.message;
+      const recoveryAction = parsed.recoveryAction;
+      return [message, fieldMessage, recoveryAction, requestId ? `Reference: ${requestId}` : null]
+        .filter(Boolean)
+        .join(' ');
     }
   } catch {
     return raw;

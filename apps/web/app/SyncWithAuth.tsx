@@ -1,14 +1,15 @@
-"use client";
+'use client';
 
-import { useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import { useAuth } from "@/lib/auth-context";
-import { useBootstrap } from "@/lib/bootstrap-context";
-import { useKeycloak } from "@/app/KeycloakProvider";
-import { AppLayout } from "@/components/AppLayout";
-import { PortalLayout } from "@/components/PortalLayout";
-import { Button } from "@/components/ui/button";
-import { ServiceWorkerAndSyncProvider } from "./ServiceWorkerAndSyncProvider";
+import { useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth-context';
+import { useBootstrap } from '@/lib/bootstrap-context';
+import { useKeycloak } from '@/app/KeycloakProvider';
+import { AppLayout } from '@/components/AppLayout';
+import { FullscreenStatus } from '@/components/feedback/AppState';
+import { PortalLayout } from '@/components/PortalLayout';
+import { Button } from '@/components/ui/button';
+import { ServiceWorkerAndSyncProvider } from './ServiceWorkerAndSyncProvider';
 
 export function SyncWithAuth({ children }: { children: React.ReactNode }) {
   const getToken = useAuth();
@@ -19,50 +20,67 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
   };
   const pathname = usePathname();
   const router = useRouter();
+  const bootstrap = bootstrapCtx?.bootstrap ?? null;
 
   useEffect(() => {
-    if (!isAuthenticated && pathname !== "/") {
-      router.replace("/");
+    if (!isAuthenticated && pathname !== '/') {
+      router.replace('/');
     }
   }, [isAuthenticated, pathname, router]);
 
+  const requiresPatientClaim = bootstrap?.onboarding?.state === 'PATIENT_CLAIM_REQUIRED';
+
+  useEffect(() => {
+    if (!isAuthenticated || bootstrapCtx?.isLoading) {
+      return;
+    }
+
+    if (requiresPatientClaim && pathname !== '/claim-record') {
+      router.replace('/claim-record');
+      return;
+    }
+
+    if (!requiresPatientClaim && pathname === '/claim-record') {
+      const roles = bootstrap?.effectiveRolesForActiveClinic ?? bootstrap?.globalRoles ?? [];
+      const isPatientOnly = roles.length === 1 && roles[0] === 'PATIENT';
+      router.replace(isPatientOnly ? '/portal' : '/dashboard');
+    }
+  }, [bootstrap, bootstrapCtx?.isLoading, isAuthenticated, pathname, requiresPatientClaim, router]);
+
   if (!isAuthenticated) {
-    if (pathname !== "/") {
+    if (pathname !== '/') {
       return (
-        <div className="flex min-h-screen items-center justify-center">
-          <p className="text-muted-foreground">Redirecting…</p>
-        </div>
+        <FullscreenStatus
+          eyebrow="Session check"
+          title="Returning to sign in"
+          description="Your secure session is no longer active, so we are sending you back to the landing page before anything sensitive loads."
+        />
       );
     }
     return <>{children}</>;
   }
 
-  const isPortal = pathname?.startsWith("/portal");
-  const isDisabledAccount = bootstrapCtx?.errorCode === "USER_DISABLED";
+  const isPortal = pathname?.startsWith('/portal');
+  const isClaimRoute = pathname === '/claim-record';
+  const isDisabledAccount = bootstrapCtx?.errorCode === 'USER_DISABLED';
 
   return (
     <ServiceWorkerAndSyncProvider getAccessToken={getToken}>
       {isDisabledAccount ? (
-        <div className="flex min-h-screen items-center justify-center bg-clinical-grid p-6">
-          <div className="w-full max-w-lg rounded-[28px] border border-destructive/20 bg-card/95 p-8 shadow-2xl shadow-black/5">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-destructive/80">
-              Account Status
-            </p>
-            <h1 className="mt-3 font-heading text-3xl font-semibold tracking-tight text-foreground">
-              Access has been disabled
-            </h1>
-            <p className="mt-4 text-sm leading-6 text-muted-foreground">
-              This account has been deactivated by an administrator. Clinical and
-              portal access are blocked until the clinic restores the account.
-            </p>
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <Button onClick={logout}>Sign out</Button>
-              <Button variant="outline" onClick={() => window.location.reload()}>
-                Check again
-              </Button>
-            </div>
-          </div>
-        </div>
+        <FullscreenStatus
+          eyebrow="Account status"
+          title="Access has been disabled"
+          description="This account has been deactivated by an administrator. Clinical and portal access stay blocked until the clinic restores the account."
+          tone="danger"
+          primaryAction={<Button onClick={logout}>Sign out</Button>}
+          secondaryAction={
+            <Button variant="outline" onClick={() => window.location.reload()}>
+              Check again
+            </Button>
+          }
+        />
+      ) : isClaimRoute ? (
+        <>{children}</>
       ) : isPortal ? (
         <PortalLayout>{children}</PortalLayout>
       ) : (

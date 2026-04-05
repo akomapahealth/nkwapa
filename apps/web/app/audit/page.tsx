@@ -1,21 +1,22 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { ActivitySquare, FileClock, Shield } from "lucide-react";
-import { useBootstrap } from "@/lib/bootstrap-context";
-import { useAuth } from "@/lib/auth-context";
-import { apiFetch } from "@/lib/api";
-import { AppMetricCard } from "@/components/app-shell/AppMetricCard";
-import { AppPageHeader } from "@/components/app-shell/AppPageHeader";
-import { RouteGuard } from "@/components/RouteGuard";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
-import { Box } from "@mui/material";
-import { dataGridSx } from "@/lib/datagrid-theme";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { EmptyStateCard, InlineNotice } from "@/components/ops/OpsShared";
+import { useCallback, useEffect, useState } from 'react';
+import { ActivitySquare, FileClock, Shield } from 'lucide-react';
+import { useBootstrap } from '@/lib/bootstrap-context';
+import { useAuth } from '@/lib/auth-context';
+import { apiFetch } from '@/lib/api';
+import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
+import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
+import { RouteGuard } from '@/components/RouteGuard';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { DataGrid, type GridColDef } from '@mui/x-data-grid';
+import { Box } from '@mui/material';
+import { dataGridSx } from '@/lib/datagrid-theme';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { EmptyStateCard } from '@/components/ops/OpsShared';
 
 interface AuditRow {
   id: string;
@@ -30,15 +31,14 @@ interface AuditRow {
 export default function AuditPage() {
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const getToken = useAuth();
-  const clinicId =
-    bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
+  const clinicId = bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
 
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [action, setAction] = useState("");
-  const [actor, setActor] = useState("");
-  const [entityType, setEntityType] = useState("");
-  const [requestId, setRequestId] = useState("");
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [action, setAction] = useState('');
+  const [actor, setActor] = useState('');
+  const [entityType, setEntityType] = useState('');
+  const [requestId, setRequestId] = useState('');
   const [rows, setRows] = useState<AuditRow[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -56,17 +56,17 @@ export default function AuditPage() {
       setError(null);
       try {
         const params = new URLSearchParams();
-        if (from) params.set("from", from);
-        if (to) params.set("to", to);
-        if (action) params.set("action", action);
-        if (actor) params.set("actor", actor);
-        if (entityType) params.set("entityType", entityType);
-        if (requestId) params.set("requestId", requestId);
-        if (cursor) params.set("cursor", cursor);
-        params.set("limit", "50");
+        if (from) params.set('from', from);
+        if (to) params.set('to', to);
+        if (action) params.set('action', action);
+        if (actor) params.set('actor', actor);
+        if (entityType) params.set('entityType', entityType);
+        if (requestId) params.set('requestId', requestId);
+        if (cursor) params.set('cursor', cursor);
+        params.set('limit', '50');
         const res = await apiFetch(
           `/clinics/${encodeURIComponent(clinicId)}/audit?${params.toString()}`,
-          { getToken }
+          { getToken },
         );
         if (!res.ok) throw new Error(await res.text());
         const data = (await res.json()) as {
@@ -87,7 +87,7 @@ export default function AuditPage() {
         setLoadingMore(false);
       }
     },
-    [clinicId, getToken, from, to, action, actor, entityType, requestId]
+    [clinicId, getToken, from, to, action, actor, entityType, requestId],
   );
 
   useEffect(() => {
@@ -96,21 +96,20 @@ export default function AuditPage() {
 
   const columns: GridColDef[] = [
     {
-      field: "createdAt",
-      headerName: "Time",
+      field: 'createdAt',
+      headerName: 'Time',
       width: 180,
-      valueFormatter: (v) =>
-        v ? new Date(v as string).toLocaleString() : "",
+      valueFormatter: (v) => (v ? new Date(v as string).toLocaleString() : ''),
     },
     {
-      field: "actorDisplayName",
-      headerName: "Actor",
+      field: 'actorDisplayName',
+      headerName: 'Actor',
       width: 150,
     },
-    { field: "action", headerName: "Action", width: 200 },
-    { field: "entityType", headerName: "Entity", width: 120 },
-    { field: "entityId", headerName: "Entity ID", width: 280 },
-    { field: "requestId", headerName: "Request ID", width: 120 },
+    { field: 'action', headerName: 'Action', width: 200 },
+    { field: 'entityType', headerName: 'Entity', width: 120 },
+    { field: 'entityId', headerName: 'Entity ID', width: 280 },
+    { field: 'requestId', headerName: 'Request ID', width: 120 },
   ];
 
   if (!clinicId) {
@@ -141,7 +140,7 @@ export default function AuditPage() {
           />
           <AppMetricCard
             title="Has more results"
-            value={nextCursor ? "Yes" : "No"}
+            value={nextCursor ? 'Yes' : 'No'}
             icon={FileClock}
             detail="Cursor pagination remains available when more history exists."
           />
@@ -173,12 +172,7 @@ export default function AuditPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="to">To</Label>
-                <Input
-                  id="to"
-                  type="date"
-                  value={to}
-                  onChange={(e) => setTo(e.target.value)}
-                />
+                <Input id="to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="action">Action</Label>
@@ -218,22 +212,31 @@ export default function AuditPage() {
               </div>
             </div>
             <Button onClick={() => fetchAudit()} disabled={loading} className="rounded-2xl">
-              {loading ? "Loading..." : "Apply filters"}
+              {loading ? 'Loading...' : 'Apply filters'}
             </Button>
           </CardContent>
         </Card>
 
-        {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
+        {error ? (
+          <InlineErrorState
+            description={error}
+            onRetry={() => void fetchAudit()}
+            retryLabel="Reload audit log"
+          />
+        ) : null}
 
         <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
           <CardHeader>
             <CardTitle className="text-xl">Audit events</CardTitle>
             <CardDescription>
-              Recent activity for the active clinic, with mobile-friendly cards and a richer desktop table.
+              Recent activity for the active clinic, with mobile-friendly cards and a richer desktop
+              table.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {!loading && rows.length === 0 ? (
+            {loading && rows.length === 0 ? (
+              <SectionSkeleton lines={4} className="border-0 bg-transparent p-0 shadow-none" />
+            ) : !loading && rows.length === 0 ? (
               <EmptyStateCard
                 title="No audit events match the current filters"
                 description="Adjust your filters or widen the date range to pull more activity into view."
@@ -248,9 +251,7 @@ export default function AuditPage() {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <h3 className="text-sm font-semibold text-foreground">
-                            {row.action}
-                          </h3>
+                          <h3 className="text-sm font-semibold text-foreground">{row.action}</h3>
                           <p className="mt-1 text-sm text-muted-foreground">
                             {row.entityType} • {row.actorDisplayName}
                           </p>
@@ -269,7 +270,10 @@ export default function AuditPage() {
                   ))}
                 </div>
 
-                <Box sx={{ height: 500, width: "100%" }} className="hidden overflow-x-auto md:block">
+                <Box
+                  sx={{ height: 500, width: '100%' }}
+                  className="hidden overflow-x-auto md:block"
+                >
                   <DataGrid
                     rows={rows}
                     columns={columns}
@@ -290,7 +294,7 @@ export default function AuditPage() {
                   disabled={loadingMore}
                   className="rounded-2xl"
                 >
-                  {loadingMore ? "Loading..." : "Load more"}
+                  {loadingMore ? 'Loading...' : 'Load more'}
                 </Button>
               </div>
             )}

@@ -1,20 +1,21 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { useBootstrap } from "@/lib/bootstrap-context";
-import { useAuth } from "@/lib/auth-context";
-import { apiFetch } from "@/lib/api";
-import { AppPageHeader } from "@/components/app-shell/AppPageHeader";
-import { RouteGuard } from "@/components/RouteGuard";
-import { DashboardSectionHeader } from "@/components/dashboard/DashboardSectionHeader";
-import { SummaryCards } from "@/components/dashboard/SummaryCards";
-import { DoctorDashboard } from "@/components/dashboard/DoctorDashboard";
-import { PreceptorDashboard } from "@/components/dashboard/PreceptorDashboard";
-import { DirectorDashboard } from "@/components/dashboard/DirectorDashboard";
-import { VolunteerDashboard } from "@/components/dashboard/VolunteerDashboard";
-import { SystemAdminDashboard } from "@/components/dashboard/SystemAdminDashboard";
-import { Badge } from "@/components/ui/badge";
-import { EmptyStateCard, InlineNotice } from "@/components/ops/OpsShared";
+import { useCallback, useEffect, useState } from 'react';
+import { useBootstrap } from '@/lib/bootstrap-context';
+import { useAuth } from '@/lib/auth-context';
+import { apiFetch } from '@/lib/api';
+import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
+import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
+import { RouteGuard } from '@/components/RouteGuard';
+import { DashboardSectionHeader } from '@/components/dashboard/DashboardSectionHeader';
+import { SummaryCards } from '@/components/dashboard/SummaryCards';
+import { DoctorDashboard } from '@/components/dashboard/DoctorDashboard';
+import { PreceptorDashboard } from '@/components/dashboard/PreceptorDashboard';
+import { DirectorDashboard } from '@/components/dashboard/DirectorDashboard';
+import { VolunteerDashboard } from '@/components/dashboard/VolunteerDashboard';
+import { SystemAdminDashboard } from '@/components/dashboard/SystemAdminDashboard';
+import { Badge } from '@/components/ui/badge';
+import { EmptyStateCard } from '@/components/ops/OpsShared';
 
 interface DashboardData {
   summary: {
@@ -58,7 +59,7 @@ interface DashboardData {
     screeningRates: { hypertension: number; diabetes: number };
     bpDistribution: Record<string, number>;
     followUpComplianceRate: number;
-      staffActivity: {
+    staffActivity: {
       userId: string;
       displayName: string;
       role: string;
@@ -97,8 +98,7 @@ export default function DashboardPage() {
   const bootstrapCtx = useBootstrap();
   const bootstrap = bootstrapCtx?.bootstrap ?? null;
   const getToken = useAuth();
-  const clinicId =
-    bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId;
+  const clinicId = bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId;
   const activeMembership =
     bootstrap?.memberships.find((membership) => membership.clinicId === clinicId) ?? null;
 
@@ -115,10 +115,9 @@ export default function DashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiFetch(
-        `/clinics/${encodeURIComponent(clinicId)}/dashboard`,
-        { getToken }
-      );
+      const res = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}/dashboard`, {
+        getToken,
+      });
       if (!res.ok) {
         throw new Error(await res.text());
       }
@@ -140,7 +139,7 @@ export default function DashboardPage() {
       <div className="space-y-6">
         <AppPageHeader
           eyebrow="Clinic intelligence"
-          title={activeMembership?.clinicName ?? "Dashboard"}
+          title={activeMembership?.clinicName ?? 'Dashboard'}
           description="A role-aware snapshot of clinic flow, patient activity, and operational priorities for the currently selected workspace."
           badges={
             activeMembership ? (
@@ -158,31 +157,24 @@ export default function DashboardPage() {
           />
         ) : null}
 
-        {loading && (
-          <div className="flex items-center justify-center p-12">
-            <div className="space-y-4 w-full max-w-4xl">
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="h-24 animate-pulse rounded-xl bg-muted" />
-                ))}
-              </div>
-              <div className="h-64 animate-pulse rounded-xl bg-muted" />
-            </div>
+        {loading && !data ? (
+          <div className="space-y-4">
+            <SectionSkeleton lines={2} className="rounded-[28px] p-6" />
+            <SectionSkeleton lines={4} className="rounded-[28px] p-6" />
           </div>
-        )}
+        ) : null}
 
-        {error && (
-          <InlineNotice tone="error">
-            {error}
-          </InlineNotice>
-        )}
+        {error ? (
+          <InlineErrorState
+            description={error}
+            onRetry={() => void fetchDashboard()}
+            retryLabel="Reload dashboard"
+          />
+        ) : null}
 
         {data && !loading && clinicId && (
           <>
-            <DashboardSectionHeader
-              title="Clinic overview"
-              subtitle="Pipeline and queue status"
-            />
+            <DashboardSectionHeader title="Clinic overview" subtitle="Pipeline and queue status" />
             <SummaryCards
               totalPatients={data.summary.totalPatients}
               encountersToday={data.summary.encountersToday}
@@ -194,15 +186,13 @@ export default function DashboardPage() {
             <div className="border-t border-border pt-6">
               {data.doctor && <DoctorDashboard {...data.doctor} />}
 
-            {data.preceptor && <PreceptorDashboard {...data.preceptor} />}
+              {data.preceptor && <PreceptorDashboard {...data.preceptor} />}
 
-            {data.director && <DirectorDashboard {...data.director} />}
+              {data.director && <DirectorDashboard {...data.director} />}
 
-            {data.volunteer && <VolunteerDashboard {...data.volunteer} />}
+              {data.volunteer && <VolunteerDashboard {...data.volunteer} />}
 
-            {data.systemAdmin && (
-              <SystemAdminDashboard {...data.systemAdmin} />
-            )}
+              {data.systemAdmin && <SystemAdminDashboard {...data.systemAdmin} />}
             </div>
           </>
         )}

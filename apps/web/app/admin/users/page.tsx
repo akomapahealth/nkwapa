@@ -1,24 +1,19 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { Box } from "@mui/material";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
-import {
-  Layers3,
-  RefreshCw,
-  ShieldAlert,
-  Users,
-} from "lucide-react";
-import { useAuth } from "@/lib/auth-context";
-import { useBootstrap } from "@/lib/bootstrap-context";
-import { apiFetch } from "@/lib/api";
-import { formatRoleLabel, readApiError } from "@/lib/ops";
-import { dataGridSx } from "@/lib/datagrid-theme";
-import { RouteGuard } from "@/components/RouteGuard";
-import { EmptyStateCard, InlineNotice } from "@/components/ops/OpsShared";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useCallback, useEffect, useState } from 'react';
+import { Box } from '@mui/material';
+import { DataGrid, type GridColDef } from '@mui/x-data-grid';
+import { Layers3, RefreshCw, ShieldAlert, Users } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
+import { useBootstrap } from '@/lib/bootstrap-context';
+import { apiFetch } from '@/lib/api';
+import { formatRoleLabel, readApiError } from '@/lib/ops';
+import { dataGridSx } from '@/lib/datagrid-theme';
+import { RouteGuard } from '@/components/RouteGuard';
+import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -26,32 +21,43 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from '@/components/ui/select';
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet";
+} from '@/components/ui/sheet';
 
 type RoleName =
-  | "SYSTEM_ADMIN"
-  | "DIRECTOR"
-  | "MANAGER"
-  | "DOCTOR"
-  | "PRECEPTOR"
-  | "VOLUNTEER"
-  | "PATIENT";
+  | 'SYSTEM_ADMIN'
+  | 'DIRECTOR'
+  | 'MANAGER'
+  | 'DOCTOR'
+  | 'PRECEPTOR'
+  | 'VOLUNTEER'
+  | 'PATIENT';
+
+type PortalLinkStatus = 'LINKED' | 'ROLE_ONLY' | 'LINK_ONLY' | 'NONE';
+type PortalFilter = 'ALL' | 'MISMATCH' | PortalLinkStatus;
+
+interface PatientPortalLinkState {
+  status: PortalLinkStatus;
+  patientId: string | null;
+  patientCode: string | null;
+  clinicId: string | null;
+  clinicName: string | null;
+}
 
 interface ClinicRosterRow {
   id: string;
@@ -89,6 +95,7 @@ interface AllUsersRow {
     clinicName: string;
     role: RoleName;
   }>;
+  patientPortal: PatientPortalLinkState;
 }
 
 interface UserRoleRow {
@@ -117,62 +124,108 @@ interface StaffAccessRow {
     clinicName: string;
     role: RoleName;
   }>;
+  patientPortal?: PatientPortalLinkState | null;
 }
 
-type StatusFilter = "active" | "inactive" | "all";
-type ViewMode = "clinic" | "all";
+type StatusFilter = 'active' | 'inactive' | 'all';
+type ViewMode = 'clinic' | 'all';
 
 const ROLES: RoleName[] = [
-  "SYSTEM_ADMIN",
-  "DIRECTOR",
-  "MANAGER",
-  "DOCTOR",
-  "PRECEPTOR",
-  "VOLUNTEER",
-  "PATIENT",
+  'SYSTEM_ADMIN',
+  'DIRECTOR',
+  'MANAGER',
+  'DOCTOR',
+  'PRECEPTOR',
+  'VOLUNTEER',
+  'PATIENT',
 ];
 
 function statusBadgeVariant(isActive: boolean) {
-  return isActive ? "finalized" : "destructive";
+  return isActive ? 'finalized' : 'destructive';
 }
 
 function nameForRow(row: StaffAccessRow) {
-  return (
-    [row.firstName, row.lastName].filter(Boolean).join(" ").trim() ||
-    row.displayName
-  );
+  return [row.firstName, row.lastName].filter(Boolean).join(' ').trim() || row.displayName;
 }
 
 function summarizeCurrentAccess(row: StaffAccessRow) {
   if (row.clinicRoles.length === 0) {
-    return "No active-clinic roles";
+    return 'No active-clinic roles';
   }
 
-  return row.clinicRoles.map((role) => formatRoleLabel(role)).join(", ");
+  return row.clinicRoles.map((role) => formatRoleLabel(role)).join(', ');
 }
 
 function summarizeExtraAccess(row: StaffAccessRow) {
   const parts: string[] = [];
   if (row.globalRoles.length > 0) {
-    parts.push(`Global: ${row.globalRoles.map((role) => formatRoleLabel(role)).join(", ")}`);
+    parts.push(`Global: ${row.globalRoles.map((role) => formatRoleLabel(role)).join(', ')}`);
   }
   if (row.otherClinicCount > 0) {
     parts.push(`Other clinics: ${row.otherClinicCount}`);
   }
 
-  return parts.join(" • ") || "Clinic-local only";
+  return parts.join(' • ') || 'Clinic-local only';
 }
 
 function formatAdminTimestamp(value?: string) {
   if (!value) {
-    return "Not available";
+    return 'Not available';
   }
 
   return new Date(value).toLocaleString();
 }
 
+function isPortalMismatch(status: PortalLinkStatus) {
+  return status === 'ROLE_ONLY' || status === 'LINK_ONLY';
+}
+
+function patientPortalMatchesFilter(row: StaffAccessRow, portalFilter: PortalFilter) {
+  if (portalFilter === 'ALL') {
+    return true;
+  }
+
+  if (!row.patientPortal) {
+    return false;
+  }
+
+  if (portalFilter === 'MISMATCH') {
+    return isPortalMismatch(row.patientPortal.status);
+  }
+
+  return row.patientPortal.status === portalFilter;
+}
+
+function portalStatusLabel(status: PortalLinkStatus) {
+  switch (status) {
+    case 'LINKED':
+      return 'Linked';
+    case 'ROLE_ONLY':
+      return 'Role only';
+    case 'LINK_ONLY':
+      return 'Link only';
+    case 'NONE':
+    default:
+      return 'No portal link';
+  }
+}
+
+function portalStatusVariant(status: PortalLinkStatus) {
+  switch (status) {
+    case 'LINKED':
+      return 'finalized' as const;
+    case 'ROLE_ONLY':
+      return 'destructive' as const;
+    case 'LINK_ONLY':
+      return 'warning' as const;
+    case 'NONE':
+    default:
+      return 'outline' as const;
+  }
+}
+
 function roleMatchesFilter(row: StaffAccessRow, roleFilter: string) {
-  if (roleFilter === "ALL") {
+  if (roleFilter === 'ALL') {
     return true;
   }
 
@@ -203,13 +256,14 @@ function normalizeClinicRow(row: ClinicRosterRow, clinicId: string, clinicName: 
       clinicName,
       role,
     })),
+    patientPortal: null,
   } satisfies StaffAccessRow;
 }
 
 function normalizeAllUsersRow(
   row: AllUsersRow,
   activeClinicId: string | null,
-  activeClinicName: string | null
+  activeClinicName: string | null,
 ) {
   const clinicRoles = activeClinicId
     ? row.clinicMemberships
@@ -219,7 +273,7 @@ function normalizeAllUsersRow(
   const otherClinicCount = new Set(
     row.clinicMemberships
       .filter((membership) => membership.clinicId !== activeClinicId)
-      .map((membership) => membership.clinicId)
+      .map((membership) => membership.clinicId),
   ).size;
 
   return {
@@ -238,14 +292,11 @@ function normalizeAllUsersRow(
     clinicMemberships:
       activeClinicId && activeClinicName
         ? [
-            ...row.clinicMemberships.filter(
-              (membership) => membership.clinicId === activeClinicId
-            ),
-            ...row.clinicMemberships.filter(
-              (membership) => membership.clinicId !== activeClinicId
-            ),
+            ...row.clinicMemberships.filter((membership) => membership.clinicId === activeClinicId),
+            ...row.clinicMemberships.filter((membership) => membership.clinicId !== activeClinicId),
           ]
         : row.clinicMemberships,
+    patientPortal: row.patientPortal,
   } satisfies StaffAccessRow;
 }
 
@@ -253,37 +304,36 @@ export default function AdminUsersPage() {
   const getToken = useAuth();
   const bootstrapCtx = useBootstrap();
   const bootstrap = bootstrapCtx?.bootstrap ?? null;
-  const activeClinicId =
-    bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
+  const activeClinicId = bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
   const activeMembership =
-    bootstrap?.memberships.find((membership) => membership.clinicId === activeClinicId) ??
-    null;
+    bootstrap?.memberships.find((membership) => membership.clinicId === activeClinicId) ?? null;
   const activeClinicName = activeMembership?.clinicName ?? null;
-  const isSystemAdmin = bootstrap?.globalRoles?.includes("SYSTEM_ADMIN") ?? false;
+  const isSystemAdmin = bootstrap?.globalRoles?.includes('SYSTEM_ADMIN') ?? false;
   const directorMemberships = (bootstrap?.memberships ?? []).filter((membership) =>
-    membership.roles.includes("DIRECTOR")
+    membership.roles.includes('DIRECTOR'),
   );
   const activeClinicRoles = activeMembership?.roles ?? [];
   const canAssignRoles = isSystemAdmin || directorMemberships.length > 0;
   const canManageLifecycle =
     isSystemAdmin ||
-    activeClinicRoles.includes("DIRECTOR") ||
-    activeClinicRoles.includes("MANAGER");
+    activeClinicRoles.includes('DIRECTOR') ||
+    activeClinicRoles.includes('MANAGER');
 
   const lifecycleRoles: RoleName[] = isSystemAdmin
     ? ROLES
-    : activeClinicRoles.includes("DIRECTOR")
-      ? ["MANAGER", "DOCTOR", "PRECEPTOR", "VOLUNTEER", "PATIENT"]
-      : ["DOCTOR", "PRECEPTOR", "VOLUNTEER", "PATIENT"];
+    : activeClinicRoles.includes('DIRECTOR')
+      ? ['MANAGER', 'DOCTOR', 'PRECEPTOR', 'VOLUNTEER', 'PATIENT']
+      : ['DOCTOR', 'PRECEPTOR', 'VOLUNTEER', 'PATIENT'];
   const assignableRoles: RoleName[] = isSystemAdmin
-    ? ROLES
-    : ["MANAGER", "DOCTOR", "PRECEPTOR", "VOLUNTEER", "PATIENT"];
+    ? ['SYSTEM_ADMIN', 'DIRECTOR', 'MANAGER', 'DOCTOR', 'PRECEPTOR', 'VOLUNTEER']
+    : ['MANAGER', 'DOCTOR', 'PRECEPTOR', 'VOLUNTEER'];
 
   const [viewMode, setViewMode] = useState<ViewMode>(
-    isSystemAdmin && !activeClinicId ? "all" : "clinic"
+    isSystemAdmin && !activeClinicId ? 'all' : 'clinic',
   );
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
-  const [roleFilter, setRoleFilter] = useState<string>("ALL");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
+  const [roleFilter, setRoleFilter] = useState<string>('ALL');
+  const [portalFilter, setPortalFilter] = useState<PortalFilter>('ALL');
   const [rows, setRows] = useState<StaffAccessRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -293,8 +343,8 @@ export default function AdminUsersPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [userRoles, setUserRoles] = useState<UserRoleRow[]>([]);
-  const [assignRole, setAssignRole] = useState<string>("");
-  const [assignClinicId, setAssignClinicId] = useState<string>("");
+  const [assignRole, setAssignRole] = useState<string>('');
+  const [assignClinicId, setAssignClinicId] = useState<string>('');
   const [allClinics, setAllClinics] = useState<Array<{ id: string; name: string }>>([]);
   const [savingAssignment, setSavingAssignment] = useState(false);
   const [revokingRole, setRevokingRole] = useState<UserRoleRow | null>(null);
@@ -303,14 +353,20 @@ export default function AdminUsersPage() {
 
   useEffect(() => {
     if (!isSystemAdmin) {
-      setViewMode("clinic");
+      setViewMode('clinic');
       return;
     }
 
-    if (!activeClinicId && viewMode === "clinic") {
-      setViewMode("all");
+    if (!activeClinicId && viewMode === 'clinic') {
+      setViewMode('all');
     }
   }, [activeClinicId, isSystemAdmin, viewMode]);
+
+  useEffect(() => {
+    if (!isSystemAdmin || viewMode !== 'all') {
+      setPortalFilter('ALL');
+    }
+  }, [isSystemAdmin, viewMode]);
 
   const fetchAllClinics = useCallback(async () => {
     if (!getToken || !isSystemAdmin) {
@@ -318,7 +374,7 @@ export default function AdminUsersPage() {
     }
 
     try {
-      const res = await apiFetch("/admin/clinics", {
+      const res = await apiFetch('/admin/clinics', {
         getToken,
         skipClinicHeader: true,
       });
@@ -337,7 +393,7 @@ export default function AdminUsersPage() {
         return [];
       }
 
-      if (viewMode === "clinic" && !activeClinicId) {
+      if (viewMode === 'clinic' && !activeClinicId) {
         setRows([]);
         setLoading(false);
         return [];
@@ -351,40 +407,37 @@ export default function AdminUsersPage() {
       setError(null);
 
       try {
-        if (viewMode === "clinic" && activeClinicId) {
+        if (viewMode === 'clinic' && activeClinicId) {
           const res = await apiFetch(
             `/clinics/${encodeURIComponent(activeClinicId)}/users?status=${encodeURIComponent(
-              statusFilter
+              statusFilter,
             )}`,
             {
               getToken,
               activeClinicId,
-            }
+            },
           );
           if (!res.ok) {
             throw new Error(await readApiError(res));
           }
           const data = (await res.json()) as ClinicRosterResponse;
           const nextRows = data.items.map((row) =>
-            normalizeClinicRow(row, activeClinicId, activeClinicName ?? "Active clinic")
+            normalizeClinicRow(row, activeClinicId, activeClinicName ?? 'Active clinic'),
           );
           setRows(nextRows);
           return nextRows;
         }
 
-        const res = await apiFetch(
-          `/admin/users?status=${encodeURIComponent(statusFilter)}`,
-          {
-            getToken,
-            skipClinicHeader: true,
-          }
-        );
+        const res = await apiFetch(`/admin/users?status=${encodeURIComponent(statusFilter)}`, {
+          getToken,
+          skipClinicHeader: true,
+        });
         if (!res.ok) {
           throw new Error(await readApiError(res));
         }
         const data = (await res.json()) as AllUsersRow[];
         const nextRows = data.map((row) =>
-          normalizeAllUsersRow(row, activeClinicId, activeClinicName)
+          normalizeAllUsersRow(row, activeClinicId, activeClinicName),
         );
         setRows(nextRows);
         return nextRows;
@@ -397,7 +450,7 @@ export default function AdminUsersPage() {
         setRefreshing(false);
       }
     },
-    [activeClinicId, activeClinicName, getToken, statusFilter, viewMode]
+    [activeClinicId, activeClinicName, getToken, statusFilter, viewMode],
   );
 
   const fetchUserRoles = useCallback(
@@ -423,7 +476,7 @@ export default function AdminUsersPage() {
         setDetailLoading(false);
       }
     },
-    [getToken]
+    [getToken],
   );
 
   useEffect(() => {
@@ -440,8 +493,8 @@ export default function AdminUsersPage() {
     setSelectedUser(row);
     setDetailOpen(true);
     setUserRoles([]);
-    setAssignRole("");
-    setAssignClinicId(activeClinicId ?? "");
+    setAssignRole('');
+    setAssignClinicId(activeClinicId ?? '');
     setError(null);
     void fetchUserRoles(row.id);
   };
@@ -453,34 +506,42 @@ export default function AdminUsersPage() {
         name: membership.clinicName,
       }));
 
-  const visibleRows = rows.filter((row) => roleMatchesFilter(row, roleFilter));
+  const visibleRows = rows.filter(
+    (row) => roleMatchesFilter(row, roleFilter) && patientPortalMatchesFilter(row, portalFilter),
+  );
   const activeCount = rows.filter((row) => row.isActive).length;
   const inactiveCount = rows.filter((row) => !row.isActive).length;
   const sharedAccessCount = rows.filter(
-    (row) => row.globalRoles.length > 0 || row.otherClinicCount > 0
+    (row) => row.globalRoles.length > 0 || row.otherClinicCount > 0,
   ).length;
+  const portalMismatchCount = rows.filter(
+    (row) => row.patientPortal && isPortalMismatch(row.patientPortal.status),
+  ).length;
+  const roleOnlyCount = rows.filter((row) => row.patientPortal?.status === 'ROLE_ONLY').length;
 
   const selectedCurrentClinicRoles = activeClinicId
     ? userRoles.filter((role) => role.clinicId === activeClinicId)
     : [];
   const selectedHasProtectedExternalAccess =
-    (selectedUser?.globalRoles.length ?? 0) > 0 ||
-    (selectedUser?.otherClinicCount ?? 0) > 0;
+    (selectedUser?.globalRoles.length ?? 0) > 0 || (selectedUser?.otherClinicCount ?? 0) > 0;
   const selectedCanDeactivate = Boolean(
     selectedUser?.isActive &&
-      canManageLifecycle &&
-      ((viewMode === "clinic" &&
-        activeClinicId &&
-        selectedUser.clinicRoles.length > 0 &&
-        selectedUser.clinicRoles.every((role) => lifecycleRoles.includes(role)) &&
-        (!selectedHasProtectedExternalAccess || isSystemAdmin)) ||
-        (viewMode === "all" && isSystemAdmin))
+    canManageLifecycle &&
+    ((viewMode === 'clinic' &&
+      activeClinicId &&
+      selectedUser.clinicRoles.length > 0 &&
+      selectedUser.clinicRoles.every((role) => lifecycleRoles.includes(role)) &&
+      (!selectedHasProtectedExternalAccess || isSystemAdmin)) ||
+      (viewMode === 'all' && isSystemAdmin)),
   );
+  const showPortalFilter = isSystemAdmin && viewMode === 'all';
+  const showPortalDetails =
+    isSystemAdmin && viewMode === 'all' && Boolean(selectedUser?.patientPortal);
 
   const columns: GridColDef[] = [
     {
-      field: "displayName",
-      headerName: "Staff member",
+      field: 'displayName',
+      headerName: 'Staff member',
       minWidth: 220,
       flex: 1.2,
       valueGetter: (_, row) => nameForRow(row as StaffAccessRow),
@@ -488,53 +549,68 @@ export default function AdminUsersPage() {
         const row = params.row as StaffAccessRow;
         return (
           <div className="flex min-w-0 flex-col py-2">
-            <span className="truncate font-medium text-foreground">
-              {nameForRow(row)}
-            </span>
+            <span className="truncate font-medium text-foreground">{nameForRow(row)}</span>
             <span className="truncate text-xs text-muted-foreground">
-              {row.email || "No email on file"}
+              {row.email || 'No email on file'}
             </span>
           </div>
         );
       },
     },
     {
-      field: "isActive",
-      headerName: "Status",
+      field: 'isActive',
+      headerName: 'Status',
       width: 130,
       sortable: false,
       renderCell: (params) => (
         <Badge variant={statusBadgeVariant(Boolean(params.value))}>
-          {params.value ? "Active" : "Deactivated"}
+          {params.value ? 'Active' : 'Deactivated'}
         </Badge>
       ),
     },
     {
-      field: "clinicRoles",
-      headerName: viewMode === "clinic" ? "Current clinic access" : "Active clinic access",
+      field: 'clinicRoles',
+      headerName: viewMode === 'clinic' ? 'Current clinic access' : 'Active clinic access',
       minWidth: 220,
       flex: 1,
       sortable: false,
       renderCell: (params) => {
         const row = params.row as StaffAccessRow;
-        return (
-          <span className="text-sm text-foreground">
-            {summarizeCurrentAccess(row)}
-          </span>
-        );
+        return <span className="text-sm text-foreground">{summarizeCurrentAccess(row)}</span>;
       },
     },
     {
-      field: "extraAccess",
-      headerName: "Broader access",
+      field: 'extraAccess',
+      headerName: 'Broader access',
       minWidth: 220,
       flex: 1,
       sortable: false,
       valueGetter: (_, row) => summarizeExtraAccess(row as StaffAccessRow),
     },
+    ...(showPortalFilter
+      ? [
+          {
+            field: 'patientPortal',
+            headerName: 'Portal state',
+            minWidth: 160,
+            flex: 0.8,
+            sortable: false,
+            renderCell: (params) => {
+              const row = params.row as StaffAccessRow;
+              return row.patientPortal ? (
+                <Badge variant={portalStatusVariant(row.patientPortal.status)}>
+                  {portalStatusLabel(row.patientPortal.status)}
+                </Badge>
+              ) : (
+                <span className="text-sm text-muted-foreground">Not available</span>
+              );
+            },
+          } satisfies GridColDef,
+        ]
+      : []),
     {
-      field: "actions",
-      headerName: "",
+      field: 'actions',
+      headerName: '',
       width: 120,
       sortable: false,
       renderCell: (params) => (
@@ -578,14 +654,14 @@ export default function AdminUsersPage() {
     }
     if (!selectedUser.isActive) {
       setError(
-        "This account is inactive. Ask the replacement user to sign in first, then assign roles to the new active account."
+        'This account is inactive. Ask the replacement user to sign in first, then assign roles to the new active account.',
       );
       return;
     }
 
-    const clinicIdForRole = assignRole === "SYSTEM_ADMIN" ? null : assignClinicId;
-    if (assignRole !== "SYSTEM_ADMIN" && !clinicIdForRole) {
-      setError("Select a clinic before assigning this role.");
+    const clinicIdForRole = assignRole === 'SYSTEM_ADMIN' ? null : assignClinicId;
+    if (assignRole !== 'SYSTEM_ADMIN' && !clinicIdForRole) {
+      setError('Select a clinic before assigning this role.');
       return;
     }
 
@@ -595,7 +671,7 @@ export default function AdminUsersPage() {
 
     try {
       const res = await apiFetch(`/admin/users/${encodeURIComponent(selectedUser.id)}/roles`, {
-        method: "POST",
+        method: 'POST',
         body: JSON.stringify({
           clinicId: clinicIdForRole || undefined,
           role: assignRole,
@@ -607,8 +683,8 @@ export default function AdminUsersPage() {
         throw new Error(await readApiError(res));
       }
 
-      setAssignRole("");
-      setAssignClinicId(activeClinicId ?? "");
+      setAssignRole('');
+      setAssignClinicId(activeClinicId ?? '');
       setNotice(`Assigned ${formatRoleLabel(assignRole)} successfully.`);
       await refreshAfterMutation();
     } catch (nextError) {
@@ -630,13 +706,13 @@ export default function AdminUsersPage() {
     try {
       const res = await apiFetch(
         `/clinics/${encodeURIComponent(activeClinicId)}/users/${encodeURIComponent(
-          selectedUser.id
+          selectedUser.id,
         )}/roles/${encodeURIComponent(revokingRole.role)}`,
         {
-          method: "DELETE",
+          method: 'DELETE',
           getToken,
           activeClinicId,
-        }
+        },
       );
       if (!res.ok) {
         throw new Error(await readApiError(res));
@@ -662,19 +738,17 @@ export default function AdminUsersPage() {
     setNotice(null);
 
     try {
-      const useClinicDeactivation = viewMode === "clinic" && Boolean(activeClinicId);
+      const useClinicDeactivation = viewMode === 'clinic' && Boolean(activeClinicId);
       const path = useClinicDeactivation
         ? `/clinics/${encodeURIComponent(activeClinicId!)}/users/${encodeURIComponent(
-            selectedUser.id
+            selectedUser.id,
           )}/deactivate`
         : `/users/${encodeURIComponent(selectedUser.id)}/deactivate`;
 
       const res = await apiFetch(path, {
-        method: "PATCH",
+        method: 'PATCH',
         getToken,
-        ...(useClinicDeactivation
-          ? { activeClinicId }
-          : { skipClinicHeader: true }),
+        ...(useClinicDeactivation ? { activeClinicId } : { skipClinicHeader: true }),
       });
 
       if (!res.ok) {
@@ -692,7 +766,7 @@ export default function AdminUsersPage() {
   }
 
   const emptyState =
-    viewMode === "clinic" && !activeClinicId ? (
+    viewMode === 'clinic' && !activeClinicId ? (
       <EmptyStateCard
         title="Select a clinic"
         description="Choose an active clinic in the header to review the roster and manage clinic-scoped access."
@@ -717,8 +791,8 @@ export default function AdminUsersPage() {
                 Staff & Access
               </h1>
               <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">
-                Manage the active-clinic roster, revoke clinic roles, and deactivate
-                accounts safely without deleting history.
+                Manage the active-clinic roster, revoke clinic roles, and deactivate accounts safely
+                without deleting history.
               </p>
             </div>
 
@@ -727,18 +801,18 @@ export default function AdminUsersPage() {
                 <div className="flex rounded-2xl border border-border/80 bg-card/85 p-1 shadow-sm">
                   <Button
                     type="button"
-                    variant={viewMode === "clinic" ? "default" : "ghost"}
+                    variant={viewMode === 'clinic' ? 'default' : 'ghost'}
                     className="rounded-xl"
-                    onClick={() => setViewMode("clinic")}
+                    onClick={() => setViewMode('clinic')}
                     disabled={!activeClinicId}
                   >
                     Active clinic
                   </Button>
                   <Button
                     type="button"
-                    variant={viewMode === "all" ? "default" : "ghost"}
+                    variant={viewMode === 'all' ? 'default' : 'ghost'}
                     className="rounded-xl"
-                    onClick={() => setViewMode("all")}
+                    onClick={() => setViewMode('all')}
                   >
                     All users
                   </Button>
@@ -752,7 +826,7 @@ export default function AdminUsersPage() {
                 disabled={refreshing || loading}
                 className="h-11 rounded-2xl border-border/80 bg-card/85 px-4"
               >
-                <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
             </div>
@@ -764,14 +838,12 @@ export default function AdminUsersPage() {
                 Scope
               </p>
               <p className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
-                {viewMode === "clinic"
-                  ? activeClinicName ?? "Clinic roster"
-                  : "All users"}
+                {viewMode === 'clinic' ? (activeClinicName ?? 'Clinic roster') : 'All users'}
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                {viewMode === "clinic"
-                  ? "Current clinic access and lifecycle actions"
-                  : "System-wide visibility for system admin review"}
+                {viewMode === 'clinic'
+                  ? 'Current clinic access and lifecycle actions'
+                  : 'System-wide visibility for system admin review'}
               </p>
             </div>
             <div className="rounded-2xl border border-border/80 bg-card/85 p-4 shadow-sm backdrop-blur-sm">
@@ -807,21 +879,40 @@ export default function AdminUsersPage() {
                 Users with global roles or other-clinic access
               </p>
             </div>
+            {showPortalFilter ? (
+              <div className="rounded-2xl border border-amber-200/80 bg-amber-50/80 p-4 shadow-sm backdrop-blur-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-900/70">
+                  Portal mismatches
+                </p>
+                <p className="mt-3 text-3xl font-semibold tracking-tight text-amber-950">
+                  {portalMismatchCount}
+                </p>
+                <p className="mt-1 text-sm text-amber-900/75">
+                  {roleOnlyCount} role-only accounts need linking from the patient chart
+                </p>
+              </div>
+            ) : null}
           </div>
         </section>
 
         {(rows.length === 0 || rows.length < 3) && !loading ? (
           <InlineNotice>
-            Users appear here after they log in to Nkwapa at least once. If you
-            created a user in Keycloak, have them sign in first and then refresh.
+            Users appear here after they log in to Nkwapa at least once. If you created a user in
+            Keycloak, have them sign in first and then refresh.
           </InlineNotice>
         ) : null}
         {isSystemAdmin ? (
           <InlineNotice>
-            Keycloak remains the source of truth for identity. If a legacy Nkwapa
-            account no longer maps to a real Keycloak user, deactivate the stale
-            row, have the real user sign in again, then reassign access to the new
-            active account created from that login.
+            Keycloak remains the source of truth for identity. If a legacy Nkwapa account no longer
+            maps to a real Keycloak user, deactivate the stale row, have the real user sign in
+            again, then reassign access to the new active account created from that login.
+          </InlineNotice>
+        ) : null}
+        {showPortalFilter && portalMismatchCount > 0 ? (
+          <InlineNotice>
+            Patient access is repaired from the patient record, not from generic role assignment.
+            Filter for portal mismatches to find `ROLE_ONLY` and `LINK_ONLY` accounts, then relink
+            from the correct patient chart.
           </InlineNotice>
         ) : null}
         {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
@@ -873,11 +964,37 @@ export default function AdminUsersPage() {
                 </Select>
               </div>
 
+              {showPortalFilter ? (
+                <div className="space-y-2">
+                  <Label htmlFor="staff-portal-filter">Patient portal state</Label>
+                  <Select
+                    value={portalFilter}
+                    onValueChange={(value) => setPortalFilter(value as PortalFilter)}
+                  >
+                    <SelectTrigger id="staff-portal-filter">
+                      <SelectValue placeholder="Filter by portal state" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All portal states</SelectItem>
+                      <SelectItem value="MISMATCH">Mismatch only</SelectItem>
+                      <SelectItem value="ROLE_ONLY">Role only</SelectItem>
+                      <SelectItem value="LINK_ONLY">Link only</SelectItem>
+                      <SelectItem value="LINKED">Linked</SelectItem>
+                      <SelectItem value="NONE">No portal access</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+
               <div className="rounded-2xl border border-border/70 bg-background/80 p-4 text-sm text-muted-foreground">
                 <p className="font-medium text-foreground">Safety rules</p>
                 <p className="mt-2 leading-6">
-                  Deactivation is soft only. Audit history, encounters, and clinic
-                  records remain intact after access is disabled.
+                  Deactivation is soft only. Audit history, encounters, and clinic records remain
+                  intact after access is disabled.
+                </p>
+                <p className="mt-2 leading-6">
+                  Patient access is created from the patient record portal-link action and is not
+                  assigned from this panel.
                 </p>
               </div>
             </CardContent>
@@ -889,14 +1006,14 @@ export default function AdminUsersPage() {
                 <div>
                   <CardTitle className="flex items-center gap-2 text-xl">
                     <Users className="h-5 w-5 text-primary" />
-                    {viewMode === "clinic" ? "Clinic roster" : "All users"}
+                    {viewMode === 'clinic' ? 'Clinic roster' : 'All users'}
                   </CardTitle>
                   <CardDescription className="mt-1">
-                    {viewMode === "clinic"
+                    {viewMode === 'clinic'
                       ? activeClinicName
                         ? `Lifecycle controls for ${activeClinicName}.`
-                        : "Choose a clinic to load the roster."
-                      : "System-wide user visibility for platform administration."}
+                        : 'Choose a clinic to load the roster.'
+                      : 'System-wide user visibility for platform administration.'}
                   </CardDescription>
                 </div>
                 <div className="hidden rounded-2xl border border-border bg-background/80 px-4 py-3 text-right sm:block">
@@ -929,11 +1046,11 @@ export default function AdminUsersPage() {
                               {nameForRow(row)}
                             </h3>
                             <p className="mt-1 truncate text-sm text-muted-foreground">
-                              {row.email || "No email on file"}
+                              {row.email || 'No email on file'}
                             </p>
                           </div>
                           <Badge variant={statusBadgeVariant(row.isActive)}>
-                            {row.isActive ? "Active" : "Deactivated"}
+                            {row.isActive ? 'Active' : 'Deactivated'}
                           </Badge>
                         </div>
 
@@ -945,6 +1062,11 @@ export default function AdminUsersPage() {
                           ))}
                           {row.clinicRoles.length === 0 ? (
                             <Badge variant="outline">No clinic role in view</Badge>
+                          ) : null}
+                          {row.patientPortal ? (
+                            <Badge variant={portalStatusVariant(row.patientPortal.status)}>
+                              {portalStatusLabel(row.patientPortal.status)}
+                            </Badge>
                           ) : null}
                         </div>
 
@@ -963,7 +1085,10 @@ export default function AdminUsersPage() {
                     ))}
                   </div>
 
-                  <Box sx={{ height: 560, width: "100%" }} className="hidden overflow-x-auto md:block">
+                  <Box
+                    sx={{ height: 560, width: '100%' }}
+                    className="hidden overflow-x-auto md:block"
+                  >
                     <DataGrid
                       rows={visibleRows}
                       columns={columns}
@@ -988,7 +1113,7 @@ export default function AdminUsersPage() {
           if (!open) {
             setSelectedUser(null);
             setUserRoles([]);
-            setAssignRole("");
+            setAssignRole('');
             setRevokingRole(null);
             setDeactivateOpen(false);
           }
@@ -997,11 +1122,11 @@ export default function AdminUsersPage() {
         <SheetContent className="w-full overflow-y-auto border-border/80 bg-card/95 sm:max-w-2xl">
           <SheetHeader className="pr-10">
             <SheetTitle className="font-heading text-2xl">
-              {selectedUser ? nameForRow(selectedUser) : "Manage access"}
+              {selectedUser ? nameForRow(selectedUser) : 'Manage access'}
             </SheetTitle>
             <SheetDescription className="leading-6">
-              Review clinic access, broader memberships, and safe lifecycle actions
-              before making changes.
+              Review clinic access, broader memberships, and safe lifecycle actions before making
+              changes.
             </SheetDescription>
           </SheetHeader>
 
@@ -1011,8 +1136,8 @@ export default function AdminUsersPage() {
                 <CardHeader>
                   <CardTitle className="text-lg">Identity and cleanup</CardTitle>
                   <CardDescription>
-                    Use identity metadata to confirm whether this is the current
-                    sign-in account or a stale legacy record.
+                    Use identity metadata to confirm whether this is the current sign-in account or
+                    a stale legacy record.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4 sm:grid-cols-2">
@@ -1021,7 +1146,7 @@ export default function AdminUsersPage() {
                       Keycloak subject
                     </p>
                     <p className="mt-2 break-all text-sm font-medium text-foreground">
-                      {selectedUser.keycloakSub ?? "Not exposed in this view"}
+                      {selectedUser.keycloakSub ?? 'Not exposed in this view'}
                     </p>
                   </div>
                   <div className="rounded-2xl border border-border/80 bg-card/70 p-4">
@@ -1040,14 +1165,63 @@ export default function AdminUsersPage() {
                       Replacement workflow
                     </p>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                      If this account no longer represents a real Keycloak user,
-                      deactivate it, ask the real user to sign in again, and assign
-                      roles to the newly created active account instead of trying to
-                      recreate the old identity manually.
+                      If this account no longer represents a real Keycloak user, deactivate it, ask
+                      the real user to sign in again, and assign roles to the newly created active
+                      account instead of trying to recreate the old identity manually.
                     </p>
                   </div>
                 </CardContent>
               </Card>
+
+              {showPortalDetails ? (
+                <Card className="rounded-[28px] border-border/80 bg-background/70">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Patient portal linkage</CardTitle>
+                    <CardDescription>
+                      Use this state to spot role-only mismatches and repair access from the correct
+                      patient chart.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border/80 bg-card/70 p-4">
+                      <Badge variant={portalStatusVariant(selectedUser.patientPortal!.status)}>
+                        {portalStatusLabel(selectedUser.patientPortal!.status)}
+                      </Badge>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedUser.patientPortal!.patientCode
+                          ? `${selectedUser.patientPortal!.patientCode} • ${selectedUser.patientPortal!.clinicName ?? 'Linked clinic'}`
+                          : 'No linked patient record is currently attached to this account.'}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-border/80 bg-card/70 p-4 text-sm leading-6 text-muted-foreground">
+                      {selectedUser.patientPortal!.status === 'LINKED' ? (
+                        <p>
+                          This account is linked correctly. If the user still cannot access the
+                          portal, verify they are using the intended clinic.
+                        </p>
+                      ) : selectedUser.patientPortal!.status === 'ROLE_ONLY' ? (
+                        <p>
+                          This account has a `PATIENT` role but no linked patient record. Open the
+                          correct patient chart and use the portal-link action to repair access.
+                        </p>
+                      ) : selectedUser.patientPortal!.status === 'LINK_ONLY' ? (
+                        <p>
+                          This account is linked to a patient record but is missing the matching
+                          clinic patient role. Re-link from the patient chart to restore the full
+                          patient-access bundle safely.
+                        </p>
+                      ) : (
+                        <p>
+                          No patient portal access is configured for this user. If this person
+                          should use the patient portal, start from the patient chart instead of
+                          assigning a generic role here.
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : null}
 
               <Card className="rounded-[28px] border-border/80 bg-background/70">
                 <CardHeader>
@@ -1059,16 +1233,16 @@ export default function AdminUsersPage() {
                 <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">
-                      {selectedUser.email || "No email on file"}
+                      {selectedUser.email || 'No email on file'}
                     </p>
                     <p className="mt-2 text-sm text-muted-foreground">
                       {selectedUser.globalRoles.length > 0 || selectedUser.otherClinicCount > 0
-                        ? "This user also has broader system access outside the active clinic."
-                        : "This account is currently scoped to clinic-local access."}
+                        ? 'This user also has broader system access outside the active clinic.'
+                        : 'This account is currently scoped to clinic-local access.'}
                     </p>
                   </div>
                   <Badge variant={statusBadgeVariant(selectedUser.isActive)}>
-                    {selectedUser.isActive ? "Active" : "Deactivated"}
+                    {selectedUser.isActive ? 'Active' : 'Deactivated'}
                   </Badge>
                 </CardContent>
               </Card>
@@ -1076,7 +1250,7 @@ export default function AdminUsersPage() {
               <Card className="rounded-[28px] border-border/80 bg-background/70">
                 <CardHeader>
                   <CardTitle className="text-lg">
-                    {viewMode === "clinic" ? "Current clinic access" : "Active clinic access"}
+                    {viewMode === 'clinic' ? 'Current clinic access' : 'Active clinic access'}
                   </CardTitle>
                   <CardDescription>
                     Role removal stays clinic-local and does not delete history.
@@ -1088,9 +1262,7 @@ export default function AdminUsersPage() {
                   ) : selectedCurrentClinicRoles.length > 0 ? (
                     selectedCurrentClinicRoles.map((role) => {
                       const canRevokeRole = Boolean(
-                        canManageLifecycle &&
-                          activeClinicId &&
-                          lifecycleRoles.includes(role.role)
+                        canManageLifecycle && activeClinicId && lifecycleRoles.includes(role.role),
                       );
 
                       return (
@@ -1103,7 +1275,7 @@ export default function AdminUsersPage() {
                               {formatRoleLabel(role.role)}
                             </p>
                             <p className="mt-1 text-sm text-muted-foreground">
-                              {role.clinicName ?? activeClinicName ?? "Active clinic"}
+                              {role.clinicName ?? activeClinicName ?? 'Active clinic'}
                             </p>
                           </div>
                           <Button
@@ -1130,8 +1302,8 @@ export default function AdminUsersPage() {
                 <CardHeader>
                   <CardTitle className="text-lg">Broader access summary</CardTitle>
                   <CardDescription>
-                    Use this section to spot global roles or memberships outside the
-                    clinic before deactivating the account.
+                    Use this section to spot global roles or memberships outside the clinic before
+                    deactivating the account.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -1144,15 +1316,13 @@ export default function AdminUsersPage() {
                         className="rounded-2xl border border-border/80 bg-card/70 p-4"
                       >
                         <div className="flex flex-wrap items-center gap-2">
-                          <Badge
-                            variant={role.clinicId === null ? "secondary" : "outline"}
-                          >
+                          <Badge variant={role.clinicId === null ? 'secondary' : 'outline'}>
                             {formatRoleLabel(role.role)}
                           </Badge>
                           <span className="text-sm text-muted-foreground">
                             {role.clinicId === null
-                              ? "Global scope"
-                              : role.clinicName ?? "Clinic access"}
+                              ? 'Global scope'
+                              : (role.clinicName ?? 'Clinic access')}
                           </span>
                         </div>
                       </div>
@@ -1171,11 +1341,15 @@ export default function AdminUsersPage() {
                   <CardHeader>
                     <CardTitle className="text-lg">Assign a new role</CardTitle>
                     <CardDescription>
-                      Directors can assign roles only for clinics they direct. System
-                      Admins can assign any role.
+                      Directors can assign roles only for clinics they direct. System Admins can
+                      assign staff and admin roles here.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
+                    <InlineNotice>
+                      Patient access is granted from the patient record portal-link action. It is
+                      intentionally excluded from generic role assignment here.
+                    </InlineNotice>
                     <div className="grid gap-4 sm:grid-cols-[minmax(0,180px),minmax(0,1fr),auto]">
                       <div className="space-y-2">
                         <Label htmlFor="staff-assign-role">Role</Label>
@@ -1193,7 +1367,7 @@ export default function AdminUsersPage() {
                         </Select>
                       </div>
 
-                      {assignRole && assignRole !== "SYSTEM_ADMIN" ? (
+                      {assignRole && assignRole !== 'SYSTEM_ADMIN' ? (
                         <div className="space-y-2">
                           <Label htmlFor="staff-assign-clinic">Clinic</Label>
                           <Select value={assignClinicId} onValueChange={setAssignClinicId}>
@@ -1212,27 +1386,22 @@ export default function AdminUsersPage() {
                       ) : (
                         <div className="space-y-2">
                           <Label htmlFor="staff-assign-context">Context</Label>
-                          <Input
-                            id="staff-assign-context"
-                            value="Global role"
-                            readOnly
-                            disabled
-                          />
+                          <Input id="staff-assign-context" value="Global role" readOnly disabled />
                         </div>
                       )}
 
                       <div className="flex items-end">
-                      <Button
+                        <Button
                           onClick={() => void handleAssignRole()}
                           disabled={
                             savingAssignment ||
                             !selectedUser.isActive ||
                             !assignRole ||
-                            (assignRole !== "SYSTEM_ADMIN" && !assignClinicId)
+                            (assignRole !== 'SYSTEM_ADMIN' && !assignClinicId)
                           }
                           className="w-full sm:w-auto"
                         >
-                          {savingAssignment ? "Adding..." : "Add role"}
+                          {savingAssignment ? 'Adding...' : 'Add role'}
                         </Button>
                       </div>
                     </div>
@@ -1251,18 +1420,17 @@ export default function AdminUsersPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {selectedHasProtectedExternalAccess && !isSystemAdmin && viewMode === "clinic" ? (
+                  {selectedHasProtectedExternalAccess && !isSystemAdmin && viewMode === 'clinic' ? (
                     <InlineNotice tone="error">
-                      Only System Admin can deactivate users who still have global roles
-                      or access in other clinics.
+                      Only System Admin can deactivate users who still have global roles or access
+                      in other clinics.
                     </InlineNotice>
                   ) : null}
-                  {selectedUser.clinicRoles.some(
-                    (role) => !lifecycleRoles.includes(role)
-                  ) && !isSystemAdmin ? (
+                  {selectedUser.clinicRoles.some((role) => !lifecycleRoles.includes(role)) &&
+                  !isSystemAdmin ? (
                     <InlineNotice tone="error">
-                      This user holds a role above your clinic lifecycle authority in the
-                      active clinic.
+                      This user holds a role above your clinic lifecycle authority in the active
+                      clinic.
                     </InlineNotice>
                   ) : null}
                   <Button
@@ -1285,21 +1453,25 @@ export default function AdminUsersPage() {
           <DialogHeader>
             <DialogTitle>Remove clinic role</DialogTitle>
             <DialogDescription className="leading-6">
-              This removes the selected role from the active clinic only. Audit
-              history stays intact and any other clinic or global access remains untouched.
+              This removes the selected role from the active clinic only. Audit history stays intact
+              and any other clinic or global access remains untouched.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-2xl border border-border/80 bg-card/70 p-4 text-sm">
             <p className="font-medium text-foreground">
-              {selectedUser ? nameForRow(selectedUser) : "Selected user"}
+              {selectedUser ? nameForRow(selectedUser) : 'Selected user'}
             </p>
             <p className="mt-1 text-muted-foreground">
-              {revokingRole ? formatRoleLabel(revokingRole.role) : "Role"}
-              {activeClinicName ? ` • ${activeClinicName}` : ""}
+              {revokingRole ? formatRoleLabel(revokingRole.role) : 'Role'}
+              {activeClinicName ? ` • ${activeClinicName}` : ''}
             </p>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setRevokingRole(null)} disabled={mutationLoading}>
+            <Button
+              variant="ghost"
+              onClick={() => setRevokingRole(null)}
+              disabled={mutationLoading}
+            >
               Cancel
             </Button>
             <Button
@@ -1307,7 +1479,7 @@ export default function AdminUsersPage() {
               onClick={() => void handleConfirmRoleRevoke()}
               disabled={mutationLoading}
             >
-              {mutationLoading ? "Removing..." : "Remove role"}
+              {mutationLoading ? 'Removing...' : 'Remove role'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1318,22 +1490,26 @@ export default function AdminUsersPage() {
           <DialogHeader>
             <DialogTitle>Deactivate account</DialogTitle>
             <DialogDescription className="leading-6">
-              This sets the user to inactive and blocks API access globally. Existing
-              audit logs, encounters, and clinic records are preserved.
+              This sets the user to inactive and blocks API access globally. Existing audit logs,
+              encounters, and clinic records are preserved.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-4 text-sm">
             <p className="font-medium text-foreground">
-              {selectedUser ? nameForRow(selectedUser) : "Selected user"}
+              {selectedUser ? nameForRow(selectedUser) : 'Selected user'}
             </p>
             <p className="mt-1 text-muted-foreground">
-              {viewMode === "clinic" && activeClinicName
+              {viewMode === 'clinic' && activeClinicName
                 ? `Requested from ${activeClinicName}; impact remains global.`
-                : "This action applies to the account across all clinic access."}
+                : 'This action applies to the account across all clinic access.'}
             </p>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setDeactivateOpen(false)} disabled={mutationLoading}>
+            <Button
+              variant="ghost"
+              onClick={() => setDeactivateOpen(false)}
+              disabled={mutationLoading}
+            >
               Cancel
             </Button>
             <Button
@@ -1341,7 +1517,7 @@ export default function AdminUsersPage() {
               onClick={() => void handleConfirmDeactivate()}
               disabled={mutationLoading || !selectedCanDeactivate}
             >
-              {mutationLoading ? "Deactivating..." : "Deactivate account"}
+              {mutationLoading ? 'Deactivating...' : 'Deactivate account'}
             </Button>
           </DialogFooter>
         </DialogContent>

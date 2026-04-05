@@ -1,23 +1,23 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
-import { Box } from "@mui/material";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
-import { Search, Stethoscope, UserPlus, Users } from "lucide-react";
-import { useAuth } from "@/lib/auth-context";
-import { useBootstrap } from "@/lib/bootstrap-context";
-import { apiFetch } from "@/lib/api";
-import { AppMetricCard } from "@/components/app-shell/AppMetricCard";
-import { AppPageHeader } from "@/components/app-shell/AppPageHeader";
-import { getOpsDestination, hasPermission, readApiError } from "@/lib/ops";
-import { RouteGuard } from "@/components/RouteGuard";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { EmptyStateCard, InlineNotice } from "@/components/ops/OpsShared";
-import { dataGridSx } from "@/lib/datagrid-theme";
+import { useCallback, useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { Box } from '@mui/material';
+import { DataGrid, type GridColDef } from '@mui/x-data-grid';
+import { Search, Stethoscope, UserPlus, Users } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
+import { useBootstrap } from '@/lib/bootstrap-context';
+import { apiFetch } from '@/lib/api';
+import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
+import { getOpsDestination, hasPermission, readApiError } from '@/lib/ops';
+import { RouteGuard } from '@/components/RouteGuard';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
+import { dataGridSx } from '@/lib/datagrid-theme';
 
 interface PatientSummary {
   id: string;
@@ -28,6 +28,13 @@ interface PatientSummary {
   nationalIdLast4?: string | null;
 }
 
+interface PatientRegistryResponse {
+  items: PatientSummary[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export default function ClinicPatientsPage() {
   const params = useParams();
   const router = useRouter();
@@ -35,10 +42,13 @@ export default function ClinicPatientsPage() {
   const getToken = useAuth();
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
-  const canCreateOpsCheckIn = hasPermission(perms, "OPS.CHECKIN.CREATE");
+  const canCreateOpsCheckIn = hasPermission(perms, 'OPS.CHECKIN.CREATE');
 
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState('');
   const [results, setResults] = useState<PatientSummary[]>([]);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -53,26 +63,32 @@ export default function ClinicPatientsPage() {
 
     try {
       const response = await apiFetch(
-        `/clinics/${encodeURIComponent(clinicId)}/patients/search?q=${encodeURIComponent(q)}`,
-        { getToken, activeClinicId: clinicId }
+        `/clinics/${encodeURIComponent(clinicId)}/patients?page=${page + 1}&pageSize=${pageSize}&q=${encodeURIComponent(q)}`,
+        { getToken, activeClinicId: clinicId },
       );
       if (!response.ok) {
-        throw new Error(await response.text());
+        throw new Error(await readApiError(response));
       }
 
-      setResults((await response.json()) as PatientSummary[]);
+      const payload = (await response.json()) as PatientRegistryResponse;
+      setResults(payload.items);
+      setTotal(payload.total);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : String(requestError));
       setResults([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
-  }, [clinicId, getToken, q]);
+  }, [clinicId, getToken, page, pageSize, q]);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      void search();
-    }, q.trim() ? 300 : 0);
+    const timeoutId = window.setTimeout(
+      () => {
+        void search();
+      },
+      q.trim() ? 300 : 0,
+    );
 
     return () => window.clearTimeout(timeoutId);
   }, [q, search]);
@@ -87,15 +103,12 @@ export default function ClinicPatientsPage() {
     setSuccess(null);
 
     try {
-      const response = await apiFetch(
-        `/clinics/${encodeURIComponent(clinicId)}/checkins`,
-        {
-          method: "POST",
-          body: JSON.stringify({ patientId: patient.id }),
-          getToken,
-          activeClinicId: clinicId,
-        }
-      );
+      const response = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}/checkins`, {
+        method: 'POST',
+        body: JSON.stringify({ patientId: patient.id }),
+        getToken,
+        activeClinicId: clinicId,
+      });
       if (!response.ok) {
         throw new Error(await readApiError(response));
       }
@@ -104,11 +117,11 @@ export default function ClinicPatientsPage() {
       setSuccess(
         destination
           ? `${patient.firstName} ${patient.lastName} is now on the clinic board.`
-          : `${patient.firstName} ${patient.lastName} has been checked in successfully.`
+          : `${patient.firstName} ${patient.lastName} has been checked in successfully.`,
       );
 
-      if (destination === "/today") {
-        router.prefetch("/today");
+      if (destination === '/today') {
+        router.prefetch('/today');
       }
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : String(requestError));
@@ -118,29 +131,28 @@ export default function ClinicPatientsPage() {
   };
 
   const columns: GridColDef[] = [
-    { field: "patientCode", headerName: "Patient Code", width: 140 },
+    { field: 'patientCode', headerName: 'Patient Code', width: 140 },
     {
-      field: "name",
-      headerName: "Name",
+      field: 'name',
+      headerName: 'Name',
       flex: 1,
       valueGetter: (_, row) => `${row.firstName} ${row.lastName}`.trim(),
     },
     {
-      field: "phoneE164",
-      headerName: "Phone",
+      field: 'phoneE164',
+      headerName: 'Phone',
       width: 150,
-      valueFormatter: (value) =>
-        value ? String(value).replace(/(.{4}).*(.{4})/, "$1***$2") : "",
+      valueFormatter: (value) => (value ? String(value).replace(/(.{4}).*(.{4})/, '$1***$2') : ''),
     },
     {
-      field: "nationalIdLast4",
-      headerName: "ID Last 4",
+      field: 'nationalIdLast4',
+      headerName: 'ID Last 4',
       width: 100,
-      valueFormatter: (value) => (value ? `...${value}` : ""),
+      valueFormatter: (value) => (value ? `...${value}` : ''),
     },
     {
-      field: "actions",
-      headerName: "Actions",
+      field: 'actions',
+      headerName: 'Actions',
       width: 180,
       sortable: false,
       renderCell: (params) => (
@@ -194,17 +206,17 @@ export default function ClinicPatientsPage() {
           />
           <AppMetricCard
             title="Search mode"
-            value={q.trim() ? "Focused" : "Browsing"}
+            value={q.trim() ? 'Focused' : 'Browsing'}
             icon={Search}
             detail={
               q.trim()
-                ? "Results are filtered by the active query."
-                : "Search by name, code, phone, or national ID."
+                ? 'Results are filtered by the active query.'
+                : 'Search by name, code, phone, or national ID.'
             }
           />
           <AppMetricCard
             title="OPS handoff"
-            value={canCreateOpsCheckIn ? "Enabled" : "Read only"}
+            value={canCreateOpsCheckIn ? 'Enabled' : 'Read only'}
             icon={Stethoscope}
             detail="Check-in shortcuts appear here when your role can add patients to the clinic board."
           />
@@ -221,7 +233,10 @@ export default function ClinicPatientsPage() {
             <Input
               type="search"
               value={q}
-              onChange={(event) => setQ(event.target.value)}
+              onChange={(event) => {
+                setQ(event.target.value);
+                setPage(0);
+              }}
               placeholder="Search by name, patient code, phone, or national ID last 4"
               className="w-full md:max-w-xl"
             />
@@ -234,7 +249,7 @@ export default function ClinicPatientsPage() {
             <span>{success}</span>
             {getOpsDestination(perms) ? (
               <>
-                {" "}
+                {' '}
                 <Link
                   href={getOpsDestination(perms)!}
                   className="font-medium underline underline-offset-4"
@@ -250,14 +265,19 @@ export default function ClinicPatientsPage() {
           <CardHeader>
             <CardTitle className="text-xl">Patient results</CardTitle>
             <CardDescription>
-              Open records directly or start the next step in care from the same surface.
+              Browse the full clinic registry, search by patient details, and move directly into the
+              next care step.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {!loading && q.trim() && rows.length === 0 ? (
+            {!loading && rows.length === 0 ? (
               <EmptyStateCard
-                title="No patients found"
-                description="Try a broader search term or confirm the patient has already been registered in this clinic."
+                title={q.trim() ? 'No patients found' : 'No patients in this clinic yet'}
+                description={
+                  q.trim()
+                    ? 'Try a broader search term or confirm the patient has already been registered in this clinic.'
+                    : 'Once patients are added to this clinic, they will appear here for full registry browsing.'
+                }
               />
             ) : (
               <>
@@ -272,9 +292,7 @@ export default function ClinicPatientsPage() {
                           <h3 className="text-base font-semibold text-foreground">
                             {row.firstName} {row.lastName}
                           </h3>
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            {row.patientCode}
-                          </p>
+                          <p className="mt-1 text-sm text-muted-foreground">{row.patientCode}</p>
                         </div>
                         {row.nationalIdLast4 ? (
                           <span className="text-xs text-muted-foreground">
@@ -283,7 +301,7 @@ export default function ClinicPatientsPage() {
                         ) : null}
                       </div>
                       <p className="mt-3 text-sm text-muted-foreground">
-                        {row.phoneE164 || "No phone on file"}
+                        {row.phoneE164 || 'No phone on file'}
                       </p>
                       <div className="mt-4 flex flex-wrap gap-2">
                         <Button asChild size="sm" variant="outline" className="rounded-2xl">
@@ -305,7 +323,7 @@ export default function ClinicPatientsPage() {
                 </div>
 
                 <div className="hidden md:block">
-                  <Box sx={{ width: "100%" }}>
+                  <Box sx={{ width: '100%' }}>
                     <DataGrid
                       autoHeight
                       disableColumnMenu
@@ -314,13 +332,41 @@ export default function ClinicPatientsPage() {
                       columns={columns}
                       loading={loading}
                       getRowHeight={() => 64}
-                      pageSizeOptions={[5, 10, 25]}
-                      initialState={{
-                        pagination: { paginationModel: { pageSize: 10, page: 0 } },
+                      paginationMode="server"
+                      rowCount={total}
+                      pageSizeOptions={[10, 25, 50]}
+                      paginationModel={{ page, pageSize }}
+                      onPaginationModelChange={(model) => {
+                        setPage(model.page);
+                        setPageSize(model.pageSize);
                       }}
                       sx={dataGridSx}
                     />
                   </Box>
+                </div>
+
+                <div className="flex items-center justify-between rounded-2xl border border-border/70 bg-background/70 px-4 py-3 text-sm md:hidden">
+                  <p className="text-muted-foreground">
+                    Showing {rows.length} of {total} patients
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={page === 0 || loading}
+                      onClick={() => setPage((current) => Math.max(0, current - 1))}
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={(page + 1) * pageSize >= total || loading}
+                      onClick={() => setPage((current) => current + 1)}
+                    >
+                      Next
+                    </Button>
+                  </div>
                 </div>
               </>
             )}

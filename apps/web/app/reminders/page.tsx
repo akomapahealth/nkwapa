@@ -1,29 +1,30 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { Bell, Clock3, SendHorizontal } from "lucide-react";
-import { useBootstrap } from "@/lib/bootstrap-context";
-import { useAuth } from "@/lib/auth-context";
-import { apiFetch } from "@/lib/api";
-import { AppMetricCard } from "@/components/app-shell/AppMetricCard";
-import { AppPageHeader } from "@/components/app-shell/AppPageHeader";
-import { RouteGuard } from "@/components/RouteGuard";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
-import { Box } from "@mui/material";
-import { dataGridSx } from "@/lib/datagrid-theme";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useCallback, useEffect, useState } from 'react';
+import { Bell, Clock3, SendHorizontal } from 'lucide-react';
+import { useBootstrap } from '@/lib/bootstrap-context';
+import { useAuth } from '@/lib/auth-context';
+import { apiFetch } from '@/lib/api';
+import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
+import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
+import { RouteGuard } from '@/components/RouteGuard';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { DataGrid, type GridColDef } from '@mui/x-data-grid';
+import { Box } from '@mui/material';
+import { dataGridSx } from '@/lib/datagrid-theme';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { EmptyStateCard, InlineNotice } from "@/components/ops/OpsShared";
+} from '@/components/ui/select';
+import { EmptyStateCard } from '@/components/ops/OpsShared';
 
 interface ReminderRow {
   id: string;
@@ -44,12 +45,11 @@ interface ReminderRow {
 export default function RemindersPage() {
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const getToken = useAuth();
-  const clinicId =
-    bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
+  const clinicId = bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
 
-  const [status, setStatus] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const [status, setStatus] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
   const [rows, setRows] = useState<ReminderRow[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -67,14 +67,14 @@ export default function RemindersPage() {
       setError(null);
       try {
         const params = new URLSearchParams();
-        if (status) params.set("status", status);
-        if (from) params.set("from", from);
-        if (to) params.set("to", to);
-        if (cursor) params.set("cursor", cursor);
-        params.set("limit", "50");
+        if (status) params.set('status', status);
+        if (from) params.set('from', from);
+        if (to) params.set('to', to);
+        if (cursor) params.set('cursor', cursor);
+        params.set('limit', '50');
         const res = await apiFetch(
           `/clinics/${encodeURIComponent(clinicId)}/reminders?${params.toString()}`,
-          { getToken }
+          { getToken },
         );
         if (!res.ok) throw new Error(await res.text());
         const data = (await res.json()) as {
@@ -95,7 +95,7 @@ export default function RemindersPage() {
         setLoadingMore(false);
       }
     },
-    [clinicId, getToken, status, from, to]
+    [clinicId, getToken, status, from, to],
   );
 
   useEffect(() => {
@@ -104,64 +104,58 @@ export default function RemindersPage() {
 
   const columns: GridColDef[] = [
     {
-      field: "createdAt",
-      headerName: "Created",
+      field: 'createdAt',
+      headerName: 'Created',
       width: 160,
-      valueFormatter: (v) =>
-        v ? new Date(v as string).toLocaleString() : "",
+      valueFormatter: (v) => (v ? new Date(v as string).toLocaleString() : ''),
     },
     {
-      field: "scheduledAt",
-      headerName: "Scheduled",
+      field: 'scheduledAt',
+      headerName: 'Scheduled',
       width: 160,
-      valueFormatter: (v) =>
-        v ? new Date(v as string).toLocaleString() : "",
+      valueFormatter: (v) => (v ? new Date(v as string).toLocaleString() : ''),
     },
     {
-      field: "status",
-      headerName: "Status",
+      field: 'status',
+      headerName: 'Status',
       width: 100,
       renderCell: (params) => (
         <Badge
           variant={
-            params.value === "SENT"
-              ? "finalized"
-              : params.value === "FAILED"
-                ? "destructive"
-                : "draft"
+            params.value === 'SENT'
+              ? 'finalized'
+              : params.value === 'FAILED'
+                ? 'destructive'
+                : 'draft'
           }
         >
           {String(params.value)}
         </Badge>
       ),
     },
-    { field: "templateKey", headerName: "Template", width: 180 },
+    { field: 'templateKey', headerName: 'Template', width: 180 },
     {
-      field: "toAddress",
-      headerName: "To",
+      field: 'toAddress',
+      headerName: 'To',
       width: 140,
       valueFormatter: (v) =>
-        v && String(v).length > 8
-          ? `${String(v).slice(0, 4)}***${String(v).slice(-4)}`
-          : String(v),
+        v && String(v).length > 8 ? `${String(v).slice(0, 4)}***${String(v).slice(-4)}` : String(v),
     },
-    { field: "failureReason", headerName: "Failure", width: 150 },
+    { field: 'failureReason', headerName: 'Failure', width: 150 },
   ];
 
   if (!clinicId) {
     return (
       <RouteGuard requiredPermission="REMINDER.READ">
         <div className="p-4">
-          <p className="text-muted-foreground">
-            Select a clinic to view reminders.
-          </p>
+          <p className="text-muted-foreground">Select a clinic to view reminders.</p>
         </div>
       </RouteGuard>
     );
   }
 
-  const queuedCount = rows.filter((row) => row.status === "QUEUED").length;
-  const sentCount = rows.filter((row) => row.status === "SENT").length;
+  const queuedCount = rows.filter((row) => row.status === 'QUEUED').length;
+  const sentCount = rows.filter((row) => row.status === 'SENT').length;
 
   return (
     <RouteGuard requiredPermission="REMINDER.READ">
@@ -203,7 +197,10 @@ export default function RemindersPage() {
           <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div className="space-y-2">
               <Label htmlFor="status">Status</Label>
-              <Select value={status || "ALL"} onValueChange={(value) => setStatus(value === "ALL" ? "" : value)}>
+              <Select
+                value={status || 'ALL'}
+                onValueChange={(value) => setStatus(value === 'ALL' ? '' : value)}
+              >
                 <SelectTrigger id="status">
                   <SelectValue />
                 </SelectTrigger>
@@ -217,31 +214,31 @@ export default function RemindersPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="from">From</Label>
-              <Input
-                id="from"
-                type="date"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-              />
+              <Input id="from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="to">To</Label>
-              <Input
-                id="to"
-                type="date"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-              />
+              <Input id="to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
             </div>
             <div className="flex items-end">
-              <Button onClick={() => fetchReminders()} disabled={loading} className="w-full rounded-2xl">
-                {loading ? "Loading..." : "Apply filters"}
+              <Button
+                onClick={() => fetchReminders()}
+                disabled={loading}
+                className="w-full rounded-2xl"
+              >
+                {loading ? 'Loading...' : 'Apply filters'}
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
+        {error ? (
+          <InlineErrorState
+            description={error}
+            onRetry={() => void fetchReminders()}
+            retryLabel="Reload reminders"
+          />
+        ) : null}
 
         <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
           <CardHeader>
@@ -251,7 +248,9 @@ export default function RemindersPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {!loading && rows.length === 0 ? (
+            {loading && rows.length === 0 ? (
+              <SectionSkeleton lines={4} className="border-0 bg-transparent p-0 shadow-none" />
+            ) : !loading && rows.length === 0 ? (
               <EmptyStateCard
                 title="No reminders match the current filters"
                 description="Try a wider date range or a broader status filter to review reminder activity."
@@ -275,29 +274,28 @@ export default function RemindersPage() {
                         </div>
                         <Badge
                           variant={
-                            row.status === "SENT"
-                              ? "finalized"
-                              : row.status === "FAILED"
-                                ? "destructive"
-                                : "draft"
+                            row.status === 'SENT'
+                              ? 'finalized'
+                              : row.status === 'FAILED'
+                                ? 'destructive'
+                                : 'draft'
                           }
                         >
                           {row.status}
                         </Badge>
                       </div>
-                      <p className="mt-3 text-sm text-muted-foreground">
-                        {row.toAddress}
-                      </p>
+                      <p className="mt-3 text-sm text-muted-foreground">{row.toAddress}</p>
                       {row.failureReason ? (
-                        <p className="mt-2 text-sm text-destructive">
-                          {row.failureReason}
-                        </p>
+                        <p className="mt-2 text-sm text-destructive">{row.failureReason}</p>
                       ) : null}
                     </article>
                   ))}
                 </div>
 
-                <Box sx={{ height: 500, width: "100%" }} className="hidden overflow-x-auto md:block">
+                <Box
+                  sx={{ height: 500, width: '100%' }}
+                  className="hidden overflow-x-auto md:block"
+                >
                   <DataGrid
                     rows={rows}
                     columns={columns}
@@ -318,7 +316,7 @@ export default function RemindersPage() {
                   disabled={loadingMore}
                   className="rounded-2xl"
                 >
-                  {loadingMore ? "Loading..." : "Load more"}
+                  {loadingMore ? 'Loading...' : 'Load more'}
                 </Button>
               </div>
             )}

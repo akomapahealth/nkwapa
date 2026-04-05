@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ChangeEvent } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import {
   Activity,
   ArrowLeft,
@@ -58,8 +59,24 @@ interface PatientWithEncounters {
     dob?: string | null;
     sex: string;
     phoneE164?: string | null;
+    email?: string | null;
     nationalIdLast4?: string | null;
   };
+  portalAccess?: {
+    status: 'LINKED' | 'INVITED' | 'UNLINKED' | 'MERGED';
+    linkedUserId: string | null;
+    linkedKeycloakSub: string | null;
+    mergedIntoPatientId: string | null;
+    invites: Array<{
+      id: string;
+      status: string;
+      email: string | null;
+      phoneE164: string | null;
+      createdAt: string;
+      expiresAt: string | null;
+    }>;
+  };
+  resolvedFromPatientId?: string | null;
   recentEncounters: Array<{
     id: string;
     status: string;
@@ -70,6 +87,16 @@ interface PatientWithEncounters {
   consentStatus?: ConsentStatusItem[];
 }
 
+interface PatientRegistryCandidate {
+  id: string;
+  patientCode: string;
+  firstName: string;
+  lastName: string;
+  phoneE164?: string | null;
+  email?: string | null;
+  nationalIdLast4?: string | null;
+}
+
 export default function PatientDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -78,6 +105,7 @@ export default function PatientDetailPage() {
   const getToken = useAuth();
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
+  const isSystemAdmin = bootstrap?.globalRoles?.includes('SYSTEM_ADMIN') ?? false;
   const canRecordConsent = perms.includes('*') || perms.includes('CONSENT.RECORD');
   const canUpdatePatient = perms.includes('*') || perms.includes('PATIENT.UPDATE');
   const canViewSelfReports = perms.includes('*') || perms.includes('PATIENT.SELF_REPORT.READ');
@@ -88,10 +116,30 @@ export default function PatientDetailPage() {
   const [data, setData] = useState<PatientWithEncounters | null>(null);
   const [portalLinkOpen, setPortalLinkOpen] = useState(false);
   const [portalLinkUserId, setPortalLinkUserId] = useState('');
+  const [portalLinkSearch, setPortalLinkSearch] = useState('');
+  const [portalLinkLoading, setPortalLinkLoading] = useState(false);
   const [portalLinkSaving, setPortalLinkSaving] = useState(false);
   const [portalLinkError, setPortalLinkError] = useState<string | null>(null);
+  const [portalInviteOpen, setPortalInviteOpen] = useState(false);
+  const [portalInviteEmail, setPortalInviteEmail] = useState('');
+  const [portalInvitePhone, setPortalInvitePhone] = useState('');
+  const [portalInviteSaving, setPortalInviteSaving] = useState(false);
+  const [portalInviteError, setPortalInviteError] = useState<string | null>(null);
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [mergeQuery, setMergeQuery] = useState('');
+  const [mergeCandidates, setMergeCandidates] = useState<PatientRegistryCandidate[]>([]);
+  const [mergeCandidateId, setMergeCandidateId] = useState('');
+  const [mergeSaving, setMergeSaving] = useState(false);
+  const [mergeError, setMergeError] = useState<string | null>(null);
   const [allUsers, setAllUsers] = useState<
-    Array<{ id: string; displayName: string; email: string | null }>
+    Array<{
+      id: string;
+      displayName: string;
+      email: string | null;
+      phoneE164: string | null;
+      alreadyLinked: boolean;
+      isSuggestedMatch: boolean;
+    }>
   >([]);
   const [selfReports, setSelfReports] = useState<
     Array<{
@@ -138,31 +186,58 @@ export default function PatientDetailPage() {
     if (data && canViewSelfReports) fetchSelfReports();
   }, [data, canViewSelfReports, fetchSelfReports]);
 
-  const fetchUsersForPortalLink = useCallback(async () => {
-    if (!getToken) return;
-    try {
-      const res = await apiFetch('/admin/users', {
-        getToken,
-        skipClinicHeader: true,
-      });
-      if (res.ok) {
-        const json = (await res.json()) as Array<{
-          id: string;
-          displayName: string;
-          email: string | null;
-        }>;
-        setAllUsers(json);
+  const fetchUsersForPortalLink = useCallback(
+    async (searchQuery?: string) => {
+      if (!getToken) return;
+      setPortalLinkLoading(true);
+      try {
+        const suffix = searchQuery?.trim() ? `?q=${encodeURIComponent(searchQuery.trim())}` : '';
+        const res = await apiFetch(
+          `/clinics/${encodeURIComponent(clinicId)}/patients/${encodeURIComponent(patientId)}/portal-link-candidates${suffix}`,
+          {
+            getToken,
+            activeClinicId: clinicId,
+          },
+        );
+        if (res.ok) {
+          const json = (await res.json()) as Array<{
+            id: string;
+            displayName: string;
+            email: string | null;
+            phoneE164: string | null;
+            alreadyLinked: boolean;
+            isSuggestedMatch: boolean;
+          }>;
+          setAllUsers(json);
+        } else {
+          setAllUsers([]);
+          setPortalLinkError(await readApiError(res));
+        }
+      } catch (requestError) {
+        setAllUsers([]);
+        setPortalLinkError(
+          requestError instanceof Error ? requestError.message : String(requestError),
+        );
+      } finally {
+        setPortalLinkLoading(false);
       }
-    } catch {
-      // ignore
-    }
-  }, [getToken]);
+    },
+    [clinicId, getToken, patientId],
+  );
 
   const handlePortalLinkOpen = () => {
     setPortalLinkOpen(true);
     setPortalLinkError(null);
     setPortalLinkUserId('');
-    fetchUsersForPortalLink();
+    const defaultSearch = data?.patient.email ?? data?.patient.phoneE164 ?? '';
+    setPortalLinkSearch(defaultSearch);
+  };
+
+  const handlePortalInviteOpen = () => {
+    setPortalInviteOpen(true);
+    setPortalInviteEmail(data?.patient.email ?? '');
+    setPortalInvitePhone(data?.patient.phoneE164 ?? '');
+    setPortalInviteError(null);
   };
 
   const handlePortalLinkSubmit = async () => {
@@ -179,13 +254,89 @@ export default function PatientDetailPage() {
           activeClinicId: clinicId,
         },
       );
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error(await readApiError(res));
       setPortalLinkOpen(false);
       fetchPatient();
     } catch (err) {
       setPortalLinkError(err instanceof Error ? err.message : String(err));
     } finally {
       setPortalLinkSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!portalLinkOpen) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(
+      () => {
+        void fetchUsersForPortalLink(portalLinkSearch);
+      },
+      portalLinkSearch.trim() ? 250 : 0,
+    );
+
+    return () => window.clearTimeout(timeoutId);
+  }, [fetchUsersForPortalLink, portalLinkOpen, portalLinkSearch]);
+
+  const handlePortalInviteSubmit = async () => {
+    if (!getToken) return;
+    setPortalInviteSaving(true);
+    setPortalInviteError(null);
+
+    try {
+      const response = await apiFetch(
+        `/clinics/${encodeURIComponent(clinicId)}/patients/${encodeURIComponent(patientId)}/portal-invite`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            email: portalInviteEmail || undefined,
+            phoneE164: portalInvitePhone || undefined,
+          }),
+          getToken,
+          activeClinicId: clinicId,
+        },
+      );
+      if (!response.ok) {
+        throw new Error(await readApiError(response));
+      }
+
+      setPortalInviteOpen(false);
+      setSuccess('Portal invite created successfully.');
+      fetchPatient();
+    } catch (requestError) {
+      setPortalInviteError(
+        requestError instanceof Error ? requestError.message : String(requestError),
+      );
+    } finally {
+      setPortalInviteSaving(false);
+    }
+  };
+
+  const handlePortalInviteCancel = async (inviteId: string) => {
+    if (!getToken) return;
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await apiFetch(
+        `/clinics/${encodeURIComponent(clinicId)}/patients/${encodeURIComponent(patientId)}/portal-invite/${encodeURIComponent(inviteId)}`,
+        {
+          method: 'DELETE',
+          getToken,
+          activeClinicId: clinicId,
+        },
+      );
+      if (!response.ok) {
+        throw new Error(await readApiError(response));
+      }
+
+      setSuccess('Portal invite cancelled.');
+      fetchPatient();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : String(requestError));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -274,6 +425,48 @@ export default function PatientDetailPage() {
   useEffect(() => {
     fetchPatient();
   }, [fetchPatient]);
+
+  useEffect(() => {
+    if (data?.patient.id && data.patient.id !== patientId) {
+      setSuccess('This patient record was merged. Opening the canonical chart.');
+      router.replace(`/clinics/${clinicId}/patients/${data.patient.id}`);
+    }
+  }, [clinicId, data?.patient.id, patientId, router]);
+
+  useEffect(() => {
+    if (!mergeOpen || !getToken) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(
+      async () => {
+        try {
+          const response = await apiFetch(
+            `/clinics/${encodeURIComponent(clinicId)}/patients?page=1&pageSize=8&q=${encodeURIComponent(mergeQuery)}`,
+            {
+              getToken,
+              activeClinicId: clinicId,
+            },
+          );
+          if (!response.ok) {
+            throw new Error(await readApiError(response));
+          }
+
+          const payload = (await response.json()) as {
+            items: PatientRegistryCandidate[];
+          };
+          setMergeCandidates(payload.items.filter((candidate) => candidate.id !== patientId));
+        } catch (requestError) {
+          setMergeError(
+            requestError instanceof Error ? requestError.message : String(requestError),
+          );
+        }
+      },
+      mergeQuery.trim() ? 250 : 0,
+    );
+
+    return () => window.clearTimeout(timeoutId);
+  }, [clinicId, getToken, mergeOpen, mergeQuery, patientId]);
 
   const researchConsent = data?.consentStatus?.find(
     (c) => c.consentType === 'RESEARCH_DEIDENTIFIED',
@@ -368,6 +561,40 @@ export default function PatientDetailPage() {
     }
   };
 
+  const handleMergeSubmit = async () => {
+    if (!getToken || !mergeCandidateId) {
+      return;
+    }
+
+    setMergeSaving(true);
+    setMergeError(null);
+
+    try {
+      const response = await apiFetch('/admin/patients/merge', {
+        method: 'POST',
+        body: JSON.stringify({
+          canonicalPatientId: patientId,
+          sourcePatientId: mergeCandidateId,
+          portalLinkStrategy: 'CANONICAL',
+          inviteStrategy: 'MERGE',
+        }),
+        getToken,
+        skipClinicHeader: true,
+      });
+      if (!response.ok) {
+        throw new Error(await readApiError(response));
+      }
+
+      setMergeOpen(false);
+      setSuccess('Duplicate patient record merged into this chart successfully.');
+      fetchPatient();
+    } catch (requestError) {
+      setMergeError(requestError instanceof Error ? requestError.message : String(requestError));
+    } finally {
+      setMergeSaving(false);
+    }
+  };
+
   if (loading && !data) return <div className="flex items-center justify-center p-8">Loading…</div>;
   if (error && !data)
     return (
@@ -395,6 +622,14 @@ export default function PatientDetailPage() {
     );
 
   const { patient, recentEncounters } = data;
+  const portalAccess = data.portalAccess ?? {
+    status: 'UNLINKED' as const,
+    linkedUserId: null,
+    linkedKeycloakSub: null,
+    mergedIntoPatientId: null,
+    invites: [],
+  };
+  const latestInvite = portalAccess.invites[0] ?? null;
 
   return (
     <div className="space-y-6">
@@ -551,22 +786,121 @@ export default function PatientDetailPage() {
                   <CardHeader>
                     <h2 className="text-lg font-semibold">Portal account</h2>
                     <p className="text-sm text-muted-foreground">
-                      Link a real signed-in user account so the patient can access the portal.
+                      Link the patient to an existing app account or stage a portal invite before
+                      their first login.
                     </p>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="rounded-3xl border border-dashed border-border bg-background/60 p-4 text-sm text-muted-foreground">
-                      Portal access should be linked after the patient’s app account has signed in
-                      at least once.
+                    <div className="rounded-3xl border border-border/80 bg-background/75 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                            Portal status
+                          </p>
+                          <p className="mt-2 text-base font-semibold text-foreground">
+                            {portalAccess.status}
+                          </p>
+                        </div>
+                        <Badge variant={portalAccess.status === 'LINKED' ? 'default' : 'outline'}>
+                          {portalAccess.status}
+                        </Badge>
+                      </div>
+                      {portalAccess.status === 'LINKED' ? (
+                        <div className="mt-3 space-y-1 text-sm text-muted-foreground">
+                          <p>Portal access is already linked to this patient chart.</p>
+                          {portalAccess.linkedKeycloakSub ? (
+                            <p className="font-mono text-xs text-foreground/80">
+                              {portalAccess.linkedKeycloakSub}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : portalAccess.status === 'INVITED' && latestInvite ? (
+                        <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+                          <p>
+                            A pending invite is staged for this patient and will be claimable on
+                            first sign-in.
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {latestInvite.email ? (
+                              <Badge variant="secondary" className="rounded-full">
+                                {latestInvite.email}
+                              </Badge>
+                            ) : null}
+                            {latestInvite.phoneE164 ? (
+                              <Badge variant="secondary" className="rounded-full">
+                                {latestInvite.phoneE164}
+                              </Badge>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="mt-3 text-sm text-muted-foreground">
+                          No portal account is linked yet. You can stage an invite now or use the
+                          manual link flow once the patient has signed in.
+                        </p>
+                      )}
                     </div>
+                    <div className="grid gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handlePortalInviteOpen}
+                        className="w-full cursor-pointer rounded-2xl"
+                      >
+                        <UserPlus className="mr-2 h-4 w-4" />
+                        {portalAccess.status === 'INVITED'
+                          ? 'Reissue portal invite'
+                          : 'Create portal invite'}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handlePortalLinkOpen}
+                        className="w-full cursor-pointer rounded-2xl"
+                      >
+                        Link existing app account
+                      </Button>
+                      {latestInvite ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => void handlePortalInviteCancel(latestInvite.id)}
+                          className="w-full rounded-2xl text-destructive hover:text-destructive"
+                        >
+                          Cancel latest invite
+                        </Button>
+                      ) : null}
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              {isSystemAdmin ? (
+                <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+                  <CardHeader>
+                    <h2 className="text-lg font-semibold">Duplicate repair</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Merge a duplicate patient record into this canonical chart while preserving
+                      clinical history.
+                    </p>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <p className="rounded-3xl border border-border/80 bg-background/75 p-4 text-sm text-muted-foreground">
+                      Use this only when two patient rows represent the same real person in the same
+                      clinic.
+                    </p>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={handlePortalLinkOpen}
-                      className="w-full cursor-pointer rounded-2xl"
+                      onClick={() => {
+                        setMergeOpen(true);
+                        setMergeError(null);
+                        setMergeQuery('');
+                        setMergeCandidateId('');
+                      }}
+                      className="w-full rounded-2xl"
                     >
-                      <UserPlus className="mr-2 h-4 w-4" />
-                      Link portal account
+                      Merge duplicate into this chart
                     </Button>
                   </CardContent>
                 </Card>
@@ -598,6 +932,18 @@ export default function PatientDetailPage() {
                     <InlineNotice tone="error">{portalLinkError}</InlineNotice>
                   ) : null}
                   <div className="space-y-2">
+                    <label className="text-sm font-medium">Search app account</label>
+                    <Input
+                      value={portalLinkSearch}
+                      onChange={(event) => setPortalLinkSearch(event.target.value)}
+                      placeholder="Search by email, phone, or name"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Only Nkwapa app accounts that have signed in at least once can be linked here.
+                      If this patient only exists in Keycloak so far, use a portal invite instead.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
                     <label className="text-sm font-medium">Select user</label>
                     <Select value={portalLinkUserId} onValueChange={setPortalLinkUserId}>
                       <SelectTrigger>
@@ -606,12 +952,36 @@ export default function PatientDetailPage() {
                       <SelectContent>
                         {allUsers.map((user) => (
                           <SelectItem key={user.id} value={user.id}>
-                            {user.displayName}
-                            {user.email ? ` (${user.email})` : ''}
+                            <div className="flex w-full items-center justify-between gap-3">
+                              <span className="truncate">
+                                {user.displayName}
+                                {user.email
+                                  ? ` (${user.email})`
+                                  : user.phoneE164
+                                    ? ` (${user.phoneE164})`
+                                    : ''}
+                                {user.alreadyLinked ? ' · linked' : ''}
+                              </span>
+                              {user.isSuggestedMatch ? (
+                                <Badge
+                                  variant="secondary"
+                                  className="rounded-full whitespace-nowrap"
+                                >
+                                  Suggested match
+                                </Badge>
+                              ) : null}
+                            </div>
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    {portalLinkLoading ? (
+                      <p className="text-xs text-muted-foreground">Searching app accounts...</p>
+                    ) : allUsers.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        No matching app accounts found yet.
+                      </p>
+                    ) : null}
                   </div>
                 </div>
                 <DialogFooter>
@@ -624,6 +994,110 @@ export default function PatientDetailPage() {
                     className="cursor-pointer"
                   >
                     {portalLinkSaving ? 'Linking...' : 'Link'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={portalInviteOpen} onOpenChange={setPortalInviteOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Create portal invite</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  {portalInviteError ? (
+                    <InlineNotice tone="error">{portalInviteError}</InlineNotice>
+                  ) : null}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Email</label>
+                    <Input
+                      value={portalInviteEmail}
+                      onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                        setPortalInviteEmail(event.target.value)
+                      }
+                      placeholder="patient@example.com"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Phone</label>
+                    <Input
+                      value={portalInvitePhone}
+                      onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                        setPortalInvitePhone(event.target.value)
+                      }
+                      placeholder="+233..."
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setPortalInviteOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handlePortalInviteSubmit}
+                    disabled={portalInviteSaving}
+                    className="cursor-pointer"
+                  >
+                    {portalInviteSaving ? 'Saving...' : 'Create invite'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={mergeOpen} onOpenChange={setMergeOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Merge duplicate patient</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  {mergeError ? <InlineNotice tone="error">{mergeError}</InlineNotice> : null}
+                  <p className="text-sm text-muted-foreground">
+                    The current chart stays canonical. Search for the duplicate patient record you
+                    want to merge into {patient.patientCode}.
+                  </p>
+                  <Input
+                    value={mergeQuery}
+                    onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                      setMergeQuery(event.target.value)
+                    }
+                    placeholder="Search duplicate by name, code, phone, or alias"
+                  />
+                  <div className="max-h-72 space-y-2 overflow-y-auto rounded-2xl border border-border/80 bg-background/75 p-2">
+                    {mergeCandidates.map((candidate) => (
+                      <button
+                        key={candidate.id}
+                        type="button"
+                        onClick={() => setMergeCandidateId(candidate.id)}
+                        className={`w-full rounded-2xl border p-3 text-left transition ${
+                          mergeCandidateId === candidate.id
+                            ? 'border-primary bg-primary/5'
+                            : 'border-border/70 bg-card hover:border-primary/40'
+                        }`}
+                      >
+                        <p className="font-medium text-foreground">
+                          {candidate.firstName} {candidate.lastName}
+                        </p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {candidate.patientCode}
+                        </p>
+                      </button>
+                    ))}
+                    {mergeCandidates.length === 0 ? (
+                      <p className="p-3 text-sm text-muted-foreground">
+                        Search to find another patient record in this clinic.
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setMergeOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() => void handleMergeSubmit()}
+                    disabled={!mergeCandidateId || mergeSaving}
+                  >
+                    {mergeSaving ? 'Merging...' : 'Merge duplicate'}
                   </Button>
                 </DialogFooter>
               </DialogContent>

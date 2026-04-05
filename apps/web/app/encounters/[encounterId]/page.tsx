@@ -252,7 +252,7 @@ export default function EncounterDetailPage() {
           actions={
             <>
               <Button asChild variant="ghost" className="rounded-2xl">
-                <Link href={`/patients/${encounter.patientId}`}>
+                <Link href={`/clinics/${encounter.clinicId}/patients/${encounter.patientId}`}>
                   <ArrowLeft className="h-4 w-4" />
                   Back to Patient
                 </Link>

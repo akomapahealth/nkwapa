@@ -1,14 +1,10 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
-import {
-  getAccessibleNavSections,
-  getNavItemHref,
-  isNavItemActive,
-} from "@/lib/app-nav";
-import type { WhoAmIResponse } from "@/lib/bootstrap-context";
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { cn } from '@/lib/utils';
+import { getAccessibleNavSections, getNavItemHref, isNavItemActive } from '@/lib/app-nav';
+import type { WhoAmIResponse } from '@/lib/bootstrap-context';
 
 export function AppNavList({
   bootstrap,
@@ -22,8 +18,7 @@ export function AppNavList({
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
-  const clinicId =
-    bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
+  const clinicId = bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
   const sections = getAccessibleNavSections(bootstrap);
 
   return (
@@ -37,9 +32,9 @@ export function AppNavList({
           )}
           <div className="space-y-1">
             {section.items.map((item) => {
-              const active = isNavItemActive(pathname, item);
-              const enabled = !item.requiresClinic || Boolean(clinicId);
               const href = getNavItemHref(item, clinicId);
+              const active = isNavItemActive(pathname, item, clinicId);
+              const enabled = !item.requiresClinic || Boolean(clinicId);
               const Icon = item.icon;
 
               return (
@@ -49,35 +44,33 @@ export function AppNavList({
                   title={collapsed && !mobile ? item.label : undefined}
                   onClick={enabled ? onNavigate : undefined}
                   className={cn(
-                    "group flex items-center gap-3 rounded-2xl border px-3 py-3 transition-all duration-200",
-                    collapsed && !mobile ? "justify-center px-2.5" : "",
+                    'group flex items-center gap-3 rounded-2xl border px-3 py-3 transition-all duration-200',
+                    collapsed && !mobile ? 'justify-center px-2.5' : '',
                     active
-                      ? "border-primary/30 bg-primary text-primary-foreground shadow-lg shadow-primary/20"
-                      : "border-transparent text-muted-foreground hover:border-border/70 hover:bg-background/80 hover:text-foreground",
-                    !enabled && "pointer-events-none opacity-45"
+                      ? 'border-primary/30 bg-primary text-primary-foreground shadow-lg shadow-primary/20'
+                      : 'border-transparent text-muted-foreground hover:border-border/70 hover:bg-background/80 hover:text-foreground',
+                    !enabled && 'pointer-events-none opacity-45',
                   )}
                 >
                   <span
                     className={cn(
-                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl transition-colors",
+                      'flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl transition-colors',
                       active
-                        ? "bg-primary-foreground/16 text-primary-foreground"
-                        : "bg-background/80 text-primary group-hover:bg-primary/10"
+                        ? 'bg-primary-foreground/16 text-primary-foreground'
+                        : 'bg-background/80 text-primary group-hover:bg-primary/10',
                     )}
                   >
                     <Icon className="h-[18px] w-[18px]" />
                   </span>
                   {(!collapsed || mobile) && (
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold">
-                        {item.label}
-                      </span>
+                      <span className="block truncate text-sm font-semibold">{item.label}</span>
                       <span
                         className={cn(
-                          "mt-0.5 block truncate text-xs",
+                          'mt-0.5 block truncate text-xs',
                           active
-                            ? "text-primary-foreground/80"
-                            : "text-muted-foreground group-hover:text-muted-foreground"
+                            ? 'text-primary-foreground/80'
+                            : 'text-muted-foreground group-hover:text-muted-foreground',
                         )}
                       >
                         {item.description}
