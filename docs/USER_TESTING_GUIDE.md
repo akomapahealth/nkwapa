@@ -1,16 +1,14 @@
-# Nkwapa User Testing Guide
+# User Testing Guide
 
 This guide is the current manual QA and user acceptance checklist for the implemented product surface.
 
-Use it when testing releases, validating new role setup, or checking whether a workflow still behaves as expected after code changes.
+Use it when validating releases, new role setup, workflow changes, or the safety of major infrastructure updates.
 
 ---
 
 ## 1. Prerequisites
 
-### Infrastructure
-
-Make sure these are available:
+Make sure these services are available:
 
 - Postgres
 - Redis
@@ -18,44 +16,32 @@ Make sure these are available:
 - API
 - Web app
 
-Local infra shortcut:
+Local infra:
 
 ```bash
 cd infra/nkwapa
 docker compose up -d
 ```
 
-### Database and seed
-
-Run:
+Then sync and seed the database:
 
 ```bash
-npm run db:generate
 npm run db:migrate:dev
+npm run db:generate
 npm run db:seed
 ```
 
-Recommended seed inputs:
+Useful seed inputs:
 
 - `SEED_SYSTEM_ADMIN_SUB`
 - `SEED_SYSTEM_ADMIN_NAME`
-- `SEED_SAMPLE_PATIENT=true` if you want quick demo data
-
-### Auth setup
-
-Create test users in Keycloak first.
-
-Then have each test user log into Nkwapa once before expecting them to appear in the admin tables.
-
-See:
-
-- `docs/USER_AND_ROLE_SETUP_GUIDE.md`
+- `SEED_SAMPLE_PATIENT=true`
 
 ---
 
-## 2. Suggested Test Accounts
+## 2. Suggested Accounts
 
-At minimum create these users:
+Create at least:
 
 - one `SYSTEM_ADMIN`
 - one `DIRECTOR`
@@ -65,375 +51,140 @@ At minimum create these users:
 - one `VOLUNTEER`
 - one `PATIENT`
 
-Optional power-user account:
+Recommended extra accounts:
 
-- one user with `VOLUNTEER`, `PRECEPTOR`, and `DOCTOR` in the same clinic to test role switching and combined visibility
+- one multi-role clinic staff account for permission overlap testing
+- one patient account intended for invite-and-claim testing
 
 ---
 
 ## 3. Global Smoke Test
 
-Run this first before deep role testing:
+1. Open the web app.
+2. Confirm login redirects to Keycloak.
+3. Log in.
+4. Confirm `/auth/whoami` bootstraps successfully.
+5. Confirm the app loads without raw crash output.
+6. Confirm clinic switching works for multi-clinic users.
+7. Confirm logout and re-login work.
 
-1. open the web app
-2. confirm login redirects to Keycloak
-3. log in
-4. confirm the app loads without console-breaking behavior
-5. confirm clinic selector is present for multi-clinic users
-6. confirm active clinic switching updates accessible screens
-7. confirm logout/login roundtrip still works
+Also verify:
+
+- no obvious blank screen on initial load
+- route loading skeleton appears when the app is still resolving
+- page-level retry actions exist for recoverable failures
 
 ---
 
-## 4. System Admin Test Matrix
+## 4. Security And Tenant Isolation Smoke
 
-### Access and setup
+- [ ] allowed frontend origins can call the API
+- [ ] a disallowed origin is rejected by CORS
+- [ ] a clinic-scoped user cannot access another clinic's records
+- [ ] a system admin can access cross-clinic administrative views
+- [ ] rate-limited endpoints return `429` with a readable recovery message
+- [ ] API failures return a structured error with a request ID
+
+---
+
+## 5. System Admin Matrix
 
 - [ ] `/admin/clinics` loads
 - [ ] `/admin/users` loads
-- [ ] all-users view is available
-- [ ] clinic-scoped view is available when a clinic is selected
-
-### Clinic management
-
 - [ ] create clinic works
-- [ ] newly created clinic appears in listings
-
-### User role management
-
-- [ ] assign `DIRECTOR` role to a clinic user
-- [ ] assign `MANAGER` role to a clinic user
-- [ ] assign `PATIENT` role to a patient user
-- [ ] assign `SYSTEM_ADMIN` globally when appropriate
-
-### Lifecycle
-
-- [ ] deactivate a user globally
-- [ ] deactivated user cannot successfully bootstrap into the app
+- [ ] assign clinic roles works
+- [ ] global `SYSTEM_ADMIN` assignment works
+- [ ] user deactivation works
 - [ ] self-deactivation is blocked
+- [ ] duplicate patient merge succeeds for same-clinic charts
 
 ---
 
-## 5. Director Test Matrix
+## 6. Director Matrix
 
-### Research and clinic settings
-
-- [ ] `/settings/clinic` loads
-- [ ] research enabled toggle persists
-- [ ] "director approval required" toggle persists
-
-### Research export console
-
-- [ ] `/clinics/[clinicId]/research/exports` loads
-- [ ] export request with date range succeeds
-- [ ] pending export can be approved
-- [ ] pending export can be rejected
-- [ ] completed export shows metadata and download action
-- [ ] failed export shows retry action
-
-### Admin and oversight
-
-- [ ] `/admin/users` loads in clinic-scoped mode
-- [ ] clinic roster visibility is correct
-- [ ] allowed role assignments work
+- [ ] clinic settings page loads
+- [ ] research toggles persist
+- [ ] research export request succeeds
+- [ ] approval and rejection actions work
+- [ ] completed export shows metadata and artifact actions
+- [ ] clinic-scoped admin user actions respect allowed bounds
 - [ ] audit page loads
-- [ ] dashboard loads director metrics
 
 ---
 
-## 6. Manager Test Matrix
-
-### Today board
+## 7. Manager Matrix
 
 - [ ] `/today` loads
-- [ ] selected date changes data set
-- [ ] active shifts list renders
-- [ ] check-ins group by status
-- [ ] assignment modal opens for waiting patient
-- [ ] only active staff appear in assignment options
-- [ ] reassignment flow works
-
-### Clinic operations
-
-- [ ] manager can check into a shift
-- [ ] manager can check out own shift
-- [ ] manager can see active shifts for the clinic
-- [ ] manager can create patient check-ins if that flow is available in the UI/API path under test
-
-### Management views
-
-- [ ] audit page loads
-- [ ] dashboard loads manager/director-level metrics
-- [ ] `/admin/users` allows allowed lifecycle actions
+- [ ] active shifts render
+- [ ] patient check-ins group correctly by status
+- [ ] assignment modal only shows active eligible staff
+- [ ] reassignment works
+- [ ] clinic user lifecycle actions work within allowed scope
+- [ ] dashboard and audit views load
 
 ---
 
-## 7. Volunteer Test Matrix
-
-### Patient and encounter flow
+## 8. Volunteer Matrix
 
 - [ ] `/patients` loads
-- [ ] new patient form works
-- [ ] patient profile loads
-- [ ] new encounter starts successfully
-- [ ] vitals form saves
-- [ ] diabetes screening form saves
-- [ ] hypertension form saves
-- [ ] submit for review works
-
-### Consent
-
-- [ ] patient consent page loads
-- [ ] consent grant works
-- [ ] consent revoke works
-
-### Ops
-
+- [ ] patient create works
+- [ ] patient detail loads
+- [ ] encounter create works
+- [ ] vitals and screening save
+- [ ] consent grant and revoke work
 - [ ] `/my/assigned` loads
-- [ ] volunteer can check in for shift
-- [ ] volunteer sees assigned patients
-- [ ] volunteer can start intake from assigned list
-- [ ] start intake routes into encounter page
+- [ ] start intake from assigned patient works
 
 ---
 
-## 8. Preceptor Test Matrix
+## 9. Preceptor Matrix
 
 - [ ] queues page shows review workload
-- [ ] encounter in review is visible
+- [ ] in-review encounter loads
 - [ ] preceptor review action works
-- [ ] preceptor cannot finalize if not permitted
-- [ ] dashboard loads preceptor metrics
-- [ ] assigned or clinical visibility behaves correctly in current clinic
+- [ ] preceptor cannot finalize when not permitted
 
 ---
 
-## 9. Doctor Test Matrix
+## 10. Doctor Matrix
 
 - [ ] queues page shows finalize-ready encounters
-- [ ] encounter detail loads for in-review encounter
-- [ ] care plan can be saved
-- [ ] prescriptions can be created
-- [ ] prescriptions can be edited before finalization
+- [ ] care plan save works
+- [ ] prescription create/update/delete works before finalization
 - [ ] encounter finalization works
 - [ ] finalized encounter becomes read-only
 - [ ] follow-up reminder is created when follow-up date exists
-- [ ] `/my/assigned` shows assigned patients when relevant
-- [ ] dashboard loads doctor metrics
 
 ---
 
-## 10. Patient Portal Test Matrix
+## 11. Patient Portal Matrix
 
-### Bootstrap
-
-- [ ] patient can log into the portal app shell
-- [ ] `/portal` loads
-- [ ] patient sees summary content, not staff admin pages
-
-### Measurements and self-reports
-
-- [ ] `/portal/health` loads
-- [ ] new BP reading can be added
-- [ ] new glucose reading can be added
-- [ ] new weight reading can be added if exposed in current UI
-- [ ] trend charts update
-- [ ] `/portal/self-reports` loads
-- [ ] `/portal/self-reports/new` works
-
-### Appointments
-
-- [ ] `/portal/appointments/request` loads
-- [ ] valid date range request submits
-- [ ] invalid end-before-start is rejected
-- [ ] `/portal/appointments` shows new request
+- [ ] patient with pending invite is routed to `/claim-record`
+- [ ] claim-record succeeds with valid matching details
+- [ ] `/portal` loads after successful claim
+- [ ] measurement logging works
+- [ ] self-report submission works
+- [ ] appointment request creation works
+- [ ] trend views render usable data
 
 ---
 
-## 11. Admin Lifecycle Test Matrix
+## 12. UX Recovery Matrix
 
-Use `/admin/users`.
-
-- [ ] inactive filter works
-- [ ] active filter works
-- [ ] role filter works
-- [ ] user detail sheet opens
-- [ ] role revoke works for allowed targets
-- [ ] clinic deactivate works for allowed targets
-- [ ] global deactivate works for system admin
-
-After deactivation:
-
-- [ ] affected user receives disabled-user behavior on next auth/bootstrap
+- [ ] loading skeleton appears for route-level loads
+- [ ] not-found page shows recovery actions
+- [ ] simulated page error shows retry and refresh options
+- [ ] network failure shows readable retry guidance instead of raw exceptions
+- [ ] server-side validation errors surface field-level or clear actionable messages
 
 ---
 
-## 12. Reminder Test Matrix
+## 13. Partial Areas To Test Carefully
 
-- [ ] `/reminders` loads for roles with reminder read permission
-- [ ] queued reminder records appear after finalization with follow-up date
-- [ ] reminder statuses can be filtered
-- [ ] if fake provider is used, queue still processes without external service
-- [ ] if Twilio mode is enabled, webhook route accepts delivery callback correctly
+These areas are implemented but still worth extra regression attention:
 
----
-
-## 13. Research Export Test Matrix
-
-### Settings
-
-- [ ] research-disabled clinic blocks export request
-- [ ] research-enabled clinic accepts request
-- [ ] approval-required clinic keeps request pending
-- [ ] auto-approved clinic queues immediately
-
-### Export behavior
-
-- [ ] export list renders
-- [ ] detail metadata renders
-- [ ] row counts render when available
-- [ ] completed export can download ZIP
-- [ ] failed export can retry
-
-### Data safety checks
-
-- [ ] exported artifact contains manifest and CSV pack
-- [ ] no patient names in exported files
-- [ ] no phone numbers in exported files
-- [ ] no raw internal IDs in de-identified CSV output
-
----
-
-## 14. Dashboard Test Matrix
-
-- [ ] dashboard loads with correct clinic context
-- [ ] summary cards render
-- [ ] role-specific sections appear only for matching roles
-- [ ] charts render without errors
-- [ ] recent activity or trend sections contain expected values for seeded data
-
----
-
-## 15. Offline and Sync Test Matrix
-
-Core staff flows only:
-
-- [ ] offline create or draft behavior still works where supported
-- [ ] outbox count increases when local changes are queued
-- [ ] sync button or sync provider drains outbox when online
-- [ ] synced data becomes visible in server-backed views
-
-Known caveat:
-
-- newer ops and portal features should be tested with connectivity because they are more online-first
-
----
-
-## 16. Recommended End-to-End Smoke Script
-
-### Staff path
-
-1. Log in as `VOLUNTEER`.
-2. Create a patient.
-3. Start a new encounter.
-4. Fill vitals and screening.
-5. Submit for review.
-
-6. Log in as `PRECEPTOR`.
-7. Open the encounter.
-8. Complete preceptor review.
-
-9. Log in as `DOCTOR`.
-10. Open the encounter.
-11. Add care plan and prescription.
-12. Finalize encounter.
-
-### Ops path
-
-13. Log in as `MANAGER`.
-14. Open `/today`.
-15. Check in as manager or confirm other staff active shifts.
-16. Create or confirm a patient check-in.
-17. Assign volunteer and doctor.
-
-18. Log in as `VOLUNTEER`.
-19. Open `/my/assigned`.
-20. Start intake for assigned patient.
-
-### Research path
-
-21. Log in as `DIRECTOR`.
-22. Enable research settings if needed.
-23. Open research exports page.
-24. Request export.
-25. Approve export if required.
-26. Confirm processing completes and download is available.
-
-### Portal path
-
-27. Log in as `PATIENT`.
-28. Open `/portal`.
-29. Log a measurement.
-30. Request an appointment.
-
-### Admin path
-
-31. Log in as `SYSTEM_ADMIN`.
-32. Open `/admin/users`.
-33. Deactivate a non-critical test user.
-34. Confirm disabled user can no longer bootstrap.
-
----
-
-## 17. Common QA Failure Patterns
-
-### "No access" in UI
-
-Check:
-
-- role assignment in Nkwapa
-- active clinic
-- effective permissions from `/auth/whoami`
-
-### API 403 even though login worked
-
-Check:
-
-- `X-Clinic-Id`
-- clinic membership
-- whether the route expects global or clinic-scoped permission
-
-### Reminder never sends
-
-Check:
-
-- Redis
-- API worker process
-- provider config
-
-### Research export never completes
-
-Check:
-
-- research enabled setting
-- approval state
-- Redis
-- GitHub env vars
-- API logs for transform or sync failure
-
-### Portal data missing
-
-Check:
-
-- patient role
-- patient account link
-- clinic context
-
----
-
-## 18. Related Guides
-
-- `docs/FEATURE_WORKFLOWS_GUIDE.md`
-- `docs/USER_AND_ROLE_SETUP_GUIDE.md`
-- `IMPLEMENTATION_STATUS.md`
-- `memory.md`
+- appointment workflows beyond basic request/confirm/reject
+- offline behavior outside the original EMR flow
+- portal invite and claim edge cases
+- duplicate patient merge and canonical-chart redirects
+- organization and zone-related assumptions in new features

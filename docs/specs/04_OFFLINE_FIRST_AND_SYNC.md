@@ -1,64 +1,95 @@
-⸻
+# Offline First And Sync
 
-/docs/specs/04_OFFLINE_FIRST_AND_SYNC.md
+## Status
 
-Goal
+Current with follow-on work.
 
-Enable offline-first functionality:
-	•	Create patient
-	•	Create encounter
-	•	Record vitals and HTN/DM screening
-	•	Record consent
-All offline-capable and sync when online.
+Offline support is strong for the original EMR capture flow, but the newer operations, admin, and patient portal features are still mostly online-first.
 
-Client storage
+---
 
-Use IndexedDB via Dexie.
+## Goal
 
-Local tables (IndexedDB)
-	•	patients
-	•	encounters
-	•	vitals
-	•	diabetes_screenings
-	•	hypertension_assessments
-	•	care_plans
-	•	patient_consents
-	•	outbox (mutations queue)
-	•	sync_state (last sync cursor per clinic)
+Allow core clinical capture to continue when connectivity is unreliable, while preserving auditability, idempotency, and safe conflict handling.
 
-Outbox mutation format
+---
 
-Each mutation is an object:
-	•	id (uuid)
-	•	entity_type
-	•	entity_id
-	•	operation (UPSERT/DELETE)
-	•	clinic_id
-	•	payload_json
-	•	idempotency_key
-	•	created_at
+## Current Offline-Capable Scope
 
-Sync protocol (v1)
+The local Dexie store currently covers the core EMR workflow:
 
-Endpoint: POST /sync/push
+- patients
+- encounters
+- vitals
+- diabetes screenings
+- hypertension assessments
+- care plans
+- patient consents
+- prescriptions
+- outbox
+- sync state
 
-Client sends ordered outbox mutations.
-Server:
-	•	validates RBAC + clinic scope
-	•	applies idempotently
-	•	emits audit events
-	•	returns accepted mutations + any conflicts
+This lets the app preserve the most important intake and clinical documentation path even when the network is unstable.
 
-Endpoint: GET /sync/pull?clinic_id=...&since=cursor
+---
 
-Server returns changes since cursor (by updated_at or incremental change log).
+## Sync Protocol
 
-Conflict resolution
-	•	Patients: do not auto-merge; return “duplicate suspected” if national_id_hash conflicts.
-	•	Encounters/vitals/screening: server canonical wins if encounter is FINALIZED.
-	•	Draft encounter edits: last write wins with version check.
+### Push
 
-UI requirements
-	•	Persistent “Sync status” indicator
-	•	Manual “Sync now” button
-	•	Conflict dialog for duplicates
+`POST /sync/push`
+
+Server responsibilities:
+
+- validate auth and clinic scope
+- apply mutations idempotently
+- track conflicts through `SyncMutation`
+- emit audit events for accepted writes
+
+### Pull
+
+`GET /sync/pull`
+
+Server responsibilities:
+
+- return changes after the provided cursor
+- scope results to the allowed clinic context
+
+---
+
+## Conflict Handling
+
+Current important rules:
+
+- national ID collisions surface duplicate suspicion instead of silent merge
+- finalized encounter-linked data is treated as canonical
+- merged patients resolve toward the canonical chart
+- sync mutations preserve applied, conflict, and error state
+
+---
+
+## Security And Reliability Rules
+
+- sync endpoints are authenticated and permission-gated
+- sync endpoints are rate limited
+- request IDs and audit events remain part of the mutation path
+- clinic-scoped request traffic uses the same RLS context as other protected routes
+
+---
+
+## What Is Not Yet Fully Offline
+
+- Today board and assignment operations
+- most admin and research management pages
+- patient portal claim flow
+- patient portal self-service submissions
+- richer retry/conflict UI for every newer surface
+
+---
+
+## Recommended Next Additions
+
+1. Extend outbox coverage to the highest-value ops mutations.
+2. Add better conflict UI for duplicate and canonical-chart resolution.
+3. Support more stale-while-refresh behavior on list-heavy pages.
+4. Re-evaluate which patient portal writes are safe and useful to queue offline.

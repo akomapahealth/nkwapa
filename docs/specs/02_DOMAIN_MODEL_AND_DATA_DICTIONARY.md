@@ -1,183 +1,274 @@
-⸻
+# Domain Model And Data Dictionary
 
-/docs/specs/02_DOMAIN_MODEL_AND_DATA_DICTIONARY.md
+## Purpose
 
-Purpose
+Describe the current Prisma domain model and the main scoping rules that matter for feature work, migrations, and product behavior.
 
-Define v1 domain entities, schema fields, and clinic scoping rules. This is the source of truth for Prisma schema.
+This is a practical schema guide, not a line-by-line schema dump.
 
-Naming + IDs
-	•	Primary keys: UUID (use UUID v4 or v7; Prisma supports uuid() by default; if v7 is desired later we can generate at app layer).
-	•	Human-friendly patient identifier: patient_code (unique).
+---
 
-Core Entities (v1)
+## Naming And IDs
 
-Clinic
+- Primary keys use UUIDs.
+- Human-friendly patient identity uses `patientCode`.
+- Legacy patient codes from merged charts are retained through `PatientCodeAlias`.
+- The live schema uses Prisma enums for roles, encounter states, portal states, reminders, appointments, and research exports.
 
-Represents a physical clinic/location.
-	•	id
-	•	name
-	•	region (optional)
-	•	is_active
+---
 
-User
+## Tenancy And Access Models
 
-Identity is managed by Keycloak; app stores profile + clinic mappings.
-	•	id
-	•	keycloak_sub (unique)
-	•	display_name
-	•	email (optional)
-	•	phone_e164 (optional)
-	•	is_active
+### Organization
 
-UserClinicRole (mapping)
-	•	id
-	•	user_id
-	•	clinic_id (nullable for System Admin global role)
-	•	role enum:
-	•	SYSTEM_ADMIN
-	•	DIRECTOR
-	•	MANAGER
-	•	DOCTOR
-	•	PRECEPTOR
-	•	VOLUNTEER
-	•	created_at
+Top-level tenant/reporting boundary.
 
-Patient (PII)
+Key fields:
 
-Global patient record (may visit multiple clinics).
-	•	id (UUID)
-	•	patient_code (unique, generated)
-	•	primary_clinic_id (clinic that first registered them)
-	•	first_name, last_name
-	•	dob (nullable if unknown)
-	•	sex enum (MALE/FEMALE/OTHER/UNKNOWN)
-	•	phone_e164 nullable
-	•	email nullable
-	•	national_id_type enum (VOTER_ID / NATIONAL_ID / PASSPORT / OTHER)
-	•	national_id_ciphertext (string/blob)
-	•	national_id_hash (unique)
-	•	national_id_last4 nullable
-	•	timestamps
+- `id`
+- `name`
+- `slug`
+- `timezone`
 
-PatientConsent
+Current use:
 
-Consent record for research usage.
-	•	id
-	•	patient_id
-	•	clinic_id (where consent was recorded)
-	•	consent_type enum: RESEARCH_DEIDENTIFIED
-	•	status enum: GRANTED, REVOKED
-	•	consent_version string (e.g., “v1”)
-	•	consent_text_snapshot text
-	•	granted_at
-	•	revoked_at nullable
-	•	recorded_by_user_id
-	•	optional witness fields
+- groups clinics across multiple locations
+- provides the future boundary for rollup reporting and higher-level admin
 
-Encounter (v1 minimal)
+### Clinic
 
-Represents a visit/check-in.
-	•	id
-	•	clinic_id
-	•	patient_id
-	•	status enum: DRAFT, IN_REVIEW, FINALIZED
-	•	created_by_user_id (volunteer)
-	•	preceptor_reviewed_by nullable
-	•	doctor_finalized_by nullable
-	•	timestamps
+Operational and physical location boundary.
 
-Vitals
-	•	id
-	•	clinic_id
-	•	encounter_id
-	•	systolic_bp, diastolic_bp
-	•	heart_rate
-	•	weight_kg, height_cm, bmi (computed ok)
-	•	notes nullable
+Key fields:
 
-DiabetesScreening
-	•	id
-	•	clinic_id
-	•	encounter_id
-	•	glucose_mg_dl nullable
-	•	glucose_type enum: FASTING, RANDOM, UNKNOWN
-	•	hba1c_percent nullable
-	•	symptoms json (or booleans)
-	•	notes nullable
+- `organizationId`
+- `name`
+- `region`
+- `countryCode`
+- `timezone`
+- `locationCode`
+- `zoneCode`
+- `isActive`
 
-HypertensionAssessment
-	•	id
-	•	clinic_id
-	•	encounter_id
-	•	classification enum (NORMAL/ELEVATED/STAGE1/STAGE2/CRISIS/UNKNOWN)
-	•	suspected boolean
-	•	confirmed boolean
-	•	notes nullable
+Important constraints:
 
-CarePlan (v1 basic)
-	•	id
-	•	clinic_id
-	•	encounter_id
-	•	counseling_given boolean
-	•	follow_up_date nullable
-	•	medication_prescribed boolean
-	•	notes nullable
+- `(organizationId, locationCode)` is unique
+- most app behavior, permissions, and RLS policies operate at clinic scope
 
-Reminder
-	•	id
-	•	clinic_id
-	•	patient_id
-	•	encounter_id nullable
-	•	channel enum SMS/EMAIL
-	•	to_address
-	•	template_key
-	•	payload_json
-	•	scheduled_at
-	•	sent_at nullable
-	•	status enum QUEUED/SENT/FAILED
-	•	provider_message_id nullable
+### User
 
-ClinicResearchSettings
-	•	clinic_id (PK)
-	•	research_enabled boolean
-	•	requires_director_approval_each_export boolean default true
-	•	updated_by_user_id
-	•	updated_at
+Local representation of a Keycloak identity.
 
-ResearchExport
-	•	id
-	•	clinic_id
-	•	requested_by_user_id
-	•	approved_by_user_id (Director)
-	•	status enum PENDING/APPROVED/REJECTED/COMPLETED
-	•	dataset_version integer
-	•	policy_version_snapshot string
-	•	timestamps
+Key fields:
 
-AuditEvent
+- `keycloakSub`
+- `displayName`
+- `firstName`
+- `lastName`
+- `email`
+- `phoneE164`
+- `isActive`
 
-Append-only audit log (critical).
-	•	id
-	•	clinic_id nullable (global events)
-	•	actor_user_id
-	•	action string (e.g., PATIENT.CREATE)
-	•	entity_type
-	•	entity_id
-	•	before_json nullable
-	•	after_json nullable
-	•	request_id
-	•	ip_address nullable
-	•	user_agent nullable
-	•	created_at
+### UserClinicRole
 
-Clinic scoping rules
-	•	Patients are global, but access is restricted by role and clinic relationship:
-	•	Volunteers/Doctors/Managers see patients they created or patients with encounters in their clinic.
-	•	Directors can see all patients in clinics they manage.
-	•	System Admin sees all.
-	•	Encounters, vitals, screenings, care plans are always scoped to clinic_id.
-	•	Consents are clinic-recorded but apply to research export decisions.
-	•	Clinic.country_code (default "GH")
-	•	Patient.phone_e164 must be E.164 if present
+Local authorization mapping.
 
+Key fields:
+
+- `userId`
+- `clinicId`
+- `role`
+
+Rules:
+
+- `clinicId = null` is reserved for global `SYSTEM_ADMIN`
+- all other active product roles are clinic-scoped
+
+---
+
+## Patient Identity Models
+
+### Patient
+
+Canonical chart record.
+
+Key fields:
+
+- `patientCode`
+- `primaryClinicId`
+- demographics and contact fields
+- encrypted and hashed national ID fields
+- `portalUserId`
+- `mergedIntoPatientId`
+- `mergedAt`
+- `mergedByUserId`
+
+Important behavior:
+
+- national ID is encrypted and hashed in the app layer
+- merged charts point to the canonical chart instead of hard deletion
+- patient registry queries exclude merged source charts unless explicitly needed
+
+### PatientCodeAlias
+
+Preserves old patient codes after merges.
+
+Use:
+
+- lets operators resolve historical references to the canonical chart
+
+### PatientAccountLink
+
+Direct patient-to-Keycloak-sub link used by the patient portal.
+
+### PatientPortalInvite
+
+Staff-created invite for patient claim onboarding.
+
+Key fields:
+
+- `patientId`
+- `clinicId`
+- `status`
+- `email`
+- `phoneE164`
+- `createdByUserId`
+- `claimedByUserId`
+- `claimedAt`
+- `expiresAt`
+
+Use:
+
+- staged patient access before a chart is claimed into a portal account
+
+---
+
+## Clinical Models
+
+### Encounter
+
+Visit-level clinical record.
+
+Key fields:
+
+- `clinicId`
+- `patientId`
+- `status`
+- `createdByUserId`
+- `preceptorReviewedById`
+- `doctorFinalizedById`
+
+Status flow:
+
+- `DRAFT`
+- `IN_REVIEW`
+- `FINALIZED`
+
+### Vitals
+
+One-to-one clinical vitals record for an encounter.
+
+### DiabetesScreening
+
+One-to-one diabetes screening record for an encounter.
+
+### HypertensionAssessment
+
+One-to-one hypertension assessment record for an encounter.
+
+### CarePlan
+
+One-to-one care plan record for an encounter, including follow-up date.
+
+### Drug
+
+Clinic-scoped medication catalog.
+
+### Prescription
+
+Encounter-linked prescription written by a clinician.
+
+---
+
+## Operations And Portal Models
+
+### StaffShift
+
+Daily staff check-in / on-duty availability.
+
+### PatientCheckIn
+
+Arrival tracking and waiting/assigned/in-progress state.
+
+### PatientAssignment
+
+Manager-created assignment linking a check-in to a volunteer and doctor.
+
+### PatientMeasurement
+
+Patient- or staff-originated measurements, including home readings.
+
+### PatientSelfReport
+
+Patient-submitted updates such as symptoms or follow-up updates.
+
+### AppointmentRequest
+
+Patient request for a preferred date window.
+
+### Appointment
+
+Clinic-confirmed appointment record.
+
+### Reminder
+
+Queued, sent, delivered, or failed outbound reminder.
+
+---
+
+## Governance And Platform Models
+
+### PatientConsent
+
+Research consent history with witness and snapshot fields.
+
+### ClinicResearchSettings
+
+Clinic-level research policy toggles.
+
+### ResearchExport
+
+Approval-aware, async research export request and artifact metadata.
+
+### AuditEvent
+
+Append-only mutation audit log with request ID, actor, entity, action, and before/after payloads.
+
+### SyncMutation
+
+Outbox/sync conflict tracking for offline-capable flows.
+
+### PatientCodeSequence
+
+Year-based sequence state for generated patient codes.
+
+---
+
+## Current Scoping Rules
+
+1. Most operational and clinical tables are clinic-scoped and protected by Postgres RLS.
+2. Patients are still anchored to a `primaryClinicId` even though the overall tenant model now supports organizations with multiple clinics.
+3. `SYSTEM_ADMIN` can bypass clinic-scoped restrictions; all other roles depend on clinic membership and permission checks.
+4. Patient portal access depends on both local role/identity state and a valid patient link or invite claim.
+5. Background jobs and scripts must opt into the same tenant context deliberately if they need the same RLS guarantees as HTTP requests.
+
+---
+
+## Scale-Oriented Indexing Themes
+
+The current schema includes indexes intended to keep common high-volume flows fast:
+
+- registry and list screens use compound indexes that support keyset-style pagination
+- clinic and org lookup paths are indexed
+- search-heavy fields use trigram/text indexes through migrations
+- merge, portal invite, reminder, export, audit, and sync tables all have targeted operational indexes

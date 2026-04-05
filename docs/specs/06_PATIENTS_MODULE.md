@@ -1,43 +1,87 @@
-⸻
+# Patients Module
 
-/docs/specs/06_PATIENTS_MODULE.md
+## Status
 
-Endpoints (v1)
+Current with follow-on work.
 
-POST /clinics/:clinicId/patients
+The patient module now covers registry, detail, update, portal access linking, patient claim onboarding support, and duplicate-chart merge handling.
 
-Create patient, assign patient_code, store national ID securely.
-	•	Requires permission: PATIENT.CREATE
-	•	Offline supported via sync
+---
 
-GET /clinics/:clinicId/patients/search?q=...
+## Core Endpoints
 
-Search by:
-	•	patient_code
-	•	name
-	•	phone
-	•	national id last4 (not full id)
+### Registry and search
 
-GET /patients/:patientId
+- `GET /clinics/:clinicId/patients`
+- `GET /clinics/:clinicId/patients/search`
+- `GET /patients/:patientId`
 
-Get patient profile + recent encounters (scoped)
+Registry reads support the older `page` and `pageSize` contract and the newer `cursor` and `limit` options for higher-volume screens.
 
-POST /clinics/:clinicId/encounters
+### Create and update
 
-Create new encounter/check-in for patient.
+- `POST /clinics/:clinicId/patients`
+- `PATCH /clinics/:clinicId/patients/:patientId`
 
-Patient code generation
+### Portal identity linking
 
-Format: NKP-YYYY-######
-	•	Sequence stored in DB (transactional)
-	•	Unique constraint enforced
+- `POST /clinics/:clinicId/patients/:patientId/portal-link`
+- `GET /clinics/:clinicId/patients/:patientId/portal-link-candidates`
+- `POST /clinics/:clinicId/patients/:patientId/portal-invite`
+- `DELETE /clinics/:clinicId/patients/:patientId/portal-invite/:inviteId`
 
-National ID security
-	•	Encrypt national_id at app layer
-	•	Store hash for dedup
-	•	Only show last4 in UI
+### Duplicate resolution
 
-UI flows
-	•	“New Patient” form
-	•	“Search Patient” + quick select
-	•	“Check-in” creates encounter
+- `POST /admin/patients/merge`
+
+---
+
+## Current Behaviors
+
+### Patient creation
+
+- generates a unique `patientCode`
+- normalizes user-entered contact fields
+- encrypts national ID
+- stores a hash and last-four fragment for dedupe and safe display
+
+### Patient detail
+
+- supports canonical chart reads after merge
+- exposes recent encounter and portal-related data paths
+
+### Registry listing
+
+- supports search by patient code, name, phone, and related human-facing terms
+- excludes merged source charts from normal operator browsing
+- benefits from keyset-friendly and search-oriented indexes
+
+### Portal access
+
+- staff can directly link an existing local user
+- staff can create a pending portal invite
+- patients can later claim the record through the claim flow
+
+### Merge
+
+- system admin can merge duplicate charts inside the same clinic
+- the source chart points to the canonical chart instead of being deleted
+- the legacy patient code is stored as an alias for later lookup
+
+---
+
+## UI Surfaces
+
+- `/patients`
+- `/patients/new`
+- `/patients/[patientId]`
+- `/clinics/[clinicId]/patients/[patientId]`
+- `/claim-record` for patient onboarding when a pending invite exists
+
+---
+
+## Current Gaps
+
+- no dedicated duplicate review queue yet
+- no full cross-clinic patient consolidation workflow yet
+- portal invite delivery automation is still lighter than the rest of the access model

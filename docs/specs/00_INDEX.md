@@ -1,115 +1,68 @@
-⸻
+# Docs Index
 
-/docs/specs/00_INDEX.md
+## Purpose
 
-Purpose
+This index separates current source-of-truth docs from older planning material.
 
-This index defines the authoritative implementation order for Nkwapa EMR v1, the dependency graph, and “definition of done” for each spec. Implementation must be sequential by spec dependency, but agents can run in parallel where indicated.
+Use this file first when you need to answer one of these questions:
 
-v1 Scope
+- What is implemented right now?
+- Which docs are authoritative?
+- Which specs are still useful but no longer current?
 
-v1 clinical scope is Hypertension + Diabetes workflows only.
+---
 
-Non-negotiables
-	•	Multi-clinic RBAC with clinic scoping on every record
-	•	Offline-first PWA with sync
-	•	Audit logs for every write (create/update/approve/export)
-	•	Consent required for research usage
-	•	Director approvals are per-clinic for research export
-	•	System-generated patient ID (human-friendly), globally unique
-	•	National ID stored securely (encrypted + hashed for dedup)
-	•	Docker-first local dev environment
-	•	CI pipeline required (tests + lint + build + migrations validation)
+## Status Labels
 
-Specs and Dependencies
+- `Current`: Matches the live codebase and should be treated as authoritative.
+- `Current with follow-on work`: Matches the shipped implementation, but explicitly calls out known gaps or next additions.
+- `Planning / historical`: Useful context, but not a source of truth for the current repo state.
 
-Phase 0 — Foundation
-	1.	01_ARCHITECTURE_OVERVIEW.md
-Depends on: none
-	2.	18_CI_CD_RELEASE_AND_RUNBOOKS.md (later can be partial early)
-Depends on: 01
+---
 
-Phase 1 — Data model + Auth/RBAC
-	3.	02_DOMAIN_MODEL_AND_DATA_DICTIONARY.md
-Depends on: 01
-	4.	03_AUTH_AND_RBAC.md
-Depends on: 01, 02
+## Current Source-Of-Truth Docs
 
-Phase 2 — Offline-first
-	5.	04_OFFLINE_FIRST_AND_SYNC.md
-Depends on: 01, 02, 03
+| Document                                              | Status                      | Use it for                                                                     |
+| ----------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------ |
+| `IMPLEMENTATION_STATUS.md`                            | Current with follow-on work | Product-wide implementation snapshot and gap map                               |
+| `docs/security-audit-2026-04-04.md`                   | Current                     | Security posture, hardening decisions, and residual risks                      |
+| `docs/FEATURE_GAPS_AND_NEXT_ADDITIONS.md`             | Current                     | Prioritized list of partially completed areas and recommended additions        |
+| `docs/PRIORITIZED_IMPLEMENTATION_PLAN.md`             | Current                     | Phase-based execution roadmap with concrete tickets and sequencing             |
+| `docs/DATABASE_SETUP.md`                              | Current                     | Local/remote DB setup, migrate/generate workflow, pooled vs direct connections |
+| `docs/FEATURE_WORKFLOWS_GUIDE.md`                     | Current with follow-on work | Operator-facing workflow map across staff, admin, and portal surfaces          |
+| `docs/USER_AND_ROLE_SETUP_GUIDE.md`                   | Current                     | How identity, local roles, portal access, and lifecycle setup work             |
+| `docs/USER_TESTING_GUIDE.md`                          | Current with follow-on work | Smoke/UAT checks for the current product surface                               |
+| `docs/specs/01_ARCHITECTURE_OVERVIEW.md`              | Current                     | Repo/runtime architecture and cross-cutting design rules                       |
+| `docs/specs/02_DOMAIN_MODEL_AND_DATA_DICTIONARY.md`   | Current                     | Current schema/domain model and scoping rules                                  |
+| `docs/specs/03_AUTH_AND_RBAC.md`                      | Current                     | Auth, RBAC, permissions, and onboarding model                                  |
+| `docs/specs/04_OFFLINE_FIRST_AND_SYNC.md`             | Current with follow-on work | Current offline scope, sync model, and limitations                             |
+| `docs/specs/06_PATIENTS_MODULE.md`                    | Current with follow-on work | Current patient registry, portal link/invite, and merge behavior               |
+| `docs/clinic-ops/26_RESEARCH_EXPORT_TRANSFORMS_V1.md` | Current                     | Research export pipeline contract and operator notes                           |
 
-Phase 3 — Core v1 Modules
-	6.	06_PATIENTS_MODULE.md
-Depends on: 02, 03, 04
-	7.	CONSENT_AND_RESEARCH_GATING_V1.md
-Depends on: 02, 03, 04, 06
-	8.	HTN_DIABETES_WORKFLOWS_V1.md
-Depends on: 02, 03, 04, 06
-	9.	NOTIFICATIONS_SMS_EMAIL_V1.md
-Depends on: 02, 03, 06, 08
+---
 
-Phase 4 — Research export (de-identified)
-	10.	14_DEIDENTIFICATION_AND_RESEARCH_PIPELINE.md
-Depends on: Consent spec + Domain model + Offline + RBAC
+## Planning / Historical Docs
 
-Parallelization Guidance (Agents)
-	•	Agent A (Infra): Phase 0 + Docker + CI can start immediately.
-	•	Agent B (Auth/RBAC): start after 02 is drafted/merged.
-	•	Agent C (Offline/Sync): start after 03 is merged.
-	•	Agent D (Patients): start after 04 scaffolding is merged.
-	•	Agent E (Consent/Research gating): start after Patients basic endpoints exist.
-	•	Agent F (HTN/DM workflows): start after Patients exists (needs patient_id).
-	•	Agent G (Notifications): start after workflows define reminder events.
+These files are still worth keeping, but they should not be treated as the current contract without cross-checking the live codebase and the docs above.
 
-Definition of Done (DoD) Checklist (for every spec)
-	•	✅ Prisma schema updated + migrations created and applied via Docker Postgres
-	•	✅ API endpoints implemented with RBAC + clinic scoping
-	•	✅ OpenAPI updated (generated or maintained) + contract types updated
-	•	✅ Unit tests for business logic + integration tests for critical endpoints
-	•	✅ Frontend UI flows implemented (if spec includes UI)
-	•	✅ Offline support verified for any create/update flows listed
-	•	✅ Audit logs produced for all writes
-	•	✅ Local run instructions updated (if needed)
+| Document or group                            | Status                                       | Notes                                                                         |
+| -------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------- |
+| `docs/specs/initial_setup.md`                | Planning / historical                        | Old bootstrap artifact; replaced by current setup and architecture docs       |
+| `docs/clinic-ops/20_*.md` through `25_*.md`  | Planning with partial implementation overlap | Useful feature intent docs; some flows are now fully or partially implemented |
+| `docs/clinic-ops/big_picture.md`             | Planning / historical                        | Early product expansion framing                                               |
+| `docs/clinic-ops/build_philosphy.md`         | Planning / historical                        | Early sequencing and design tradeoffs                                         |
+| `docs/clinic-ops/ui_implementation_specs.md` | Planning with partial implementation overlap | UI intent doc; current app has diverged in details                            |
+| `docs/specs/UI_*.md`                         | Planning / historical                        | UI planning notes rather than live product contract                           |
 
+---
 
-⸻
+## Recommended Reading Order
 
-Agent prompts (Prisma-aware)
-
-Agent A — Infra + Prisma bootstrap
-
-Implement monorepo + docker-first local dev:
-- apps/api (NestJS), apps/web (Next.js)
-- packages/db with Prisma schema + migrations
-- docker compose: postgres, redis, keycloak
-- prisma migrate workflow (dev) + seed script
-- GitHub Actions: lint/test/build + prisma migrate deploy dry-run
-Deliver a vertical slice: login token accepted by api + /health endpoint.
-
-Agent DB — Prisma domain model
-
-Implement /docs/specs/02_DOMAIN_MODEL_AND_DATA_DICTIONARY.md using Prisma:
-- Create Prisma schema models with relations, indexes, and enums.
-- Add migrations and seed scripts.
-- Add encryption helpers for national_id_ciphertext and hashing for national_id_hash.
-- Add basic repositories/services for Patient + Encounter.
-
-Agent B — Auth/RBAC
-
-Implement /docs/specs/03_AUTH_AND_RBAC.md:
-- Keycloak local realm setup and export.
-- NestJS JWT verification via JWKS.
-- RBAC guard + clinic scoping guard.
-- Auto-provision User on first login (keycloak sub).
-- Add integration tests for protected endpoints.
-
-Agent C — Offline sync
-
-Implement /docs/specs/04_OFFLINE_FIRST_AND_SYNC.md:
-- Frontend Dexie schema and outbox.
-- Backend /sync/push and /sync/pull with idempotency keys.
-- Conflict handling for patient national_id_hash collisions.
-- Add basic UI for sync status + manual sync.
-
-
+1. `IMPLEMENTATION_STATUS.md`
+2. `docs/specs/01_ARCHITECTURE_OVERVIEW.md`
+3. `docs/specs/02_DOMAIN_MODEL_AND_DATA_DICTIONARY.md`
+4. `docs/specs/03_AUTH_AND_RBAC.md`
+5. `docs/specs/04_OFFLINE_FIRST_AND_SYNC.md`
+6. `docs/FEATURE_WORKFLOWS_GUIDE.md`
+7. `docs/FEATURE_GAPS_AND_NEXT_ADDITIONS.md`
+8. `docs/PRIORITIZED_IMPLEMENTATION_PLAN.md`
