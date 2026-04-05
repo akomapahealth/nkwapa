@@ -120,6 +120,18 @@ Notes:
 - `db:generate` refreshes the Prisma client used by the API.
 - `postinstall` already runs `db:generate`, but rerunning it is safe.
 
+### Note on local Prisma drift migrations
+
+Some migrations in this repo intentionally use raw SQL for performance-oriented indexes such as:
+
+- descending keyset pagination indexes
+- trigram search indexes
+- partial unique active-state indexes
+
+Because Prisma cannot fully model every raw SQL index detail, `prisma migrate dev` may occasionally propose a local follow-up migration, often with a timestamped `*_dev` name, that only drops and recreates those indexes in a simpler form.
+
+Treat those local drift migrations as disposable until they are validated against a clean database. Do not commit them automatically. First confirm whether they represent a real schema change or only Prisma attempting to normalize intentional raw SQL objects.
+
 ---
 
 ## RLS And Runtime Notes
