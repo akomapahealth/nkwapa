@@ -9,6 +9,9 @@ node_modules
 .env.development
 .env.production
 .env.test
+.envrc
+*.secret
+*.secrets.*
 
 # Build outputs
 dist
@@ -31,6 +34,16 @@ yarn-error.log*
 # OS
 .DS_Store
 Thumbs.db
+
+# Certificates / keys
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+id_rsa
+id_ed25519
 
 # IDE (optional: remove .vscode if you commit workspace settings)
 .idea

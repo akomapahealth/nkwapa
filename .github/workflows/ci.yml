@@ -130,7 +130,7 @@ jobs:
   # Security audit
   # ──────────────────────────────────────────────
   security:
-    name: Security Audit
+    name: Security Checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -142,7 +142,10 @@ jobs:
 
       - run: npm ci
 
-      - name: npm audit
+      - name: Secret and sensitive-file scan
+        run: npm run security:scan
+
+      - name: npm audit (advisory)
         run: npm audit --audit-level=moderate || true
 
   # ──────────────────────────────────────────────

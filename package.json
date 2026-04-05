@@ -11,6 +11,8 @@
     "db:migrate:deploy": "prisma migrate deploy --schema=packages/db/prisma/schema.prisma",
     "db:seed": "ts-node --transpile-only packages/db/prisma/seed.ts",
     "db:assign-system-admin": "ts-node --transpile-only packages/db/prisma/assign-system-admin.ts",
+    "security:scan": "node scripts/check-secrets.mjs",
+    "security:scan:staged": "node scripts/check-secrets.mjs --staged",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
