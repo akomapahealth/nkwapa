@@ -61,6 +61,9 @@ export const PERMISSIONS = {
   PATIENT_SELF_REPORT_READ: 'PATIENT.SELF_REPORT.READ',
   // Admin: link patient to portal user
   PATIENT_PORTAL_LINK: 'PATIENT.PORTAL.LINK',
+  // Chat
+  CHAT_SEND: 'CHAT.SEND',
+  CHAT_READ: 'CHAT.READ',
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -93,6 +96,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     PERMISSIONS.SYNC_PUSH,
     PERMISSIONS.SYNC_PULL,
     PERMISSIONS.DASHBOARD_READ,
+    PERMISSIONS.CHAT_SEND,
+    PERMISSIONS.CHAT_READ,
   ],
   [UserRole.MANAGER]: [
     PERMISSIONS.CLINIC_READ,
@@ -120,6 +125,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     PERMISSIONS.SYNC_PUSH,
     PERMISSIONS.SYNC_PULL,
     PERMISSIONS.DASHBOARD_READ,
+    PERMISSIONS.CHAT_SEND,
+    PERMISSIONS.CHAT_READ,
   ],
   [UserRole.DOCTOR]: [
     PERMISSIONS.PATIENT_READ,
@@ -145,6 +152,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     PERMISSIONS.SYNC_PUSH,
     PERMISSIONS.SYNC_PULL,
     PERMISSIONS.DASHBOARD_READ,
+    PERMISSIONS.CHAT_SEND,
+    PERMISSIONS.CHAT_READ,
   ],
   [UserRole.PRECEPTOR]: [
     PERMISSIONS.PATIENT_READ,
@@ -163,6 +172,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     PERMISSIONS.SYNC_PUSH,
     PERMISSIONS.SYNC_PULL,
     PERMISSIONS.DASHBOARD_READ,
+    PERMISSIONS.CHAT_SEND,
+    PERMISSIONS.CHAT_READ,
   ],
   [UserRole.VOLUNTEER]: [
     PERMISSIONS.PATIENT_READ,
@@ -182,6 +193,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     PERMISSIONS.SYNC_PULL,
     PERMISSIONS.DASHBOARD_READ,
     PERMISSIONS.PATIENT_SELF_REPORT_READ,
+    PERMISSIONS.CHAT_SEND,
+    PERMISSIONS.CHAT_READ,
   ],
   [UserRole.PATIENT]: [
     PERMISSIONS.PATIENT_PORTAL_READ_SELF,
@@ -189,10 +202,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   ],
 };
 
-export function hasPermission(
-  userRoles: { role: UserRole }[],
-  required: string
-): boolean {
+export function hasPermission(userRoles: { role: UserRole }[], required: string): boolean {
   for (const { role } of userRoles) {
     const perms = ROLE_PERMISSIONS[role];
     if (perms.includes('*') || perms.includes(required)) {

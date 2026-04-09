@@ -1,7 +1,14 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { apiFetch, getErrorMessage, type GetToken, readApiError } from './api';
+import {
+  apiFetch,
+  getErrorMessage,
+  markBootstrapResolved,
+  resetBootstrapResolved,
+  type GetToken,
+  readApiError,
+} from './api';
 import { getStoredActiveClinicId, setStoredActiveClinicId } from './bootstrap-storage';
 
 export { BOOTSTRAP_STORAGE_KEY } from './bootstrap-storage';
@@ -93,6 +100,8 @@ export function BootstrapProvider({
       if (!token) {
         setBootstrap(null);
         setErrorCode(null);
+        resetBootstrapResolved();
+        setStoredActiveClinicId(null);
         return;
       }
 
@@ -101,6 +110,8 @@ export function BootstrapProvider({
         Authorization: `Bearer ${token}`,
       };
       if (storedClinicId) {
+        // Hint the server with our last-selected clinic. If it turns out to
+        // be stale, we'll reconcile against memberships below.
         headers['X-Clinic-Id'] = storedClinicId;
       }
       const res = await apiFetch('/auth/whoami', {
@@ -116,9 +127,24 @@ export function BootstrapProvider({
       setBootstrap(data);
       setErrorCode(null);
 
-      if (data.activeClinicId) {
-        setStoredActiveClinicId(data.activeClinicId);
+      // Reconcile the stored active clinic id against the server's truth.
+      // The server only returns an activeClinicId the user actually has
+      // access to, so we always mirror it back to localStorage (even when
+      // null), and clear any stale override state.
+      const membershipIds = new Set(data.memberships.map((m) => m.clinicId));
+      const isSystemAdmin = data.globalRoles.includes('SYSTEM_ADMIN');
+      const storedIsValid =
+        !!storedClinicId && (isSystemAdmin || membershipIds.has(storedClinicId));
+
+      if (!storedIsValid && storedClinicId) {
+        // Stale value from a prior session (e.g. after a DB reseed or an
+        // access-revocation) — drop it so subsequent requests don't send
+        // a ghost clinic id in X-Clinic-Id.
+        setActiveClinicIdOverride(undefined);
       }
+
+      setStoredActiveClinicId(data.activeClinicId ?? null);
+      markBootstrapResolved();
     } catch (e) {
       const nextError = e instanceof Error ? e : new Error(String(e));
       const nextCode =

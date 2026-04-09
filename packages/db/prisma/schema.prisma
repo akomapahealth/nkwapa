@@ -155,6 +155,17 @@ enum NationalIdType {
   OTHER
 }
 
+enum ConversationType {
+  DIRECT
+  GROUP
+}
+
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+}
+
 enum SyncOperation {
   UPSERT
   DELETE
@@ -217,6 +228,8 @@ model Clinic {
   appointmentRequests    AppointmentRequest[]
   appointments           Appointment[]
   patientPortalInvites   PatientPortalInvite[]
+  conversations          Conversation[]
+  chatMessages           Message[]
 
   @@unique([organizationId, locationCode])
   @@index([organizationId])
@@ -265,6 +278,8 @@ model User {
   createdPatientPortalInvites   PatientPortalInvite[]    @relation("PatientPortalInviteCreatedBy")
   claimedPatientPortalInvites   PatientPortalInvite[]    @relation("PatientPortalInviteClaimedBy")
   mergedPatients                Patient[]                @relation("PatientMergedBy")
+  conversationParticipants      ConversationParticipant[]
+  sentMessages                  Message[]                @relation("MessageSender")
 
   @@index([isActive])
 }
@@ -885,6 +900,58 @@ model SyncMutation {
   @@unique([clinicId, idempotencyKey])
   @@index([clinicId])
   @@index([clinicId, createdAt, id])
+}
+
+model Conversation {
+  id       String           @id @default(uuid()) @db.Uuid
+  clinicId String           @db.Uuid
+  type     ConversationType @default(DIRECT)
+  title    String?          @db.VarChar(200)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clinic       Clinic                  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@index([clinicId, updatedAt])
+}
+
+model ConversationParticipant {
+  id             String    @id @default(uuid()) @db.Uuid
+  conversationId String    @db.Uuid
+  userId         String    @db.Uuid
+  joinedAt       DateTime  @default(now())
+  lastReadAt     DateTime?
+  isActive       Boolean   @default(true)
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId, isActive])
+  @@index([conversationId])
+}
+
+model Message {
+  id             String        @id @default(uuid()) @db.Uuid
+  conversationId String        @db.Uuid
+  senderUserId   String        @db.Uuid
+  clinicId       String        @db.Uuid
+  content        String        @db.Text
+  encrypted      Boolean       @default(false)
+  status         MessageStatus @default(SENT)
+
+  createdAt DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation("MessageSender", fields: [senderUserId], references: [id], onDelete: Cascade)
+  clinic       Clinic       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([clinicId, createdAt])
+  @@index([senderUserId])
 }
 
 model PatientCodeSequence {

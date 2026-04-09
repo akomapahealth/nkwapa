@@ -1,33 +1,34 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { Header } from "@/components/Header";
-import { Sidebar } from "@/components/Sidebar";
+import { useEffect, useState } from 'react';
+import { Header } from '@/components/Header';
+import { Sidebar } from '@/components/Sidebar';
+import { ChatWidget } from '@/components/chat/ChatWidget';
 
-const SIDEBAR_STORAGE_KEY = "nkwapa.sidebar.collapsed";
+const SIDEBAR_STORAGE_KEY = 'nkwapa.sidebar.collapsed';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
+    if (typeof window === 'undefined') {
       return;
     }
 
     const stored = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
     if (stored != null) {
-      setSidebarCollapsed(stored === "true");
+      setSidebarCollapsed(stored === 'true');
       return;
     }
 
-    if (window.matchMedia("(max-width: 1280px)").matches) {
+    if (window.matchMedia('(max-width: 1280px)').matches) {
       setSidebarCollapsed(true);
     }
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
+    if (typeof window === 'undefined') {
       return;
     }
     window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(sidebarCollapsed));
@@ -49,6 +50,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </main>
         </div>
       </div>
+      <ChatWidget />
     </div>
   );
 }

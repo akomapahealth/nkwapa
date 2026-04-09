@@ -1,7 +1,33 @@
-import { getStoredActiveClinicId } from './bootstrap-storage';
+import { getStoredActiveClinicId, setStoredActiveClinicId } from './bootstrap-storage';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
 const DEFAULT_TIMEOUT_MS = 12000;
+
+// Tracks whether bootstrap (/auth/whoami) has validated the stored active
+// clinic id at least once in this session. Until it has, apiFetch will not
+// auto-attach a possibly-stale X-Clinic-Id header from localStorage.
+let bootstrapResolved = false;
+
+export function markBootstrapResolved(): void {
+  bootstrapResolved = true;
+}
+
+export function isBootstrapResolved(): boolean {
+  return bootstrapResolved;
+}
+
+export function resetBootstrapResolved(): void {
+  bootstrapResolved = false;
+}
+
+/**
+ * Clears any locally-stored active clinic id. Used for self-healing when the
+ * server reports the stored id is no longer valid (e.g. clinic was deleted
+ * or user no longer has access after a DB reseed).
+ */
+export function clearStaleActiveClinic(): void {
+  setStoredActiveClinicId(null);
+}
 
 export type GetToken = () => Promise<string | null>;
 
@@ -174,10 +200,14 @@ export async function apiFetch(path: string, options: ApiFetchOptions = {}): Pro
     if (token) headers.set('Authorization', `Bearer ${token}`);
   }
   if (!skipClinicHeader) {
+    // Prefer the caller's explicit value. Only fall back to the stored
+    // active clinic id once bootstrap has confirmed it is valid for this
+    // session — otherwise a stale value from a prior session (e.g. after a
+    // DB reseed) could attach to every request and produce spurious 404s.
     const clinicId =
       explicitClinicId !== undefined
         ? explicitClinicId
-        : typeof window !== 'undefined'
+        : typeof window !== 'undefined' && bootstrapResolved
           ? getStoredActiveClinicId()
           : null;
     if (clinicId) {

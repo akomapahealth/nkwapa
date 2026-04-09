@@ -18,6 +18,7 @@ import { PrescriptionModule } from './prescriptions/prescription.module';
 import { ResearchModule } from './research/research.module';
 import { PatientPortalModule } from './patient-portal/patient-portal.module';
 import { OpsModule } from './ops/ops.module';
+import { ChatModule } from './chat/chat.module';
 import { CorrelationIdMiddleware } from './common/correlation-id.middleware';
 import { RequestLoggerMiddleware } from './common/request-logger.middleware';
 import { SecurityHeadersMiddleware } from './common/security-headers.middleware';
@@ -48,6 +49,7 @@ const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
     ResearchModule,
     PatientPortalModule,
     OpsModule,
+    ChatModule,
   ],
   providers: [RateLimitGuard],
 })
