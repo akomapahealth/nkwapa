@@ -1,45 +1,44 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useBootstrap } from "@/lib/bootstrap-context";
-import { Header } from "@/components/Header";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useBootstrap } from '@/lib/bootstrap-context';
+import { Header } from '@/components/Header';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 const navItems = [
   {
-    href: "/portal",
-    label: "Overview",
-    matches: (pathname: string) => pathname === "/portal",
+    href: '/portal',
+    label: 'Overview',
+    matches: (pathname: string) => pathname === '/portal',
   },
   {
-    href: "/portal/health",
-    label: "My Health",
+    href: '/portal/health',
+    label: 'My Health',
     matches: (pathname: string) =>
-      pathname.startsWith("/portal/health") || pathname.startsWith("/portal/self-reports"),
+      pathname.startsWith('/portal/health') || pathname.startsWith('/portal/self-reports'),
   },
   {
-    href: "/portal/appointments",
-    label: "Appointments",
-    matches: (pathname: string) => pathname.startsWith("/portal/appointments"),
+    href: '/portal/appointments',
+    label: 'Appointments',
+    matches: (pathname: string) => pathname.startsWith('/portal/appointments'),
   },
   {
-    href: "/portal/appointments/request",
-    label: "Request Visit",
-    matches: (pathname: string) => pathname === "/portal/appointments/request",
+    href: '/portal/appointments/request',
+    label: 'Request Visit',
+    matches: (pathname: string) => pathname === '/portal/appointments/request',
   },
 ] as const;
 
 export function PortalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const bootstrap = useBootstrap()?.bootstrap ?? null;
-  const activeClinicId =
-    bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
+  const activeClinicId = bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
   const activeClinic = bootstrap?.memberships.find(
-    (membership) => membership.clinicId === activeClinicId
+    (membership) => membership.clinicId === activeClinicId,
   );
-  const displayName = bootstrap?.displayName ?? "Patient";
+  const displayName = bootstrap?.displayName ?? 'Patient';
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -58,10 +57,11 @@ export function PortalLayout({ children }: { children: React.ReactNode }) {
                       </p>
                       <div className="space-y-1">
                         <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
-                          Welcome back, {displayName.split(" ")[0]}
+                          Welcome back, {displayName.split(' ')[0]}
                         </h1>
                         <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
-                          Track your readings, review your care plan, and stay on top of upcoming visits in one place.
+                          Track your readings, review your care plan, and stay on top of upcoming
+                          visits in one place.
                         </p>
                       </div>
                     </div>
@@ -70,7 +70,10 @@ export function PortalLayout({ children }: { children: React.ReactNode }) {
                         Secure patient access
                       </Badge>
                       {activeClinic?.clinicName && (
-                        <Badge variant="outline" className="rounded-full bg-background/70 px-3 py-1">
+                        <Badge
+                          variant="outline"
+                          className="rounded-full bg-background/70 px-3 py-1"
+                        >
                           {activeClinic.clinicName}
                         </Badge>
                       )}
@@ -84,10 +87,10 @@ export function PortalLayout({ children }: { children: React.ReactNode }) {
                           key={item.href}
                           href={item.href}
                           className={cn(
-                            "rounded-full border px-4 py-2 text-sm font-medium transition-all",
+                            'rounded-full border px-4 py-2 text-sm font-medium transition-all',
                             active
-                              ? "border-primary bg-primary text-primary-foreground shadow"
-                              : "border-border/70 bg-background/80 text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                              ? 'border-primary bg-primary text-primary-foreground shadow'
+                              : 'border-border/70 bg-background/80 text-muted-foreground hover:border-primary/40 hover:text-foreground',
                           )}
                         >
                           {item.label}

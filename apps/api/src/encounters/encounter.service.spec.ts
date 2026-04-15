@@ -97,7 +97,7 @@ describe('EncounterService', () => {
       expect.objectContaining({
         action: 'CHECKIN.STATUS.UPDATE',
         entityId: 'checkin-1',
-      })
+      }),
     );
   });
 });

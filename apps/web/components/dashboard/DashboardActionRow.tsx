@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import type { LucideIcon } from "lucide-react";
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import type { LucideIcon } from 'lucide-react';
 
 interface Action {
   href: string;

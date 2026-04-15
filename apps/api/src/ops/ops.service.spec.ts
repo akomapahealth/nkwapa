@@ -1,9 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { OpsService } from './ops.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -18,22 +14,24 @@ function createPrismaMock() {
       findMany: jest.fn().mockResolvedValue([]),
     },
     staffShift: {
-      findFirst: jest.fn().mockImplementation(async (args?: { where?: { roleAtShift?: string } }) => {
-        if (args?.where?.roleAtShift) {
-          return {
-            id: 'shift-role-1',
-            clinicId: 'clinic-1',
-            userId: 'user-1',
-            roleAtShift: args.where.roleAtShift,
-            checkedInAt: new Date('2026-03-21T08:00:00.000Z'),
-            checkedOutAt: null,
-            status: 'ACTIVE',
-            notes: null,
-            user: { id: 'user-1', displayName: 'Volunteer One' },
-          };
-        }
-        return null;
-      }),
+      findFirst: jest
+        .fn()
+        .mockImplementation(async (args?: { where?: { roleAtShift?: string } }) => {
+          if (args?.where?.roleAtShift) {
+            return {
+              id: 'shift-role-1',
+              clinicId: 'clinic-1',
+              userId: 'user-1',
+              roleAtShift: args.where.roleAtShift,
+              checkedInAt: new Date('2026-03-21T08:00:00.000Z'),
+              checkedOutAt: null,
+              status: 'ACTIVE',
+              notes: null,
+              user: { id: 'user-1', displayName: 'Volunteer One' },
+            };
+          }
+          return null;
+        }),
       create: jest.fn().mockResolvedValue({
         id: 'shift-1',
         clinicId: 'clinic-1',
@@ -218,7 +216,9 @@ function createPrismaMock() {
     $transaction: jest.fn(),
   };
 
-  prisma.$transaction.mockImplementation(async (callback: (tx: typeof prisma) => unknown) => callback(prisma));
+  prisma.$transaction.mockImplementation(async (callback: (tx: typeof prisma) => unknown) =>
+    callback(prisma),
+  );
   return prisma;
 }
 
@@ -247,13 +247,13 @@ describe('OpsService', () => {
       'clinic-1',
       'user-1',
       { roleAtShift: 'VOLUNTEER' as const },
-      'req-1'
+      'req-1',
     );
 
     expect(result.id).toBe('shift-1');
     expect(prisma.staffShift.create).toHaveBeenCalled();
     expect(auditService.logWrite).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'SHIFT.CHECKIN', entityId: 'shift-1' })
+      expect.objectContaining({ action: 'SHIFT.CHECKIN', entityId: 'shift-1' }),
     );
   });
 
@@ -271,7 +271,7 @@ describe('OpsService', () => {
     });
 
     await expect(
-      service.checkIn('clinic-1', 'user-1', { roleAtShift: 'VOLUNTEER' as const }, 'req-1')
+      service.checkIn('clinic-1', 'user-1', { roleAtShift: 'VOLUNTEER' as const }, 'req-1'),
     ).rejects.toThrow(ConflictException);
   });
 
@@ -279,7 +279,7 @@ describe('OpsService', () => {
     prisma.userClinicRole.findFirst.mockResolvedValueOnce(null);
 
     await expect(
-      service.checkIn('clinic-1', 'user-1', { roleAtShift: 'MANAGER' as const }, 'req-1')
+      service.checkIn('clinic-1', 'user-1', { roleAtShift: 'MANAGER' as const }, 'req-1'),
     ).rejects.toThrow(ForbiddenException);
   });
 
@@ -290,7 +290,7 @@ describe('OpsService', () => {
     expect(prisma.staffShift.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'shift-1' },
-      })
+      }),
     );
   });
 
@@ -299,13 +299,13 @@ describe('OpsService', () => {
       'clinic-1',
       'user-1',
       { patientId: 'patient-1' },
-      'req-1'
+      'req-1',
     );
 
     expect(result.status).toBe('WAITING');
     expect(prisma.patientCheckIn.create).toHaveBeenCalled();
     expect(auditService.logWrite).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'CHECKIN.CREATE', entityId: 'checkin-1' })
+      expect.objectContaining({ action: 'CHECKIN.CREATE', entityId: 'checkin-1' }),
     );
   });
 
@@ -333,8 +333,8 @@ describe('OpsService', () => {
           assignedVolunteerId: 'user-1',
           assignedDoctorId: 'doctor-1',
         },
-        'req-1'
-      )
+        'req-1',
+      ),
     ).rejects.toThrow(BadRequestException);
   });
 
@@ -366,8 +366,8 @@ describe('OpsService', () => {
           assignedVolunteerId: 'user-1',
           assignedDoctorId: 'doctor-1',
         },
-        'req-1'
-      )
+        'req-1',
+      ),
     ).rejects.toThrow(ConflictException);
   });
 
@@ -381,19 +381,19 @@ describe('OpsService', () => {
         assignedDoctorId: 'doctor-1',
         reason: 'Load balancing',
       },
-      'req-1'
+      'req-1',
     );
 
     expect(prisma.patientAssignment.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'assignment-1' },
         data: expect.objectContaining({ status: 'REASSIGNED', reason: 'Load balancing' }),
-      })
+      }),
     );
     expect(prisma.patientAssignment.create).toHaveBeenCalled();
     expect(result.id).toBe('assignment-1');
     expect(auditService.logWrite).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'ASSIGNMENT.REASSIGN' })
+      expect.objectContaining({ action: 'ASSIGNMENT.REASSIGN' }),
     );
   });
 
@@ -408,7 +408,7 @@ describe('OpsService', () => {
           status: 'DRAFT',
           createdByUserId: 'user-1',
         }),
-      })
+      }),
     );
     expect(prisma.patientCheckIn.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -417,11 +417,11 @@ describe('OpsService', () => {
           encounterId: 'enc-1',
           status: 'IN_PROGRESS',
         }),
-      })
+      }),
     );
     expect(result.encounter.id).toBe('enc-1');
     expect(auditService.logWrite).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'CHECKIN.START_INTAKE', entityId: 'checkin-1' })
+      expect.objectContaining({ action: 'CHECKIN.START_INTAKE', entityId: 'checkin-1' }),
     );
   });
 });

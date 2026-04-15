@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  Query,
-  Request,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Request, UseGuards } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ClinicScopeGuard } from '../auth/guards/clinic-scope.guard';
@@ -34,10 +25,7 @@ export class ClinicAppointmentRequestsController {
     @Param('clinicId') clinicId: string,
     @Query() query: ListAppointmentRequestsQueryDto,
   ) {
-    return this.patientPortalService.listAppointmentRequestsForClinic(
-      clinicId,
-      query,
-    );
+    return this.patientPortalService.listAppointmentRequestsForClinic(clinicId, query);
   }
 
   @Post(':requestId/confirm')

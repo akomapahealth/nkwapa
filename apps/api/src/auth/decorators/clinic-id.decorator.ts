@@ -5,5 +5,5 @@ export const ClinicId = createParamDecorator(
     const request = ctx.switchToHttp().getRequest();
     const key = paramKey ?? 'clinicId';
     return request.params?.[key] ?? request.body?.[key] ?? request.query?.[key];
-  }
+  },
 );

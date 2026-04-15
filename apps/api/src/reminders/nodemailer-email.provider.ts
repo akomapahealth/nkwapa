@@ -1,5 +1,5 @@
-import { createTransport, type Transporter } from "nodemailer";
-import type { EmailProvider, EmailSendResult } from "./email-provider.interface";
+import { createTransport, type Transporter } from 'nodemailer';
+import type { EmailProvider, EmailSendResult } from './email-provider.interface';
 
 export class NodemailerEmailProvider implements EmailProvider {
   private readonly transporter: Transporter;
@@ -7,14 +7,14 @@ export class NodemailerEmailProvider implements EmailProvider {
 
   constructor() {
     const host = process.env.SMTP_HOST;
-    const port = parseInt(process.env.SMTP_PORT ?? "587", 10);
+    const port = parseInt(process.env.SMTP_PORT ?? '587', 10);
     const user = process.env.SMTP_USER;
     const pass = process.env.SMTP_PASS;
     const from = process.env.EMAIL_FROM;
 
     if (!host || !user || !pass || !from) {
       throw new Error(
-        "Missing email config: SMTP_HOST, SMTP_USER, SMTP_PASS, and EMAIL_FROM are required"
+        'Missing email config: SMTP_HOST, SMTP_USER, SMTP_PASS, and EMAIL_FROM are required',
       );
     }
 

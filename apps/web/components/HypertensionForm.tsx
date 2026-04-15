@@ -1,41 +1,34 @@
-"use client";
+'use client';
 
-import { useState, useCallback, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { useState, useCallback, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { db } from "@/lib/db";
-import { enqueueOutboxMutation } from "@/lib/outbox";
-import { SYNC_OPERATION } from "@/lib/outbox";
+} from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { db } from '@/lib/db';
+import { enqueueOutboxMutation } from '@/lib/outbox';
+import { SYNC_OPERATION } from '@/lib/outbox';
 
 function generateId(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
   }
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
 }
 
-const CLASSIFICATIONS = [
-  "NORMAL",
-  "ELEVATED",
-  "STAGE1",
-  "STAGE2",
-  "CRISIS",
-  "UNKNOWN",
-] as const;
+const CLASSIFICATIONS = ['NORMAL', 'ELEVATED', 'STAGE1', 'STAGE2', 'CRISIS', 'UNKNOWN'] as const;
 
 interface HypertensionFormProps {
   clinicId: string;
@@ -59,11 +52,11 @@ export function HypertensionForm({
   saveRef,
 }: HypertensionFormProps) {
   const [classification, setClassification] = useState<string>(
-    initialData?.classification ?? "UNKNOWN"
+    initialData?.classification ?? 'UNKNOWN',
   );
   const [suspected, setSuspected] = useState(initialData?.suspected ?? false);
   const [confirmed, setConfirmed] = useState(initialData?.confirmed ?? false);
-  const [notes, setNotes] = useState<string>(initialData?.notes ?? "");
+  const [notes, setNotes] = useState<string>(initialData?.notes ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,11 +69,9 @@ export function HypertensionForm({
     const payload = {
       encounterId,
       clinicId,
-      classification: CLASSIFICATIONS.includes(
-        classification as (typeof CLASSIFICATIONS)[number]
-      )
+      classification: CLASSIFICATIONS.includes(classification as (typeof CLASSIFICATIONS)[number])
         ? classification
-        : "UNKNOWN",
+        : 'UNKNOWN',
       suspected,
       confirmed,
       notes: notes.trim() || null,
@@ -102,14 +93,14 @@ export function HypertensionForm({
       await db.hypertension_assessments.put(record);
       await enqueueOutboxMutation(db, {
         clinicId,
-        entityType: "hypertension_assessment",
+        entityType: 'hypertension_assessment',
         entityId: assessmentId,
         operation: SYNC_OPERATION.UPSERT,
         payloadJson: payload,
       });
       onSaved?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save assessment");
+      setError(err instanceof Error ? err.message : 'Failed to save assessment');
     } finally {
       setSaving(false);
     }
@@ -176,7 +167,7 @@ export function HypertensionForm({
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
         <Button onClick={handleSave} disabled={saving}>
-          {saving ? "Saving…" : "Save Assessment"}
+          {saving ? 'Saving…' : 'Save Assessment'}
         </Button>
       </CardContent>
     </Card>

@@ -43,13 +43,13 @@ export class OpsController {
     req: {
       user: ReqUserWithRoles;
       headers?: { 'x-request-id'?: string };
-    }
+    },
   ) {
     return this.opsService.checkIn(
       clinicId,
       req.user.user.id,
       body,
-      req.headers?.['x-request-id'] ?? randomUUID()
+      req.headers?.['x-request-id'] ?? randomUUID(),
     );
   }
 
@@ -63,23 +63,20 @@ export class OpsController {
     req: {
       user: ReqUserWithRoles;
       headers?: { 'x-request-id'?: string };
-    }
+    },
   ) {
     return this.opsService.checkOut(
       clinicId,
       shiftId,
       req.user.user.id,
-      req.headers?.['x-request-id'] ?? randomUUID()
+      req.headers?.['x-request-id'] ?? randomUUID(),
     );
   }
 
   @Get('shifts/active')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.OPS_SHIFT_READ)
-  async getActiveShifts(
-    @Param('clinicId') clinicId: string,
-    @Query() query: ActiveShiftsQueryDto
-  ) {
+  async getActiveShifts(@Param('clinicId') clinicId: string, @Query() query: ActiveShiftsQueryDto) {
     return this.opsService.getActiveShifts(clinicId, query.date);
   }
 
@@ -93,23 +90,20 @@ export class OpsController {
     req: {
       user: ReqUserWithRoles;
       headers?: { 'x-request-id'?: string };
-    }
+    },
   ) {
     return this.opsService.createCheckIn(
       clinicId,
       req.user.user.id,
       body,
-      req.headers?.['x-request-id'] ?? randomUUID()
+      req.headers?.['x-request-id'] ?? randomUUID(),
     );
   }
 
   @Get('checkins')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.OPS_CHECKIN_READ)
-  async listCheckIns(
-    @Param('clinicId') clinicId: string,
-    @Query() query: ListCheckInsQueryDto
-  ) {
+  async listCheckIns(@Param('clinicId') clinicId: string, @Query() query: ListCheckInsQueryDto) {
     return this.opsService.listCheckIns(clinicId, query);
   }
 
@@ -123,13 +117,13 @@ export class OpsController {
     req: {
       user: ReqUserWithRoles;
       headers?: { 'x-request-id'?: string };
-    }
+    },
   ) {
     return this.opsService.createAssignment(
       clinicId,
       req.user.user.id,
       body,
-      req.headers?.['x-request-id'] ?? randomUUID()
+      req.headers?.['x-request-id'] ?? randomUUID(),
     );
   }
 
@@ -144,14 +138,14 @@ export class OpsController {
     req: {
       user: ReqUserWithRoles;
       headers?: { 'x-request-id'?: string };
-    }
+    },
   ) {
     return this.opsService.reassignAssignment(
       clinicId,
       assignmentId,
       req.user.user.id,
       body,
-      req.headers?.['x-request-id'] ?? randomUUID()
+      req.headers?.['x-request-id'] ?? randomUUID(),
     );
   }
 
@@ -160,7 +154,7 @@ export class OpsController {
   @RequirePermission(PERMISSIONS.OPS_CHECKIN_READ)
   async listAssignments(
     @Param('clinicId') clinicId: string,
-    @Query() query: ListAssignmentsQueryDto
+    @Query() query: ListAssignmentsQueryDto,
   ) {
     return this.opsService.listAssignments(clinicId, query);
   }
@@ -171,13 +165,9 @@ export class OpsController {
   async listMyAssignments(
     @Param('clinicId') clinicId: string,
     @Query() query: ListMyAssignmentsQueryDto,
-    @Request() req: { user: ReqUserWithRoles }
+    @Request() req: { user: ReqUserWithRoles },
   ) {
-    return this.opsService.listMyAssignments(
-      clinicId,
-      req.user.user.id,
-      query.date
-    );
+    return this.opsService.listMyAssignments(clinicId, req.user.user.id, query.date);
   }
 
   @Post('checkins/:checkinId/start-intake')
@@ -190,13 +180,13 @@ export class OpsController {
     req: {
       user: ReqUserWithRoles;
       headers?: { 'x-request-id'?: string };
-    }
+    },
   ) {
     return this.opsService.startIntake(
       clinicId,
       checkinId,
       req.user.user.id,
-      req.headers?.['x-request-id'] ?? randomUUID()
+      req.headers?.['x-request-id'] ?? randomUUID(),
     );
   }
 }

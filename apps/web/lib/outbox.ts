@@ -5,8 +5,7 @@ export const SYNC_OPERATION = {
   DELETE: 'DELETE',
 } as const;
 
-export type SyncOperationType =
-  (typeof SYNC_OPERATION)[keyof typeof SYNC_OPERATION];
+export type SyncOperationType = (typeof SYNC_OPERATION)[keyof typeof SYNC_OPERATION];
 
 export interface OutboxMutationParams {
   clinicId: string;
@@ -65,7 +64,7 @@ export function buildOutboxMutation(params: OutboxMutationParams): OutboxRecordS
  */
 export async function enqueueOutboxMutation(
   dbInstance: NkwapaDb,
-  params: OutboxMutationParams
+  params: OutboxMutationParams,
 ): Promise<OutboxRecordShape> {
   const record = buildOutboxMutation(params);
   await dbInstance.outbox.add(record);

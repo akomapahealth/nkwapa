@@ -1,28 +1,18 @@
-"use client";
-
-import { useKeycloak } from "@/app/KeycloakProvider";
-import { trackEvent } from "@/lib/analytics";
+'use client';
 
 const navLinks = [
-  { label: "Product", href: "#product" },
-  { label: "Workflow", href: "#workflow" },
-  { label: "Story", href: "#our-story" },
-  { label: "Impact", href: "#impact" },
+  { label: 'Product', href: '#product' },
+  { label: 'Workflow', href: '#workflow' },
+  { label: 'Story', href: '#our-story' },
+  { label: 'Impact', href: '#impact' },
 ];
 
 export function LandingNav() {
-  const { login } = useKeycloak() ?? {};
-
   const handleAnchor = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
     e.preventDefault();
-    const id = href.replace("#", "");
+    const id = href.replace('#', '');
     const el = document.getElementById(id);
-    if (el) el.scrollIntoView({ behavior: "smooth" });
-  };
-
-  const handleSignIn = () => {
-    trackEvent({ name: "landing_cta_sign_in", properties: { source: "nav" } });
-    login?.();
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
@@ -48,13 +38,13 @@ export function LandingNav() {
           ))}
         </div>
 
-        <button
-          type="button"
-          onClick={handleSignIn}
+        <a
+          href="#workflow"
+          onClick={(e) => handleAnchor(e, '#workflow')}
           className="cursor-pointer rounded-full bg-primary px-5 py-2 font-landing-nav text-sm font-semibold text-primary-foreground shadow-sm transition-colors duration-200 hover:bg-primary/90"
         >
-          Sign in
-        </button>
+          See workflow
+        </a>
       </nav>
     </div>
   );

@@ -1,17 +1,11 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import {
-  Activity,
-  ArrowLeft,
-  HeartPulse,
-  Scale,
-  Syringe,
-} from "lucide-react";
-import { useAuth } from "@/lib/auth-context";
-import { useBootstrap } from "@/lib/bootstrap-context";
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
+import { Activity, ArrowLeft, HeartPulse, Scale, Syringe } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
+import { useBootstrap } from '@/lib/bootstrap-context';
 import {
   createMeasurement,
   fetchMeasurements,
@@ -21,46 +15,40 @@ import {
   getPortalClinicName,
   measurementTypeFromPreset,
   type MeasurementRecord,
-} from "@/lib/patient-portal";
-import { cn } from "@/lib/utils";
-import { RouteGuard } from "@/components/RouteGuard";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from '@/lib/patient-portal';
+import { cn } from '@/lib/utils';
+import { RouteGuard } from '@/components/RouteGuard';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
 const MEASUREMENT_OPTIONS = [
   {
-    value: "BP" as const,
-    label: "Blood pressure",
-    description: "Track systolic and diastolic values from home.",
+    value: 'BP' as const,
+    label: 'Blood pressure',
+    description: 'Track systolic and diastolic values from home.',
     icon: HeartPulse,
   },
   {
-    value: "GLUCOSE" as const,
-    label: "Glucose",
-    description: "Share fasting or random blood sugar readings.",
+    value: 'GLUCOSE' as const,
+    label: 'Glucose',
+    description: 'Share fasting or random blood sugar readings.',
     icon: Syringe,
   },
   {
-    value: "WEIGHT" as const,
-    label: "Weight",
-    description: "Capture weight trends between clinic visits.",
+    value: 'WEIGHT' as const,
+    label: 'Weight',
+    description: 'Capture weight trends between clinic visits.',
     icon: Scale,
   },
 ] as const;
@@ -70,14 +58,14 @@ function toLocalDateTimeValue(date: Date) {
   return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 16);
 }
 
-function getTypeTips(type: MeasurementRecord["type"]) {
+function getTypeTips(type: MeasurementRecord['type']) {
   switch (type) {
-    case "BP":
-      return "Sit quietly for a few minutes first and enter both numbers from the same reading.";
-    case "GLUCOSE":
-      return "Choose whether the value was fasting or random so your clinic can interpret it correctly.";
-    case "WEIGHT":
-      return "Use the same scale when possible to keep your trend consistent over time.";
+    case 'BP':
+      return 'Sit quietly for a few minutes first and enter both numbers from the same reading.';
+    case 'GLUCOSE':
+      return 'Choose whether the value was fasting or random so your clinic can interpret it correctly.';
+    case 'WEIGHT':
+      return 'Use the same scale when possible to keep your trend consistent over time.';
   }
 }
 
@@ -89,27 +77,22 @@ export function MeasurementComposerScreen() {
   const clinicId = getPortalClinicId(bootstrap);
   const clinicName = getPortalClinicName(bootstrap, clinicId);
 
-  const [type, setType] = useState<MeasurementRecord["type"]>("BP");
-  const [recordedAt, setRecordedAt] = useState(() =>
-    toLocalDateTimeValue(new Date())
-  );
-  const [notes, setNotes] = useState("");
-  const [systolic, setSystolic] = useState("");
-  const [diastolic, setDiastolic] = useState("");
-  const [pulse, setPulse] = useState("");
-  const [glucoseValue, setGlucoseValue] = useState("");
-  const [glucoseType, setGlucoseType] = useState<"FASTING" | "RANDOM">(
-    "FASTING"
-  );
-  const [weightKg, setWeightKg] = useState("");
-  const [latestMeasurement, setLatestMeasurement] =
-    useState<MeasurementRecord | null>(null);
+  const [type, setType] = useState<MeasurementRecord['type']>('BP');
+  const [recordedAt, setRecordedAt] = useState(() => toLocalDateTimeValue(new Date()));
+  const [notes, setNotes] = useState('');
+  const [systolic, setSystolic] = useState('');
+  const [diastolic, setDiastolic] = useState('');
+  const [pulse, setPulse] = useState('');
+  const [glucoseValue, setGlucoseValue] = useState('');
+  const [glucoseType, setGlucoseType] = useState<'FASTING' | 'RANDOM'>('FASTING');
+  const [weightKg, setWeightKg] = useState('');
+  const [latestMeasurement, setLatestMeasurement] = useState<MeasurementRecord | null>(null);
   const [loadingLatest, setLoadingLatest] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const requestedType = measurementTypeFromPreset(searchParams.get("type"));
+    const requestedType = measurementTypeFromPreset(searchParams.get('type'));
     setType(requestedType);
   }, [searchParams]);
 
@@ -153,28 +136,28 @@ export function MeasurementComposerScreen() {
 
   const activeOption = useMemo(
     () => MEASUREMENT_OPTIONS.find((option) => option.value === type)!,
-    [type]
+    [type],
   );
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!clinicId || !getToken) {
-      setError("An active clinic is required before you can save a reading.");
+      setError('An active clinic is required before you can save a reading.');
       return;
     }
 
     const parsedRecordedAt = recordedAt ? new Date(recordedAt) : new Date();
     if (Number.isNaN(parsedRecordedAt.getTime())) {
-      setError("Please enter a valid date and time for this reading.");
+      setError('Please enter a valid date and time for this reading.');
       return;
     }
 
     let payload: Record<string, number | string>;
 
-    if (type === "BP") {
+    if (type === 'BP') {
       if (!systolic || !diastolic) {
-        setError("Please enter both systolic and diastolic values.");
+        setError('Please enter both systolic and diastolic values.');
         return;
       }
       payload = {
@@ -184,9 +167,9 @@ export function MeasurementComposerScreen() {
       if (pulse) {
         payload.pulse = Number(pulse);
       }
-    } else if (type === "GLUCOSE") {
+    } else if (type === 'GLUCOSE') {
       if (!glucoseValue) {
-        setError("Please enter your glucose value.");
+        setError('Please enter your glucose value.');
         return;
       }
       payload = {
@@ -195,7 +178,7 @@ export function MeasurementComposerScreen() {
       };
     } else {
       if (!weightKg) {
-        setError("Please enter your weight in kilograms.");
+        setError('Please enter your weight in kilograms.');
         return;
       }
       payload = {
@@ -213,7 +196,7 @@ export function MeasurementComposerScreen() {
         notes: notes.trim() || undefined,
         recordedAt: parsedRecordedAt.toISOString(),
       });
-      router.push("/portal/health");
+      router.push('/portal/health');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -239,10 +222,7 @@ export function MeasurementComposerScreen() {
                   Structured measurements
                 </Badge>
                 {clinicName && (
-                  <Badge
-                    variant="outline"
-                    className="rounded-full bg-background/80 px-3 py-1"
-                  >
+                  <Badge variant="outline" className="rounded-full bg-background/80 px-3 py-1">
                     {clinicName}
                   </Badge>
                 )}
@@ -252,8 +232,8 @@ export function MeasurementComposerScreen() {
                   Log a reading your care team can use right away.
                 </CardTitle>
                 <CardDescription className="max-w-2xl text-sm md:text-base">
-                  Add blood pressure, glucose, or weight measurements in a clean
-                  format that is easy to review during follow-up.
+                  Add blood pressure, glucose, or weight measurements in a clean format that is easy
+                  to review during follow-up.
                 </CardDescription>
               </div>
             </CardHeader>
@@ -268,10 +248,10 @@ export function MeasurementComposerScreen() {
                     type="button"
                     onClick={() => setType(option.value)}
                     className={cn(
-                      "rounded-2xl border p-4 text-left transition",
+                      'rounded-2xl border p-4 text-left transition',
                       isActive
-                        ? "border-primary bg-primary/10 shadow-sm"
-                        : "border-border/70 bg-background/80 hover:border-primary/40"
+                        ? 'border-primary bg-primary/10 shadow-sm'
+                        : 'border-border/70 bg-background/80 hover:border-primary/40',
                     )}
                   >
                     <div className="flex items-center justify-between gap-3">
@@ -283,9 +263,7 @@ export function MeasurementComposerScreen() {
                       )}
                     </div>
                     <p className="mt-4 font-medium">{option.label}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {option.description}
-                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">{option.description}</p>
                   </button>
                 );
               })}
@@ -296,18 +274,14 @@ export function MeasurementComposerScreen() {
             <Card className="border-border/70 bg-card/95">
               <CardHeader>
                 <CardTitle className="text-lg">Latest {activeOption.label}</CardTitle>
-                <CardDescription>
-                  Recent portal reading for quick comparison.
-                </CardDescription>
+                <CardDescription>Recent portal reading for quick comparison.</CardDescription>
               </CardHeader>
               <CardContent>
                 {loadingLatest ? (
                   <div className="h-28 animate-pulse rounded-2xl border border-border/70 bg-muted/30" />
                 ) : latestMeasurement ? (
                   <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
-                    <p className="font-medium">
-                      {formatMeasurementValue(latestMeasurement)}
-                    </p>
+                    <p className="font-medium">{formatMeasurementValue(latestMeasurement)}</p>
                     <p className="mt-2 text-sm text-muted-foreground">
                       Recorded {formatPortalDateTime(latestMeasurement.recordedAt)}
                     </p>
@@ -341,8 +315,8 @@ export function MeasurementComposerScreen() {
           <CardHeader>
             <CardTitle className="text-lg">Measurement details</CardTitle>
             <CardDescription>
-              Record your reading and add notes if there is anything unusual
-              your care team should know.
+              Record your reading and add notes if there is anything unusual your care team should
+              know.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -361,7 +335,7 @@ export function MeasurementComposerScreen() {
                   </div>
                 </div>
 
-                {type === "BP" && (
+                {type === 'BP' && (
                   <div className="grid gap-4 md:grid-cols-3">
                     <div className="space-y-2">
                       <Label htmlFor="systolic">Systolic (mmHg)</Label>
@@ -401,7 +375,7 @@ export function MeasurementComposerScreen() {
                   </div>
                 )}
 
-                {type === "GLUCOSE" && (
+                {type === 'GLUCOSE' && (
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="glucoseValue">Glucose (mg/dL)</Label>
@@ -419,9 +393,7 @@ export function MeasurementComposerScreen() {
                       <Label htmlFor="glucoseType">Reading type</Label>
                       <Select
                         value={glucoseType}
-                        onValueChange={(value) =>
-                          setGlucoseType(value as "FASTING" | "RANDOM")
-                        }
+                        onValueChange={(value) => setGlucoseType(value as 'FASTING' | 'RANDOM')}
                       >
                         <SelectTrigger id="glucoseType">
                           <SelectValue />
@@ -435,7 +407,7 @@ export function MeasurementComposerScreen() {
                   </div>
                 )}
 
-                {type === "WEIGHT" && (
+                {type === 'WEIGHT' && (
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="weightKg">Weight (kg)</Label>
@@ -486,7 +458,7 @@ export function MeasurementComposerScreen() {
                       <p className="mt-2 text-muted-foreground">
                         {recordedAt
                           ? formatPortalDateTime(new Date(recordedAt).toISOString())
-                          : "Choose the reading time"}
+                          : 'Choose the reading time'}
                       </p>
                     </div>
                     <div>
@@ -494,14 +466,16 @@ export function MeasurementComposerScreen() {
                         Notes
                       </p>
                       <p className="mt-2 text-muted-foreground">
-                        {notes.trim() || "No additional notes"}
+                        {notes.trim() || 'No additional notes'}
                       </p>
                     </div>
                   </div>
                 </div>
 
                 <Button type="submit" disabled={submitting} className="w-full">
-                  {submitting ? "Saving measurement..." : `Save ${activeOption.label.toLowerCase()} reading`}
+                  {submitting
+                    ? 'Saving measurement...'
+                    : `Save ${activeOption.label.toLowerCase()} reading`}
                 </Button>
               </div>
             </form>

@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, CalendarRange, Clock3, Send } from "lucide-react";
-import { useAuth } from "@/lib/auth-context";
-import { useBootstrap } from "@/lib/bootstrap-context";
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, CalendarRange, Clock3, Send } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
+import { useBootstrap } from '@/lib/bootstrap-context';
 import {
   createAppointmentRequest,
   fetchAppointmentRequests,
@@ -14,26 +14,20 @@ import {
   getPortalClinicId,
   getPortalClinicName,
   type AppointmentRequestRecord,
-} from "@/lib/patient-portal";
-import { RouteGuard } from "@/components/RouteGuard";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+} from '@/lib/patient-portal';
+import { RouteGuard } from '@/components/RouteGuard';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 const REASON_SUGGESTIONS = [
-  "Routine follow-up",
-  "Review recent symptoms",
-  "Medication check-in",
-  "Discuss home readings",
+  'Routine follow-up',
+  'Review recent symptoms',
+  'Medication check-in',
+  'Discuss home readings',
 ] as const;
 
 function addDays(days: number) {
@@ -44,23 +38,20 @@ function addDays(days: number) {
 
 function getNextAppointment(requests: AppointmentRequestRecord[]) {
   const now = Date.now();
-  return requests
-    .map((request) => request.appointment)
-    .filter(
-      (
-        appointment
-      ): appointment is NonNullable<AppointmentRequestRecord["appointment"]> =>
-        Boolean(appointment)
-    )
-    .filter(
-      (appointment) =>
-        appointment.status === "CONFIRMED" &&
-        new Date(appointment.startsAt).getTime() >= now
-    )
-    .sort(
-      (left, right) =>
-        new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime()
-    )[0] ?? null;
+  return (
+    requests
+      .map((request) => request.appointment)
+      .filter((appointment): appointment is NonNullable<AppointmentRequestRecord['appointment']> =>
+        Boolean(appointment),
+      )
+      .filter(
+        (appointment) =>
+          appointment.status === 'CONFIRMED' && new Date(appointment.startsAt).getTime() >= now,
+      )
+      .sort(
+        (left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime(),
+      )[0] ?? null
+  );
 }
 
 export function AppointmentRequestScreen() {
@@ -72,11 +63,9 @@ export function AppointmentRequestScreen() {
 
   const [preferredStartDate, setPreferredStartDate] = useState(() => addDays(2));
   const [preferredEndDate, setPreferredEndDate] = useState(() => addDays(7));
-  const [reason, setReason] = useState("");
-  const [notes, setNotes] = useState("");
-  const [recentRequests, setRecentRequests] = useState<AppointmentRequestRecord[]>(
-    []
-  );
+  const [reason, setReason] = useState('');
+  const [notes, setNotes] = useState('');
+  const [recentRequests, setRecentRequests] = useState<AppointmentRequestRecord[]>([]);
   const [loadingContext, setLoadingContext] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -114,27 +103,24 @@ export function AppointmentRequestScreen() {
     };
   }, [clinicId, getToken]);
 
-  const nextAppointment = useMemo(
-    () => getNextAppointment(recentRequests),
-    [recentRequests]
-  );
+  const nextAppointment = useMemo(() => getNextAppointment(recentRequests), [recentRequests]);
   const latestRequest = recentRequests[0] ?? null;
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!clinicId || !getToken) {
-      setError("An active clinic is required before you can submit a request.");
+      setError('An active clinic is required before you can submit a request.');
       return;
     }
 
     if (!preferredStartDate || !preferredEndDate) {
-      setError("Please choose both a start date and an end date.");
+      setError('Please choose both a start date and an end date.');
       return;
     }
 
     if (preferredEndDate < preferredStartDate) {
-      setError("Your preferred end date must be on or after the start date.");
+      setError('Your preferred end date must be on or after the start date.');
       return;
     }
 
@@ -148,7 +134,7 @@ export function AppointmentRequestScreen() {
         reason: reason.trim() || undefined,
         notes: notes.trim() || undefined,
       });
-      router.push("/portal/appointments");
+      router.push('/portal/appointments');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -174,10 +160,7 @@ export function AppointmentRequestScreen() {
                   Request a visit
                 </Badge>
                 {clinicName && (
-                  <Badge
-                    variant="outline"
-                    className="rounded-full bg-background/80 px-3 py-1"
-                  >
+                  <Badge variant="outline" className="rounded-full bg-background/80 px-3 py-1">
                     {clinicName}
                   </Badge>
                 )}
@@ -187,8 +170,8 @@ export function AppointmentRequestScreen() {
                   Tell your clinic when you would like to be seen.
                 </CardTitle>
                 <CardDescription className="max-w-2xl text-sm md:text-base">
-                  Share your preferred date window, a short reason for the visit,
-                  and any helpful context so staff can schedule you faster.
+                  Share your preferred date window, a short reason for the visit, and any helpful
+                  context so staff can schedule you faster.
                 </CardDescription>
               </div>
             </CardHeader>
@@ -198,8 +181,8 @@ export function AppointmentRequestScreen() {
                   Best for
                 </p>
                 <p className="mt-2 text-sm">
-                  Routine follow-ups, reviewing symptoms, medication questions,
-                  or discussing home readings.
+                  Routine follow-ups, reviewing symptoms, medication questions, or discussing home
+                  readings.
                 </p>
               </div>
               <div className="rounded-2xl border border-border/70 bg-background/80 p-4">
@@ -207,8 +190,7 @@ export function AppointmentRequestScreen() {
                   Scheduling note
                 </p>
                 <p className="mt-2 text-sm">
-                  Your clinic confirms the exact time after reviewing your
-                  request.
+                  Your clinic confirms the exact time after reviewing your request.
                 </p>
               </div>
             </CardContent>
@@ -218,9 +200,7 @@ export function AppointmentRequestScreen() {
             <Card className="border-border/70 bg-card/95">
               <CardHeader>
                 <CardTitle className="text-lg">Current scheduling snapshot</CardTitle>
-                <CardDescription>
-                  Helpful context before you submit a new request.
-                </CardDescription>
+                <CardDescription>Helpful context before you submit a new request.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {loadingContext ? (
@@ -229,9 +209,7 @@ export function AppointmentRequestScreen() {
                   <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
                     <div className="flex items-center gap-2">
                       <CalendarRange className="h-4 w-4 text-emerald-700" />
-                      <p className="font-medium text-emerald-900">
-                        Next confirmed visit
-                      </p>
+                      <p className="font-medium text-emerald-900">Next confirmed visit</p>
                     </div>
                     <p className="mt-2 text-sm text-emerald-900">
                       {formatPortalDateTime(nextAppointment.startsAt)}
@@ -253,12 +231,12 @@ export function AppointmentRequestScreen() {
                   <p className="mt-2 text-sm font-medium">
                     {latestRequest
                       ? `${formatPortalDate(latestRequest.preferredStartDate)} to ${formatPortalDate(latestRequest.preferredEndDate)}`
-                      : "No recent request"}
+                      : 'No recent request'}
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {latestRequest
-                      ? latestRequest.reason || "No reason provided"
-                      : "Your next request will appear here after submission."}
+                      ? latestRequest.reason || 'No reason provided'
+                      : 'Your next request will appear here after submission.'}
                   </p>
                 </div>
               </CardContent>
@@ -269,16 +247,14 @@ export function AppointmentRequestScreen() {
                 <CardTitle className="text-lg">Before you submit</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm text-muted-foreground">
+                <p>Share the date range that works best for you, not the exact time.</p>
                 <p>
-                  Share the date range that works best for you, not the exact time.
+                  Add a short reason so staff know whether you need a routine follow-up, symptom
+                  review, or medication discussion.
                 </p>
                 <p>
-                  Add a short reason so staff know whether you need a routine
-                  follow-up, symptom review, or medication discussion.
-                </p>
-                <p>
-                  If your clinic confirms the visit, it will show up in your
-                  appointments dashboard automatically.
+                  If your clinic confirms the visit, it will show up in your appointments dashboard
+                  automatically.
                 </p>
               </CardContent>
             </Card>
@@ -295,8 +271,7 @@ export function AppointmentRequestScreen() {
           <CardHeader>
             <CardTitle className="text-lg">Visit request details</CardTitle>
             <CardDescription>
-              Pick a date window and add any details that will help your care
-              team prepare.
+              Pick a date window and add any details that will help your care team prepare.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -382,7 +357,7 @@ export function AppointmentRequestScreen() {
                       <p className="mt-2">
                         {preferredStartDate && preferredEndDate
                           ? `${formatPortalDate(preferredStartDate)} to ${formatPortalDate(preferredEndDate)}`
-                          : "Choose your preferred date range"}
+                          : 'Choose your preferred date range'}
                       </p>
                     </div>
                     <div>
@@ -390,7 +365,7 @@ export function AppointmentRequestScreen() {
                         Reason
                       </p>
                       <p className="mt-2 text-muted-foreground">
-                        {reason.trim() || "Add a short visit reason"}
+                        {reason.trim() || 'Add a short visit reason'}
                       </p>
                     </div>
                     <div>
@@ -398,7 +373,7 @@ export function AppointmentRequestScreen() {
                         Notes
                       </p>
                       <p className="mt-2 text-muted-foreground">
-                        {notes.trim() || "Optional visit notes can help your clinic prepare."}
+                        {notes.trim() || 'Optional visit notes can help your clinic prepare.'}
                       </p>
                     </div>
                   </div>
@@ -406,7 +381,7 @@ export function AppointmentRequestScreen() {
 
                 <Button type="submit" disabled={submitting} className="w-full">
                   <Send className="h-4 w-4" />
-                  {submitting ? "Submitting request..." : "Submit appointment request"}
+                  {submitting ? 'Submitting request...' : 'Submit appointment request'}
                 </Button>
               </div>
             </form>

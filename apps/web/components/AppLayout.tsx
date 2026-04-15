@@ -45,7 +45,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             mobileOpen={mobileNavOpen}
             onMobileOpenChange={setMobileNavOpen}
           />
-          <main className="min-w-0 flex-1 overflow-auto px-4 py-5 md:px-6 lg:px-8">
+          <main className="min-w-0 flex-1 overflow-auto px-4 py-5 pb-24 md:px-6 md:pb-8 lg:px-8">
             <div className="mx-auto w-full max-w-[1440px] space-y-6">{children}</div>
           </main>
         </div>

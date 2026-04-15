@@ -53,7 +53,8 @@ function ChatPanel() {
       {/* Floating chat button */}
       <button
         onClick={() => setIsOpen((prev) => !prev)}
-        className="relative flex h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform duration-200 hover:scale-105 active:scale-95"
+        data-testid="chat-toggle"
+        className="relative flex h-[3.25rem] w-[3.25rem] cursor-pointer items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/20 transition-transform duration-200 hover:scale-105 active:scale-95 sm:h-14 sm:w-14"
         aria-label={isOpen ? 'Close chat' : 'Open chat'}
       >
         {isOpen ? (
@@ -68,7 +69,10 @@ function ChatPanel() {
 
       {/* Chat panel */}
       {isOpen && (
-        <div className="absolute bottom-16 right-0 flex h-[500px] w-[350px] flex-col overflow-hidden rounded-xl border bg-background shadow-xl">
+        <div
+          data-testid="chat-panel"
+          className="absolute bottom-[calc(100%+0.75rem)] right-0 flex h-[min(560px,calc(100vh-7.5rem))] w-[min(400px,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-[24px] border border-border/80 bg-background shadow-2xl shadow-black/20 sm:h-[min(560px,calc(100vh-8rem))] sm:w-[min(400px,calc(100vw-2.5rem))]"
+        >
           {/* Connection indicator */}
           {chat && !chat.isConnected && (
             <div className="bg-amber-50 px-3 py-1 text-center text-[11px] text-amber-700">
@@ -111,7 +115,7 @@ export function ChatWidget() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50">
+    <div className="fixed bottom-4 right-3 z-50 sm:bottom-5 sm:right-5">
       <ChatProvider>
         <ChatPanel />
       </ChatProvider>

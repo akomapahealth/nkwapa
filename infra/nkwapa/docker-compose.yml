@@ -10,11 +10,11 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-nkwapa}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nkwapa}
     ports:
-      - "5433:5432"
+      - '5433:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nkwapa} -d ${POSTGRES_DB:-nkwapa}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-nkwapa} -d ${POSTGRES_DB:-nkwapa}']
       interval: 5s
       timeout: 3s
       retries: 20
@@ -23,9 +23,9 @@ services:
     image: redis:7
     container_name: nkwapa-redis
     ports:
-      - "6379:6379"
+      - '6379:6379'
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
       timeout: 3s
       retries: 20
@@ -33,17 +33,17 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:25.0
     container_name: nkwapa-keycloak
-    command: ["start-dev", "--import-realm"]
+    command: ['start-dev', '--import-realm']
     environment:
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
     ports:
-      - "8080:8080"
+      - '8080:8080'
     volumes:
       - ./keycloak/realm-export:/opt/keycloak/data/import:ro
       - ./keycloak/themes/nkwapa:/opt/keycloak/themes/nkwapa:ro
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/ready || exit 1"]
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:8080/health/ready || exit 1']
       interval: 5s
       timeout: 3s
       retries: 30

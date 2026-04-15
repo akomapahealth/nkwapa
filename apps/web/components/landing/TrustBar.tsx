@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { landingCardHover } from "@/lib/landing-card-hover";
+import { landingCardHover } from '@/lib/landing-card-hover';
 
 const pillars = [
-  "FHIR-friendly workflows",
-  "Role-based access",
-  "Offline queue & sync",
-  "Research exports",
+  'FHIR-friendly workflows',
+  'Role-based access',
+  'Offline queue & sync',
+  'Research exports',
 ];
 
 export function TrustBar() {

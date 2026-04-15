@@ -106,8 +106,7 @@ export class AuditService {
     const hasMore = events.length > limit;
     const items = hasMore ? events.slice(0, limit) : events;
     const last = items[items.length - 1];
-    const nextCursor =
-      hasMore && last ? this.encodeCursor(last.createdAt, last.id) : null;
+    const nextCursor = hasMore && last ? this.encodeCursor(last.createdAt, last.id) : null;
 
     return {
       items: items.map((e) => ({
@@ -140,7 +139,7 @@ export class AuditService {
   private encodeCursor(createdAt: Date, id: string): string {
     return Buffer.from(
       JSON.stringify({ createdAt: createdAt.toISOString(), id }),
-      'utf-8'
+      'utf-8',
     ).toString('base64');
   }
 }

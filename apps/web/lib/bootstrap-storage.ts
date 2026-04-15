@@ -1,7 +1,7 @@
-export const BOOTSTRAP_STORAGE_KEY = "nkwapa:activeClinicId";
+export const BOOTSTRAP_STORAGE_KEY = 'nkwapa:activeClinicId';
 
 export function getStoredActiveClinicId(): string | null {
-  if (typeof window === "undefined") return null;
+  if (typeof window === 'undefined') return null;
   try {
     return localStorage.getItem(BOOTSTRAP_STORAGE_KEY);
   } catch {
@@ -10,7 +10,7 @@ export function getStoredActiveClinicId(): string | null {
 }
 
 export function setStoredActiveClinicId(id: string | null): void {
-  if (typeof window === "undefined") return;
+  if (typeof window === 'undefined') return;
   try {
     if (id) {
       localStorage.setItem(BOOTSTRAP_STORAGE_KEY, id);

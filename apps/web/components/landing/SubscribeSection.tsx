@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { landingPrimaryPanelHover } from "@/lib/landing-card-hover";
+import { useState } from 'react';
+import { landingPrimaryPanelHover } from '@/lib/landing-card-hover';
 
 export function SubscribeSection() {
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -24,7 +24,8 @@ export function SubscribeSection() {
           }}
         >
           <h2 className="font-landing-heading text-2xl font-black lowercase text-white md:text-4xl">
-            subscribe<br />
+            subscribe
+            <br />
             to our mailing list
           </h2>
 

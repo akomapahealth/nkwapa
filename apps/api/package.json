@@ -21,6 +21,7 @@
     "@nestjs/platform-socket.io": "^11.1.18",
     "@nestjs/websockets": "^11.1.18",
     "@nkwapa/db": "*",
+    "@opentelemetry/sdk-trace-base": "^2.6.1",
     "@prisma/adapter-pg": "^7.0.0",
     "@prisma/client": "^7.0.0",
     "@sentry/nestjs": "^9.5.0",

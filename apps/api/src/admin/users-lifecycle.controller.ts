@@ -1,10 +1,4 @@
-import {
-  Controller,
-  Param,
-  Patch,
-  Request,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Param, Patch, Request, UseGuards } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RbacGuard, ReqUserWithRoles } from '../auth/guards/rbac.guard';
@@ -22,7 +16,7 @@ export class UsersLifecycleController {
     req: {
       user: ReqUserWithRoles;
       headers?: { 'x-request-id'?: string };
-    }
+    },
   ) {
     return this.adminService.deactivateUserGlobally(
       {
@@ -30,7 +24,7 @@ export class UsersLifecycleController {
         roles: req.user.roles,
       },
       userId,
-      req.headers?.['x-request-id'] ?? randomUUID()
+      req.headers?.['x-request-id'] ?? randomUUID(),
     );
   }
 }

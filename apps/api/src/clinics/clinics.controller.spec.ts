@@ -33,7 +33,7 @@ describe('ClinicsController', () => {
           user: { id: 'user-1' },
           roles: [{ clinicId: 'clinic-1', role: UserRole.MANAGER }],
         },
-      })
+      }),
     ).resolves.toEqual(clinic);
   });
 
@@ -46,7 +46,7 @@ describe('ClinicsController', () => {
           user: { id: 'user-1' },
           roles: [{ clinicId: 'clinic-1', role: UserRole.MANAGER }],
         },
-      })
+      }),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 

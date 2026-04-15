@@ -17,10 +17,7 @@ describe('ClinicsAdminController', () => {
     },
   };
 
-  const controller = new ClinicsAdminController(
-    clinicService as never,
-    prisma as never
-  );
+  const controller = new ClinicsAdminController(clinicService as never, prisma as never);
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -33,7 +30,7 @@ describe('ClinicsAdminController', () => {
           user: { id: 'manager-1' },
           roles: [{ clinicId: 'clinic-1', role: UserRole.MANAGER }],
         },
-      })
+      }),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
@@ -44,7 +41,7 @@ describe('ClinicsAdminController', () => {
           user: { id: 'director-1' },
           roles: [{ clinicId: 'clinic-1', role: UserRole.DIRECTOR }],
         },
-      })
+      }),
     ).resolves.toEqual([{ id: 'clinic-1', name: 'Clinic One' }]);
   });
 });

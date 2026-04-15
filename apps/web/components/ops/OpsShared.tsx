@@ -1,18 +1,18 @@
-"use client";
+'use client';
 
-import { AlertCircle, Clock3, Stethoscope } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
+import { AlertCircle, Clock3, Stethoscope } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+} from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 import {
   type ActiveShift,
   type CheckInStatus,
@@ -21,47 +21,41 @@ import {
   formatOpsTime,
   formatRoleLabel,
   formatStatusLabel,
-} from "@/lib/ops";
+} from '@/lib/ops';
 
 function shiftRoleTone(role: ShiftRole) {
   switch (role) {
-    case "VOLUNTEER":
-      return "border-primary/25 bg-primary/10 text-primary";
-    case "DOCTOR":
-      return "border-sky-200 bg-sky-50 text-sky-700";
-    case "PRECEPTOR":
-      return "border-slate-300 bg-slate-50 text-slate-700";
-    case "MANAGER":
-      return "border-secondary/35 bg-secondary/15 text-foreground";
+    case 'VOLUNTEER':
+      return 'border-primary/25 bg-primary/10 text-primary';
+    case 'DOCTOR':
+      return 'border-sky-200 bg-sky-50 text-sky-700';
+    case 'PRECEPTOR':
+      return 'border-slate-300 bg-slate-50 text-slate-700';
+    case 'MANAGER':
+      return 'border-secondary/35 bg-secondary/15 text-foreground';
     default:
-      return "";
+      return '';
   }
 }
 
 function statusVariant(status: CheckInStatus) {
   switch (status) {
-    case "WAITING":
-      return "warning";
-    case "ASSIGNED":
-      return "secondary";
-    case "IN_PROGRESS":
-      return "review";
-    case "COMPLETED":
-      return "finalized";
-    case "CANCELLED":
-      return "destructive";
+    case 'WAITING':
+      return 'warning';
+    case 'ASSIGNED':
+      return 'secondary';
+    case 'IN_PROGRESS':
+      return 'review';
+    case 'COMPLETED':
+      return 'finalized';
+    case 'CANCELLED':
+      return 'destructive';
     default:
-      return "outline";
+      return 'outline';
   }
 }
 
-export function ShiftRoleBadge({
-  role,
-  className,
-}: {
-  role: ShiftRole;
-  className?: string;
-}) {
+export function ShiftRoleBadge({ role, className }: { role: ShiftRole; className?: string }) {
   return (
     <Badge variant="outline" className={cn(shiftRoleTone(role), className)}>
       {formatRoleLabel(role)}
@@ -73,7 +67,7 @@ export function AssignedRoleBadge({
   role,
   className,
 }: {
-  role: "VOLUNTEER" | "DOCTOR";
+  role: 'VOLUNTEER' | 'DOCTOR';
   className?: string;
 }) {
   return <ShiftRoleBadge role={role} className={className} />;
@@ -107,34 +101,30 @@ export function OpsMetricCard({
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
         {label}
       </p>
-      <p className="mt-3 text-3xl font-semibold tracking-tight text-foreground">
-        {value}
-      </p>
-      {detail ? (
-        <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
-      ) : null}
+      <p className="mt-3 text-3xl font-semibold tracking-tight text-foreground">{value}</p>
+      {detail ? <p className="mt-1 text-sm text-muted-foreground">{detail}</p> : null}
     </div>
   );
 }
 
 export function InlineNotice({
-  tone = "info",
+  tone = 'info',
   className,
   children,
 }: {
-  tone?: "info" | "success" | "error";
+  tone?: 'info' | 'success' | 'error';
   className?: string;
   children: React.ReactNode;
 }) {
   const toneClass =
-    tone === "error"
-      ? "border-destructive/25 bg-destructive/10 text-destructive"
-      : tone === "success"
-        ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-        : "border-primary/20 bg-primary/10 text-foreground";
+    tone === 'error'
+      ? 'border-destructive/25 bg-destructive/10 text-destructive'
+      : tone === 'success'
+        ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+        : 'border-primary/20 bg-primary/10 text-foreground';
 
   return (
-    <div className={cn("rounded-2xl border px-4 py-3 text-sm", toneClass, className)}>
+    <div className={cn('rounded-2xl border px-4 py-3 text-sm', toneClass, className)}>
       {children}
     </div>
   );
@@ -142,26 +132,20 @@ export function InlineNotice({
 
 export function OnlineOnlyBanner({ className }: { className?: string }) {
   return (
-    <InlineNotice tone="info" className={cn("flex items-start gap-3", className)}>
+    <InlineNotice tone="info" className={cn('flex items-start gap-3', className)}>
       <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
       <div>
         <p className="font-medium">Connectivity required</p>
         <p className="mt-1 text-sm text-current/80">
-          OPS views stay online-only in this release. Live assignments, shift
-          updates, and intake actions are disabled until the connection returns.
+          OPS views stay online-only in this release. Live assignments, shift updates, and intake
+          actions are disabled until the connection returns.
         </p>
       </div>
     </InlineNotice>
   );
 }
 
-export function EmptyStateCard({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
+export function EmptyStateCard({ title, description }: { title: string; description: string }) {
   return (
     <div className="rounded-2xl border border-dashed border-border bg-background/80 p-5 text-sm text-muted-foreground">
       <p className="font-medium text-foreground">{title}</p>
@@ -183,7 +167,7 @@ export function ShiftControlCard({
   className,
 }: {
   currentShift: ActiveShift | null;
-  selectedRole: ShiftRole | "";
+  selectedRole: ShiftRole | '';
   availableRoles: ShiftRole[];
   isOnline: boolean;
   busy?: boolean;
@@ -198,8 +182,8 @@ export function ShiftControlCard({
   return (
     <Card
       className={cn(
-        "overflow-hidden border-primary/15 bg-gradient-to-br from-primary/10 via-card to-secondary/10 shadow-lg shadow-primary/5",
-        className
+        'overflow-hidden border-primary/15 bg-gradient-to-br from-primary/10 via-card to-secondary/10 shadow-lg shadow-primary/5',
+        className,
       )}
     >
       <CardHeader className="pb-4">
@@ -254,7 +238,9 @@ export function ShiftControlCard({
               disabled={!isOnline || busy}
               className="w-full"
             >
-              {busy ? "Ending shift..." : `End shift at ${formatOpsTime(new Date().toISOString(), timezone)}`}
+              {busy
+                ? 'Ending shift...'
+                : `End shift at ${formatOpsTime(new Date().toISOString(), timezone)}`}
             </Button>
           </div>
         ) : hasShiftRole ? (
@@ -285,8 +271,8 @@ export function ShiftControlCard({
               className="w-full"
             >
               {busy
-                ? "Starting shift..."
-                : `Start ${selectedRole ? formatRoleLabel(selectedRole).toLowerCase() : "shift"}`}
+                ? 'Starting shift...'
+                : `Start ${selectedRole ? formatRoleLabel(selectedRole).toLowerCase() : 'shift'}`}
             </Button>
           </div>
         ) : (
@@ -297,9 +283,7 @@ export function ShiftControlCard({
         )}
 
         {!isOnline ? (
-          <p className="text-xs text-muted-foreground">
-            Shift changes need an active connection.
-          </p>
+          <p className="text-xs text-muted-foreground">Shift changes need an active connection.</p>
         ) : null}
       </CardContent>
     </Card>

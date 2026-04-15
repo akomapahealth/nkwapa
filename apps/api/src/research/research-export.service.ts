@@ -1,13 +1,9 @@
-import { InjectQueue } from "@nestjs/bullmq";
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from "@nestjs/common";
-import { Queue } from "bullmq";
-import { ResearchExportStatus } from "@prisma/client";
-import { PrismaService } from "../prisma/prisma.service";
-import { AuditService } from "../audit/audit.service";
+import { InjectQueue } from '@nestjs/bullmq';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Queue } from 'bullmq';
+import { ResearchExportStatus } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import {
   RESEARCH_DATASET_VERSION,
   RESEARCH_EXPORT_QUEUE_NAME,
@@ -15,14 +11,11 @@ import {
   RESEARCH_POLICY_VERSION,
   type GeneratedResearchPack,
   type ResearchRepoSyncResult,
-} from "./research-policy";
-import {
-  ResearchExportRecord,
-  ResearchExportRepository,
-} from "./research-export.repository";
-import { RequestExportDto } from "./dto/request-export.dto";
-import { ResearchTransformService } from "./research-transform.service";
-import { ResearchRepoSyncService } from "./research-repo-sync.service";
+} from './research-policy';
+import { ResearchExportRecord, ResearchExportRepository } from './research-export.repository';
+import { RequestExportDto } from './dto/request-export.dto';
+import { ResearchTransformService } from './research-transform.service';
+import { ResearchRepoSyncService } from './research-repo-sync.service';
 
 export interface ExportAuditContext {
   clinicId: string;
@@ -68,7 +61,7 @@ export class ResearchExportService {
     private readonly transformService: ResearchTransformService,
     private readonly repoSyncService: ResearchRepoSyncService,
     @InjectQueue(RESEARCH_EXPORT_QUEUE_NAME)
-    private readonly exportQueue: Queue
+    private readonly exportQueue: Queue,
   ) {}
 
   async requestExport(
@@ -95,7 +88,7 @@ export class ResearchExportService {
       requestedBy: { connect: { id: userId } },
       fromDate: dto.fromDate,
       toDate: dto.toDate,
-      status: autoApprove ? "APPROVED" : "PENDING_APPROVAL",
+      status: autoApprove ? 'APPROVED' : 'PENDING_APPROVAL',
       datasetVersion: RESEARCH_DATASET_VERSION,
       policyVersionSnapshot: RESEARCH_POLICY_VERSION,
       fileFormat: RESEARCH_FILE_FORMAT,
@@ -147,12 +140,12 @@ export class ResearchExportService {
   ): Promise<ResearchExportView> {
     const existing = await this.repo.findById(exportId);
     if (!existing) throw new NotFoundException('Export not found');
-    if (existing.status !== "PENDING_APPROVAL") {
+    if (existing.status !== 'PENDING_APPROVAL') {
       throw new BadRequestException(`Cannot approve: export status is ${existing.status}`);
     }
 
     const updated = await this.repo.update(exportId, {
-      status: "APPROVED",
+      status: 'APPROVED',
       approvedBy: { connect: { id: approverUserId } },
       approvedAt: new Date(),
       failureReason: null,
@@ -173,12 +166,12 @@ export class ResearchExportService {
   ): Promise<ResearchExportView> {
     const existing = await this.repo.findById(exportId);
     if (!existing) throw new NotFoundException('Export not found');
-    if (existing.status !== "PENDING_APPROVAL") {
+    if (existing.status !== 'PENDING_APPROVAL') {
       throw new BadRequestException(`Cannot reject: export status is ${existing.status}`);
     }
 
     const updated = await this.repo.update(exportId, {
-      status: "REJECTED",
+      status: 'REJECTED',
       rejectionReason: reason.trim(),
       failureReason: null,
     });
@@ -206,12 +199,12 @@ export class ResearchExportService {
   ): Promise<ResearchExportView> {
     const existing = await this.repo.findById(exportId);
     if (!existing) throw new NotFoundException('Export not found');
-    if (existing.status !== "FAILED") {
+    if (existing.status !== 'FAILED') {
       throw new BadRequestException(`Cannot retry: export status is ${existing.status}`);
     }
 
     const updated = await this.repo.update(exportId, {
-      status: "APPROVED",
+      status: 'APPROVED',
       failureReason: null,
       startedAt: null,
       completedAt: null,
@@ -226,8 +219,8 @@ export class ResearchExportService {
       await this.auditService.logWrite({
         clinicId: auditCtx.clinicId,
         actorUserId: auditCtx.actorUserId,
-        action: "RESEARCH_EXPORT.RETRY",
-        entityType: "ResearchExport",
+        action: 'RESEARCH_EXPORT.RETRY',
+        entityType: 'ResearchExport',
         entityId: exportId,
         beforeJson: JSON.stringify(existing),
         afterJson: JSON.stringify(updated),
@@ -242,20 +235,21 @@ export class ResearchExportService {
   async processQueuedExport(exportId: string): Promise<ResearchExportView> {
     const existing = await this.repo.findById(exportId);
     if (!existing) {
-      throw new NotFoundException("Export not found");
+      throw new NotFoundException('Export not found');
     }
 
-    if (existing.status === "COMPLETED") {
+    if (existing.status === 'COMPLETED') {
       return this.toExportView(existing);
     }
 
-    if (existing.status !== "APPROVED") {
+    if (existing.status !== 'APPROVED') {
       throw new BadRequestException(`Cannot process export with status ${existing.status}`);
     }
 
-    const actorUserId = existing.approvedBy?.id ?? existing.requestedBy?.id ?? existing.requestedByUserId;
+    const actorUserId =
+      existing.approvedBy?.id ?? existing.requestedBy?.id ?? existing.requestedByUserId;
     const processing = await this.repo.update(exportId, {
-      status: "PROCESSING",
+      status: 'PROCESSING',
       startedAt: new Date(),
       failureReason: null,
       rejectionReason: null,
@@ -264,8 +258,8 @@ export class ResearchExportService {
     await this.auditService.logWrite({
       clinicId: processing.clinicId,
       actorUserId,
-      action: "RESEARCH_EXPORT.START",
-      entityType: "ResearchExport",
+      action: 'RESEARCH_EXPORT.START',
+      entityType: 'ResearchExport',
       entityId: exportId,
       beforeJson: JSON.stringify(existing),
       afterJson: JSON.stringify(processing),
@@ -281,12 +275,12 @@ export class ResearchExportService {
         processing.fromDate,
         processing.toDate,
         exportId,
-        processing.policyVersionSnapshot
+        processing.policyVersionSnapshot,
       );
       synced = await this.repoSyncService.sync(processing, generatedPack);
 
       const completed = await this.repo.update(exportId, {
-        status: "COMPLETED",
+        status: 'COMPLETED',
         completedAt: new Date(),
         filePath: generatedPack.artifactPath,
         fileFormat: RESEARCH_FILE_FORMAT,
@@ -304,8 +298,8 @@ export class ResearchExportService {
       await this.auditService.logWrite({
         clinicId: completed.clinicId,
         actorUserId,
-        action: "RESEARCH_EXPORT.COMPLETE",
-        entityType: "ResearchExport",
+        action: 'RESEARCH_EXPORT.COMPLETE',
+        entityType: 'ResearchExport',
         entityId: exportId,
         beforeJson: JSON.stringify(processing),
         afterJson: JSON.stringify(completed),
@@ -316,12 +310,14 @@ export class ResearchExportService {
     } catch (error) {
       const failureReason = error instanceof Error ? error.message : String(error);
       const failed = await this.repo.update(exportId, {
-        status: "FAILED",
+        status: 'FAILED',
         failureReason,
         filePath: generatedPack?.artifactPath ?? processing.filePath,
         fileFormat: RESEARCH_FILE_FORMAT,
         recordCount: generatedPack?.recordCount ?? processing.recordCount,
-        rowCountsJson: generatedPack ? JSON.stringify(generatedPack.rowCounts) : processing.rowCountsJson,
+        rowCountsJson: generatedPack
+          ? JSON.stringify(generatedPack.rowCounts)
+          : processing.rowCountsJson,
         artifactSha256: generatedPack?.artifactSha256 ?? processing.artifactSha256,
         artifactSizeBytes: generatedPack?.artifactSizeBytes ?? processing.artifactSizeBytes,
         repoProvider: synced?.provider ?? null,
@@ -335,8 +331,8 @@ export class ResearchExportService {
       await this.auditService.logWrite({
         clinicId: failed.clinicId,
         actorUserId,
-        action: "RESEARCH_EXPORT.FAIL",
-        entityType: "ResearchExport",
+        action: 'RESEARCH_EXPORT.FAIL',
+        entityType: 'ResearchExport',
         entityId: exportId,
         beforeJson: JSON.stringify(processing),
         afterJson: JSON.stringify(failed),
@@ -354,8 +350,8 @@ export class ResearchExportService {
     await this.auditService.logWrite({
       clinicId: auditCtx.clinicId,
       actorUserId: auditCtx.actorUserId,
-      action: "RESEARCH_EXPORT.DOWNLOAD",
-      entityType: "ResearchExport",
+      action: 'RESEARCH_EXPORT.DOWNLOAD',
+      entityType: 'ResearchExport',
       entityId: exportId,
       requestId: auditCtx.requestId,
     });
@@ -364,32 +360,32 @@ export class ResearchExportService {
   private async queueExport(
     exportRecord: ResearchExportRecord,
     actorUserId: string,
-    auditCtx?: ExportAuditContext
+    auditCtx?: ExportAuditContext,
   ) {
     try {
       await this.exportQueue.add(
-        "process",
+        'process',
         { exportId: exportRecord.id },
         {
           jobId: exportRecord.id,
           attempts: 3,
-          backoff: { type: "exponential", delay: 60_000 },
+          backoff: { type: 'exponential', delay: 60_000 },
           removeOnComplete: 50,
           removeOnFail: 100,
-        }
+        },
       );
     } catch (error) {
       const failureReason =
-        error instanceof Error ? error.message : "Failed to queue research export";
+        error instanceof Error ? error.message : 'Failed to queue research export';
       const failed = await this.repo.update(exportRecord.id, {
-        status: "FAILED",
+        status: 'FAILED',
         failureReason,
       });
       await this.auditService.logWrite({
         clinicId: exportRecord.clinicId,
         actorUserId,
-        action: "RESEARCH_EXPORT.FAIL",
-        entityType: "ResearchExport",
+        action: 'RESEARCH_EXPORT.FAIL',
+        entityType: 'ResearchExport',
         entityId: exportRecord.id,
         beforeJson: JSON.stringify(exportRecord),
         afterJson: JSON.stringify(failed),
@@ -403,7 +399,7 @@ export class ResearchExportService {
     updated: ResearchExportRecord,
     actorUserId: string,
     auditCtx?: ExportAuditContext,
-    before?: ResearchExportRecord
+    before?: ResearchExportRecord,
   ) {
     if (!auditCtx) {
       return;
@@ -412,8 +408,8 @@ export class ResearchExportService {
     await this.auditService.logWrite({
       clinicId: auditCtx.clinicId,
       actorUserId,
-      action: "RESEARCH_EXPORT.APPROVE",
-      entityType: "ResearchExport",
+      action: 'RESEARCH_EXPORT.APPROVE',
+      entityType: 'ResearchExport',
       entityId: updated.id,
       beforeJson: before ? JSON.stringify(before) : undefined,
       afterJson: JSON.stringify(updated),
@@ -460,7 +456,7 @@ export class ResearchExportService {
     try {
       const parsed = JSON.parse(rowCountsJson) as Record<string, unknown>;
       return Object.fromEntries(
-        Object.entries(parsed).map(([key, value]) => [key, Number(value) || 0])
+        Object.entries(parsed).map(([key, value]) => [key, Number(value) || 0]),
       );
     } catch {
       return {};
@@ -471,10 +467,10 @@ export class ResearchExportService {
     const from = new Date(`${fromDate}T00:00:00.000Z`);
     const to = new Date(`${toDate}T00:00:00.000Z`);
     if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
-      throw new BadRequestException("fromDate and toDate must be valid dates");
+      throw new BadRequestException('fromDate and toDate must be valid dates');
     }
     if (to < from) {
-      throw new BadRequestException("toDate must be on or after fromDate");
+      throw new BadRequestException('toDate must be on or after fromDate');
     }
   }
 }

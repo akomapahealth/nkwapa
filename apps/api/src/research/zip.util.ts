@@ -45,10 +45,10 @@ export function createStoredZip(entries: ZipEntryInput[], now = new Date()): Buf
   let offset = 0;
 
   for (const entry of entries) {
-    const fileName = Buffer.from(entry.name, "utf-8");
+    const fileName = Buffer.from(entry.name, 'utf-8');
     const content = Buffer.isBuffer(entry.content)
       ? entry.content
-      : Buffer.from(entry.content, "utf-8");
+      : Buffer.from(entry.content, 'utf-8');
     const checksum = crc32(content);
     const { dosTime, dosDate } = toDosTimeParts(now);
 
@@ -105,4 +105,3 @@ export function createStoredZip(entries: ZipEntryInput[], now = new Date()): Buf
 
   return Buffer.concat([...localParts, centralDirectory, endRecord]);
 }
-

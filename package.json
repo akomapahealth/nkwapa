@@ -16,6 +16,8 @@
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
+    "e2e": "npm run e2e --workspace=@nkwapa/web",
+    "e2e:keycloak-user": "node scripts/create-keycloak-e2e-user.mjs",
     "build": "npm run build --workspaces --if-present",
     "prepare": "husky",
     "format": "prettier --write .",

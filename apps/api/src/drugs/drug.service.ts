@@ -1,9 +1,9 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
-import { Drug, DrugCategory } from "@prisma/client";
-import { DrugRepository } from "./drug.repository";
-import { AuditService } from "../audit/audit.service";
-import { CreateDrugDto } from "./dto/create-drug.dto";
-import { UpdateDrugDto } from "./dto/update-drug.dto";
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { Drug, DrugCategory } from '@prisma/client';
+import { DrugRepository } from './drug.repository';
+import { AuditService } from '../audit/audit.service';
+import { CreateDrugDto } from './dto/create-drug.dto';
+import { UpdateDrugDto } from './dto/update-drug.dto';
 
 export interface AuditContext {
   clinicId: string;
@@ -15,19 +15,15 @@ export interface AuditContext {
 export class DrugService {
   constructor(
     private readonly drugRepository: DrugRepository,
-    private readonly auditService: AuditService
+    private readonly auditService: AuditService,
   ) {}
 
-  async create(
-    clinicId: string,
-    dto: CreateDrugDto,
-    auditContext: AuditContext
-  ): Promise<Drug> {
+  async create(clinicId: string, dto: CreateDrugDto, auditContext: AuditContext): Promise<Drug> {
     const drug = await this.drugRepository.create({
       clinic: { connect: { id: clinicId } },
       name: dto.name,
       genericName: dto.genericName,
-      category: dto.category ?? "OTHER",
+      category: dto.category ?? 'OTHER',
       dosageForms: dto.dosageForms,
       contraindications: dto.contraindications,
     });
@@ -35,8 +31,8 @@ export class DrugService {
     await this.auditService.logWrite({
       clinicId,
       actorUserId: auditContext.actorUserId,
-      action: "DRUG.CREATE",
-      entityType: "Drug",
+      action: 'DRUG.CREATE',
+      entityType: 'Drug',
       entityId: drug.id,
       afterJson: JSON.stringify(drug),
       requestId: auditContext.requestId,
@@ -49,20 +45,13 @@ export class DrugService {
     return this.drugRepository.findById(id);
   }
 
-  async search(
-    clinicId: string,
-    params: { q?: string; category?: DrugCategory }
-  ): Promise<Drug[]> {
+  async search(clinicId: string, params: { q?: string; category?: DrugCategory }): Promise<Drug[]> {
     return this.drugRepository.search(clinicId, params);
   }
 
-  async update(
-    id: string,
-    dto: UpdateDrugDto,
-    auditContext: AuditContext
-  ): Promise<Drug> {
+  async update(id: string, dto: UpdateDrugDto, auditContext: AuditContext): Promise<Drug> {
     const existing = await this.drugRepository.findById(id);
-    if (!existing) throw new NotFoundException("Drug not found");
+    if (!existing) throw new NotFoundException('Drug not found');
 
     const data: Record<string, unknown> = {};
     if (dto.name !== undefined) data.name = dto.name;
@@ -77,8 +66,8 @@ export class DrugService {
     await this.auditService.logWrite({
       clinicId: auditContext.clinicId,
       actorUserId: auditContext.actorUserId,
-      action: "DRUG.UPDATE",
-      entityType: "Drug",
+      action: 'DRUG.UPDATE',
+      entityType: 'Drug',
       entityId: id,
       beforeJson: JSON.stringify(existing),
       afterJson: JSON.stringify(updated),

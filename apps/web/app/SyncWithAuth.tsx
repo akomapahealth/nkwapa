@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { buildLoginHref, getDefaultWorkspacePath } from '@/lib/auth-routing';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useKeycloak } from '@/app/KeycloakProvider';
 import { AppLayout } from '@/components/AppLayout';
@@ -20,18 +21,22 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
   };
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const bootstrap = bootstrapCtx?.bootstrap ?? null;
+  const search = searchParams.toString();
+  const currentPath = pathname ? `${pathname}${search ? `?${search}` : ''}` : null;
+  const isLoginRoute = pathname === '/login';
 
   useEffect(() => {
-    if (!isAuthenticated && pathname !== '/') {
-      router.replace('/');
+    if (!isAuthenticated && !isLoginRoute) {
+      router.replace(buildLoginHref(currentPath));
     }
-  }, [isAuthenticated, pathname, router]);
+  }, [currentPath, isAuthenticated, isLoginRoute, router]);
 
   const requiresPatientClaim = bootstrap?.onboarding?.state === 'PATIENT_CLAIM_REQUIRED';
 
   useEffect(() => {
-    if (!isAuthenticated || bootstrapCtx?.isLoading) {
+    if (!isAuthenticated || bootstrapCtx?.isLoading || isLoginRoute) {
       return;
     }
 
@@ -41,19 +46,25 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
     }
 
     if (!requiresPatientClaim && pathname === '/claim-record') {
-      const roles = bootstrap?.effectiveRolesForActiveClinic ?? bootstrap?.globalRoles ?? [];
-      const isPatientOnly = roles.length === 1 && roles[0] === 'PATIENT';
-      router.replace(isPatientOnly ? '/portal' : '/dashboard');
+      router.replace(getDefaultWorkspacePath(bootstrap));
     }
-  }, [bootstrap, bootstrapCtx?.isLoading, isAuthenticated, pathname, requiresPatientClaim, router]);
+  }, [
+    bootstrap,
+    bootstrapCtx?.isLoading,
+    isAuthenticated,
+    isLoginRoute,
+    pathname,
+    requiresPatientClaim,
+    router,
+  ]);
 
   if (!isAuthenticated) {
-    if (pathname !== '/') {
+    if (!isLoginRoute) {
       return (
         <FullscreenStatus
           eyebrow="Session check"
-          title="Returning to sign in"
-          description="Your secure session is no longer active, so we are sending you back to the landing page before anything sensitive loads."
+          title="Secure sign in required"
+          description="Your session is no longer active, so we are sending you to secure sign in before anything sensitive loads."
         />
       );
     }
@@ -63,6 +74,10 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
   const isPortal = pathname?.startsWith('/portal');
   const isClaimRoute = pathname === '/claim-record';
   const isDisabledAccount = bootstrapCtx?.errorCode === 'USER_DISABLED';
+
+  if (isLoginRoute) {
+    return <>{children}</>;
+  }
 
   return (
     <ServiceWorkerAndSyncProvider getAccessToken={getToken}>

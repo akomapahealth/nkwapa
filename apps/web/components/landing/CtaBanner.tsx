@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useKeycloak } from "@/app/KeycloakProvider";
-import { trackEvent } from "@/lib/analytics";
-import { landingPrimaryPanelHover } from "@/lib/landing-card-hover";
+import { landingPrimaryPanelHover } from '@/lib/landing-card-hover';
 
 export function CtaBanner() {
-  const { login } = useKeycloak() ?? {};
+  const scrollToStory = () => {
+    document.getElementById('our-story')?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   return (
     <section className="py-8">
@@ -18,13 +18,10 @@ export function CtaBanner() {
           </p>
           <button
             type="button"
-            onClick={() => {
-              trackEvent({ name: "landing_cta_sign_in", properties: { source: "cta_banner" } });
-              login?.();
-            }}
+            onClick={scrollToStory}
             className="cursor-pointer whitespace-nowrap rounded-full border-2 border-primary-foreground bg-primary-foreground px-8 py-3 font-landing-nav text-sm font-semibold text-primary transition-colors duration-200 hover:bg-transparent hover:text-primary-foreground"
           >
-            Sign in
+            Read our story
           </button>
         </div>
       </div>

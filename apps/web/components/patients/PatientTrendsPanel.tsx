@@ -1,39 +1,30 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { Activity, CalendarClock, HeartPulse, Syringe } from "lucide-react";
-import { useAuth } from "@/lib/auth-context";
-import {
-  fetchStaffPatientTrends,
-  type PatientTrendsResponse,
-} from "@/lib/patient-portal";
+import { useEffect, useState } from 'react';
+import { Activity, CalendarClock, HeartPulse, Syringe } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
+import { fetchStaffPatientTrends, type PatientTrendsResponse } from '@/lib/patient-portal';
 import {
   TREND_RANGE_OPTIONS,
   buildBloodPressureTrendData,
   buildGlucoseTrendData,
   formatTrendRangeFrom,
   type TrendRangeDays,
-} from "@/lib/patient-trends";
-import { MeasurementTrendChart } from "@/components/portal/MeasurementTrendChart";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+} from '@/lib/patient-trends';
+import { MeasurementTrendChart } from '@/components/portal/MeasurementTrendChart';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 const FOLLOW_UP_LABELS: Array<{
-  key: keyof PatientTrendsResponse["followUp"];
+  key: keyof PatientTrendsResponse['followUp'];
   label: string;
 }> = [
-  { key: "requested", label: "Requested" },
-  { key: "confirmed", label: "Confirmed" },
-  { key: "completed", label: "Completed" },
-  { key: "noShow", label: "No-show" },
-  { key: "closed", label: "Closed" },
+  { key: 'requested', label: 'Requested' },
+  { key: 'confirmed', label: 'Confirmed' },
+  { key: 'completed', label: 'Completed' },
+  { key: 'noShow', label: 'No-show' },
+  { key: 'closed', label: 'Closed' },
 ];
 
 interface PatientTrendsPanelProps {
@@ -41,10 +32,7 @@ interface PatientTrendsPanelProps {
   clinicId: string;
 }
 
-export function PatientTrendsPanel({
-  patientId,
-  clinicId,
-}: PatientTrendsPanelProps) {
+export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelProps) {
   const getToken = useAuth();
   const [rangeDays, setRangeDays] = useState<TrendRangeDays>(90);
   const [trends, setTrends] = useState<PatientTrendsResponse | null>(null);
@@ -110,9 +98,9 @@ export function PatientTrendsPanel({
           <div className="space-y-2">
             <CardTitle className="text-xl">Trend view for clinic and home readings.</CardTitle>
             <CardDescription className="max-w-3xl text-sm md:text-base">
-              Blood pressure and glucose combine patient-entered logs with encounter
-              data for this clinic. Staff views include in-progress encounter readings
-              so the timeline stays useful during the visit.
+              Blood pressure and glucose combine patient-entered logs with encounter data for this
+              clinic. Staff views include in-progress encounter readings so the timeline stays
+              useful during the visit.
             </CardDescription>
           </div>
         </CardHeader>
@@ -122,7 +110,7 @@ export function PatientTrendsPanel({
               <Button
                 key={days}
                 type="button"
-                variant={days === rangeDays ? "default" : "outline"}
+                variant={days === rangeDays ? 'default' : 'outline'}
                 size="sm"
                 className="rounded-full"
                 onClick={() => setRangeDays(days)}
@@ -202,8 +190,8 @@ export function PatientTrendsPanel({
                 emptyMessage="No blood pressure readings were recorded in this timeframe."
                 valueSuffix=" mmHg"
                 lines={[
-                  { key: "systolic", label: "Systolic", color: "hsl(var(--chart-1))" },
-                  { key: "diastolic", label: "Diastolic", color: "hsl(var(--chart-2))" },
+                  { key: 'systolic', label: 'Systolic', color: 'hsl(var(--chart-1))' },
+                  { key: 'diastolic', label: 'Diastolic', color: 'hsl(var(--chart-2))' },
                 ]}
                 data={bpTrend}
               />
@@ -213,30 +201,30 @@ export function PatientTrendsPanel({
               description="Encounter and patient-entered glucose values across the selected range."
               emptyMessage="No glucose readings were recorded in this timeframe."
               valueSuffix=" mg/dL"
-              lines={[{ key: "glucose", label: "Glucose", color: "hsl(var(--chart-2))" }]}
+              lines={[{ key: 'glucose', label: 'Glucose', color: 'hsl(var(--chart-2))' }]}
               data={glucoseTrend}
             />
             <Card className="border-border/70 bg-card/95">
               <CardHeader>
                 <CardTitle className="text-base">How to read this panel</CardTitle>
                 <CardDescription>
-                  Use this trend view to compare clinic intake readings with patient
-                  logs before or after the visit.
+                  Use this trend view to compare clinic intake readings with patient logs before or
+                  after the visit.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-sm text-muted-foreground">
                 <div className="flex items-start gap-3 rounded-2xl border border-border/70 bg-background/70 p-4">
                   <Activity className="mt-0.5 h-4 w-4 text-muted-foreground" />
                   <p>
-                    Encounter readings appear as soon as the visit data exists in this
-                    clinic, including draft and review-stage encounters.
+                    Encounter readings appear as soon as the visit data exists in this clinic,
+                    including draft and review-stage encounters.
                   </p>
                 </div>
                 <div className="flex items-start gap-3 rounded-2xl border border-border/70 bg-background/70 p-4">
                   <CalendarClock className="mt-0.5 h-4 w-4 text-muted-foreground" />
                   <p>
-                    Follow-up counts summarize requests and appointment outcomes for the
-                    selected date range.
+                    Follow-up counts summarize requests and appointment outcomes for the selected
+                    date range.
                   </p>
                 </div>
               </CardContent>

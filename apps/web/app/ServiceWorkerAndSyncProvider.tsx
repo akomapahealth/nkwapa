@@ -28,7 +28,7 @@ export function ServiceWorkerAndSyncProvider({
   getAccessToken?: () => Promise<string | null>;
 }) {
   const [isOnline, setIsOnline] = useState(
-    typeof navigator !== 'undefined' ? navigator.onLine : true
+    typeof navigator !== 'undefined' ? navigator.onLine : true,
   );
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const [syncError, setSyncError] = useState<string | undefined>();
@@ -69,7 +69,7 @@ export function ServiceWorkerAndSyncProvider({
         getAccessToken,
       });
     },
-    [getAccessToken]
+    [getAccessToken],
   );
 
   return (

@@ -1,6 +1,6 @@
-import { Injectable } from "@nestjs/common";
-import { Drug, DrugCategory, Prisma } from "@prisma/client";
-import { PrismaService } from "../prisma/prisma.service";
+import { Injectable } from '@nestjs/common';
+import { Drug, DrugCategory, Prisma } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class DrugRepository {
@@ -20,7 +20,7 @@ export class DrugRepository {
 
   async search(
     clinicId: string,
-    params: { q?: string; category?: DrugCategory; take?: number }
+    params: { q?: string; category?: DrugCategory; take?: number },
   ): Promise<Drug[]> {
     const where: Prisma.DrugWhereInput = {
       clinicId,
@@ -31,14 +31,14 @@ export class DrugRepository {
     }
     if (params.q) {
       where.OR = [
-        { name: { contains: params.q, mode: "insensitive" } },
-        { genericName: { contains: params.q, mode: "insensitive" } },
+        { name: { contains: params.q, mode: 'insensitive' } },
+        { genericName: { contains: params.q, mode: 'insensitive' } },
       ];
     }
     return this.prisma.drug.findMany({
       where,
       take: params.take ?? 50,
-      orderBy: { name: "asc" },
+      orderBy: { name: 'asc' },
     });
   }
 }

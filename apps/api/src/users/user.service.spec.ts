@@ -19,7 +19,7 @@ describe('UserService', () => {
     const service = new UserService(userRepository as never);
 
     await expect(
-      service.findOrCreateByKeycloakSub('test-sub', 'Disabled User')
+      service.findOrCreateByKeycloakSub('test-sub', 'Disabled User'),
     ).rejects.toBeInstanceOf(DisabledUserException);
     expect(userRepository.syncKeycloakProfile).not.toHaveBeenCalled();
     expect(userRepository.create).not.toHaveBeenCalled();

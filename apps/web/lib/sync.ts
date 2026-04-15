@@ -25,9 +25,15 @@ export interface SyncNowOptions {
   getAccessToken?: () => Promise<string | null>;
 }
 
-export async function syncNow(
-  options: SyncNowOptions
-): Promise<{ success: boolean; error?: string; conflicts?: Array<{ id: string; conflictType?: string; conflictDetails?: Record<string, unknown> }> }> {
+export async function syncNow(options: SyncNowOptions): Promise<{
+  success: boolean;
+  error?: string;
+  conflicts?: Array<{
+    id: string;
+    conflictType?: string;
+    conflictDetails?: Record<string, unknown>;
+  }>;
+}> {
   const { clinicId, getAccessToken } = options;
   notifyStatus('syncing');
 
@@ -62,7 +68,7 @@ export async function syncNow(
           method: 'POST',
           headers,
           body: JSON.stringify(mutations),
-        }
+        },
       );
 
       if (!pushRes.ok) {
@@ -81,9 +87,7 @@ export async function syncNow(
       };
 
       const appliedIds = new Set(
-        pushJson.results
-          .filter((r) => r.status === 'APPLIED')
-          .map((r) => r.id)
+        pushJson.results.filter((r) => r.status === 'APPLIED').map((r) => r.id),
       );
       const conflicts = pushJson.results.filter((r) => r.status === 'CONFLICT');
 
@@ -119,10 +123,7 @@ export async function syncNow(
 
     const toRecord = (r: Record<string, unknown>) =>
       Object.fromEntries(
-        Object.entries(r).map(([k, v]) => [
-          k,
-          v instanceof Date ? v.toISOString() : v,
-        ])
+        Object.entries(r).map(([k, v]) => [k, v instanceof Date ? v.toISOString() : v]),
       );
 
     for (const p of pull.patients) {
@@ -135,20 +136,28 @@ export async function syncNow(
       await db.vitals.put(toRecord(v) as unknown as Parameters<typeof db.vitals.put>[0]);
     }
     for (const d of pull.diabetesScreenings) {
-      await db.diabetes_screenings.put(toRecord(d) as unknown as Parameters<typeof db.diabetes_screenings.put>[0]);
+      await db.diabetes_screenings.put(
+        toRecord(d) as unknown as Parameters<typeof db.diabetes_screenings.put>[0],
+      );
     }
     for (const h of pull.hypertensionAssessments) {
-      await db.hypertension_assessments.put(toRecord(h) as unknown as Parameters<typeof db.hypertension_assessments.put>[0]);
+      await db.hypertension_assessments.put(
+        toRecord(h) as unknown as Parameters<typeof db.hypertension_assessments.put>[0],
+      );
     }
     for (const c of pull.carePlans) {
       await db.care_plans.put(toRecord(c) as unknown as Parameters<typeof db.care_plans.put>[0]);
     }
     for (const pc of pull.patientConsents) {
-      await db.patient_consents.put(toRecord(pc) as unknown as Parameters<typeof db.patient_consents.put>[0]);
+      await db.patient_consents.put(
+        toRecord(pc) as unknown as Parameters<typeof db.patient_consents.put>[0],
+      );
     }
     if (pull.prescriptions) {
       for (const rx of pull.prescriptions) {
-        await db.prescriptions.put(toRecord(rx) as unknown as Parameters<typeof db.prescriptions.put>[0]);
+        await db.prescriptions.put(
+          toRecord(rx) as unknown as Parameters<typeof db.prescriptions.put>[0],
+        );
       }
     }
 

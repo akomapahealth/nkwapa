@@ -1,5 +1,5 @@
-import { randomUUID } from "crypto";
-import type { SmsProvider, SmsSendResult } from "./sms-provider.interface";
+import { randomUUID } from 'crypto';
+import type { SmsProvider, SmsSendResult } from './sms-provider.interface';
 
 export class FakeSmsProvider implements SmsProvider {
   async send(toAddress: string, body: string): Promise<SmsSendResult> {

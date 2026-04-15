@@ -22,7 +22,7 @@ export function AppNavList({
   const sections = getAccessibleNavSections(bootstrap);
 
   return (
-    <nav className="flex flex-col gap-5">
+    <nav className="flex flex-col gap-4">
       {sections.map((section) => (
         <div key={section.id} className="space-y-2">
           {(!collapsed || mobile) && (
@@ -44,7 +44,7 @@ export function AppNavList({
                   title={collapsed && !mobile ? item.label : undefined}
                   onClick={enabled ? onNavigate : undefined}
                   className={cn(
-                    'group flex items-center gap-3 rounded-2xl border px-3 py-3 transition-all duration-200',
+                    'group flex items-center gap-3 rounded-2xl border px-3 py-2.5 transition-all duration-200',
                     collapsed && !mobile ? 'justify-center px-2.5' : '',
                     active
                       ? 'border-primary/30 bg-primary text-primary-foreground shadow-lg shadow-primary/20'
@@ -67,7 +67,7 @@ export function AppNavList({
                       <span className="block truncate text-sm font-semibold">{item.label}</span>
                       <span
                         className={cn(
-                          'mt-0.5 block truncate text-xs',
+                          'mt-0.5 hidden truncate text-xs xl:block',
                           active
                             ? 'text-primary-foreground/80'
                             : 'text-muted-foreground group-hover:text-muted-foreground',

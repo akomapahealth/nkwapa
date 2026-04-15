@@ -29,12 +29,16 @@ Then sync and seed the database:
 npm run db:migrate:dev
 npm run db:generate
 npm run db:seed
+npm run e2e:keycloak-user
 ```
 
 Useful seed inputs:
 
 - `SEED_SYSTEM_ADMIN_SUB`
 - `SEED_SYSTEM_ADMIN_NAME`
+- `SEED_E2E_STAFF_SUB`
+- `SEED_E2E_STAFF_NAME`
+- `SEED_E2E_STAFF_EMAIL`
 - `SEED_SAMPLE_PATIENT=true`
 
 ---
@@ -61,18 +65,21 @@ Recommended extra accounts:
 ## 3. Global Smoke Test
 
 1. Open the web app.
-2. Confirm login redirects to Keycloak.
-3. Log in.
-4. Confirm `/auth/whoami` bootstraps successfully.
-5. Confirm the app loads without raw crash output.
-6. Confirm clinic switching works for multi-clinic users.
-7. Confirm logout and re-login work.
+2. Confirm `/` stays on the marketing landing page and does not show a sign-in CTA.
+3. Confirm an unauthenticated visit to `/dashboard` redirects to `/login?next=...`.
+4. Confirm `/login` redirects to Keycloak after clicking the secure sign-in button.
+5. Log in.
+6. Confirm `/auth/whoami` bootstraps successfully.
+7. Confirm the app loads without raw crash output.
+8. Confirm clinic switching works for multi-clinic users.
+9. Confirm logout and re-login work.
 
 Also verify:
 
 - no obvious blank screen on initial load
 - route loading skeleton appears when the app is still resolving
 - page-level retry actions exist for recoverable failures
+- landing page buttons only scroll within the page and do not jump directly into app sign-in
 
 ---
 
@@ -179,7 +186,20 @@ Also verify:
 
 ---
 
-## 13. Partial Areas To Test Carefully
+## 13. Responsive And Chat Matrix
+
+- [ ] landing page is readable and unclipped at `375`, `768`, `1024`, and `1440` widths
+- [ ] dashboard cards wrap cleanly without horizontal page overflow at the same widths
+- [ ] tables stay inside scroll containers instead of forcing full-page overflow
+- [ ] mobile nav drawer opens and closes cleanly on phone widths
+- [ ] sidebar collapse state still works on laptop and desktop widths
+- [ ] chat toggle stays visible above page content on every breakpoint
+- [ ] chat panel opens within the viewport on phone and tablet sizes
+- [ ] chat panel is visibly larger on desktop without covering the full screen
+
+---
+
+## 14. Partial Areas To Test Carefully
 
 These areas are implemented but still worth extra regression attention:
 

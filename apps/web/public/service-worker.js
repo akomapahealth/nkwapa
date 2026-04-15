@@ -5,7 +5,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(['/']);
-    })
+    }),
   );
   self.skipWaiting();
 });
@@ -13,10 +13,8 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((names) => {
-      return Promise.all(
-        names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n))
-      );
-    })
+      return Promise.all(names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n)));
+    }),
   );
   self.clients.claim();
 });
@@ -37,7 +35,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
           return res;
         })
-        .catch(() => caches.match(request).then((r) => r || caches.match('/')))
+        .catch(() => caches.match(request).then((r) => r || caches.match('/'))),
     );
   }
 });

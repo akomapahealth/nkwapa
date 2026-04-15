@@ -1,6 +1,14 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   apiFetch,
   getErrorMessage,
@@ -73,6 +81,7 @@ export function BootstrapProvider({
   const [activeClinicIdOverride, setActiveClinicIdOverride] = useState<string | null | undefined>(
     undefined,
   );
+  const bootstrapRef = useRef<WhoAmIResponse | null>(null);
 
   const activeClinicId =
     activeClinicIdOverride !== undefined
@@ -87,7 +96,7 @@ export function BootstrapProvider({
   const fetchWhoami = useCallback(async () => {
     if (!getToken) return;
 
-    const initialLoad = bootstrap == null;
+    const initialLoad = bootstrapRef.current == null;
     if (initialLoad) {
       setIsLoading(true);
     } else {
@@ -98,6 +107,7 @@ export function BootstrapProvider({
     try {
       const token = await getToken();
       if (!token) {
+        bootstrapRef.current = null;
         setBootstrap(null);
         setErrorCode(null);
         resetBootstrapResolved();
@@ -124,6 +134,7 @@ export function BootstrapProvider({
       }
 
       const data = (await res.json()) as WhoAmIResponse;
+      bootstrapRef.current = data;
       setBootstrap(data);
       setErrorCode(null);
 
@@ -155,7 +166,7 @@ export function BootstrapProvider({
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [bootstrap, getToken]);
+  }, [getToken]);
 
   useEffect(() => {
     fetchWhoami();

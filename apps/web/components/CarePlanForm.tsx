@@ -1,22 +1,22 @@
-"use client";
+'use client';
 
-import { useState, useCallback, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { db } from "@/lib/db";
-import { enqueueOutboxMutation } from "@/lib/outbox";
-import { SYNC_OPERATION } from "@/lib/outbox";
+import { useState, useCallback, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { db } from '@/lib/db';
+import { enqueueOutboxMutation } from '@/lib/outbox';
+import { SYNC_OPERATION } from '@/lib/outbox';
 
 function generateId(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
   }
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
 }
@@ -42,25 +42,21 @@ export function CarePlanForm({
   onSaved,
   saveRef,
 }: CarePlanFormProps) {
-  const [counselingGiven, setCounselingGiven] = useState(
-    initialData?.counselingGiven ?? false
-  );
+  const [counselingGiven, setCounselingGiven] = useState(initialData?.counselingGiven ?? false);
   const [medicationPrescribed, setMedicationPrescribed] = useState(
-    initialData?.medicationPrescribed ?? false
+    initialData?.medicationPrescribed ?? false,
   );
   const [followUpDate, setFollowUpDate] = useState<string>(
-    initialData?.followUpDate
-      ? new Date(initialData.followUpDate).toISOString().slice(0, 10)
-      : ""
+    initialData?.followUpDate ? new Date(initialData.followUpDate).toISOString().slice(0, 10) : '',
   );
-  const [notes, setNotes] = useState<string>(initialData?.notes ?? "");
+  const [notes, setNotes] = useState<string>(initialData?.notes ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
     setError(null);
-    const existing = await db.care_plans.where("encounterId").equals(encounterId).first();
+    const existing = await db.care_plans.where('encounterId').equals(encounterId).first();
     const carePlanId = existing?.id ?? generateId();
     const now = new Date().toISOString();
 
@@ -89,26 +85,18 @@ export function CarePlanForm({
       await db.care_plans.put(record);
       await enqueueOutboxMutation(db, {
         clinicId,
-        entityType: "care_plan",
+        entityType: 'care_plan',
         entityId: carePlanId,
         operation: SYNC_OPERATION.UPSERT,
         payloadJson: payload,
       });
       onSaved?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save care plan");
+      setError(err instanceof Error ? err.message : 'Failed to save care plan');
     } finally {
       setSaving(false);
     }
-  }, [
-    clinicId,
-    encounterId,
-    counselingGiven,
-    medicationPrescribed,
-    followUpDate,
-    notes,
-    onSaved,
-  ]);
+  }, [clinicId, encounterId, counselingGiven, medicationPrescribed, followUpDate, notes, onSaved]);
 
   useEffect(() => {
     if (saveRef) saveRef.current = handleSave;
@@ -159,7 +147,7 @@ export function CarePlanForm({
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
         <Button onClick={handleSave} disabled={saving}>
-          {saving ? "Saving…" : "Save Care Plan"}
+          {saving ? 'Saving…' : 'Save Care Plan'}
         </Button>
       </CardContent>
     </Card>

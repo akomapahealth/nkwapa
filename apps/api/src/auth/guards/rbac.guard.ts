@@ -1,9 +1,4 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  ForbiddenException,
-  Injectable,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { UserRole } from '@prisma/client';
 import { REQUIRE_PERMISSION_KEY } from '../decorators/require-permission.decorator';
@@ -19,10 +14,10 @@ export class RbacGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredPermission = this.reflector.getAllAndOverride<string>(
-      REQUIRE_PERMISSION_KEY,
-      [context.getHandler(), context.getClass()]
-    );
+    const requiredPermission = this.reflector.getAllAndOverride<string>(REQUIRE_PERMISSION_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
     if (!requiredPermission) {
       return true;
@@ -42,7 +37,7 @@ export class RbacGuard implements CanActivate {
             .filter(
               (r) =>
                 r.clinicId === clinicId ||
-                (r.clinicId === null && r.role === UserRole.SYSTEM_ADMIN)
+                (r.clinicId === null && r.role === UserRole.SYSTEM_ADMIN),
             )
             .map((r) => ({ role: r.role }))
         : user.roles.map((r) => ({ role: r.role }));

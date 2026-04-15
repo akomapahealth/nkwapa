@@ -1,4 +1,4 @@
-import { NationalIdType, Sex } from "@prisma/client";
+import { NationalIdType, Sex } from '@prisma/client';
 
 /** DTO for creating patient; primaryClinicId comes from route param. */
 export interface CreatePatientDto {

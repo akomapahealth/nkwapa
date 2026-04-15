@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { cn } from "@/lib/utils";
+import { cn } from '@/lib/utils';
 
 export function AppPageHeader({
   eyebrow,
@@ -20,22 +20,22 @@ export function AppPageHeader({
   return (
     <section
       className={cn(
-        "overflow-hidden rounded-[30px] border border-primary/15 bg-gradient-to-br from-primary/12 via-card to-secondary/10 p-6 shadow-xl shadow-primary/5",
-        className
+        'overflow-hidden rounded-[30px] border border-primary/15 bg-gradient-to-br from-primary/12 via-card to-secondary/10 p-5 shadow-xl shadow-primary/5 md:p-6',
+        className,
       )}
     >
-      <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+      <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
         <div className="max-w-3xl">
           {eyebrow ? (
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary/80">
               {eyebrow}
             </p>
           ) : null}
-          <h1 className="mt-3 font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+          <h1 className="mt-2 font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
             {title}
           </h1>
           {description ? (
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
               {description}
             </p>
           ) : null}

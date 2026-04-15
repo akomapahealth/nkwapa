@@ -1,4 +1,4 @@
-import type { SmsProvider, SmsSendResult } from "./sms-provider.interface";
+import type { SmsProvider, SmsSendResult } from './sms-provider.interface';
 
 export class TwilioSmsProvider implements SmsProvider {
   private readonly accountSid: string;
@@ -12,7 +12,7 @@ export class TwilioSmsProvider implements SmsProvider {
     const from = process.env.TWILIO_FROM_NUMBER;
     if (!sid || !token || !from) {
       throw new Error(
-        "Missing Twilio config: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM_NUMBER are required"
+        'Missing Twilio config: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM_NUMBER are required',
       );
     }
     this.accountSid = sid;
@@ -29,19 +29,17 @@ export class TwilioSmsProvider implements SmsProvider {
       Body: body,
     });
     if (this.statusCallbackUrl) {
-      params.set("StatusCallback", this.statusCallbackUrl);
+      params.set('StatusCallback', this.statusCallbackUrl);
     }
 
-    const credentials = Buffer.from(
-      `${this.accountSid}:${this.authToken}`
-    ).toString("base64");
+    const credentials = Buffer.from(`${this.accountSid}:${this.authToken}`).toString('base64');
 
     try {
       const response = await fetch(url, {
-        method: "POST",
+        method: 'POST',
         headers: {
           Authorization: `Basic ${credentials}`,
-          "Content-Type": "application/x-www-form-urlencoded",
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: params.toString(),
       });

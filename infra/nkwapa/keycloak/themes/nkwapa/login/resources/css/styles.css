@@ -259,7 +259,10 @@ body.nkwapa-auth-body {
   font-size: 0.98rem;
   line-height: 1.4;
   outline: none;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
 }
 
 .nkwapa-input:hover {
@@ -299,7 +302,9 @@ body.nkwapa-auth-body {
   background: transparent;
   color: #6b7c8f;
   cursor: pointer;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
 
 .nkwapa-password-toggle:hover,
@@ -365,7 +370,10 @@ body.nkwapa-auth-body {
   letter-spacing: -0.01em;
   cursor: pointer;
   box-shadow: 0 18px 36px rgba(18, 114, 138, 0.22);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    filter 0.2s ease;
 }
 
 .nkwapa-btn-primary:hover {

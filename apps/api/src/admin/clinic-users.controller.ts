@@ -30,7 +30,7 @@ export class ClinicUsersController {
   async listClinicUsers(
     @Param('clinicId') clinicId: string,
     @Query('status') status: string | undefined,
-    @Request() req: { user: ReqUserWithRoles }
+    @Request() req: { user: ReqUserWithRoles },
   ) {
     return this.adminService.listClinicUsers(
       {
@@ -38,7 +38,7 @@ export class ClinicUsersController {
         roles: req.user.roles,
       },
       clinicId,
-      status
+      status,
     );
   }
 
@@ -52,7 +52,7 @@ export class ClinicUsersController {
     req: {
       user: ReqUserWithRoles;
       headers?: { 'x-request-id'?: string };
-    }
+    },
   ) {
     return this.adminService.deactivateUserInClinic(
       {
@@ -61,7 +61,7 @@ export class ClinicUsersController {
       },
       clinicId,
       userId,
-      req.headers?.['x-request-id'] ?? randomUUID()
+      req.headers?.['x-request-id'] ?? randomUUID(),
     );
   }
 
@@ -76,7 +76,7 @@ export class ClinicUsersController {
     req: {
       user: ReqUserWithRoles;
       headers?: { 'x-request-id'?: string };
-    }
+    },
   ) {
     const role = roleParam as UserRole;
     if (!Object.values(UserRole).includes(role)) {
@@ -91,7 +91,7 @@ export class ClinicUsersController {
       clinicId,
       userId,
       role,
-      req.headers?.['x-request-id'] ?? randomUUID()
+      req.headers?.['x-request-id'] ?? randomUUID(),
     );
   }
 }

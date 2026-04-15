@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
-import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, statSync } from "node:fs";
-import { extname } from "node:path";
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import { extname } from 'node:path';
 
 const args = new Set(process.argv.slice(2));
-const stagedOnly = args.has("--staged");
+const stagedOnly = args.has('--staged');
 
 const BLOCKED_PATH_PATTERNS = [
   /(^|\/)\.env($|\.)/,
@@ -16,81 +16,81 @@ const BLOCKED_PATH_PATTERNS = [
 ];
 
 const BINARY_EXTENSIONS = new Set([
-  ".png",
-  ".jpg",
-  ".jpeg",
-  ".gif",
-  ".ico",
-  ".pdf",
-  ".zip",
-  ".gz",
-  ".tgz",
-  ".woff",
-  ".woff2",
-  ".ttf",
-  ".eot",
-  ".mp4",
-  ".mov",
-  ".webm",
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.ico',
+  '.pdf',
+  '.zip',
+  '.gz',
+  '.tgz',
+  '.woff',
+  '.woff2',
+  '.ttf',
+  '.eot',
+  '.mp4',
+  '.mov',
+  '.webm',
 ]);
 
 const DIRECT_SECRET_PATTERNS = [
   {
-    label: "private key block",
+    label: 'private key block',
     regex: /-----BEGIN (?:RSA|DSA|EC|OPENSSH|PGP|PRIVATE) PRIVATE KEY-----/,
   },
   {
-    label: "GitHub token",
+    label: 'GitHub token',
     regex: /\b(?:ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{20,})\b/,
   },
   {
-    label: "AWS access key",
+    label: 'AWS access key',
     regex: /\bAKIA[0-9A-Z]{16}\b/,
   },
   {
-    label: "Google API key",
+    label: 'Google API key',
     regex: /\bAIza[0-9A-Za-z\-_]{35}\b/,
   },
   {
-    label: "Slack token",
+    label: 'Slack token',
     regex: /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/,
   },
   {
-    label: "Stripe live key",
+    label: 'Stripe live key',
     regex: /\b(?:sk_live|rk_live)_[0-9A-Za-z]+\b/,
   },
   {
-    label: "SendGrid token",
+    label: 'SendGrid token',
     regex: /\bSG\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\b/,
   },
 ];
 
 const SENSITIVE_ENV_KEYS = new Set([
-  "DATABASE_URL",
-  "REDIS_URL",
-  "KEYCLOAK_CLIENT_SECRET",
-  "PII_ENCRYPTION_KEY_BASE64",
-  "NATIONAL_ID_PEPPER",
-  "NATIONAL_ID_ENCRYPTION_KEY",
-  "RESEARCH_GITHUB_TOKEN",
-  "SMTP_PASS",
-  "TWILIO_AUTH_TOKEN",
-  "SENTRY_DSN",
-  "VERCEL_TOKEN",
-  "RAILWAY_TOKEN",
+  'DATABASE_URL',
+  'REDIS_URL',
+  'KEYCLOAK_CLIENT_SECRET',
+  'PII_ENCRYPTION_KEY_BASE64',
+  'NATIONAL_ID_PEPPER',
+  'NATIONAL_ID_ENCRYPTION_KEY',
+  'RESEARCH_GITHUB_TOKEN',
+  'SMTP_PASS',
+  'TWILIO_AUTH_TOKEN',
+  'SENTRY_DSN',
+  'VERCEL_TOKEN',
+  'RAILWAY_TOKEN',
 ]);
 
 function gitList(commandArgs) {
-  return execFileSync("git", commandArgs, { encoding: "utf8" })
-    .split("\n")
+  return execFileSync('git', commandArgs, { encoding: 'utf8' })
+    .split('\n')
     .map((line) => line.trim())
     .filter(Boolean);
 }
 
 function listCandidateFiles() {
   const files = stagedOnly
-    ? gitList(["diff", "--cached", "--name-only", "--diff-filter=ACMR"])
-    : gitList(["ls-files", "--cached", "--others", "--exclude-standard"]);
+    ? gitList(['diff', '--cached', '--name-only', '--diff-filter=ACMR'])
+    : gitList(['ls-files', '--cached', '--others', '--exclude-standard']);
 
   return [...new Set(files)].filter((file) => {
     if (!existsSync(file)) {
@@ -104,9 +104,9 @@ function listCandidateFiles() {
 
 function shouldAllowPath(filePath) {
   return (
-    filePath.endsWith(".env.example") ||
-    filePath === "apps/web/next-env.d.ts" ||
-    filePath.startsWith("node_modules/")
+    filePath.endsWith('.env.example') ||
+    filePath === 'apps/web/next-env.d.ts' ||
+    filePath.startsWith('node_modules/')
   );
 }
 
@@ -119,7 +119,7 @@ function isBinaryContent(filePath, content) {
     return true;
   }
 
-  return content.includes("\0");
+  return content.includes('\0');
 }
 
 function isSafePlaceholder(value) {
@@ -129,22 +129,22 @@ function isSafePlaceholder(value) {
   }
 
   return [
-    "replace_me",
-    "replace_me_if_confidential_client",
-    "changeme",
-    "placeholder",
-    "example",
-    "fake",
-    "<",
-    ">",
-    "localhost",
-    "127.0.0.1",
-    "nkwapa",
+    'replace_me',
+    'replace_me_if_confidential_client',
+    'changeme',
+    'placeholder',
+    'example',
+    'fake',
+    '<',
+    '>',
+    'localhost',
+    '127.0.0.1',
+    'nkwapa',
   ].some((token) => normalized.includes(token));
 }
 
 function scanEnvAssignments(filePath, content, issues) {
-  const lines = content.split("\n");
+  const lines = content.split('\n');
   lines.forEach((line, index) => {
     const match = line.match(/^([A-Z0-9_]+)=(.*)$/);
     if (!match) {
@@ -161,10 +161,7 @@ function scanEnvAssignments(filePath, content, issues) {
       return;
     }
 
-    if (
-      (key === "DATABASE_URL" || key === "REDIS_URL") &&
-      /localhost|127\.0\.0\.1/.test(value)
-    ) {
+    if ((key === 'DATABASE_URL' || key === 'REDIS_URL') && /localhost|127\.0\.0\.1/.test(value)) {
       return;
     }
 
@@ -178,7 +175,7 @@ function scanConnectionStrings(filePath, content, issues) {
     const [, user, password, host] = match;
     if (
       /localhost|127\.0\.0\.1/.test(host) ||
-      (user === "nkwapa" && password === "nkwapa") ||
+      (user === 'nkwapa' && password === 'nkwapa') ||
       isSafePlaceholder(user) ||
       isSafePlaceholder(password)
     ) {
@@ -199,7 +196,7 @@ function main() {
       continue;
     }
 
-    const content = readFileSync(file, "utf8");
+    const content = readFileSync(file, 'utf8');
     if (isBinaryContent(file, content)) {
       continue;
     }
@@ -215,13 +212,13 @@ function main() {
   }
 
   if (issues.length > 0) {
-    console.error("Sensitive file or secret-like content detected:\n");
+    console.error('Sensitive file or secret-like content detected:\n');
     issues.forEach((issue) => console.error(`- ${issue}`));
     process.exit(1);
   }
 
   console.log(
-    `Secret scan passed for ${files.length} ${stagedOnly ? "staged" : "tracked/untracked"} files.`
+    `Secret scan passed for ${files.length} ${stagedOnly ? 'staged' : 'tracked/untracked'} files.`,
   );
 }
 

@@ -1,9 +1,14 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Poppins:wght@400;500;600;700;800;900&family=Source+Serif+4:wght@200..900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
+    --font-heading: 'Source Serif 4';
+    --font-body: 'IBM Plex Sans';
+    --font-landing: 'Poppins';
     --background: 54 63% 97%;
     --foreground: 200 25% 15%;
     --card: 50 33% 98%;
@@ -66,7 +71,12 @@
   body {
     @apply bg-background text-foreground font-body antialiased;
   }
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     @apply font-heading;
   }
 }

@@ -3,12 +3,10 @@
 /* eslint-disable @next/next/no-img-element -- Marketing static assets */
 import { useRef, useEffect } from 'react';
 import { gsap } from '@/lib/gsap';
-import { useKeycloak } from '@/app/KeycloakProvider';
 import { landingCardHover } from '@/lib/landing-card-hover';
 
 export function TalentSection() {
   const sectionRef = useRef<HTMLElement>(null);
-  const { login } = useKeycloak() ?? {};
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -63,10 +61,12 @@ export function TalentSection() {
             what matters: patient care.
           </p>
           <button
-            onClick={login}
+            onClick={() =>
+              document.getElementById('workflow')?.scrollIntoView({ behavior: 'smooth' })
+            }
             className="mt-6 cursor-pointer rounded-full border-2 border-white bg-transparent px-6 py-2.5 font-landing-nav text-sm font-semibold text-white transition-colors duration-200 hover:bg-white hover:text-primary"
           >
-            Get Started
+            See the workflow
           </button>
         </div>
 

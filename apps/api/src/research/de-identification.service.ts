@@ -1,27 +1,27 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
-import { createHmac } from "crypto";
-import { RESEARCH_TIMESTAMP_ROUNDING_MINUTES } from "./research-policy";
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { createHmac } from 'crypto';
+import { RESEARCH_TIMESTAMP_ROUNDING_MINUTES } from './research-policy';
 
 @Injectable()
 export class DeIdentificationService {
   private hmacKey: string | null = null;
 
   clinicKey(clinicId: string): string {
-    return this.entityKey(clinicId, "clinic", clinicId);
+    return this.entityKey(clinicId, 'clinic', clinicId);
   }
 
   patientKey(clinicId: string, patientId: string): string {
-    return this.entityKey(clinicId, "patient", patientId);
+    return this.entityKey(clinicId, 'patient', patientId);
   }
 
   entityKey(clinicId: string, entityType: string, internalId: string | null | undefined): string {
     if (!internalId) {
-      return "";
+      return '';
     }
 
-    const hmac = createHmac("sha256", this.getHmacKey());
+    const hmac = createHmac('sha256', this.getHmacKey());
     hmac.update(`${clinicId}:${entityType}:${internalId}`);
-    return hmac.digest("hex").slice(0, 32);
+    return hmac.digest('hex').slice(0, 32);
   }
 
   birthYear(dob: Date | null): number | null {
@@ -46,11 +46,11 @@ export class DeIdentificationService {
   }
 
   csvFromRows(headers: string[], rows: Array<Record<string, unknown>>): string {
-    const headerLine = headers.join(",");
+    const headerLine = headers.join(',');
     const dataLines = rows.map((row) =>
-      headers.map((header) => this.escapeCsvValue(row[header])).join(",")
+      headers.map((header) => this.escapeCsvValue(row[header])).join(','),
     );
-    return [headerLine, ...dataLines].join("\n");
+    return [headerLine, ...dataLines].join('\n');
   }
 
   parseJsonObject(payloadJson: string | null | undefined): Record<string, unknown> {
@@ -60,7 +60,7 @@ export class DeIdentificationService {
 
     try {
       const parsed = JSON.parse(payloadJson) as unknown;
-      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
         ? (parsed as Record<string, unknown>)
         : {};
     } catch {
@@ -69,10 +69,10 @@ export class DeIdentificationService {
   }
 
   numberFromUnknown(value: unknown): number | null {
-    if (typeof value === "number" && Number.isFinite(value)) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
       return value;
     }
-    if (typeof value === "string" && value.trim() !== "") {
+    if (typeof value === 'string' && value.trim() !== '') {
       const parsed = Number(value);
       return Number.isFinite(parsed) ? parsed : null;
     }
@@ -80,7 +80,7 @@ export class DeIdentificationService {
   }
 
   stringFromUnknown(value: unknown): string | null {
-    if (typeof value !== "string") {
+    if (typeof value !== 'string') {
       return null;
     }
     const trimmed = value.trim();
@@ -88,7 +88,7 @@ export class DeIdentificationService {
   }
 
   booleanFromUnknown(value: unknown): boolean | null {
-    if (typeof value === "boolean") {
+    if (typeof value === 'boolean') {
       return value;
     }
     return null;
@@ -96,9 +96,9 @@ export class DeIdentificationService {
 
   private escapeCsvValue(value: unknown): string {
     if (value === null || value === undefined) {
-      return "";
+      return '';
     }
-    if (typeof value === "string") {
+    if (typeof value === 'string') {
       return `"${value.replace(/"/g, '""')}"`;
     }
     return String(value);
@@ -111,7 +111,7 @@ export class DeIdentificationService {
 
     const value = process.env.RESEARCH_HMAC_KEY?.trim();
     if (!value) {
-      throw new BadRequestException("RESEARCH_HMAC_KEY must be configured for research exports");
+      throw new BadRequestException('RESEARCH_HMAC_KEY must be configured for research exports');
     }
 
     this.hmacKey = value;

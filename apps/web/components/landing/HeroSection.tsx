@@ -4,7 +4,6 @@
 import { useRef, useEffect } from 'react';
 import { MoveRight, ShieldCheck } from 'lucide-react';
 import { gsap } from '@/lib/gsap';
-import { useKeycloak } from '@/app/KeycloakProvider';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { trackEvent } from '@/lib/analytics';
@@ -14,7 +13,6 @@ export function HeroSection() {
   const rootRef = useRef<HTMLElement>(null);
   const leftRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
-  const { login } = useKeycloak() ?? {};
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -37,6 +35,10 @@ export function HeroSection() {
 
   const scrollToProduct = () => {
     document.getElementById('product')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const scrollToWorkflow = () => {
+    document.getElementById('workflow')?.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
@@ -72,14 +74,11 @@ export function HeroSection() {
                 size="lg"
                 className="cursor-pointer gap-2 rounded-full px-8 font-landing-nav font-semibold"
                 onClick={() => {
-                  trackEvent({
-                    name: 'landing_cta_sign_in',
-                    properties: { source: 'hero_primary' },
-                  });
-                  login?.();
+                  trackEvent({ name: 'landing_scroll_workflow', properties: { source: 'hero' } });
+                  scrollToWorkflow();
                 }}
               >
-                Sign in
+                See workflow
                 <MoveRight className="h-4 w-4" aria-hidden />
               </Button>
               <Button

@@ -39,7 +39,7 @@ const NAV_SECTIONS: AppNavSection[] = [
       {
         href: '/dashboard',
         label: 'Dashboard',
-        description: 'Role-aware analytics and clinic insight.',
+        description: 'Snapshot and trends.',
         icon: LayoutDashboard,
       },
     ],
@@ -51,7 +51,7 @@ const NAV_SECTIONS: AppNavSection[] = [
       {
         href: '/today',
         label: 'Today Board',
-        description: 'Check-ins, assignments, and live flow.',
+        description: 'Check-ins and assignments.',
         icon: CalendarDays,
         permission: 'OPS.CHECKIN.READ',
         requiresClinic: true,
@@ -59,7 +59,7 @@ const NAV_SECTIONS: AppNavSection[] = [
       {
         href: '/my/assigned',
         label: 'My Assigned',
-        description: 'Shift work and patient handoffs.',
+        description: 'Your next tasks.',
         icon: Stethoscope,
         permission: 'OPS.ASSIGNMENT.READ_SELF',
         requiresClinic: true,
@@ -67,7 +67,7 @@ const NAV_SECTIONS: AppNavSection[] = [
       {
         href: '/queues',
         label: 'Queues',
-        description: 'Draft, review, and finalization pipelines.',
+        description: 'Drafts, reviews, sign-off.',
         icon: ClipboardList,
         anyOf: ['ENCOUNTER.READ', 'ENCOUNTER.CREATE', 'PRECEPTOR.REVIEW', 'DOCTOR.FINALIZE'],
         requiresClinic: true,
@@ -75,7 +75,7 @@ const NAV_SECTIONS: AppNavSection[] = [
       {
         href: '/patients',
         label: 'Patients',
-        description: 'Search and manage the clinic patient list.',
+        description: 'Find and open records.',
         icon: Users,
         permission: 'PATIENT.SEARCH',
         requiresClinic: true,
@@ -83,7 +83,7 @@ const NAV_SECTIONS: AppNavSection[] = [
       {
         href: '/patients/new',
         label: 'New Patient',
-        description: 'Register a patient into the active clinic.',
+        description: 'Add a new patient.',
         icon: FileEdit,
         permission: 'PATIENT.CREATE',
         requiresClinic: true,
@@ -97,7 +97,7 @@ const NAV_SECTIONS: AppNavSection[] = [
       {
         href: '/audit',
         label: 'Audit',
-        description: 'Trace clinical and admin activity.',
+        description: 'Activity history.',
         icon: Shield,
         permission: 'AUDIT.READ',
         requiresClinic: true,
@@ -105,7 +105,7 @@ const NAV_SECTIONS: AppNavSection[] = [
       {
         href: '/reminders',
         label: 'Reminders',
-        description: 'Review queued and delivered follow-up outreach.',
+        description: 'Follow-up outreach.',
         icon: Bell,
         permission: 'REMINDER.READ',
         requiresClinic: true,
@@ -113,7 +113,7 @@ const NAV_SECTIONS: AppNavSection[] = [
       {
         href: '/settings/clinic',
         label: 'Settings',
-        description: 'Clinic-level research and platform controls.',
+        description: 'Clinic controls.',
         icon: Settings,
         permission: 'RESEARCH.SETTINGS.UPDATE',
         requiresClinic: true,
@@ -127,7 +127,7 @@ const NAV_SECTIONS: AppNavSection[] = [
       {
         href: '/admin/clinics',
         label: 'Clinics',
-        description: 'Create and manage clinic environments.',
+        description: 'Clinic setup.',
         icon: Building2,
         permission: 'CLINIC.MANAGE',
         directorOrSystemAdminOnly: true,
@@ -135,7 +135,7 @@ const NAV_SECTIONS: AppNavSection[] = [
       {
         href: '/admin/users',
         label: 'Staff',
-        description: 'Roles, lifecycle actions, and access cleanup.',
+        description: 'Roles and access.',
         icon: UserCog,
         permission: 'CLINIC.MANAGE',
       },

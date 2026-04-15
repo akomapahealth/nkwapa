@@ -23,6 +23,9 @@ out
 # Test & coverage
 coverage
 *.lcov
+apps/web/playwright/.auth/
+apps/web/playwright-report/
+apps/web/test-results/
 
 # Logs & temp
 *.log

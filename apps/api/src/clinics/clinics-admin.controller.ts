@@ -27,19 +27,17 @@ import type { ReqUserWithRoles } from '../auth/guards/rbac.guard';
 export class ClinicsAdminController {
   constructor(
     private readonly clinicService: ClinicService,
-    private readonly prisma: PrismaService
+    private readonly prisma: PrismaService,
   ) {}
 
   @Get()
-  async listAll(
-    @Request() req: { user: ReqUserWithRoles }
-  ) {
+  async listAll(@Request() req: { user: ReqUserWithRoles }) {
     const actor = {
       userId: req.user.user.id,
       roles: req.user.roles,
     };
     const isSystemAdmin = actor.roles.some(
-      (r) => r.role === UserRole.SYSTEM_ADMIN && r.clinicId === null
+      (r) => r.role === UserRole.SYSTEM_ADMIN && r.clinicId === null,
     );
     const isDirector = actor.roles.some((r) => r.role === UserRole.DIRECTOR);
     if (!isSystemAdmin && !isDirector) {
@@ -49,16 +47,13 @@ export class ClinicsAdminController {
   }
 
   @Post()
-  async create(
-    @Body() dto: CreateClinicAdminDto,
-    @Request() req: { user: ReqUserWithRoles }
-  ) {
+  async create(@Body() dto: CreateClinicAdminDto, @Request() req: { user: ReqUserWithRoles }) {
     const actor = {
       userId: req.user.user.id,
       roles: req.user.roles,
     };
     const isSystemAdmin = actor.roles.some(
-      (r) => r.role === UserRole.SYSTEM_ADMIN && r.clinicId === null
+      (r) => r.role === UserRole.SYSTEM_ADMIN && r.clinicId === null,
     );
     const isDirector = actor.roles.some((r) => r.role === UserRole.DIRECTOR);
     if (!isSystemAdmin && !isDirector) {
@@ -85,7 +80,7 @@ export class ClinicsAdminController {
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateClinicAdminDto,
-    @Request() req: { user: ReqUserWithRoles }
+    @Request() req: { user: ReqUserWithRoles },
   ) {
     const actor = {
       userId: req.user.user.id,

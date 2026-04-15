@@ -1,6 +1,6 @@
-import { Injectable } from "@nestjs/common";
-import { Prescription, Prisma } from "@prisma/client";
-import { PrismaService } from "../prisma/prisma.service";
+import { Injectable } from '@nestjs/common';
+import { Prescription, Prisma } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class PrescriptionRepository {
@@ -33,7 +33,7 @@ export class PrescriptionRepository {
     return this.prisma.prescription.findMany({
       where: { encounterId },
       include: { drug: true, prescribedBy: { select: { id: true, displayName: true } } },
-      orderBy: { createdAt: "asc" },
+      orderBy: { createdAt: 'asc' },
     });
   }
 }

@@ -26,6 +26,54 @@ function toLocationCode(value: string) {
   return normalized || 'clinic';
 }
 
+async function ensureGlobalRole(prisma: PrismaClient, userId: string, role: UserRole) {
+  const existingRole = await prisma.userClinicRole.findFirst({
+    where: { userId, clinicId: null, role },
+  });
+
+  if (!existingRole) {
+    await prisma.userClinicRole.create({
+      data: { userId, clinicId: null, role },
+    });
+  }
+}
+
+async function ensureClinicRole(
+  prisma: PrismaClient,
+  userId: string,
+  clinicId: string,
+  role: UserRole,
+) {
+  await prisma.userClinicRole.upsert({
+    where: {
+      userId_clinicId_role: { userId, clinicId, role },
+    },
+    update: {},
+    create: { userId, clinicId, role },
+  });
+}
+
+async function ensureResearchSettings(
+  prisma: PrismaClient,
+  clinicId: string,
+  updatedByUserId: string,
+) {
+  await prisma.clinicResearchSettings.upsert({
+    where: { clinicId },
+    update: {
+      updatedByUserId,
+      researchEnabled: false,
+      requiresDirectorApprovalEachExport: true,
+    },
+    create: {
+      clinicId,
+      updatedByUserId,
+      researchEnabled: false,
+      requiresDirectorApprovalEachExport: true,
+    },
+  });
+}
+
 async function main() {
   const organizationName = process.env.SEED_ORGANIZATION_NAME ?? 'Nkwapa Health';
   const organizationSlug = process.env.SEED_ORGANIZATION_SLUG ?? 'default';
@@ -36,6 +84,7 @@ async function main() {
   const clinicTimezone = process.env.SEED_CLINIC_TIMEZONE ?? organizationTimezone;
   const clinicLocationCode = process.env.SEED_CLINIC_LOCATION_CODE ?? toLocationCode(clinicName);
   const clinicZoneCode = process.env.SEED_CLINIC_ZONE_CODE?.trim() || null;
+  let researchSettingsOwnerId: string | null = null;
 
   const organization = await prisma.organization.upsert({
     where: { slug: organizationSlug },
@@ -95,42 +144,17 @@ async function main() {
       update: { displayName: sysAdminName, isActive: true },
       create: { keycloakSub: sysAdminSub, displayName: sysAdminName, isActive: true },
     });
+    researchSettingsOwnerId = user.id;
 
     // Global SYSTEM_ADMIN role (clinicId = null)
     // Prisma upsert doesn't support null in compound unique; use findFirst + create
-    const existingSystemAdmin = await prisma.userClinicRole.findFirst({
-      where: { userId: user.id, clinicId: null, role: UserRole.SYSTEM_ADMIN },
-    });
-    if (!existingSystemAdmin) {
-      await prisma.userClinicRole.create({
-        data: { userId: user.id, clinicId: null, role: UserRole.SYSTEM_ADMIN },
-      });
-    }
+    await ensureGlobalRole(prisma, user.id, UserRole.SYSTEM_ADMIN);
 
     // Also give a DIRECTOR role for demo on the demo clinic (optional convenience)
-    await prisma.userClinicRole.upsert({
-      where: {
-        userId_clinicId_role: { userId: user.id, clinicId: clinic.id, role: UserRole.DIRECTOR },
-      },
-      update: {},
-      create: { userId: user.id, clinicId: clinic.id, role: UserRole.DIRECTOR },
-    });
+    await ensureClinicRole(prisma, user.id, clinic.id, UserRole.DIRECTOR);
 
     // Default research settings for clinic
-    await prisma.clinicResearchSettings.upsert({
-      where: { clinicId: clinic.id },
-      update: {
-        updatedByUserId: user.id,
-        researchEnabled: false,
-        requiresDirectorApprovalEachExport: true,
-      },
-      create: {
-        clinicId: clinic.id,
-        updatedByUserId: user.id,
-        researchEnabled: false,
-        requiresDirectorApprovalEachExport: true,
-      },
-    });
+    await ensureResearchSettings(prisma, clinic.id, user.id);
 
     // Seed drug catalog for the clinic
     await seedDrugs(prisma, clinic.id);
@@ -197,6 +221,47 @@ async function main() {
     console.log(
       'SEED_SYSTEM_ADMIN_SUB not provided; seeded clinic only. Research settings will be created after first Director exists.',
     );
+  }
+
+  const e2eStaffSub = process.env.SEED_E2E_STAFF_SUB?.trim();
+  const e2eStaffName = process.env.SEED_E2E_STAFF_NAME ?? 'E2E Staff';
+  const e2eStaffEmail = process.env.SEED_E2E_STAFF_EMAIL ?? 'e2e.staff@nkwapa.local';
+
+  if (e2eStaffSub) {
+    const [firstName, ...lastNameParts] = e2eStaffName.trim().split(/\s+/);
+    const user = await prisma.user.upsert({
+      where: { keycloakSub: e2eStaffSub },
+      update: {
+        displayName: e2eStaffName,
+        firstName: firstName || 'E2E',
+        lastName: lastNameParts.join(' ') || 'Staff',
+        email: e2eStaffEmail,
+        isActive: true,
+      },
+      create: {
+        keycloakSub: e2eStaffSub,
+        displayName: e2eStaffName,
+        firstName: firstName || 'E2E',
+        lastName: lastNameParts.join(' ') || 'Staff',
+        email: e2eStaffEmail,
+        isActive: true,
+      },
+    });
+    researchSettingsOwnerId ??= user.id;
+
+    await ensureGlobalRole(prisma, user.id, UserRole.SYSTEM_ADMIN);
+    await Promise.all([
+      ensureClinicRole(prisma, user.id, clinic.id, UserRole.DIRECTOR),
+      ensureClinicRole(prisma, user.id, clinic.id, UserRole.DOCTOR),
+      ensureClinicRole(prisma, user.id, clinic.id, UserRole.PRECEPTOR),
+      ensureClinicRole(prisma, user.id, clinic.id, UserRole.VOLUNTEER),
+    ]);
+
+    console.log('Seeded deterministic multi-role E2E staff user.');
+  }
+
+  if (researchSettingsOwnerId) {
+    await ensureResearchSettings(prisma, clinic.id, researchSettingsOwnerId);
   }
 
   console.log({

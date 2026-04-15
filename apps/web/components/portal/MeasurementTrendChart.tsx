@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   CartesianGrid,
@@ -8,8 +8,8 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-} from "recharts";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+} from 'recharts';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface TrendLine {
   key: string;
@@ -32,7 +32,7 @@ export function MeasurementTrendChart({
   emptyMessage,
   lines,
   data,
-  valueSuffix = "",
+  valueSuffix = '',
 }: MeasurementTrendChartProps) {
   return (
     <Card className="border-border/70 bg-card/95">
@@ -70,19 +70,19 @@ export function MeasurementTrendChart({
                   <YAxis
                     tick={{ fontSize: 11 }}
                     stroke="hsl(var(--muted-foreground))"
-                    domain={["auto", "auto"]}
+                    domain={['auto', 'auto']}
                   />
                   <Tooltip
                     formatter={(value, key) => {
-                      if (value == null) return ["No value", key];
-                      return [`${value}${valueSuffix}`, String(key ?? "")];
+                      if (value == null) return ['No value', key];
+                      return [`${value}${valueSuffix}`, String(key ?? '')];
                     }}
                     labelFormatter={(value) => `${value}`}
                     contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "1rem",
-                      color: "hsl(var(--foreground))",
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '1rem',
+                      color: 'hsl(var(--foreground))',
                     }}
                   />
                   {lines.map((line) => (

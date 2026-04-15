@@ -1,7 +1,7 @@
-import { Processor, WorkerHost } from "@nestjs/bullmq";
-import { Job } from "bullmq";
-import { ResearchExportService } from "./research-export.service";
-import { RESEARCH_EXPORT_QUEUE_NAME } from "./research-policy";
+import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { Job } from 'bullmq';
+import { ResearchExportService } from './research-export.service';
+import { RESEARCH_EXPORT_QUEUE_NAME } from './research-policy';
 
 @Processor(RESEARCH_EXPORT_QUEUE_NAME)
 export class ResearchExportProcessor extends WorkerHost {

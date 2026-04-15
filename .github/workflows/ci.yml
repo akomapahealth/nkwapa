@@ -36,6 +36,12 @@ jobs:
       - name: Build @nkwapa/db
         run: npm run build --workspace=@nkwapa/db
 
+      - name: Build @nkwapa/api
+        run: npm run build --workspace=@nkwapa/api
+
+      - name: Build @nkwapa/web
+        run: npm run build --workspace=@nkwapa/web
+
       - name: ESLint
         run: npm run lint --workspaces --if-present
 
@@ -149,12 +155,97 @@ jobs:
         run: npm audit --audit-level=moderate || true
 
   # ──────────────────────────────────────────────
+  # E2E Smoke (Docker-backed)
+  # ──────────────────────────────────────────────
+  e2e:
+    name: E2E Smoke
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://nkwapa:nkwapa@localhost:5433/nkwapa
+      REDIS_URL: redis://localhost:6379
+      KEYCLOAK_BASE_URL: http://localhost:8080
+      KEYCLOAK_REALM: nkwapa
+      KEYCLOAK_ISSUER: http://localhost:8080/realms/nkwapa
+      KEYCLOAK_JWKS_URI: http://localhost:8080/realms/nkwapa/protocol/openid-connect/certs
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:4000
+      NEXT_PUBLIC_KEYCLOAK_URL: http://localhost:8080
+      NEXT_PUBLIC_KEYCLOAK_REALM: nkwapa
+      NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: nkwapa-web
+      E2E_STAFF_SUB: 00000000-0000-4000-8000-000000000042
+      E2E_STAFF_USERNAME: e2e.staff
+      E2E_STAFF_PASSWORD: NkwapaE2E!23
+      E2E_STAFF_NAME: E2E Staff
+      E2E_STAFF_EMAIL: e2e.staff@nkwapa.local
+      CORS_ALLOWED_ORIGINS: http://localhost:3000
+      PLAYWRIGHT_BASE_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Prisma generate
+        run: npm run db:generate
+
+      - name: Build @nkwapa/db
+        run: npm run build --workspace=@nkwapa/db
+
+      - name: Start local infra
+        run: docker compose -f infra/nkwapa/docker-compose.yml up -d postgres redis keycloak
+
+      - name: Wait for infra health
+        run: |
+          for container in nkwapa-postgres nkwapa-redis nkwapa-keycloak; do
+            until [ "$(docker inspect -f '{{.State.Health.Status}}' "$container")" = "healthy" ]; do
+              echo "Waiting for $container..."
+              sleep 2
+            done
+          done
+
+      - name: Prisma migrate deploy
+        run: npm run db:migrate:deploy
+
+      - name: Create deterministic Keycloak user
+        run: npm run e2e:keycloak-user
+
+      - name: Seed deterministic dashboard staff user
+        run: npm run db:seed
+        env:
+          SEED_E2E_STAFF_SUB: ${{ env.E2E_STAFF_SUB }}
+          SEED_E2E_STAFF_NAME: ${{ env.E2E_STAFF_NAME }}
+          SEED_E2E_STAFF_EMAIL: ${{ env.E2E_STAFF_EMAIL }}
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright smoke suite
+        run: npm run e2e --workspace=@nkwapa/web
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+          retention-days: 14
+
+      - name: Stop local infra
+        if: always()
+        run: docker compose -f infra/nkwapa/docker-compose.yml down -v
+
+  # ──────────────────────────────────────────────
   # Build (depends on lint + typecheck + test)
   # ──────────────────────────────────────────────
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, test, security]
+    needs: [lint, typecheck, test, security, e2e]
     steps:
       - uses: actions/checkout@v4
 

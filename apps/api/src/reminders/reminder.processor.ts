@@ -1,8 +1,8 @@
-import { Processor, WorkerHost } from "@nestjs/bullmq";
-import { Job } from "bullmq";
-import { ReminderService } from "./reminder.service";
+import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { Job } from 'bullmq';
+import { ReminderService } from './reminder.service';
 
-@Processor("reminders")
+@Processor('reminders')
 export class ReminderProcessor extends WorkerHost {
   constructor(private readonly reminderService: ReminderService) {
     super();

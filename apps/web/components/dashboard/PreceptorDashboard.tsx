@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
-import { Box } from "@mui/material";
-import { dataGridSx } from "@/lib/datagrid-theme";
-import { ClipboardList } from "lucide-react";
-import { DashboardSectionHeader } from "./DashboardSectionHeader";
-import { DashboardKpiCard } from "./DashboardKpiCard";
-import { DashboardActionRow } from "./DashboardActionRow";
-import { TrendChart } from "./TrendChart";
-import { DistributionChart } from "./DistributionChart";
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { DataGrid, type GridColDef } from '@mui/x-data-grid';
+import { Box } from '@mui/material';
+import { dataGridSx } from '@/lib/datagrid-theme';
+import { ClipboardList } from 'lucide-react';
+import { DashboardSectionHeader } from './DashboardSectionHeader';
+import { DashboardKpiCard } from './DashboardKpiCard';
+import { DashboardActionRow } from './DashboardActionRow';
+import { TrendChart } from './TrendChart';
+import { DistributionChart } from './DistributionChart';
 
 interface PreceptorDashboardProps {
   awaitingReview: number;
@@ -26,15 +26,14 @@ interface PreceptorDashboardProps {
 }
 
 const columns: GridColDef[] = [
-  { field: "patientCode", headerName: "Patient Code", width: 140 },
-  { field: "patientName", headerName: "Patient Name", flex: 1 },
-  { field: "status", headerName: "Status", width: 120 },
+  { field: 'patientCode', headerName: 'Patient Code', width: 140 },
+  { field: 'patientName', headerName: 'Patient Name', flex: 1 },
+  { field: 'status', headerName: 'Status', width: 120 },
   {
-    field: "createdAt",
-    headerName: "Date",
+    field: 'createdAt',
+    headerName: 'Date',
     width: 160,
-    valueFormatter: (v: string) =>
-      v ? new Date(v).toLocaleDateString() : "",
+    valueFormatter: (v: string) => (v ? new Date(v).toLocaleDateString() : ''),
   },
 ];
 
@@ -49,25 +48,40 @@ export function PreceptorDashboard({
     <section className="space-y-6">
       <DashboardSectionHeader
         title="Review queue"
-        subtitle="Encounters awaiting your review"
+        subtitle="Visits waiting for review and the reviews you have finished."
+        hint="Use this section to clear visits that still need a preceptor review."
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <DashboardKpiCard title="Awaiting Review" value={awaitingReview} />
-        <DashboardKpiCard title="Reviews Today" value={reviewsCompleted.today} />
-        <DashboardKpiCard title="Reviews This Week" value={reviewsCompleted.week} />
+        <DashboardKpiCard
+          title="Waiting for review"
+          value={awaitingReview}
+          hint="Visits in review that have not yet been reviewed by a preceptor."
+        />
+        <DashboardKpiCard
+          title="Reviewed today"
+          value={reviewsCompleted.today}
+          hint="Visits you reviewed today."
+        />
+        <DashboardKpiCard
+          title="Reviewed this week"
+          value={reviewsCompleted.week}
+          hint="Visits you reviewed this week."
+        />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <TrendChart
-          title="Reviews completed (14 days)"
+          title="Reviews in the last 14 days"
           data={reviewsTrend}
           color="hsl(var(--chart-1))"
+          hint="Daily count of visits reviewed by this preceptor."
         />
         <DistributionChart
-          title="BP classification (your reviews)"
+          title="Blood pressure levels in your reviews"
           data={bpDistribution}
           type="bar"
+          hint="How the blood pressure assessments in your reviewed visits are classified."
         />
       </div>
 
@@ -77,9 +91,9 @@ export function PreceptorDashboard({
         </CardHeader>
         <CardContent className="space-y-4">
           <DashboardActionRow
-            actions={[{ href: "/queues", label: "View Queues", icon: ClipboardList }]}
+            actions={[{ href: '/queues', label: 'Open queues', icon: ClipboardList }]}
           />
-          <Box sx={{ height: 400, width: "100%" }} className="overflow-x-auto">
+          <Box sx={{ height: 400, width: '100%' }} className="overflow-x-auto overflow-y-hidden">
             <DataGrid
               rows={recentReviews}
               columns={columns}
@@ -88,7 +102,7 @@ export function PreceptorDashboard({
               initialState={{
                 pagination: { paginationModel: { pageSize: 10 } },
               }}
-              sx={dataGridSx}
+              sx={{ ...dataGridSx, minWidth: 620 }}
             />
           </Box>
         </CardContent>

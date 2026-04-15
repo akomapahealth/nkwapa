@@ -1,9 +1,4 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  ForbiddenException,
-  Injectable,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { UserRole } from '@prisma/client';
 import {
@@ -22,10 +17,10 @@ export class ClinicScopeGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const isClinicScoped = this.reflector.getAllAndOverride<boolean>(
-      CLINIC_SCOPED_KEY,
-      [context.getHandler(), context.getClass()]
-    );
+    const isClinicScoped = this.reflector.getAllAndOverride<boolean>(CLINIC_SCOPED_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
     if (!isClinicScoped) {
       return true;
@@ -40,7 +35,7 @@ export class ClinicScopeGuard implements CanActivate {
 
     const source = this.reflector.getAllAndOverride<ClinicIdSource | undefined>(
       CLINIC_ID_SOURCE_KEY,
-      [context.getHandler(), context.getClass()]
+      [context.getHandler(), context.getClass()],
     );
 
     let clinicId: string | undefined;

@@ -1,40 +1,40 @@
-"use client";
+'use client';
 
-import { useState, useCallback, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { useState, useCallback, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { db } from "@/lib/db";
-import { enqueueOutboxMutation } from "@/lib/outbox";
-import { SYNC_OPERATION } from "@/lib/outbox";
+} from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { db } from '@/lib/db';
+import { enqueueOutboxMutation } from '@/lib/outbox';
+import { SYNC_OPERATION } from '@/lib/outbox';
 
 function generateId(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
   }
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
 }
 
-const GLUCOSE_TYPES = ["FASTING", "RANDOM", "UNKNOWN"] as const;
+const GLUCOSE_TYPES = ['FASTING', 'RANDOM', 'UNKNOWN'] as const;
 const SYMPTOM_OPTIONS = [
-  "Polyuria",
-  "Polydipsia",
-  "Weight loss",
-  "Blurred vision",
-  "Fatigue",
+  'Polyuria',
+  'Polydipsia',
+  'Weight loss',
+  'Blurred vision',
+  'Fatigue',
 ] as const;
 
 interface DiabetesScreeningFormProps {
@@ -59,15 +59,9 @@ export function DiabetesScreeningForm({
   onSaved,
   saveRef,
 }: DiabetesScreeningFormProps) {
-  const [glucoseMgDl, setGlucoseMgDl] = useState<string>(
-    String(initialData?.glucoseMgDl ?? "")
-  );
-  const [glucoseType, setGlucoseType] = useState<string>(
-    initialData?.glucoseType ?? "UNKNOWN"
-  );
-  const [hba1cPercent, setHba1cPercent] = useState<string>(
-    String(initialData?.hba1cPercent ?? "")
-  );
+  const [glucoseMgDl, setGlucoseMgDl] = useState<string>(String(initialData?.glucoseMgDl ?? ''));
+  const [glucoseType, setGlucoseType] = useState<string>(initialData?.glucoseType ?? 'UNKNOWN');
+  const [hba1cPercent, setHba1cPercent] = useState<string>(String(initialData?.hba1cPercent ?? ''));
   const [symptoms, setSymptoms] = useState<Set<string>>(() => {
     try {
       const parsed = initialData?.symptomsJson
@@ -78,7 +72,7 @@ export function DiabetesScreeningForm({
       return new Set();
     }
   });
-  const [notes, setNotes] = useState<string>(initialData?.notes ?? "");
+  const [notes, setNotes] = useState<string>(initialData?.notes ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -108,8 +102,8 @@ export function DiabetesScreeningForm({
       clinicId,
       glucoseMgDl: glucoseMgDl ? parseInt(glucoseMgDl, 10) : null,
       glucoseType: GLUCOSE_TYPES.includes(glucoseType as (typeof GLUCOSE_TYPES)[number])
-        ? (glucoseType as "FASTING" | "RANDOM" | "UNKNOWN")
-        : "UNKNOWN",
+        ? (glucoseType as 'FASTING' | 'RANDOM' | 'UNKNOWN')
+        : 'UNKNOWN',
       hba1cPercent: hba1cPercent ? parseFloat(hba1cPercent) : null,
       symptomsJson: symptomsArray.length > 0 ? symptomsJson : null,
       notes: notes.trim() || null,
@@ -132,27 +126,18 @@ export function DiabetesScreeningForm({
       await db.diabetes_screenings.put(record);
       await enqueueOutboxMutation(db, {
         clinicId,
-        entityType: "diabetes_screening",
+        entityType: 'diabetes_screening',
         entityId: screeningId,
         operation: SYNC_OPERATION.UPSERT,
         payloadJson: payload,
       });
       onSaved?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save screening");
+      setError(err instanceof Error ? err.message : 'Failed to save screening');
     } finally {
       setSaving(false);
     }
-  }, [
-    clinicId,
-    encounterId,
-    glucoseMgDl,
-    glucoseType,
-    hba1cPercent,
-    symptoms,
-    notes,
-    onSaved,
-  ]);
+  }, [clinicId, encounterId, glucoseMgDl, glucoseType, hba1cPercent, symptoms, notes, onSaved]);
 
   useEffect(() => {
     if (saveRef) saveRef.current = handleSave;
@@ -215,10 +200,7 @@ export function DiabetesScreeningForm({
                   checked={symptoms.has(s)}
                   onCheckedChange={() => toggleSymptom(s)}
                 />
-                <Label
-                  htmlFor={`symptom-${s}`}
-                  className="cursor-pointer text-sm font-normal"
-                >
+                <Label htmlFor={`symptom-${s}`} className="cursor-pointer text-sm font-normal">
                   {s}
                 </Label>
               </div>
@@ -236,7 +218,7 @@ export function DiabetesScreeningForm({
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
         <Button onClick={handleSave} disabled={saving}>
-          {saving ? "Saving…" : "Save Screening"}
+          {saving ? 'Saving…' : 'Save Screening'}
         </Button>
       </CardContent>
     </Card>

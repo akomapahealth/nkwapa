@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,30 +9,25 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from '@/components/ui/dropdown-menu';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { AppNavList } from "@/components/app-shell/AppNavList";
-import { useBootstrap } from "@/lib/bootstrap-context";
-import { useSync } from "@/app/ServiceWorkerAndSyncProvider";
-import { useKeycloak } from "@/app/KeycloakProvider";
-import { db } from "@/lib/db";
-import { setStoredActiveClinicId } from "@/lib/bootstrap-storage";
+} from '@/components/ui/select';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { AppNavList } from '@/components/app-shell/AppNavList';
+import { useBootstrap } from '@/lib/bootstrap-context';
+import { formatRoleLabel } from '@/lib/ops';
+import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { useKeycloak } from '@/app/KeycloakProvider';
+import { db } from '@/lib/db';
+import { setStoredActiveClinicId } from '@/lib/bootstrap-storage';
 import {
   ArrowRightLeft,
   LogOut,
@@ -42,7 +37,7 @@ import {
   RefreshCw,
   ShieldCheck,
   User,
-} from "lucide-react";
+} from 'lucide-react';
 
 export function Header({
   sidebarCollapsed = false,
@@ -62,18 +57,17 @@ export function Header({
   const { logout } = useKeycloak() ?? {};
   const [pendingCount, setPendingCount] = useState(0);
 
-  const clinicId =
-    bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
+  const clinicId = bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
   const memberships = bootstrap?.memberships ?? [];
   const activeMembership = memberships.find((membership) => membership.clinicId === clinicId);
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
   const canSync =
-    (perms.includes("*") || perms.includes("SYNC.PUSH")) &&
-    (perms.includes("*") || perms.includes("SYNC.PULL"));
-  const roleLabels = [
-    ...(activeMembership?.roles ?? []),
-    ...(bootstrap?.globalRoles ?? []),
-  ].slice(0, 3);
+    (perms.includes('*') || perms.includes('SYNC.PUSH')) &&
+    (perms.includes('*') || perms.includes('SYNC.PULL'));
+  const roleLabels = [...(activeMembership?.roles ?? []), ...(bootstrap?.globalRoles ?? [])].slice(
+    0,
+    3,
+  );
 
   useEffect(() => {
     if (!clinicId) {
@@ -82,7 +76,7 @@ export function Header({
     }
 
     const updateCount = async () => {
-      const count = await db.outbox.where("clinicId").equals(clinicId).count();
+      const count = await db.outbox.where('clinicId').equals(clinicId).count();
       setPendingCount(count);
     };
 
@@ -95,7 +89,7 @@ export function Header({
     setStoredActiveClinicId(value);
     setActiveClinicId?.(value);
     if (value) {
-      window.location.href = "/dashboard";
+      window.location.href = '/dashboard';
     }
   };
 
@@ -105,12 +99,13 @@ export function Header({
     }
   };
 
-  const initials = bootstrap?.displayName
-    ?.split(/\s+/)
-    .map((segment) => segment[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase() ?? "?";
+  const initials =
+    bootstrap?.displayName
+      ?.split(/\s+/)
+      .map((segment) => segment[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase() ?? '?';
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur">
@@ -122,7 +117,10 @@ export function Header({
               <span className="sr-only">Open navigation</span>
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-[88vw] max-w-[340px] border-border/70 bg-card/95 p-0">
+          <SheetContent
+            side="left"
+            className="w-[88vw] max-w-[340px] border-border/70 bg-card/95 p-0"
+          >
             <SheetHeader className="border-b border-border/70 p-5 text-left">
               <SheetTitle className="text-left">
                 <div className="flex items-center gap-3">
@@ -165,22 +163,20 @@ export function Header({
         </Button>
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="hidden rounded-full px-3 py-1 text-[11px] md:inline-flex">
-              Authenticated workspace
-            </Badge>
-            <p className="truncate text-sm font-medium text-foreground">
-              {activeMembership?.clinicName ?? "Choose an active clinic"}
-            </p>
-          </div>
-          <p className="hidden text-xs text-muted-foreground sm:block">
-            Operations, patient records, reminders, and oversight tools in one responsive shell.
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary/80">
+            Active clinic
+          </p>
+          <p className="truncate text-sm font-medium text-foreground">
+            {activeMembership?.clinicName ?? 'Choose an active clinic'}
+          </p>
+          <p className="hidden text-xs text-muted-foreground lg:block">
+            Records, queues, reminders, and oversight in one place.
           </p>
         </div>
 
         <div className="hidden items-center gap-2 lg:flex">
           {memberships.length > 1 ? (
-            <Select value={clinicId ?? ""} onValueChange={handleClinicChange}>
+            <Select value={clinicId ?? ''} onValueChange={handleClinicChange}>
               <SelectTrigger className="h-10 w-[220px] rounded-2xl border-border/70 bg-card/70">
                 <SelectValue placeholder="Select clinic" />
               </SelectTrigger>
@@ -195,7 +191,7 @@ export function Header({
           ) : clinicId ? (
             <div className="inline-flex items-center gap-2 rounded-2xl border border-border/70 bg-card/70 px-3 py-2 text-sm text-muted-foreground">
               <ArrowRightLeft className="h-4 w-4 text-primary" />
-              {activeMembership?.clinicName ?? "Clinic"}
+              {activeMembership?.clinicName ?? 'Clinic'}
             </div>
           ) : null}
 
@@ -203,7 +199,7 @@ export function Header({
             <div className="hidden items-center gap-2 xl:flex">
               {roleLabels.map((role) => (
                 <Badge key={role} variant="secondary" className="rounded-full">
-                  {role}
+                  {formatRoleLabel(role)}
                 </Badge>
               ))}
             </div>
@@ -214,22 +210,20 @@ export function Header({
           <div className="hidden items-center gap-2 rounded-2xl border border-border/70 bg-card/75 px-3 py-2 text-sm md:flex">
             <span
               className={`h-2.5 w-2.5 rounded-full ${
-                isOnline ? "bg-emerald-500" : "bg-destructive"
+                isOnline ? 'bg-emerald-500' : 'bg-destructive'
               }`}
             />
-            <span className="text-muted-foreground">
-              {isOnline ? "Online" : "Offline"}
-            </span>
+            <span className="text-muted-foreground">{isOnline ? 'Online' : 'Offline'}</span>
             <span className="text-muted-foreground">Pending {pendingCount}</span>
             <Button
               variant="outline"
               size="sm"
               onClick={handleSync}
-              disabled={!isOnline || syncStatus === "syncing" || !canSync}
+              disabled={!isOnline || syncStatus === 'syncing' || !canSync}
               className="h-8 rounded-xl border-border/70"
             >
-              <RefreshCw className={syncStatus === "syncing" ? "animate-spin" : ""} />
-              {syncStatus === "syncing" ? "Syncing" : "Sync"}
+              <RefreshCw className={syncStatus === 'syncing' ? 'animate-spin' : ''} />
+              {syncStatus === 'syncing' ? 'Syncing' : 'Sync'}
             </Button>
           </div>
 
@@ -267,13 +261,14 @@ export function Header({
               <DropdownMenuSeparator />
               {syncError ? (
                 <>
-                  <div className="px-2 py-2 text-xs text-destructive">
-                    {syncError}
-                  </div>
+                  <div className="px-2 py-2 text-xs text-destructive">{syncError}</div>
                   <DropdownMenuSeparator />
                 </>
               ) : null}
-              <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive">
+              <DropdownMenuItem
+                onClick={logout}
+                className="text-destructive focus:text-destructive"
+              >
                 <LogOut className="mr-2 h-4 w-4" />
                 Log out
               </DropdownMenuItem>

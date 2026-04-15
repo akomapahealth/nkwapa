@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   ResponsiveContainer,
@@ -8,32 +8,28 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-} from "recharts";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-} from "@/components/ui/card";
+} from 'recharts';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { InfoHint } from '@/components/ui/info-hint';
 
 interface TrendChartProps {
   title: string;
+  hint?: string;
   data: { date: string; count: number }[];
   color?: string;
 }
 
-export function TrendChart({
-  title,
-  data,
-  color = "hsl(var(--chart-1))",
-}: TrendChartProps) {
+export function TrendChart({ title, hint, data, color = 'hsl(var(--chart-1))' }: TrendChartProps) {
   return (
     <Card className="overflow-hidden border-border/80 bg-card/95">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base font-semibold">{title}</CardTitle>
+        <div className="flex items-center gap-2">
+          <CardTitle className="text-base font-semibold">{title}</CardTitle>
+          {hint ? <InfoHint label={hint} /> : null}
+        </div>
       </CardHeader>
       <CardContent>
-        <div className="h-[250px]">
+        <div className="h-[220px] sm:h-[250px]">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -49,10 +45,10 @@ export function TrendChart({
               <Tooltip
                 labelFormatter={(v) => new Date(v as string).toLocaleDateString()}
                 contentStyle={{
-                  backgroundColor: "hsl(var(--card))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: "var(--radius)",
-                  color: "hsl(var(--foreground))",
+                  backgroundColor: 'hsl(var(--card))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: 'var(--radius)',
+                  color: 'hsl(var(--foreground))',
                 }}
               />
               <Line

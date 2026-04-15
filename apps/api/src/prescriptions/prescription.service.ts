@@ -1,10 +1,10 @@
-import { Injectable, BadRequestException, NotFoundException } from "@nestjs/common";
-import { Prescription, EncounterStatus } from "@prisma/client";
-import { PrismaService } from "../prisma/prisma.service";
-import { AuditService } from "../audit/audit.service";
-import { PrescriptionRepository } from "./prescription.repository";
-import { CreatePrescriptionDto } from "./dto/create-prescription.dto";
-import { UpdatePrescriptionDto } from "./dto/update-prescription.dto";
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Prescription, EncounterStatus } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
+import { PrescriptionRepository } from './prescription.repository';
+import { CreatePrescriptionDto } from './dto/create-prescription.dto';
+import { UpdatePrescriptionDto } from './dto/update-prescription.dto';
 
 export interface AuditContext {
   clinicId: string;
@@ -17,7 +17,7 @@ export class PrescriptionService {
   constructor(
     private readonly prescriptionRepository: PrescriptionRepository,
     private readonly prisma: PrismaService,
-    private readonly auditService: AuditService
+    private readonly auditService: AuditService,
   ) {}
 
   private async ensureEncounterNotFinalized(encounterId: string): Promise<void> {
@@ -25,9 +25,9 @@ export class PrescriptionService {
       where: { id: encounterId },
       select: { status: true },
     });
-    if (!encounter) throw new NotFoundException("Encounter not found");
+    if (!encounter) throw new NotFoundException('Encounter not found');
     if (encounter.status === EncounterStatus.FINALIZED) {
-      throw new BadRequestException("Cannot modify prescriptions on a finalized encounter");
+      throw new BadRequestException('Cannot modify prescriptions on a finalized encounter');
     }
   }
 
@@ -35,14 +35,14 @@ export class PrescriptionService {
     clinicId: string,
     encounterId: string,
     dto: CreatePrescriptionDto,
-    auditContext: AuditContext
+    auditContext: AuditContext,
   ): Promise<Prescription> {
     await this.ensureEncounterNotFinalized(encounterId);
 
     const drug = await this.prisma.drug.findUnique({ where: { id: dto.drugId } });
-    if (!drug) throw new NotFoundException("Drug not found");
+    if (!drug) throw new NotFoundException('Drug not found');
     if (drug.clinicId !== clinicId) {
-      throw new BadRequestException("Drug does not belong to this clinic");
+      throw new BadRequestException('Drug does not belong to this clinic');
     }
 
     const prescription = await this.prescriptionRepository.create({
@@ -60,8 +60,8 @@ export class PrescriptionService {
     await this.auditService.logWrite({
       clinicId,
       actorUserId: auditContext.actorUserId,
-      action: "PRESCRIPTION.CREATE",
-      entityType: "Prescription",
+      action: 'PRESCRIPTION.CREATE',
+      entityType: 'Prescription',
       entityId: prescription.id,
       afterJson: JSON.stringify(prescription),
       requestId: auditContext.requestId,
@@ -77,10 +77,10 @@ export class PrescriptionService {
   async update(
     id: string,
     dto: UpdatePrescriptionDto,
-    auditContext: AuditContext
+    auditContext: AuditContext,
   ): Promise<Prescription> {
     const existing = await this.prescriptionRepository.findById(id);
-    if (!existing) throw new NotFoundException("Prescription not found");
+    if (!existing) throw new NotFoundException('Prescription not found');
 
     await this.ensureEncounterNotFinalized(existing.encounterId);
 
@@ -96,8 +96,8 @@ export class PrescriptionService {
     await this.auditService.logWrite({
       clinicId: auditContext.clinicId,
       actorUserId: auditContext.actorUserId,
-      action: "PRESCRIPTION.UPDATE",
-      entityType: "Prescription",
+      action: 'PRESCRIPTION.UPDATE',
+      entityType: 'Prescription',
       entityId: id,
       beforeJson: JSON.stringify(existing),
       afterJson: JSON.stringify(updated),
@@ -109,7 +109,7 @@ export class PrescriptionService {
 
   async remove(id: string, auditContext: AuditContext): Promise<void> {
     const existing = await this.prescriptionRepository.findById(id);
-    if (!existing) throw new NotFoundException("Prescription not found");
+    if (!existing) throw new NotFoundException('Prescription not found');
 
     await this.ensureEncounterNotFinalized(existing.encounterId);
 
@@ -118,8 +118,8 @@ export class PrescriptionService {
     await this.auditService.logWrite({
       clinicId: auditContext.clinicId,
       actorUserId: auditContext.actorUserId,
-      action: "PRESCRIPTION.DELETE",
-      entityType: "Prescription",
+      action: 'PRESCRIPTION.DELETE',
+      entityType: 'Prescription',
       entityId: id,
       beforeJson: JSON.stringify(existing),
       requestId: auditContext.requestId,
