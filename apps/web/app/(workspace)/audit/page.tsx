@@ -6,6 +6,7 @@ import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
@@ -16,6 +17,7 @@ import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { Box } from '@mui/material';
 import { dataGridSx } from '@/lib/datagrid-theme';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import { EmptyStateCard } from '@/components/ops/OpsShared';
 
 interface AuditRow {
@@ -128,7 +130,9 @@ export default function AuditPage() {
         <AppPageHeader
           eyebrow="Governance"
           title="Audit log"
-          description="Review user actions, request trails, and entity changes with a cleaner filter and investigation workflow."
+          description="Trace clinic activity and changes."
+          helpTitle="How to investigate activity"
+          helpText="Filter by date, actor, action, entity, or request ID to rebuild a timeline for support, governance, or incident review."
         />
 
         <div className="grid gap-4 md:grid-cols-3">
@@ -153,11 +157,9 @@ export default function AuditPage() {
         </div>
 
         <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
-          <CardHeader>
+          <CardHeader className="space-y-3">
             <CardTitle className="text-xl">Filters</CardTitle>
-            <CardDescription>
-              Narrow the timeline by date, actor, entity, or request chain before loading results.
-            </CardDescription>
+            <CardDescription>Focus the timeline before loading results.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
@@ -211,9 +213,41 @@ export default function AuditPage() {
                 />
               </div>
             </div>
-            <Button onClick={() => fetchAudit()} disabled={loading} className="rounded-2xl">
-              {loading ? 'Loading...' : 'Apply filters'}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => fetchAudit()} disabled={loading} className="rounded-2xl">
+                {loading ? 'Loading...' : 'Apply filters'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-2xl"
+                onClick={() => {
+                  setFrom('');
+                  setTo('');
+                  setAction('');
+                  setActor('');
+                  setEntityType('');
+                  setRequestId('');
+                }}
+              >
+                Clear
+              </Button>
+            </div>
+            <ActiveFilterSummary
+              items={[
+                { label: 'From', value: from || null },
+                { label: 'To', value: to || null },
+                { label: 'Action', value: action || null },
+                { label: 'Actor', value: actor || null },
+                { label: 'Entity', value: entityType || null },
+                { label: 'Request', value: requestId || null },
+              ]}
+              emptyLabel="Recent clinic activity"
+            />
+            <ProgressiveHelp title="Filter tips">
+              Start with a date range, then add action, actor, entity, or request ID only when you
+              need to rebuild a narrower timeline for support or incident review.
+            </ProgressiveHelp>
           </CardContent>
         </Card>
 
@@ -226,12 +260,17 @@ export default function AuditPage() {
         ) : null}
 
         <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
-          <CardHeader>
-            <CardTitle className="text-xl">Audit events</CardTitle>
-            <CardDescription>
-              Recent activity for the active clinic, with mobile-friendly cards and a richer desktop
-              table.
-            </CardDescription>
+          <CardHeader className="space-y-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle className="text-xl">Audit events</CardTitle>
+                <CardDescription>Recent activity for the active clinic.</CardDescription>
+              </div>
+              <div className="rounded-2xl border border-border/70 bg-background/75 px-4 py-3 text-sm">
+                <p className="text-muted-foreground">Loaded rows</p>
+                <p className="mt-1 text-xl font-semibold text-foreground">{rows.length}</p>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {loading && rows.length === 0 ? (

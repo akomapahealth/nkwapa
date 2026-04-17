@@ -47,6 +47,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import {
   Select,
   SelectContent,
@@ -375,8 +376,14 @@ export default function TodayBoardPage() {
                 Today Board
               </h1>
               <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">
-                Live staff availability, patient arrivals, and assignment flow for the clinic day.
+                Live clinic flow for the selected day.
               </p>
+              <div className="mt-3 max-w-2xl">
+                <ProgressiveHelp title="How the board updates">
+                  Staff check-ins, patient arrivals, and volunteer assignments refresh here so OPS
+                  can see who is available and which patients still need a pair.
+                </ProgressiveHelp>
+              </div>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">

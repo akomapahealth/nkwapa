@@ -5,18 +5,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
   AlertTriangle,
-  CalendarRange,
   CheckCircle2,
   Download,
   GitBranch,
   Loader2,
   RefreshCw,
   RotateCcw,
-  ShieldCheck,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { apiFetch } from '@/lib/api';
+import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
+import { FormSectionCard } from '@/components/app-shell/FormSectionCard';
 import { RouteGuard } from '@/components/RouteGuard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import { Textarea } from '@/components/ui/textarea';
 
 type ExportStatus =
@@ -340,44 +341,44 @@ export default function ResearchExportsPage() {
   return (
     <RouteGuard requiredPermission="RESEARCH.EXPORT.REQUEST">
       <div className="space-y-6">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-2">
-            <Link
-              href="/settings/clinic"
-              className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-            >
-              Back to clinic settings
-            </Link>
-            <h1 className="font-heading text-3xl font-semibold tracking-tight">Research Exports</h1>
-            <p className="max-w-3xl text-sm text-muted-foreground">
-              Generate de-identified research packs with stable clinic-scoped keys, 15-minute
-              timestamp rounding, and automatic sync to the private GitHub research repository.
-            </p>
-          </div>
-
-          <Button
-            variant="outline"
-            onClick={() => void loadExports({ background: true })}
-            disabled={loading}
-            className="gap-2"
+        <div className="space-y-3">
+          <Link
+            href="/settings/clinic"
+            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
           >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+            Back to clinic settings
+          </Link>
+          <AppPageHeader
+            eyebrow="Research operations"
+            title="Research exports"
+            description="Request and track de-identified export packs."
+            helpTitle="How research exports work"
+            helpText="Exports use the approved research transform profile: stable clinic-scoped keys, rounded timestamps, no names or free text, and optional private GitHub sync after processing."
+            actions={
+              <Button
+                variant="outline"
+                onClick={() => void loadExports({ background: true })}
+                disabled={loading}
+                className="gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            }
+          />
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-          <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <CalendarRange className="h-5 w-5 text-primary" />
-                Request Export Pack
-              </CardTitle>
-              <CardDescription>
-                Export format is a fixed v1 zip pack of CSV tables plus manifest files.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
+          <FormSectionCard
+            title="Request export pack"
+            description="Choose the date range, then submit the pack for approval or processing."
+            hint="The exported format is a fixed v1 ZIP bundle of CSV tables plus manifest files."
+          >
+            <div className="rounded-2xl border border-border/70 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+              Export format: fixed v1 ZIP pack of CSV tables plus manifest files.
+            </div>
+
+            <div className="space-y-5">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="fromDate">From date</Label>
@@ -442,18 +443,10 @@ export default function ResearchExportsPage() {
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 text-sm text-emerald-950">
-                <div className="flex items-start gap-3">
-                  <ShieldCheck className="mt-0.5 h-4 w-4" />
-                  <div className="space-y-1">
-                    <p className="font-medium">De-identification profile</p>
-                    <p>
-                      Stable patient keys, rounded timestamps, no names or free text, no raw payload
-                      JSON, and only research-safe fields in the export.
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <ProgressiveHelp title="De-identification profile">
+                Stable patient keys, rounded timestamps, no names or free text, no raw payload JSON,
+                and only research-safe fields are included in the export pack.
+              </ProgressiveHelp>
 
               {dateRangeInvalid && (
                 <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
@@ -469,8 +462,8 @@ export default function ResearchExportsPage() {
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 Request export for {formatRange(fromDate, toDate)}
               </Button>
-            </CardContent>
-          </Card>
+            </div>
+          </FormSectionCard>
 
           <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
             <CardHeader>
@@ -483,11 +476,13 @@ export default function ResearchExportsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm text-muted-foreground">
-              <p>`manifest.json`, `SHA256SUMS.txt`</p>
-              <p>`research_subjects.csv`, `research_ops_checkins.csv`</p>
-              <p>`research_ops_assignments.csv`, `research_clinical_vitals.csv`</p>
-              <p>`research_clinical_screenings.csv`, `research_measurements.csv`</p>
-              <p>`research_appointments.csv`, `research_revocations.csv`</p>
+              <ul className="space-y-2">
+                <li>`manifest.json`, `SHA256SUMS.txt`</li>
+                <li>`research_subjects.csv`, `research_ops_checkins.csv`</li>
+                <li>`research_ops_assignments.csv`, `research_clinical_vitals.csv`</li>
+                <li>`research_clinical_screenings.csv`, `research_measurements.csv`</li>
+                <li>`research_appointments.csv`, `research_revocations.csv`</li>
+              </ul>
             </CardContent>
           </Card>
         </div>

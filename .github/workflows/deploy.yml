@@ -19,7 +19,7 @@ jobs:
   migrate:
     name: Run Migrations
     runs-on: ubuntu-latest
-    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -50,7 +50,7 @@ jobs:
     name: Deploy Web (Vercel)
     runs-on: ubuntu-latest
     needs: [migrate]
-    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -83,29 +83,66 @@ jobs:
           echo "URL: ${{ steps.deploy-web.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
 
   # ──────────────────────────────────────────────
-  # Deploy API to Railway
+  # Deploy API to Render
   # ──────────────────────────────────────────────
   deploy-api:
-    name: Deploy API (Railway)
+    name: Deploy API (Render)
     runs-on: ubuntu-latest
     needs: [migrate]
-    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Railway CLI
-        run: npm i -g @railway/cli@latest
-
-      - name: Deploy to Railway
+      - name: Trigger Render API deploy
         run: |
-          railway up --service ${{ secrets.RAILWAY_SERVICE_ID }}
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+            HOOK_URL="${{ secrets.RENDER_API_PRODUCTION_DEPLOY_HOOK_URL }}"
+            TARGET_ENV="production"
+          else
+            HOOK_URL="${{ secrets.RENDER_API_STAGING_DEPLOY_HOOK_URL }}"
+            TARGET_ENV="staging"
+          fi
+
+          if [ -z "${HOOK_URL}" ]; then
+            echo "::notice::Render API deploy hook is not set for ${TARGET_ENV}; skipping API deploy."
+            exit 0
+          fi
+
+          curl --fail --silent --show-error --request POST "${HOOK_URL}"
 
       - name: Post deployment summary
         run: |
           echo "### API deployment" >> "$GITHUB_STEP_SUMMARY"
-          echo "Deployed to Railway (${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }})" >> "$GITHUB_STEP_SUMMARY"
+          echo "Triggered Render API deploy (${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }})" >> "$GITHUB_STEP_SUMMARY"
+
+  # ──────────────────────────────────────────────
+  # Deploy Auth to Render
+  # ──────────────────────────────────────────────
+  deploy-auth:
+    name: Deploy Auth (Render)
+    runs-on: ubuntu-latest
+    needs: [migrate]
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+    steps:
+      - name: Trigger Render auth deploy
+        run: |
+          if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+            HOOK_URL="${{ secrets.RENDER_AUTH_PRODUCTION_DEPLOY_HOOK_URL }}"
+            TARGET_ENV="production"
+          else
+            HOOK_URL="${{ secrets.RENDER_AUTH_STAGING_DEPLOY_HOOK_URL }}"
+            TARGET_ENV="staging"
+          fi
+
+          if [ -z "${HOOK_URL}" ]; then
+            echo "::notice::Render auth deploy hook is not set for ${TARGET_ENV}; skipping auth deploy."
+            exit 0
+          fi
+
+          curl --fail --silent --show-error --request POST "${HOOK_URL}"
+
+      - name: Post deployment summary
+        run: |
+          echo "### Auth deployment" >> "$GITHUB_STEP_SUMMARY"
+          echo "Triggered Render auth deploy (${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }})" >> "$GITHUB_STEP_SUMMARY"
 
   # ──────────────────────────────────────────────
   # Tag release on main
@@ -114,7 +151,7 @@ jobs:
     name: Tag Release
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
-    needs: [deploy-web, deploy-api]
+    needs: [deploy-web, deploy-api, deploy-auth]
     permissions:
       contents: write
     steps:

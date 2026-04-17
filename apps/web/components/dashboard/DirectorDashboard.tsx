@@ -56,7 +56,6 @@ export function DirectorDashboard({
     <section className="space-y-6">
       <DashboardSectionHeader
         title="Clinic trends"
-        subtitle="Patient volume, screening coverage, queue status, and staff activity."
         hint="Use this section to watch how the clinic is performing across patient flow and follow-up."
       />
 

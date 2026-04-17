@@ -1,11 +1,16 @@
 'use client';
 
+import { InfoHint } from '@/components/ui/info-hint';
+import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import { cn } from '@/lib/utils';
 
 export function AppPageHeader({
   eyebrow,
   title,
   description,
+  hint,
+  helpTitle,
+  helpText,
   actions,
   badges,
   className,
@@ -13,6 +18,9 @@ export function AppPageHeader({
   eyebrow?: string;
   title: string;
   description?: string;
+  hint?: string;
+  helpTitle?: string;
+  helpText?: React.ReactNode;
   actions?: React.ReactNode;
   badges?: React.ReactNode;
   className?: string;
@@ -31,13 +39,21 @@ export function AppPageHeader({
               {eyebrow}
             </p>
           ) : null}
-          <h1 className="mt-2 font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-            {title}
-          </h1>
+          <div className="mt-2 flex flex-wrap items-start gap-2">
+            <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+              {title}
+            </h1>
+            {hint ? <InfoHint label={hint} className="mt-1" /> : null}
+          </div>
           {description ? (
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
+            <p className="mt-2 max-w-2xl text-sm leading-5 text-muted-foreground sm:text-base">
               {description}
             </p>
+          ) : null}
+          {helpText ? (
+            <div className="mt-3 max-w-2xl">
+              <ProgressiveHelp title={helpTitle}>{helpText}</ProgressiveHelp>
+            </div>
           ) : null}
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">

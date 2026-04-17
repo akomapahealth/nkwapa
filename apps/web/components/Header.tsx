@@ -20,6 +20,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { InfoHint } from '@/components/ui/info-hint';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { AppNavList } from '@/components/app-shell/AppNavList';
 import { useBootstrap } from '@/lib/bootstrap-context';
@@ -163,14 +164,17 @@ export function Header({
         </Button>
 
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary/80">
-            Active clinic
-          </p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary/80">
+              Active clinic
+            </p>
+            <InfoHint
+              label="Use the clinic picker to switch the records, queues, reminders, and dashboard data shown across this workspace."
+              className="hidden h-5 w-5 lg:inline-flex"
+            />
+          </div>
           <p className="truncate text-sm font-medium text-foreground">
             {activeMembership?.clinicName ?? 'Choose an active clinic'}
-          </p>
-          <p className="hidden text-xs text-muted-foreground lg:block">
-            Records, queues, reminders, and oversight in one place.
           </p>
         </div>
 

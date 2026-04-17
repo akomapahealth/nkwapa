@@ -48,7 +48,6 @@ export function PreceptorDashboard({
     <section className="space-y-6">
       <DashboardSectionHeader
         title="Review queue"
-        subtitle="Visits waiting for review and the reviews you have finished."
         hint="Use this section to clear visits that still need a preceptor review."
       />
 

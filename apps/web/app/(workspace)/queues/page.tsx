@@ -16,6 +16,7 @@ import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { Box } from '@mui/material';
 import { dataGridSx } from '@/lib/datagrid-theme';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
 
 interface QueueRow {
@@ -171,7 +172,9 @@ export default function QueuesPage() {
         <AppPageHeader
           eyebrow="Clinical workflow"
           title="Queues"
-          description="Monitor encounter progress from draft to review to finalization with clearer status views across desktop and mobile."
+          description="See which visits are moving and which are waiting."
+          helpTitle="How the queues work"
+          helpText="Each lane groups encounters by the step they are currently in so staff can jump straight to the right record without bouncing between screens."
         />
 
         <div className="grid gap-4 md:grid-cols-3">
@@ -198,13 +201,29 @@ export default function QueuesPage() {
         {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
 
         <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
-          <CardHeader>
-            <CardTitle className="text-xl">Encounter queues</CardTitle>
-            <CardDescription>
-              Switch between queue stages and open any encounter directly from the current lane.
-            </CardDescription>
+          <CardHeader className="space-y-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle className="text-xl">Encounter queues</CardTitle>
+                <CardDescription>Switch lanes and open the right encounter fast.</CardDescription>
+              </div>
+              <div className="rounded-2xl border border-border/70 bg-background/75 px-4 py-3 text-sm">
+                <p className="text-muted-foreground">Active lane</p>
+                <p className="mt-1 text-xl font-semibold text-foreground">
+                  {activeTab === 'drafts'
+                    ? drafts.length
+                    : activeTab === 'review'
+                      ? review.length
+                      : finalize.length}
+                </p>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
+            <ProgressiveHelp title="Lane tips">
+              Drafts are still being prepared, Needs review is waiting on preceptor review, and
+              Ready to finalize is waiting on doctor sign-off.
+            </ProgressiveHelp>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl border border-border/70 bg-background p-2 sm:grid-cols-3">
                 {canDrafts && <TabsTrigger value="drafts">Drafts</TabsTrigger>}

@@ -140,7 +140,10 @@ export default function DashboardPage() {
         <AppPageHeader
           eyebrow="Clinic snapshot"
           title={activeMembership?.clinicName ?? 'Dashboard'}
-          description="Today’s activity, queue status, and role-specific work for this clinic."
+          description="Current clinic totals and next work."
+          hint="The dashboard always reflects the clinic selected in the header."
+          helpTitle="How the dashboard is organized"
+          helpText="Start with the clinic snapshot, then use the role sections below to clear intake work, reviews, finalizations, and oversight tasks."
           badges={
             activeMembership ? (
               <Badge variant="secondary" className="rounded-full px-3 py-1">
@@ -176,7 +179,6 @@ export default function DashboardPage() {
           <>
             <DashboardSectionHeader
               title="Today at a glance"
-              subtitle="Patients, visits, and queue status for this clinic."
               hint="These totals help you see what is active now before you move into the role-specific sections below."
             />
             <SummaryCards

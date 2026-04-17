@@ -8,6 +8,7 @@ import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { getOpsDestination, hasPermission, readApiError } from '@/lib/ops';
@@ -18,6 +19,7 @@ import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { Box } from '@mui/material';
 import { dataGridSx } from '@/lib/datagrid-theme';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
 
 interface PatientSummary {
@@ -187,7 +189,9 @@ export default function PatientsPage() {
         <AppPageHeader
           eyebrow="Patient registry"
           title="Patients"
-          description="Search patient records quickly, open detail views, and hand off to clinic operations from a cleaner, responsive workspace."
+          description="Search records and move patients into care."
+          helpTitle="How patient search works"
+          helpText="Search by name, patient code, phone number, or ID fragment, then open the chart or check the patient into OPS when your role allows it."
           actions={
             <Button asChild>
               <Link href={`/clinics/${clinicId}/patients/new`}>
@@ -224,14 +228,11 @@ export default function PatientsPage() {
         </div>
 
         <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
-          <CardHeader>
+          <CardHeader className="space-y-3">
             <CardTitle className="text-xl">Search patients</CardTitle>
-            <CardDescription>
-              Search by name, patient code, phone, or national ID fragment. Results update as you
-              type.
-            </CardDescription>
+            <CardDescription>Search the active clinic registry.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <Input
               type="search"
               value={q}
@@ -242,6 +243,18 @@ export default function PatientsPage() {
               placeholder="Search by name, patient code, phone, or national ID last 4"
               className="w-full md:max-w-xl"
             />
+            <ActiveFilterSummary
+              items={[
+                { label: 'Query', value: q.trim() || null },
+                { label: 'Page', value: page > 0 ? page + 1 : null },
+              ]}
+              emptyLabel="Browsing the full clinic registry"
+            />
+            <ProgressiveHelp title="Search tips">
+              Search by patient name, code, phone number, or the last four digits of the stored ID.
+              Results update as you type, and the desktop table opens the chart when you click a
+              row.
+            </ProgressiveHelp>
           </CardContent>
         </Card>
 
@@ -270,12 +283,19 @@ export default function PatientsPage() {
         ) : null}
 
         <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
-          <CardHeader>
-            <CardTitle className="text-xl">Patient results</CardTitle>
-            <CardDescription>
-              Open a patient record directly or check them into the active clinic workflow when
-              permitted.
-            </CardDescription>
+          <CardHeader className="space-y-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle className="text-xl">Patient results</CardTitle>
+                <CardDescription>Open a chart or hand the patient into OPS.</CardDescription>
+              </div>
+              <div className="rounded-2xl border border-border/70 bg-background/75 px-4 py-3 text-sm">
+                <p className="text-muted-foreground">Showing</p>
+                <p className="mt-1 text-xl font-semibold text-foreground">
+                  {rows.length} of {total}
+                </p>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {loading && results.length === 0 ? (

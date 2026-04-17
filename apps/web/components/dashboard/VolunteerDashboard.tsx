@@ -33,7 +33,6 @@ export function VolunteerDashboard({
     <section className="space-y-6">
       <DashboardSectionHeader
         title="Your work today"
-        subtitle="Patients you added, visits you started, and quick next steps."
         hint="Use this section to track your intake work and move patients to the next step."
       />
 

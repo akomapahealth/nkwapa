@@ -10,11 +10,13 @@ import { db } from '@/lib/db';
 import { enqueueOutboxMutation, SYNC_OPERATION } from '@/lib/outbox';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
+import { FormSectionCard } from '@/components/app-shell/FormSectionCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { InlineNotice } from '@/components/ops/OpsShared';
+import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import {
   Select,
   SelectContent,
@@ -207,7 +209,9 @@ export default function EditPatientPage() {
       <AppPageHeader
         eyebrow="Clinic chart maintenance"
         title={`Edit Patient ${patient.patientCode}`}
-        description="Update core demographics and contact information while preserving immutable identity history for the clinic record."
+        description="Update the current chart without changing protected identity history."
+        helpTitle="How patient edits work"
+        helpText="Demographics and contact details can change here. National ID details stay protected, and offline saves queue a sync when the network is unavailable."
       />
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -233,19 +237,20 @@ export default function EditPatientPage() {
 
       {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
 
-      <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
-        <CardHeader>
-          <h1 className="text-2xl font-semibold">Edit Patient: {patient.patientCode}</h1>
-          {patient.nationalIdLast4 && (
-            <p className="text-sm text-muted-foreground">
-              National ID: ...{patient.nationalIdLast4} (immutable)
-            </p>
-          )}
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="max-w-5xl space-y-4">
+        <ProgressiveHelp title="What stays protected">
+          National ID details remain read-only during edit mode so chart history stays stable. If
+          identity cleanup is needed, use the clinic’s governed patient workflows instead of editing
+          around the protected record.
+        </ProgressiveHelp>
+
+        <FormSectionCard
+          title={`Edit ${patient.patientCode}`}
+          description="Adjust the patient’s current demographic profile."
+        >
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="firstName">First Name</Label>
+              <Label htmlFor="firstName">First name</Label>
               <Input
                 id="firstName"
                 value={firstName}
@@ -253,17 +258,17 @@ export default function EditPatientPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="lastName">Last Name</Label>
+              <Label htmlFor="lastName">Last name</Label>
               <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="dob">Date of Birth</Label>
+              <Label htmlFor="dob">Date of birth</Label>
               <Input id="dob" type="date" value={dob} onChange={(e) => setDob(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="sex">Sex</Label>
               <Select value={sex} onValueChange={setSex}>
-                <SelectTrigger>
+                <SelectTrigger id="sex">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -274,6 +279,14 @@ export default function EditPatientPage() {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+        </FormSectionCard>
+
+        <FormSectionCard
+          title="Contact details"
+          description="Keep the best current follow-up channels on file."
+        >
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="phoneE164">Phone</Label>
               <Input
@@ -293,17 +306,33 @@ export default function EditPatientPage() {
               />
             </div>
           </div>
+        </FormSectionCard>
 
-          <div className="flex flex-wrap gap-2 pt-4">
-            <Button onClick={handleSave} disabled={saving} className="rounded-2xl">
-              {saving ? 'Saving...' : 'Save Changes'}
-            </Button>
-            <Button asChild variant="outline" className="rounded-2xl">
-              <Link href={`/clinics/${clinicId}/patients/${patientId}`}>Cancel</Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+        <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+          <CardHeader className="space-y-2">
+            <h2 className="text-lg font-semibold">Protected identity fields</h2>
+            {patient.nationalIdLast4 ? (
+              <p className="text-sm text-muted-foreground">
+                National ID: ...{patient.nationalIdLast4} (immutable)
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No national ID fragment is available in this view.
+              </p>
+            )}
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2 rounded-[28px] border border-border/70 bg-background/70 p-4">
+              <Button onClick={handleSave} disabled={saving} className="rounded-2xl">
+                {saving ? 'Saving...' : 'Save changes'}
+              </Button>
+              <Button asChild variant="outline" className="rounded-2xl">
+                <Link href={`/clinics/${clinicId}/patients/${patientId}`}>Cancel</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

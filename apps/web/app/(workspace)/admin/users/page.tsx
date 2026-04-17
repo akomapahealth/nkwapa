@@ -9,6 +9,7 @@ import { useBootstrap } from '@/lib/bootstrap-context';
 import { apiFetch } from '@/lib/api';
 import { formatRoleLabel, readApiError } from '@/lib/ops';
 import { dataGridSx } from '@/lib/datagrid-theme';
+import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { RouteGuard } from '@/components/RouteGuard';
 import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +25,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import {
   Select,
   SelectContent,
@@ -791,9 +793,15 @@ export default function AdminUsersPage() {
                 Staff & Access
               </h1>
               <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">
-                Manage the active-clinic roster, revoke clinic roles, and deactivate accounts safely
-                without deleting history.
+                Manage clinic access and roster status.
               </p>
+              <div className="mt-3 max-w-2xl">
+                <ProgressiveHelp title="How access changes work">
+                  Use Active clinic for day-to-day roster changes, switch to All users when you need
+                  cross-clinic or global account checks, and remember that deactivating an account
+                  blocks access without removing audit history.
+                </ProgressiveHelp>
+              </div>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
@@ -897,22 +905,7 @@ export default function AdminUsersPage() {
 
         {(rows.length === 0 || rows.length < 3) && !loading ? (
           <InlineNotice>
-            Users appear here after they log in to Nkwapa at least once. If you created a user in
-            Keycloak, have them sign in first and then refresh.
-          </InlineNotice>
-        ) : null}
-        {isSystemAdmin ? (
-          <InlineNotice>
-            Keycloak remains the source of truth for identity. If a legacy Nkwapa account no longer
-            maps to a real Keycloak user, deactivate the stale row, have the real user sign in
-            again, then reassign access to the new active account created from that login.
-          </InlineNotice>
-        ) : null}
-        {showPortalFilter && portalMismatchCount > 0 ? (
-          <InlineNotice>
-            Patient access is repaired from the patient record, not from generic role assignment.
-            Filter for portal mismatches to find `ROLE_ONLY` and `LINK_ONLY` accounts, then relink
-            from the correct patient chart.
+            New staff rows appear after the person signs in to Nkwapa for the first time.
           </InlineNotice>
         ) : null}
         {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
@@ -986,17 +979,62 @@ export default function AdminUsersPage() {
                 </div>
               ) : null}
 
-              <div className="rounded-2xl border border-border/70 bg-background/80 p-4 text-sm text-muted-foreground">
-                <p className="font-medium text-foreground">Safety rules</p>
-                <p className="mt-2 leading-6">
-                  Deactivation is soft only. Audit history, encounters, and clinic records remain
-                  intact after access is disabled.
-                </p>
-                <p className="mt-2 leading-6">
-                  Patient access is created from the patient record portal-link action and is not
-                  assigned from this panel.
-                </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-2xl"
+                  onClick={() => {
+                    setStatusFilter('active');
+                    setRoleFilter('ALL');
+                    setPortalFilter('ALL');
+                  }}
+                >
+                  Reset filters
+                </Button>
               </div>
+
+              <ActiveFilterSummary
+                items={[
+                  { label: 'Status', value: statusFilter === 'all' ? null : statusFilter },
+                  {
+                    label: 'Role',
+                    value: roleFilter === 'ALL' ? null : formatRoleLabel(roleFilter as RoleName),
+                  },
+                  {
+                    label: 'Portal',
+                    value:
+                      showPortalFilter && portalFilter !== 'ALL'
+                        ? portalFilter === 'MISMATCH'
+                          ? 'Mismatch only'
+                          : portalStatusLabel(portalFilter as PortalLinkStatus)
+                        : null,
+                  },
+                ]}
+                emptyLabel="Default roster view"
+              />
+
+              <ProgressiveHelp title="Safety rules">
+                Deactivation is always soft. Audit history, encounters, and clinic records stay in
+                place after access is disabled, and patient portal access still has to be linked
+                from the patient record rather than from this roster.
+              </ProgressiveHelp>
+
+              {isSystemAdmin ? (
+                <ProgressiveHelp title="Identity cleanup rules">
+                  Keycloak remains the source of truth for identity. If a stale legacy account no
+                  longer maps to a real Keycloak user, deactivate that row, have the real user sign
+                  in again, and assign access to the newly created active account.
+                </ProgressiveHelp>
+              ) : null}
+
+              {showPortalFilter ? (
+                <ProgressiveHelp title="How to fix portal mismatches">
+                  `ROLE_ONLY` and `LINK_ONLY` accounts should be repaired from the patient chart,
+                  not from generic role assignment. Use the mismatch filter here to find the row,
+                  then relink from the correct patient record.
+                </ProgressiveHelp>
+              ) : null}
             </CardContent>
           </Card>
 
@@ -1023,6 +1061,29 @@ export default function AdminUsersPage() {
                   <p className="mt-1 text-xl font-semibold">{visibleRows.length}</p>
                 </div>
               </div>
+              <ActiveFilterSummary
+                items={[
+                  {
+                    label: 'Scope',
+                    value:
+                      viewMode === 'clinic' ? (activeClinicName ?? 'Active clinic') : 'All users',
+                  },
+                  { label: 'Status', value: statusFilter === 'all' ? null : statusFilter },
+                  {
+                    label: 'Role',
+                    value: roleFilter === 'ALL' ? null : formatRoleLabel(roleFilter as RoleName),
+                  },
+                  {
+                    label: 'Portal',
+                    value:
+                      showPortalFilter && portalFilter !== 'ALL'
+                        ? portalFilter === 'MISMATCH'
+                          ? 'Mismatch only'
+                          : portalStatusLabel(portalFilter as PortalLinkStatus)
+                        : null,
+                  },
+                ]}
+              />
             </CardHeader>
             <CardContent className="space-y-4">
               {loading ? (

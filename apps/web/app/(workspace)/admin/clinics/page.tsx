@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import {
   Dialog,
   DialogContent,
@@ -181,7 +182,9 @@ export default function AdminClinicsPage() {
         <AppPageHeader
           eyebrow="System administration"
           title="Clinics"
-          description="Create, review, and adjust clinic environments from one responsive management surface."
+          description="Manage clinic records and availability."
+          helpTitle="What you manage here"
+          helpText="Create clinics, review their status, and adjust operational details without losing historical records."
           actions={<Button onClick={() => setCreateOpen(true)}>Create clinic</Button>}
         />
 
@@ -209,14 +212,23 @@ export default function AdminClinicsPage() {
         {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
 
         <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
-          <CardHeader>
-            <CardTitle className="text-xl">Clinic registry</CardTitle>
-            <CardDescription>
-              Review all clinic environments and keep naming, region, and activation status up to
-              date.
-            </CardDescription>
+          <CardHeader className="space-y-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle className="text-xl">Clinic registry</CardTitle>
+                <CardDescription>Review names, regions, and activation status.</CardDescription>
+              </div>
+              <div className="rounded-2xl border border-border/70 bg-background/75 px-4 py-3 text-sm">
+                <p className="text-muted-foreground">Loaded rows</p>
+                <p className="mt-1 text-xl font-semibold text-foreground">{clinics.length}</p>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            <ProgressiveHelp title="How clinic status works">
+              Inactive clinics stay in the system for history and audit, but they stop acting like
+              live operational workspaces until you reactivate them.
+            </ProgressiveHelp>
             {loading ? (
               <div className="space-y-4">
                 <div className="h-28 animate-pulse rounded-3xl bg-muted" />

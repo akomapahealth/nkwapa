@@ -52,7 +52,6 @@ export function DoctorDashboard({
     <section className="space-y-6">
       <DashboardSectionHeader
         title="Doctor queue"
-        subtitle="Visits waiting for your sign-off and recent clinical trends."
         hint="Use this section to spot visits that still need a doctor's final decision."
       />
 

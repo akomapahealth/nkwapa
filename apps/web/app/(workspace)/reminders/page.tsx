@@ -6,6 +6,7 @@ import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
@@ -17,6 +18,7 @@ import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { Box } from '@mui/material';
 import { dataGridSx } from '@/lib/datagrid-theme';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import {
   Select,
   SelectContent,
@@ -163,7 +165,9 @@ export default function RemindersPage() {
         <AppPageHeader
           eyebrow="Follow-up delivery"
           title="Reminders"
-          description="Track queued, delivered, and failed reminder traffic with a responsive history view."
+          description="Review follow-up delivery at a glance."
+          helpTitle="How reminder history works"
+          helpText="Use the filters to narrow reminder history by status and date, then inspect queued, sent, or failed messages."
         />
 
         <div className="grid gap-4 md:grid-cols-3">
@@ -188,47 +192,76 @@ export default function RemindersPage() {
         </div>
 
         <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
-          <CardHeader>
+          <CardHeader className="space-y-3">
             <CardTitle className="text-xl">Filters</CardTitle>
-            <CardDescription>
-              Narrow the reminder history by delivery status and scheduled date.
-            </CardDescription>
+            <CardDescription>Focus the reminder history before opening results.</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select
-                value={status || 'ALL'}
-                onValueChange={(value) => setStatus(value === 'ALL' ? '' : value)}
-              >
-                <SelectTrigger id="status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All</SelectItem>
-                  <SelectItem value="QUEUED">Queued</SelectItem>
-                  <SelectItem value="SENT">Sent</SelectItem>
-                  <SelectItem value="FAILED">Failed</SelectItem>
-                </SelectContent>
-              </Select>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="space-y-2">
+                <Label htmlFor="status">Status</Label>
+                <Select
+                  value={status || 'ALL'}
+                  onValueChange={(value) => setStatus(value === 'ALL' ? '' : value)}
+                >
+                  <SelectTrigger id="status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All</SelectItem>
+                    <SelectItem value="QUEUED">Queued</SelectItem>
+                    <SelectItem value="SENT">Sent</SelectItem>
+                    <SelectItem value="FAILED">Failed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="from">From</Label>
+                <Input
+                  id="from"
+                  type="date"
+                  value={from}
+                  onChange={(e) => setFrom(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="to">To</Label>
+                <Input id="to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+              </div>
+              <div className="flex items-end gap-2">
+                <Button
+                  onClick={() => fetchReminders()}
+                  disabled={loading}
+                  className="flex-1 rounded-2xl"
+                >
+                  {loading ? 'Loading...' : 'Apply filters'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-2xl"
+                  onClick={() => {
+                    setStatus('');
+                    setFrom('');
+                    setTo('');
+                  }}
+                >
+                  Clear
+                </Button>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="from">From</Label>
-              <Input id="from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="to">To</Label>
-              <Input id="to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-            </div>
-            <div className="flex items-end">
-              <Button
-                onClick={() => fetchReminders()}
-                disabled={loading}
-                className="w-full rounded-2xl"
-              >
-                {loading ? 'Loading...' : 'Apply filters'}
-              </Button>
-            </div>
+            <ActiveFilterSummary
+              items={[
+                { label: 'Status', value: status || null },
+                { label: 'From', value: from || null },
+                { label: 'To', value: to || null },
+              ]}
+              emptyLabel="All reminder history"
+            />
+            <ProgressiveHelp title="Filter tips">
+              Use status when you want delivery outcomes, use dates when you want a time window, and
+              combine both when tracing a reminder campaign or troubleshooting failures.
+            </ProgressiveHelp>
           </CardContent>
         </Card>
 
@@ -241,11 +274,17 @@ export default function RemindersPage() {
         ) : null}
 
         <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
-          <CardHeader>
-            <CardTitle className="text-xl">Reminder history</CardTitle>
-            <CardDescription>
-              Review delivery timing, channel, and failure details from the active clinic.
-            </CardDescription>
+          <CardHeader className="space-y-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle className="text-xl">Reminder history</CardTitle>
+                <CardDescription>Delivery timing, channel, and failure details.</CardDescription>
+              </div>
+              <div className="rounded-2xl border border-border/70 bg-background/75 px-4 py-3 text-sm">
+                <p className="text-muted-foreground">Loaded rows</p>
+                <p className="mt-1 text-xl font-semibold text-foreground">{rows.length}</p>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {loading && rows.length === 0 ? (

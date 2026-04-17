@@ -60,7 +60,6 @@ export function SystemAdminDashboard({
     <section className="space-y-6">
       <DashboardSectionHeader
         title="Network overview"
-        subtitle="Cross-clinic volume, staffing, and comparison trends."
         hint="Use this section to compare activity across clinics and spot where support is needed."
       />
 
