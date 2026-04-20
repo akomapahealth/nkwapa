@@ -6,17 +6,16 @@ COPY package.json package-lock.json ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/db/package.json ./packages/db/
 
-RUN npm ci --omit=dev && \
+# Prisma generation happens after the schema is copied in the build stage.
+RUN npm ci --omit=dev --ignore-scripts && \
     cp -R node_modules /prod_node_modules && \
-    npm ci
+    npm ci --ignore-scripts
 
 # ── Stage 2: Generate Prisma & Build ──
 FROM node:20-alpine AS build
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules 2>/dev/null || true
-COPY --from=deps /app/packages/db/node_modules ./packages/db/node_modules 2>/dev/null || true
 
 COPY package.json tsconfig.base.json ./
 COPY packages/db/ ./packages/db/
@@ -44,8 +43,8 @@ COPY --from=build /app/node_modules/@prisma ./node_modules/@prisma
 COPY package.json ./
 
 ENV NODE_ENV=production
-ENV PORT=4000
-EXPOSE 4000
+ENV PORT=10000
+EXPOSE 10000
 
 USER app
 

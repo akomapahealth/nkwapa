@@ -77,7 +77,6 @@ const SENSITIVE_ENV_KEYS = new Set([
   'TWILIO_AUTH_TOKEN',
   'SENTRY_DSN',
   'VERCEL_TOKEN',
-  'RAILWAY_TOKEN',
 ]);
 
 function gitList(commandArgs) {

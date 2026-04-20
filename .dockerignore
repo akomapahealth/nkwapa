@@ -13,6 +13,5 @@ coverage
 .cursor
 memory
 memory.md
-infra
 docs
 *.tsbuildinfo
