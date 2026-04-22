@@ -8,11 +8,11 @@ import { ProblemSolutionSection } from './ProblemSolutionSection';
 import { OurStorySection } from './OurStorySection';
 import { BentoFeaturesSection } from './BentoFeaturesSection';
 import { WorkflowSection } from './WorkflowSection';
+import { DashboardPreviewSection } from './DashboardPreviewSection';
 import { ImpactSection } from './ImpactSection';
-import { TalentSection } from './TalentSection';
+import { ClinicalTeamSection } from './ClinicalTeamSection';
 import { TestimonialsSection } from './TestimonialsSection';
-import { PartnersSection } from './PartnersSection';
-import { CtaBanner } from './CtaBanner';
+import { OpenSourceSection } from './OpenSourceSection';
 import { SubscribeSection } from './SubscribeSection';
 import { Footer } from './Footer';
 
@@ -32,11 +32,11 @@ export function LandingPage() {
         <OurStorySection />
         <BentoFeaturesSection />
         <WorkflowSection />
+        <DashboardPreviewSection />
         <ImpactSection />
-        <TalentSection />
+        <ClinicalTeamSection />
         <TestimonialsSection />
-        <PartnersSection />
-        <CtaBanner />
+        <OpenSourceSection />
         <SubscribeSection />
       </main>
       <Footer />

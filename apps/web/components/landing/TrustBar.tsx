@@ -1,32 +1,36 @@
 'use client';
 
-import { landingCardHover } from '@/lib/landing-card-hover';
+import { WifiOff, Shield, FileText, Database } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Marquee } from './shared/Marquee';
 
 const pillars = [
-  'FHIR-friendly workflows',
-  'Role-based access',
-  'Offline queue & sync',
-  'Research exports',
+  { label: 'FHIR-friendly workflows', icon: FileText },
+  { label: 'Role-based access', icon: Shield },
+  { label: 'Offline queue & sync', icon: WifiOff },
+  { label: 'Research exports', icon: Database },
+  { label: 'Immutable audit trail', icon: Shield },
+  { label: 'Multi-clinic isolation', icon: Database },
 ];
 
 export function TrustBar() {
   return (
-    <section className="border-y border-border bg-card/60 py-6 backdrop-blur-sm">
-      <div className="mx-auto flex max-w-7xl flex-col items-center justify-center gap-4 px-6 text-center lg:flex-row lg:justify-between lg:text-left lg:px-8">
-        <p className="font-landing-nav text-sm font-medium text-muted-foreground">
-          Built for programs that need reliability where connectivity is not guaranteed
-        </p>
-        <ul className="flex flex-wrap items-center justify-center gap-3 lg:justify-end">
-          {pillars.map((label) => (
-            <li
-              key={label}
-              className={`rounded-full border border-border/70 bg-background px-3 py-1.5 font-landing-body text-xs font-medium text-foreground shadow-sm ${landingCardHover}`}
+    <section className="border-y border-border bg-card/60 py-5 backdrop-blur-sm">
+      <Marquee speed={35} pauseOnHover className="gap-6">
+        {pillars.map((pillar) => {
+          const Icon = pillar.icon;
+          return (
+            <Badge
+              key={pillar.label}
+              variant="outline"
+              className="shrink-0 cursor-default gap-2 rounded-full border-border/70 bg-background px-4 py-2 font-landing-body text-xs font-medium text-foreground shadow-sm transition-colors duration-200 hover:border-primary/30 hover:bg-primary/5"
             >
-              {label}
-            </li>
-          ))}
-        </ul>
-      </div>
+              <Icon className="h-3.5 w-3.5 text-primary" aria-hidden />
+              {pillar.label}
+            </Badge>
+          );
+        })}
+      </Marquee>
     </section>
   );
 }

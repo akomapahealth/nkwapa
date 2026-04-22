@@ -138,6 +138,25 @@
       radial-gradient(ellipse 60% 50% at 10% 90%, hsl(var(--secondary) / 0.14) 0%, transparent 50%),
       radial-gradient(ellipse 50% 40% at 90% 70%, hsl(191 60% 92% / 0.8) 0%, transparent 45%);
   }
+
+  /* Landing: secondary-biased gradient mesh */
+  .landing-gradient-mesh-alt {
+    background-color: hsl(var(--background));
+    background-image:
+      radial-gradient(ellipse 70% 50% at 20% 10%, hsl(var(--secondary) / 0.1) 0%, transparent 55%),
+      radial-gradient(ellipse 60% 50% at 80% 80%, hsl(var(--primary) / 0.08) 0%, transparent 50%);
+  }
+
+  /* Landing: glass morphism utilities */
+  .landing-glass {
+    @apply border border-white/30 bg-white/70 shadow-lg backdrop-blur-xl;
+  }
+  .landing-glass-dark {
+    background: hsl(var(--foreground) / 0.85);
+    backdrop-filter: blur(24px);
+    border: 1px solid hsl(var(--foreground) / 0.2);
+    color: hsl(var(--primary-foreground));
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

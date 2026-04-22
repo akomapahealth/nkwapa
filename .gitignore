@@ -70,3 +70,5 @@ memory.md
 # Stale lockfiles (repo uses npm workspaces + package-lock.json)
 pnpm-lock.yaml
 apps/web/pnpm-lock.yaml
+
+.claude/

@@ -24,6 +24,15 @@ module.exports = {
         'landing-body': ['Circular Std', 'var(--font-landing)', 'Poppins', 'sans-serif'],
         'landing-nav': ['Circular Std', 'var(--font-landing)', 'Poppins', 'sans-serif'],
       },
+      keyframes: {
+        marquee: {
+          '0%': { transform: 'translateX(0)' },
+          '100%': { transform: 'translateX(-100%)' },
+        },
+      },
+      animation: {
+        marquee: 'marquee var(--marquee-duration, 30s) linear infinite',
+      },
       colors: {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
