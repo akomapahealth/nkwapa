@@ -194,6 +194,12 @@ jobs:
       - name: Build @nkwapa/db
         run: npm run build --workspace=@nkwapa/db
 
+      - name: Build @nkwapa/api
+        run: npm run build --workspace=@nkwapa/api
+
+      - name: Build @nkwapa/web
+        run: npm run build --workspace=@nkwapa/web
+
       - name: Start local infra
         run: docker compose -f infra/nkwapa/docker-compose.yml up -d postgres redis keycloak
 
