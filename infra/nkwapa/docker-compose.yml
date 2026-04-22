@@ -43,7 +43,13 @@ services:
       - ./keycloak/realm-export:/opt/keycloak/data/import:ro
       - ./keycloak/themes/nkwapa:/opt/keycloak/themes/nkwapa:ro
     healthcheck:
-      test: ['CMD-SHELL', 'curl -fsS http://localhost:8080/health/ready || exit 1']
+      test:
+        [
+          'CMD',
+          'bash',
+          '-ec',
+          'exec 3<>/dev/tcp/127.0.0.1/8080; printf "GET /realms/nkwapa/.well-known/openid-configuration HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3; read -r status <&3; [[ "$$status" == *" 200 "* ]]',
+        ]
       interval: 5s
       timeout: 3s
       retries: 30

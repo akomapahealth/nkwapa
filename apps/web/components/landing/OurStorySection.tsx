@@ -44,8 +44,8 @@ export function OurStorySection() {
             className="mt-6 space-y-4 font-landing-body text-base text-muted-foreground"
           >
             <p>
-              Nkwapa is an open-source EMR built for clinics managing hypertension and diabetes in
-              low-resource settings. We believe that{' '}
+              Nkwapa is an enterprise-grade EMR built for clinics managing hypertension and diabetes
+              in field conditions. We believe that{' '}
               <strong className="font-semibold text-foreground">
                 reliable patient records should not depend on internet connectivity.
               </strong>

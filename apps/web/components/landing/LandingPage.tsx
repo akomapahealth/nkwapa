@@ -12,7 +12,7 @@ import { DashboardPreviewSection } from './DashboardPreviewSection';
 import { ImpactSection } from './ImpactSection';
 import { ClinicalTeamSection } from './ClinicalTeamSection';
 import { TestimonialsSection } from './TestimonialsSection';
-import { OpenSourceSection } from './OpenSourceSection';
+import { EnterpriseAssuranceSection } from './EnterpriseAssuranceSection';
 import { SubscribeSection } from './SubscribeSection';
 import { Footer } from './Footer';
 
@@ -36,7 +36,7 @@ export function LandingPage() {
         <ImpactSection />
         <ClinicalTeamSection />
         <TestimonialsSection />
-        <OpenSourceSection />
+        <EnterpriseAssuranceSection />
         <SubscribeSection />
       </main>
       <Footer />

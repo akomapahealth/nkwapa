@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { appendFile } from 'node:fs/promises';
 
 const keycloakBaseUrl = (
   process.env.KEYCLOAK_BASE_URL ||
@@ -44,8 +45,21 @@ async function assertOk(response, context) {
   }
 
   const body = await parseJson(response);
+  throwResponseError(response, context, body);
+}
+
+function throwResponseError(response, context, body) {
   throw new Error(
     `${context} failed (${response.status} ${response.statusText}): ${JSON.stringify(body)}`,
+  );
+}
+
+function isPasswordHistoryError(response, body) {
+  return (
+    response.status === 400 &&
+    body &&
+    typeof body === 'object' &&
+    body.error === 'invalidPasswordHistoryMessage'
   );
 }
 
@@ -186,20 +200,44 @@ async function upsertUser(accessToken) {
       }),
     },
   );
-  await assertOk(passwordResponse, 'Keycloak password reset');
+  if (!passwordResponse.ok) {
+    const body = await parseJson(passwordResponse);
+    if (!isPasswordHistoryError(passwordResponse, body)) {
+      throwResponseError(passwordResponse, 'Keycloak password reset', body);
+    }
+  }
 
   return persistedUser.id;
+}
+
+async function appendGithubEnv(name, value) {
+  if (!process.env.GITHUB_ENV) {
+    return;
+  }
+
+  await appendFile(process.env.GITHUB_ENV, `${name}=${value}\n`);
+}
+
+async function appendGithubOutput(name, value) {
+  if (!process.env.GITHUB_OUTPUT) {
+    return;
+  }
+
+  await appendFile(process.env.GITHUB_OUTPUT, `${name}=${value}\n`);
 }
 
 async function main() {
   const accessToken = await getAdminAccessToken();
   const userId = await upsertUser(accessToken);
+  await appendGithubEnv('E2E_STAFF_SUB', userId);
+  await appendGithubOutput('user-id', userId);
 
   console.log(
     JSON.stringify(
       {
         realm,
         keycloakBaseUrl,
+        requestedUserId: e2eUser.id,
         userId,
         username: e2eUser.username,
         email: e2eUser.email,

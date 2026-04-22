@@ -42,25 +42,29 @@ export function ProblemSolutionSection() {
         {/* The gap — with Akomapa-19 background */}
         <motion.div
           variants={fadeUp}
-          className="relative overflow-hidden rounded-3xl shadow-lg ring-1 ring-primary/20"
+          className={`relative min-h-[420px] overflow-hidden rounded-3xl shadow-xl ring-1 ring-foreground/10 ${landingCardHover}`}
         >
           <Image
             src="/images/Akomapa-19.jpg"
             alt=""
             fill
             sizes="(max-width: 768px) 100vw, 50vw"
-            className="object-cover"
+            className="scale-105 object-cover"
             aria-hidden="true"
           />
-          <div className="absolute inset-0 bg-primary/88" />
-          <div className="relative z-10 px-8 py-12 md:px-12 md:py-16">
-            <p className="font-landing-nav text-xs font-semibold uppercase tracking-[0.2em] text-primary-foreground/80">
+          <div className="absolute inset-0 bg-[linear-gradient(105deg,hsl(var(--foreground)/0.94)_0%,hsl(var(--foreground)/0.84)_50%,hsl(var(--primary)/0.48)_100%)]" />
+          <div
+            className="absolute inset-0 bg-[radial-gradient(circle_at_85%_20%,hsl(var(--secondary)/0.28),transparent_36%)]"
+            aria-hidden
+          />
+          <div className="relative z-10 flex min-h-[420px] max-w-xl flex-col justify-end px-8 py-10 md:px-12 md:py-14">
+            <p className="font-landing-nav text-xs font-semibold uppercase tracking-[0.2em] text-primary-foreground/85">
               The gap
             </p>
-            <h2 className="mt-4 font-landing-heading text-3xl font-black lowercase leading-tight text-primary-foreground md:text-4xl">
+            <h2 className="mt-4 font-landing-heading text-3xl font-black lowercase leading-tight text-primary-foreground drop-shadow-sm md:text-4xl">
               chronic programs stall when tools ignore reality
             </h2>
-            <p className="mt-5 font-landing-body text-base leading-relaxed text-primary-foreground/90">
+            <p className="mt-5 font-landing-body text-base leading-relaxed text-primary-foreground/95 drop-shadow-sm">
               Spotty connectivity, fragmented paper, and generic EMRs that were never designed for{' '}
               <strong className="font-semibold text-primary-foreground">HTN and DM programs</strong>{' '}
               mean teams spend energy fighting software instead of closing care gaps.

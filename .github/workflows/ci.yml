@@ -215,7 +215,6 @@ jobs:
       - name: Seed deterministic dashboard staff user
         run: npm run db:seed
         env:
-          SEED_E2E_STAFF_SUB: ${{ env.E2E_STAFF_SUB }}
           SEED_E2E_STAFF_NAME: ${{ env.E2E_STAFF_NAME }}
           SEED_E2E_STAFF_EMAIL: ${{ env.E2E_STAFF_EMAIL }}
 

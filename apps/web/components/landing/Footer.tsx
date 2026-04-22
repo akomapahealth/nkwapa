@@ -1,6 +1,6 @@
 'use client';
 
-import { Github, ArrowUp } from 'lucide-react';
+import { ArrowUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const footerLinks = {
@@ -52,13 +52,11 @@ export function Footer() {
                 Explore the product
               </a>
               <a
-                href="https://github.com/nkwapa/nkwapa"
-                target="_blank"
-                rel="noopener noreferrer"
+                href="#workflow"
+                onClick={(e) => handleAnchor(e, '#workflow')}
                 className="inline-flex cursor-pointer items-center gap-2 rounded-full border-2 border-border px-5 py-2.5 font-landing-nav text-sm font-medium text-muted-foreground transition-colors duration-200 hover:border-foreground hover:text-foreground"
               >
-                <Github className="h-4 w-4" aria-hidden />
-                GitHub
+                See workflow
               </a>
             </div>
           </div>
@@ -89,7 +87,7 @@ export function Footer() {
 
         <div className="mt-12 flex items-center justify-between border-t border-border pt-6">
           <p className="font-landing-body text-xs text-muted-foreground">
-            Nkwapa EMR — Open source multi-clinic hypertension and diabetes workflows. &copy;{' '}
+            Nkwapa EMR — Enterprise multi-clinic hypertension and diabetes workflows. &copy;{' '}
             {new Date().getFullYear()}
           </p>
           <Button

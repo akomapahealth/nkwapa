@@ -223,7 +223,7 @@ async function main() {
     );
   }
 
-  const e2eStaffSub = process.env.SEED_E2E_STAFF_SUB?.trim();
+  const e2eStaffSub = (process.env.SEED_E2E_STAFF_SUB ?? process.env.E2E_STAFF_SUB)?.trim();
   const e2eStaffName = process.env.SEED_E2E_STAFF_NAME ?? 'E2E Staff';
   const e2eStaffEmail = process.env.SEED_E2E_STAFF_EMAIL ?? 'e2e.staff@nkwapa.local';
 
