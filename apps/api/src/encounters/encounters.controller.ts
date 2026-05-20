@@ -110,10 +110,10 @@ export class EncountersController {
     }
   }
 
-  @Post(':encounterId/preceptor-review')
+  @Post(':encounterId/review')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
-  @RequirePermission(PERMISSIONS.PRECEPTOR_REVIEW)
-  async preceptorReview(
+  @RequirePermission(PERMISSIONS.ENCOUNTER_REVIEW)
+  async review(
     @Param() params: ClinicAndEncounterParamsDto,
     @Request() req: { user: { user: { id: string } } },
   ) {
@@ -122,18 +122,28 @@ export class EncountersController {
       throw new NotFoundException('Encounter not found');
     }
     try {
-      return await this.encounterService.preceptorReview(params.encounterId, req.user.user.id, {
+      return await this.encounterService.reviewEncounter(params.encounterId, req.user.user.id, {
         clinicId: params.clinicId,
         actorUserId: req.user.user.id,
         requestId: randomUUID(),
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('Cannot preceptor') || msg.includes('already preceptor')) {
+      if (msg.includes('Cannot review') || msg.includes('already reviewed')) {
         throw new BadRequestException(msg);
       }
       throw err;
     }
+  }
+
+  @Post(':encounterId/preceptor-review')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.ENCOUNTER_REVIEW)
+  async legacyPreceptorReview(
+    @Param() params: ClinicAndEncounterParamsDto,
+    @Request() req: { user: { user: { id: string } } },
+  ) {
+    return this.review(params, req);
   }
 
   @Post(':encounterId/finalize')
@@ -155,7 +165,7 @@ export class EncountersController {
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('Cannot finalize') || msg.includes('must be preceptor')) {
+      if (msg.includes('Cannot finalize') || msg.includes('must be reviewed')) {
         throw new BadRequestException(msg);
       }
       throw err;

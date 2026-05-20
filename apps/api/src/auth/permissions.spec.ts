@@ -1,4 +1,4 @@
-import { UserRole } from '@prisma/client';
+import { ShiftRole, UserRole } from '@prisma/client';
 import { computeEffectivePermissions, PERMISSIONS } from './constants/permissions';
 
 describe('OPS permissions', () => {
@@ -22,5 +22,18 @@ describe('OPS permissions', () => {
     expect(permissions).toContain(PERMISSIONS.OPS_SHIFT_WRITE);
     expect(permissions).toContain(PERMISSIONS.OPS_ASSIGNMENT_READ_SELF);
     expect(permissions).not.toContain(PERMISSIONS.OPS_ASSIGNMENT_MANAGE);
+  });
+
+  it('grants doctors clinical review and finalization permissions', () => {
+    const permissions = computeEffectivePermissions([UserRole.DOCTOR]);
+
+    expect(permissions).toContain(PERMISSIONS.ENCOUNTER_REVIEW);
+    expect(permissions).toContain(PERMISSIONS.SCREENING_WRITE);
+    expect(permissions).toContain(PERMISSIONS.DOCTOR_FINALIZE);
+  });
+
+  it('does not expose the retired preceptor role enums', () => {
+    expect(Object.values(UserRole)).not.toContain('PRECEPTOR');
+    expect(Object.values(ShiftRole)).not.toContain('PRECEPTOR');
   });
 });

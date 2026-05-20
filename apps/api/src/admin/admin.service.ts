@@ -43,14 +43,12 @@ const ROLE_ORDER: UserRole[] = [
   UserRole.DIRECTOR,
   UserRole.MANAGER,
   UserRole.DOCTOR,
-  UserRole.PRECEPTOR,
   UserRole.VOLUNTEER,
   UserRole.PATIENT,
 ];
 
 const MANAGER_LIFECYCLE_ROLES = new Set<UserRole>([
   UserRole.DOCTOR,
-  UserRole.PRECEPTOR,
   UserRole.VOLUNTEER,
   UserRole.PATIENT,
 ]);

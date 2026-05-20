@@ -71,27 +71,37 @@ export class EncountersByIdController {
     }
   }
 
-  @Post(':encounterId/preceptor-review')
-  @RequirePermission(PERMISSIONS.PRECEPTOR_REVIEW)
-  async preceptorReview(
+  @Post(':encounterId/review')
+  @RequirePermission(PERMISSIONS.ENCOUNTER_REVIEW)
+  async review(
     @Param('encounterId') encounterId: string,
     @Request()
     req: { user: { user: { id: string }; roles: { clinicId: string | null; role: string }[] } },
   ) {
     const clinicId = await this.ensureClinicAccess(encounterId, req.user.roles);
     try {
-      return await this.encounterService.preceptorReview(encounterId, req.user.user.id, {
+      return await this.encounterService.reviewEncounter(encounterId, req.user.user.id, {
         clinicId,
         actorUserId: req.user.user.id,
         requestId: randomUUID(),
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('Cannot preceptor') || msg.includes('already preceptor')) {
+      if (msg.includes('Cannot review') || msg.includes('already reviewed')) {
         throw new BadRequestException(msg);
       }
       throw err;
     }
+  }
+
+  @Post(':encounterId/preceptor-review')
+  @RequirePermission(PERMISSIONS.ENCOUNTER_REVIEW)
+  async legacyPreceptorReview(
+    @Param('encounterId') encounterId: string,
+    @Request()
+    req: { user: { user: { id: string }; roles: { clinicId: string | null; role: string }[] } },
+  ) {
+    return this.review(encounterId, req);
   }
 
   @Post(':encounterId/finalize')
@@ -110,7 +120,7 @@ export class EncountersByIdController {
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('Cannot finalize') || msg.includes('must be preceptor')) {
+      if (msg.includes('Cannot finalize') || msg.includes('must be reviewed')) {
         throw new BadRequestException(msg);
       }
       throw err;
