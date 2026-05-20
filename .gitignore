@@ -66,9 +66,11 @@ data/
 # AI / agent memory (local only)
 memory/
 memory.md
+github_issues/
 
 # Stale lockfiles (repo uses npm workspaces + package-lock.json)
 pnpm-lock.yaml
 apps/web/pnpm-lock.yaml
 
 .claude/
+.codex/
