@@ -15,7 +15,7 @@ No dashboard polish yet — just a clean, usable UI that exercises your backend 
    • Post-login redirect: /queues
    • Default queue tab shown based on permissions (priority):
    1. Doctor → Finalize
-   2. Preceptor → Review
+   2. Doctor → Review
    3. Volunteer → Drafts
       • Clinic selector required if multiple clinics; otherwise auto-select.
       • Country selector in phone input locked to Ghana.
@@ -127,7 +127,7 @@ Queues
 • Drafts:
 • GET /clinics/:clinicId/encounters?status=DRAFT
 • Review:
-• GET /clinics/:clinicId/encounters?status=IN_REVIEW&stage=PRECEPTOR
+• GET /clinics/:clinicId/encounters?status=IN_REVIEW&stage=REVIEW
 (or filter by preceptorReviewedById is null)
 • Finalize:
 • GET /clinics/:clinicId/encounters?status=IN_REVIEW&stage=DOCTOR
@@ -143,7 +143,7 @@ Encounter detail
 • GET /encounters/:encounterId
 • state transitions:
 • POST /encounters/:id/submit
-• POST /encounters/:id/preceptor-review
+• POST /encounters/:id/review (`/preceptor-review` remains as a legacy compatibility route)
 • POST /encounters/:id/finalize
 • upserts:
 • PATCH /encounters/:id/vitals
@@ -292,7 +292,7 @@ Wizard:
 Detail:
 
 - Show status + read/write based on role and encounter status
-- Preceptor action: POST /encounters/:id/preceptor-review
+- Doctor action: POST /encounters/:id/review
 - Doctor action: CarePlan form + POST /encounters/:id/finalize
   Acceptance:
 - After submit/review/finalize, encounter disappears/appears in correct queue

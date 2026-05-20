@@ -44,10 +44,10 @@ TODAY BOARD (YYYY-MM-DD) [Refresh] [Timezone: Africa/Accra]
 
 ## Row 1: STAFF ON DUTY (ACTIVE SHIFTS)
 
-## | Volunteers (count) | Doctors (count) | Preceptors (count)|
+## | Volunteers (count) | Doctors (count) | Doctors (count)|
 
 | DataGrid: Name | RoleAtShift | CheckedInAt | Status |
-| Filter chips: [Volunteer] [Doctor] [Preceptor] |
+| Filter chips: [Volunteer] [Doctor] [Doctor] |
 | Empty state: “No staff checked in yet today.” |
 
 ---
@@ -320,7 +320,7 @@ This will make “Start Intake” a single reliable button.
 
 4. Acceptance test checklist (end-to-end)
 
-Clinic ops day workflow 1. Volunteer checks in (creates StaffShift) 2. Doctor checks in (creates StaffShift) 3. Patient arrives → check-in created (WAITING) 4. Manager assigns volunteer + doctor (ASSIGNED) 5. Volunteer opens My Assigned → Start Intake (creates encounter + IN_PROGRESS) 6. Volunteer completes screening → submit review 7. Preceptor reviews 8. Doctor finalizes → check-in becomes COMPLETED 9. Follow-up date set → reminder queued
+Clinic ops day workflow 1. Volunteer checks in (creates StaffShift) 2. Doctor checks in (creates StaffShift) 3. Patient arrives → check-in created (WAITING) 4. Manager assigns volunteer + doctor (ASSIGNED) 5. Volunteer opens My Assigned → Start Intake (creates encounter + IN_PROGRESS) 6. Volunteer completes screening → submit review 7. Clinical reviews 8. Doctor finalizes → check-in becomes COMPLETED 9. Follow-up date set → reminder queued
 
 Patient portal 1. Patient logs in → sees My Health 2. Adds BP reading → appears in trend 3. Requests appointment date range 4. Clinic confirms → patient sees confirmed appointment
 

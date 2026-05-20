@@ -21,7 +21,7 @@ Below is a structured design + implementation flow your agents can follow. I’l
 A) Big picture: what we’re building next
 
 Feature Set 1 — Clinic Ops: “Daily Check-in + Assignment”
-• Staff check in for a shift (Volunteer/Doctor/Preceptor “I’m on duty” mode)
+• Staff check in for a shift (Volunteer/Doctor/Doctor “I’m on duty” mode)
 • Patients check in for a visit (in-person)
 • Manager assigns patients to Volunteers/Doctors for that clinic/day
 • Track timestamps for analysis: staff shift times + patient check-in time + assignment time + encounter start/finalize time
@@ -103,7 +103,7 @@ StaffShift
 • id
 • clinicId
 • userId
-• roleAtShift (VOLUNTEER/DOCTOR/PRECEPTOR) — snapshot role for that shift
+• roleAtShift (VOLUNTEER/DOCTOR/MANAGER) — snapshot role for that shift
 • checkedInAt
 • checkedOutAt nullable
 • status (ACTIVE/CLOSED)
@@ -181,7 +181,7 @@ Feature 1: Staff “Check-in mode” (Shifts)
 Endpoints
 • POST /clinics/:clinicId/shifts/check-in
 • body: { roleAtShift }
-• permission: CLINIC_READ + role membership (Volunteer/Doctor/Preceptor/Manager)
+• permission: CLINIC_READ + role membership (Volunteer/Doctor/Doctor/Manager)
 • POST /clinics/:clinicId/shifts/:shiftId/check-out
 • GET /clinics/:clinicId/shifts/active?date=YYYY-MM-DD
 • permission: CLINIC_READ (Manager and above; optionally staff can view own)
@@ -317,7 +317,7 @@ Endpoints
 
 E) User flows (so agents implement the UX correctly)
 
-Flow 1: Manager assigning patients 1. Volunteer/Doctor/Preceptor arrives → clicks “Check-in mode” → shift ACTIVE 2. Patients arrive → Volunteer creates check-in (or patient self-checkin later) 3. Manager opens Today’s Check-ins
+Flow 1: Manager assigning patients 1. Volunteer/Doctor/Doctor arrives → clicks “Check-in mode” → shift ACTIVE 2. Patients arrive → Volunteer creates check-in (or patient self-checkin later) 3. Manager opens Today’s Check-ins
 • sees staff checked in (shifts)
 • sees patient check-ins WAITING 4. Manager assigns:
 • patient → volunteer and/or doctor 5. Assigned volunteer sees the patient in “My Assigned” list 6. Encounter proceeds → finalize → complete check-in record

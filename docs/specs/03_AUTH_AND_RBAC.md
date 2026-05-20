@@ -33,15 +33,14 @@ In practice:
 
 ## Roles
 
-| Role           | Scope                   | Notes                                             |
-| -------------- | ----------------------- | ------------------------------------------------- |
-| `SYSTEM_ADMIN` | global                  | `clinicId = null`; can bypass clinic restrictions |
-| `DIRECTOR`     | clinic                  | oversight, research approval, clinic admin        |
-| `MANAGER`      | clinic                  | clinic operations and roster/lifecycle actions    |
-| `DOCTOR`       | clinic                  | finalize encounters, prescribe, reminders         |
-| `PRECEPTOR`    | clinic                  | review and screening oversight                    |
-| `VOLUNTEER`    | clinic                  | intake, screening, consent, assignments           |
-| `PATIENT`      | clinic-linked self role | portal self-service flows                         |
+| Role           | Scope                   | Notes                                                 |
+| -------------- | ----------------------- | ----------------------------------------------------- |
+| `SYSTEM_ADMIN` | global                  | `clinicId = null`; can bypass clinic restrictions     |
+| `DIRECTOR`     | clinic                  | oversight, research approval, clinic admin            |
+| `MANAGER`      | clinic                  | clinic operations and roster/lifecycle actions        |
+| `DOCTOR`       | clinic                  | clinical review, finalization, prescribing, reminders |
+| `VOLUNTEER`    | clinic                  | intake, screening, consent, assignments               |
+| `PATIENT`      | clinic-linked self role | portal self-service flows                             |
 
 ---
 

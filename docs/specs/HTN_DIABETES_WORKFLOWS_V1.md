@@ -4,17 +4,17 @@ Workflow states
 
 Encounter states:
 • DRAFT (volunteer entering data)
-• IN_REVIEW (preceptor reviewing)
+• IN_REVIEW (clinical reviewing)
 • FINALIZED (doctor finalized)
 
 Volunteer flow 1. Select or create patient 2. Create encounter 3. Record vitals:
 • systolic/diastolic, HR, weight, height 4. Record diabetes screening:
-• glucose value + type + symptoms 5. System computes BP classification (simple rule) 6. Submit to preceptor → encounter moves to IN_REVIEW
+• glucose value + type + symptoms 5. System computes BP classification (simple rule) 6. Submit for clinical review → encounter moves to IN_REVIEW
 
-Preceptor flow
+Doctor flow
 • Review recorded vitals/screening
 • Add notes/corrections
-• Approve → stays IN_REVIEW but marked preceptor-reviewed
+• Approve → stays IN_REVIEW but marked reviewed
 
 Doctor flow
 • Review everything
@@ -41,6 +41,6 @@ Threshold rules (v1 simplified)
 UI requirements
 • Role-based queues:
 • Volunteers see “Draft encounters”
-• Preceptors see “Needs review”
+• Doctors see “Needs review”
 • Doctors see “Ready to finalize”
-• “Finalize” is disabled until preceptor review exists (configurable later)
+• “Finalize” is disabled until clinical review exists (configurable later)
