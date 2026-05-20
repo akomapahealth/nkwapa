@@ -41,7 +41,7 @@ export function SummaryCards({
       title: 'Waiting for review',
       value: pendingReview,
       icon: Eye,
-      hint: 'Visits submitted for review but not yet reviewed by a preceptor.',
+      hint: 'Visits submitted for review but not yet reviewed.',
     },
     {
       title: 'Waiting for sign-off',

@@ -59,7 +59,7 @@ export function DoctorDashboard({
         <DashboardKpiCard
           title="Waiting for sign-off"
           value={awaitingFinalization}
-          hint="Visits already reviewed by a preceptor but not yet finalized by a doctor."
+          hint="Visits already reviewed but not yet finalized by a doctor."
         />
         <DashboardKpiCard
           title="Finalized today"

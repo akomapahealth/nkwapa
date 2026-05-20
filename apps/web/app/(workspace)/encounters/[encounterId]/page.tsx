@@ -151,7 +151,7 @@ export default function EncounterDetailPage() {
     [activeTab],
   );
 
-  const doTransition = async (endpoint: 'submit' | 'preceptor-review' | 'finalize') => {
+  const doTransition = async (endpoint: 'submit' | 'review' | 'finalize') => {
     if (!encounter || !getToken || !clinicId) return;
     setTransitioning(true);
     setError(null);
@@ -213,10 +213,10 @@ export default function EncounterDetailPage() {
   const isFinalized = encounter.status === 'FINALIZED';
   const canSubmit =
     encounter.status === 'DRAFT' && hasPermission(perms, 'ENCOUNTER.SUBMIT_FOR_REVIEW');
-  const canPreceptorReview =
+  const canReview =
     encounter.status === 'IN_REVIEW' &&
     !encounter.preceptorReviewedById &&
-    hasPermission(perms, 'PRECEPTOR.REVIEW');
+    hasPermission(perms, 'ENCOUNTER.REVIEW');
   const canFinalize =
     encounter.status === 'IN_REVIEW' &&
     encounter.preceptorReviewedById &&
@@ -267,14 +267,14 @@ export default function EncounterDetailPage() {
                   Submit for Review
                 </Button>
               ) : null}
-              {canPreceptorReview ? (
+              {canReview ? (
                 <Button
                   size="sm"
-                  onClick={() => doTransition('preceptor-review')}
+                  onClick={() => doTransition('review')}
                   disabled={transitioning}
                   className="rounded-2xl"
                 >
-                  Preceptor Review
+                  Mark Reviewed
                 </Button>
               ) : null}
               {canFinalize ? (

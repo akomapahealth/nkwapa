@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -125,8 +126,13 @@ export function Header({
             <SheetHeader className="border-b border-border/70 p-5 text-left">
               <SheetTitle className="text-left">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-lg font-heading font-semibold text-primary-foreground">
-                    N
+                  <div className="relative h-11 w-40">
+                    <Image
+                      src="/images/nkwapa-logo.png"
+                      alt="Nkwapa EMR"
+                      fill
+                      className="object-contain"
+                    />
                   </div>
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary/80">

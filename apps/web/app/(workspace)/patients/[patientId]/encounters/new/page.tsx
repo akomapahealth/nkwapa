@@ -202,14 +202,14 @@ export default function NewEncounterPage() {
           <CardContent>
             <p className="text-muted-foreground mb-4">
               Review the data in each section. You can go back to edit. When ready, submit for
-              preceptor review.
+              clinical review.
             </p>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setStep(3)}>
                 Back to Diabetes
               </Button>
               <Button onClick={handleSubmitForReview} disabled={submitting}>
-                {submitting ? 'Submitting…' : 'Submit for Preceptor Review'}
+                {submitting ? 'Submitting…' : 'Submit for Clinical Review'}
               </Button>
             </div>
           </CardContent>

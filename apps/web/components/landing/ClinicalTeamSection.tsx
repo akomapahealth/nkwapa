@@ -2,7 +2,7 @@
 
 import { useRef } from 'react';
 import { motion, useInView, useReducedMotion } from 'framer-motion';
-import { Stethoscope, GraduationCap, Heart, Building2 } from 'lucide-react';
+import { Stethoscope, Heart, Building2, ClipboardCheck } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { ParallaxImage } from './shared/ParallaxImage';
 import { landingCardHover } from '@/lib/landing-card-hover';
@@ -16,9 +16,9 @@ const roles = [
     color: 'text-primary bg-primary/10',
   },
   {
-    icon: GraduationCap,
-    title: 'Preceptors',
-    description: 'Peer-review clinical encounters before finalization for quality assurance.',
+    icon: ClipboardCheck,
+    title: 'Managers',
+    description: 'Coordinate clinic operations, staff lifecycle, and patient flow.',
     color: 'text-secondary bg-secondary/15',
   },
   {

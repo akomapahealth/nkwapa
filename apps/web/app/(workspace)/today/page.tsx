@@ -62,13 +62,7 @@ type AssignmentDialogState = {
   checkIn: CheckInSummary;
 } | null;
 
-const SHIFT_FILTERS: Array<'ALL' | ShiftRole> = [
-  'ALL',
-  'VOLUNTEER',
-  'DOCTOR',
-  'PRECEPTOR',
-  'MANAGER',
-];
+const SHIFT_FILTERS: Array<'ALL' | ShiftRole> = ['ALL', 'VOLUNTEER', 'DOCTOR', 'MANAGER'];
 
 function countByRole(items: ActiveShift[], role: ShiftRole) {
   return items.filter((item) => item.roleAtShift === role).length;
@@ -496,7 +490,7 @@ export default function TodayBoardPage() {
                     </div>
                   </div>
 
-                  <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="grid gap-2 sm:grid-cols-3">
                     <div className="rounded-2xl border border-border/70 bg-background/80 p-3">
                       <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
                         Volunteers
@@ -510,14 +504,6 @@ export default function TodayBoardPage() {
                         Doctors
                       </p>
                       <p className="mt-2 text-2xl font-semibold">{countByRole(shifts, 'DOCTOR')}</p>
-                    </div>
-                    <div className="rounded-2xl border border-border/70 bg-background/80 p-3">
-                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                        Preceptors
-                      </p>
-                      <p className="mt-2 text-2xl font-semibold">
-                        {countByRole(shifts, 'PRECEPTOR')}
-                      </p>
                     </div>
                     <div className="rounded-2xl border border-border/70 bg-background/80 p-3">
                       <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">

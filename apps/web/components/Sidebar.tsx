@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { AppNavList } from '@/components/app-shell/AppNavList';
 import { useBootstrap } from '@/lib/bootstrap-context';
@@ -28,9 +29,25 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
         <div className="overflow-hidden rounded-[30px] border border-primary/15 bg-gradient-to-br from-primary/14 via-card to-secondary/12 shadow-lg shadow-primary/5">
           <div className={cn('p-4', collapsed ? 'px-3 py-4' : 'p-5')}>
             <div className={cn('flex items-center gap-3', collapsed && 'justify-center')}>
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-xl font-heading font-semibold text-primary-foreground shadow-lg shadow-primary/25">
-                N
-              </div>
+              {collapsed ? (
+                <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-2xl bg-background shadow-lg shadow-primary/10">
+                  <Image
+                    src="/images/favicon/android-chrome-192x192.png"
+                    alt="Nkwapa"
+                    fill
+                    className="object-contain"
+                  />
+                </div>
+              ) : (
+                <div className="relative h-12 w-44 shrink-0">
+                  <Image
+                    src="/images/nkwapa-logo.png"
+                    alt="Nkwapa EMR"
+                    fill
+                    className="object-contain"
+                  />
+                </div>
+              )}
               {!collapsed && (
                 <div className="min-w-0">
                   <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary/80">

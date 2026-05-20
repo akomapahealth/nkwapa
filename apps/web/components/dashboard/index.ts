@@ -4,7 +4,7 @@ export { DashboardChartCard } from './DashboardChartCard';
 export { DashboardActionRow } from './DashboardActionRow';
 export { SummaryCards } from './SummaryCards';
 export { DoctorDashboard } from './DoctorDashboard';
-export { PreceptorDashboard } from './PreceptorDashboard';
+export { ReviewDashboard } from './ReviewDashboard';
 export { DirectorDashboard } from './DirectorDashboard';
 export { VolunteerDashboard } from './VolunteerDashboard';
 export { SystemAdminDashboard } from './SystemAdminDashboard';

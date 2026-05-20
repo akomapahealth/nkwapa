@@ -11,7 +11,7 @@ import { DashboardActionRow } from './DashboardActionRow';
 import { TrendChart } from './TrendChart';
 import { DistributionChart } from './DistributionChart';
 
-interface PreceptorDashboardProps {
+interface ReviewDashboardProps {
   awaitingReview: number;
   reviewsCompleted: { today: number; week: number };
   reviewsTrend: { date: string; count: number }[];
@@ -37,25 +37,25 @@ const columns: GridColDef[] = [
   },
 ];
 
-export function PreceptorDashboard({
+export function ReviewDashboard({
   awaitingReview,
   reviewsCompleted,
   reviewsTrend,
   bpDistribution,
   recentReviews,
-}: PreceptorDashboardProps) {
+}: ReviewDashboardProps) {
   return (
     <section className="space-y-6">
       <DashboardSectionHeader
         title="Review queue"
-        hint="Use this section to clear visits that still need a preceptor review."
+        hint="Use this section to clear visits that still need clinical review."
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <DashboardKpiCard
           title="Waiting for review"
           value={awaitingReview}
-          hint="Visits in review that have not yet been reviewed by a preceptor."
+          hint="Visits in review that have not yet been reviewed."
         />
         <DashboardKpiCard
           title="Reviewed today"
@@ -74,7 +74,7 @@ export function PreceptorDashboard({
           title="Reviews in the last 14 days"
           data={reviewsTrend}
           color="hsl(var(--chart-1))"
-          hint="Daily count of visits reviewed by this preceptor."
+          hint="Daily count of visits you reviewed."
         />
         <DistributionChart
           title="Blood pressure levels in your reviews"
