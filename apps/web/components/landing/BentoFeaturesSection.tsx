@@ -107,7 +107,7 @@ const features: BentoFeature[] = [
   {
     title: 'Role-based access',
     description:
-      'Doctors, preceptors, directors, and volunteers see only what their role and clinic allow.',
+      'Doctors, directors, managers, and volunteers see only what their role and clinic allow.',
     meta: 'RBAC',
     status: 'Enforced',
     tags: ['Security', 'Multi-site'],

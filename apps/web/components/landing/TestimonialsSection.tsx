@@ -14,7 +14,7 @@ const QUOTES = [
   },
   {
     quote:
-      'Review queues for preceptors are clear, and audit tells us who touched what. For scale, that discipline matters.',
+      'Review queues for doctors are clear, and audit tells us who touched what. For scale, that discipline matters.',
     name: 'James Mensah',
     role: 'Clinical operations director',
   },

@@ -43,7 +43,7 @@ export default function QueuesPage() {
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
 
   const canFinalize = hasPermission(perms, 'DOCTOR.FINALIZE');
-  const canReview = hasPermission(perms, 'PRECEPTOR.REVIEW');
+  const canReview = hasPermission(perms, 'ENCOUNTER.REVIEW');
   const canDrafts = hasPermission(perms, 'ENCOUNTER.READ');
 
   const defaultTab = canFinalize ? 'finalize' : canReview ? 'review' : 'drafts';
@@ -58,7 +58,7 @@ export default function QueuesPage() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchQueue = useCallback(
-    async (stage: 'DRAFT' | 'PRECEPTOR' | 'DOCTOR_READY') => {
+    async (stage: 'DRAFT' | 'REVIEW' | 'DOCTOR_READY') => {
       if (!clinicId || !getToken) return [];
       const params = stage === 'DRAFT' ? 'status=DRAFT' : `status=IN_REVIEW&stage=${stage}`;
       const res = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}/encounters?${params}`, {
@@ -111,7 +111,7 @@ export default function QueuesPage() {
     try {
       const [d, r, f] = await Promise.all([
         canDrafts ? fetchQueue('DRAFT') : [],
-        canReview ? fetchQueue('PRECEPTOR') : [],
+        canReview ? fetchQueue('REVIEW') : [],
         canFinalize ? fetchQueue('DOCTOR_READY') : [],
       ]);
       setDrafts(d);
@@ -188,7 +188,7 @@ export default function QueuesPage() {
             title="Needs review"
             value={review.length}
             icon={Eye}
-            detail="Encounters waiting for preceptor review."
+            detail="Encounters waiting for clinical review."
           />
           <AppMetricCard
             title="Ready to finalize"
@@ -221,8 +221,8 @@ export default function QueuesPage() {
           </CardHeader>
           <CardContent>
             <ProgressiveHelp title="Lane tips">
-              Drafts are still being prepared, Needs review is waiting on preceptor review, and
-              Ready to finalize is waiting on doctor sign-off.
+              Drafts are still being prepared, Needs review is waiting on clinical review, and Ready
+              to finalize is waiting on doctor sign-off.
             </ProgressiveHelp>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl border border-border/70 bg-background p-2 sm:grid-cols-3">

@@ -37,15 +37,14 @@ Important notes:
 
 ## 3. Current Roles
 
-| Role           | Scope         | Typical use                             |
-| -------------- | ------------- | --------------------------------------- |
-| `SYSTEM_ADMIN` | global        | platform admin and cross-clinic control |
-| `DIRECTOR`     | clinic        | clinic leadership and research approval |
-| `MANAGER`      | clinic        | clinic operations and staff lifecycle   |
-| `DOCTOR`       | clinic        | encounter finalization and prescribing  |
-| `PRECEPTOR`    | clinic        | review and supervision                  |
-| `VOLUNTEER`    | clinic        | intake, screening, consent              |
-| `PATIENT`      | clinic-linked | portal self-service                     |
+| Role           | Scope         | Typical use                                |
+| -------------- | ------------- | ------------------------------------------ |
+| `SYSTEM_ADMIN` | global        | platform admin and cross-clinic control    |
+| `DIRECTOR`     | clinic        | clinic leadership and research approval    |
+| `MANAGER`      | clinic        | clinic operations and staff lifecycle      |
+| `DOCTOR`       | clinic        | clinical review, finalization, prescribing |
+| `VOLUNTEER`    | clinic        | intake, screening, consent                 |
+| `PATIENT`      | clinic-linked | portal self-service                        |
 
 ---
 
@@ -104,7 +103,7 @@ npm run db:assign-system-admin
 
 ## 6. Staff User Setup
 
-Recommended pattern for directors, managers, doctors, preceptors, and volunteers:
+Recommended pattern for directors, managers, doctors, and volunteers:
 
 1. Create the identity in Keycloak.
 2. Let the user log into Nkwapa once.
@@ -115,6 +114,37 @@ Why step 2 matters:
 
 - the local `User` record is created or hydrated on first successful login
 - users that only exist in Keycloak may not yet appear in Nkwapa admin views
+
+### Existing deployment cleanup after the doctor role migration
+
+The Prisma migration converts the retired preceptor operational role to `DOCTOR`. After deploying
+and running `npm run db:migrate:deploy`, operators can verify cleanup with:
+
+```sql
+SELECT COUNT(*) AS retired_user_roles
+FROM "UserClinicRole"
+WHERE "role"::text = 'PRECEPTOR';
+
+SELECT COUNT(*) AS retired_shift_roles
+FROM "StaffShift"
+WHERE "roleAtShift"::text = 'PRECEPTOR';
+
+SELECT "userId", "clinicId", COUNT(*) AS doctor_role_rows
+FROM "UserClinicRole"
+WHERE "role"::text = 'DOCTOR'
+GROUP BY "userId", "clinicId"
+HAVING COUNT(*) > 1;
+```
+
+All three queries should return zero rows or zero counts. Existing Keycloak realms should also
+delete the old realm role after the database migration:
+
+```bash
+kcadm.sh delete roles/PRECEPTOR -r nkwapa
+```
+
+Keycloak realm roles are descriptive in Nkwapa, but removing the retired realm role prevents future
+operator confusion.
 
 ---
 

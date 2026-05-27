@@ -25,7 +25,7 @@ Prisma: New Enums & Models
 
 Enums
 • ShiftStatus = ACTIVE | CLOSED
-• ShiftRole = VOLUNTEER | DOCTOR | PRECEPTOR | MANAGER
+• ShiftRole = VOLUNTEER | DOCTOR | MANAGER
 
 Model: StaffShift
 
@@ -54,7 +54,7 @@ POST /clinics/:clinicId/shifts/check-in
 
 Body:
 
-{ "roleAtShift": "VOLUNTEER|DOCTOR|PRECEPTOR|MANAGER", "notes": "optional" }
+{ "roleAtShift": "VOLUNTEER|DOCTOR|MANAGER", "notes": "optional" }
 
 Rules:
 • User must be a clinic member (any role in that clinic).

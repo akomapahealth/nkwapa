@@ -253,7 +253,6 @@ async function main() {
     await Promise.all([
       ensureClinicRole(prisma, user.id, clinic.id, UserRole.DIRECTOR),
       ensureClinicRole(prisma, user.id, clinic.id, UserRole.DOCTOR),
-      ensureClinicRole(prisma, user.id, clinic.id, UserRole.PRECEPTOR),
       ensureClinicRole(prisma, user.id, clinic.id, UserRole.VOLUNTEER),
     ]);
 

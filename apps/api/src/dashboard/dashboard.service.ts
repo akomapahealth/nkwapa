@@ -4,7 +4,7 @@ import type {
   DashboardResponse,
   DashboardSummary,
   DoctorMetrics,
-  PreceptorMetrics,
+  ReviewMetrics,
   DirectorMetrics,
   VolunteerMetrics,
   SystemAdminMetrics,
@@ -29,7 +29,6 @@ export class DashboardService {
 
     const isAdmin = roles.includes('SYSTEM_ADMIN');
     const isDoctor = roles.includes('DOCTOR');
-    const isPreceptor = roles.includes('PRECEPTOR');
     const isDirector = roles.includes('DIRECTOR') || roles.includes('MANAGER');
     const isVolunteer = roles.includes('VOLUNTEER');
 
@@ -38,9 +37,7 @@ export class DashboardService {
     }
     if (isDoctor) {
       response.doctor = await this.getDoctorMetrics(clinicId, userId);
-    }
-    if (isPreceptor) {
-      response.preceptor = await this.getPreceptorMetrics(clinicId, userId);
+      response.review = await this.getReviewMetrics(clinicId, userId);
     }
     if (isDirector) {
       response.director = await this.getDirectorMetrics(clinicId);
@@ -190,7 +187,7 @@ export class DashboardService {
     };
   }
 
-  private async getPreceptorMetrics(clinicId: string, userId: string): Promise<PreceptorMetrics> {
+  private async getReviewMetrics(clinicId: string, userId: string): Promise<ReviewMetrics> {
     const now = new Date();
     const todayStart = startOfDay(now);
     const weekStart = startOfWeek(now);

@@ -1,6 +1,6 @@
 export const OPS_DEFAULT_TIMEZONE = 'Africa/Accra';
 
-export const SHIFT_ROLES = ['VOLUNTEER', 'DOCTOR', 'PRECEPTOR', 'MANAGER'] as const;
+export const SHIFT_ROLES = ['VOLUNTEER', 'DOCTOR', 'MANAGER'] as const;
 
 export const CHECKIN_STATUS_ORDER = [
   'WAITING',

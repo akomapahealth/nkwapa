@@ -69,7 +69,7 @@ const NAV_SECTIONS: AppNavSection[] = [
         label: 'Queues',
         description: 'Drafts, reviews, sign-off.',
         icon: ClipboardList,
-        anyOf: ['ENCOUNTER.READ', 'ENCOUNTER.CREATE', 'PRECEPTOR.REVIEW', 'DOCTOR.FINALIZE'],
+        anyOf: ['ENCOUNTER.READ', 'ENCOUNTER.CREATE', 'ENCOUNTER.REVIEW', 'DOCTOR.FINALIZE'],
         requiresClinic: true,
       },
       {

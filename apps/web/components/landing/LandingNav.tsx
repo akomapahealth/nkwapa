@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { motion, useScroll, useTransform, useReducedMotion } from 'framer-motion';
 import { Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -63,9 +64,10 @@ export function LandingNav() {
       >
         <a
           href="/"
-          className="cursor-pointer font-landing-heading text-lg font-black lowercase tracking-tight text-foreground no-underline transition-opacity duration-200 hover:opacity-80"
+          className="relative h-8 w-32 cursor-pointer no-underline transition-opacity duration-200 hover:opacity-80"
+          aria-label="Nkwapa home"
         >
-          nkwapa
+          <Image src="/images/nkwapa-logo.png" alt="Nkwapa" fill className="object-contain" />
         </a>
 
         <div className="hidden items-center gap-6 lg:flex">
@@ -106,8 +108,15 @@ export function LandingNav() {
             </SheetTrigger>
             <SheetContent side="right" className="w-72">
               <SheetHeader>
-                <SheetTitle className="font-landing-heading text-lg font-black lowercase tracking-tight">
-                  nkwapa
+                <SheetTitle>
+                  <span className="relative block h-9 w-36">
+                    <Image
+                      src="/images/nkwapa-logo.png"
+                      alt="Nkwapa"
+                      fill
+                      className="object-contain"
+                    />
+                  </span>
                 </SheetTitle>
               </SheetHeader>
               <nav className="mt-8 flex flex-col gap-4">

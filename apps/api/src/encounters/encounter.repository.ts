@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Encounter, EncounterStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
-export type QueueStage = 'DRAFT' | 'PRECEPTOR' | 'DOCTOR_READY';
+export type QueueStage = 'DRAFT' | 'REVIEW' | 'DOCTOR_READY' | 'PRECEPTOR';
 
 export interface EncounterFindManyFilters {
   skip?: number;
@@ -37,6 +37,7 @@ export class EncounterRepository {
         case 'DRAFT':
           where.status = 'DRAFT';
           break;
+        case 'REVIEW':
         case 'PRECEPTOR':
           where.status = 'IN_REVIEW';
           where.preceptorReviewedById = null;

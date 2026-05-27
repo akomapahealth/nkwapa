@@ -17,7 +17,7 @@ Authenticated (all require /auth/whoami bootstrap)
 • /patients/:patientId/encounters/new (check-in wizard)
 • /encounters/:encounterId
 • /queues/drafts (Volunteer)
-• /queues/review (Preceptor)
+• /queues/review (Doctor)
 • /queues/finalize (Doctor)
 • /audit (Manager/Director/Admin)
 • /settings/clinic (Director/Admin)
@@ -143,7 +143,7 @@ Offline:
 E) Check-in wizard (Encounter create + screening)
 
 Route: /patients/:patientId/encounters/new
-UI flow (single page wizard): 1. Confirm patient 2. Vitals 3. HTN assessment (auto classification) 4. Diabetes screening 5. Review + “Submit for preceptor review”
+UI flow (single page wizard): 1. Confirm patient 2. Vitals 3. HTN assessment (auto classification) 4. Diabetes screening 5. Review + “Submit for clinical review”
 
 API:
 • POST /clinics/:clinicId/encounters (creates DRAFT)
@@ -168,14 +168,14 @@ UI:
 • Sections: vitals, HTN, DM, notes, care plan
 • Actions:
 • Volunteer: edit if DRAFT
-• Preceptor: edit/review if IN_REVIEW
-• Doctor: finalize if IN_REVIEW (and preceptor-reviewed)
+• Doctor: edit/review if IN_REVIEW
+• Doctor: finalize if IN_REVIEW (and reviewed)
 • Mini audit log (optional): last 5 events
 
 API:
 • GET /encounters/:encounterId
 • state transition endpoints:
-• POST /encounters/:id/preceptor-review
+• POST /encounters/:id/review (`/preceptor-review` remains as a legacy compatibility route)
 • POST /encounters/:id/finalize
 
 Offline:
@@ -201,7 +201,7 @@ UI:
 
 API:
 • GET /clinics/:clinicId/encounters?status=DRAFT
-• GET /clinics/:clinicId/encounters?status=IN_REVIEW&stage=PRECEPTOR
+• GET /clinics/:clinicId/encounters?status=IN_REVIEW&stage=REVIEW
 • GET /clinics/:clinicId/encounters?status=IN_REVIEW&stage=DOCTOR_READY
 
 (If you don’t have stage, derive it via fields preceptorReviewedById etc.)

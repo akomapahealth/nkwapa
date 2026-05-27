@@ -51,7 +51,6 @@ Create at least:
 - one `DIRECTOR`
 - one `MANAGER`
 - one `DOCTOR`
-- one `PRECEPTOR`
 - one `VOLUNTEER`
 - one `PATIENT`
 
@@ -144,16 +143,16 @@ Also verify:
 
 ---
 
-## 9. Preceptor Matrix
+## 9. Doctor Review Matrix
 
 - [ ] queues page shows review workload
 - [ ] in-review encounter loads
-- [ ] preceptor review action works
-- [ ] preceptor cannot finalize when not permitted
+- [ ] clinical review action works
+- [ ] finalize remains disabled until review is complete
 
 ---
 
-## 10. Doctor Matrix
+## 10. Doctor Finalization Matrix
 
 - [ ] queues page shows finalize-ready encounters
 - [ ] care plan save works

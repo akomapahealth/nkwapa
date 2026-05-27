@@ -29,8 +29,6 @@ function shiftRoleTone(role: ShiftRole) {
       return 'border-primary/25 bg-primary/10 text-primary';
     case 'DOCTOR':
       return 'border-sky-200 bg-sky-50 text-sky-700';
-    case 'PRECEPTOR':
-      return 'border-slate-300 bg-slate-50 text-slate-700';
     case 'MANAGER':
       return 'border-secondary/35 bg-secondary/15 text-foreground';
     default:

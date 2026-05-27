@@ -9,6 +9,7 @@ describe('EncounterService', () => {
   let service: EncounterService;
   let encounterRepository: {
     findById: jest.Mock;
+    setPreceptorReviewed: jest.Mock;
     setDoctorFinalized: jest.Mock;
   };
   let prisma: {
@@ -29,15 +30,22 @@ describe('EncounterService', () => {
         clinicId: 'clinic-1',
         patientId: 'patient-1',
         status: 'IN_REVIEW',
-        preceptorReviewedById: 'preceptor-1',
+        preceptorReviewedById: 'reviewer-1',
       }),
       setDoctorFinalized: jest.fn().mockResolvedValue({
         id: 'enc-1',
         clinicId: 'clinic-1',
         patientId: 'patient-1',
         status: 'FINALIZED',
-        preceptorReviewedById: 'preceptor-1',
+        preceptorReviewedById: 'reviewer-1',
         doctorFinalizedById: 'doctor-1',
+      }),
+      setPreceptorReviewed: jest.fn().mockResolvedValue({
+        id: 'enc-1',
+        clinicId: 'clinic-1',
+        patientId: 'patient-1',
+        status: 'IN_REVIEW',
+        preceptorReviewedById: 'doctor-1',
       }),
     };
 
@@ -97,6 +105,38 @@ describe('EncounterService', () => {
       expect.objectContaining({
         action: 'CHECKIN.STATUS.UPDATE',
         entityId: 'checkin-1',
+      }),
+    );
+  });
+
+  it('preserves review attribution when a doctor reviews an encounter', async () => {
+    encounterRepository.findById.mockResolvedValueOnce({
+      id: 'enc-2',
+      clinicId: 'clinic-1',
+      patientId: 'patient-1',
+      status: 'IN_REVIEW',
+      preceptorReviewedById: null,
+    });
+    encounterRepository.setPreceptorReviewed.mockResolvedValueOnce({
+      id: 'enc-2',
+      clinicId: 'clinic-1',
+      patientId: 'patient-1',
+      status: 'IN_REVIEW',
+      preceptorReviewedById: 'doctor-1',
+    });
+
+    const result = await service.reviewEncounter('enc-2', 'doctor-1', {
+      clinicId: 'clinic-1',
+      actorUserId: 'doctor-1',
+      requestId: 'req-2',
+    });
+
+    expect(result.preceptorReviewedById).toBe('doctor-1');
+    expect(encounterRepository.setPreceptorReviewed).toHaveBeenCalledWith('enc-2', 'doctor-1');
+    expect(auditService.logWrite).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'ENCOUNTER.REVIEW',
+        entityId: 'enc-2',
       }),
     );
   });

@@ -14,13 +14,13 @@ Right now you likely have “create patient/encounter/screening/consent/sync.”
     •	DRAFT → IN_REVIEW → FINALIZED
     •	Who can transition:
     •	Volunteer: create/edit DRAFT + submit for review
-    •	Preceptor: review/edit, approve for doctor
+    •	Doctor: review/edit, approve for doctor
     •	Doctor: finalize
     •	Hard rule:
     •	FINALIZED encounters become read-only (except admin break-glass later)
     •	Audit events:
     •	ENCOUNTER.SUBMIT_FOR_REVIEW
-    •	ENCOUNTER.PRECEPTOR_REVIEW
+    •	ENCOUNTER.ENCOUNTER_REVIEW
     •	ENCOUNTER.FINALIZE
 
     2.	Clinical rules engine (v1 simple, but consistent)
@@ -118,7 +118,7 @@ Show based on permissions:
     •	Check-in (New Encounter)
     •	Queues
     •	Drafts (Volunteer)
-    •	Needs Review (Preceptor)
+    •	Needs Review (Doctor)
     •	Ready to Finalize (Doctor)
     •	Audit (Manager/Director/Admin)
     •	Settings (Director/Admin)
@@ -153,12 +153,12 @@ Single flow that adapts by role:
     •	Step 2: vitals
     •	Step 3: HTN assessment (auto classification)
     •	Step 4: DM screening
-    •	Step 5: submit for preceptor review
+    •	Step 5: submit for clinical review
 
     4.	Queues
 
     •	Volunteer Draft queue
-    •	Preceptor review queue
+    •	Clinical review queue
     •	Doctor finalize queue
 
 Each row shows:

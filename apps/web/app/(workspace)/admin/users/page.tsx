@@ -41,14 +41,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 
-type RoleName =
-  | 'SYSTEM_ADMIN'
-  | 'DIRECTOR'
-  | 'MANAGER'
-  | 'DOCTOR'
-  | 'PRECEPTOR'
-  | 'VOLUNTEER'
-  | 'PATIENT';
+type RoleName = 'SYSTEM_ADMIN' | 'DIRECTOR' | 'MANAGER' | 'DOCTOR' | 'VOLUNTEER' | 'PATIENT';
 
 type PortalLinkStatus = 'LINKED' | 'ROLE_ONLY' | 'LINK_ONLY' | 'NONE';
 type PortalFilter = 'ALL' | 'MISMATCH' | PortalLinkStatus;
@@ -132,15 +125,7 @@ interface StaffAccessRow {
 type StatusFilter = 'active' | 'inactive' | 'all';
 type ViewMode = 'clinic' | 'all';
 
-const ROLES: RoleName[] = [
-  'SYSTEM_ADMIN',
-  'DIRECTOR',
-  'MANAGER',
-  'DOCTOR',
-  'PRECEPTOR',
-  'VOLUNTEER',
-  'PATIENT',
-];
+const ROLES: RoleName[] = ['SYSTEM_ADMIN', 'DIRECTOR', 'MANAGER', 'DOCTOR', 'VOLUNTEER', 'PATIENT'];
 
 function statusBadgeVariant(isActive: boolean) {
   return isActive ? 'finalized' : 'destructive';
@@ -324,11 +309,11 @@ export default function AdminUsersPage() {
   const lifecycleRoles: RoleName[] = isSystemAdmin
     ? ROLES
     : activeClinicRoles.includes('DIRECTOR')
-      ? ['MANAGER', 'DOCTOR', 'PRECEPTOR', 'VOLUNTEER', 'PATIENT']
-      : ['DOCTOR', 'PRECEPTOR', 'VOLUNTEER', 'PATIENT'];
+      ? ['MANAGER', 'DOCTOR', 'VOLUNTEER', 'PATIENT']
+      : ['DOCTOR', 'VOLUNTEER', 'PATIENT'];
   const assignableRoles: RoleName[] = isSystemAdmin
-    ? ['SYSTEM_ADMIN', 'DIRECTOR', 'MANAGER', 'DOCTOR', 'PRECEPTOR', 'VOLUNTEER']
-    : ['MANAGER', 'DOCTOR', 'PRECEPTOR', 'VOLUNTEER'];
+    ? ['SYSTEM_ADMIN', 'DIRECTOR', 'MANAGER', 'DOCTOR', 'VOLUNTEER']
+    : ['MANAGER', 'DOCTOR', 'VOLUNTEER'];
 
   const [viewMode, setViewMode] = useState<ViewMode>(
     isSystemAdmin && !activeClinicId ? 'all' : 'clinic',

@@ -8,10 +8,10 @@ Navigation map (Basic UI)
 
 Queues (landing: /queues)
 • Show “Queues” parent if user has any of:
-• ENCOUNTER_READ or ENCOUNTER_CREATE or PRECEPTOR_REVIEW or DOCTOR_FINALIZE
+• ENCOUNTER_READ or ENCOUNTER_CREATE or ENCOUNTER_REVIEW or DOCTOR_FINALIZE
 • Child tabs:
 • Drafts: ENCOUNTER_READ (and typically ENCOUNTER_CREATE)
-• Review: PRECEPTOR_REVIEW
+• Review: ENCOUNTER_REVIEW
 • Finalize: DOCTOR_FINALIZE
 
 Patients
@@ -118,8 +118,8 @@ Rules (v1)
 • DRAFT:
 • Volunteer can write vitals/screening, and submit for review
 • IN_REVIEW:
-• Preceptor can write screening + mark preceptor reviewed
-• Doctor can write care plan + finalize, but only if preceptor reviewed (configurable later)
+• Doctor can write screening + mark clinical reviewed
+• Doctor can write care plan + finalize, but only if clinical reviewed (configurable later)
 • FINALIZED:
 • No edits to vitals/screening/care plan (except SYSTEM_ADMIN; break-glass later)
 
@@ -127,7 +127,7 @@ Backend tasks 1. Centralize transition logic in EncounterService
 
     •	Methods:
     •	submitForReview(encounterId, actor)
-    •	preceptorReview(encounterId, actor)
+    •	reviewEncounter(encounterId, actor)
     •	finalize(encounterId, actor)
     •	Each method:
     •	loads encounter + related pieces
@@ -149,7 +149,7 @@ Return error codes UI can render:
     •	ENCOUNTER_FINALIZED_READONLY
     •	ENCOUNTER_INVALID_TRANSITION
     •	ENCOUNTER_MISSING_REQUIRED_FIELDS
-    •	ENCOUNTER_PRECEPTOR_REVIEW_REQUIRED
+    •	ENCOUNTER_ENCOUNTER_REVIEW_REQUIRED
 
 Acceptance criteria
 • Any attempt to edit FINALIZED encounter fails with 409 + code
@@ -254,7 +254,7 @@ Harden encounter state machine server-side.
 Implement:
 
 - submitForReview: DRAFT -> IN_REVIEW (requires ENCOUNTER_SUBMIT_FOR_REVIEW)
-- preceptorReview: allowed only in IN_REVIEW (requires PRECEPTOR_REVIEW), sets preceptorReviewedById
+- reviewEncounter: allowed only in IN_REVIEW (requires ENCOUNTER_REVIEW), sets preceptorReviewedById
 - finalize: allowed only in IN_REVIEW and requires doctor perms; require preceptorReviewedById present; sets status FINALIZED and doctorFinalizedById
 
 Enforce readonly:
@@ -295,7 +295,7 @@ Add tests for:
 Your UI agents should use these permission checks:
 • /queues/\*: ENCOUNTER_READ AND one of:
 • Drafts tab: ENCOUNTER_CREATE or ENCOUNTER_READ
-• Review tab: PRECEPTOR_REVIEW
+• Review tab: ENCOUNTER_REVIEW
 • Finalize tab: DOCTOR_FINALIZE
 • /patients: PATIENT_SEARCH
 • /patients/new: PATIENT_CREATE

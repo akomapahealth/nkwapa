@@ -10,7 +10,7 @@ import { RouteGuard } from '@/components/RouteGuard';
 import { DashboardSectionHeader } from '@/components/dashboard/DashboardSectionHeader';
 import { SummaryCards } from '@/components/dashboard/SummaryCards';
 import { DoctorDashboard } from '@/components/dashboard/DoctorDashboard';
-import { PreceptorDashboard } from '@/components/dashboard/PreceptorDashboard';
+import { ReviewDashboard } from '@/components/dashboard/ReviewDashboard';
 import { DirectorDashboard } from '@/components/dashboard/DirectorDashboard';
 import { VolunteerDashboard } from '@/components/dashboard/VolunteerDashboard';
 import { SystemAdminDashboard } from '@/components/dashboard/SystemAdminDashboard';
@@ -40,7 +40,7 @@ interface DashboardData {
     }[];
     finalizationsTrend: { date: string; count: number }[];
   };
-  preceptor?: {
+  review?: {
     awaitingReview: number;
     reviewsCompleted: { today: number; week: number };
     reviewsTrend: { date: string; count: number }[];
@@ -192,7 +192,7 @@ export default function DashboardPage() {
             <div className="border-t border-border pt-6">
               {data.doctor && <DoctorDashboard {...data.doctor} />}
 
-              {data.preceptor && <PreceptorDashboard {...data.preceptor} />}
+              {data.review && <ReviewDashboard {...data.review} />}
 
               {data.director && <DirectorDashboard {...data.director} />}
 

@@ -45,7 +45,7 @@ export interface DoctorMetrics {
   finalizationsTrend: TrendPoint[];
 }
 
-export interface PreceptorMetrics {
+export interface ReviewMetrics {
   awaitingReview: number;
   reviewsCompleted: { today: number; week: number };
   recentReviews: EncounterSummary[];
@@ -86,7 +86,7 @@ export interface SystemAdminMetrics {
 export interface DashboardResponse {
   summary: DashboardSummary;
   doctor?: DoctorMetrics;
-  preceptor?: PreceptorMetrics;
+  review?: ReviewMetrics;
   director?: DirectorMetrics;
   volunteer?: VolunteerMetrics;
   systemAdmin?: SystemAdminMetrics;

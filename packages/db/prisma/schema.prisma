@@ -20,7 +20,6 @@ enum UserRole {
   DIRECTOR
   MANAGER
   DOCTOR
-  PRECEPTOR
   VOLUNTEER
   PATIENT
 }
@@ -48,7 +47,6 @@ enum ShiftStatus {
 enum ShiftRole {
   VOLUNTEER
   DOCTOR
-  PRECEPTOR
   MANAGER
 }
 
@@ -190,8 +188,8 @@ model Organization {
 }
 
 model Clinic {
-  id             String @id @default(uuid()) @db.Uuid
-  organizationId String @db.Uuid
+  id             String  @id @default(uuid()) @db.Uuid
+  organizationId String  @db.Uuid
   name           String
   region         String?
   countryCode    String  @default("GH") @db.VarChar(2) // ISO-3166 alpha-2, v1 default GH
@@ -256,30 +254,30 @@ model User {
 
   // relations
   clinicRoles                   UserClinicRole[]
-  portalPatient                 Patient?                 @relation("PatientPortalUser")
-  createdPatients               Patient[]                @relation("PatientCreatedBy")
-  createdEncounters             Encounter[]              @relation("EncounterCreatedBy")
-  preceptorReviewedEncounters   Encounter[]              @relation("EncounterPreceptorReviewedBy")
-  doctorFinalizedEncounters     Encounter[]              @relation("EncounterDoctorFinalizedBy")
-  recordedConsents              PatientConsent[]         @relation("ConsentRecordedBy")
-  updatedClinicResearchSettings ClinicResearchSettings[] @relation("ResearchSettingsUpdatedBy")
-  requestedResearchExports      ResearchExport[]         @relation("ResearchExportRequestedBy")
-  approvedResearchExports       ResearchExport[]         @relation("ResearchExportApprovedBy")
-  auditEvents                   AuditEvent[]             @relation("AuditActor")
-  prescriptions                 Prescription[]           @relation("PrescriptionPrescribedBy")
-  patientSelfReports            PatientSelfReport[]      @relation("PatientSelfReportSubmittedBy")
-  triagedAppointmentRequests    AppointmentRequest[]     @relation("AppointmentRequestTriagedBy")
+  portalPatient                 Patient?                  @relation("PatientPortalUser")
+  createdPatients               Patient[]                 @relation("PatientCreatedBy")
+  createdEncounters             Encounter[]               @relation("EncounterCreatedBy")
+  preceptorReviewedEncounters   Encounter[]               @relation("EncounterPreceptorReviewedBy")
+  doctorFinalizedEncounters     Encounter[]               @relation("EncounterDoctorFinalizedBy")
+  recordedConsents              PatientConsent[]          @relation("ConsentRecordedBy")
+  updatedClinicResearchSettings ClinicResearchSettings[]  @relation("ResearchSettingsUpdatedBy")
+  requestedResearchExports      ResearchExport[]          @relation("ResearchExportRequestedBy")
+  approvedResearchExports       ResearchExport[]          @relation("ResearchExportApprovedBy")
+  auditEvents                   AuditEvent[]              @relation("AuditActor")
+  prescriptions                 Prescription[]            @relation("PrescriptionPrescribedBy")
+  patientSelfReports            PatientSelfReport[]       @relation("PatientSelfReportSubmittedBy")
+  triagedAppointmentRequests    AppointmentRequest[]      @relation("AppointmentRequestTriagedBy")
   staffShifts                   StaffShift[]
-  volunteerAssignments          PatientAssignment[]      @relation("AssignmentVolunteer")
-  doctorAssignments             PatientAssignment[]      @relation("AssignmentDoctor")
-  createdAssignments            PatientAssignment[]      @relation("AssignmentAssignedBy")
-  doctorAppointments            Appointment[]            @relation("AppointmentAssignedDoctor")
-  volunteerAppointments         Appointment[]            @relation("AppointmentAssignedVolunteer")
-  createdPatientPortalInvites   PatientPortalInvite[]    @relation("PatientPortalInviteCreatedBy")
-  claimedPatientPortalInvites   PatientPortalInvite[]    @relation("PatientPortalInviteClaimedBy")
-  mergedPatients                Patient[]                @relation("PatientMergedBy")
+  volunteerAssignments          PatientAssignment[]       @relation("AssignmentVolunteer")
+  doctorAssignments             PatientAssignment[]       @relation("AssignmentDoctor")
+  createdAssignments            PatientAssignment[]       @relation("AssignmentAssignedBy")
+  doctorAppointments            Appointment[]             @relation("AppointmentAssignedDoctor")
+  volunteerAppointments         Appointment[]             @relation("AppointmentAssignedVolunteer")
+  createdPatientPortalInvites   PatientPortalInvite[]     @relation("PatientPortalInviteCreatedBy")
+  claimedPatientPortalInvites   PatientPortalInvite[]     @relation("PatientPortalInviteClaimedBy")
+  mergedPatients                Patient[]                 @relation("PatientMergedBy")
   conversationParticipants      ConversationParticipant[]
-  sentMessages                  Message[]                @relation("MessageSender")
+  sentMessages                  Message[]                 @relation("MessageSender")
 
   @@index([isActive])
 }
@@ -319,33 +317,33 @@ model Patient {
   nationalIdHash       String         @unique @db.VarChar(128) // SHA-256 hex or base64url
   nationalIdLast4      String?        @db.VarChar(8)
 
-  createdByUserId String? @db.Uuid
-  portalUserId    String? @unique @db.Uuid
-  mergedIntoPatientId String? @db.Uuid
+  createdByUserId     String?   @db.Uuid
+  portalUserId        String?   @unique @db.Uuid
+  mergedIntoPatientId String?   @db.Uuid
   mergedAt            DateTime?
-  mergedByUserId      String? @db.Uuid
+  mergedByUserId      String?   @db.Uuid
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // relations
-  primaryClinic Clinic           @relation("PrimaryClinicPatients", fields: [primaryClinicId], references: [id])
-  createdBy     User?            @relation("PatientCreatedBy", fields: [createdByUserId], references: [id])
-  portalUser    User?            @relation("PatientPortalUser", fields: [portalUserId], references: [id], onDelete: SetNull)
-  mergedIntoPatient Patient?     @relation("PatientMerge", fields: [mergedIntoPatientId], references: [id], onDelete: SetNull)
-  mergedSourcePatients Patient[] @relation("PatientMerge")
-  mergedBy User?                 @relation("PatientMergedBy", fields: [mergedByUserId], references: [id], onDelete: SetNull)
-  accountLink   PatientAccountLink?
-  encounters    Encounter[]
-  consents      PatientConsent[]
-  reminders     Reminder[]
-  selfReports   PatientSelfReport[]
-  measurements  PatientMeasurement[]
-  checkIns      PatientCheckIn[]
-  appointmentRequests AppointmentRequest[]
-  appointments Appointment[]
-  portalInvites PatientPortalInvite[]
-  codeAliases   PatientCodeAlias[]
+  primaryClinic        Clinic                @relation("PrimaryClinicPatients", fields: [primaryClinicId], references: [id])
+  createdBy            User?                 @relation("PatientCreatedBy", fields: [createdByUserId], references: [id])
+  portalUser           User?                 @relation("PatientPortalUser", fields: [portalUserId], references: [id], onDelete: SetNull)
+  mergedIntoPatient    Patient?              @relation("PatientMerge", fields: [mergedIntoPatientId], references: [id], onDelete: SetNull)
+  mergedSourcePatients Patient[]             @relation("PatientMerge")
+  mergedBy             User?                 @relation("PatientMergedBy", fields: [mergedByUserId], references: [id], onDelete: SetNull)
+  accountLink          PatientAccountLink?
+  encounters           Encounter[]
+  consents             PatientConsent[]
+  reminders            Reminder[]
+  selfReports          PatientSelfReport[]
+  measurements         PatientMeasurement[]
+  checkIns             PatientCheckIn[]
+  appointmentRequests  AppointmentRequest[]
+  appointments         Appointment[]
+  portalInvites        PatientPortalInvite[]
+  codeAliases          PatientCodeAlias[]
 
   @@index([primaryClinicId])
   @@index([portalUserId])
@@ -426,16 +424,16 @@ model Encounter {
 }
 
 model StaffShift {
-  id          String      @id @default(uuid()) @db.Uuid
-  clinicId    String      @db.Uuid
-  userId      String      @db.Uuid
-  roleAtShift ShiftRole
-  checkedInAt DateTime
+  id           String      @id @default(uuid()) @db.Uuid
+  clinicId     String      @db.Uuid
+  userId       String      @db.Uuid
+  roleAtShift  ShiftRole
+  checkedInAt  DateTime
   checkedOutAt DateTime?
-  status      ShiftStatus @default(ACTIVE)
-  notes       String?     @db.Text
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  status       ShiftStatus @default(ACTIVE)
+  notes        String?     @db.Text
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
 
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -456,9 +454,9 @@ model PatientCheckIn {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  clinic      Clinic               @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  patient     Patient              @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  encounter   Encounter?           @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+  clinic      Clinic              @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient     Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  encounter   Encounter?          @relation(fields: [encounterId], references: [id], onDelete: SetNull)
   assignments PatientAssignment[]
 
   @@index([clinicId, status, checkedInAt])
@@ -582,14 +580,14 @@ enum DrugCategory {
 }
 
 model Drug {
-  id         String       @id @default(uuid()) @db.Uuid
-  clinicId   String       @db.Uuid
-  name       String       @db.VarChar(200)
-  genericName String?     @db.VarChar(200)
-  category   DrugCategory @default(OTHER)
-  dosageForms String?     @db.Text // JSON text
-  contraindications String? @db.Text
-  isActive   Boolean      @default(true)
+  id                String       @id @default(uuid()) @db.Uuid
+  clinicId          String       @db.Uuid
+  name              String       @db.VarChar(200)
+  genericName       String?      @db.VarChar(200)
+  category          DrugCategory @default(OTHER)
+  dosageForms       String?      @db.Text // JSON text
+  contraindications String?      @db.Text
+  isActive          Boolean      @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -608,10 +606,10 @@ model Prescription {
   clinicId    String @db.Uuid
   drugId      String @db.Uuid
 
-  dosage      String  @db.VarChar(100)
-  frequency   String  @db.VarChar(100)
-  duration    String? @db.VarChar(100)
-  quantity    Int?
+  dosage       String  @db.VarChar(100)
+  frequency    String  @db.VarChar(100)
+  duration     String? @db.VarChar(100)
+  quantity     Int?
   instructions String? @db.Text
 
   prescribedByUserId String @db.Uuid
@@ -739,9 +737,9 @@ model AppointmentRequest {
   createdAt          DateTime                 @default(now())
   updatedAt          DateTime                 @updatedAt
 
-  clinic     Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  patient    Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  triagedBy  User?         @relation("AppointmentRequestTriagedBy", fields: [triagedByUserId], references: [id], onDelete: SetNull)
+  clinic      Clinic       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient     Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  triagedBy   User?        @relation("AppointmentRequestTriagedBy", fields: [triagedByUserId], references: [id], onDelete: SetNull)
   appointment Appointment?
 
   @@index([clinicId, status, createdAt])
@@ -762,37 +760,37 @@ model Appointment {
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 
-  clinic             Clinic              @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  patient            Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  linkedRequest      AppointmentRequest? @relation(fields: [linkedRequestId], references: [id], onDelete: SetNull)
-  assignedDoctor     User?               @relation("AppointmentAssignedDoctor", fields: [assignedDoctorId], references: [id], onDelete: SetNull)
-  assignedVolunteer  User?               @relation("AppointmentAssignedVolunteer", fields: [assignedVolunteerId], references: [id], onDelete: SetNull)
+  clinic            Clinic              @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient           Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  linkedRequest     AppointmentRequest? @relation(fields: [linkedRequestId], references: [id], onDelete: SetNull)
+  assignedDoctor    User?               @relation("AppointmentAssignedDoctor", fields: [assignedDoctorId], references: [id], onDelete: SetNull)
+  assignedVolunteer User?               @relation("AppointmentAssignedVolunteer", fields: [assignedVolunteerId], references: [id], onDelete: SetNull)
 
   @@index([clinicId, startsAt])
   @@index([patientId, startsAt])
 }
 
 model PatientSelfReport {
-  id               String               @id @default(uuid()) @db.Uuid
-  patientId        String               @db.Uuid
-  clinicId         String               @db.Uuid
-  submittedByUserId String              @db.Uuid
+  id                String @id @default(uuid()) @db.Uuid
+  patientId         String @db.Uuid
+  clinicId          String @db.Uuid
+  submittedByUserId String @db.Uuid
 
   type PatientSelfReportType
 
-  systolicBp    Int?
-  diastolicBp   Int?
+  systolicBp   Int?
+  diastolicBp  Int?
   glucoseMgDl  Int?
-  glucoseType   GlucoseType?            @default(UNKNOWN)
-  symptomsJson  String?                 @db.Text
-  notes         String?                 @db.Text
+  glucoseType  GlucoseType? @default(UNKNOWN)
+  symptomsJson String?      @db.Text
+  notes        String?      @db.Text
 
   recordedAt DateTime
   createdAt  DateTime @default(now())
 
-  patient  Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  clinic   Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  submittedBy User @relation("PatientSelfReportSubmittedBy", fields: [submittedByUserId], references: [id], onDelete: Cascade)
+  patient     Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  clinic      Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  submittedBy User    @relation("PatientSelfReportSubmittedBy", fields: [submittedByUserId], references: [id], onDelete: Cascade)
 
   @@index([patientId, createdAt])
   @@index([clinicId, createdAt])
@@ -911,7 +909,7 @@ model Conversation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  clinic       Clinic                  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  clinic       Clinic                    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   participants ConversationParticipant[]
   messages     Message[]
 

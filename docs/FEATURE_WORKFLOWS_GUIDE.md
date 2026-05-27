@@ -11,7 +11,7 @@ It focuses on real workflow behavior, not internal code structure.
 | User type    | Main surfaces                                                        |
 | ------------ | -------------------------------------------------------------------- |
 | Volunteer    | patients, encounters, queues, my assigned                            |
-| Preceptor    | queues, encounters, dashboard                                        |
+| Doctor       | queues, encounters, dashboard                                        |
 | Doctor       | queues, encounters, dashboard, reminders, my assigned                |
 | Manager      | today board, patients, audit, admin users, dashboard                 |
 | Director     | clinic settings, research exports, admin users, audit, dashboard     |
@@ -45,7 +45,7 @@ Use this when the primary task is documenting care.
 3. Start a new encounter.
 4. Complete vitals and screening data.
 5. Submit the encounter for review.
-6. A preceptor reviews the encounter.
+6. A clinical reviews the encounter.
 7. A doctor finalizes the encounter, completes the care plan, and adds prescriptions if needed.
 
 Finalization effects:

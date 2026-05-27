@@ -35,7 +35,7 @@ We build in this order because each step unblocks the next: 1. Shifts (staff che
 1. Feature 1: Staff “Check-in mode” (per day shifts)
 
 User flow
-• Volunteer/Doctor/Preceptor arrives → taps “Start shift” → becomes available on “Today Board”
+• Volunteer/Doctor/Doctor arrives → taps “Start shift” → becomes available on “Today Board”
 • Optional: tap “End shift” when done
 
 Data model (Prisma)
@@ -44,7 +44,7 @@ StaffShift
 
 Fields:
 • id, clinicId, userId
-• roleAtShift (snapshot: VOLUNTEER/DOCTOR/PRECEPTOR/MANAGER)
+• roleAtShift (snapshot: VOLUNTEER/DOCTOR/MANAGER)
 • checkedInAt, checkedOutAt?
 • status enum ACTIVE | CLOSED
 • notes?
@@ -79,7 +79,7 @@ Acceptance criteria
 2. Feature 2: Patient arrival check-in + manager assignment (volunteer+doctor immediately)
 
 User flow (in clinic) 1. Patient arrives → front desk/volunteer creates PatientCheckIn 2. Manager opens Today Board 3. Manager assigns:
-• Volunteer + Doctor immediately 4. Assigned staff sees patient in “My Assigned” list 5. Volunteer starts/continues the encounter workflow → preceptor review → doctor finalize
+• Volunteer + Doctor immediately 4. Assigned staff sees patient in “My Assigned” list 5. Volunteer starts/continues the encounter workflow → clinical review → doctor finalize
 
 Data model
 
@@ -175,7 +175,7 @@ UI screens (basic)
 
 Panels: 1. Staff on duty
 
-    •	table of active shifts (volunteers/doctors/preceptors)
+    •	table of active shifts (volunteers/doctors/doctors)
 
     2.	Patient check-ins today
 
