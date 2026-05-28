@@ -343,6 +343,11 @@ export class ResearchExportService {
     }
   }
 
+  async findExportClinicId(exportId: string): Promise<string | null> {
+    const exportRecord = await this.repo.findById(exportId);
+    return exportRecord?.clinicId ?? null;
+  }
+
   async recordDownload(exportId: string, auditCtx?: ExportAuditContext) {
     if (!auditCtx) {
       return;
@@ -365,7 +370,7 @@ export class ResearchExportService {
     try {
       await this.exportQueue.add(
         'process',
-        { exportId: exportRecord.id },
+        { exportId: exportRecord.id, clinicId: exportRecord.clinicId },
         {
           jobId: exportRecord.id,
           attempts: 3,

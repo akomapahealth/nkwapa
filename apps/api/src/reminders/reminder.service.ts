@@ -182,7 +182,7 @@ export class ReminderService {
     });
 
     await this.auditReminderCreate(params.clinicId, params.actorUserId, reminder, params.requestId);
-    await this.queueReminder(reminder.id, params.followUpDate);
+    await this.queueReminder(reminder.id, params.followUpDate, params.clinicId);
   }
 
   async scheduleFollowUpEmailReminder(params: ScheduleFollowUpEmailParams): Promise<void> {
@@ -209,7 +209,7 @@ export class ReminderService {
     });
 
     await this.auditReminderCreate(params.clinicId, params.actorUserId, reminder, params.requestId);
-    await this.queueReminder(reminder.id, params.followUpDate);
+    await this.queueReminder(reminder.id, params.followUpDate, params.clinicId);
   }
 
   async scheduleFollowUpReminderNoContact(params: ScheduleFollowUpNoContactParams): Promise<void> {
@@ -262,7 +262,7 @@ export class ReminderService {
     });
 
     await this.auditReminderCreate(params.clinicId, params.actorUserId, reminder, params.requestId);
-    await this.queueReminder(reminder.id, scheduledAt);
+    await this.queueReminder(reminder.id, scheduledAt, params.clinicId);
   }
 
   async scheduleAppointmentEmailReminder(
@@ -291,7 +291,7 @@ export class ReminderService {
     });
 
     await this.auditReminderCreate(params.clinicId, params.actorUserId, reminder, params.requestId);
-    await this.queueReminder(reminder.id, scheduledAt);
+    await this.queueReminder(reminder.id, scheduledAt, params.clinicId);
   }
 
   async scheduleAppointmentReminderNoContact(
@@ -493,16 +493,25 @@ export class ReminderService {
     }
   }
 
+  async findReminderClinicId(reminderId: string): Promise<string | null> {
+    const reminder = await this.prisma.reminder.findUnique({
+      where: { id: reminderId },
+      select: { clinicId: true },
+    });
+
+    return reminder?.clinicId ?? null;
+  }
+
   private getAppointmentReminderTime(startsAt: Date) {
     const target = new Date(startsAt.getTime() - 24 * 60 * 60 * 1000);
     return target > new Date() ? target : new Date();
   }
 
-  private async queueReminder(reminderId: string, scheduledAt: Date) {
+  private async queueReminder(reminderId: string, scheduledAt: Date, clinicId: string) {
     const delayMs = Math.max(0, scheduledAt.getTime() - Date.now());
     await this.reminderQueue.add(
       'send',
-      { reminderId },
+      { reminderId, clinicId },
       {
         delay: delayMs,
         attempts: 3,
