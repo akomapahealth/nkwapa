@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { getAccessibleNavSections, getNavItemHref, isNavItemActive } from '@/lib/app-nav';
+import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import type { WhoAmIResponse } from '@/lib/bootstrap-context';
 
 export function AppNavList({
@@ -18,7 +19,7 @@ export function AppNavList({
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
-  const clinicId = bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
+  const clinicId = getBootstrapActiveClinicId(bootstrap);
   const sections = getAccessibleNavSections(bootstrap);
 
   return (

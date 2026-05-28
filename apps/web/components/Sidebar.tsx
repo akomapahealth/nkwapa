@@ -4,13 +4,15 @@ import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { AppNavList } from '@/components/app-shell/AppNavList';
 import { useBootstrap } from '@/lib/bootstrap-context';
+import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { formatRoleLabel } from '@/lib/ops';
 import { cn } from '@/lib/utils';
 
 export function Sidebar({ collapsed }: { collapsed: boolean }) {
   const bootstrap = useBootstrap()?.bootstrap ?? null;
-  const clinicId = bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
+  const clinicId = getBootstrapActiveClinicId(bootstrap);
   const memberships = bootstrap?.memberships ?? [];
+  const activeClinic = getActiveBootstrapClinic(bootstrap, clinicId);
   const activeMembership = memberships.find((membership) => membership.clinicId === clinicId);
   const roleLabels = [...(activeMembership?.roles ?? []), ...(bootstrap?.globalRoles ?? [])].slice(
     0,
@@ -77,7 +79,7 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
           {collapsed ? (
             <div className="flex justify-center">
               <Badge variant="outline" className="rounded-full px-2.5 py-1 text-[10px]">
-                {activeMembership?.clinicName?.slice(0, 1) ?? 'C'}
+                {activeClinic?.clinicName?.slice(0, 1) ?? 'C'}
               </Badge>
             </div>
           ) : (
@@ -87,7 +89,7 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
                   Active clinic
                 </p>
                 <p className="mt-2 text-sm font-semibold text-foreground">
-                  {activeMembership?.clinicName ?? 'Select a clinic'}
+                  {activeClinic?.clinicName ?? 'Select a clinic'}
                 </p>
               </div>
               {roleLabels.length > 0 && (

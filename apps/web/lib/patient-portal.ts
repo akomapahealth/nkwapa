@@ -1,5 +1,6 @@
 import type { GetToken } from '@/lib/api';
 import { apiFetch } from '@/lib/api';
+import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import type { WhoAmIResponse } from '@/lib/bootstrap-context';
 
 export const PATIENT_PORTAL_LINK_MISSING = 'PATIENT_PORTAL_LINK_MISSING';
@@ -179,14 +180,11 @@ export function getPortalErrorMessage(error: unknown) {
 }
 
 export function getPortalClinicId(bootstrap: WhoAmIResponse | null) {
-  return bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
+  return getBootstrapActiveClinicId(bootstrap);
 }
 
 export function getPortalClinicName(bootstrap: WhoAmIResponse | null, clinicId: string | null) {
-  if (!bootstrap || !clinicId) return null;
-  return (
-    bootstrap.memberships.find((membership) => membership.clinicId === clinicId)?.clinicName ?? null
-  );
+  return getActiveBootstrapClinic(bootstrap, clinicId)?.clinicName ?? null;
 }
 
 export async function fetchPortalMe(clinicId: string, getToken: GetToken) {

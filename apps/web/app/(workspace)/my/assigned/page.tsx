@@ -9,6 +9,7 @@ import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { apiFetch } from '@/lib/api';
+import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import {
   OPS_DEFAULT_TIMEZONE,
   type ActiveShift,
@@ -52,7 +53,7 @@ export default function MyAssignedPage() {
   const getToken = useAuth();
   const { isOnline } = useSync();
 
-  const clinicId = bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
+  const clinicId = getBootstrapActiveClinicId(bootstrap);
   const activeMembership = bootstrap?.memberships?.find(
     (membership) => membership.clinicId === clinicId,
   );

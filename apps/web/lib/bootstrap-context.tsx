@@ -17,6 +17,11 @@ import {
   type GetToken,
   readApiError,
 } from './api';
+import {
+  getBootstrapActiveClinicId,
+  isStoredClinicIdValid,
+  type BootstrapClinic,
+} from './bootstrap-clinics';
 import { getStoredActiveClinicId, setStoredActiveClinicId } from './bootstrap-storage';
 
 export { BOOTSTRAP_STORAGE_KEY } from './bootstrap-storage';
@@ -27,11 +32,14 @@ export interface WhoAmIMembership {
   roles: string[];
 }
 
+export type WhoAmIAvailableClinic = BootstrapClinic;
+
 export interface WhoAmIResponse {
   userId: string;
   keycloakSub: string;
   displayName: string;
   memberships: WhoAmIMembership[];
+  availableClinics?: WhoAmIAvailableClinic[];
   globalRoles: string[];
   activeClinicId: string | null;
   effectiveRolesForActiveClinic: string[];
@@ -86,7 +94,7 @@ export function BootstrapProvider({
   const activeClinicId =
     activeClinicIdOverride !== undefined
       ? activeClinicIdOverride
-      : (bootstrap?.activeClinicId ?? getStoredActiveClinicId());
+      : (getBootstrapActiveClinicId(bootstrap) ?? getStoredActiveClinicId());
 
   const setActiveClinicId = useCallback((id: string | null) => {
     setStoredActiveClinicId(id);
@@ -142,10 +150,7 @@ export function BootstrapProvider({
       // The server only returns an activeClinicId the user actually has
       // access to, so we always mirror it back to localStorage (even when
       // null), and clear any stale override state.
-      const membershipIds = new Set(data.memberships.map((m) => m.clinicId));
-      const isSystemAdmin = data.globalRoles.includes('SYSTEM_ADMIN');
-      const storedIsValid =
-        !!storedClinicId && (isSystemAdmin || membershipIds.has(storedClinicId));
+      const storedIsValid = isStoredClinicIdValid(data, storedClinicId);
 
       if (!storedIsValid && storedClinicId) {
         // Stale value from a prior session (e.g. after a DB reseed or an

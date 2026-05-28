@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
+import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
@@ -98,9 +99,8 @@ export default function DashboardPage() {
   const bootstrapCtx = useBootstrap();
   const bootstrap = bootstrapCtx?.bootstrap ?? null;
   const getToken = useAuth();
-  const clinicId = bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId;
-  const activeMembership =
-    bootstrap?.memberships.find((membership) => membership.clinicId === clinicId) ?? null;
+  const clinicId = getBootstrapActiveClinicId(bootstrap);
+  const activeClinic = getActiveBootstrapClinic(bootstrap, clinicId);
 
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -139,15 +139,15 @@ export default function DashboardPage() {
       <div className="space-y-6">
         <AppPageHeader
           eyebrow="Clinic snapshot"
-          title={activeMembership?.clinicName ?? 'Dashboard'}
+          title={activeClinic?.clinicName ?? 'Dashboard'}
           description="Current clinic totals and next work."
           hint="The dashboard always reflects the clinic selected in the header."
           helpTitle="How the dashboard is organized"
           helpText="Start with the clinic snapshot, then use the role sections below to clear intake work, reviews, finalizations, and oversight tasks."
           badges={
-            activeMembership ? (
+            activeClinic ? (
               <Badge variant="secondary" className="rounded-full px-3 py-1">
-                {activeMembership.clinicName}
+                {activeClinic.clinicName}
               </Badge>
             ) : null
           }

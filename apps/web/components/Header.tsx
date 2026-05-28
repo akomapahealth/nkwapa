@@ -29,6 +29,7 @@ import { formatRoleLabel } from '@/lib/ops';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { useKeycloak } from '@/app/KeycloakProvider';
 import { db } from '@/lib/db';
+import { getActiveBootstrapClinic, getSwitchableClinics } from '@/lib/bootstrap-clinics';
 import { setStoredActiveClinicId } from '@/lib/bootstrap-storage';
 import {
   ArrowRightLeft,
@@ -54,13 +55,15 @@ export function Header({
 }) {
   const bootstrapCtx = useBootstrap();
   const bootstrap = bootstrapCtx?.bootstrap ?? null;
-  const { setActiveClinicId } = bootstrapCtx ?? {};
+  const { activeClinicId: contextActiveClinicId, setActiveClinicId } = bootstrapCtx ?? {};
   const { isOnline, syncStatus, syncError, syncNow } = useSync();
   const { logout } = useKeycloak() ?? {};
   const [pendingCount, setPendingCount] = useState(0);
 
-  const clinicId = bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
+  const clinicId = contextActiveClinicId ?? null;
   const memberships = bootstrap?.memberships ?? [];
+  const switchableClinics = getSwitchableClinics(bootstrap);
+  const activeClinic = getActiveBootstrapClinic(bootstrap, clinicId);
   const activeMembership = memberships.find((membership) => membership.clinicId === clinicId);
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
   const canSync =
@@ -180,20 +183,20 @@ export function Header({
             />
           </div>
           <p className="truncate text-sm font-medium text-foreground">
-            {activeMembership?.clinicName ?? 'Choose an active clinic'}
+            {activeClinic?.clinicName ?? 'Choose an active clinic'}
           </p>
         </div>
 
         <div className="hidden items-center gap-2 lg:flex">
-          {memberships.length > 1 ? (
+          {switchableClinics.length > 1 ? (
             <Select value={clinicId ?? ''} onValueChange={handleClinicChange}>
               <SelectTrigger className="h-10 w-[220px] rounded-2xl border-border/70 bg-card/70">
                 <SelectValue placeholder="Select clinic" />
               </SelectTrigger>
               <SelectContent>
-                {memberships.map((membership) => (
-                  <SelectItem key={membership.clinicId} value={membership.clinicId}>
-                    {membership.clinicName}
+                {switchableClinics.map((clinic) => (
+                  <SelectItem key={clinic.clinicId} value={clinic.clinicId}>
+                    {clinic.clinicName}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -201,7 +204,7 @@ export function Header({
           ) : clinicId ? (
             <div className="inline-flex items-center gap-2 rounded-2xl border border-border/70 bg-card/70 px-3 py-2 text-sm text-muted-foreground">
               <ArrowRightLeft className="h-4 w-4 text-primary" />
-              {activeMembership?.clinicName ?? 'Clinic'}
+              {activeClinic?.clinicName ?? 'Clinic'}
             </div>
           ) : null}
 
