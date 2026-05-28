@@ -273,7 +273,7 @@ describe('ResearchExportService', () => {
       'exp-1',
       expect.objectContaining({
         status: 'FAILED',
-        failureReason: expect.stringContaining('missing RESEARCH_GITHUB_TOKEN'),
+        failureReason: 'RESEARCH_EXPORT_FAILED',
       }),
     );
   });

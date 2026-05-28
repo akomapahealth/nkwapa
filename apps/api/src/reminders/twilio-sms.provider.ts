@@ -45,8 +45,8 @@ export class TwilioSmsProvider implements SmsProvider {
       });
 
       if (!response.ok) {
-        const errorBody = await response.text();
-        return { success: false, error: `Twilio API error ${response.status}: ${errorBody}` };
+        await response.text();
+        return { success: false, error: `Twilio API error ${response.status}` };
       }
 
       const data = (await response.json()) as { sid?: string; status?: string };
@@ -54,9 +54,8 @@ export class TwilioSmsProvider implements SmsProvider {
         success: true,
         providerMessageId: data.sid,
       };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return { success: false, error: `Twilio request failed: ${msg}` };
+    } catch {
+      return { success: false, error: 'Twilio request failed' };
     }
   }
 }

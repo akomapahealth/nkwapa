@@ -68,6 +68,6 @@ describe('TwilioSmsProvider', () => {
     const result = await provider.send('+233241234567', 'Test');
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain('Network error');
+    expect(result.error).toBe('Twilio request failed');
   });
 });

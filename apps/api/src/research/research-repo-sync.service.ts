@@ -1,5 +1,6 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ResearchExport } from '@prisma/client';
+import { redactLogValue } from '../common/redaction';
 import { GeneratedResearchPack, ResearchRepoSyncResult } from './research-policy';
 
 interface GitHubRefResponse {
@@ -12,6 +13,8 @@ interface GitHubCommitResponse {
 
 @Injectable()
 export class ResearchRepoSyncService {
+  private readonly logger = new Logger(ResearchRepoSyncService.name);
+
   async sync(
     exportRecord: Pick<ResearchExport, 'id' | 'fromDate' | 'toDate'>,
     pack: GeneratedResearchPack,
@@ -149,9 +152,16 @@ export class ResearchRepoSyncService {
     );
 
     if (!response.ok) {
-      throw new BadRequestException(
-        `GitHub sync failed (${response.status}): ${await response.text()}`,
+      const responseText = await response.text();
+      this.logger.warn(
+        JSON.stringify({
+          message: 'GitHub research sync request failed',
+          status: response.status,
+          endpoint,
+          error: redactLogValue(responseText),
+        }),
       );
+      throw new BadRequestException(`GitHub sync failed (${response.status})`);
     }
 
     if (response.status === 204) {

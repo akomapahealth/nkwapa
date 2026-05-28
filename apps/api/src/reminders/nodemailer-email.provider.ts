@@ -39,9 +39,8 @@ export class NodemailerEmailProvider implements EmailProvider {
         success: true,
         providerMessageId: info.messageId,
       };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return { success: false, error: `Email send failed: ${msg}` };
+    } catch {
+      return { success: false, error: 'Email send failed' };
     }
   }
 }
