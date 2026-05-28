@@ -22,18 +22,15 @@ import { SyncMutationDto, SYNC_OPERATION } from './dto/sync-mutation.dto';
 import { SyncMutationResultDto, SYNC_MUTATION_RESULT_STATUS } from './dto/sync-push-response.dto';
 import { SyncPullResponseDto } from './dto/sync-pull-response.dto';
 
-const ENTITY_TYPES = [
-  'patient',
-  'encounter',
-  'vitals',
-  'diabetes_screening',
-  'hypertension_assessment',
-  'care_plan',
-  'patient_consent',
-  'prescription',
-] as const;
-
-export type EntityType = (typeof ENTITY_TYPES)[number];
+export type EntityType =
+  | 'patient'
+  | 'encounter'
+  | 'vitals'
+  | 'diabetes_screening'
+  | 'hypertension_assessment'
+  | 'care_plan'
+  | 'patient_consent'
+  | 'prescription';
 
 export interface RequestMetadata {
   ipAddress?: string;

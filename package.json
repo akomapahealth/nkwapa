@@ -25,22 +25,65 @@
     "postinstall": "npm run db:generate"
   },
   "devDependencies": {
+    "@nestjs/platform-express": "^11.1.24",
+    "@typescript-eslint/eslint-plugin": "^8.60.0",
+    "@typescript-eslint/parser": "^8.60.0",
     "dotenv": "^17.3.1",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.3.3",
-    "eslint": "^8.57.0",
-    "@typescript-eslint/eslint-plugin": "^7.18.0",
-    "@typescript-eslint/parser": "^7.18.0",
-    "eslint-config-prettier": "^9.1.0",
-    "prettier": "^3.3.3",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^16.4.0",
     "husky": "^9.1.7",
-    "lint-staged": "^15.2.11"
+    "lint-staged": "^15.2.11",
+    "next": "16.3.0-canary.32",
+    "postcss": "8.5.15",
+    "prettier": "^3.3.3",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
-    "@prisma/client": "^7.4.2"
+    "@prisma/client": "^7.8.0"
+  },
+  "overrides": {
+    "@hono/node-server": "2.0.4",
+    "@nestjs/common": "11.1.24",
+    "@nestjs/core": "11.1.24",
+    "@tootallnate/once": "3.0.1",
+    "brace-expansion": "1.1.15",
+    "anymatch": {
+      "picomatch": "2.3.2"
+    },
+    "cosmiconfig": {
+      "yaml": "1.10.3"
+    },
+    "file-type": "21.3.4",
+    "jest-util": {
+      "picomatch": "2.3.2"
+    },
+    "lodash": "4.18.1",
+    "micromatch": {
+      "picomatch": "2.3.2"
+    },
+    "next": {
+      ".": "16.3.0-canary.32",
+      "postcss": "8.5.10"
+    },
+    "postcss": "8.5.15",
+    "qs": "6.15.2",
+    "readdirp": {
+      "picomatch": "2.3.2"
+    },
+    "rxjs": "7.8.2",
+    "socket.io-adapter": {
+      "ws": "8.21.0"
+    },
+    "tailwindcss": {
+      "picomatch": "2.3.2"
+    },
+    "webpack": "5.107.2",
+    "ws": "8.21.0"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
