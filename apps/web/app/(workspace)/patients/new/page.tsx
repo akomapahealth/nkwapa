@@ -2,6 +2,7 @@
 
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
+import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { RouteGuard } from '@/components/RouteGuard';
 import { RegisterPatientScreen } from '@/components/patients/RegisterPatientScreen';
 
@@ -9,11 +10,7 @@ export default function NewPatientPage() {
   const bootstrapContext = useBootstrap();
   const bootstrap = bootstrapContext?.bootstrap ?? null;
   const getToken = useAuth();
-  const clinicId =
-    bootstrapContext?.activeClinicId ??
-    bootstrap?.activeClinicId ??
-    bootstrap?.memberships?.[0]?.clinicId ??
-    null;
+  const clinicId = bootstrapContext?.activeClinicId ?? getBootstrapActiveClinicId(bootstrap);
 
   if (!clinicId) {
     return (

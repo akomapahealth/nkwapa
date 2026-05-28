@@ -12,6 +12,7 @@ import {
   UserCog,
   Users,
 } from 'lucide-react';
+import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import type { WhoAmIResponse } from '@/lib/bootstrap-context';
 
 export interface AppNavItem {
@@ -152,7 +153,7 @@ function hasAnyPermission(permissions: string[], perms: string[]): boolean {
 }
 
 export function getAccessibleNavSections(bootstrap: WhoAmIResponse | null): AppNavSection[] {
-  const clinicId = bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
+  const clinicId = getBootstrapActiveClinicId(bootstrap);
   const memberships = bootstrap?.memberships ?? [];
   const activeMembership = memberships.find((membership) => membership.clinicId === clinicId);
   const isSystemAdmin = bootstrap?.globalRoles?.includes('SYSTEM_ADMIN') ?? false;

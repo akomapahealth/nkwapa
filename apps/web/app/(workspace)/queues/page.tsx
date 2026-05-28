@@ -6,6 +6,7 @@ import { ClipboardList, Eye, FileEdit, Stethoscope } from 'lucide-react';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
+import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { RouteGuard } from '@/components/RouteGuard';
@@ -39,7 +40,7 @@ export default function QueuesPage() {
   const tabParam = searchParams.get('tab') ?? '';
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const getToken = useAuth();
-  const clinicId = bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
+  const clinicId = getBootstrapActiveClinicId(bootstrap);
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
 
   const canFinalize = hasPermission(perms, 'DOCTOR.FINALIZE');

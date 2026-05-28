@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { AlertTriangle, RefreshCw, ShieldCheck, Stethoscope } from 'lucide-react';
+import { Activity, AlertTriangle, RefreshCw, ShieldCheck, Stethoscope } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -9,38 +9,59 @@ import { cn } from '@/lib/utils';
 export function PageSkeleton({
   title = 'Preparing your workspace',
   description = 'Loading clinic context, recent activity, and the safest next actions for this page.',
+  steps = ['Secure session', 'Clinic context', 'Workspace data'],
   className,
 }: {
   title?: string;
   description?: string;
+  steps?: string[];
   className?: string;
 }) {
   return (
     <div className={cn('min-h-[60vh] bg-clinical-grid px-4 py-8 md:px-6', className)}>
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
-        <div className="rounded-[32px] border border-border/70 bg-card/95 p-6 shadow-2xl shadow-black/5 md:p-8">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.28em] text-primary/80">
-                <Stethoscope className="h-3.5 w-3.5" />
-                Loading
+        <div className="overflow-hidden rounded-[32px] border border-border/70 bg-card/95 shadow-2xl shadow-black/5">
+          <div className="h-1.5 w-full overflow-hidden bg-muted/50">
+            <div className="h-full w-1/2 animate-[loading-bar_1.7s_ease-in-out_infinite] bg-primary/80" />
+          </div>
+          <div className="p-6 md:p-8">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+              <div className="space-y-3">
+                <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.28em] text-primary/80">
+                  <Activity className="h-3.5 w-3.5 animate-pulse" />
+                  Loading
+                </div>
+                <div className="space-y-2">
+                  <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
+                    {title}
+                  </h1>
+                  <p className="max-w-2xl text-sm leading-6 text-muted-foreground md:text-base">
+                    {description}
+                  </p>
+                </div>
+                <div className="grid max-w-xl gap-2 pt-2 sm:grid-cols-3">
+                  {steps.map((step, index) => (
+                    <div
+                      key={step}
+                      className="flex items-center gap-2 rounded-2xl border border-border/70 bg-background/75 px-3 py-2 text-xs font-medium text-muted-foreground"
+                    >
+                      <span
+                        className="h-2 w-2 rounded-full bg-primary"
+                        style={{ animation: `pulse 1.4s ease-in-out ${index * 160}ms infinite` }}
+                      />
+                      <span className="truncate">{step}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="space-y-2">
-                <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-                  {title}
-                </h1>
-                <p className="max-w-2xl text-sm leading-6 text-muted-foreground md:text-base">
-                  {description}
-                </p>
+              <div className="grid gap-3 sm:grid-cols-3 lg:w-[420px]">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <div
+                    key={index}
+                    className="h-24 animate-pulse rounded-2xl border border-border/70 bg-muted/40"
+                  />
+                ))}
               </div>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3 lg:w-[420px]">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <div
-                  key={index}
-                  className="h-24 animate-pulse rounded-2xl border border-border/70 bg-muted/40"
-                />
-              ))}
             </div>
           </div>
         </div>
@@ -48,6 +69,37 @@ export function PageSkeleton({
         <SectionSkeleton lines={2} className="rounded-[28px] p-6 md:p-8" />
         <SectionSkeleton lines={5} className="rounded-[28px] p-6 md:p-8" />
       </div>
+    </div>
+  );
+}
+
+export function DashboardLoadingState({ clinicName }: { clinicName?: string | null }) {
+  return (
+    <div className="space-y-5">
+      <div className="rounded-[28px] border border-border/70 bg-card/90 p-5 shadow-sm">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-2">
+            <div className="h-4 w-36 animate-pulse rounded-full bg-primary/20" />
+            <div className="h-7 w-64 max-w-full animate-pulse rounded-full bg-muted/60" />
+            <div className="h-4 w-80 max-w-full animate-pulse rounded-full bg-muted/40" />
+          </div>
+          <div className="inline-flex items-center gap-3 rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-medium text-primary">
+            <Stethoscope className="h-4 w-4 animate-pulse" />
+            {clinicName ? `Loading ${clinicName}` : 'Loading clinic dashboard'}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {Array.from({ length: 5 }).map((_, index) => (
+          <div
+            key={index}
+            className="h-32 animate-pulse rounded-2xl border border-border/70 bg-card/80"
+          />
+        ))}
+      </div>
+
+      <SectionSkeleton lines={4} className="rounded-[28px] p-6" />
     </div>
   );
 }

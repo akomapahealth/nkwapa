@@ -70,6 +70,20 @@ export class ClinicService {
     });
   }
 
+  async listActiveSwitchableClinics(
+    ids?: string[],
+  ): Promise<{ id: string; name: string; region: string | null }[]> {
+    if (ids && ids.length === 0) return [];
+    return this.prisma.clinic.findMany({
+      where: {
+        isActive: true,
+        ...(ids ? { id: { in: ids } } : {}),
+      },
+      select: { id: true, name: true, region: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
   async getResearchSettings(clinicId: string) {
     const settings = await this.prisma.clinicResearchSettings.findUnique({
       where: { clinicId },

@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getPostAuthPath, getSafeNextPath } from '@/lib/auth-routing';
 import { useKeycloak } from '@/app/KeycloakProvider';
-import { FullscreenStatus } from '@/components/feedback/AppState';
+import { FullscreenStatus, PageSkeleton } from '@/components/feedback/AppState';
 import { Button } from '@/components/ui/button';
 
 export default function LoginPage() {
@@ -35,10 +35,11 @@ export default function LoginPage() {
 
   if (isAuthenticated) {
     return (
-      <FullscreenStatus
-        eyebrow="Secure sign in"
+      <PageSkeleton
         title="Opening your workspace"
-        description="We restored your session and are routing you to the right workspace."
+        description="Your session is active. We are selecting the right clinic context and opening your workspace."
+        steps={['Session restored', 'Clinic selected', 'Dashboard loading']}
+        className="min-h-screen"
       />
     );
   }

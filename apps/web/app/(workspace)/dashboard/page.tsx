@@ -4,8 +4,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
+import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
-import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
+import { DashboardLoadingState, InlineErrorState } from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
 import { DashboardSectionHeader } from '@/components/dashboard/DashboardSectionHeader';
 import { SummaryCards } from '@/components/dashboard/SummaryCards';
@@ -15,7 +16,10 @@ import { DirectorDashboard } from '@/components/dashboard/DirectorDashboard';
 import { VolunteerDashboard } from '@/components/dashboard/VolunteerDashboard';
 import { SystemAdminDashboard } from '@/components/dashboard/SystemAdminDashboard';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/toast';
 import { EmptyStateCard } from '@/components/ops/OpsShared';
+import { RefreshCw } from 'lucide-react';
 
 interface DashboardData {
   summary: {
@@ -98,37 +102,56 @@ export default function DashboardPage() {
   const bootstrapCtx = useBootstrap();
   const bootstrap = bootstrapCtx?.bootstrap ?? null;
   const getToken = useAuth();
-  const clinicId = bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId;
-  const activeMembership =
-    bootstrap?.memberships.find((membership) => membership.clinicId === clinicId) ?? null;
+  const { showToast } = useToast();
+  const clinicId = getBootstrapActiveClinicId(bootstrap);
+  const activeClinic = getActiveBootstrapClinic(bootstrap, clinicId);
 
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchDashboard = useCallback(async () => {
-    if (!clinicId || !getToken) {
-      setLoading(false);
-      setData(null);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}/dashboard`, {
-        getToken,
-      });
-      if (!res.ok) {
-        throw new Error(await res.text());
+  const fetchDashboard = useCallback(
+    async (showRefreshToast = false) => {
+      if (!clinicId || !getToken) {
+        setLoading(false);
+        setData(null);
+        return;
       }
-      const json = (await res.json()) as DashboardData;
-      setData(json);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [clinicId, getToken]);
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}/dashboard`, {
+          getToken,
+        });
+        if (!res.ok) {
+          throw new Error(await res.text());
+        }
+        const json = (await res.json()) as DashboardData;
+        setData(json);
+        if (showRefreshToast) {
+          showToast({
+            tone: 'success',
+            title: 'Dashboard refreshed',
+            description: activeClinic
+              ? `${activeClinic.clinicName} metrics are up to date.`
+              : 'Clinic metrics are up to date.',
+          });
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message);
+        showToast({
+          tone: 'error',
+          title: 'Dashboard could not refresh',
+          description: message,
+          durationMs: 6500,
+        });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [activeClinic, clinicId, getToken, showToast],
+  );
 
   useEffect(() => {
     fetchDashboard();
@@ -139,16 +162,30 @@ export default function DashboardPage() {
       <div className="space-y-6">
         <AppPageHeader
           eyebrow="Clinic snapshot"
-          title={activeMembership?.clinicName ?? 'Dashboard'}
+          title={activeClinic?.clinicName ?? 'Dashboard'}
           description="Current clinic totals and next work."
           hint="The dashboard always reflects the clinic selected in the header."
           helpTitle="How the dashboard is organized"
           helpText="Start with the clinic snapshot, then use the role sections below to clear intake work, reviews, finalizations, and oversight tasks."
           badges={
-            activeMembership ? (
+            activeClinic ? (
               <Badge variant="secondary" className="rounded-full px-3 py-1">
-                {activeMembership.clinicName}
+                {activeClinic.clinicName}
               </Badge>
+            ) : null
+          }
+          actions={
+            clinicId ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-2xl border-border/70 bg-card/80"
+                onClick={() => void fetchDashboard(true)}
+                disabled={loading}
+              >
+                <RefreshCw className={loading ? 'animate-spin' : ''} />
+                Refresh
+              </Button>
             ) : null
           }
         />
@@ -160,12 +197,7 @@ export default function DashboardPage() {
           />
         ) : null}
 
-        {loading && !data ? (
-          <div className="space-y-4">
-            <SectionSkeleton lines={2} className="rounded-[28px] p-6" />
-            <SectionSkeleton lines={4} className="rounded-[28px] p-6" />
-          </div>
-        ) : null}
+        {loading && !data ? <DashboardLoadingState clinicName={activeClinic?.clinicName} /> : null}
 
         {error ? (
           <InlineErrorState
@@ -189,7 +221,7 @@ export default function DashboardPage() {
               readyToFinalize={data.summary.readyToFinalize}
             />
 
-            <div className="border-t border-border pt-6">
+            <div className="space-y-8 border-t border-border/70 pt-6">
               {data.doctor && <DoctorDashboard {...data.doctor} />}
 
               {data.review && <ReviewDashboard {...data.review} />}

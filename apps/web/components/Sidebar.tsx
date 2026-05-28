@@ -4,13 +4,15 @@ import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { AppNavList } from '@/components/app-shell/AppNavList';
 import { useBootstrap } from '@/lib/bootstrap-context';
+import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { formatRoleLabel } from '@/lib/ops';
 import { cn } from '@/lib/utils';
 
 export function Sidebar({ collapsed }: { collapsed: boolean }) {
   const bootstrap = useBootstrap()?.bootstrap ?? null;
-  const clinicId = bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
+  const clinicId = getBootstrapActiveClinicId(bootstrap);
   const memberships = bootstrap?.memberships ?? [];
+  const activeClinic = getActiveBootstrapClinic(bootstrap, clinicId);
   const activeMembership = memberships.find((membership) => membership.clinicId === clinicId);
   const roleLabels = [...(activeMembership?.roles ?? []), ...(bootstrap?.globalRoles ?? [])].slice(
     0,
@@ -28,7 +30,7 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
       <div className="flex h-full w-full flex-col gap-5 p-4">
         <div className="overflow-hidden rounded-[30px] border border-primary/15 bg-gradient-to-br from-primary/14 via-card to-secondary/12 shadow-lg shadow-primary/5">
           <div className={cn('p-4', collapsed ? 'px-3 py-4' : 'p-5')}>
-            <div className={cn('flex items-center gap-3', collapsed && 'justify-center')}>
+            <div className={cn('flex flex-col gap-3', collapsed ? 'items-center' : 'items-start')}>
               {collapsed ? (
                 <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-2xl bg-background shadow-lg shadow-primary/10">
                   <Image
@@ -49,23 +51,9 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
                 </div>
               )}
               {!collapsed && (
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary/80">
-                    Nkwapa EMR
-                  </p>
-                  <p className="mt-1 text-sm font-medium text-foreground">Clinic workspace</p>
-                </div>
+                <p className="text-sm font-medium text-muted-foreground">Clinic workspace</p>
               )}
             </div>
-
-            {!collapsed && (
-              <div className="mt-5 rounded-[24px] border border-border/70 bg-background/80 p-4">
-                <p className="text-sm font-medium text-foreground">Daily workflow</p>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground xl:max-w-[18rem]">
-                  Patients, queues, and follow-up work in one place.
-                </p>
-              </div>
-            )}
           </div>
         </div>
 
@@ -77,7 +65,7 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
           {collapsed ? (
             <div className="flex justify-center">
               <Badge variant="outline" className="rounded-full px-2.5 py-1 text-[10px]">
-                {activeMembership?.clinicName?.slice(0, 1) ?? 'C'}
+                {activeClinic?.clinicName?.slice(0, 1) ?? 'C'}
               </Badge>
             </div>
           ) : (
@@ -87,7 +75,7 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
                   Active clinic
                 </p>
                 <p className="mt-2 text-sm font-semibold text-foreground">
-                  {activeMembership?.clinicName ?? 'Select a clinic'}
+                  {activeClinic?.clinicName ?? 'Select a clinic'}
                 </p>
               </div>
               {roleLabels.length > 0 && (

@@ -7,6 +7,7 @@ import { Search, UserPlus, Users } from 'lucide-react';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
+import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
@@ -43,11 +44,7 @@ export default function PatientsPage() {
   const bootstrapContext = useBootstrap();
   const bootstrap = bootstrapContext?.bootstrap ?? null;
   const getToken = useAuth();
-  const clinicId =
-    bootstrapContext?.activeClinicId ??
-    bootstrap?.activeClinicId ??
-    bootstrap?.memberships?.[0]?.clinicId ??
-    null;
+  const clinicId = bootstrapContext?.activeClinicId ?? getBootstrapActiveClinicId(bootstrap);
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
   const canCreateOpsCheckIn = hasPermission(perms, 'OPS.CHECKIN.CREATE');
 

@@ -5,6 +5,7 @@ import { ActivitySquare, FileClock, Shield } from 'lucide-react';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
+import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
@@ -33,7 +34,7 @@ interface AuditRow {
 export default function AuditPage() {
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const getToken = useAuth();
-  const clinicId = bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
+  const clinicId = getBootstrapActiveClinicId(bootstrap);
 
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');

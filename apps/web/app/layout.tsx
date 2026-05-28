@@ -1,5 +1,6 @@
 import './globals.css';
 import type { Metadata } from 'next';
+import { ToastProvider } from '@/components/ui/toast';
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://app.nkwapa.app';
 
@@ -63,7 +64,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link href="https://fonts.cdnfonts.com/css/circular-std" rel="stylesheet" />
       </head>
-      <body suppressHydrationWarning>{children}</body>
+      <body suppressHydrationWarning>
+        <ToastProvider>{children}</ToastProvider>
+      </body>
     </html>
   );
 }

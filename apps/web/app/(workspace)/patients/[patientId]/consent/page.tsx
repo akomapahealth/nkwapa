@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
+import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { CONSENT_TEXT_V1_EN } from '@/lib/consent-text';
 import { db } from '@/lib/db';
 import { enqueueOutboxMutation, SYNC_OPERATION } from '@/lib/outbox';
@@ -30,7 +31,7 @@ export default function ConsentPage() {
   const patientId = params.patientId as string;
   const getToken = useAuth();
   const bootstrap = useBootstrap()?.bootstrap ?? null;
-  const clinicId = bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
+  const clinicId = getBootstrapActiveClinicId(bootstrap);
   const recordedByUserId = bootstrap?.userId ?? '';
 
   const [attested, setAttested] = useState(false);

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { apiFetch } from '@/lib/api';
+import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { getOpsDestination, hasPermission, readApiError } from '@/lib/ops';
 import { RouteGuard } from '@/components/RouteGuard';
 import { db } from '@/lib/db';
@@ -53,11 +54,7 @@ export default function PatientDetailPage() {
   const getToken = useAuth();
   const bootstrapContext = useBootstrap();
   const bootstrap = bootstrapContext?.bootstrap ?? null;
-  const clinicId =
-    bootstrapContext?.activeClinicId ??
-    bootstrap?.activeClinicId ??
-    bootstrap?.memberships?.[0]?.clinicId ??
-    null;
+  const clinicId = bootstrapContext?.activeClinicId ?? getBootstrapActiveClinicId(bootstrap);
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
   const canRecordConsent = perms.includes('*') || perms.includes('CONSENT.RECORD');
   const canCreateOpsCheckIn = hasPermission(perms, 'OPS.CHECKIN.CREATE');

@@ -17,11 +17,17 @@ export interface Membership {
   roles: string[];
 }
 
+export interface AvailableClinic {
+  clinicId: string;
+  clinicName: string;
+}
+
 export interface WhoAmIResponse {
   userId: string;
   keycloakSub: string;
   displayName: string;
   memberships: Membership[];
+  availableClinics: AvailableClinic[];
   globalRoles: string[];
   activeClinicId: string | null;
   effectiveRolesForActiveClinic: string[];
@@ -81,28 +87,38 @@ export class AuthController {
       ? [...new Set((byClinicId.get('global') ?? []).map((r) => r.role))]
       : [];
 
+    const isSystemAdmin = roles.some((r) => r.role === 'SYSTEM_ADMIN' && r.clinicId === null);
+    const availableClinicRows = await this.clinicService.listActiveSwitchableClinics(
+      isSystemAdmin ? undefined : clinicIds,
+    );
+    const availableClinics: AvailableClinic[] = availableClinicRows.map((clinic) => ({
+      clinicId: clinic.id,
+      clinicName: clinic.name,
+    }));
+    const availableClinicIds = new Set(availableClinics.map((clinic) => clinic.clinicId));
+
     const memberships: Membership[] = [];
     for (const cid of clinicIds.sort()) {
       const roleEntries = byClinicId.get(cid) ?? [];
       const roleNames = [...new Set(roleEntries.map((r) => r.role))];
       const clinic = clinicMap.get(cid) ?? null;
+      if (!clinic) {
+        continue;
+      }
       memberships.push({
         clinicId: cid,
-        clinicName: clinic?.name ?? '',
+        clinicName: clinic.name,
         roles: roleNames,
       });
     }
 
-    const sortedClinicIds = [...clinicIds].sort();
     const headerClinicId = req.headers?.['x-clinic-id']?.trim();
-    const isSystemAdmin = roles.some((r) => r.role === 'SYSTEM_ADMIN' && r.clinicId === null);
-    const hasMembership = (cid: string) => roles.some((r) => r.clinicId === cid) || isSystemAdmin;
 
     let activeClinicId: string | null;
-    if (headerClinicId && hasMembership(headerClinicId)) {
+    if (headerClinicId && availableClinicIds.has(headerClinicId)) {
       activeClinicId = headerClinicId;
     } else {
-      activeClinicId = sortedClinicIds.length > 0 ? sortedClinicIds[0] : null;
+      activeClinicId = availableClinics[0]?.clinicId ?? null;
     }
 
     const activeRoles =
@@ -121,6 +137,7 @@ export class AuthController {
       keycloakSub: user.keycloakSub,
       displayName: user.displayName,
       memberships,
+      availableClinics,
       globalRoles,
       activeClinicId,
       effectiveRolesForActiveClinic,

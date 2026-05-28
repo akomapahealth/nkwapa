@@ -7,6 +7,7 @@ import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { apiFetch } from '@/lib/api';
+import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { VitalsForm } from '@/components/VitalsForm';
@@ -22,7 +23,7 @@ export default function NewEncounterPage() {
   const getToken = useAuth();
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const { syncNow } = useSync();
-  const clinicId = bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
+  const clinicId = getBootstrapActiveClinicId(bootstrap);
   const userId = bootstrap?.userId ?? '';
 
   const [step, setStep] = useState(0);

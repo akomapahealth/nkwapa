@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useBootstrap } from '@/lib/bootstrap-context';
+import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { Header } from '@/components/Header';
 import { Badge } from '@/components/ui/badge';
 import { ProgressiveHelp } from '@/components/ui/progressive-help';
@@ -35,10 +36,8 @@ const navItems = [
 export function PortalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const bootstrap = useBootstrap()?.bootstrap ?? null;
-  const activeClinicId = bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
-  const activeClinic = bootstrap?.memberships.find(
-    (membership) => membership.clinicId === activeClinicId,
-  );
+  const activeClinicId = getBootstrapActiveClinicId(bootstrap);
+  const activeClinic = getActiveBootstrapClinic(bootstrap, activeClinicId);
   const displayName = bootstrap?.displayName ?? 'Patient';
 
   return (

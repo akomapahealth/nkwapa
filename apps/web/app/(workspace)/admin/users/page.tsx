@@ -6,6 +6,7 @@ import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { Layers3, RefreshCw, ShieldAlert, Users } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
+import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { apiFetch } from '@/lib/api';
 import { formatRoleLabel, readApiError } from '@/lib/ops';
 import { dataGridSx } from '@/lib/datagrid-theme';
@@ -291,10 +292,10 @@ export default function AdminUsersPage() {
   const getToken = useAuth();
   const bootstrapCtx = useBootstrap();
   const bootstrap = bootstrapCtx?.bootstrap ?? null;
-  const activeClinicId = bootstrap?.activeClinicId ?? bootstrap?.memberships?.[0]?.clinicId ?? null;
+  const activeClinicId = getBootstrapActiveClinicId(bootstrap);
   const activeMembership =
     bootstrap?.memberships.find((membership) => membership.clinicId === activeClinicId) ?? null;
-  const activeClinicName = activeMembership?.clinicName ?? null;
+  const activeClinicName = getActiveBootstrapClinic(bootstrap, activeClinicId)?.clinicName ?? null;
   const isSystemAdmin = bootstrap?.globalRoles?.includes('SYSTEM_ADMIN') ?? false;
   const directorMemberships = (bootstrap?.memberships ?? []).filter((membership) =>
     membership.roles.includes('DIRECTOR'),

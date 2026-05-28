@@ -8,6 +8,10 @@ describe('AuthController', () => {
       { id: 'clinic-1', name: 'Test Clinic', region: 'Greater Accra' },
       { id: 'clinic-2', name: 'Second Clinic', region: 'Ashanti' },
     ]),
+    listActiveSwitchableClinics: jest.fn().mockResolvedValue([
+      { id: 'clinic-2', name: 'Second Clinic', region: 'Ashanti' },
+      { id: 'clinic-1', name: 'Test Clinic', region: 'Greater Accra' },
+    ]),
   };
   const prisma = {
     user: {
@@ -36,6 +40,14 @@ describe('AuthController', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    clinicService.findByIds.mockResolvedValue([
+      { id: 'clinic-1', name: 'Test Clinic', region: 'Greater Accra' },
+      { id: 'clinic-2', name: 'Second Clinic', region: 'Ashanti' },
+    ]);
+    clinicService.listActiveSwitchableClinics.mockResolvedValue([
+      { id: 'clinic-2', name: 'Second Clinic', region: 'Ashanti' },
+      { id: 'clinic-1', name: 'Test Clinic', region: 'Greater Accra' },
+    ]);
     prisma.user.findUnique.mockResolvedValue({
       email: 'test@example.com',
       phoneE164: null,
@@ -55,6 +67,7 @@ describe('AuthController', () => {
     });
 
     expect(clinicService.findByIds).toHaveBeenCalledWith(['clinic-1', 'clinic-2']);
+    expect(clinicService.listActiveSwitchableClinics).toHaveBeenCalledWith(undefined);
     expect(response).toMatchObject({
       userId: 'user-1',
       keycloakSub: 'test-sub',
@@ -74,11 +87,126 @@ describe('AuthController', () => {
         roles: ['VOLUNTEER'],
       },
     ]);
+    expect(response.availableClinics).toEqual([
+      {
+        clinicId: 'clinic-2',
+        clinicName: 'Second Clinic',
+      },
+      {
+        clinicId: 'clinic-1',
+        clinicName: 'Test Clinic',
+      },
+    ]);
     expect(response.effectiveRolesForActiveClinic).toEqual([
       UserRole.MANAGER,
       UserRole.SYSTEM_ADMIN,
     ]);
     expect(response.effectivePermissionsForActiveClinic).toContain('*');
+  });
+
+  it('lets global system admins with no clinic roles switch to any active clinic', async () => {
+    clinicService.listActiveSwitchableClinics.mockResolvedValue([
+      { id: 'clinic-2', name: 'Second Clinic', region: 'Ashanti' },
+      { id: 'clinic-1', name: 'Test Clinic', region: 'Greater Accra' },
+    ]);
+
+    const response = await controller.whoami({
+      user: {
+        user: {
+          id: 'admin-user-1',
+          keycloakSub: 'admin-sub',
+          displayName: 'System Admin',
+          email: 'admin@example.com',
+        },
+        roles: [{ clinicId: null, role: UserRole.SYSTEM_ADMIN }],
+      },
+      headers: { 'x-clinic-id': 'clinic-1' },
+    });
+
+    expect(clinicService.findByIds).not.toHaveBeenCalled();
+    expect(clinicService.listActiveSwitchableClinics).toHaveBeenCalledWith(undefined);
+    expect(response.memberships).toEqual([]);
+    expect(response.availableClinics).toEqual([
+      {
+        clinicId: 'clinic-2',
+        clinicName: 'Second Clinic',
+      },
+      {
+        clinicId: 'clinic-1',
+        clinicName: 'Test Clinic',
+      },
+    ]);
+    expect(response.activeClinicId).toBe('clinic-1');
+    expect(response.effectiveRolesForActiveClinic).toEqual([UserRole.SYSTEM_ADMIN]);
+    expect(response.effectivePermissionsForActiveClinic).toEqual(['*']);
+  });
+
+  it('falls back when a system admin requests a clinic that is not active', async () => {
+    clinicService.listActiveSwitchableClinics.mockResolvedValue([
+      { id: 'clinic-2', name: 'Second Clinic', region: 'Ashanti' },
+      { id: 'clinic-1', name: 'Test Clinic', region: 'Greater Accra' },
+    ]);
+
+    const response = await controller.whoami({
+      user: {
+        user: {
+          id: 'admin-user-1',
+          keycloakSub: 'admin-sub',
+          displayName: 'System Admin',
+          email: 'admin@example.com',
+        },
+        roles: [{ clinicId: null, role: UserRole.SYSTEM_ADMIN }],
+      },
+      headers: { 'x-clinic-id': 'inactive-clinic' },
+    });
+
+    expect(response.activeClinicId).toBe('clinic-2');
+  });
+
+  it('only exposes active assigned clinics for non-system-admin users', async () => {
+    clinicService.findByIds.mockResolvedValue([
+      { id: 'clinic-1', name: 'Test Clinic', region: 'Greater Accra' },
+    ]);
+    clinicService.listActiveSwitchableClinics.mockResolvedValue([
+      { id: 'clinic-1', name: 'Test Clinic', region: 'Greater Accra' },
+    ]);
+
+    const response = await controller.whoami({
+      user: {
+        user: {
+          id: 'manager-user-1',
+          keycloakSub: 'manager-sub',
+          displayName: 'Clinic Manager',
+          email: 'manager@example.com',
+        },
+        roles: [
+          { clinicId: 'clinic-1', role: UserRole.MANAGER },
+          { clinicId: 'inactive-clinic', role: UserRole.DIRECTOR },
+        ],
+      },
+      headers: { 'x-clinic-id': 'inactive-clinic' },
+    });
+
+    expect(clinicService.findByIds).toHaveBeenCalledWith(['clinic-1', 'inactive-clinic']);
+    expect(clinicService.listActiveSwitchableClinics).toHaveBeenCalledWith([
+      'clinic-1',
+      'inactive-clinic',
+    ]);
+    expect(response.memberships).toEqual([
+      {
+        clinicId: 'clinic-1',
+        clinicName: 'Test Clinic',
+        roles: ['MANAGER'],
+      },
+    ]);
+    expect(response.availableClinics).toEqual([
+      {
+        clinicId: 'clinic-1',
+        clinicName: 'Test Clinic',
+      },
+    ]);
+    expect(response.activeClinicId).toBe('clinic-1');
+    expect(response.effectiveRolesForActiveClinic).toEqual([UserRole.MANAGER]);
   });
 
   it('uses a stable disabled-user payload', () => {
