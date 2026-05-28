@@ -30,7 +30,7 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
       <div className="flex h-full w-full flex-col gap-5 p-4">
         <div className="overflow-hidden rounded-[30px] border border-primary/15 bg-gradient-to-br from-primary/14 via-card to-secondary/12 shadow-lg shadow-primary/5">
           <div className={cn('p-4', collapsed ? 'px-3 py-4' : 'p-5')}>
-            <div className={cn('flex items-center gap-3', collapsed && 'justify-center')}>
+            <div className={cn('flex flex-col gap-3', collapsed ? 'items-center' : 'items-start')}>
               {collapsed ? (
                 <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-2xl bg-background shadow-lg shadow-primary/10">
                   <Image
@@ -51,23 +51,9 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
                 </div>
               )}
               {!collapsed && (
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary/80">
-                    Nkwapa EMR
-                  </p>
-                  <p className="mt-1 text-sm font-medium text-foreground">Clinic workspace</p>
-                </div>
+                <p className="text-sm font-medium text-muted-foreground">Clinic workspace</p>
               )}
             </div>
-
-            {!collapsed && (
-              <div className="mt-5 rounded-[24px] border border-border/70 bg-background/80 p-4">
-                <p className="text-sm font-medium text-foreground">Daily workflow</p>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground xl:max-w-[18rem]">
-                  Patients, queues, and follow-up work in one place.
-                </p>
-              </div>
-            )}
           </div>
         </div>
 

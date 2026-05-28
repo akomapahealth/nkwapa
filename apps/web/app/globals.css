@@ -159,6 +159,18 @@
   }
 }
 
+@keyframes loading-bar {
+  0% {
+    transform: translateX(-110%);
+  }
+  52% {
+    transform: translateX(80%);
+  }
+  100% {
+    transform: translateX(230%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
