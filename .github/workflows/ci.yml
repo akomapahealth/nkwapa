@@ -33,6 +33,9 @@ jobs:
       - name: Prisma generate
         run: npm run db:generate
 
+      - name: Validate Keycloak realm
+        run: npm run keycloak:validate-realm
+
       - name: Build @nkwapa/db
         run: npm run build --workspace=@nkwapa/db
 
@@ -176,6 +179,12 @@ jobs:
       E2E_STAFF_PASSWORD: NkwapaE2E!23
       E2E_STAFF_NAME: E2E Staff
       E2E_STAFF_EMAIL: e2e.staff@nkwapa.local
+      E2E_RESET_SUB: 00000000-0000-4000-8000-000000000043
+      E2E_RESET_USERNAME: e2e.reset
+      E2E_RESET_PASSWORD: NkwapaReset!23
+      E2E_RESET_NAME: E2E Reset
+      E2E_RESET_EMAIL: e2e.reset@nkwapa.local
+      MAILPIT_BASE_URL: http://localhost:8025
       CORS_ALLOWED_ORIGINS: http://localhost:3000
       PLAYWRIGHT_BASE_URL: http://localhost:3000
     steps:
@@ -201,11 +210,11 @@ jobs:
         run: npm run build --workspace=@nkwapa/web
 
       - name: Start local infra
-        run: docker compose -f infra/nkwapa/docker-compose.yml up -d postgres redis keycloak
+        run: docker compose -f infra/nkwapa/docker-compose.yml up -d postgres redis mailpit keycloak
 
       - name: Wait for infra health
         run: |
-          for container in nkwapa-postgres nkwapa-redis nkwapa-keycloak; do
+          for container in nkwapa-postgres nkwapa-redis nkwapa-mailpit nkwapa-keycloak; do
             until [ "$(docker inspect -f '{{.State.Health.Status}}' "$container")" = "healthy" ]; do
               echo "Waiting for $container..."
               sleep 2

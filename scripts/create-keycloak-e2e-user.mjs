@@ -12,12 +12,20 @@ const adminUsername =
 const adminPassword =
   process.env.KC_BOOTSTRAP_ADMIN_PASSWORD || process.env.KEYCLOAK_ADMIN_PASSWORD || 'admin';
 
-const e2eUser = {
+const staffUser = {
   id: process.env.E2E_STAFF_SUB || '00000000-0000-4000-8000-000000000042',
   username: process.env.E2E_STAFF_USERNAME || 'e2e.staff',
   password: process.env.E2E_STAFF_PASSWORD || 'NkwapaE2E!23',
   email: process.env.E2E_STAFF_EMAIL || 'e2e.staff@nkwapa.local',
   displayName: process.env.E2E_STAFF_NAME || 'E2E Staff',
+};
+
+const resetUser = {
+  id: process.env.E2E_RESET_SUB || '00000000-0000-4000-8000-000000000043',
+  username: process.env.E2E_RESET_USERNAME || 'e2e.reset',
+  password: process.env.E2E_RESET_PASSWORD || 'NkwapaReset!23',
+  email: process.env.E2E_RESET_EMAIL || 'e2e.reset@nkwapa.local',
+  displayName: process.env.E2E_RESET_NAME || 'E2E Reset',
 };
 
 function splitName(displayName) {
@@ -135,26 +143,27 @@ async function findUserByEmail(accessToken, email) {
   );
 }
 
-async function upsertUser(accessToken) {
-  const existingById = await getUserById(accessToken, e2eUser.id);
+async function upsertUser(accessToken, user) {
+  const existingById = await getUserById(accessToken, user.id);
   const existingByUsername = existingById
     ? null
-    : await findUserByUsername(accessToken, e2eUser.username);
+    : await findUserByUsername(accessToken, user.username);
   const existingByEmail =
-    existingById || existingByUsername ? null : await findUserByEmail(accessToken, e2eUser.email);
-  const targetId = existingById?.id ?? existingByUsername?.id ?? existingByEmail?.id ?? e2eUser.id;
-  const { firstName, lastName } = splitName(e2eUser.displayName);
+    existingById || existingByUsername ? null : await findUserByEmail(accessToken, user.email);
+  const existingUser = existingById ?? existingByUsername ?? existingByEmail;
+  const targetId = existingUser?.id ?? user.id;
+  const { firstName, lastName } = splitName(user.displayName);
   const payload = {
     id: targetId,
-    username: e2eUser.username,
+    username: user.username,
     enabled: true,
     emailVerified: true,
-    email: e2eUser.email,
+    email: user.email,
     firstName,
     lastName,
   };
 
-  if (existingById) {
+  if (existingUser) {
     const response = await fetch(`${keycloakBaseUrl}/admin/realms/${realm}/users/${targetId}`, {
       method: 'PUT',
       headers: {
@@ -179,11 +188,11 @@ async function upsertUser(accessToken) {
   }
 
   const persistedUser =
-    (await findUserByUsername(accessToken, e2eUser.username)) ??
-    (await findUserByEmail(accessToken, e2eUser.email));
+    (await findUserByUsername(accessToken, user.username)) ??
+    (await findUserByEmail(accessToken, user.email));
   if (!persistedUser?.id) {
     throw new Error(
-      `Keycloak created "${e2eUser.username}" but it could not be looked up afterwards.`,
+      `Keycloak created "${user.username}" but it could not be looked up afterwards.`,
     );
   }
 
@@ -197,7 +206,7 @@ async function upsertUser(accessToken) {
       },
       body: JSON.stringify({
         type: 'password',
-        value: e2eUser.password,
+        value: user.password,
         temporary: false,
       }),
     },
@@ -230,19 +239,30 @@ async function appendGithubOutput(name, value) {
 
 async function main() {
   const accessToken = await getAdminAccessToken();
-  const userId = await upsertUser(accessToken);
-  await appendGithubEnv('E2E_STAFF_SUB', userId);
-  await appendGithubOutput('user-id', userId);
+  const staffUserId = await upsertUser(accessToken, staffUser);
+  const resetUserId = await upsertUser(accessToken, resetUser);
+  await appendGithubEnv('E2E_STAFF_SUB', staffUserId);
+  await appendGithubEnv('E2E_RESET_SUB', resetUserId);
+  await appendGithubOutput('staff-user-id', staffUserId);
+  await appendGithubOutput('reset-user-id', resetUserId);
 
   console.log(
     JSON.stringify(
       {
         realm,
         keycloakBaseUrl,
-        requestedUserId: e2eUser.id,
-        userId,
-        username: e2eUser.username,
-        email: e2eUser.email,
+        staff: {
+          requestedUserId: staffUser.id,
+          userId: staffUserId,
+          username: staffUser.username,
+          email: staffUser.email,
+        },
+        reset: {
+          requestedUserId: resetUser.id,
+          userId: resetUserId,
+          username: resetUser.username,
+          email: resetUser.email,
+        },
       },
       null,
       2,
