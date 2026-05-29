@@ -215,7 +215,50 @@ Main surfaces:
 
 ---
 
-## 10. Key Reminders
+## 10. Password Reset And Recovery
+
+Forgot Password is owned by Keycloak. Nkwapa must not store raw passwords or expose an app/API
+password reset endpoint.
+
+Required Keycloak settings:
+
+- `resetPasswordAllowed: true`
+- a working realm SMTP `Host` and `From`
+- reset credentials flow set to `reset credentials`
+- the `reset-credential-email` authenticator present in that flow
+- the `UPDATE_PASSWORD` required action enabled
+
+Local QA:
+
+1. Start local infra with `docker compose -f infra/nkwapa/docker-compose.yml up -d`.
+2. Open the app sign-in path and use Forgot Password.
+3. Open Mailpit at `http://localhost:8025`.
+4. Follow the reset link, set a new password, and verify Keycloak returns the user to the app.
+
+Staging and production:
+
+- set the `KC_SMTP_*` variables from `deploy/env/*.keycloak.env.example`
+- use provider-backed SMTP credentials stored as deployment secrets
+- recreate or explicitly re-import the realm when changing realm import settings; Keycloak startup
+  import skips realms that already exist
+
+Admin-triggered password reset:
+
+Use Keycloak Admin REST `execute-actions-email` with `UPDATE_PASSWORD`:
+
+```bash
+PUT /admin/realms/nkwapa/users/<user-id>/execute-actions-email
+Content-Type: application/json
+
+["UPDATE_PASSWORD"]
+```
+
+Do not use the older `reset-password-email` endpoint. Direct admin password setting through
+`/reset-password` is only appropriate for deterministic test setup, not normal user recovery.
+
+---
+
+## 11. Key Reminders
 
 - Keycloak manages passwords, reset tokens, and session expiry.
 - Nkwapa manages permissions, memberships, and clinic scope.
