@@ -7,8 +7,10 @@ const keycloakBaseUrl = (
   'http://localhost:8080'
 ).replace(/\/$/, '');
 const realm = process.env.KEYCLOAK_REALM || process.env.NEXT_PUBLIC_KEYCLOAK_REALM || 'nkwapa';
-const adminUsername = process.env.KEYCLOAK_ADMIN || 'admin';
-const adminPassword = process.env.KEYCLOAK_ADMIN_PASSWORD || 'admin';
+const adminUsername =
+  process.env.KC_BOOTSTRAP_ADMIN_USERNAME || process.env.KEYCLOAK_ADMIN || 'admin';
+const adminPassword =
+  process.env.KC_BOOTSTRAP_ADMIN_PASSWORD || process.env.KEYCLOAK_ADMIN_PASSWORD || 'admin';
 
 const e2eUser = {
   id: process.env.E2E_STAFF_SUB || '00000000-0000-4000-8000-000000000042',

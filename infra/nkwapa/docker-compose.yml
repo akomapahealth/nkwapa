@@ -31,14 +31,29 @@ services:
       retries: 20
 
   keycloak:
-    image: quay.io/keycloak/keycloak:25.0
+    image: quay.io/keycloak/keycloak:26.6.2
     container_name: nkwapa-keycloak
     command: ['start-dev', '--import-realm']
     environment:
-      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
-      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:-${KEYCLOAK_ADMIN:-admin}}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:-${KEYCLOAK_ADMIN_PASSWORD:-admin}}
+      KC_SMTP_HOST: ${KC_SMTP_HOST:-mailpit}
+      KC_SMTP_PORT: ${KC_SMTP_PORT:-1025}
+      KC_SMTP_FROM: ${KC_SMTP_FROM:-no-reply@nkwapa.local}
+      KC_SMTP_FROM_DISPLAY_NAME: ${KC_SMTP_FROM_DISPLAY_NAME:-Nkwapa}
+      KC_SMTP_REPLY_TO: ${KC_SMTP_REPLY_TO:-support@nkwapa.local}
+      KC_SMTP_REPLY_TO_DISPLAY_NAME: ${KC_SMTP_REPLY_TO_DISPLAY_NAME:-Nkwapa Support}
+      KC_SMTP_ENVELOPE_FROM: ${KC_SMTP_ENVELOPE_FROM:-no-reply@nkwapa.local}
+      KC_SMTP_AUTH: ${KC_SMTP_AUTH:-false}
+      KC_SMTP_STARTTLS: ${KC_SMTP_STARTTLS:-false}
+      KC_SMTP_SSL: ${KC_SMTP_SSL:-false}
+      KC_SMTP_USER: ${KC_SMTP_USER:-}
+      KC_SMTP_PASSWORD: ${KC_SMTP_PASSWORD:-}
     ports:
       - '8080:8080'
+    depends_on:
+      mailpit:
+        condition: service_started
     volumes:
       - ./keycloak/realm-export:/opt/keycloak/data/import:ro
       - ./keycloak/themes/nkwapa:/opt/keycloak/themes/nkwapa:ro
@@ -53,6 +68,18 @@ services:
       interval: 5s
       timeout: 3s
       retries: 30
+
+  mailpit:
+    image: axllent/mailpit:v1.20
+    container_name: nkwapa-mailpit
+    ports:
+      - '1025:1025'
+      - '8025:8025'
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://127.0.0.1:8025/api/v1/info']
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
 volumes:
   pgdata:

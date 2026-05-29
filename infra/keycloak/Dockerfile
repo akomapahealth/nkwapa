@@ -1,4 +1,4 @@
-FROM quay.io/keycloak/keycloak:25.0 AS builder
+FROM quay.io/keycloak/keycloak:26.6.2 AS builder
 
 ENV KC_DB=postgres
 ENV KC_HEALTH_ENABLED=true
@@ -11,7 +11,7 @@ COPY infra/nkwapa/keycloak/themes/nkwapa /opt/keycloak/themes/nkwapa
 
 RUN /opt/keycloak/bin/kc.sh build
 
-FROM quay.io/keycloak/keycloak:25.0
+FROM quay.io/keycloak/keycloak:26.6.2
 
 ENV KC_DB=postgres
 ENV KC_HEALTH_ENABLED=true
