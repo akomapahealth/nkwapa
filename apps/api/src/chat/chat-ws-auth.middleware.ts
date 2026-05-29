@@ -15,6 +15,7 @@ const jwksUri =
   'http://localhost:8080/realms/nkwapa/protocol/openid-connect/certs';
 
 const issuer = process.env.KEYCLOAK_ISSUER ?? 'http://localhost:8080/realms/nkwapa';
+const audience = process.env.KEYCLOAK_AUDIENCE?.trim();
 
 const jwksClient = new JwksClient({
   jwksUri,
@@ -41,13 +42,22 @@ function getKey(header: jwt.JwtHeader, callback: (err: Error | null, key?: strin
  */
 export function verifyJwt(token: string): Promise<jwt.JwtPayload> {
   return new Promise((resolve, reject) => {
-    jwt.verify(token, getKey, { algorithms: ['RS256'], issuer }, (err, decoded) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-      resolve(decoded as jwt.JwtPayload);
-    });
+    jwt.verify(
+      token,
+      getKey,
+      {
+        algorithms: ['RS256'],
+        issuer,
+        ...(audience ? { audience } : {}),
+      },
+      (err, decoded) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(decoded as jwt.JwtPayload);
+      },
+    );
   });
 }
 
@@ -55,38 +65,41 @@ export function verifyJwt(token: string): Promise<jwt.JwtPayload> {
  * Socket.IO middleware that validates the JWT from the handshake auth object,
  * looks up the user in the database, and attaches auth data to socket.data.
  */
-export function createWsAuthMiddleware(prisma: {
-  user: {
-    findUnique: (args: {
-      where: { keycloakSub: string };
-      include: { clinicRoles: boolean };
-    }) => Promise<{
-      id: string;
-      displayName: string;
-      isActive: boolean;
-      clinicRoles: { clinicId: string | null; role: UserRole }[];
-    } | null>;
-  };
-}) {
+export function createWsAuthMiddleware(
+  prisma: {
+    user: {
+      findUnique: (args: {
+        where: { keycloakSub: string };
+        include: { clinicRoles: boolean };
+      }) => Promise<{
+        id: string;
+        displayName: string;
+        isActive: boolean;
+        clinicRoles: { clinicId: string | null; role: UserRole }[];
+      } | null>;
+    };
+  },
+  verifyToken: (token: string) => Promise<jwt.JwtPayload> = verifyJwt,
+) {
   return async (socket: Socket, next: (err?: Error) => void) => {
     try {
       const token = socket.handshake.auth?.token;
       if (!token) {
-        next(new Error('Authentication required'));
+        next(new Error('Authentication failed'));
         return;
       }
 
-      const clinicId = socket.handshake.query?.clinicId as string;
+      const clinicId = readClinicId(socket.handshake.query?.clinicId);
       if (!clinicId) {
-        next(new Error('Clinic ID required'));
+        next(new Error('Authentication failed'));
         return;
       }
 
       // Verify JWT
-      const payload = await verifyJwt(token);
+      const payload = await verifyToken(token);
 
       if (!payload.sub) {
-        next(new Error('Invalid token: missing sub'));
+        next(new Error('Authentication failed'));
         return;
       }
 
@@ -97,7 +110,7 @@ export function createWsAuthMiddleware(prisma: {
       });
 
       if (!user || !user.isActive) {
-        next(new Error('User not found or disabled'));
+        next(new Error('Authentication failed'));
         return;
       }
 
@@ -106,7 +119,7 @@ export function createWsAuthMiddleware(prisma: {
       const hasClinicAccess = user.clinicRoles.some((r) => r.clinicId === clinicId);
 
       if (!isSystemAdmin && !hasClinicAccess) {
-        next(new Error('Access denied to clinic'));
+        next(new Error('Authentication failed'));
         return;
       }
 
@@ -127,4 +140,15 @@ export function createWsAuthMiddleware(prisma: {
       next(new Error('Authentication failed'));
     }
   };
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function readClinicId(value: string | string[] | undefined) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return UUID_PATTERN.test(trimmed) ? trimmed : null;
 }

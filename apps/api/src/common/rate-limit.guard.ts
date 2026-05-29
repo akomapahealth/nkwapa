@@ -11,6 +11,7 @@ import Redis from 'ioredis';
 import { getRateLimitValue } from './api-config';
 import { RATE_LIMIT_METADATA_KEY, type RateLimitConfig } from './rate-limit.decorator';
 import { getRequestId, getRequestIp } from './request-context';
+import { redactLogValue, redactUrl } from './redaction';
 
 type RequestWithUser = {
   user?: { user?: { id?: string } };
@@ -90,8 +91,8 @@ export class RateLimitGuard implements CanActivate {
           message: 'Rate limiter failed open',
           requestId: getRequestId(request as never),
           method: request.method,
-          url: request.originalUrl,
-          error: error instanceof Error ? error.message : String(error),
+          url: redactUrl(request.originalUrl),
+          error: redactLogValue(error),
         }),
       );
       this.redisReady = false;

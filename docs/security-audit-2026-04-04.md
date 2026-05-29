@@ -58,3 +58,57 @@
 - Exact staging and production frontend domains in the Keycloak export are currently assumed to be `https://staging.nkwapa.app` and `https://app.nkwapa.app`; update these if your real domains differ.
 - RLS protection depends on the app using the request-scoped Prisma context for HTTP traffic. Background jobs and standalone scripts still rely on owner-level access unless they explicitly opt into the same context.
 - Full end-to-end validation of Keycloak action token overrides should be confirmed in a running Keycloak environment after import.
+
+## Follow-up Hardening - 2026-05-28
+
+### Scope reviewed
+
+- API request handlers, guards, chat REST and WebSocket flows, reminder jobs, research export jobs, and Prisma RLS context handling.
+- Prisma raw SQL usage and dynamic query construction.
+- Web auth bootstrap assumptions, Keycloak token validation, CORS, headers, cookies/session handling, and Socket.IO authentication.
+- Dependency advisories, secret scanning, operational logs, provider failures, and persisted sync/reminder failure payloads.
+
+### Mitigations added
+
+- Encounter-by-id permission checks now evaluate access against the resolved encounter clinic, preventing a role from another clinic from satisfying a clinic-scoped permission check.
+- Chat reads, sends, typing notifications, mark-read operations, room joins, and participant notifications now verify the conversation belongs to the authenticated clinic before exposing or mutating state.
+- Socket.IO authentication now rejects missing, malformed, non-scalar, or unauthorized `clinicId` values; optional `KEYCLOAK_AUDIENCE` enforcement is applied when configured; client-facing auth and message errors are generic.
+- RLS is now enabled for `Conversation`, `ConversationParticipant`, and `Message`, with policies tied to the app-managed tenant context.
+- Background reminder and research export jobs now enqueue `clinicId` and execute inside `PrismaService.withClinicContext`. Legacy queued jobs without `clinicId` first resolve their tenant from the database and only use explicit system context when no tenant can be resolved.
+- Operational logging now uses centralized URL/error redaction, avoids raw query strings and exception traces in request/rate-limit logs, and avoids provider response bodies or PHI-bearing reminder/research failure details in persisted records.
+- Dependency remediation upgraded Nest, Prisma, Sentry, BullMQ, Socket.IO, Next, ESLint, and related transitive packages. `npm audit --workspaces --audit-level=moderate` now reports zero vulnerabilities and is enforced in CI.
+- The repository now uses ESLint flat config for ESLint 9 / Next 16 compatibility while preserving the prior lint baseline.
+
+### Raw SQL and injection review
+
+- Prisma raw SQL paths remain limited to tagged `$queryRaw` / `$executeRaw` calls or static migration SQL.
+- No reviewed dynamic raw SQL path accepts unsanitized user input. Tenant-context helpers write RLS settings through parameterized Prisma calls.
+
+### Job context model
+
+- Normal job path: enqueue payload includes `clinicId`; processor wraps work in `withClinicContext(clinicId, ...)`.
+- Legacy job path: processor resolves `clinicId` from the reminder/export record, then uses tenant context.
+- Documented system fallback: only used for legacy payloads whose backing record no longer resolves to a clinic. These paths are logged as explicit system-context execution and should trend to zero as old queues drain.
+
+### Verification results
+
+- `npm run security:scan`: passed, `Secret scan passed for 489 tracked/untracked files.`
+- `npm audit --workspaces --audit-level=moderate`: passed, `found 0 vulnerabilities.`
+- `npm run lint --workspaces --if-present`: passed.
+- `npm run typecheck --workspaces --if-present`: passed.
+- `npm run test --workspaces --if-present`: passed, 36 suites / 157 tests. Jest reported a pre-existing open-handle warning after the API suite completed.
+- `npm run build --workspaces --if-present`: passed when run outside the local sandbox. The sandboxed run failed because Next 16 Turbopack attempted to spawn/bind a worker process during CSS processing and received `Operation not permitted`.
+- Docker-backed E2E smoke:
+  - `docker compose -f infra/nkwapa/docker-compose.yml up -d postgres redis keycloak`: passed.
+  - `DATABASE_URL=postgresql://nkwapa:nkwapa@localhost:5433/nkwapa npm run db:migrate:deploy`: passed.
+  - `npm run e2e:keycloak-user`: passed after allowing local Keycloak access.
+  - `npm run db:seed`: passed after allowing local Postgres access.
+  - `npx playwright install chromium`: installed the upgraded Playwright Chromium runtime.
+  - `npm run e2e --workspace=@nkwapa/web`: passed, 9 tests.
+
+### Residual risks
+
+- Next is pinned to `16.3.0-canary.32` because the latest stable `16.2.6` still declares vulnerable `postcss@8.4.31`. Track the next stable Next release that carries patched PostCSS and move off canary when available.
+- Legacy background jobs without `clinicId` remain supported for queue drain compatibility. Monitor logs for system-context fallback and treat any recurring fallback as a data repair task.
+- RLS remains app-context driven. Production database role separation and forced RLS ownership controls should be reviewed separately before relying on RLS as the only tenant isolation layer.
+- E2E coverage depends on Docker-backed Postgres, Redis, Keycloak, and the matching Playwright browser runtime being available in the execution environment.

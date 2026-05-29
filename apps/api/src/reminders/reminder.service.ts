@@ -1,4 +1,4 @@
-import { Inject, Injectable, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ReminderStatus } from '@prisma/client';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -6,10 +6,12 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { redactLogValue } from '../common/redaction';
 
 const REMINDER_QUEUE_NAME = 'reminders';
 const FOLLOWUP_TEMPLATE_KEY = 'FOLLOWUP_REMINDER_V1';
 const APPOINTMENT_TEMPLATE_KEY = 'APPOINTMENT_REMINDER_V1';
+const REMINDER_SEND_FAILED = 'SEND_FAILED';
 
 export interface ScheduleFollowUpParams {
   clinicId: string;
@@ -134,6 +136,7 @@ function encodeCursor(createdAt: Date, id: string): string {
 
 @Injectable()
 export class ReminderService {
+  private readonly logger = new Logger(ReminderService.name);
   private readonly emailTemplates = new Map<string, string>();
 
   constructor(
@@ -182,7 +185,7 @@ export class ReminderService {
     });
 
     await this.auditReminderCreate(params.clinicId, params.actorUserId, reminder, params.requestId);
-    await this.queueReminder(reminder.id, params.followUpDate);
+    await this.queueReminder(reminder.id, params.followUpDate, params.clinicId);
   }
 
   async scheduleFollowUpEmailReminder(params: ScheduleFollowUpEmailParams): Promise<void> {
@@ -209,7 +212,7 @@ export class ReminderService {
     });
 
     await this.auditReminderCreate(params.clinicId, params.actorUserId, reminder, params.requestId);
-    await this.queueReminder(reminder.id, params.followUpDate);
+    await this.queueReminder(reminder.id, params.followUpDate, params.clinicId);
   }
 
   async scheduleFollowUpReminderNoContact(params: ScheduleFollowUpNoContactParams): Promise<void> {
@@ -262,7 +265,7 @@ export class ReminderService {
     });
 
     await this.auditReminderCreate(params.clinicId, params.actorUserId, reminder, params.requestId);
-    await this.queueReminder(reminder.id, scheduledAt);
+    await this.queueReminder(reminder.id, scheduledAt, params.clinicId);
   }
 
   async scheduleAppointmentEmailReminder(
@@ -291,7 +294,7 @@ export class ReminderService {
     });
 
     await this.auditReminderCreate(params.clinicId, params.actorUserId, reminder, params.requestId);
-    await this.queueReminder(reminder.id, scheduledAt);
+    await this.queueReminder(reminder.id, scheduledAt, params.clinicId);
   }
 
   async scheduleAppointmentReminderNoContact(
@@ -457,11 +460,22 @@ export class ReminderService {
           }),
         });
       } else {
+        if (result.error) {
+          this.logger.warn(
+            JSON.stringify({
+              message: 'Reminder provider send failed',
+              reminderId,
+              clinicId: reminder.clinicId,
+              channel: reminder.channel,
+              error: redactLogValue(result.error),
+            }),
+          );
+        }
         await this.prisma.reminder.update({
           where: { id: reminderId },
           data: {
             status: 'FAILED',
-            failureReason: result.error ?? 'SEND_FAILED',
+            failureReason: REMINDER_SEND_FAILED,
           },
         });
         await this.auditService.logWrite({
@@ -472,15 +486,23 @@ export class ReminderService {
           entityId: reminderId,
           afterJson: JSON.stringify({
             status: 'FAILED',
-            failureReason: result.error ?? 'SEND_FAILED',
+            failureReason: REMINDER_SEND_FAILED,
           }),
         });
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(
+        JSON.stringify({
+          message: 'Reminder processing failed',
+          reminderId,
+          clinicId: reminder.clinicId,
+          channel: reminder.channel,
+          error: redactLogValue(err),
+        }),
+      );
       await this.prisma.reminder.update({
         where: { id: reminderId },
-        data: { status: 'FAILED', failureReason: msg },
+        data: { status: 'FAILED', failureReason: REMINDER_SEND_FAILED },
       });
       await this.auditService.logWrite({
         clinicId: reminder.clinicId,
@@ -488,9 +510,18 @@ export class ReminderService {
         action: 'REMINDER.SEND_FAILED',
         entityType: 'Reminder',
         entityId: reminderId,
-        afterJson: JSON.stringify({ status: 'FAILED', failureReason: msg }),
+        afterJson: JSON.stringify({ status: 'FAILED', failureReason: REMINDER_SEND_FAILED }),
       });
     }
+  }
+
+  async findReminderClinicId(reminderId: string): Promise<string | null> {
+    const reminder = await this.prisma.reminder.findUnique({
+      where: { id: reminderId },
+      select: { clinicId: true },
+    });
+
+    return reminder?.clinicId ?? null;
   }
 
   private getAppointmentReminderTime(startsAt: Date) {
@@ -498,11 +529,11 @@ export class ReminderService {
     return target > new Date() ? target : new Date();
   }
 
-  private async queueReminder(reminderId: string, scheduledAt: Date) {
+  private async queueReminder(reminderId: string, scheduledAt: Date, clinicId: string) {
     const delayMs = Math.max(0, scheduledAt.getTime() - Date.now());
     await this.reminderQueue.add(
       'send',
-      { reminderId },
+      { reminderId, clinicId },
       {
         delay: delayMs,
         attempts: 3,

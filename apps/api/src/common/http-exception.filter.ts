@@ -10,6 +10,7 @@ import {
 import type { Request, Response } from 'express';
 import { ApiErrorResponse, type ApiFieldError } from './error-response';
 import { getRequestId } from './request-context';
+import { redactLogValue, redactUrl } from './redaction';
 
 function toFieldErrors(value: unknown): ApiFieldError[] | undefined {
   if (!Array.isArray(value)) {
@@ -125,16 +126,15 @@ export class ApiExceptionFilter implements ExceptionFilter {
     };
 
     if (status >= 500) {
-      const trace =
-        exception instanceof Error ? (exception.stack ?? exception.message) : String(exception);
       this.logger.error(
         JSON.stringify({
           requestId,
           method: request.method,
-          url: request.originalUrl,
+          url: redactUrl(request.originalUrl),
           status,
           code,
-          trace,
+          errorName: exception instanceof Error ? exception.name : typeof exception,
+          errorMessage: redactLogValue(exception),
         }),
       );
     }

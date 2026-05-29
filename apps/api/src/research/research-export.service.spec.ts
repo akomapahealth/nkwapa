@@ -114,7 +114,7 @@ describe('ResearchExportService', () => {
     );
     expect(exportQueue.add).toHaveBeenCalledWith(
       'process',
-      { exportId: 'exp-1' },
+      { exportId: 'exp-1', clinicId },
       expect.objectContaining({ jobId: 'exp-1' }),
     );
   });
@@ -273,7 +273,7 @@ describe('ResearchExportService', () => {
       'exp-1',
       expect.objectContaining({
         status: 'FAILED',
-        failureReason: expect.stringContaining('missing RESEARCH_GITHUB_TOKEN'),
+        failureReason: 'RESEARCH_EXPORT_FAILED',
       }),
     );
   });

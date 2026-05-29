@@ -96,17 +96,24 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     const auth: WsAuthData = client.data.auth;
     if (!auth) return;
 
+    const conversationId = this.readConversationId(payload);
+    const content = typeof payload?.content === 'string' ? payload.content : '';
+    if (!conversationId || content.trim().length === 0) {
+      client.emit('message:error', { error: 'Unable to send message' });
+      return;
+    }
+
     try {
       const message = await this.chatService.sendMessage(
-        payload.conversationId,
+        conversationId,
         auth.userId,
         auth.clinicId,
-        payload.content,
+        content,
         randomUUID(),
       );
 
       // Broadcast to all participants in the conversation room
-      this.server.to(`conversation:${payload.conversationId}`).emit('message:new', message);
+      this.server.to(`conversation:${conversationId}`).emit('message:new', message);
 
       // Also send to sender to confirm
       client.emit('message:new', message);
@@ -114,16 +121,17 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       // Notify other participants who may not have the conversation room open
       const participants = await this.prisma.conversationParticipant.findMany({
         where: {
-          conversationId: payload.conversationId,
+          conversationId,
           isActive: true,
           userId: { not: auth.userId },
+          conversation: { clinicId: auth.clinicId },
         },
         select: { userId: true },
       });
 
       for (const p of participants) {
         this.server.to(`user:${p.userId}`).emit('unread:update', {
-          conversationId: payload.conversationId,
+          conversationId,
           lastMessage: {
             content: message.content,
             senderUserId: message.senderUserId,
@@ -131,10 +139,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
           },
         });
       }
-    } catch (error) {
+    } catch {
       client.emit('message:error', {
-        conversationId: payload.conversationId,
-        error: error instanceof Error ? error.message : 'Failed to send message',
+        conversationId,
+        error: 'Unable to send message',
       });
     }
   }
@@ -143,13 +151,15 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   async handleMarkRead(client: Socket, payload: { conversationId: string }) {
     const auth: WsAuthData = client.data.auth;
     if (!auth) return;
+    const conversationId = this.readConversationId(payload);
+    if (!conversationId) return;
 
     try {
-      await this.chatService.markConversationRead(payload.conversationId, auth.userId);
+      await this.chatService.markConversationRead(conversationId, auth.userId, auth.clinicId);
 
       // Notify other participants that messages have been read
-      this.server.to(`conversation:${payload.conversationId}`).emit('read:update', {
-        conversationId: payload.conversationId,
+      this.server.to(`conversation:${conversationId}`).emit('read:update', {
+        conversationId,
         userId: auth.userId,
         readAt: new Date().toISOString(),
       });
@@ -162,9 +172,17 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   async handleTypingStart(client: Socket, payload: { conversationId: string }) {
     const auth: WsAuthData = client.data.auth;
     if (!auth) return;
+    const conversationId = this.readConversationId(payload);
+    if (!conversationId) return;
 
-    client.to(`conversation:${payload.conversationId}`).emit('typing:start', {
-      conversationId: payload.conversationId,
+    try {
+      await this.chatService.assertActiveParticipant(conversationId, auth.userId, auth.clinicId);
+    } catch {
+      return;
+    }
+
+    client.to(`conversation:${conversationId}`).emit('typing:start', {
+      conversationId,
       userId: auth.userId,
       displayName: auth.displayName,
     });
@@ -174,9 +192,17 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   async handleTypingStop(client: Socket, payload: { conversationId: string }) {
     const auth: WsAuthData = client.data.auth;
     if (!auth) return;
+    const conversationId = this.readConversationId(payload);
+    if (!conversationId) return;
 
-    client.to(`conversation:${payload.conversationId}`).emit('typing:stop', {
-      conversationId: payload.conversationId,
+    try {
+      await this.chatService.assertActiveParticipant(conversationId, auth.userId, auth.clinicId);
+    } catch {
+      return;
+    }
+
+    client.to(`conversation:${conversationId}`).emit('typing:stop', {
+      conversationId,
       userId: auth.userId,
     });
   }
@@ -185,19 +211,14 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   async handleJoinConversation(client: Socket, payload: { conversationId: string }) {
     const auth: WsAuthData = client.data.auth;
     if (!auth) return;
+    const conversationId = this.readConversationId(payload);
+    if (!conversationId) return;
 
-    // Verify participant
-    const participant = await this.prisma.conversationParticipant.findUnique({
-      where: {
-        conversationId_userId: {
-          conversationId: payload.conversationId,
-          userId: auth.userId,
-        },
-      },
-    });
-
-    if (participant?.isActive) {
-      await client.join(`conversation:${payload.conversationId}`);
+    try {
+      await this.chatService.assertActiveParticipant(conversationId, auth.userId, auth.clinicId);
+      await client.join(`conversation:${conversationId}`);
+    } catch {
+      // Do not disclose whether a conversation id exists in another clinic.
     }
   }
 
@@ -217,5 +238,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     const onlineUserIds = await this.pubClient.smembers(`chat:clinic:${auth.clinicId}:online`);
 
     client.emit('presence:list', { onlineUserIds });
+  }
+
+  private readConversationId(payload: { conversationId?: unknown } | null | undefined) {
+    return typeof payload?.conversationId === 'string' && payload.conversationId.trim().length > 0
+      ? payload.conversationId.trim()
+      : null;
   }
 }

@@ -168,14 +168,7 @@ export class ChatService {
     cursor?: string,
     limit = 50,
   ) {
-    // Verify user is a participant
-    const participant = await this.prisma.conversationParticipant.findUnique({
-      where: { conversationId_userId: { conversationId, userId } },
-    });
-
-    if (!participant || !participant.isActive) {
-      throw new ForbiddenException('Not a participant in this conversation');
-    }
+    await this.assertActiveParticipant(conversationId, userId, clinicId);
 
     const messages = await this.prisma.message.findMany({
       where: { conversationId, clinicId },
@@ -211,23 +204,7 @@ export class ChatService {
     content: string,
     _requestId: string,
   ) {
-    // Verify sender is a participant
-    const participant = await this.prisma.conversationParticipant.findUnique({
-      where: { conversationId_userId: { conversationId, userId: senderUserId } },
-    });
-
-    if (!participant || !participant.isActive) {
-      throw new ForbiddenException('Not a participant in this conversation');
-    }
-
-    // Verify conversation belongs to this clinic
-    const conversation = await this.prisma.conversation.findUnique({
-      where: { id: conversationId },
-    });
-
-    if (!conversation || conversation.clinicId !== clinicId) {
-      throw new NotFoundException('Conversation not found');
-    }
+    await this.assertActiveParticipant(conversationId, senderUserId, clinicId);
 
     // Create message and update conversation timestamp atomically
     const message = await this.prisma.$transaction(async (tx) => {
@@ -255,14 +232,8 @@ export class ChatService {
   /**
    * Mark a conversation as read up to now for a user.
    */
-  async markConversationRead(conversationId: string, userId: string) {
-    const participant = await this.prisma.conversationParticipant.findUnique({
-      where: { conversationId_userId: { conversationId, userId } },
-    });
-
-    if (!participant || !participant.isActive) {
-      throw new ForbiddenException('Not a participant in this conversation');
-    }
+  async markConversationRead(conversationId: string, userId: string, clinicId: string) {
+    const participant = await this.assertActiveParticipant(conversationId, userId, clinicId);
 
     await this.prisma.conversationParticipant.update({
       where: { id: participant.id },
@@ -304,5 +275,23 @@ export class ChatService {
         ...r.user,
         role: r.role,
       }));
+  }
+
+  async assertActiveParticipant(conversationId: string, userId: string, clinicId: string) {
+    const participant = await this.prisma.conversationParticipant.findFirst({
+      where: {
+        conversationId,
+        userId,
+        isActive: true,
+        conversation: { clinicId },
+      },
+      select: { id: true },
+    });
+
+    if (!participant) {
+      throw new NotFoundException('Conversation not found');
+    }
+
+    return participant;
   }
 }

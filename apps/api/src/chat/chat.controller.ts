@@ -69,10 +69,11 @@ export class ChatController {
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.CHAT_READ)
   async markRead(
+    @Param('clinicId') clinicId: string,
     @Param('conversationId') conversationId: string,
     @Request() req: { user: ReqUserWithRoles },
   ) {
-    return this.chatService.markConversationRead(conversationId, req.user.user.id);
+    return this.chatService.markConversationRead(conversationId, req.user.user.id, clinicId);
   }
 
   @Get('users')

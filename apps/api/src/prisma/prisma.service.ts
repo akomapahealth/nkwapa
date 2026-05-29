@@ -34,7 +34,9 @@ const INTERNAL_PRISMA_KEYS = new Set([
   'onModuleDestroy',
   'onModuleInit',
   'rlsStorage',
+  'withClinicContext',
   'withRlsContext',
+  'withSystemContext',
   '$connect',
   '$disconnect',
   '$extends',
@@ -104,6 +106,29 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     });
   }
 
+  async withClinicContext<T>(
+    clinicId: string,
+    context: Omit<PrismaRlsContext, 'activeClinicId' | 'clinicIds' | 'isSystemAdmin'>,
+    callback: (client: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    const rlsContext = await this.buildClinicRlsContext(clinicId, context);
+    return this.withRlsContext(rlsContext, callback);
+  }
+
+  async withSystemContext<T>(
+    context: Omit<PrismaRlsContext, 'clinicIds' | 'isSystemAdmin'>,
+    callback: (client: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    return this.withRlsContext(
+      {
+        ...context,
+        clinicIds: [],
+        isSystemAdmin: true,
+      },
+      callback,
+    );
+  }
+
   async $transaction<T>(
     arg: Prisma.PrismaPromise<unknown>[] | ((prisma: Prisma.TransactionClient) => Promise<T>),
     options?: TransactionOptions,
@@ -127,6 +152,25 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
   private getActiveClient(): PrismaLikeClient {
     return this.rlsStorage.getStore()?.client ?? this;
+  }
+
+  private async buildClinicRlsContext(
+    clinicId: string,
+    context: Omit<PrismaRlsContext, 'activeClinicId' | 'clinicIds' | 'isSystemAdmin'>,
+  ): Promise<PrismaRlsContext> {
+    const clinic = await this.clinic.findUnique({
+      where: { id: clinicId },
+      select: { organizationId: true, zoneCode: true },
+    });
+
+    return {
+      ...context,
+      organizationId: context.organizationId ?? clinic?.organizationId ?? null,
+      zoneCode: context.zoneCode ?? clinic?.zoneCode ?? null,
+      clinicIds: [clinicId],
+      activeClinicId: clinicId,
+      isSystemAdmin: false,
+    };
   }
 
   private async applyRlsContext(client: Prisma.TransactionClient, context: PrismaRlsContext) {

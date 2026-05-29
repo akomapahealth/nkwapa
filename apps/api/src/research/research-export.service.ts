@@ -1,5 +1,5 @@
 import { InjectQueue } from '@nestjs/bullmq';
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import { ResearchExportStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -16,6 +16,7 @@ import { ResearchExportRecord, ResearchExportRepository } from './research-expor
 import { RequestExportDto } from './dto/request-export.dto';
 import { ResearchTransformService } from './research-transform.service';
 import { ResearchRepoSyncService } from './research-repo-sync.service';
+import { redactLogValue } from '../common/redaction';
 
 export interface ExportAuditContext {
   clinicId: string;
@@ -54,6 +55,8 @@ export interface ResearchExportView {
 
 @Injectable()
 export class ResearchExportService {
+  private readonly logger = new Logger(ResearchExportService.name);
+
   constructor(
     private readonly repo: ResearchExportRepository,
     private readonly prisma: PrismaService,
@@ -308,7 +311,15 @@ export class ResearchExportService {
 
       return this.toExportView(completed);
     } catch (error) {
-      const failureReason = error instanceof Error ? error.message : String(error);
+      const failureReason = 'RESEARCH_EXPORT_FAILED';
+      this.logger.warn(
+        JSON.stringify({
+          message: 'Research export processing failed',
+          exportId,
+          clinicId: processing.clinicId,
+          error: redactLogValue(error),
+        }),
+      );
       const failed = await this.repo.update(exportId, {
         status: 'FAILED',
         failureReason,
@@ -343,6 +354,11 @@ export class ResearchExportService {
     }
   }
 
+  async findExportClinicId(exportId: string): Promise<string | null> {
+    const exportRecord = await this.repo.findById(exportId);
+    return exportRecord?.clinicId ?? null;
+  }
+
   async recordDownload(exportId: string, auditCtx?: ExportAuditContext) {
     if (!auditCtx) {
       return;
@@ -365,7 +381,7 @@ export class ResearchExportService {
     try {
       await this.exportQueue.add(
         'process',
-        { exportId: exportRecord.id },
+        { exportId: exportRecord.id, clinicId: exportRecord.clinicId },
         {
           jobId: exportRecord.id,
           attempts: 3,
@@ -375,8 +391,15 @@ export class ResearchExportService {
         },
       );
     } catch (error) {
-      const failureReason =
-        error instanceof Error ? error.message : 'Failed to queue research export';
+      const failureReason = 'RESEARCH_EXPORT_QUEUE_FAILED';
+      this.logger.warn(
+        JSON.stringify({
+          message: 'Research export queueing failed',
+          exportId: exportRecord.id,
+          clinicId: exportRecord.clinicId,
+          error: redactLogValue(error),
+        }),
+      );
       const failed = await this.repo.update(exportRecord.id, {
         status: 'FAILED',
         failureReason,

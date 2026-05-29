@@ -1,6 +1,6 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
-import { lastValueFrom, Observable, defer, from, mergeMap } from 'rxjs';
+import { lastValueFrom, defer, from, mergeMap } from 'rxjs';
 import { getRequestId } from '../common/request-context';
 import { PrismaRlsContext, PrismaService } from './prisma.service';
 
@@ -17,7 +17,7 @@ type RequestWithAuth = {
 export class PrismaRlsInterceptor implements NestInterceptor {
   constructor(private readonly prisma: PrismaService) {}
 
-  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+  intercept(context: ExecutionContext, next: CallHandler): ReturnType<CallHandler['handle']> {
     if (context.getType() !== 'http') {
       return next.handle();
     }
@@ -26,10 +26,10 @@ export class PrismaRlsInterceptor implements NestInterceptor {
     return defer(() =>
       from(this.buildRlsContext(request)).pipe(
         mergeMap((rlsContext) =>
-          from(this.prisma.withRlsContext(rlsContext, () => lastValueFrom(next.handle()))),
+          from(this.prisma.withRlsContext(rlsContext, () => lastValueFrom(next.handle() as never))),
         ),
       ),
-    );
+    ) as unknown as ReturnType<CallHandler['handle']>;
   }
 
   private async buildRlsContext(request: RequestWithAuth): Promise<PrismaRlsContext> {
