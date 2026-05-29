@@ -6,3 +6,4 @@ coverage
 pnpm-lock.yaml
 package-lock.json
 *.tsbuildinfo
+apps/web/next-env.d.ts
