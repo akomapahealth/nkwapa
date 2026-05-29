@@ -63,6 +63,7 @@ test('forgot password sends a Keycloak reset email to Mailpit', async ({ page })
   const messageText = `${message.Subject || ''}\n${message.Text || ''}\n${message.HTML || ''}`;
 
   expect(messageText).toMatch(/reset|password|credential/i);
-  expect(messageText).toContain('/realms/nkwapa/login-actions/reset-credentials');
+  expect(messageText).toContain('/realms/nkwapa/login-actions/action-token');
+  expect(messageText).toContain('client_id=nkwapa-web');
   expect(messageText).toContain('key=');
 });

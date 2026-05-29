@@ -17,7 +17,16 @@ setup('authenticate deterministic staff user', async ({ page }) => {
     .click();
   await page.waitForURL(/realms\/nkwapa/, { timeout: 20_000 });
 
-  await page.locator('input[name="username"]').fill(username);
+  const usernameField = page.locator('input[name="username"]');
+  const backToSignIn = page.getByRole('link', { name: /back to sign in/i });
+  if (!(await usernameField.isVisible({ timeout: 5_000 }).catch(() => false))) {
+    if (await backToSignIn.isVisible().catch(() => false)) {
+      await backToSignIn.click();
+    }
+  }
+
+  await expect(usernameField).toBeVisible({ timeout: 20_000 });
+  await usernameField.fill(username);
   await page.locator('input[name="password"]').fill(password);
   await page.locator('#kc-login, button[type="submit"]').click();
 
