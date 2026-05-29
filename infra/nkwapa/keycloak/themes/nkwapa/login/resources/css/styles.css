@@ -376,6 +376,13 @@ body.nkwapa-auth-body {
     filter 0.2s ease;
 }
 
+.nkwapa-btn-primary--link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
 .nkwapa-btn-primary:hover {
   filter: brightness(1.03);
   transform: translateY(-1px);
@@ -394,6 +401,33 @@ body.nkwapa-auth-body {
   color: var(--nkwapa-danger);
   font-size: 0.84rem;
   line-height: 1.45;
+}
+
+.nkwapa-password-requirements {
+  margin: -4px 0 20px;
+  color: var(--nkwapa-muted);
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+
+.nkwapa-action-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.nkwapa-secondary-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  color: var(--nkwapa-primary);
+  font-size: 0.92rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.nkwapa-secondary-link:hover {
+  text-decoration: underline;
 }
 
 .nkwapa-auth-info {
