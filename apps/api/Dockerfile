@@ -8,7 +8,10 @@ COPY packages/db/package.json ./packages/db/
 
 # Prisma generation happens after the schema is copied in the build stage.
 RUN npm ci --omit=dev --ignore-scripts && \
+    mkdir -p /prod_apps_api_node_modules /prod_packages_db_node_modules && \
     cp -R node_modules /prod_node_modules && \
+    if [ -d apps/api/node_modules ]; then cp -R apps/api/node_modules/. /prod_apps_api_node_modules/; fi && \
+    if [ -d packages/db/node_modules ]; then cp -R packages/db/node_modules/. /prod_packages_db_node_modules/; fi && \
     npm ci --ignore-scripts
 
 # ── Stage 2: Generate Prisma & Build ──
@@ -16,6 +19,8 @@ FROM node:20-alpine AS build
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
+COPY --from=deps /app/packages/db/node_modules ./packages/db/node_modules
 
 COPY package.json tsconfig.base.json ./
 COPY packages/db/ ./packages/db/
@@ -33,6 +38,8 @@ RUN addgroup --system --gid 1001 app && \
     adduser --system --uid 1001 app
 
 COPY --from=deps /prod_node_modules ./node_modules
+COPY --from=deps /prod_apps_api_node_modules ./apps/api/node_modules
+COPY --from=deps /prod_packages_db_node_modules ./packages/db/node_modules
 COPY --from=build /app/packages/db/dist ./packages/db/dist
 COPY --from=build /app/packages/db/package.json ./packages/db/
 COPY --from=build /app/apps/api/dist ./apps/api/dist
