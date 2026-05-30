@@ -243,6 +243,7 @@ body.nkwapa-auth-body {
 #kc-form-wrapper,
 #kc-form-login,
 #kc-reset-password-form,
+#kc-passwd-update-form,
 #kc-register-form {
   width: 100%;
 }
@@ -420,6 +421,49 @@ body.nkwapa-auth-body {
   color: var(--nkwapa-muted);
   font-size: 0.85rem;
   line-height: 1.55;
+}
+
+.nkwapa-status-copy {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 22px;
+  color: var(--nkwapa-muted);
+  font-size: 0.94rem;
+  line-height: 1.65;
+}
+
+.nkwapa-status-copy p {
+  margin: 0;
+}
+
+.nkwapa-status-list {
+  margin: 14px 0 22px;
+  padding-left: 20px;
+  color: var(--nkwapa-muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.nkwapa-helper-text {
+  margin: -2px 0 0;
+  color: var(--nkwapa-muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.nkwapa-inline-link {
+  color: var(--nkwapa-primary);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.nkwapa-inline-link:hover {
+  text-decoration: underline;
+}
+
+.nkwapa-auth-link-block {
+  margin-top: 1rem;
 }
 
 .nkwapa-action-stack {

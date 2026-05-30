@@ -22,7 +22,7 @@
             </div>
         </form>
 
-        <div class="nkwapa-register-link" style="margin-top: 1rem;">
+        <div class="nkwapa-register-link nkwapa-auth-link-block">
             <a href="${url.loginUrl}">${kcSanitize(msg("backToLogin"))?no_esc}</a>
         </div>
     <#elseif section = "info">
