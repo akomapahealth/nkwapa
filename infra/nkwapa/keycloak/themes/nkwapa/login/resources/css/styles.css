@@ -3,7 +3,7 @@
 
 :root {
   --nkwapa-bg: #f4f8fa;
-  --nkwapa-surface: rgba(255, 255, 255, 0.96);
+  --nkwapa-surface: #ffffff;
   --nkwapa-border: rgba(15, 23, 42, 0.1);
   --nkwapa-border-strong: #d7e2ea;
   --nkwapa-text: #0f172a;
@@ -30,10 +30,7 @@ body {
 
 body.nkwapa-auth-body {
   font-family: 'Circular Std', 'Poppins', 'Segoe UI', sans-serif;
-  background:
-    radial-gradient(circle at top left, rgba(22, 152, 183, 0.14), transparent 28%),
-    radial-gradient(circle at bottom right, rgba(12, 74, 91, 0.12), transparent 34%),
-    linear-gradient(180deg, #f9fcfd 0%, var(--nkwapa-bg) 100%);
+  background: linear-gradient(180deg, #f9fcfd 0%, var(--nkwapa-bg) 100%);
   color: var(--nkwapa-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -60,10 +57,7 @@ body.nkwapa-auth-body {
 
 .nkwapa-auth-showcase {
   position: relative;
-  background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.1), transparent 26%),
-    radial-gradient(circle at bottom right, rgba(22, 152, 183, 0.18), transparent 32%),
-    linear-gradient(155deg, #12253b 0%, #123f53 55%, #188c9c 100%);
+  background: #0c4a5b;
   color: #f8fafc;
 }
 
@@ -72,12 +66,12 @@ body.nkwapa-auth-body {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 28px;
+  gap: 24px;
   padding: 40px 40px 34px;
 }
 
 .nkwapa-auth-logo {
-  width: 196px;
+  width: 220px;
   max-width: 100%;
   height: auto;
 }
@@ -96,7 +90,7 @@ body.nkwapa-auth-body {
   border: 1px solid rgba(255, 255, 255, 0.16);
   font-size: 0.74rem;
   font-weight: 700;
-  letter-spacing: 0.18em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
@@ -104,7 +98,7 @@ body.nkwapa-auth-body {
   margin: 20px 0 12px;
   font-size: clamp(2rem, 4vw, 3.3rem);
   line-height: 1.05;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
   font-weight: 800;
 }
 
@@ -144,10 +138,28 @@ body.nkwapa-auth-body {
   box-shadow: 0 0 0 5px rgba(123, 229, 234, 0.16);
 }
 
+.nkwapa-auth-photo-frame {
+  width: 100%;
+  max-width: 520px;
+  aspect-ratio: 16 / 10;
+  align-self: center;
+  overflow: hidden;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.24);
+}
+
+.nkwapa-auth-photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 48% 44%;
+}
+
 .nkwapa-auth-illustration {
   width: 100%;
   max-width: 520px;
-  align-self: center;
   height: auto;
   object-fit: contain;
 }
@@ -170,7 +182,7 @@ body.nkwapa-auth-body {
   color: var(--nkwapa-primary);
   font-size: 0.78rem;
   font-weight: 700;
-  letter-spacing: 0.24em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
@@ -178,7 +190,7 @@ body.nkwapa-auth-body {
   margin: 0;
   font-size: clamp(2rem, 3vw, 3rem);
   line-height: 1.02;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
   font-weight: 800;
   color: var(--nkwapa-text);
 }
@@ -367,7 +379,7 @@ body.nkwapa-auth-body {
   font-family: inherit;
   font-size: 1rem;
   font-weight: 700;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   cursor: pointer;
   box-shadow: 0 18px 36px rgba(18, 114, 138, 0.22);
   transition:
@@ -496,7 +508,7 @@ body.nkwapa-auth-body {
     display: none;
   }
 
-  .nkwapa-auth-illustration {
+  .nkwapa-auth-photo-frame {
     max-width: 360px;
   }
 
