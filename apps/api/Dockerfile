@@ -23,7 +23,7 @@ COPY apps/api/ ./apps/api/
 
 RUN npx prisma generate --schema=packages/db/prisma/schema.prisma
 RUN cd packages/db && npx tsc
-RUN cd apps/api && npx nest build
+RUN cd apps/api && npx tsc -p tsconfig.build.json
 
 # ── Stage 3: Production image ──
 FROM node:20-alpine AS runner

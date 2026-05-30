@@ -34,6 +34,23 @@ Important rules:
 - permissions and clinic memberships are stored in Nkwapa
 - a user usually needs to log in once before appearing in local admin tables
 
+### Forgot password
+
+1. The user opens the Keycloak Forgot Password link from the sign-in page.
+2. Keycloak asks for username or email and sends the reset email through the realm SMTP settings.
+3. The reset link opens the themed Keycloak update-password flow.
+4. After the password is changed, Keycloak forces a fresh login and returns the user through the
+   normal app redirect.
+
+Recovery behavior:
+
+- local development uses Mailpit at `http://localhost:8025`
+- staging and production require real `KC_SMTP_*` secrets on the Keycloak service
+- expired or invalid reset links show the branded recovery page with actions to request a new link
+  or return to sign in
+- admins should trigger password reset emails with Keycloak Admin REST `execute-actions-email` and
+  `["UPDATE_PASSWORD"]`
+
 ---
 
 ## 3. Staff Clinical Workflow
