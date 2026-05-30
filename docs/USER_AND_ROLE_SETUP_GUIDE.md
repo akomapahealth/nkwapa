@@ -224,6 +224,8 @@ Required Keycloak settings:
 
 - `resetPasswordAllowed: true`
 - a working realm SMTP `Host` and `From`
+- `KC_SSL_REQUIRED=none` for local Docker HTTP QA and `KC_SSL_REQUIRED=external` for staging and
+  production
 - reset credentials flow set to `reset credentials`
 - the `reset-credential-email` authenticator present in that flow
 - the `UPDATE_PASSWORD` required action enabled

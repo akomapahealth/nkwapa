@@ -2,7 +2,7 @@
   "realm": "nkwapa",
   "enabled": true,
   "loginTheme": "nkwapa",
-  "sslRequired": "external",
+  "sslRequired": "${KC_SSL_REQUIRED}",
   "registrationAllowed": false,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,

@@ -50,6 +50,10 @@ async function assertThemeFileIncludes(relativePath, expectedText, message) {
 
 assert(realm.realm === 'nkwapa', 'realm must be nkwapa');
 assert(realm.loginTheme === 'nkwapa', 'loginTheme must be nkwapa');
+assert(
+  realm.sslRequired === '${KC_SSL_REQUIRED}',
+  'sslRequired must use the KC_SSL_REQUIRED placeholder',
+);
 assert(realm.resetPasswordAllowed === true, 'resetPasswordAllowed must be true');
 assert(realm.verifyEmail === true, 'verifyEmail must be true');
 assert(
