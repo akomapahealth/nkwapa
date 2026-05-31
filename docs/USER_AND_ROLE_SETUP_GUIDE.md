@@ -217,23 +217,45 @@ Main surfaces:
 
 ## 10. Password Reset And Recovery
 
-Forgot Password is owned by Keycloak. Nkwapa must not store raw passwords or expose an app/API
-password reset endpoint.
+Forgot Password, email verification, temporary passwords, and required password updates are owned by
+Keycloak. Nkwapa must not store raw passwords or expose an app/API password reset endpoint.
 
 Required Keycloak settings:
 
 - `resetPasswordAllowed: true`
 - a working realm SMTP `Host` and `From`
+- `KC_SSL_REQUIRED=none` for local Docker HTTP QA and `KC_SSL_REQUIRED=external` for staging and
+  production
 - reset credentials flow set to `reset credentials`
 - the `reset-credential-email` authenticator present in that flow
 - the `UPDATE_PASSWORD` required action enabled
+- the `VERIFY_EMAIL` required action enabled
+- `verifyEmail: true`
 
-Local QA:
+Local forgot-password QA:
 
 1. Start local infra with `docker compose -f infra/nkwapa/docker-compose.yml up -d`.
 2. Open the app sign-in path and use Forgot Password.
 3. Open Mailpit at `http://localhost:8025`.
 4. Follow the reset link, set a new password, and verify Keycloak returns the user to the app.
+5. Reuse an old reset link and verify the expired/invalid token state uses the branded recovery UI.
+
+Local temporary-password QA:
+
+1. Start local infra and create or choose a Keycloak user.
+2. Set a temporary credential in Keycloak Admin or with `kcadm.sh set-password --temporary`.
+3. Sign in as that user.
+4. Verify the user is routed to the branded update-password screen.
+5. Submit a password that violates policy and confirm the Keycloak policy message is readable.
+6. Submit a valid password and verify the user returns through the normal app login flow.
+
+Local verify-email QA:
+
+1. Start local infra and create or choose a Keycloak user with an email address.
+2. Trigger a verification email with `send-verify-email` or the Admin Console.
+3. Open Mailpit at `http://localhost:8025`.
+4. Follow the verification link and verify the branded info/required-action pages are shown.
+5. Reuse or alter the link and verify the branded expired/invalid action-token page is shown.
 
 Staging and production:
 
@@ -255,6 +277,37 @@ Content-Type: application/json
 
 Do not use the older `reset-password-email` endpoint. Direct admin password setting through
 `/reset-password` is only appropriate for deterministic test setup, not normal user recovery.
+
+Admin-triggered email verification:
+
+Use Keycloak Admin REST `send-verify-email` when the only action needed is verifying the user's
+email address:
+
+```bash
+PUT /admin/realms/nkwapa/users/<user-id>/send-verify-email
+```
+
+Admin-triggered combined required actions:
+
+Use `execute-actions-email` when an operator needs the same email to require one or more actions:
+
+```bash
+PUT /admin/realms/nkwapa/users/<user-id>/execute-actions-email
+Content-Type: application/json
+
+["VERIFY_EMAIL"]
+```
+
+```bash
+PUT /admin/realms/nkwapa/users/<user-id>/execute-actions-email
+Content-Type: application/json
+
+["VERIFY_EMAIL", "UPDATE_PASSWORD"]
+```
+
+Temporary-password users should be handled through the `UPDATE_PASSWORD` required action or a
+temporary credential that causes Keycloak to require `UPDATE_PASSWORD` at the next login. Do not
+replace this with a custom Nkwapa app form.
 
 ---
 
