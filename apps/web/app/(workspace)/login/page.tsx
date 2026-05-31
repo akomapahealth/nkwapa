@@ -119,7 +119,11 @@ export default function LoginPage() {
                 </p>
                 <div className="space-y-2">
                   <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-                    {error ? "We couldn't start secure sign-in" : 'Sign in to Nkwapa'}
+                    {error
+                      ? "We couldn't start secure sign-in"
+                      : nextPath
+                        ? 'Sign in to continue'
+                        : 'Sign in to Nkwapa'}
                   </h1>
                   <p className="text-sm leading-6 text-muted-foreground sm:text-base">
                     {error
@@ -167,7 +171,7 @@ export default function LoginPage() {
 
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button onClick={login} className="h-12 flex-1 rounded-2xl">
-                {error ? 'Try secure sign-in again' : 'Continue to secure sign-in'}
+                {error ? 'Try secure sign in again' : 'Continue to secure sign in'}
                 <ArrowRight className="h-4 w-4" />
               </Button>
               <Button asChild variant="outline" className="h-12 rounded-2xl">
