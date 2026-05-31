@@ -38,7 +38,7 @@
             <aside class="nkwapa-auth-showcase" aria-hidden="true">
                 <div class="nkwapa-auth-showcase__inner">
                     <img
-                        src="${url.resourcesPath}/img/nkwapa-logo.png"
+                        src="${url.resourcesPath}/img/nkwapa-logo-2.png"
                         alt="Nkwapa"
                         class="nkwapa-auth-logo"
                     />
@@ -46,26 +46,18 @@
                     <div class="nkwapa-auth-copy">
                         <span class="nkwapa-auth-eyebrow">Clinic care operations</span>
                         <h2 class="nkwapa-auth-headline">
-                            Secure access for care teams serving patients across every clinic workflow.
+                            Secure access for patient-safe clinic work.
                         </h2>
                         <p class="nkwapa-auth-description">
-                            Review patient records, manage follow-up, and move between clinic workspaces with one trusted sign-in.
+                            Sign in once to reach clinic-scoped records, queues, follow-up, and dashboard context.
                         </p>
                     </div>
 
                     <ul class="nkwapa-auth-feature-list">
-                        <li>Protected access for staff and patient portal accounts</li>
-                        <li>Clinic-aware permissions for patient-safe workflows</li>
-                        <li>Guided recovery when passwords or verification need attention</li>
+                        <li>Keycloak verifies your identity before records load</li>
+                        <li>Clinic permissions decide what you can view and update</li>
+                        <li>Password recovery stays available when sign-in needs attention</li>
                     </ul>
-
-                    <div class="nkwapa-auth-photo-frame">
-                        <img
-                            src="${url.resourcesPath}/img/auth-clinic.jpg"
-                            alt=""
-                            class="nkwapa-auth-photo"
-                        />
-                    </div>
                 </div>
             </aside>
 
@@ -77,7 +69,7 @@
                             <#nested "header">
                         </h1>
                         <p class="nkwapa-auth-panel__description">
-                            Continue to your clinic workspace with the same secure login used for patient-safe operations.
+                            Continue with the secure account your clinic uses for patient-safe operations.
                         </p>
                     </div>
 
