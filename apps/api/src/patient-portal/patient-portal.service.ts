@@ -19,6 +19,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ReminderService } from '../reminders/reminder.service';
+import { EmailDeliverabilityService } from '../common/email-policy';
 import type { CreateSelfReportDto } from './dto/create-self-report.dto';
 import type {
   CreatePatientMeasurementDto,
@@ -111,6 +112,7 @@ export class PatientPortalService {
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
     private readonly reminderService: ReminderService,
+    private readonly emailDeliverabilityService: EmailDeliverabilityService,
   ) {}
 
   async getMe(clinicId: string, userId: string) {
@@ -810,6 +812,9 @@ export class PatientPortalService {
 
     if (!email && !phoneE164) {
       throw new BadRequestException('Provide an email or phone number to create a portal invite');
+    }
+    if (email) {
+      await this.emailDeliverabilityService.assertDomainAcceptsEmail(email);
     }
 
     const existingLink = await this.prisma.patientAccountLink.findUnique({

@@ -4,6 +4,7 @@ import { PATIENT_PORTAL_LINK_MISSING, PatientPortalService } from './patient-por
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ReminderService } from '../reminders/reminder.service';
+import { EmailDeliverabilityService } from '../common/email-policy';
 
 function createPrismaMock() {
   const prisma = {
@@ -91,6 +92,7 @@ describe('PatientPortalService', () => {
   let service: PatientPortalService;
   let prisma: ReturnType<typeof createPrismaMock>;
   let auditService: { logWrite: jest.Mock };
+  let emailDeliverabilityService: { assertDomainAcceptsEmail: jest.Mock };
   let reminderService: {
     scheduleAppointmentReminder: jest.Mock;
     scheduleAppointmentEmailReminder: jest.Mock;
@@ -100,6 +102,9 @@ describe('PatientPortalService', () => {
   beforeEach(async () => {
     prisma = createPrismaMock();
     auditService = { logWrite: jest.fn().mockResolvedValue(undefined) };
+    emailDeliverabilityService = {
+      assertDomainAcceptsEmail: jest.fn().mockResolvedValue(undefined),
+    };
     reminderService = {
       scheduleAppointmentReminder: jest.fn().mockResolvedValue(undefined),
       scheduleAppointmentEmailReminder: jest.fn().mockResolvedValue(undefined),
@@ -154,6 +159,7 @@ describe('PatientPortalService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: AuditService, useValue: auditService },
         { provide: ReminderService, useValue: reminderService },
+        { provide: EmailDeliverabilityService, useValue: emailDeliverabilityService },
       ],
     }).compile();
 
@@ -546,12 +552,106 @@ describe('PatientPortalService', () => {
         }),
       }),
     );
+    expect(emailDeliverabilityService.assertDomainAcceptsEmail).toHaveBeenCalledWith(
+      'ama@example.com',
+    );
     expect(prisma.patientPortalInvite.create).toHaveBeenCalled();
     expect(result).toMatchObject({
       patientId: 'patient-1',
       clinicId: 'clinic-1',
       status: 'PENDING',
       email: 'ama@example.com',
+    });
+  });
+
+  it('rejects portal invite email domains that fail MX deliverability checks', async () => {
+    prisma.patient.findFirst.mockResolvedValue({
+      id: 'patient-1',
+      portalUserId: null,
+    });
+    emailDeliverabilityService.assertDomainAcceptsEmail.mockRejectedValueOnce(
+      new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Request validation failed.',
+        fieldErrors: [{ field: 'email', message: 'email domain does not accept email' }],
+      }),
+    );
+
+    await expect(
+      service.createPortalInvite(
+        'clinic-1',
+        'patient-1',
+        {
+          email: 'ama@no-mx.testmail',
+        },
+        'manager-1',
+        'req-portal-invite',
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        fieldErrors: [{ field: 'email', message: 'email domain does not accept email' }],
+      }),
+    });
+
+    expect(prisma.patientPortalInvite.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects portal invite email domains when DNS verification fails', async () => {
+    prisma.patient.findFirst.mockResolvedValue({
+      id: 'patient-1',
+      portalUserId: null,
+    });
+    emailDeliverabilityService.assertDomainAcceptsEmail.mockRejectedValueOnce(
+      new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Request validation failed.',
+        fieldErrors: [{ field: 'email', message: 'email domain could not be verified' }],
+      }),
+    );
+
+    await expect(
+      service.createPortalInvite(
+        'clinic-1',
+        'patient-1',
+        {
+          email: 'ama@dns-failure.testmail',
+        },
+        'manager-1',
+        'req-portal-invite',
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        fieldErrors: [{ field: 'email', message: 'email domain could not be verified' }],
+      }),
+    });
+
+    expect(prisma.patientPortalInvite.create).not.toHaveBeenCalled();
+  });
+
+  it('does not run email deliverability checks for phone-only portal invites', async () => {
+    prisma.patient.findFirst.mockResolvedValue({
+      id: 'patient-1',
+      portalUserId: null,
+    });
+    prisma.patientAccountLink.findUnique.mockResolvedValue(null);
+
+    const result = await service.createPortalInvite(
+      'clinic-1',
+      'patient-1',
+      {
+        phoneE164: '+233240000000',
+      },
+      'manager-1',
+      'req-portal-invite',
+    );
+
+    expect(emailDeliverabilityService.assertDomainAcceptsEmail).not.toHaveBeenCalled();
+    expect(prisma.patientPortalInvite.create).toHaveBeenCalled();
+    expect(result).toMatchObject({
+      patientId: 'patient-1',
+      clinicId: 'clinic-1',
+      status: 'PENDING',
+      phoneE164: '+233240000000',
     });
   });
 

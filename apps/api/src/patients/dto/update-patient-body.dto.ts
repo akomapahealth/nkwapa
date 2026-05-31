@@ -1,5 +1,6 @@
 import { Sex } from '@prisma/client';
 import { IsDateString, IsEmail, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsAllowedEmailDomain } from '../../common/email-policy';
 import { ToNormalizedEmail, ToSanitizedString } from '../../common/validation';
 
 /** Body DTO for PATCH /clinics/:clinicId/patients/:patientId. National ID is immutable. */
@@ -33,6 +34,7 @@ export class UpdatePatientBodyDto {
   @IsOptional()
   @ToNormalizedEmail()
   @IsEmail()
+  @IsAllowedEmailDomain()
   @MaxLength(320)
   email?: string;
 }
