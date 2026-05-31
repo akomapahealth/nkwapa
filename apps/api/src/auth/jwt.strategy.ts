@@ -10,6 +10,7 @@ export interface JwtPayload {
   given_name?: string;
   family_name?: string;
   email?: string;
+  email_verified?: boolean;
   phone_number?: string;
   realm_access?: { roles?: string[] };
   resource_access?: Record<string, { roles?: string[] }>;
@@ -43,7 +44,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     return this.userService.findOrCreateByKeycloakSub(
       payload.sub,
       payload.preferred_username ?? undefined,
-      payload.email ?? undefined,
+      payload.email_verified === true ? (payload.email ?? undefined) : undefined,
       payload.given_name ?? undefined,
       payload.family_name ?? undefined,
       payload.phone_number ?? undefined,

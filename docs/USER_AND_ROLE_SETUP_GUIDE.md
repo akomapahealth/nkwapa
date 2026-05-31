@@ -311,7 +311,42 @@ replace this with a custom Nkwapa app form.
 
 ---
 
-## 11. Key Reminders
+## 11. Email Quality Policy
+
+Nkwapa validates email quality in two layers:
+
+- DTO validation normalizes email input by trimming whitespace and lowercasing the address.
+- DTO validation rejects malformed addresses and conservative disallowed domains before service
+  logic runs.
+
+Disallowed domains include:
+
+- `localhost` and `.localhost`
+- reserved or documentation domains such as `.test`, `.invalid`, `.example`, `example.com`,
+  `example.net`, and `example.org`
+- IP-literal domains
+- the initial disposable-domain denylist used by the API
+
+Portal invites are deliverability-sensitive. When an invite includes an email address, the API
+performs a fail-closed MX lookup before creating the invite. A domain with no MX records, or a DNS
+lookup failure, returns a field-level validation error for `email`.
+
+This is a domain-level deliverability guarantee only. It confirms that the domain appears able to
+receive email. It does not prove that a specific mailbox exists. Do not describe patient portal
+invites, password resets, verification emails, or reminders as guaranteed to reach a mailbox unless
+Nkwapa later integrates a vetted email validation provider with mailbox-level checks.
+
+For login accounts, Keycloak remains the source of truth for email verification. The realm export
+sets `verifyEmail: true` and enables the `VERIFY_EMAIL` required action. The API only syncs the
+Keycloak email claim into the local `User` record when the token includes `email_verified: true`.
+Unverified Keycloak emails are not used as a local contact email or display-name fallback.
+
+Sensitive telemetry must not include full email addresses. API request and exception logging already
+redacts email-shaped values; avoid adding logs that serialize raw invite payloads or token claims.
+
+---
+
+## 12. Key Reminders
 
 - Keycloak manages passwords, reset tokens, and session expiry.
 - Nkwapa manages permissions, memberships, and clinic scope.
