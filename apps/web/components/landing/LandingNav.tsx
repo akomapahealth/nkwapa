@@ -67,7 +67,7 @@ export function LandingNav() {
           className="relative h-8 w-32 cursor-pointer no-underline transition-opacity duration-200 hover:opacity-80"
           aria-label="Nkwapa home"
         >
-          <Image src="/images/nkwapa-logo.png" alt="Nkwapa" fill className="object-contain" />
+          <Image src="/images/nkwapa_logo-2.png" alt="Nkwapa" fill className="object-contain" />
         </a>
 
         <div className="hidden items-center gap-6 lg:flex">
@@ -111,7 +111,7 @@ export function LandingNav() {
                 <SheetTitle>
                   <span className="relative block h-9 w-36">
                     <Image
-                      src="/images/nkwapa-logo.png"
+                      src="/images/nkwapa_logo-2.png"
                       alt="Nkwapa"
                       fill
                       className="object-contain"
