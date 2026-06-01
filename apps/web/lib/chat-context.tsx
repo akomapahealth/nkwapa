@@ -62,7 +62,7 @@ interface ChatContextValue {
   onlineUserIds: Set<string>;
   activeConversationId: string | null;
   setActiveConversationId: (id: string | null) => void;
-  sendMessage: (conversationId: string, content: string) => void;
+  sendMessage: (conversationId: string, content: string) => boolean;
   markRead: (conversationId: string) => void;
   startConversation: (participantUserId: string) => Promise<ChatConversation>;
   joinConversation: (conversationId: string) => void;
@@ -257,7 +257,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     const sock = getChatSocket();
     if (sock?.connected) {
       sock.emit('message:send', { conversationId, content });
+      return true;
     }
+    return false;
   }, []);
 
   const markRead = useCallback((conversationId: string) => {

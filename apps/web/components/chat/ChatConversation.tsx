@@ -11,7 +11,62 @@ import {
 } from '@/lib/chat-context';
 import { apiFetch } from '@/lib/api';
 import { getChatSocket } from '@/lib/chat-socket';
-import { ChatMessageBubble } from './ChatMessageBubble';
+import { ChatMessageBubble, type ChatMessageView } from './ChatMessageBubble';
+
+type MessageErrorPayload = {
+  conversationId?: string;
+  error?: string;
+};
+
+function createOptimisticId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `optimistic-${crypto.randomUUID()}`;
+  }
+  return `optimistic-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function findOptimisticMessageIndex(
+  messages: ChatMessageView[],
+  conversationId: string,
+  senderUserId: string | undefined,
+  content?: string,
+  deliveryStates: Array<NonNullable<ChatMessageView['deliveryState']>> = ['pending', 'failed'],
+) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    const isOptimistic = message.deliveryState
+      ? deliveryStates.includes(message.deliveryState)
+      : false;
+    const sameConversation = message.conversationId === conversationId;
+    const sameSender = !senderUserId || message.senderUserId === senderUserId;
+    const sameContent = !content || message.content.trim() === content.trim();
+
+    if (isOptimistic && sameConversation && sameSender && sameContent) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+function reconcileIncomingMessage(messages: ChatMessageView[], incoming: ChatMessage) {
+  if (messages.some((message) => message.id === incoming.id)) {
+    return messages;
+  }
+
+  const optimisticIndex = findOptimisticMessageIndex(
+    messages,
+    incoming.conversationId,
+    incoming.senderUserId,
+    incoming.content,
+  );
+
+  if (optimisticIndex === -1) {
+    return [incoming, ...messages];
+  }
+
+  return messages.map((message, index) => (index === optimisticIndex ? incoming : message));
+}
 
 function TypingDots() {
   return (
@@ -32,11 +87,12 @@ export function ChatConversation({
 }) {
   const getToken = useAuth();
   const bootstrapCtx = useBootstrap();
+  const bootstrap = bootstrapCtx?.bootstrap;
   const activeClinicId = bootstrapCtx?.activeClinicId;
-  const currentUserId = bootstrapCtx?.bootstrap?.userId;
+  const currentUserId = bootstrap?.userId;
   const chat = useChatContext();
 
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessageView[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
@@ -98,31 +154,116 @@ export function ChatConversation({
     const handler = (message: ChatMessage) => {
       if (message.conversationId === conversation.id) {
         setMessages((prev) => {
-          if (prev.some((m) => m.id === message.id)) return prev;
-          return [message, ...prev];
+          return reconcileIncomingMessage(prev, message);
         });
         chat?.markRead(conversation.id);
       }
     };
 
+    const errorHandler = (payload?: MessageErrorPayload) => {
+      if (payload?.conversationId && payload.conversationId !== conversation.id) return;
+
+      setMessages((prev) => {
+        const failedIndex = findOptimisticMessageIndex(
+          prev,
+          conversation.id,
+          currentUserId,
+          undefined,
+          ['pending'],
+        );
+        if (failedIndex === -1) return prev;
+
+        return prev.map((message, index) =>
+          index === failedIndex
+            ? { ...message, deliveryState: 'failed' as const, status: 'failed' }
+            : message,
+        );
+      });
+    };
+
     socket.on('message:new', handler);
+    socket.on('message:error', errorHandler);
     return () => {
       socket.off('message:new', handler);
+      socket.off('message:error', errorHandler);
     };
-  }, [conversation.id, chat]);
+  }, [conversation.id, chat, currentUserId]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
 
+  const queueMessage = useCallback(
+    (content: string) => {
+      if (!chat || !currentUserId) return false;
+
+      const optimisticId = createOptimisticId();
+      const optimisticMessage: ChatMessageView = {
+        id: optimisticId,
+        optimisticId,
+        conversationId: conversation.id,
+        senderUserId: currentUserId,
+        clinicId: activeClinicId ?? conversation.clinicId,
+        content,
+        encrypted: false,
+        status: 'sending',
+        createdAt: new Date().toISOString(),
+        sender: {
+          id: currentUserId,
+          displayName: bootstrap?.displayName ?? 'You',
+          firstName: null,
+          lastName: null,
+        },
+        deliveryState: 'pending',
+      };
+
+      setMessages((prev) => [optimisticMessage, ...prev]);
+
+      const queued = chat.sendMessage(conversation.id, content);
+      if (!queued) {
+        setMessages((prev) =>
+          prev.map((message) =>
+            message.optimisticId === optimisticId
+              ? { ...message, deliveryState: 'failed' as const, status: 'failed' }
+              : message,
+          ),
+        );
+      }
+
+      return true;
+    },
+    [
+      activeClinicId,
+      bootstrap?.displayName,
+      chat,
+      conversation.clinicId,
+      conversation.id,
+      currentUserId,
+    ],
+  );
+
   const handleSend = useCallback(() => {
     const trimmed = input.trim();
-    if (!trimmed || !chat) return;
-    chat.sendMessage(conversation.id, trimmed);
-    setInput('');
-    chat.sendTypingStop(conversation.id);
-  }, [input, chat, conversation.id]);
+    if (!trimmed) return;
+
+    if (queueMessage(trimmed)) {
+      setInput('');
+      chat?.sendTypingStop(conversation.id);
+    }
+  }, [input, queueMessage, chat, conversation.id]);
+
+  const handleRetry = useCallback(
+    (message: ChatMessageView) => {
+      const trimmed = message.content.trim();
+      if (!trimmed || !queueMessage(trimmed)) return;
+
+      setMessages((prev) =>
+        prev.filter((item) => item.optimisticId !== message.optimisticId && item.id !== message.id),
+      );
+    },
+    [queueMessage],
+  );
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -179,6 +320,7 @@ export function ChatConversation({
             key={msg.id}
             message={msg}
             isMine={msg.senderUserId === currentUserId}
+            onRetry={handleRetry}
           />
         ))}
         {hasMore && (
