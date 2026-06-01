@@ -38,7 +38,7 @@
             <aside class="nkwapa-auth-showcase" aria-hidden="true">
                 <div class="nkwapa-auth-showcase__inner">
                     <img
-                        src="${url.resourcesPath}/img/nkwapa-logo-2.png"
+                        src="${url.resourcesPath}/img/nkwapa-logo.png"
                         alt="Nkwapa"
                         class="nkwapa-auth-logo"
                     />
@@ -58,6 +58,14 @@
                         <li>Clinic permissions decide what you can view and update</li>
                         <li>Password recovery stays available when sign-in needs attention</li>
                     </ul>
+
+                    <div class="nkwapa-auth-photo-frame">
+                        <img
+                            src="${url.resourcesPath}/img/auth-clinic.jpg"
+                            alt=""
+                            class="nkwapa-auth-photo"
+                        />
+                    </div>
                 </div>
             </aside>
 

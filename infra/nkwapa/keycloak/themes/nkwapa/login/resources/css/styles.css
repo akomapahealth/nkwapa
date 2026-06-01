@@ -145,13 +145,13 @@ body.nkwapa-auth-body {
 
 .nkwapa-auth-photo-frame {
   width: 100%;
-  max-width: 520px;
-  aspect-ratio: 16 / 10;
+  max-width: 420px;
+  aspect-ratio: 16 / 7;
   align-self: center;
   overflow: hidden;
-  border-radius: 24px;
+  border-radius: 20px;
   border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.24);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.2);
 }
 
 .nkwapa-auth-photo {
