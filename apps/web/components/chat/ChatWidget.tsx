@@ -71,7 +71,7 @@ function ChatPanel() {
       {isOpen && (
         <div
           data-testid="chat-panel"
-          className="absolute bottom-[calc(100%+0.75rem)] right-0 flex h-[min(560px,calc(100vh-7.5rem))] w-[min(400px,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-[24px] border border-border/80 bg-background shadow-2xl shadow-black/20 sm:h-[min(560px,calc(100vh-8rem))] sm:w-[min(400px,calc(100vw-2.5rem))]"
+          className="absolute bottom-[calc(100%+0.75rem)] right-0 flex h-[min(620px,calc(100dvh-7.5rem))] max-h-[calc(100vh-7.5rem)] w-[min(420px,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-[24px] border border-border/80 bg-background shadow-2xl shadow-black/20 sm:h-[min(660px,calc(100dvh-8rem))] sm:max-h-[calc(100vh-8rem)] sm:w-[min(460px,calc(100vw-2.5rem))]"
         >
           {/* Connection indicator */}
           {chat && !chat.isConnected && (

@@ -198,7 +198,7 @@ export function ChatConversation({
             onKeyDown={handleKeyDown}
             placeholder="Type a message..."
             rows={1}
-            className="max-h-20 min-h-[36px] flex-1 resize-none rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+            className="max-h-32 min-h-[44px] flex-1 resize-none rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
           />
           <button
             onClick={handleSend}
