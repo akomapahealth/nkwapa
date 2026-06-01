@@ -54,7 +54,7 @@ function ChatPanel() {
       <button
         onClick={() => setIsOpen((prev) => !prev)}
         data-testid="chat-toggle"
-        className="relative flex h-[3.25rem] w-[3.25rem] cursor-pointer items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/20 transition-transform duration-200 hover:scale-105 active:scale-95 sm:h-14 sm:w-14"
+        className="relative flex h-[3.25rem] w-[3.25rem] cursor-pointer items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/20 transition-transform duration-200 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-95 sm:h-14 sm:w-14"
         aria-label={isOpen ? 'Close chat' : 'Open chat'}
       >
         {isOpen ? (

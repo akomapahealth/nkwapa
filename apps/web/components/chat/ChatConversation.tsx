@@ -13,6 +13,16 @@ import { apiFetch } from '@/lib/api';
 import { getChatSocket } from '@/lib/chat-socket';
 import { ChatMessageBubble } from './ChatMessageBubble';
 
+function TypingDots() {
+  return (
+    <span className="inline-flex items-center gap-0.5" aria-hidden="true">
+      <span className="h-1 w-1 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.2s]" />
+      <span className="h-1 w-1 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.1s]" />
+      <span className="h-1 w-1 animate-bounce rounded-full bg-muted-foreground" />
+    </span>
+  );
+}
+
 export function ChatConversation({
   conversation,
   onBack,
@@ -148,7 +158,8 @@ export function ChatConversation({
       <div className="flex items-center gap-2 border-b px-3 py-2.5">
         <button
           onClick={onBack}
-          className="cursor-pointer rounded-md p-1 transition-colors duration-150 hover:bg-muted"
+          className="cursor-pointer rounded-md p-1 transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          aria-label="Back to conversations"
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
@@ -183,9 +194,15 @@ export function ChatConversation({
 
       {/* Typing indicator */}
       {typingList.length > 0 && (
-        <div className="px-3 pb-1 text-[11px] text-muted-foreground">
-          {typingList.map((t) => t.displayName).join(', ')} {typingList.length === 1 ? 'is' : 'are'}{' '}
-          typing...
+        <div
+          className="flex items-center gap-1.5 px-3 pb-1 text-[11px] text-muted-foreground"
+          aria-live="polite"
+        >
+          <span className="truncate">
+            {typingList.map((t) => t.displayName).join(', ')}{' '}
+            {typingList.length === 1 ? 'is' : 'are'} typing
+          </span>
+          <TypingDots />
         </div>
       )}
 
@@ -203,7 +220,8 @@ export function ChatConversation({
           <button
             onClick={handleSend}
             disabled={!input.trim()}
-            className="cursor-pointer rounded-lg bg-primary p-2 text-primary-foreground transition-colors duration-150 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="touch-target cursor-pointer rounded-lg bg-primary p-2 text-primary-foreground transition-colors duration-150 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="Send message"
           >
             <Send className="h-4 w-4" />
           </button>
