@@ -84,6 +84,7 @@ export function DoctorDashboard({
         data={finalizationsTrend}
         color="hsl(var(--chart-1))"
         hint="Daily count of visits finalized by this doctor."
+        emptyMessage="No visits have been finalized in this date range yet. Finalized encounters will appear here automatically."
       />
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -92,15 +93,17 @@ export function DoctorDashboard({
           data={hypertensionDistribution}
           type="pie"
           hint="How recent hypertension assessments are classified in this clinic."
+          emptyMessage="No hypertension assessments have been recorded for this clinic yet."
         />
         <DistributionChart
           title="Diabetes screening results"
           data={{
             Flagged: diabetesStats.flagged,
-            Normal: diabetesStats.total - diabetesStats.flagged,
+            Normal: Math.max(diabetesStats.total - diabetesStats.flagged, 0),
           }}
           type="bar"
           hint="Flagged screenings compared with normal results in this clinic."
+          emptyMessage="No diabetes screenings have been recorded for this clinic yet."
         />
       </div>
 

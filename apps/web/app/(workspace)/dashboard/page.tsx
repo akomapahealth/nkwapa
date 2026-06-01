@@ -1,9 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, getErrorMessage, readApiError } from '@/lib/api';
 import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { DashboardLoadingState, InlineErrorState } from '@/components/feedback/AppState';
@@ -109,6 +109,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const hasLoadedDashboardRef = useRef(false);
 
   const fetchDashboard = useCallback(
     async (showRefreshToast = false) => {
@@ -124,10 +125,11 @@ export default function DashboardPage() {
           getToken,
         });
         if (!res.ok) {
-          throw new Error(await res.text());
+          throw await readApiError(res);
         }
         const json = (await res.json()) as DashboardData;
         setData(json);
+        hasLoadedDashboardRef.current = true;
         if (showRefreshToast) {
           showToast({
             tone: 'success',
@@ -138,12 +140,19 @@ export default function DashboardPage() {
           });
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        setError(message);
+        const message = getErrorMessage(
+          err,
+          'The dashboard could not load. Check your connection and try again.',
+        );
+        const hasLoadedDashboard = hasLoadedDashboardRef.current;
+        const description = hasLoadedDashboard
+          ? `${message} The dashboard shown below is the last version we loaded; refresh is the affected part.`
+          : `${message} Records and other workspace tools may still work from their own pages.`;
+        setError(description);
         showToast({
           tone: 'error',
-          title: 'Dashboard could not refresh',
-          description: message,
+          title: hasLoadedDashboard ? 'Dashboard refresh is affected' : 'Dashboard could not load',
+          description,
           durationMs: 6500,
         });
       } finally {
@@ -156,6 +165,8 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchDashboard();
   }, [fetchDashboard]);
+
+  const isInitialLoading = loading && !data;
 
   return (
     <RouteGuard requiredPermission="DASHBOARD.READ">
@@ -184,7 +195,7 @@ export default function DashboardPage() {
                 disabled={loading}
               >
                 <RefreshCw className={loading ? 'animate-spin' : ''} />
-                Refresh
+                {loading ? 'Refreshing' : 'Refresh'}
               </Button>
             ) : null
           }
@@ -197,17 +208,18 @@ export default function DashboardPage() {
           />
         ) : null}
 
-        {loading && !data ? <DashboardLoadingState clinicName={activeClinic?.clinicName} /> : null}
+        {isInitialLoading ? <DashboardLoadingState clinicName={activeClinic?.clinicName} /> : null}
 
         {error ? (
           <InlineErrorState
+            title={data ? 'Dashboard refresh is affected' : "We couldn't load dashboard metrics"}
             description={error}
             onRetry={() => void fetchDashboard()}
             retryLabel="Reload dashboard"
           />
         ) : null}
 
-        {data && !loading && clinicId && (
+        {data && clinicId && (
           <>
             <DashboardSectionHeader
               title="Today at a glance"
