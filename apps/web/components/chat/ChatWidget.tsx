@@ -54,7 +54,7 @@ function ChatPanel() {
       <button
         onClick={() => setIsOpen((prev) => !prev)}
         data-testid="chat-toggle"
-        className="relative flex h-[3.25rem] w-[3.25rem] cursor-pointer items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/20 transition-transform duration-200 hover:scale-105 active:scale-95 sm:h-14 sm:w-14"
+        className="relative flex h-[3.25rem] w-[3.25rem] cursor-pointer items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/20 transition-transform duration-200 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-95 sm:h-14 sm:w-14"
         aria-label={isOpen ? 'Close chat' : 'Open chat'}
       >
         {isOpen ? (
@@ -71,7 +71,7 @@ function ChatPanel() {
       {isOpen && (
         <div
           data-testid="chat-panel"
-          className="absolute bottom-[calc(100%+0.75rem)] right-0 flex h-[min(560px,calc(100vh-7.5rem))] w-[min(400px,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-[24px] border border-border/80 bg-background shadow-2xl shadow-black/20 sm:h-[min(560px,calc(100vh-8rem))] sm:w-[min(400px,calc(100vw-2.5rem))]"
+          className="absolute bottom-[calc(100%+0.75rem)] right-0 flex h-[min(620px,calc(100dvh-7.5rem))] max-h-[calc(100vh-7.5rem)] w-[min(420px,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-[24px] border border-border/80 bg-background shadow-2xl shadow-black/20 sm:h-[min(660px,calc(100dvh-8rem))] sm:max-h-[calc(100vh-8rem)] sm:w-[min(460px,calc(100vw-2.5rem))]"
         >
           {/* Connection indicator */}
           {chat && !chat.isConnected && (

@@ -41,8 +41,9 @@ export function ChatConversationList({
         <h3 className="text-sm font-semibold">Messages</h3>
         <button
           onClick={onNewMessage}
-          className="cursor-pointer rounded-md p-1.5 transition-colors duration-150 hover:bg-muted"
+          className="cursor-pointer rounded-md p-1.5 transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           title="New message"
+          aria-label="New message"
         >
           <MessageSquarePlus className="h-4 w-4" />
         </button>
@@ -53,7 +54,7 @@ export function ChatConversationList({
             <p className="text-xs text-muted-foreground">No conversations yet.</p>
             <button
               onClick={onNewMessage}
-              className="mt-2 cursor-pointer text-xs font-medium text-primary hover:underline"
+              className="mt-2 cursor-pointer rounded-sm text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               Start a new conversation
             </button>
@@ -68,7 +69,7 @@ export function ChatConversationList({
               <button
                 key={conv.id}
                 onClick={() => onSelect(conv)}
-                className="flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left transition-colors duration-150 hover:bg-muted"
+                className="flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
               >
                 <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
                   {(other?.user.firstName?.[0] ?? name[0]).toUpperCase()}

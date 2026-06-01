@@ -67,7 +67,8 @@ export function ChatUserPicker({
       <div className="flex items-center gap-2 border-b px-3 py-2.5">
         <button
           onClick={onBack}
-          className="cursor-pointer rounded-md p-1 transition-colors duration-150 hover:bg-muted"
+          className="cursor-pointer rounded-md p-1 transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          aria-label="Back to conversations"
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
@@ -95,7 +96,7 @@ export function ChatUserPicker({
             <button
               key={user.id}
               onClick={() => handleSelect(user)}
-              className="flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left transition-colors duration-150 hover:bg-muted"
+              className="flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
             >
               <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
                 {(user.firstName?.[0] ?? user.displayName[0]).toUpperCase()}
