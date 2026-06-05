@@ -1,6 +1,16 @@
-import { AppointmentRequestStatus } from '@prisma/client';
-import { IsDateString, IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { AppointmentRequestStatus, AppointmentStatus } from '@prisma/client';
+import {
+  IsDateString,
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  MaxLength,
+} from 'class-validator';
 import { ToSanitizedString } from '../../common/validation';
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export class CreateAppointmentRequestDto {
   @IsOptional()
@@ -38,6 +48,34 @@ export class ListAppointmentRequestsQueryDto {
   @IsOptional()
   @IsDateString()
   to?: string;
+}
+
+export class ListAppointmentsQueryDto {
+  @IsOptional()
+  @Matches(ISO_DATE_RE, { message: 'from must be YYYY-MM-DD' })
+  from?: string;
+
+  @IsOptional()
+  @Matches(ISO_DATE_RE, { message: 'to must be YYYY-MM-DD' })
+  to?: string;
+
+  @IsOptional()
+  @IsEnum(AppointmentStatus)
+  status?: AppointmentStatus;
+
+  @IsOptional()
+  @IsUUID()
+  assignedDoctorId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  assignedVolunteerId?: string;
+
+  @IsOptional()
+  @ToSanitizedString({ maxLength: 120 })
+  @IsString()
+  @MaxLength(120)
+  patientSearch?: string;
 }
 
 export class ConfirmAppointmentRequestDto {
