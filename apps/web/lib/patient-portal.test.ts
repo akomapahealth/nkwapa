@@ -1,7 +1,11 @@
 import {
+  fetchAppointmentStaffOptions,
   fetchPatientTrends,
+  fetchStaffAppointments,
   fetchStaffPatientTrends,
+  type AppointmentStaffOptionsResponse,
   type PatientTrendsResponse,
+  type StaffAppointmentsResponse,
 } from '@/lib/patient-portal';
 
 const trendsResponse: PatientTrendsResponse = {
@@ -14,6 +18,24 @@ const trendsResponse: PatientTrendsResponse = {
     noShow: 0,
     closed: 0,
   },
+};
+
+const appointmentsResponse: StaffAppointmentsResponse = {
+  range: { from: '2026-03-26', to: '2026-03-26' },
+  timezone: 'Africa/Accra',
+  summary: {
+    total: 0,
+    confirmed: 0,
+    cancelled: 0,
+    completed: 0,
+    noShow: 0,
+  },
+  items: [],
+};
+
+const staffOptionsResponse: AppointmentStaffOptionsResponse = {
+  doctors: [],
+  volunteers: [],
 };
 
 describe('patient portal trend fetch helpers', () => {
@@ -63,5 +85,50 @@ describe('patient portal trend fetch helpers', () => {
     const headers = new Headers(init.headers);
     expect(headers.get('Authorization')).toBe('Bearer token-123');
     expect(headers.get('X-Clinic-Id')).toBe('clinic-9');
+  });
+
+  it('builds staff appointment schedule queries with clinic header scoping', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue(appointmentsResponse),
+    } as unknown as Response);
+
+    await fetchStaffAppointments('clinic-2', getToken, {
+      from: '2026-03-26',
+      to: '2026-03-27',
+      status: 'CONFIRMED',
+      assignedDoctorId: 'doctor-1',
+      assignedVolunteerId: 'volunteer-1',
+      patientSearch: 'Ama Mensah',
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:4000/clinics/clinic-2/appointments?from=2026-03-26&to=2026-03-27&status=CONFIRMED&assignedDoctorId=doctor-1&assignedVolunteerId=volunteer-1&patientSearch=Ama+Mensah',
+      expect.any(Object),
+    );
+
+    const init = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+    const headers = new Headers(init.headers);
+    expect(headers.get('Authorization')).toBe('Bearer token-123');
+    expect(headers.get('X-Clinic-Id')).toBe('clinic-2');
+  });
+
+  it('loads appointment staff options with active clinic scoping', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue(staffOptionsResponse),
+    } as unknown as Response);
+
+    await fetchAppointmentStaffOptions('clinic-2', getToken);
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:4000/clinics/clinic-2/appointments/staff-options',
+      expect.any(Object),
+    );
+
+    const init = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+    const headers = new Headers(init.headers);
+    expect(headers.get('Authorization')).toBe('Bearer token-123');
+    expect(headers.get('X-Clinic-Id')).toBe('clinic-2');
   });
 });

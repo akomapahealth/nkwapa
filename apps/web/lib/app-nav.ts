@@ -82,6 +82,14 @@ const NAV_SECTIONS: AppNavSection[] = [
         requiresClinic: true,
       },
       {
+        href: '/appointments',
+        label: 'Appointments',
+        description: 'Schedule by day or week.',
+        icon: CalendarDays,
+        permission: 'APPOINTMENT.READ',
+        requiresClinic: true,
+      },
+      {
         href: '/patients/new',
         label: 'New Patient',
         description: 'Add a new patient.',
