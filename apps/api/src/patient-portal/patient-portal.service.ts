@@ -29,6 +29,7 @@ import type { ListPatientTrendsQueryDto } from './dto/patient-trends.dto';
 import type {
   ConfirmAppointmentRequestDto,
   CreateAppointmentRequestDto,
+  ListAppointmentsQueryDto,
   ListAppointmentRequestsQueryDto,
   RejectAppointmentRequestDto,
 } from './dto/appointment-requests.dto';
@@ -58,8 +59,25 @@ const appointmentRequestInclude = {
   },
 } satisfies Prisma.AppointmentRequestInclude;
 
+const appointmentScheduleInclude = {
+  patient: {
+    select: {
+      id: true,
+      patientCode: true,
+      firstName: true,
+      lastName: true,
+    },
+  },
+  assignedDoctor: { select: { id: true, displayName: true } },
+  assignedVolunteer: { select: { id: true, displayName: true } },
+} satisfies Prisma.AppointmentInclude;
+
 type AppointmentRequestWithRelations = Prisma.AppointmentRequestGetPayload<{
   include: typeof appointmentRequestInclude;
+}>;
+
+type AppointmentScheduleWithRelations = Prisma.AppointmentGetPayload<{
+  include: typeof appointmentScheduleInclude;
 }>;
 
 interface PortalPatientSummary {
@@ -98,6 +116,13 @@ interface FollowUpSummary {
   completed: number;
   noShow: number;
   closed: number;
+}
+
+interface AppointmentRange {
+  from: string;
+  to: string;
+  start: Date;
+  end: Date;
 }
 
 export interface PatientTrendsResponse {
@@ -295,6 +320,61 @@ export class PatientPortalService {
     });
 
     return items.map((item) => this.serializeAppointmentRequest(item, true));
+  }
+
+  async listAppointmentsForClinic(clinicId: string, query: ListAppointmentsQueryDto) {
+    const range = this.resolveAppointmentRange(query);
+    const where = this.buildAppointmentWhere(clinicId, query, range);
+    const items = await this.prisma.appointment.findMany({
+      where,
+      include: appointmentScheduleInclude,
+      orderBy: [{ startsAt: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    return {
+      range: {
+        from: range.from,
+        to: range.to,
+      },
+      timezone: 'Africa/Accra',
+      summary: this.summarizeAppointments(items),
+      items: items.map((item) => this.serializeScheduledAppointment(item)),
+    };
+  }
+
+  async listAppointmentStaffOptionsForClinic(clinicId: string) {
+    const rows = await this.prisma.userClinicRole.findMany({
+      where: {
+        clinicId,
+        role: { in: [UserRole.DOCTOR, UserRole.VOLUNTEER] },
+        user: { isActive: true },
+      },
+      include: {
+        user: { select: { id: true, displayName: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const doctors = new Map<string, { id: string; displayName: string }>();
+    const volunteers = new Map<string, { id: string; displayName: string }>();
+
+    for (const row of rows) {
+      const option = { id: row.user.id, displayName: row.user.displayName };
+      if (row.role === UserRole.DOCTOR) {
+        doctors.set(option.id, option);
+      }
+      if (row.role === UserRole.VOLUNTEER) {
+        volunteers.set(option.id, option);
+      }
+    }
+
+    const byName = (left: { displayName: string }, right: { displayName: string }) =>
+      left.displayName.localeCompare(right.displayName);
+
+    return {
+      doctors: [...doctors.values()].sort(byName),
+      volunteers: [...volunteers.values()].sort(byName),
+    };
   }
 
   async confirmAppointmentRequest(
@@ -1568,6 +1648,53 @@ export class PatientPortalService {
     };
   }
 
+  private resolveAppointmentRange(query: Pick<ListAppointmentsQueryDto, 'from' | 'to'>) {
+    const today = new Date().toISOString().slice(0, 10);
+    const from = query.from ?? query.to ?? today;
+    const to = query.to ?? query.from ?? today;
+    const start = this.parseDateOnly(from, 'from');
+    const end = this.parseFlexibleDate(to, 'to', true);
+
+    if (end < start) {
+      throw new BadRequestException('to must be on or after from');
+    }
+
+    return {
+      from,
+      to,
+      start,
+      end,
+    };
+  }
+
+  private buildAppointmentWhere(
+    clinicId: string,
+    query: ListAppointmentsQueryDto,
+    range: AppointmentRange,
+  ): Prisma.AppointmentWhereInput {
+    const patientSearch = query.patientSearch?.trim();
+
+    return {
+      clinicId,
+      startsAt: { lte: range.end },
+      endsAt: { gte: range.start },
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.assignedDoctorId ? { assignedDoctorId: query.assignedDoctorId } : {}),
+      ...(query.assignedVolunteerId ? { assignedVolunteerId: query.assignedVolunteerId } : {}),
+      ...(patientSearch
+        ? {
+            patient: {
+              OR: [
+                { patientCode: { contains: patientSearch, mode: 'insensitive' } },
+                { firstName: { contains: patientSearch, mode: 'insensitive' } },
+                { lastName: { contains: patientSearch, mode: 'insensitive' } },
+              ],
+            },
+          }
+        : {}),
+    };
+  }
+
   private async scheduleAppointmentReminder(
     patient: {
       id: string;
@@ -1853,6 +1980,74 @@ export class PatientPortalService {
       createdAt: appointment.createdAt.toISOString(),
       updatedAt: appointment.updatedAt.toISOString(),
     };
+  }
+
+  private serializeScheduledAppointment(appointment: AppointmentScheduleWithRelations) {
+    return {
+      id: appointment.id,
+      clinicId: appointment.clinicId,
+      patientId: appointment.patientId,
+      startsAt: appointment.startsAt.toISOString(),
+      endsAt: appointment.endsAt.toISOString(),
+      status: appointment.status,
+      linkedRequestId: appointment.linkedRequestId ?? null,
+      patient: {
+        id: appointment.patient.id,
+        patientCode: appointment.patient.patientCode,
+        firstName: appointment.patient.firstName,
+        lastName: appointment.patient.lastName,
+        displayName: `${appointment.patient.firstName} ${appointment.patient.lastName}`.trim(),
+      },
+      assignedDoctor: appointment.assignedDoctor
+        ? {
+            id: appointment.assignedDoctor.id,
+            displayName: appointment.assignedDoctor.displayName,
+          }
+        : appointment.assignedDoctorId
+          ? { id: appointment.assignedDoctorId, displayName: null }
+          : null,
+      assignedVolunteer: appointment.assignedVolunteer
+        ? {
+            id: appointment.assignedVolunteer.id,
+            displayName: appointment.assignedVolunteer.displayName,
+          }
+        : appointment.assignedVolunteerId
+          ? { id: appointment.assignedVolunteerId, displayName: null }
+          : null,
+      notes: appointment.notes,
+      createdAt: appointment.createdAt.toISOString(),
+      updatedAt: appointment.updatedAt.toISOString(),
+    };
+  }
+
+  private summarizeAppointments(appointments: Array<{ status: AppointmentStatus }>) {
+    return appointments.reduce(
+      (summary, appointment) => {
+        summary.total += 1;
+        switch (appointment.status) {
+          case 'CONFIRMED':
+            summary.confirmed += 1;
+            break;
+          case 'CANCELLED':
+            summary.cancelled += 1;
+            break;
+          case 'COMPLETED':
+            summary.completed += 1;
+            break;
+          case 'NO_SHOW':
+            summary.noShow += 1;
+            break;
+        }
+        return summary;
+      },
+      {
+        total: 0,
+        confirmed: 0,
+        cancelled: 0,
+        completed: 0,
+        noShow: 0,
+      },
+    );
   }
 
   private serializeLegacySelfReport(report: {

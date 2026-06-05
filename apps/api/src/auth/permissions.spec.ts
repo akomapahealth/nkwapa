@@ -7,6 +7,7 @@ describe('OPS permissions', () => {
 
     expect(permissions).toContain(PERMISSIONS.OPS_ASSIGNMENT_MANAGE);
     expect(permissions).toContain(PERMISSIONS.CLINIC_MANAGE);
+    expect(permissions).toContain(PERMISSIONS.APPOINTMENT_READ);
   });
 
   it('grants managers clinic scope but not org-wide research export approval', () => {
@@ -21,6 +22,7 @@ describe('OPS permissions', () => {
 
     expect(permissions).toContain(PERMISSIONS.OPS_SHIFT_WRITE);
     expect(permissions).toContain(PERMISSIONS.OPS_ASSIGNMENT_READ_SELF);
+    expect(permissions).toContain(PERMISSIONS.APPOINTMENT_READ);
     expect(permissions).not.toContain(PERMISSIONS.OPS_ASSIGNMENT_MANAGE);
   });
 
@@ -30,6 +32,19 @@ describe('OPS permissions', () => {
     expect(permissions).toContain(PERMISSIONS.ENCOUNTER_REVIEW);
     expect(permissions).toContain(PERMISSIONS.SCREENING_WRITE);
     expect(permissions).toContain(PERMISSIONS.DOCTOR_FINALIZE);
+    expect(permissions).toContain(PERMISSIONS.APPOINTMENT_READ);
+  });
+
+  it('grants directors appointment schedule access', () => {
+    const permissions = computeEffectivePermissions([UserRole.DIRECTOR]);
+
+    expect(permissions).toContain(PERMISSIONS.APPOINTMENT_READ);
+  });
+
+  it('does not grant patient users staff appointment schedule access', () => {
+    const permissions = computeEffectivePermissions([UserRole.PATIENT]);
+
+    expect(permissions).not.toContain(PERMISSIONS.APPOINTMENT_READ);
   });
 
   it('does not expose the retired preceptor role enums', () => {

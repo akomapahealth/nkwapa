@@ -65,7 +65,7 @@
     "jest-util": {
       "picomatch": "2.3.2"
     },
-    "hono": "4.12.18",
+    "hono": "4.12.23",
     "lodash": "4.18.1",
     "micromatch": {
       "picomatch": "2.3.2"

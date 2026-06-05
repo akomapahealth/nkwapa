@@ -61,6 +61,58 @@ export interface AppointmentSummary {
   updatedAt: string;
 }
 
+export type StaffAppointmentStatus = 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW';
+
+export interface StaffAppointmentPatientSummary {
+  id: string;
+  patientCode: string;
+  firstName: string;
+  lastName: string;
+  displayName: string;
+}
+
+export interface StaffAppointmentRecord {
+  id: string;
+  clinicId: string;
+  patientId: string;
+  startsAt: string;
+  endsAt: string;
+  status: StaffAppointmentStatus;
+  linkedRequestId: string | null;
+  patient: StaffAppointmentPatientSummary;
+  assignedDoctor: { id: string; displayName: string | null } | null;
+  assignedVolunteer: { id: string; displayName: string | null } | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StaffAppointmentsResponse {
+  range: {
+    from: string;
+    to: string;
+  };
+  timezone: string;
+  summary: {
+    total: number;
+    confirmed: number;
+    cancelled: number;
+    completed: number;
+    noShow: number;
+  };
+  items: StaffAppointmentRecord[];
+}
+
+export interface AppointmentStaffOption {
+  id: string;
+  displayName: string;
+}
+
+export interface AppointmentStaffOptionsResponse {
+  doctors: AppointmentStaffOption[];
+  volunteers: AppointmentStaffOption[];
+}
+
 export interface BloodPressureTrendPoint {
   t: string;
   sys: number;
@@ -276,6 +328,46 @@ export async function fetchAppointmentRequests(clinicId: string, getToken: GetTo
     activeClinicId: clinicId,
   });
   return parsePortalResponse<AppointmentRequestRecord[]>(res);
+}
+
+export async function fetchStaffAppointments(
+  clinicId: string,
+  getToken: GetToken,
+  params?: {
+    from?: string;
+    to?: string;
+    status?: StaffAppointmentStatus;
+    assignedDoctorId?: string;
+    assignedVolunteerId?: string;
+    patientSearch?: string;
+  },
+) {
+  const search = new URLSearchParams();
+  if (params?.from) search.set('from', params.from);
+  if (params?.to) search.set('to', params.to);
+  if (params?.status) search.set('status', params.status);
+  if (params?.assignedDoctorId) search.set('assignedDoctorId', params.assignedDoctorId);
+  if (params?.assignedVolunteerId) {
+    search.set('assignedVolunteerId', params.assignedVolunteerId);
+  }
+  if (params?.patientSearch) search.set('patientSearch', params.patientSearch);
+  const suffix = search.toString() ? `?${search.toString()}` : '';
+  const res = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}/appointments${suffix}`, {
+    getToken,
+    activeClinicId: clinicId,
+  });
+  return parsePortalResponse<StaffAppointmentsResponse>(res);
+}
+
+export async function fetchAppointmentStaffOptions(clinicId: string, getToken: GetToken) {
+  const res = await apiFetch(
+    `/clinics/${encodeURIComponent(clinicId)}/appointments/staff-options`,
+    {
+      getToken,
+      activeClinicId: clinicId,
+    },
+  );
+  return parsePortalResponse<AppointmentStaffOptionsResponse>(res);
 }
 
 export async function createAppointmentRequest(

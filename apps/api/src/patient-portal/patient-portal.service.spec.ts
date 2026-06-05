@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
 import { PATIENT_PORTAL_LINK_MISSING, PatientPortalService } from './patient-portal.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -59,6 +60,7 @@ function createPrismaMock() {
     appointment: {
       create: jest.fn(),
       count: jest.fn(),
+      findMany: jest.fn(),
     },
     clinic: {
       findUnique: jest.fn(),
@@ -66,6 +68,7 @@ function createPrismaMock() {
     userClinicRole: {
       upsert: jest.fn(),
       findFirst: jest.fn(),
+      findMany: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -135,11 +138,13 @@ describe('PatientPortalService', () => {
     });
     prisma.clinic.findUnique.mockResolvedValue({ name: 'Clinic One' });
     prisma.patientMeasurement.findMany.mockResolvedValue([]);
+    prisma.appointment.findMany.mockResolvedValue([]);
     prisma.appointmentRequest.count.mockResolvedValue(0);
     prisma.appointment.count.mockResolvedValue(0);
     prisma.patientPortalInvite.findMany.mockResolvedValue([]);
     prisma.patientPortalInvite.updateMany.mockResolvedValue({ count: 0 });
     prisma.user.findMany.mockResolvedValue([]);
+    prisma.userClinicRole.findMany.mockResolvedValue([]);
     prisma.patientAccountLink.findMany.mockResolvedValue([]);
     prisma.patient.findMany.mockResolvedValue([]);
     prisma.patientPortalInvite.create.mockImplementation(async ({ data }) => ({
@@ -524,6 +529,150 @@ describe('PatientPortalService', () => {
       expect.objectContaining({ action: 'APPT.REQUEST.CREATE', entityId: 'appt-req-1' }),
     );
     expect(result.status).toBe('REQUESTED');
+  });
+
+  it('lists clinic appointments by overlapping date range and preserves clinic isolation', async () => {
+    prisma.appointment.findMany.mockResolvedValue([
+      {
+        id: 'appointment-1',
+        clinicId: 'clinic-1',
+        patientId: 'patient-1',
+        startsAt: new Date('2026-03-26T14:00:00.000Z'),
+        endsAt: new Date('2026-03-26T14:30:00.000Z'),
+        status: 'CONFIRMED',
+        linkedRequestId: 'appt-req-1',
+        assignedDoctorId: 'doctor-1',
+        assignedVolunteerId: 'volunteer-1',
+        notes: 'Bring home readings',
+        createdAt: new Date('2026-03-21T09:10:00.000Z'),
+        updatedAt: new Date('2026-03-21T09:10:00.000Z'),
+        patient: {
+          id: 'patient-1',
+          patientCode: 'NKP-2026-000001',
+          firstName: 'Ama',
+          lastName: 'Mensah',
+        },
+        assignedDoctor: { id: 'doctor-1', displayName: 'Dr One' },
+        assignedVolunteer: { id: 'volunteer-1', displayName: 'Volunteer One' },
+      },
+    ]);
+
+    const result = await service.listAppointmentsForClinic('clinic-1', {
+      from: '2026-03-26',
+      to: '2026-03-27',
+    });
+
+    expect(prisma.appointment.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          clinicId: 'clinic-1',
+          startsAt: { lte: new Date('2026-03-27T23:59:59.999Z') },
+          endsAt: { gte: new Date('2026-03-26T00:00:00.000Z') },
+        }),
+      }),
+    );
+    expect(result.range).toEqual({ from: '2026-03-26', to: '2026-03-27' });
+    expect(result.summary).toMatchObject({ total: 1, confirmed: 1 });
+    expect(result.items[0]).toMatchObject({
+      id: 'appointment-1',
+      clinicId: 'clinic-1',
+      patient: {
+        patientCode: 'NKP-2026-000001',
+        displayName: 'Ama Mensah',
+      },
+      assignedDoctor: { id: 'doctor-1', displayName: 'Dr One' },
+      assignedVolunteer: { id: 'volunteer-1', displayName: 'Volunteer One' },
+    });
+  });
+
+  it('applies appointment status and assigned staff filters', async () => {
+    await service.listAppointmentsForClinic('clinic-1', {
+      from: '2026-03-26',
+      status: 'COMPLETED',
+      assignedDoctorId: '11111111-1111-4111-8111-111111111111',
+      assignedVolunteerId: '22222222-2222-4222-8222-222222222222',
+    });
+
+    expect(prisma.appointment.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          clinicId: 'clinic-1',
+          status: 'COMPLETED',
+          assignedDoctorId: '11111111-1111-4111-8111-111111111111',
+          assignedVolunteerId: '22222222-2222-4222-8222-222222222222',
+          startsAt: { lte: new Date('2026-03-26T23:59:59.999Z') },
+          endsAt: { gte: new Date('2026-03-26T00:00:00.000Z') },
+        }),
+      }),
+    );
+  });
+
+  it('applies patient text search without broadening clinic scope', async () => {
+    await service.listAppointmentsForClinic('clinic-1', {
+      from: '2026-03-26',
+      to: '2026-03-26',
+      patientSearch: 'ama',
+    });
+
+    expect(prisma.appointment.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          clinicId: 'clinic-1',
+          patient: {
+            OR: [
+              { patientCode: { contains: 'ama', mode: 'insensitive' } },
+              { firstName: { contains: 'ama', mode: 'insensitive' } },
+              { lastName: { contains: 'ama', mode: 'insensitive' } },
+            ],
+          },
+        }),
+      }),
+    );
+  });
+
+  it('lists appointment staff options for active clinic doctors and volunteers only', async () => {
+    prisma.userClinicRole.findMany.mockResolvedValue([
+      {
+        id: 'role-1',
+        userId: 'doctor-1',
+        clinicId: 'clinic-1',
+        role: UserRole.DOCTOR,
+        createdAt: new Date('2026-03-21T09:00:00.000Z'),
+        user: { id: 'doctor-1', displayName: 'Dr One' },
+      },
+      {
+        id: 'role-2',
+        userId: 'volunteer-1',
+        clinicId: 'clinic-1',
+        role: UserRole.VOLUNTEER,
+        createdAt: new Date('2026-03-21T09:01:00.000Z'),
+        user: { id: 'volunteer-1', displayName: 'Volunteer One' },
+      },
+      {
+        id: 'role-3',
+        userId: 'manager-1',
+        clinicId: 'clinic-1',
+        role: UserRole.MANAGER,
+        createdAt: new Date('2026-03-21T09:02:00.000Z'),
+        user: { id: 'manager-1', displayName: 'Manager One' },
+      },
+    ]);
+
+    const result = await service.listAppointmentStaffOptionsForClinic('clinic-1');
+
+    expect(prisma.userClinicRole.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          clinicId: 'clinic-1',
+          role: { in: [UserRole.DOCTOR, UserRole.VOLUNTEER] },
+          user: { isActive: true },
+        },
+      }),
+    );
+    expect(result).toEqual({
+      doctors: [{ id: 'doctor-1', displayName: 'Dr One' }],
+      volunteers: [{ id: 'volunteer-1', displayName: 'Volunteer One' }],
+    });
   });
 
   it('creates and reissues a pending portal invite for a patient chart', async () => {
