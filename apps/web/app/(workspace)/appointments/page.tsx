@@ -295,7 +295,7 @@ export default function StaffAppointmentsPage() {
   }, [loadSchedule]);
 
   const timezone = appointmentsData?.timezone ?? OPS_DEFAULT_TIMEZONE;
-  const items = appointmentsData?.items ?? [];
+  const items = useMemo(() => appointmentsData?.items ?? [], [appointmentsData?.items]);
   const summary = appointmentsData?.summary ?? {
     total: 0,
     confirmed: 0,
