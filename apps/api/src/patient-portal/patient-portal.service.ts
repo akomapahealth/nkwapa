@@ -27,11 +27,15 @@ import type {
 } from './dto/patient-measurements.dto';
 import type { ListPatientTrendsQueryDto } from './dto/patient-trends.dto';
 import type {
+  CancelAppointmentDto,
+  CompleteAppointmentDto,
   ConfirmAppointmentRequestDto,
   CreateAppointmentRequestDto,
   ListAppointmentsQueryDto,
   ListAppointmentRequestsQueryDto,
+  MarkNoShowAppointmentDto,
   RejectAppointmentRequestDto,
+  RescheduleAppointmentDto,
 } from './dto/appointment-requests.dto';
 import type { CreatePatientPortalInviteDto } from './dto/portal-invite.dto';
 import type { ClaimPatientRecordDto } from './dto/claim-record.dto';
@@ -66,6 +70,8 @@ const appointmentScheduleInclude = {
       patientCode: true,
       firstName: true,
       lastName: true,
+      phoneE164: true,
+      email: true,
     },
   },
   assignedDoctor: { select: { id: true, displayName: true } },
@@ -79,6 +85,8 @@ type AppointmentRequestWithRelations = Prisma.AppointmentRequestGetPayload<{
 type AppointmentScheduleWithRelations = Prisma.AppointmentGetPayload<{
   include: typeof appointmentScheduleInclude;
 }>;
+
+type AppointmentLifecycleAction = 'reschedule' | 'cancel' | 'complete' | 'no-show';
 
 interface PortalPatientSummary {
   id: string;
@@ -375,6 +383,192 @@ export class PatientPortalService {
       doctors: [...doctors.values()].sort(byName),
       volunteers: [...volunteers.values()].sort(byName),
     };
+  }
+
+  async rescheduleAppointment(
+    clinicId: string,
+    appointmentId: string,
+    actorUserId: string,
+    dto: RescheduleAppointmentDto,
+    requestId?: string,
+  ) {
+    const startsAt = this.parseDateTime(dto.startsAt, 'startsAt');
+    const endsAt = this.parseDateTime(dto.endsAt, 'endsAt');
+    if (endsAt <= startsAt) {
+      throw new BadRequestException('endsAt must be after startsAt');
+    }
+
+    await Promise.all([
+      dto.assignedDoctorId
+        ? this.assertAppointmentAssignee(clinicId, dto.assignedDoctorId, 'DOCTOR')
+        : Promise.resolve(),
+      dto.assignedVolunteerId
+        ? this.assertAppointmentAssignee(clinicId, dto.assignedVolunteerId, 'VOLUNTEER')
+        : Promise.resolve(),
+    ]);
+
+    const { before, after } = await this.mutateConfirmedAppointment({
+      clinicId,
+      appointmentId,
+      action: 'reschedule',
+      data: {
+        startsAt,
+        endsAt,
+        assignedDoctorId: dto.assignedDoctorId ?? null,
+        assignedVolunteerId: dto.assignedVolunteerId ?? null,
+        ...(dto.notes !== undefined ? { notes: dto.notes.trim() || null } : {}),
+      },
+    });
+
+    await this.auditAppointmentLifecycle({
+      clinicId,
+      actorUserId,
+      action: 'APPT.RESCHEDULE',
+      before,
+      after,
+      requestId,
+      metadata: {
+        previousStatus: before.status,
+        newStatus: after.status,
+        previousStartsAt: before.startsAt.toISOString(),
+        previousEndsAt: before.endsAt.toISOString(),
+        newStartsAt: after.startsAt.toISOString(),
+        newEndsAt: after.endsAt.toISOString(),
+      },
+    });
+
+    await this.reminderService.suppressQueuedAppointmentReminders(
+      clinicId,
+      appointmentId,
+      actorUserId,
+      'APPOINTMENT_RESCHEDULED',
+      requestId,
+    );
+    await this.scheduleAppointmentReminder(after.patient, after, actorUserId, requestId);
+
+    return this.serializeScheduledAppointment(after);
+  }
+
+  async cancelAppointment(
+    clinicId: string,
+    appointmentId: string,
+    actorUserId: string,
+    dto: CancelAppointmentDto,
+    requestId?: string,
+  ) {
+    const reason = dto.reason?.trim();
+    if (!reason) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Request validation failed.',
+        fieldErrors: [{ field: 'reason', message: 'reason should not be empty' }],
+        recoveryAction: 'Add a cancellation reason and try again.',
+      });
+    }
+
+    const { before, after } = await this.mutateConfirmedAppointment({
+      clinicId,
+      appointmentId,
+      action: 'cancel',
+      data: { status: 'CANCELLED' },
+    });
+
+    await this.auditAppointmentLifecycle({
+      clinicId,
+      actorUserId,
+      action: 'APPT.CANCEL',
+      before,
+      after,
+      requestId,
+      metadata: { previousStatus: before.status, newStatus: after.status, reason },
+    });
+    await this.reminderService.suppressQueuedAppointmentReminders(
+      clinicId,
+      appointmentId,
+      actorUserId,
+      'APPOINTMENT_CANCELLED',
+      requestId,
+    );
+
+    return this.serializeScheduledAppointment(after);
+  }
+
+  async completeAppointment(
+    clinicId: string,
+    appointmentId: string,
+    actorUserId: string,
+    dto: CompleteAppointmentDto,
+    requestId?: string,
+  ) {
+    const { before, after } = await this.mutateConfirmedAppointment({
+      clinicId,
+      appointmentId,
+      action: 'complete',
+      requireStarted: true,
+      data: {
+        status: 'COMPLETED',
+        ...(dto.notes !== undefined ? { notes: dto.notes.trim() || null } : {}),
+      },
+    });
+
+    await this.auditAppointmentLifecycle({
+      clinicId,
+      actorUserId,
+      action: 'APPT.COMPLETE',
+      before,
+      after,
+      requestId,
+      metadata: {
+        previousStatus: before.status,
+        newStatus: after.status,
+        notes: dto.notes?.trim() || null,
+      },
+    });
+    await this.reminderService.suppressQueuedAppointmentReminders(
+      clinicId,
+      appointmentId,
+      actorUserId,
+      'APPOINTMENT_COMPLETED',
+      requestId,
+    );
+
+    return this.serializeScheduledAppointment(after);
+  }
+
+  async markAppointmentNoShow(
+    clinicId: string,
+    appointmentId: string,
+    actorUserId: string,
+    dto: MarkNoShowAppointmentDto,
+    requestId?: string,
+  ) {
+    const reason = dto.reason?.trim() || null;
+    const { before, after } = await this.mutateConfirmedAppointment({
+      clinicId,
+      appointmentId,
+      action: 'no-show',
+      requireStarted: true,
+      data: { status: 'NO_SHOW' },
+    });
+
+    await this.auditAppointmentLifecycle({
+      clinicId,
+      actorUserId,
+      action: 'APPT.NO_SHOW',
+      before,
+      after,
+      requestId,
+      metadata: { previousStatus: before.status, newStatus: after.status, reason },
+    });
+    await this.reminderService.suppressQueuedAppointmentReminders(
+      clinicId,
+      appointmentId,
+      actorUserId,
+      'APPOINTMENT_NO_SHOW',
+      requestId,
+    );
+
+    return this.serializeScheduledAppointment(after);
   }
 
   async confirmAppointmentRequest(
@@ -1692,6 +1886,131 @@ export class PatientPortalService {
             },
           }
         : {}),
+    };
+  }
+
+  private async mutateConfirmedAppointment(params: {
+    clinicId: string;
+    appointmentId: string;
+    action: AppointmentLifecycleAction;
+    data: Prisma.AppointmentUncheckedUpdateManyInput;
+    requireStarted?: boolean;
+  }) {
+    const before = await this.prisma.appointment.findFirst({
+      where: { id: params.appointmentId, clinicId: params.clinicId },
+      include: appointmentScheduleInclude,
+    });
+    if (!before) {
+      throw new NotFoundException('Appointment not found');
+    }
+
+    if (before.status !== 'CONFIRMED') {
+      throw this.invalidAppointmentTransition(before.status, params.action);
+    }
+
+    if (params.requireStarted && before.startsAt > new Date()) {
+      throw new BadRequestException({
+        code: 'APPOINTMENT_ACTION_TOO_EARLY',
+        message: 'Appointment action is only available after the appointment start time.',
+        attemptedAction: params.action,
+        appointmentId: params.appointmentId,
+        clinicId: params.clinicId,
+        startsAt: before.startsAt.toISOString(),
+        recoveryAction: 'Wait until the appointment has started, then try again.',
+      });
+    }
+
+    const after = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.appointment.updateMany({
+        where: {
+          id: params.appointmentId,
+          clinicId: params.clinicId,
+          status: 'CONFIRMED',
+        },
+        data: params.data,
+      });
+
+      if (result.count !== 1) {
+        throw this.invalidAppointmentTransition(before.status, params.action);
+      }
+
+      const updated = await tx.appointment.findFirst({
+        where: { id: params.appointmentId, clinicId: params.clinicId },
+        include: appointmentScheduleInclude,
+      });
+      if (!updated) {
+        throw new NotFoundException('Appointment not found');
+      }
+
+      return updated;
+    });
+
+    return { before, after };
+  }
+
+  private invalidAppointmentTransition(
+    currentStatus: AppointmentStatus,
+    attemptedAction: AppointmentLifecycleAction,
+  ) {
+    return new BadRequestException({
+      code: 'APPOINTMENT_INVALID_TRANSITION',
+      message: `Cannot ${attemptedAction} an appointment with status ${currentStatus}.`,
+      currentStatus,
+      attemptedAction,
+      allowedSourceStatuses: ['CONFIRMED'],
+      recoveryAction:
+        'Refresh the appointment schedule and choose an eligible confirmed appointment.',
+    });
+  }
+
+  private async auditAppointmentLifecycle(params: {
+    clinicId: string;
+    actorUserId: string;
+    action: 'APPT.RESCHEDULE' | 'APPT.CANCEL' | 'APPT.COMPLETE' | 'APPT.NO_SHOW';
+    before: AppointmentScheduleWithRelations;
+    after: AppointmentScheduleWithRelations;
+    requestId?: string;
+    metadata: Record<string, unknown>;
+  }) {
+    const baseContext = {
+      actorUserId: params.actorUserId,
+      clinicId: params.clinicId,
+      appointmentId: params.after.id,
+      patientId: params.after.patientId,
+      ...params.metadata,
+    };
+
+    await this.auditService.logWrite({
+      clinicId: params.clinicId,
+      actorUserId: params.actorUserId,
+      action: params.action,
+      entityType: 'Appointment',
+      entityId: params.after.id,
+      beforeJson: JSON.stringify({
+        ...baseContext,
+        appointment: this.serializeAuditAppointment(params.before),
+      }),
+      afterJson: JSON.stringify({
+        ...baseContext,
+        appointment: this.serializeAuditAppointment(params.after),
+      }),
+      requestId: params.requestId,
+    });
+  }
+
+  private serializeAuditAppointment(appointment: AppointmentScheduleWithRelations) {
+    return {
+      id: appointment.id,
+      clinicId: appointment.clinicId,
+      patientId: appointment.patientId,
+      startsAt: appointment.startsAt.toISOString(),
+      endsAt: appointment.endsAt.toISOString(),
+      status: appointment.status,
+      linkedRequestId: appointment.linkedRequestId,
+      assignedDoctorId: appointment.assignedDoctorId,
+      assignedVolunteerId: appointment.assignedVolunteerId,
+      notes: appointment.notes,
+      updatedAt: appointment.updatedAt.toISOString(),
     };
   }
 

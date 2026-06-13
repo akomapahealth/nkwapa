@@ -30,7 +30,7 @@ export class ClinicAppointmentRequestsController {
 
   @Post(':requestId/confirm')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
-  @RequirePermission(PERMISSIONS.CLINIC_READ)
+  @RequirePermission(PERMISSIONS.APPOINTMENT_WRITE)
   async confirmAppointmentRequest(
     @Param('clinicId') clinicId: string,
     @Param('requestId') requestId: string,
@@ -48,7 +48,7 @@ export class ClinicAppointmentRequestsController {
 
   @Post(':requestId/reject')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
-  @RequirePermission(PERMISSIONS.CLINIC_READ)
+  @RequirePermission(PERMISSIONS.APPOINTMENT_WRITE)
   async rejectAppointmentRequest(
     @Param('clinicId') clinicId: string,
     @Param('requestId') requestId: string,
