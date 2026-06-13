@@ -2,14 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Ban,
   CalendarClock,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  CheckCircle2,
   Clock3,
+  MoreHorizontal,
   RefreshCw,
   Search,
   UserRound,
+  UserX,
 } from 'lucide-react';
 import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
@@ -20,6 +24,22 @@ import { RouteGuard } from '@/components/RouteGuard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -30,14 +50,20 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/components/ui/toast';
 import { useAuth } from '@/lib/auth-context';
 import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { cn } from '@/lib/utils';
 import {
+  cancelStaffAppointment,
+  completeStaffAppointment,
   fetchAppointmentStaffOptions,
   fetchStaffAppointments,
   getPortalErrorMessage,
+  markStaffAppointmentNoShow,
+  rescheduleStaffAppointment,
   type AppointmentStaffOptionsResponse,
   type StaffAppointmentRecord,
   type StaffAppointmentStatus,
@@ -49,10 +75,17 @@ import {
   formatOpsDateTime,
   formatOpsTime,
   getTodayInTimeZone,
+  hasPermission,
 } from '@/lib/ops';
 
 type ViewMode = 'day' | 'week';
 type StatusFilter = 'ALL' | StaffAppointmentStatus;
+type LifecycleAction = 'reschedule' | 'cancel' | 'complete' | 'no-show';
+
+interface LifecycleDialogState {
+  action: LifecycleAction;
+  appointment: StaffAppointmentRecord;
+}
 
 const STATUS_FILTERS: StatusFilter[] = ['ALL', 'CONFIRMED', 'COMPLETED', 'NO_SHOW', 'CANCELLED'];
 
@@ -144,6 +177,38 @@ function getStatusVariant(
   }
 }
 
+function getActionLabel(action: LifecycleAction) {
+  switch (action) {
+    case 'reschedule':
+      return 'Reschedule';
+    case 'cancel':
+      return 'Cancel';
+    case 'complete':
+      return 'Complete';
+    case 'no-show':
+      return 'Mark no-show';
+    default:
+      return 'Update';
+  }
+}
+
+function toDateTimeLocalValue(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
+function fromDateTimeLocalValue(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return date.toISOString();
+}
+
 function staffName(staff: StaffAppointmentRecord['assignedDoctor']) {
   return staff?.displayName ?? (staff?.id ? 'Assigned staff' : 'Unassigned');
 }
@@ -170,12 +235,92 @@ function groupAppointmentsByDay(
   return [...groups.entries()];
 }
 
+function AppointmentActions({
+  appointment,
+  canManage,
+  disabled,
+  onAction,
+}: {
+  appointment: StaffAppointmentRecord;
+  canManage: boolean;
+  disabled?: boolean;
+  onAction: (action: LifecycleAction, appointment: StaffAppointmentRecord) => void;
+}) {
+  if (appointment.status !== 'CONFIRMED') {
+    return (
+      <span className="text-xs font-medium text-muted-foreground">
+        {getStatusLabel(appointment.status)}
+      </span>
+    );
+  }
+
+  if (!canManage) {
+    return <span className="text-xs font-medium text-muted-foreground">Read-only</span>;
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="h-11 w-11 cursor-pointer rounded-full"
+          disabled={disabled}
+        >
+          <MoreHorizontal className="h-4 w-4" />
+          <span className="sr-only">Open appointment actions</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56 rounded-2xl border-border/80">
+        <DropdownMenuLabel>Lifecycle actions</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="cursor-pointer"
+          onSelect={() => onAction('reschedule', appointment)}
+        >
+          <CalendarClock className="h-4 w-4" />
+          Reschedule
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="cursor-pointer"
+          onSelect={() => onAction('complete', appointment)}
+        >
+          <CheckCircle2 className="h-4 w-4" />
+          Complete
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="cursor-pointer"
+          onSelect={() => onAction('no-show', appointment)}
+        >
+          <UserX className="h-4 w-4" />
+          Mark no-show
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="cursor-pointer text-destructive focus:text-destructive"
+          onSelect={() => onAction('cancel', appointment)}
+        >
+          <Ban className="h-4 w-4" />
+          Cancel appointment
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function AppointmentMobileCard({
   appointment,
   timezone,
+  canManage,
+  disabled,
+  onAction,
 }: {
   appointment: StaffAppointmentRecord;
   timezone: string;
+  canManage: boolean;
+  disabled?: boolean;
+  onAction: (action: LifecycleAction, appointment: StaffAppointmentRecord) => void;
 }) {
   return (
     <article className="rounded-3xl border border-border/80 bg-background/80 p-4 shadow-sm">
@@ -207,6 +352,14 @@ function AppointmentMobileCard({
         {appointment.notes ? (
           <p className="rounded-2xl bg-muted/40 p-3 text-muted-foreground">{appointment.notes}</p>
         ) : null}
+        <div className="flex justify-end">
+          <AppointmentActions
+            appointment={appointment}
+            canManage={canManage}
+            disabled={disabled}
+            onAction={onAction}
+          />
+        </div>
       </div>
     </article>
   );
@@ -216,6 +369,7 @@ export default function StaffAppointmentsPage() {
   const bootstrapCtx = useBootstrap();
   const bootstrap = bootstrapCtx?.bootstrap ?? null;
   const getToken = useAuth();
+  const { showToast } = useToast();
   const clinicId = bootstrapCtx?.activeClinicId ?? getBootstrapActiveClinicId(bootstrap);
   const activeClinic = getActiveBootstrapClinic(bootstrap, clinicId);
 
@@ -232,6 +386,13 @@ export default function StaffAppointmentsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<unknown | null>(null);
+  const [lifecycleDialog, setLifecycleDialog] = useState<LifecycleDialogState | null>(null);
+  const [rescheduleStartsAt, setRescheduleStartsAt] = useState('');
+  const [rescheduleEndsAt, setRescheduleEndsAt] = useState('');
+  const [lifecycleReason, setLifecycleReason] = useState('');
+  const [lifecycleNotes, setLifecycleNotes] = useState('');
+  const [lifecycleError, setLifecycleError] = useState<string | null>(null);
+  const [lifecycleSubmitting, setLifecycleSubmitting] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -308,6 +469,10 @@ export default function StaffAppointmentsPage() {
     [items, range, timezone],
   );
   const nextAppointment = items.find((appointment) => appointment.status === 'CONFIRMED') ?? null;
+  const canManageAppointments = hasPermission(
+    bootstrap?.effectivePermissionsForActiveClinic ?? [],
+    'APPOINTMENT.WRITE',
+  );
   const rangeLabel =
     range.from === range.to
       ? formatOpsDate(range.from, timezone)
@@ -317,6 +482,86 @@ export default function StaffAppointmentsPage() {
     setSelectedDate((current) => addDays(current, direction * (viewMode === 'day' ? 1 : 7)));
   }
 
+  function openLifecycleDialog(action: LifecycleAction, appointment: StaffAppointmentRecord) {
+    setLifecycleDialog({ action, appointment });
+    setRescheduleStartsAt(toDateTimeLocalValue(appointment.startsAt));
+    setRescheduleEndsAt(toDateTimeLocalValue(appointment.endsAt));
+    setLifecycleReason('');
+    setLifecycleNotes(appointment.notes ?? '');
+    setLifecycleError(null);
+  }
+
+  function closeLifecycleDialog() {
+    if (lifecycleSubmitting) {
+      return;
+    }
+    setLifecycleDialog(null);
+    setLifecycleError(null);
+  }
+
+  async function submitLifecycleAction() {
+    if (!clinicId || !getToken || !lifecycleDialog) {
+      return;
+    }
+
+    const { action, appointment } = lifecycleDialog;
+    setLifecycleError(null);
+
+    try {
+      setLifecycleSubmitting(true);
+      if (action === 'reschedule') {
+        const startsAt = fromDateTimeLocalValue(rescheduleStartsAt);
+        const endsAt = fromDateTimeLocalValue(rescheduleEndsAt);
+        if (!startsAt || !endsAt) {
+          setLifecycleError('Choose valid start and end times.');
+          return;
+        }
+        if (new Date(endsAt) <= new Date(startsAt)) {
+          setLifecycleError('End time must be after start time.');
+          return;
+        }
+        await rescheduleStaffAppointment(clinicId, appointment.id, getToken, {
+          startsAt,
+          endsAt,
+          notes: lifecycleNotes.trim() || undefined,
+        });
+      } else if (action === 'cancel') {
+        const reason = lifecycleReason.trim();
+        if (!reason) {
+          setLifecycleError('Add a cancellation reason before continuing.');
+          return;
+        }
+        await cancelStaffAppointment(clinicId, appointment.id, getToken, { reason });
+      } else if (action === 'complete') {
+        await completeStaffAppointment(clinicId, appointment.id, getToken, {
+          notes: lifecycleNotes.trim() || undefined,
+        });
+      } else {
+        await markStaffAppointmentNoShow(clinicId, appointment.id, getToken, {
+          reason: lifecycleReason.trim() || undefined,
+        });
+      }
+
+      showToast({
+        title: `${appointment.patient.displayName} updated`,
+        description: `${getActionLabel(action)} completed successfully.`,
+        tone: 'success',
+      });
+      setLifecycleDialog(null);
+      await loadSchedule({ background: true });
+    } catch (err) {
+      const message = getPortalErrorMessage(err);
+      setLifecycleError(message);
+      showToast({
+        title: 'Appointment update failed',
+        description: message,
+        tone: 'error',
+      });
+    } finally {
+      setLifecycleSubmitting(false);
+    }
+  }
+
   return (
     <RouteGuard requiredPermission="APPOINTMENT.READ">
       <div className="space-y-6">
@@ -324,7 +569,11 @@ export default function StaffAppointmentsPage() {
           eyebrow="Appointment schedule"
           title="Appointments"
           description="Review scheduled clinic visits by day or week, then narrow the list by status, assigned staff, or patient."
-          hint="Read-only schedule view. Reschedule, cancel, complete, and no-show actions are handled in later lifecycle work."
+          hint={
+            canManageAppointments
+              ? 'Use lifecycle actions on confirmed appointments to reschedule, cancel, complete, or reconcile no-shows.'
+              : 'Schedule actions require appointment write access.'
+          }
           badges={
             activeClinic ? (
               <Badge variant="outline" className="rounded-full bg-background/80 px-3 py-1">
@@ -585,12 +834,15 @@ export default function StaffAppointmentsPage() {
                               key={appointment.id}
                               appointment={appointment}
                               timezone={timezone}
+                              canManage={canManageAppointments}
+                              disabled={lifecycleSubmitting}
+                              onAction={openLifecycleDialog}
                             />
                           ))}
                         </div>
 
                         <div className="hidden overflow-x-auto rounded-2xl border border-border/80 md:block">
-                          <table className="w-full min-w-[860px] border-collapse text-sm">
+                          <table className="w-full min-w-[980px] border-collapse text-sm">
                             <thead className="bg-muted/50 text-left text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                               <tr>
                                 <th className="px-4 py-3">Time</th>
@@ -599,6 +851,7 @@ export default function StaffAppointmentsPage() {
                                 <th className="px-4 py-3">Doctor</th>
                                 <th className="px-4 py-3">Volunteer</th>
                                 <th className="px-4 py-3">Notes</th>
+                                <th className="px-4 py-3 text-right">Actions</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -635,6 +888,14 @@ export default function StaffAppointmentsPage() {
                                       {appointment.notes || 'No notes'}
                                     </span>
                                   </td>
+                                  <td className="px-4 py-3 text-right">
+                                    <AppointmentActions
+                                      appointment={appointment}
+                                      canManage={canManageAppointments}
+                                      disabled={lifecycleSubmitting}
+                                      onAction={openLifecycleDialog}
+                                    />
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>
@@ -649,6 +910,122 @@ export default function StaffAppointmentsPage() {
           </Card>
         ) : null}
       </div>
+
+      <Dialog
+        open={lifecycleDialog !== null}
+        onOpenChange={(open) => {
+          if (!open) closeLifecycleDialog();
+        }}
+      >
+        <DialogContent className="max-w-xl rounded-[28px] border-border/80">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-2xl">
+              {lifecycleDialog ? getActionLabel(lifecycleDialog.action) : 'Update appointment'}
+            </DialogTitle>
+            <DialogDescription className="leading-6">
+              {lifecycleDialog
+                ? `${lifecycleDialog.appointment.patient.patientCode} · ${lifecycleDialog.appointment.patient.displayName}`
+                : null}
+            </DialogDescription>
+          </DialogHeader>
+
+          {lifecycleDialog?.action === 'reschedule' ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="reschedule-starts-at">Start time</Label>
+                <Input
+                  id="reschedule-starts-at"
+                  type="datetime-local"
+                  value={rescheduleStartsAt}
+                  onChange={(event) => setRescheduleStartsAt(event.target.value)}
+                  disabled={lifecycleSubmitting}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reschedule-ends-at">End time</Label>
+                <Input
+                  id="reschedule-ends-at"
+                  type="datetime-local"
+                  value={rescheduleEndsAt}
+                  onChange={(event) => setRescheduleEndsAt(event.target.value)}
+                  disabled={lifecycleSubmitting}
+                />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="reschedule-notes">Notes</Label>
+                <Textarea
+                  id="reschedule-notes"
+                  value={lifecycleNotes}
+                  onChange={(event) => setLifecycleNotes(event.target.value)}
+                  disabled={lifecycleSubmitting}
+                  placeholder="Optional appointment notes"
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {lifecycleDialog?.action === 'cancel' || lifecycleDialog?.action === 'no-show' ? (
+            <div className="space-y-2">
+              <Label htmlFor="lifecycle-reason">
+                {lifecycleDialog.action === 'cancel' ? 'Cancellation reason' : 'No-show reason'}
+              </Label>
+              <Textarea
+                id="lifecycle-reason"
+                value={lifecycleReason}
+                onChange={(event) => setLifecycleReason(event.target.value)}
+                disabled={lifecycleSubmitting}
+                placeholder={
+                  lifecycleDialog.action === 'cancel'
+                    ? 'Required for cancelled appointments'
+                    : 'Optional reconciliation note'
+                }
+              />
+            </div>
+          ) : null}
+
+          {lifecycleDialog?.action === 'complete' ? (
+            <div className="space-y-2">
+              <Label htmlFor="complete-notes">Completion notes</Label>
+              <Textarea
+                id="complete-notes"
+                value={lifecycleNotes}
+                onChange={(event) => setLifecycleNotes(event.target.value)}
+                disabled={lifecycleSubmitting}
+                placeholder="Optional visit outcome note"
+              />
+            </div>
+          ) : null}
+
+          {lifecycleError ? (
+            <div className="rounded-2xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {lifecycleError}
+            </div>
+          ) : null}
+
+          <DialogFooter className="mt-2 gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={closeLifecycleDialog}
+              disabled={lifecycleSubmitting}
+            >
+              Keep appointment
+            </Button>
+            <Button
+              type="button"
+              variant={lifecycleDialog?.action === 'cancel' ? 'destructive' : 'default'}
+              onClick={() => void submitLifecycleAction()}
+              disabled={lifecycleSubmitting}
+            >
+              {lifecycleSubmitting
+                ? 'Saving...'
+                : lifecycleDialog
+                  ? getActionLabel(lifecycleDialog.action)
+                  : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </RouteGuard>
   );
 }

@@ -370,6 +370,84 @@ export async function fetchAppointmentStaffOptions(clinicId: string, getToken: G
   return parsePortalResponse<AppointmentStaffOptionsResponse>(res);
 }
 
+export async function rescheduleStaffAppointment(
+  clinicId: string,
+  appointmentId: string,
+  getToken: GetToken,
+  body: {
+    startsAt: string;
+    endsAt: string;
+    assignedDoctorId?: string;
+    assignedVolunteerId?: string;
+    notes?: string;
+  },
+) {
+  const res = await apiFetch(
+    `/clinics/${encodeURIComponent(clinicId)}/appointments/${encodeURIComponent(appointmentId)}/reschedule`,
+    {
+      method: 'POST',
+      body: JSON.stringify(body),
+      getToken,
+      activeClinicId: clinicId,
+    },
+  );
+  return parsePortalResponse<StaffAppointmentRecord>(res);
+}
+
+export async function cancelStaffAppointment(
+  clinicId: string,
+  appointmentId: string,
+  getToken: GetToken,
+  body: { reason: string },
+) {
+  const res = await apiFetch(
+    `/clinics/${encodeURIComponent(clinicId)}/appointments/${encodeURIComponent(appointmentId)}/cancel`,
+    {
+      method: 'POST',
+      body: JSON.stringify(body),
+      getToken,
+      activeClinicId: clinicId,
+    },
+  );
+  return parsePortalResponse<StaffAppointmentRecord>(res);
+}
+
+export async function completeStaffAppointment(
+  clinicId: string,
+  appointmentId: string,
+  getToken: GetToken,
+  body: { notes?: string },
+) {
+  const res = await apiFetch(
+    `/clinics/${encodeURIComponent(clinicId)}/appointments/${encodeURIComponent(appointmentId)}/complete`,
+    {
+      method: 'POST',
+      body: JSON.stringify(body),
+      getToken,
+      activeClinicId: clinicId,
+    },
+  );
+  return parsePortalResponse<StaffAppointmentRecord>(res);
+}
+
+export async function markStaffAppointmentNoShow(
+  clinicId: string,
+  appointmentId: string,
+  getToken: GetToken,
+  body: { reason?: string },
+) {
+  const res = await apiFetch(
+    `/clinics/${encodeURIComponent(clinicId)}/appointments/${encodeURIComponent(appointmentId)}/no-show`,
+    {
+      method: 'POST',
+      body: JSON.stringify(body),
+      getToken,
+      activeClinicId: clinicId,
+    },
+  );
+  return parsePortalResponse<StaffAppointmentRecord>(res);
+}
+
 export async function createAppointmentRequest(
   clinicId: string,
   getToken: GetToken,

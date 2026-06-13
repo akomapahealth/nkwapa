@@ -1,10 +1,15 @@
 import {
+  cancelStaffAppointment,
+  completeStaffAppointment,
   fetchAppointmentStaffOptions,
   fetchPatientTrends,
   fetchStaffAppointments,
   fetchStaffPatientTrends,
+  markStaffAppointmentNoShow,
+  rescheduleStaffAppointment,
   type AppointmentStaffOptionsResponse,
   type PatientTrendsResponse,
+  type StaffAppointmentRecord,
   type StaffAppointmentsResponse,
 } from '@/lib/patient-portal';
 
@@ -36,6 +41,28 @@ const appointmentsResponse: StaffAppointmentsResponse = {
 const staffOptionsResponse: AppointmentStaffOptionsResponse = {
   doctors: [],
   volunteers: [],
+};
+
+const appointmentRecord: StaffAppointmentRecord = {
+  id: 'appointment-1',
+  clinicId: 'clinic-2',
+  patientId: 'patient-1',
+  startsAt: '2026-03-26T14:00:00.000Z',
+  endsAt: '2026-03-26T14:30:00.000Z',
+  status: 'CONFIRMED',
+  linkedRequestId: 'appt-req-1',
+  patient: {
+    id: 'patient-1',
+    patientCode: 'NKP-2026-000001',
+    firstName: 'Ama',
+    lastName: 'Mensah',
+    displayName: 'Ama Mensah',
+  },
+  assignedDoctor: null,
+  assignedVolunteer: null,
+  notes: null,
+  createdAt: '2026-03-21T09:00:00.000Z',
+  updatedAt: '2026-03-21T09:00:00.000Z',
 };
 
 describe('patient portal trend fetch helpers', () => {
@@ -130,5 +157,82 @@ describe('patient portal trend fetch helpers', () => {
     const headers = new Headers(init.headers);
     expect(headers.get('Authorization')).toBe('Bearer token-123');
     expect(headers.get('X-Clinic-Id')).toBe('clinic-2');
+  });
+
+  it('reschedules staff appointments with active clinic scoping', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue(appointmentRecord),
+    } as unknown as Response);
+
+    await rescheduleStaffAppointment('clinic-2', 'appointment-1', getToken, {
+      startsAt: '2026-03-27T15:00:00.000Z',
+      endsAt: '2026-03-27T15:45:00.000Z',
+      notes: 'Updated slot',
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:4000/clinics/clinic-2/appointments/appointment-1/reschedule',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          startsAt: '2026-03-27T15:00:00.000Z',
+          endsAt: '2026-03-27T15:45:00.000Z',
+          notes: 'Updated slot',
+        }),
+      }),
+    );
+    const init = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+    const headers = new Headers(init.headers);
+    expect(headers.get('Authorization')).toBe('Bearer token-123');
+    expect(headers.get('X-Clinic-Id')).toBe('clinic-2');
+  });
+
+  it('cancels, completes, and marks no-show appointments with clinic-scoped endpoints', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue(appointmentRecord),
+    } as unknown as Response);
+
+    await cancelStaffAppointment('clinic-2', 'appointment-1', getToken, {
+      reason: 'Patient requested cancellation',
+    });
+    await completeStaffAppointment('clinic-2', 'appointment-1', getToken, {
+      notes: 'Visit completed',
+    });
+    await markStaffAppointmentNoShow('clinic-2', 'appointment-1', getToken, {
+      reason: 'Patient did not arrive',
+    });
+
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      1,
+      'http://localhost:4000/clinics/clinic-2/appointments/appointment-1/cancel',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ reason: 'Patient requested cancellation' }),
+      }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      'http://localhost:4000/clinics/clinic-2/appointments/appointment-1/complete',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ notes: 'Visit completed' }),
+      }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      3,
+      'http://localhost:4000/clinics/clinic-2/appointments/appointment-1/no-show',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ reason: 'Patient did not arrive' }),
+      }),
+    );
+
+    for (const [, init] of (global.fetch as jest.Mock).mock.calls) {
+      const headers = new Headers((init as RequestInit).headers);
+      expect(headers.get('Authorization')).toBe('Bearer token-123');
+      expect(headers.get('X-Clinic-Id')).toBe('clinic-2');
+    }
   });
 });
