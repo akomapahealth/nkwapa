@@ -54,6 +54,9 @@ describe('PatientApiController', () => {
   let controller: PatientApiController;
   let patientPortalService: {
     listMeasurementsForAuthenticatedPatient: jest.Mock;
+    listAppointmentsForAuthenticatedPatient: jest.Mock;
+    createCancelAppointmentRequestForAuthenticatedPatient: jest.Mock;
+    createRescheduleAppointmentRequestForAuthenticatedPatient: jest.Mock;
     listTrendsForAuthenticatedPatient: jest.Mock;
     listTrendsForStaff: jest.Mock;
   };
@@ -63,6 +66,18 @@ describe('PatientApiController', () => {
   beforeEach(async () => {
     patientPortalService = {
       listMeasurementsForAuthenticatedPatient: jest.fn().mockResolvedValue([]),
+      listAppointmentsForAuthenticatedPatient: jest.fn().mockResolvedValue({
+        range: { from: '2026-03-01', to: '2026-03-31' },
+        timezone: 'Africa/Accra',
+        summary: { total: 0, confirmed: 0, cancelled: 0, completed: 0, noShow: 0 },
+        items: [],
+      }),
+      createCancelAppointmentRequestForAuthenticatedPatient: jest.fn().mockResolvedValue({
+        id: 'cancel-request-1',
+      }),
+      createRescheduleAppointmentRequestForAuthenticatedPatient: jest.fn().mockResolvedValue({
+        id: 'reschedule-request-1',
+      }),
       listTrendsForAuthenticatedPatient: jest.fn().mockResolvedValue({
         bp: [],
         glucose: [],
@@ -115,6 +130,95 @@ describe('PatientApiController', () => {
       'clinic-1',
       'patient-user-1',
       {},
+    );
+  });
+
+  it('lists patient appointments through the authenticated patient route', async () => {
+    const request: RequestShape = {
+      headers: { 'x-clinic-id': 'clinic-1' },
+      query: { from: '2026-03-01', to: '2026-03-31' },
+      user: patientUser,
+    };
+    const context = createExecutionContext(controller, 'listAppointments', request);
+
+    expect(clinicScopeGuard.canActivate(context)).toBe(true);
+    expect(request.clinicId).toBe('clinic-1');
+    expect(rbacGuard.canActivate(context)).toBe(true);
+
+    await controller.listAppointments(
+      { from: '2026-03-01', to: '2026-03-31' },
+      {
+        clinicId: request.clinicId,
+        headers: {},
+        user: request.user,
+      },
+    );
+
+    expect(patientPortalService.listAppointmentsForAuthenticatedPatient).toHaveBeenCalledWith(
+      'clinic-1',
+      'patient-user-1',
+      { from: '2026-03-01', to: '2026-03-31' },
+    );
+  });
+
+  it('creates patient appointment change requests with authenticated user ownership', async () => {
+    const request: RequestShape = {
+      headers: { 'x-clinic-id': 'clinic-1', 'x-request-id': 'req-1' },
+      params: { appointmentId: 'appointment-1' },
+      user: patientUser,
+    };
+    const cancelContext = createExecutionContext(
+      controller,
+      'createCancelAppointmentRequest',
+      request,
+    );
+    const rescheduleContext = createExecutionContext(
+      controller,
+      'createRescheduleAppointmentRequest',
+      request,
+    );
+
+    expect(clinicScopeGuard.canActivate(cancelContext)).toBe(true);
+    expect(rbacGuard.canActivate(cancelContext)).toBe(true);
+    expect(clinicScopeGuard.canActivate(rescheduleContext)).toBe(true);
+    expect(rbacGuard.canActivate(rescheduleContext)).toBe(true);
+
+    await controller.createCancelAppointmentRequest(
+      'appointment-1',
+      { reason: 'Cannot make it' },
+      {
+        clinicId: request.clinicId,
+        headers: { 'x-request-id': 'req-1' },
+        user: request.user,
+      },
+    );
+    await controller.createRescheduleAppointmentRequest(
+      'appointment-1',
+      { preferredStartDate: '2026-04-01', preferredEndDate: '2026-04-03' },
+      {
+        clinicId: request.clinicId,
+        headers: { 'x-request-id': 'req-1' },
+        user: request.user,
+      },
+    );
+
+    expect(
+      patientPortalService.createCancelAppointmentRequestForAuthenticatedPatient,
+    ).toHaveBeenCalledWith(
+      'clinic-1',
+      'patient-user-1',
+      'appointment-1',
+      { reason: 'Cannot make it' },
+      'req-1',
+    );
+    expect(
+      patientPortalService.createRescheduleAppointmentRequestForAuthenticatedPatient,
+    ).toHaveBeenCalledWith(
+      'clinic-1',
+      'patient-user-1',
+      'appointment-1',
+      { preferredStartDate: '2026-04-01', preferredEndDate: '2026-04-03' },
+      'req-1',
     );
   });
 

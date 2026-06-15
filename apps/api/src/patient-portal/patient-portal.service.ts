@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import {
   AppointmentRequestStatus,
+  AppointmentRequestType,
   AppointmentStatus,
   EncounterStatus,
   PatientMeasurementSource,
@@ -34,6 +35,8 @@ import type {
   ListAppointmentsQueryDto,
   ListAppointmentRequestsQueryDto,
   MarkNoShowAppointmentDto,
+  PatientCancelAppointmentRequestDto,
+  PatientRescheduleAppointmentRequestDto,
   RejectAppointmentRequestDto,
   RescheduleAppointmentDto,
 } from './dto/appointment-requests.dto';
@@ -56,6 +59,12 @@ const appointmentRequestInclude = {
   },
   triagedBy: { select: { id: true, displayName: true } },
   appointment: {
+    include: {
+      assignedDoctor: { select: { id: true, displayName: true } },
+      assignedVolunteer: { select: { id: true, displayName: true } },
+    },
+  },
+  sourceAppointment: {
     include: {
       assignedDoctor: { select: { id: true, displayName: true } },
       assignedVolunteer: { select: { id: true, displayName: true } },
@@ -317,6 +326,132 @@ export class PatientPortalService {
     });
 
     return items.map((item) => this.serializeAppointmentRequest(item));
+  }
+
+  async listAppointmentsForAuthenticatedPatient(
+    clinicId: string,
+    userId: string,
+    query: ListAppointmentsQueryDto,
+  ) {
+    const patient = await this.resolvePortalPatient(clinicId, userId);
+    const range = this.resolveAppointmentRange(query);
+    const where = this.buildAppointmentWhere(clinicId, query, range, patient.id);
+    const items = await this.prisma.appointment.findMany({
+      where,
+      include: appointmentScheduleInclude,
+      orderBy: [{ startsAt: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    return {
+      range: {
+        from: range.from,
+        to: range.to,
+      },
+      timezone: 'Africa/Accra',
+      summary: this.summarizeAppointments(items),
+      items: items.map((item) => this.serializeAppointment(item)),
+    };
+  }
+
+  async createCancelAppointmentRequestForAuthenticatedPatient(
+    clinicId: string,
+    userId: string,
+    appointmentId: string,
+    dto: PatientCancelAppointmentRequestDto,
+    requestId?: string,
+  ) {
+    const reason = dto.reason?.trim();
+    if (!reason) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Request validation failed.',
+        fieldErrors: [{ field: 'reason', message: 'reason should not be empty' }],
+        recoveryAction: 'Add a cancellation reason and try again.',
+      });
+    }
+
+    const { patient, appointment } = await this.resolvePatientChangeRequestAppointment(
+      clinicId,
+      userId,
+      appointmentId,
+      'cancel',
+    );
+
+    const appointmentDate = this.toDateOnly(appointment.startsAt);
+    const created = await this.prisma.appointmentRequest.create({
+      data: {
+        clinicId,
+        patientId: patient.id,
+        requestType: AppointmentRequestType.CANCEL_APPOINTMENT,
+        sourceAppointmentId: appointment.id,
+        preferredStartDate: appointmentDate,
+        preferredEndDate: appointmentDate,
+        reason,
+        notes: dto.notes?.trim() || null,
+        status: AppointmentRequestStatus.REQUESTED,
+      },
+      include: appointmentRequestInclude,
+    });
+
+    await this.auditService.logWrite({
+      clinicId,
+      actorUserId: userId,
+      action: 'APPT.REQUEST.CANCEL_REQUEST.CREATE',
+      entityType: 'AppointmentRequest',
+      entityId: created.id,
+      afterJson: JSON.stringify(created),
+      requestId,
+    });
+
+    return this.serializeAppointmentRequest(created);
+  }
+
+  async createRescheduleAppointmentRequestForAuthenticatedPatient(
+    clinicId: string,
+    userId: string,
+    appointmentId: string,
+    dto: PatientRescheduleAppointmentRequestDto,
+    requestId?: string,
+  ) {
+    const preferredStartDate = this.parseDateOnly(dto.preferredStartDate, 'preferredStartDate');
+    const preferredEndDate = this.parseDateOnly(dto.preferredEndDate, 'preferredEndDate');
+    if (preferredEndDate < preferredStartDate) {
+      throw new BadRequestException('preferredEndDate must be on or after preferredStartDate');
+    }
+
+    const { patient, appointment } = await this.resolvePatientChangeRequestAppointment(
+      clinicId,
+      userId,
+      appointmentId,
+      'reschedule',
+    );
+
+    const created = await this.prisma.appointmentRequest.create({
+      data: {
+        clinicId,
+        patientId: patient.id,
+        requestType: AppointmentRequestType.RESCHEDULE_APPOINTMENT,
+        sourceAppointmentId: appointment.id,
+        preferredStartDate,
+        preferredEndDate,
+        reason: dto.reason?.trim() || null,
+        notes: dto.notes?.trim() || null,
+        status: AppointmentRequestStatus.REQUESTED,
+      },
+      include: appointmentRequestInclude,
+    });
+
+    await this.auditService.logWrite({
+      clinicId,
+      actorUserId: userId,
+      action: 'APPT.REQUEST.RESCHEDULE_REQUEST.CREATE',
+      entityType: 'AppointmentRequest',
+      entityId: created.id,
+      afterJson: JSON.stringify(created),
+      requestId,
+    });
+
+    return this.serializeAppointmentRequest(created);
   }
 
   async listAppointmentRequestsForClinic(clinicId: string, query: ListAppointmentRequestsQueryDto) {
@@ -1865,11 +2000,13 @@ export class PatientPortalService {
     clinicId: string,
     query: ListAppointmentsQueryDto,
     range: AppointmentRange,
+    patientId?: string,
   ): Prisma.AppointmentWhereInput {
     const patientSearch = query.patientSearch?.trim();
 
     return {
       clinicId,
+      ...(patientId ? { patientId } : {}),
       startsAt: { lte: range.end },
       endsAt: { gte: range.start },
       ...(query.status ? { status: query.status } : {}),
@@ -1887,6 +2024,48 @@ export class PatientPortalService {
           }
         : {}),
     };
+  }
+
+  private async resolvePatientChangeRequestAppointment(
+    clinicId: string,
+    userId: string,
+    appointmentId: string,
+    action: 'cancel' | 'reschedule',
+  ) {
+    const patient = await this.resolvePortalPatient(clinicId, userId);
+    const appointment = await this.prisma.appointment.findFirst({
+      where: {
+        id: appointmentId,
+        clinicId,
+        patientId: patient.id,
+      },
+      include: appointmentScheduleInclude,
+    });
+    if (!appointment) {
+      throw new NotFoundException('Appointment not found');
+    }
+    if (appointment.status !== AppointmentStatus.CONFIRMED) {
+      throw new BadRequestException({
+        code: 'APPOINTMENT_CHANGE_REQUEST_NOT_ALLOWED',
+        message: `Only confirmed appointments can receive patient ${action} requests.`,
+        appointmentId,
+        currentStatus: appointment.status,
+        attemptedAction: action,
+        recoveryAction: 'Refresh appointments and choose an upcoming confirmed appointment.',
+      });
+    }
+    if (appointment.startsAt <= new Date()) {
+      throw new BadRequestException({
+        code: 'APPOINTMENT_CHANGE_REQUEST_TOO_LATE',
+        message: `Patient ${action} requests are only available for future appointments.`,
+        appointmentId,
+        startsAt: appointment.startsAt.toISOString(),
+        attemptedAction: action,
+        recoveryAction: 'Contact the clinic if this appointment already started or passed.',
+      });
+    }
+
+    return { patient, appointment };
   }
 
   private async mutateConfirmedAppointment(params: {
@@ -2239,6 +2418,8 @@ export class PatientPortalService {
             },
           }
         : {}),
+      requestType: request.requestType,
+      sourceAppointmentId: request.sourceAppointmentId ?? null,
       preferredStartDate: request.preferredStartDate.toISOString().slice(0, 10),
       preferredEndDate: request.preferredEndDate.toISOString().slice(0, 10),
       reason: request.reason,
@@ -2252,6 +2433,9 @@ export class PatientPortalService {
       createdAt: request.createdAt.toISOString(),
       updatedAt: request.updatedAt.toISOString(),
       appointment: request.appointment ? this.serializeAppointment(request.appointment) : null,
+      sourceAppointment: request.sourceAppointment
+        ? this.serializeAppointment(request.sourceAppointment)
+        : null,
     };
   }
 
@@ -2468,6 +2652,10 @@ export class PatientPortalService {
       throw new BadRequestException(`${fieldName} must be YYYY-MM-DD`);
     }
     return new Date(`${value}T00:00:00.000Z`);
+  }
+
+  private toDateOnly(value: Date) {
+    return new Date(`${value.toISOString().slice(0, 10)}T00:00:00.000Z`);
   }
 
   private parseDateTime(value: string, fieldName: string) {

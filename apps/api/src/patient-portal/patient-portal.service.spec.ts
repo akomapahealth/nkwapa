@@ -542,6 +542,8 @@ describe('PatientPortalService', () => {
       id: 'appt-req-1',
       clinicId: 'clinic-1',
       patientId: 'patient-1',
+      requestType: 'NEW_APPOINTMENT',
+      sourceAppointmentId: null,
       preferredStartDate: new Date('2026-03-25T00:00:00.000Z'),
       preferredEndDate: new Date('2026-03-27T00:00:00.000Z'),
       reason: 'Follow-up',
@@ -562,6 +564,7 @@ describe('PatientPortalService', () => {
       },
       triagedBy: null,
       appointment: null,
+      sourceAppointment: null,
     });
 
     const result = await service.createAppointmentRequestForAuthenticatedPatient(
@@ -581,6 +584,233 @@ describe('PatientPortalService', () => {
       expect.objectContaining({ action: 'APPT.REQUEST.CREATE', entityId: 'appt-req-1' }),
     );
     expect(result.status).toBe('REQUESTED');
+  });
+
+  it('lists appointments for the authenticated patient only', async () => {
+    prisma.appointment.findMany.mockResolvedValue([
+      appointmentFixture({
+        startsAt: new Date('2026-03-26T14:00:00.000Z'),
+        endsAt: new Date('2026-03-26T14:30:00.000Z'),
+      }),
+    ]);
+
+    const result = await service.listAppointmentsForAuthenticatedPatient('clinic-1', 'user-1', {
+      from: '2026-03-01',
+      to: '2026-03-31',
+    });
+
+    expect(prisma.appointment.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          clinicId: 'clinic-1',
+          patientId: 'patient-1',
+          startsAt: { lte: new Date('2026-03-31T23:59:59.999Z') },
+          endsAt: { gte: new Date('2026-03-01T00:00:00.000Z') },
+        }),
+        orderBy: [{ startsAt: 'desc' }, { createdAt: 'desc' }],
+      }),
+    );
+    expect(result.summary).toMatchObject({ total: 1, confirmed: 1 });
+    expect(result.items[0]).toMatchObject({
+      id: 'appointment-1',
+      patientId: 'patient-1',
+      status: 'CONFIRMED',
+    });
+  });
+
+  it('creates patient cancellation requests without mutating appointments', async () => {
+    const sourceAppointment = appointmentFixture({
+      startsAt: new Date('2099-03-26T14:00:00.000Z'),
+      endsAt: new Date('2099-03-26T14:30:00.000Z'),
+    });
+    prisma.appointment.findFirst.mockResolvedValue(sourceAppointment);
+    prisma.appointmentRequest.create.mockResolvedValue({
+      id: 'cancel-request-1',
+      clinicId: 'clinic-1',
+      patientId: 'patient-1',
+      requestType: 'CANCEL_APPOINTMENT',
+      sourceAppointmentId: 'appointment-1',
+      preferredStartDate: new Date('2099-03-26T00:00:00.000Z'),
+      preferredEndDate: new Date('2099-03-26T00:00:00.000Z'),
+      reason: 'I cannot make this visit',
+      notes: 'Please cancel it',
+      status: 'REQUESTED',
+      triagedByUserId: null,
+      triagedAt: null,
+      rejectionReason: null,
+      createdAt: new Date('2026-03-21T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-21T09:00:00.000Z'),
+      patient: sourceAppointment.patient,
+      triagedBy: null,
+      appointment: null,
+      sourceAppointment,
+    });
+
+    const result = await service.createCancelAppointmentRequestForAuthenticatedPatient(
+      'clinic-1',
+      'user-1',
+      'appointment-1',
+      { reason: 'I cannot make this visit', notes: 'Please cancel it' },
+      'req-cancel-request',
+    );
+
+    expect(prisma.appointment.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'appointment-1', clinicId: 'clinic-1', patientId: 'patient-1' },
+      }),
+    );
+    expect(prisma.appointmentRequest.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          clinicId: 'clinic-1',
+          patientId: 'patient-1',
+          requestType: 'CANCEL_APPOINTMENT',
+          sourceAppointmentId: 'appointment-1',
+          reason: 'I cannot make this visit',
+          status: 'REQUESTED',
+        }),
+      }),
+    );
+    expect(prisma.appointment.updateMany).not.toHaveBeenCalled();
+    expect(auditService.logWrite).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'APPT.REQUEST.CANCEL_REQUEST.CREATE',
+        entityId: 'cancel-request-1',
+      }),
+    );
+    expect(result).toMatchObject({
+      requestType: 'CANCEL_APPOINTMENT',
+      sourceAppointmentId: 'appointment-1',
+      sourceAppointment: { id: 'appointment-1' },
+    });
+  });
+
+  it('creates patient reschedule requests with preferred date windows', async () => {
+    const sourceAppointment = appointmentFixture({
+      startsAt: new Date('2099-03-26T14:00:00.000Z'),
+      endsAt: new Date('2099-03-26T14:30:00.000Z'),
+    });
+    prisma.appointment.findFirst.mockResolvedValue(sourceAppointment);
+    prisma.appointmentRequest.create.mockResolvedValue({
+      id: 'reschedule-request-1',
+      clinicId: 'clinic-1',
+      patientId: 'patient-1',
+      requestType: 'RESCHEDULE_APPOINTMENT',
+      sourceAppointmentId: 'appointment-1',
+      preferredStartDate: new Date('2099-04-01T00:00:00.000Z'),
+      preferredEndDate: new Date('2099-04-03T00:00:00.000Z'),
+      reason: 'Need a morning slot',
+      notes: 'Any day in this range works',
+      status: 'REQUESTED',
+      triagedByUserId: null,
+      triagedAt: null,
+      rejectionReason: null,
+      createdAt: new Date('2026-03-21T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-21T09:00:00.000Z'),
+      patient: sourceAppointment.patient,
+      triagedBy: null,
+      appointment: null,
+      sourceAppointment,
+    });
+
+    const result = await service.createRescheduleAppointmentRequestForAuthenticatedPatient(
+      'clinic-1',
+      'user-1',
+      'appointment-1',
+      {
+        preferredStartDate: '2099-04-01',
+        preferredEndDate: '2099-04-03',
+        reason: 'Need a morning slot',
+        notes: 'Any day in this range works',
+      },
+      'req-reschedule-request',
+    );
+
+    expect(prisma.appointmentRequest.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          requestType: 'RESCHEDULE_APPOINTMENT',
+          sourceAppointmentId: 'appointment-1',
+          preferredStartDate: new Date('2099-04-01T00:00:00.000Z'),
+          preferredEndDate: new Date('2099-04-03T00:00:00.000Z'),
+        }),
+      }),
+    );
+    expect(prisma.appointment.updateMany).not.toHaveBeenCalled();
+    expect(auditService.logWrite).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'APPT.REQUEST.RESCHEDULE_REQUEST.CREATE',
+        entityId: 'reschedule-request-1',
+      }),
+    );
+    expect(result.requestType).toBe('RESCHEDULE_APPOINTMENT');
+  });
+
+  it('rejects patient change requests for appointments outside the authenticated chart', async () => {
+    prisma.appointment.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.createCancelAppointmentRequestForAuthenticatedPatient(
+        'clinic-1',
+        'user-1',
+        'appointment-owned-by-someone-else',
+        { reason: 'Wrong chart attempt' },
+        'req-wrong-chart',
+      ),
+    ).rejects.toThrow(NotFoundException);
+
+    expect(prisma.appointment.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: 'appointment-owned-by-someone-else',
+          clinicId: 'clinic-1',
+          patientId: 'patient-1',
+        },
+      }),
+    );
+    expect(prisma.appointmentRequest.create).not.toHaveBeenCalled();
+    expect(prisma.appointment.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects patient change requests for non-confirmed or past appointments', async () => {
+    prisma.appointment.findFirst.mockResolvedValueOnce(
+      appointmentFixture({
+        status: 'CANCELLED',
+        startsAt: new Date('2099-03-26T14:00:00.000Z'),
+      }),
+    );
+
+    await expect(
+      service.createCancelAppointmentRequestForAuthenticatedPatient(
+        'clinic-1',
+        'user-1',
+        'appointment-1',
+        { reason: 'Already cancelled' },
+        'req-terminal',
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'APPOINTMENT_CHANGE_REQUEST_NOT_ALLOWED' }),
+    });
+
+    prisma.appointment.findFirst.mockResolvedValueOnce(
+      appointmentFixture({
+        startsAt: new Date('2020-03-26T14:00:00.000Z'),
+      }),
+    );
+
+    await expect(
+      service.createRescheduleAppointmentRequestForAuthenticatedPatient(
+        'clinic-1',
+        'user-1',
+        'appointment-1',
+        { preferredStartDate: '2099-04-01', preferredEndDate: '2099-04-03' },
+        'req-past',
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'APPOINTMENT_CHANGE_REQUEST_TOO_LATE' }),
+    });
+
+    expect(prisma.appointmentRequest.create).not.toHaveBeenCalled();
   });
 
   it('lists clinic appointments by overlapping date range and preserves clinic isolation', async () => {
