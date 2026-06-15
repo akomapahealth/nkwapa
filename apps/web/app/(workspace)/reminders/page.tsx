@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Bell, Clock3, SendHorizontal } from 'lucide-react';
+import { Bell, CheckCheck, Clock3, SendHorizontal } from 'lucide-react';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
@@ -34,6 +34,7 @@ interface ReminderRow {
   clinicId: string;
   patientId: string;
   encounterId: string | null;
+  appointmentId: string | null;
   channel: string;
   toAddress: string;
   templateKey: string;
@@ -43,6 +44,27 @@ interface ReminderRow {
   providerMessageId: string | null;
   failureReason: string | null;
   createdAt: string;
+  updatedAt: string;
+}
+
+function maskAddress(value: string) {
+  return value && value.length > 8 ? `${value.slice(0, 4)}***${value.slice(-4)}` : value;
+}
+
+function formatFailureReason(reason: string | null) {
+  if (!reason) return '';
+  return reason
+    .split(':')[0]
+    .replaceAll('_', ' ')
+    .toLowerCase()
+    .replace(/^\w/, (letter) => letter.toUpperCase());
+}
+
+function getStatusVariant(status: string): 'finalized' | 'secondary' | 'destructive' | 'draft' {
+  if (status === 'DELIVERED') return 'finalized';
+  if (status === 'SENT') return 'secondary';
+  if (status === 'FAILED') return 'destructive';
+  return 'draft';
 }
 
 export default function RemindersPage() {
@@ -121,30 +143,37 @@ export default function RemindersPage() {
     {
       field: 'status',
       headerName: 'Status',
-      width: 100,
+      width: 120,
       renderCell: (params) => (
-        <Badge
-          variant={
-            params.value === 'SENT'
-              ? 'finalized'
-              : params.value === 'FAILED'
-                ? 'destructive'
-                : 'draft'
-          }
-        >
-          {String(params.value)}
-        </Badge>
+        <Badge variant={getStatusVariant(String(params.value))}>{String(params.value)}</Badge>
       ),
     },
+    { field: 'channel', headerName: 'Channel', width: 110 },
     { field: 'templateKey', headerName: 'Template', width: 180 },
+    {
+      field: 'appointmentId',
+      headerName: 'Appointment',
+      width: 140,
+      valueFormatter: (v) => (v ? String(v).slice(0, 8) : ''),
+    },
     {
       field: 'toAddress',
       headerName: 'To',
       width: 140,
-      valueFormatter: (v) =>
-        v && String(v).length > 8 ? `${String(v).slice(0, 4)}***${String(v).slice(-4)}` : String(v),
+      valueFormatter: (v) => maskAddress(String(v)),
     },
-    { field: 'failureReason', headerName: 'Failure', width: 150 },
+    {
+      field: 'failureReason',
+      headerName: 'Failure',
+      width: 190,
+      valueFormatter: (v) => formatFailureReason(v ? String(v) : null),
+    },
+    {
+      field: 'updatedAt',
+      headerName: 'Updated',
+      width: 160,
+      valueFormatter: (v) => (v ? new Date(v as string).toLocaleString() : ''),
+    },
   ];
 
   if (!clinicId) {
@@ -159,19 +188,20 @@ export default function RemindersPage() {
 
   const queuedCount = rows.filter((row) => row.status === 'QUEUED').length;
   const sentCount = rows.filter((row) => row.status === 'SENT').length;
+  const deliveredCount = rows.filter((row) => row.status === 'DELIVERED').length;
 
   return (
     <RouteGuard requiredPermission="REMINDER.READ">
       <div className="space-y-6">
         <AppPageHeader
-          eyebrow="Follow-up delivery"
+          eyebrow="Reminder delivery"
           title="Reminders"
-          description="Review follow-up delivery at a glance."
+          description="Review follow-up and appointment reminder delivery at a glance."
           helpTitle="How reminder history works"
-          helpText="Use the filters to narrow reminder history by status and date, then inspect queued, sent, or failed messages."
+          helpText="Use filters to narrow reminder history by status and date, then inspect queued, sent, delivered, or failed messages."
         />
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-4">
           <AppMetricCard
             title="Visible reminders"
             value={rows.length}
@@ -188,7 +218,13 @@ export default function RemindersPage() {
             title="Sent"
             value={sentCount}
             icon={SendHorizontal}
-            detail="Reminders already delivered successfully."
+            detail="Reminders accepted by the configured provider."
+          />
+          <AppMetricCard
+            title="Delivered"
+            value={deliveredCount}
+            icon={CheckCheck}
+            detail="Provider callbacks marked these reminders as delivered."
           />
         </div>
 
@@ -212,6 +248,7 @@ export default function RemindersPage() {
                     <SelectItem value="ALL">All</SelectItem>
                     <SelectItem value="QUEUED">Queued</SelectItem>
                     <SelectItem value="SENT">Sent</SelectItem>
+                    <SelectItem value="DELIVERED">Delivered</SelectItem>
                     <SelectItem value="FAILED">Failed</SelectItem>
                   </SelectContent>
                 </Select>
@@ -312,21 +349,20 @@ export default function RemindersPage() {
                             {new Date(row.scheduledAt).toLocaleString()}
                           </p>
                         </div>
-                        <Badge
-                          variant={
-                            row.status === 'SENT'
-                              ? 'finalized'
-                              : row.status === 'FAILED'
-                                ? 'destructive'
-                                : 'draft'
-                          }
-                        >
-                          {row.status}
-                        </Badge>
+                        <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge>
                       </div>
-                      <p className="mt-3 text-sm text-muted-foreground">{row.toAddress}</p>
+                      <div className="mt-3 grid gap-1 text-sm text-muted-foreground">
+                        <p>
+                          {row.channel} to {maskAddress(row.toAddress)}
+                        </p>
+                        {row.appointmentId ? (
+                          <p>Appointment {row.appointmentId.slice(0, 8)}</p>
+                        ) : null}
+                      </div>
                       {row.failureReason ? (
-                        <p className="mt-2 text-sm text-destructive">{row.failureReason}</p>
+                        <p className="mt-2 text-sm text-destructive">
+                          {formatFailureReason(row.failureReason)}
+                        </p>
                       ) : null}
                     </article>
                   ))}

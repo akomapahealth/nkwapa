@@ -147,7 +147,7 @@ interface FollowUpSummary {
   closed: number;
 }
 
-interface AppointmentReminderSummary {
+export interface AppointmentReminderSummary {
   total: number;
   queued: number;
   sent: number;
