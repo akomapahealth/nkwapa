@@ -102,6 +102,12 @@ enum AppointmentRequestStatus {
   CANCELLED
 }
 
+enum AppointmentRequestType {
+  NEW_APPOINTMENT
+  CANCEL_APPOINTMENT
+  RESCHEDULE_APPOINTMENT
+}
+
 enum AppointmentStatus {
   CONFIRMED
   CANCELLED
@@ -723,27 +729,31 @@ model PatientMeasurement {
 }
 
 model AppointmentRequest {
-  id                 String                   @id @default(uuid()) @db.Uuid
-  clinicId           String                   @db.Uuid
-  patientId          String                   @db.Uuid
-  preferredStartDate DateTime
-  preferredEndDate   DateTime
-  reason             String?                  @db.VarChar(120)
-  notes              String?                  @db.Text
-  status             AppointmentRequestStatus @default(REQUESTED)
-  triagedByUserId    String?                  @db.Uuid
-  triagedAt          DateTime?
-  rejectionReason    String?                  @db.Text
-  createdAt          DateTime                 @default(now())
-  updatedAt          DateTime                 @updatedAt
+  id                  String                   @id @default(uuid()) @db.Uuid
+  clinicId            String                   @db.Uuid
+  patientId           String                   @db.Uuid
+  requestType         AppointmentRequestType   @default(NEW_APPOINTMENT)
+  sourceAppointmentId String?                  @db.Uuid
+  preferredStartDate  DateTime
+  preferredEndDate    DateTime
+  reason              String?                  @db.VarChar(120)
+  notes               String?                  @db.Text
+  status              AppointmentRequestStatus @default(REQUESTED)
+  triagedByUserId     String?                  @db.Uuid
+  triagedAt           DateTime?
+  rejectionReason     String?                  @db.Text
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
 
-  clinic      Clinic       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  patient     Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  triagedBy   User?        @relation("AppointmentRequestTriagedBy", fields: [triagedByUserId], references: [id], onDelete: SetNull)
-  appointment Appointment?
+  clinic            Clinic       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient           Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  triagedBy         User?        @relation("AppointmentRequestTriagedBy", fields: [triagedByUserId], references: [id], onDelete: SetNull)
+  appointment       Appointment? @relation("AppointmentLinkedRequest")
+  sourceAppointment Appointment? @relation("AppointmentSourceChangeRequest", fields: [sourceAppointmentId], references: [id], onDelete: SetNull)
 
   @@index([clinicId, status, createdAt])
   @@index([patientId, createdAt])
+  @@index([sourceAppointmentId])
 }
 
 model Appointment {
@@ -760,11 +770,12 @@ model Appointment {
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 
-  clinic            Clinic              @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  patient           Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  linkedRequest     AppointmentRequest? @relation(fields: [linkedRequestId], references: [id], onDelete: SetNull)
-  assignedDoctor    User?               @relation("AppointmentAssignedDoctor", fields: [assignedDoctorId], references: [id], onDelete: SetNull)
-  assignedVolunteer User?               @relation("AppointmentAssignedVolunteer", fields: [assignedVolunteerId], references: [id], onDelete: SetNull)
+  clinic            Clinic               @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient           Patient              @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  linkedRequest     AppointmentRequest?  @relation("AppointmentLinkedRequest", fields: [linkedRequestId], references: [id], onDelete: SetNull)
+  changeRequests    AppointmentRequest[] @relation("AppointmentSourceChangeRequest")
+  assignedDoctor    User?                @relation("AppointmentAssignedDoctor", fields: [assignedDoctorId], references: [id], onDelete: SetNull)
+  assignedVolunteer User?                @relation("AppointmentAssignedVolunteer", fields: [assignedVolunteerId], references: [id], onDelete: SetNull)
 
   @@index([clinicId, startsAt])
   @@index([patientId, startsAt])
