@@ -836,6 +836,26 @@ describe('PatientPortalService', () => {
         },
         assignedDoctor: { id: 'doctor-1', displayName: 'Dr One' },
         assignedVolunteer: { id: 'volunteer-1', displayName: 'Volunteer One' },
+        reminders: [
+          {
+            id: 'reminder-1',
+            status: 'QUEUED',
+            channel: 'SMS',
+            scheduledAt: new Date('2026-03-25T14:00:00.000Z'),
+            failureReason: null,
+            createdAt: new Date('2026-03-21T09:00:00.000Z'),
+            updatedAt: new Date('2026-03-21T09:00:00.000Z'),
+          },
+          {
+            id: 'reminder-2',
+            status: 'FAILED',
+            channel: 'EMAIL',
+            scheduledAt: new Date('2026-03-25T14:00:00.000Z'),
+            failureReason: 'NO_CONTACT_METHOD',
+            createdAt: new Date('2026-03-21T09:01:00.000Z'),
+            updatedAt: new Date('2026-03-21T09:02:00.000Z'),
+          },
+        ],
       },
     ]);
 
@@ -864,6 +884,14 @@ describe('PatientPortalService', () => {
       },
       assignedDoctor: { id: 'doctor-1', displayName: 'Dr One' },
       assignedVolunteer: { id: 'volunteer-1', displayName: 'Volunteer One' },
+      reminderSummary: {
+        total: 2,
+        queued: 1,
+        failed: 1,
+        nextQueuedAt: '2026-03-25T14:00:00.000Z',
+        channels: ['EMAIL', 'SMS'],
+        latestFailureReason: 'NO_CONTACT_METHOD',
+      },
     });
   });
 
@@ -1236,6 +1264,82 @@ describe('PatientPortalService', () => {
     );
     expect(reminderService.scheduleAppointmentReminder).toHaveBeenCalled();
     expect(result.request.status).toBe('CONFIRMED');
+  });
+
+  it('confirms appointment requests with visible failed reminders when contact methods are missing', async () => {
+    const existingRequest = {
+      id: 'appt-req-no-contact',
+      clinicId: 'clinic-1',
+      patientId: 'patient-1',
+      preferredStartDate: new Date('2026-03-25T00:00:00.000Z'),
+      preferredEndDate: new Date('2026-03-27T00:00:00.000Z'),
+      reason: 'Follow-up',
+      notes: null,
+      status: 'REQUESTED',
+      triagedByUserId: null,
+      triagedAt: null,
+      rejectionReason: null,
+      createdAt: new Date('2026-03-21T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-21T09:00:00.000Z'),
+      patient: {
+        id: 'patient-1',
+        patientCode: 'NKP-2026-000001',
+        firstName: 'Ama',
+        lastName: 'Mensah',
+        phoneE164: null,
+        email: null,
+      },
+      triagedBy: null,
+      appointment: null,
+    };
+    const appointment = {
+      id: 'appointment-1',
+      clinicId: 'clinic-1',
+      patientId: 'patient-1',
+      startsAt: new Date('2026-03-26T14:00:00.000Z'),
+      endsAt: new Date('2026-03-26T14:30:00.000Z'),
+      status: 'CONFIRMED',
+      linkedRequestId: 'appt-req-no-contact',
+      assignedDoctorId: null,
+      assignedVolunteerId: null,
+      notes: null,
+      createdAt: new Date('2026-03-21T09:10:00.000Z'),
+      updatedAt: new Date('2026-03-21T09:10:00.000Z'),
+    };
+    prisma.appointmentRequest.findFirst.mockResolvedValue(existingRequest);
+    prisma.appointment.create.mockResolvedValue(appointment);
+    prisma.appointmentRequest.update.mockResolvedValue({
+      ...existingRequest,
+      status: 'CONFIRMED',
+      triagedByUserId: 'manager-1',
+      triagedAt: new Date('2026-03-21T09:10:00.000Z'),
+      appointment: { ...appointment, assignedDoctor: null, assignedVolunteer: null },
+      triagedBy: { id: 'manager-1', displayName: 'Manager One' },
+    });
+
+    await service.confirmAppointmentRequest(
+      'clinic-1',
+      'appt-req-no-contact',
+      'manager-1',
+      {
+        startsAt: '2026-03-26T14:00:00.000Z',
+        endsAt: '2026-03-26T14:30:00.000Z',
+      },
+      'req-no-contact',
+    );
+
+    expect(reminderService.scheduleAppointmentReminderNoContact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clinicId: 'clinic-1',
+        patientId: 'patient-1',
+        patientCode: 'NKP-2026-000001',
+        appointmentId: 'appointment-1',
+        startsAt: new Date('2026-03-26T14:00:00.000Z'),
+        requestId: 'req-no-contact',
+      }),
+    );
+    expect(reminderService.scheduleAppointmentReminder).not.toHaveBeenCalled();
+    expect(reminderService.scheduleAppointmentEmailReminder).not.toHaveBeenCalled();
   });
 
   it('rejects appointment requests and records the rejection reason', async () => {
