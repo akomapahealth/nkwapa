@@ -110,8 +110,8 @@ export interface StaffAppointmentsResponse {
 
 export interface PatientAppointmentsResponse {
   range: {
-    from: string;
-    to: string;
+    from: string | null;
+    to: string | null;
   };
   timezone: string;
   summary: {

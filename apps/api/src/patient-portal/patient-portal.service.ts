@@ -335,8 +335,14 @@ export class PatientPortalService {
     query: ListAppointmentsQueryDto,
   ) {
     const patient = await this.resolvePortalPatient(clinicId, userId);
-    const range = this.resolveAppointmentRange(query);
-    const where = this.buildAppointmentWhere(clinicId, query, range, patient.id);
+    const range = query.from || query.to ? this.resolveAppointmentRange(query) : null;
+    const where: Prisma.AppointmentWhereInput = range
+      ? this.buildAppointmentWhere(clinicId, query, range, patient.id)
+      : {
+          clinicId,
+          patientId: patient.id,
+          ...(query.status ? { status: query.status } : {}),
+        };
     const items = await this.prisma.appointment.findMany({
       where,
       include: appointmentScheduleInclude,
@@ -345,8 +351,8 @@ export class PatientPortalService {
 
     return {
       range: {
-        from: range.from,
-        to: range.to,
+        from: range?.from ?? null,
+        to: range?.to ?? null,
       },
       timezone: 'Africa/Accra',
       summary: this.summarizeAppointments(items),
