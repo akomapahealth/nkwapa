@@ -12,6 +12,9 @@ const REMINDER_QUEUE_NAME = 'reminders';
 const FOLLOWUP_TEMPLATE_KEY = 'FOLLOWUP_REMINDER_V1';
 const APPOINTMENT_TEMPLATE_KEY = 'APPOINTMENT_REMINDER_V1';
 const REMINDER_SEND_FAILED = 'SEND_FAILED';
+const APPOINTMENT_NOT_FOUND = 'APPOINTMENT_NOT_FOUND';
+const APPOINTMENT_NOT_CONFIRMED = 'APPOINTMENT_NOT_CONFIRMED';
+const APPOINTMENT_RESCHEDULED = 'APPOINTMENT_RESCHEDULED';
 
 export interface ScheduleFollowUpParams {
   clinicId: string;
@@ -96,6 +99,7 @@ export interface ListRemindersResult {
     clinicId: string;
     patientId: string;
     encounterId: string | null;
+    appointmentId: string | null;
     channel: string;
     toAddress: string;
     templateKey: string;
@@ -106,6 +110,7 @@ export interface ListRemindersResult {
     providerMessageId: string | null;
     failureReason: string | null;
     createdAt: Date;
+    updatedAt: Date;
   }>;
   nextCursor: string | null;
 }
@@ -114,6 +119,23 @@ type ReminderMessage = {
   subject: string;
   smsBody: string;
   emailHtml: string;
+};
+
+type AppointmentReminderChannel = 'SMS' | 'EMAIL';
+
+type ScheduleAppointmentReminderRecordParams = {
+  clinicId: string;
+  clinicName?: string;
+  patientId: string;
+  patientCode: string;
+  appointmentId: string;
+  startsAt: Date;
+  actorUserId: string;
+  requestId?: string;
+  channel: AppointmentReminderChannel;
+  toAddress: string;
+  status: ReminderStatus;
+  failureReason?: string;
 };
 
 function decodeCursor(cursor: string): { createdAt: Date; id: string } | null {
@@ -242,87 +264,55 @@ export class ReminderService {
   }
 
   async scheduleAppointmentReminder(params: ScheduleAppointmentReminderParams): Promise<void> {
-    const scheduledAt = this.getAppointmentReminderTime(params.startsAt);
-    const payloadJson = JSON.stringify({
-      patientCode: params.patientCode,
+    await this.scheduleAppointmentReminderRecord({
+      clinicId: params.clinicId,
       clinicName: params.clinicName,
-      startsAt: params.startsAt.toISOString(),
       patientId: params.patientId,
+      patientCode: params.patientCode,
       appointmentId: params.appointmentId,
+      startsAt: params.startsAt,
+      actorUserId: params.actorUserId,
+      requestId: params.requestId,
+      channel: 'SMS',
+      toAddress: params.phoneE164,
+      status: 'QUEUED',
     });
-
-    const reminder = await this.prisma.reminder.create({
-      data: {
-        clinicId: params.clinicId,
-        patientId: params.patientId,
-        channel: 'SMS',
-        toAddress: params.phoneE164,
-        templateKey: APPOINTMENT_TEMPLATE_KEY,
-        payloadJson,
-        scheduledAt,
-        status: 'QUEUED',
-      },
-    });
-
-    await this.auditReminderCreate(params.clinicId, params.actorUserId, reminder, params.requestId);
-    await this.queueReminder(reminder.id, scheduledAt, params.clinicId);
   }
 
   async scheduleAppointmentEmailReminder(
     params: ScheduleAppointmentEmailReminderParams,
   ): Promise<void> {
-    const scheduledAt = this.getAppointmentReminderTime(params.startsAt);
-    const payloadJson = JSON.stringify({
-      patientCode: params.patientCode,
+    await this.scheduleAppointmentReminderRecord({
+      clinicId: params.clinicId,
       clinicName: params.clinicName,
-      startsAt: params.startsAt.toISOString(),
       patientId: params.patientId,
+      patientCode: params.patientCode,
       appointmentId: params.appointmentId,
+      startsAt: params.startsAt,
+      actorUserId: params.actorUserId,
+      requestId: params.requestId,
+      channel: 'EMAIL',
+      toAddress: params.email,
+      status: 'QUEUED',
     });
-
-    const reminder = await this.prisma.reminder.create({
-      data: {
-        clinicId: params.clinicId,
-        patientId: params.patientId,
-        channel: 'EMAIL',
-        toAddress: params.email,
-        templateKey: APPOINTMENT_TEMPLATE_KEY,
-        payloadJson,
-        scheduledAt,
-        status: 'QUEUED',
-      },
-    });
-
-    await this.auditReminderCreate(params.clinicId, params.actorUserId, reminder, params.requestId);
-    await this.queueReminder(reminder.id, scheduledAt, params.clinicId);
   }
 
   async scheduleAppointmentReminderNoContact(
     params: ScheduleAppointmentNoContactParams,
   ): Promise<void> {
-    const scheduledAt = this.getAppointmentReminderTime(params.startsAt);
-    const payloadJson = JSON.stringify({
-      patientCode: params.patientCode,
-      startsAt: params.startsAt.toISOString(),
+    await this.scheduleAppointmentReminderRecord({
+      clinicId: params.clinicId,
       patientId: params.patientId,
+      patientCode: params.patientCode,
       appointmentId: params.appointmentId,
+      startsAt: params.startsAt,
+      actorUserId: params.actorUserId,
+      requestId: params.requestId,
+      channel: 'SMS',
+      toAddress: 'N/A',
+      status: 'FAILED',
+      failureReason: 'NO_CONTACT_METHOD',
     });
-
-    const reminder = await this.prisma.reminder.create({
-      data: {
-        clinicId: params.clinicId,
-        patientId: params.patientId,
-        channel: 'SMS',
-        toAddress: 'N/A',
-        templateKey: APPOINTMENT_TEMPLATE_KEY,
-        payloadJson,
-        scheduledAt,
-        status: 'FAILED',
-        failureReason: 'NO_CONTACT_METHOD',
-      },
-    });
-
-    await this.auditReminderCreate(params.clinicId, params.actorUserId, reminder, params.requestId);
   }
 
   async suppressQueuedAppointmentReminders(
@@ -337,7 +327,13 @@ export class ReminderService {
         clinicId,
         status: 'QUEUED',
         templateKey: APPOINTMENT_TEMPLATE_KEY,
-        payloadJson: { contains: `"appointmentId":"${appointmentId}"` },
+        OR: [
+          { appointmentId },
+          {
+            appointmentId: null,
+            payloadJson: { contains: `"appointmentId":"${appointmentId}"` },
+          },
+        ],
       },
     });
 
@@ -360,6 +356,8 @@ export class ReminderService {
         afterJson: JSON.stringify(updated),
         requestId,
       });
+
+      await this.removeQueuedReminderJob(reminder.id);
     }
   }
 
@@ -404,6 +402,7 @@ export class ReminderService {
         clinicId: r.clinicId,
         patientId: r.patientId,
         encounterId: r.encounterId,
+        appointmentId: r.appointmentId,
         channel: r.channel,
         toAddress: r.toAddress,
         templateKey: r.templateKey,
@@ -414,6 +413,7 @@ export class ReminderService {
         providerMessageId: r.providerMessageId,
         failureReason: r.failureReason,
         createdAt: r.createdAt,
+        updatedAt: r.updatedAt,
       })),
       nextCursor,
     };
@@ -454,12 +454,20 @@ export class ReminderService {
   async processReminder(reminderId: string): Promise<void> {
     const reminder = await this.prisma.reminder.findUnique({
       where: { id: reminderId },
-      include: { clinic: true, patient: true },
+      include: { clinic: true, patient: true, appointment: true },
     });
     if (!reminder || reminder.status !== 'QUEUED') return;
     if (reminder.scheduledAt > new Date()) return;
 
     const payload = JSON.parse(reminder.payloadJson) as Record<string, unknown>;
+    const appointmentSuppressionReason = await this.getAppointmentSendSuppressionReason(
+      reminder,
+      payload,
+    );
+    if (appointmentSuppressionReason) {
+      await this.failReminder(reminder, appointmentSuppressionReason, 'REMINDER.SUPPRESS');
+      return;
+    }
 
     try {
       const message = this.buildMessage(reminder.templateKey, payload);
@@ -509,24 +517,7 @@ export class ReminderService {
             }),
           );
         }
-        await this.prisma.reminder.update({
-          where: { id: reminderId },
-          data: {
-            status: 'FAILED',
-            failureReason: REMINDER_SEND_FAILED,
-          },
-        });
-        await this.auditService.logWrite({
-          clinicId: reminder.clinicId,
-          actorUserId: 'system',
-          action: 'REMINDER.SEND_FAILED',
-          entityType: 'Reminder',
-          entityId: reminderId,
-          afterJson: JSON.stringify({
-            status: 'FAILED',
-            failureReason: REMINDER_SEND_FAILED,
-          }),
-        });
+        await this.failReminder(reminder, REMINDER_SEND_FAILED, 'REMINDER.SEND_FAILED');
       }
     } catch (err) {
       this.logger.warn(
@@ -538,18 +529,7 @@ export class ReminderService {
           error: redactLogValue(err),
         }),
       );
-      await this.prisma.reminder.update({
-        where: { id: reminderId },
-        data: { status: 'FAILED', failureReason: REMINDER_SEND_FAILED },
-      });
-      await this.auditService.logWrite({
-        clinicId: reminder.clinicId,
-        actorUserId: 'system',
-        action: 'REMINDER.SEND_FAILED',
-        entityType: 'Reminder',
-        entityId: reminderId,
-        afterJson: JSON.stringify({ status: 'FAILED', failureReason: REMINDER_SEND_FAILED }),
-      });
+      await this.failReminder(reminder, REMINDER_SEND_FAILED, 'REMINDER.SEND_FAILED');
     }
   }
 
@@ -560,6 +540,103 @@ export class ReminderService {
     });
 
     return reminder?.clinicId ?? null;
+  }
+
+  private async scheduleAppointmentReminderRecord(
+    params: ScheduleAppointmentReminderRecordParams,
+  ): Promise<void> {
+    const scheduledAt = this.getAppointmentReminderTime(params.startsAt);
+    const payloadJson = JSON.stringify({
+      patientCode: params.patientCode,
+      clinicName: params.clinicName,
+      startsAt: params.startsAt.toISOString(),
+      patientId: params.patientId,
+      appointmentId: params.appointmentId,
+    });
+
+    const reminder = await this.prisma.reminder.create({
+      data: {
+        clinicId: params.clinicId,
+        patientId: params.patientId,
+        appointmentId: params.appointmentId,
+        channel: params.channel,
+        toAddress: params.toAddress,
+        templateKey: APPOINTMENT_TEMPLATE_KEY,
+        payloadJson,
+        scheduledAt,
+        status: params.status,
+        failureReason: params.failureReason,
+      },
+    });
+
+    await this.auditReminderCreate(params.clinicId, params.actorUserId, reminder, params.requestId);
+    if (params.status === 'QUEUED') {
+      await this.queueReminder(reminder.id, scheduledAt, params.clinicId);
+    }
+  }
+
+  private async getAppointmentSendSuppressionReason(
+    reminder: {
+      clinicId: string;
+      templateKey: string;
+      appointmentId: string | null;
+      appointment?: { id: string; status: string; startsAt: Date } | null;
+    },
+    payload: Record<string, unknown>,
+  ): Promise<string | null> {
+    if (reminder.templateKey !== APPOINTMENT_TEMPLATE_KEY) {
+      return null;
+    }
+
+    const payloadAppointmentId =
+      typeof payload.appointmentId === 'string' ? payload.appointmentId : null;
+    const appointmentId = reminder.appointmentId ?? payloadAppointmentId;
+    if (!appointmentId) {
+      return APPOINTMENT_NOT_FOUND;
+    }
+
+    const appointment =
+      reminder.appointment ??
+      (await this.prisma.appointment.findFirst({
+        where: { id: appointmentId, clinicId: reminder.clinicId },
+        select: { id: true, status: true, startsAt: true },
+      }));
+    if (!appointment) {
+      return APPOINTMENT_NOT_FOUND;
+    }
+    if (appointment.status !== 'CONFIRMED') {
+      return `${APPOINTMENT_NOT_CONFIRMED}:${appointment.status}`;
+    }
+
+    const payloadStartsAt =
+      typeof payload.startsAt === 'string' ? new Date(payload.startsAt) : null;
+    if (!payloadStartsAt || Number.isNaN(payloadStartsAt.getTime())) {
+      return APPOINTMENT_RESCHEDULED;
+    }
+    if (payloadStartsAt.getTime() !== appointment.startsAt.getTime()) {
+      return APPOINTMENT_RESCHEDULED;
+    }
+
+    return null;
+  }
+
+  private async failReminder(
+    reminder: { id: string; clinicId: string },
+    failureReason: string,
+    action: 'REMINDER.SEND_FAILED' | 'REMINDER.SUPPRESS',
+  ): Promise<void> {
+    await this.prisma.reminder.update({
+      where: { id: reminder.id },
+      data: { status: 'FAILED', failureReason },
+    });
+    await this.auditService.logWrite({
+      clinicId: reminder.clinicId,
+      actorUserId: 'system',
+      action,
+      entityType: 'Reminder',
+      entityId: reminder.id,
+      afterJson: JSON.stringify({ status: 'FAILED', failureReason }),
+    });
   }
 
   private getAppointmentReminderTime(startsAt: Date) {
@@ -573,11 +650,31 @@ export class ReminderService {
       'send',
       { reminderId, clinicId },
       {
+        jobId: this.getReminderJobId(reminderId),
         delay: delayMs,
         attempts: 3,
         backoff: { type: 'exponential', delay: 60_000 },
       },
     );
+  }
+
+  private async removeQueuedReminderJob(reminderId: string): Promise<void> {
+    try {
+      const job = await this.reminderQueue.getJob(this.getReminderJobId(reminderId));
+      await job?.remove();
+    } catch (err) {
+      this.logger.warn(
+        JSON.stringify({
+          message: 'Unable to remove queued reminder job',
+          reminderId,
+          error: redactLogValue(err),
+        }),
+      );
+    }
+  }
+
+  private getReminderJobId(reminderId: string): string {
+    return `reminder:${reminderId}`;
   }
 
   private async auditReminderCreate(
