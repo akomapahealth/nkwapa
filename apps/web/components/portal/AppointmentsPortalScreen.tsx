@@ -368,13 +368,11 @@ export function AppointmentsPortalScreen() {
     void loadAppointments();
   }, [loadAppointments]);
 
-  const now = useMemo(() => new Date(), [appointments, requests]);
+  const now = new Date();
   const pendingRequestCount = useMemo(() => requests.filter(isPendingRequest).length, [requests]);
-  const upcomingCount = useMemo(
-    () =>
-      appointments.filter((appointment) => isPatientAppointmentActionable(appointment, now)).length,
-    [appointments, now],
-  );
+  const upcomingCount = appointments.filter((appointment) =>
+    isPatientAppointmentActionable(appointment, now),
+  ).length;
   const completedCount = useMemo(
     () => appointments.filter((appointment) => appointment.status === 'COMPLETED').length,
     [appointments],
@@ -386,18 +384,12 @@ export function AppointmentsPortalScreen() {
       ).length,
     [appointments],
   );
-  const nextAppointment = useMemo(
-    () => getNextConfirmedAppointment(appointments, now),
-    [appointments, now],
-  );
+  const nextAppointment = getNextConfirmedAppointment(appointments, now);
   const visibleRequests = useMemo(
     () => getRequestsForTab(requests, activeRequestTab),
     [activeRequestTab, requests],
   );
-  const visibleAppointments = useMemo(
-    () => getAppointmentsForTab(appointments, activeAppointmentTab, now),
-    [activeAppointmentTab, appointments, now],
-  );
+  const visibleAppointments = getAppointmentsForTab(appointments, activeAppointmentTab, now);
   const pendingChangeRequestsByAppointment = useMemo(() => {
     const map = new Map<string, AppointmentRequestRecord>();
     for (const request of requests) {
