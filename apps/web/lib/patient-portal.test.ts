@@ -2,12 +2,16 @@ import {
   cancelStaffAppointment,
   completeStaffAppointment,
   fetchAppointmentStaffOptions,
+  fetchPatientAppointments,
   fetchPatientTrends,
   fetchStaffAppointments,
   fetchStaffPatientTrends,
   markStaffAppointmentNoShow,
+  requestPatientAppointmentCancellation,
+  requestPatientAppointmentReschedule,
   rescheduleStaffAppointment,
   type AppointmentStaffOptionsResponse,
+  type PatientAppointmentsResponse,
   type PatientTrendsResponse,
   type StaffAppointmentRecord,
   type StaffAppointmentsResponse,
@@ -38,6 +42,34 @@ const appointmentsResponse: StaffAppointmentsResponse = {
   items: [],
 };
 
+const patientAppointmentsResponse: PatientAppointmentsResponse = {
+  range: { from: '2026-03-01', to: '2026-03-31' },
+  timezone: 'Africa/Accra',
+  summary: {
+    total: 1,
+    confirmed: 1,
+    cancelled: 0,
+    completed: 0,
+    noShow: 0,
+  },
+  items: [
+    {
+      id: 'appointment-1',
+      clinicId: 'clinic-2',
+      patientId: 'patient-1',
+      startsAt: '2026-03-26T14:00:00.000Z',
+      endsAt: '2026-03-26T14:30:00.000Z',
+      status: 'CONFIRMED',
+      linkedRequestId: 'appt-req-1',
+      assignedDoctor: null,
+      assignedVolunteer: null,
+      notes: null,
+      createdAt: '2026-03-21T09:00:00.000Z',
+      updatedAt: '2026-03-21T09:00:00.000Z',
+    },
+  ],
+};
+
 const staffOptionsResponse: AppointmentStaffOptionsResponse = {
   doctors: [],
   volunteers: [],
@@ -63,6 +95,26 @@ const appointmentRecord: StaffAppointmentRecord = {
   notes: null,
   createdAt: '2026-03-21T09:00:00.000Z',
   updatedAt: '2026-03-21T09:00:00.000Z',
+};
+
+const appointmentRequestRecord = {
+  id: 'change-request-1',
+  clinicId: 'clinic-2',
+  patientId: 'patient-1',
+  requestType: 'CANCEL_APPOINTMENT' as const,
+  sourceAppointmentId: 'appointment-1',
+  preferredStartDate: '2026-03-26',
+  preferredEndDate: '2026-03-26',
+  reason: 'Cannot make it',
+  notes: null,
+  status: 'REQUESTED' as const,
+  triagedAt: null,
+  triagedBy: null,
+  rejectionReason: null,
+  createdAt: '2026-03-21T09:00:00.000Z',
+  updatedAt: '2026-03-21T09:00:00.000Z',
+  appointment: null,
+  sourceAppointment: patientAppointmentsResponse.items[0],
 };
 
 describe('patient portal trend fetch helpers', () => {
@@ -131,6 +183,29 @@ describe('patient portal trend fetch helpers', () => {
 
     expect(global.fetch).toHaveBeenCalledWith(
       'http://localhost:4000/clinics/clinic-2/appointments?from=2026-03-26&to=2026-03-27&status=CONFIRMED&assignedDoctorId=doctor-1&assignedVolunteerId=volunteer-1&patientSearch=Ama+Mensah',
+      expect.any(Object),
+    );
+
+    const init = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+    const headers = new Headers(init.headers);
+    expect(headers.get('Authorization')).toBe('Bearer token-123');
+    expect(headers.get('X-Clinic-Id')).toBe('clinic-2');
+  });
+
+  it('builds patient appointment history queries with clinic header scoping', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue(patientAppointmentsResponse),
+    } as unknown as Response);
+
+    await fetchPatientAppointments('clinic-2', getToken, {
+      from: '2026-03-01',
+      to: '2026-03-31',
+      status: 'CONFIRMED',
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:4000/patients/me/appointments?from=2026-03-01&to=2026-03-31&status=CONFIRMED',
       expect.any(Object),
     );
 
@@ -226,6 +301,55 @@ describe('patient portal trend fetch helpers', () => {
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ reason: 'Patient did not arrive' }),
+      }),
+    );
+
+    for (const [, init] of (global.fetch as jest.Mock).mock.calls) {
+      const headers = new Headers((init as RequestInit).headers);
+      expect(headers.get('Authorization')).toBe('Bearer token-123');
+      expect(headers.get('X-Clinic-Id')).toBe('clinic-2');
+    }
+  });
+
+  it('creates patient-safe cancel and reschedule requests without staff mutation endpoints', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue(appointmentRequestRecord),
+    } as unknown as Response);
+
+    await requestPatientAppointmentCancellation('clinic-2', 'appointment-1', getToken, {
+      reason: 'Cannot make it',
+      notes: 'Please cancel this visit',
+    });
+    await requestPatientAppointmentReschedule('clinic-2', 'appointment-1', getToken, {
+      preferredStartDate: '2026-04-01',
+      preferredEndDate: '2026-04-03',
+      reason: 'Need a morning slot',
+      notes: 'Any day works',
+    });
+
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      1,
+      'http://localhost:4000/patients/me/appointments/appointment-1/cancel-request',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          reason: 'Cannot make it',
+          notes: 'Please cancel this visit',
+        }),
+      }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      'http://localhost:4000/patients/me/appointments/appointment-1/reschedule-request',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          preferredStartDate: '2026-04-01',
+          preferredEndDate: '2026-04-03',
+          reason: 'Need a morning slot',
+          notes: 'Any day works',
+        }),
       }),
     );
 

@@ -61,6 +61,11 @@ export interface AppointmentSummary {
   updatedAt: string;
 }
 
+export type AppointmentRequestType =
+  | 'NEW_APPOINTMENT'
+  | 'CANCEL_APPOINTMENT'
+  | 'RESCHEDULE_APPOINTMENT';
+
 export type StaffAppointmentStatus = 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW';
 
 export interface StaffAppointmentPatientSummary {
@@ -101,6 +106,22 @@ export interface StaffAppointmentsResponse {
     noShow: number;
   };
   items: StaffAppointmentRecord[];
+}
+
+export interface PatientAppointmentsResponse {
+  range: {
+    from: string;
+    to: string;
+  };
+  timezone: string;
+  summary: {
+    total: number;
+    confirmed: number;
+    cancelled: number;
+    completed: number;
+    noShow: number;
+  };
+  items: AppointmentSummary[];
 }
 
 export interface AppointmentStaffOption {
@@ -145,6 +166,8 @@ export interface AppointmentRequestRecord {
   id: string;
   clinicId: string;
   patientId: string;
+  requestType: AppointmentRequestType;
+  sourceAppointmentId: string | null;
   preferredStartDate: string;
   preferredEndDate: string;
   reason: string | null;
@@ -156,6 +179,7 @@ export interface AppointmentRequestRecord {
   createdAt: string;
   updatedAt: string;
   appointment: AppointmentSummary | null;
+  sourceAppointment: AppointmentSummary | null;
 }
 
 export interface LegacySelfReport {
@@ -330,6 +354,23 @@ export async function fetchAppointmentRequests(clinicId: string, getToken: GetTo
   return parsePortalResponse<AppointmentRequestRecord[]>(res);
 }
 
+export async function fetchPatientAppointments(
+  clinicId: string,
+  getToken: GetToken,
+  params?: { from?: string; to?: string; status?: AppointmentSummary['status'] },
+) {
+  const search = new URLSearchParams();
+  if (params?.from) search.set('from', params.from);
+  if (params?.to) search.set('to', params.to);
+  if (params?.status) search.set('status', params.status);
+  const suffix = search.toString() ? `?${search.toString()}` : '';
+  const res = await apiFetch(`/patients/me/appointments${suffix}`, {
+    getToken,
+    activeClinicId: clinicId,
+  });
+  return parsePortalResponse<PatientAppointmentsResponse>(res);
+}
+
 export async function fetchStaffAppointments(
   clinicId: string,
   getToken: GetToken,
@@ -464,6 +505,47 @@ export async function createAppointmentRequest(
     getToken,
     activeClinicId: clinicId,
   });
+  return parsePortalResponse<AppointmentRequestRecord>(res);
+}
+
+export async function requestPatientAppointmentCancellation(
+  clinicId: string,
+  appointmentId: string,
+  getToken: GetToken,
+  body: { reason: string; notes?: string },
+) {
+  const res = await apiFetch(
+    `/patients/me/appointments/${encodeURIComponent(appointmentId)}/cancel-request`,
+    {
+      method: 'POST',
+      body: JSON.stringify(body),
+      getToken,
+      activeClinicId: clinicId,
+    },
+  );
+  return parsePortalResponse<AppointmentRequestRecord>(res);
+}
+
+export async function requestPatientAppointmentReschedule(
+  clinicId: string,
+  appointmentId: string,
+  getToken: GetToken,
+  body: {
+    preferredStartDate: string;
+    preferredEndDate: string;
+    reason?: string;
+    notes?: string;
+  },
+) {
+  const res = await apiFetch(
+    `/patients/me/appointments/${encodeURIComponent(appointmentId)}/reschedule-request`,
+    {
+      method: 'POST',
+      body: JSON.stringify(body),
+      getToken,
+      activeClinicId: clinicId,
+    },
+  );
   return parsePortalResponse<AppointmentRequestRecord>(res);
 }
 

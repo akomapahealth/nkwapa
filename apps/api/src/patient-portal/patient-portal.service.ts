@@ -290,6 +290,7 @@ export class PatientPortalService {
       data: {
         clinicId: requestClinicId,
         patientId: patient.id,
+        requestType: AppointmentRequestType.NEW_APPOINTMENT,
         preferredStartDate,
         preferredEndDate,
         reason: dto.reason?.trim() || null,
