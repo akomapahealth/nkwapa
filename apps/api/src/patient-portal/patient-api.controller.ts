@@ -24,7 +24,10 @@ import {
 import { ListPatientTrendsQueryDto } from './dto/patient-trends.dto';
 import {
   CreateAppointmentRequestDto,
+  ListAppointmentsQueryDto,
   ListAppointmentRequestsQueryDto,
+  PatientCancelAppointmentRequestDto,
+  PatientRescheduleAppointmentRequestDto,
 } from './dto/appointment-requests.dto';
 import { PatientIdParamDto } from '../common/request-dto';
 import { RateLimit } from '../common/rate-limit.decorator';
@@ -133,6 +136,75 @@ export class PatientApiController {
       req.clinicId,
       req.user.user.id,
       query,
+    );
+  }
+
+  @Get('me/appointments')
+  @ClinicScoped({ type: 'header', headerKey: 'x-clinic-id' })
+  @RequirePermission(PERMISSIONS.PATIENT_PORTAL_READ_SELF)
+  async listAppointments(
+    @Query() query: ListAppointmentsQueryDto,
+    @Request() req: RequestWithUser,
+  ) {
+    if (!req.clinicId) {
+      throw new BadRequestException('X-Clinic-Id header is required');
+    }
+    return this.patientPortalService.listAppointmentsForAuthenticatedPatient(
+      req.clinicId,
+      req.user.user.id,
+      query,
+    );
+  }
+
+  @Post('me/appointments/:appointmentId/cancel-request')
+  @ClinicScoped({ type: 'header', headerKey: 'x-clinic-id' })
+  @RequirePermission(PERMISSIONS.PATIENT_PORTAL_WRITE_SELF_REPORT)
+  @RateLimit({
+    key: 'patient_portal_appointment_change_request_write',
+    limit: 10,
+    windowSeconds: 300,
+    scope: 'user-or-ip',
+  })
+  async createCancelAppointmentRequest(
+    @Param('appointmentId') appointmentId: string,
+    @Body() dto: PatientCancelAppointmentRequestDto,
+    @Request() req: RequestWithUser,
+  ) {
+    if (!req.clinicId) {
+      throw new BadRequestException('X-Clinic-Id header is required');
+    }
+    return this.patientPortalService.createCancelAppointmentRequestForAuthenticatedPatient(
+      req.clinicId,
+      req.user.user.id,
+      appointmentId,
+      dto,
+      req.headers?.['x-request-id'] ?? randomUUID(),
+    );
+  }
+
+  @Post('me/appointments/:appointmentId/reschedule-request')
+  @ClinicScoped({ type: 'header', headerKey: 'x-clinic-id' })
+  @RequirePermission(PERMISSIONS.PATIENT_PORTAL_WRITE_SELF_REPORT)
+  @RateLimit({
+    key: 'patient_portal_appointment_change_request_write',
+    limit: 10,
+    windowSeconds: 300,
+    scope: 'user-or-ip',
+  })
+  async createRescheduleAppointmentRequest(
+    @Param('appointmentId') appointmentId: string,
+    @Body() dto: PatientRescheduleAppointmentRequestDto,
+    @Request() req: RequestWithUser,
+  ) {
+    if (!req.clinicId) {
+      throw new BadRequestException('X-Clinic-Id header is required');
+    }
+    return this.patientPortalService.createRescheduleAppointmentRequestForAuthenticatedPatient(
+      req.clinicId,
+      req.user.user.id,
+      appointmentId,
+      dto,
+      req.headers?.['x-request-id'] ?? randomUUID(),
     );
   }
 

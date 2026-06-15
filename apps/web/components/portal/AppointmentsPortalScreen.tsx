@@ -1,107 +1,101 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ArrowRight,
   CalendarClock,
   CalendarDays,
   CheckCircle2,
-  CircleSlash,
   Clock3,
   FileClock,
   Plus,
+  RefreshCw,
+  RotateCcw,
+  XCircle,
 } from 'lucide-react';
-import { useAuth } from '@/lib/auth-context';
-import { useBootstrap } from '@/lib/bootstrap-context';
-import {
-  fetchAppointmentRequests,
-  getPortalErrorMessage,
-  formatPortalDate,
-  formatPortalDateTime,
-  getPortalClinicId,
-  getPortalClinicName,
-  isPortalLinkMissingError,
-  type AppointmentRequestRecord,
-} from '@/lib/patient-portal';
+import { InlineErrorState } from '@/components/feedback/AppState';
 import { PortalLinkRequiredState } from '@/components/portal/PortalLinkRequiredState';
 import { RouteGuard } from '@/components/RouteGuard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/components/ui/toast';
+import { useAuth } from '@/lib/auth-context';
+import { useBootstrap } from '@/lib/bootstrap-context';
+import {
+  fetchAppointmentRequests,
+  fetchPatientAppointments,
+  formatPortalDate,
+  formatPortalDateTime,
+  getPortalClinicId,
+  getPortalClinicName,
+  getPortalErrorMessage,
+  isPortalLinkMissingError,
+  requestPatientAppointmentCancellation,
+  requestPatientAppointmentReschedule,
+  type AppointmentRequestRecord,
+  type AppointmentSummary,
+} from '@/lib/patient-portal';
+import {
+  getAppointmentRequestStatusView,
+  getAppointmentRequestTypeLabel,
+  getAppointmentStatusView,
+  getNextConfirmedAppointment,
+  isPatientAppointmentActionable,
+} from '@/lib/portal-appointment-status';
+import { cn } from '@/lib/utils';
 
 type RequestTab = 'all' | 'pending' | 'confirmed' | 'closed';
+type AppointmentTab = 'all' | 'upcoming' | 'completed' | 'closed';
+type ChangeAction = 'cancel' | 'reschedule';
 
-function isPending(request: AppointmentRequestRecord) {
-  return request.status === 'REQUESTED' || request.status === 'TRIAGED';
+interface ChangeDialogState {
+  action: ChangeAction;
+  appointment: AppointmentSummary;
 }
 
-function isClosed(request: AppointmentRequestRecord) {
-  return request.status === 'REJECTED' || request.status === 'CANCELLED';
-}
-
-function getStatusBadgeVariant(
-  status: AppointmentRequestRecord['status'],
-): 'secondary' | 'warning' | 'finalized' | 'destructive' | 'outline' {
-  switch (status) {
-    case 'REQUESTED':
-      return 'secondary';
-    case 'TRIAGED':
-      return 'warning';
-    case 'CONFIRMED':
-      return 'finalized';
-    case 'REJECTED':
-      return 'destructive';
-    case 'CANCELLED':
-      return 'outline';
-  }
-}
-
-function getStatusLabel(status: AppointmentRequestRecord['status']) {
-  switch (status) {
-    case 'REQUESTED':
-      return 'Requested';
-    case 'TRIAGED':
-      return 'Under review';
-    case 'CONFIRMED':
-      return 'Confirmed';
-    case 'REJECTED':
-      return 'Not approved';
-    case 'CANCELLED':
-      return 'Cancelled';
-  }
+function isPendingRequest(request: AppointmentRequestRecord) {
+  return getAppointmentRequestStatusView(request.status).category === 'pending';
 }
 
 function getRequestsForTab(requests: AppointmentRequestRecord[], tab: RequestTab) {
-  switch (tab) {
-    case 'pending':
-      return requests.filter(isPending);
-    case 'confirmed':
-      return requests.filter((request) => request.status === 'CONFIRMED');
-    case 'closed':
-      return requests.filter(isClosed);
-    case 'all':
-    default:
-      return requests;
-  }
+  if (tab === 'all') return requests;
+  return requests.filter(
+    (request) => getAppointmentRequestStatusView(request.status).category === tab,
+  );
 }
 
-function getNextAppointment(requests: AppointmentRequestRecord[]) {
-  const now = Date.now();
-  return (
-    requests
-      .map((request) => request.appointment)
-      .filter((appointment): appointment is NonNullable<AppointmentRequestRecord['appointment']> =>
-        Boolean(appointment),
-      )
-      .filter(
-        (appointment) =>
-          appointment.status === 'CONFIRMED' && new Date(appointment.startsAt).getTime() >= now,
-      )
-      .sort(
-        (left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime(),
-      )[0] ?? null
-  );
+function getAppointmentsForTab(appointments: AppointmentSummary[], tab: AppointmentTab, now: Date) {
+  switch (tab) {
+    case 'upcoming':
+      return appointments
+        .filter((appointment) => isPatientAppointmentActionable(appointment, now))
+        .sort(
+          (left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime(),
+        );
+    case 'completed':
+      return appointments.filter((appointment) => appointment.status === 'COMPLETED');
+    case 'closed':
+      return appointments.filter(
+        (appointment) => appointment.status === 'CANCELLED' || appointment.status === 'NO_SHOW',
+      );
+    case 'all':
+    default:
+      return appointments;
+  }
 }
 
 function getRequestWindow(request: AppointmentRequestRecord) {
@@ -113,64 +107,381 @@ function getRequestWindow(request: AppointmentRequestRecord) {
   )}`;
 }
 
+function toDateInput(value: string) {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toISOString().slice(0, 10);
+}
+
+function addDaysToDateInput(value: string, days: number) {
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  parsed.setUTCDate(parsed.getUTCDate() + days);
+  return parsed.toISOString().slice(0, 10);
+}
+
+function EmptyPanel({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: typeof FileClock;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex min-h-[220px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border/70 bg-muted/20 px-6 text-center">
+      <Icon className="h-6 w-6 text-muted-foreground" />
+      <div className="space-y-1">
+        <p className="font-medium">{title}</p>
+        <p className="max-w-md text-sm leading-6 text-muted-foreground">{description}</p>
+      </div>
+    </div>
+  );
+}
+
+function AppointmentRow({
+  appointment,
+  pendingChangeRequest,
+  onAction,
+}: {
+  appointment: AppointmentSummary;
+  pendingChangeRequest?: AppointmentRequestRecord;
+  onAction: (action: ChangeAction, appointment: AppointmentSummary) => void;
+}) {
+  const statusView = getAppointmentStatusView(appointment.status);
+  const actionable = isPatientAppointmentActionable(appointment) && !pendingChangeRequest;
+
+  return (
+    <article className="rounded-2xl border border-border/70 bg-background/80 p-4 transition-colors hover:bg-muted/20">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge
+              variant={statusView.badgeVariant}
+              aria-label={`${statusView.label}: ${statusView.description}`}
+              className="rounded-full"
+            >
+              {statusView.label}
+            </Badge>
+            {pendingChangeRequest ? (
+              <Badge variant="warning" className="rounded-full">
+                {getAppointmentRequestTypeLabel(pendingChangeRequest.requestType)} pending
+              </Badge>
+            ) : null}
+          </div>
+          <div>
+            <p className="font-medium text-foreground">
+              {formatPortalDateTime(appointment.startsAt)}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Ends {formatPortalDateTime(appointment.endsAt)}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+            <span>Doctor: {appointment.assignedDoctor?.displayName ?? 'Unassigned'}</span>
+            <span>Volunteer: {appointment.assignedVolunteer?.displayName ?? 'Unassigned'}</span>
+          </div>
+          {appointment.notes ? (
+            <p className="max-w-2xl text-sm leading-6 text-muted-foreground">{appointment.notes}</p>
+          ) : null}
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row lg:flex-col">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="cursor-pointer justify-start"
+            disabled={!actionable}
+            onClick={() => onAction('reschedule', appointment)}
+          >
+            <RotateCcw className="h-4 w-4" />
+            Request reschedule
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="cursor-pointer justify-start text-destructive hover:text-destructive"
+            disabled={!actionable}
+            onClick={() => onAction('cancel', appointment)}
+          >
+            <XCircle className="h-4 w-4" />
+            Request cancellation
+          </Button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function RequestRow({ request }: { request: AppointmentRequestRecord }) {
+  const statusView = getAppointmentRequestStatusView(request.status);
+  const typeLabel = getAppointmentRequestTypeLabel(request.requestType);
+
+  return (
+    <article className="rounded-2xl border border-border/70 bg-background/80 p-4 transition-colors hover:bg-muted/20">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="rounded-full bg-card">
+              {typeLabel}
+            </Badge>
+            <Badge
+              variant={statusView.badgeVariant}
+              aria-label={`${statusView.label}: ${statusView.description}`}
+              className="rounded-full"
+            >
+              {statusView.label}
+            </Badge>
+          </div>
+          <p className="font-medium text-foreground">
+            Preferred window: {getRequestWindow(request)}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Submitted {formatPortalDate(request.createdAt)}
+          </p>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {request.triagedAt ? `Updated ${formatPortalDate(request.triagedAt)}` : 'Awaiting review'}
+        </p>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr]">
+        <div className="space-y-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Reason
+            </p>
+            <p className="mt-2 text-sm">{request.reason || 'No reason provided'}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Notes
+            </p>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              {request.notes || 'No notes were added to this request.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {request.sourceAppointment ? (
+            <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Related appointment
+              </p>
+              <p className="mt-2 text-sm font-medium">
+                {formatPortalDateTime(request.sourceAppointment.startsAt)}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Status: {getAppointmentStatusView(request.sourceAppointment.status).label}
+              </p>
+            </div>
+          ) : null}
+
+          {request.appointment ? (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="h-4 w-4 text-emerald-700" />
+                <p className="font-medium text-emerald-950">Confirmed visit</p>
+              </div>
+              <p className="mt-2 text-sm text-emerald-950">
+                {formatPortalDateTime(request.appointment.startsAt)}
+              </p>
+              <p className="text-sm text-emerald-900/80">
+                Ends {formatPortalDateTime(request.appointment.endsAt)}
+              </p>
+            </div>
+          ) : null}
+
+          {request.rejectionReason ? (
+            <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-destructive">
+                Clinic note
+              </p>
+              <p className="mt-2 text-sm text-destructive">{request.rejectionReason}</p>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export function AppointmentsPortalScreen() {
   const getToken = useAuth();
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const clinicId = getPortalClinicId(bootstrap);
   const clinicName = getPortalClinicName(bootstrap, clinicId);
+  const { showToast } = useToast();
 
   const [requests, setRequests] = useState<AppointmentRequestRecord[]>([]);
-  const [activeTab, setActiveTab] = useState<RequestTab>('all');
+  const [appointments, setAppointments] = useState<AppointmentSummary[]>([]);
+  const [activeRequestTab, setActiveRequestTab] = useState<RequestTab>('all');
+  const [activeAppointmentTab, setActiveAppointmentTab] = useState<AppointmentTab>('all');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<unknown | null>(null);
+  const [changeDialog, setChangeDialog] = useState<ChangeDialogState | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelNotes, setCancelNotes] = useState('');
+  const [rescheduleStartDate, setRescheduleStartDate] = useState('');
+  const [rescheduleEndDate, setRescheduleEndDate] = useState('');
+  const [rescheduleReason, setRescheduleReason] = useState('');
+  const [rescheduleNotes, setRescheduleNotes] = useState('');
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [submittingAction, setSubmittingAction] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
+  const loadAppointments = useCallback(
+    async (options?: { background?: boolean }) => {
       if (!clinicId || !getToken) {
         setLoading(false);
         return;
       }
 
-      setLoading(true);
+      if (options?.background) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       setError(null);
+
       try {
-        const response = await fetchAppointmentRequests(clinicId, getToken);
-        if (!cancelled) {
-          setRequests(response);
-        }
+        const [requestResponse, appointmentResponse] = await Promise.all([
+          fetchAppointmentRequests(clinicId, getToken),
+          fetchPatientAppointments(clinicId, getToken),
+        ]);
+        setRequests(requestResponse);
+        setAppointments(appointmentResponse.items);
       } catch (err) {
-        if (!cancelled) {
-          setError(err);
-        }
+        setError(err);
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [clinicId, getToken],
+  );
+
+  useEffect(() => {
+    void loadAppointments();
+  }, [loadAppointments]);
+
+  const now = new Date();
+  const pendingRequestCount = useMemo(() => requests.filter(isPendingRequest).length, [requests]);
+  const upcomingCount = appointments.filter((appointment) =>
+    isPatientAppointmentActionable(appointment, now),
+  ).length;
+  const completedCount = useMemo(
+    () => appointments.filter((appointment) => appointment.status === 'COMPLETED').length,
+    [appointments],
+  );
+  const closedCount = useMemo(
+    () =>
+      appointments.filter(
+        (appointment) => appointment.status === 'CANCELLED' || appointment.status === 'NO_SHOW',
+      ).length,
+    [appointments],
+  );
+  const nextAppointment = getNextConfirmedAppointment(appointments, now);
+  const visibleRequests = useMemo(
+    () => getRequestsForTab(requests, activeRequestTab),
+    [activeRequestTab, requests],
+  );
+  const visibleAppointments = getAppointmentsForTab(appointments, activeAppointmentTab, now);
+  const pendingChangeRequestsByAppointment = useMemo(() => {
+    const map = new Map<string, AppointmentRequestRecord>();
+    for (const request of requests) {
+      if (
+        request.sourceAppointmentId &&
+        request.requestType !== 'NEW_APPOINTMENT' &&
+        isPendingRequest(request)
+      ) {
+        map.set(request.sourceAppointmentId, request);
       }
     }
-
-    load();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [clinicId, getToken]);
-
-  const pendingCount = useMemo(() => requests.filter(isPending).length, [requests]);
-  const confirmedCount = useMemo(
-    () => requests.filter((request) => request.status === 'CONFIRMED').length,
-    [requests],
-  );
-  const closedCount = useMemo(() => requests.filter(isClosed).length, [requests]);
-  const nextAppointment = useMemo(() => getNextAppointment(requests), [requests]);
-  const visibleRequests = useMemo(
-    () => getRequestsForTab(requests, activeTab),
-    [activeTab, requests],
-  );
+    return map;
+  }, [requests]);
   const isLinkMissing = isPortalLinkMissingError(error);
   const errorMessage = error ? getPortalErrorMessage(error) : null;
+
+  function openChangeDialog(action: ChangeAction, appointment: AppointmentSummary) {
+    setChangeDialog({ action, appointment });
+    setActionError(null);
+    setCancelReason('');
+    setCancelNotes('');
+    const startDate = toDateInput(appointment.startsAt);
+    setRescheduleStartDate(startDate);
+    setRescheduleEndDate(startDate ? addDaysToDateInput(startDate, 7) : '');
+    setRescheduleReason('');
+    setRescheduleNotes('');
+  }
+
+  function closeChangeDialog() {
+    if (submittingAction) return;
+    setChangeDialog(null);
+    setActionError(null);
+  }
+
+  async function submitChangeRequest() {
+    if (!clinicId || !getToken || !changeDialog) return;
+
+    setActionError(null);
+    setSubmittingAction(true);
+
+    try {
+      if (changeDialog.action === 'cancel') {
+        const reason = cancelReason.trim();
+        if (!reason) {
+          setActionError('Add a cancellation reason before submitting.');
+          return;
+        }
+        await requestPatientAppointmentCancellation(
+          clinicId,
+          changeDialog.appointment.id,
+          getToken,
+          {
+            reason,
+            notes: cancelNotes.trim() || undefined,
+          },
+        );
+      } else {
+        if (!rescheduleStartDate || !rescheduleEndDate) {
+          setActionError('Choose a preferred start and end date.');
+          return;
+        }
+        if (rescheduleEndDate < rescheduleStartDate) {
+          setActionError('Preferred end date must be on or after the start date.');
+          return;
+        }
+        await requestPatientAppointmentReschedule(clinicId, changeDialog.appointment.id, getToken, {
+          preferredStartDate: rescheduleStartDate,
+          preferredEndDate: rescheduleEndDate,
+          reason: rescheduleReason.trim() || undefined,
+          notes: rescheduleNotes.trim() || undefined,
+        });
+      }
+
+      showToast({
+        title: 'Request sent',
+        description: 'Your clinic can now review this appointment request.',
+        tone: 'success',
+      });
+      setChangeDialog(null);
+      await loadAppointments({ background: true });
+    } catch (err) {
+      const message = getPortalErrorMessage(err);
+      setActionError(message);
+      showToast({
+        title: 'Request could not be sent',
+        description: message,
+        tone: 'error',
+      });
+    } finally {
+      setSubmittingAction(false);
+    }
+  }
 
   if (isLinkMissing && !loading) {
     return (
@@ -185,52 +496,58 @@ export function AppointmentsPortalScreen() {
   return (
     <RouteGuard requiredPermission="PATIENT.PORTAL.READ_SELF">
       <div className="space-y-6">
-        <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-          <Card className="overflow-hidden border-border/70 bg-gradient-to-br from-card via-card to-primary/10">
+        <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+          <Card className="overflow-hidden border-border/70 bg-card/95 shadow-sm">
             <CardHeader className="space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="secondary" className="rounded-full px-3 py-1">
                   Appointment center
                 </Badge>
-                {clinicName && (
+                {clinicName ? (
                   <Badge variant="outline" className="rounded-full bg-background/80 px-3 py-1">
                     {clinicName}
                   </Badge>
-                )}
+                ) : null}
               </div>
               <div className="space-y-2">
-                <CardTitle className="text-2xl md:text-3xl">
-                  Keep visit requests and confirmed appointments in one place.
-                </CardTitle>
-                <CardDescription className="max-w-2xl text-sm md:text-base">
-                  Review the status of every request, see your confirmed visit details, and submit a
-                  new scheduling request whenever you need support.
+                <CardTitle className="text-2xl md:text-3xl">Appointments and requests</CardTitle>
+                <CardDescription className="max-w-2xl text-sm leading-6 md:text-base">
+                  Review scheduled visits, previous outcomes, and requests your clinic is triaging.
                 </CardDescription>
               </div>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-3">
-              <Button asChild>
+              <Button asChild className="cursor-pointer">
                 <Link href="/portal/appointments/request">
                   <Plus className="h-4 w-4" />
                   Request a visit
                 </Link>
               </Button>
-              <Button asChild variant="outline">
-                <Link href="/portal/health">Review my health trends</Link>
+              <Button
+                type="button"
+                variant="outline"
+                className="cursor-pointer"
+                onClick={() => void loadAppointments({ background: true })}
+                disabled={refreshing || loading}
+              >
+                <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
+                Refresh
               </Button>
             </CardContent>
           </Card>
 
-          <Card className="border-border/70 bg-card/95">
+          <Card className="border-border/70 bg-card/95 shadow-sm">
             <CardHeader>
               <CardTitle className="text-lg">Next confirmed visit</CardTitle>
               <CardDescription>
-                Your clinic confirms the exact date and time once a request is approved.
+                {nextAppointment
+                  ? 'Your next active appointment on the clinic schedule.'
+                  : 'No future confirmed appointment is currently scheduled.'}
               </CardDescription>
             </CardHeader>
             <CardContent>
               {nextAppointment ? (
-                <div className="space-y-4 rounded-2xl border border-border/70 bg-background/70 p-4">
+                <div className="space-y-4 rounded-2xl border border-border/70 bg-background/80 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-medium">
@@ -240,99 +557,150 @@ export function AppointmentsPortalScreen() {
                         Ends {formatPortalDateTime(nextAppointment.endsAt)}
                       </p>
                     </div>
-                    <Badge variant="finalized" className="rounded-full">
+                    <Badge variant="secondary" className="rounded-full">
                       Confirmed
                     </Badge>
                   </div>
-                  {nextAppointment.notes && (
-                    <p className="text-sm text-muted-foreground">{nextAppointment.notes}</p>
-                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full cursor-pointer justify-between"
+                    onClick={() => openChangeDialog('reschedule', nextAppointment)}
+                    disabled={Boolean(pendingChangeRequestsByAppointment.get(nextAppointment.id))}
+                  >
+                    Request a change
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
                 </div>
               ) : (
                 <div className="rounded-2xl border border-dashed border-border/70 bg-muted/20 p-5 text-sm text-muted-foreground">
-                  No confirmed visit is scheduled yet.
+                  Request a visit when you need a follow-up or check-in.
                 </div>
               )}
             </CardContent>
           </Card>
         </section>
 
-        <section className="grid gap-4 md:grid-cols-3">
+        <section className="grid gap-4 md:grid-cols-4">
           <Card className="border-border/70 bg-card/95">
             <CardHeader className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Clock3 className="h-5 w-5 text-primary" />
-                <Badge variant="secondary" className="rounded-full">
-                  Pending
-                </Badge>
-              </div>
+              <CalendarClock className="h-5 w-5 text-primary" />
               <div>
-                <CardTitle className="text-2xl">{pendingCount}</CardTitle>
-                <CardDescription>Requests waiting for clinic review or scheduling.</CardDescription>
+                <CardTitle className="text-2xl">{upcomingCount}</CardTitle>
+                <CardDescription>Upcoming confirmed</CardDescription>
               </div>
             </CardHeader>
           </Card>
-
           <Card className="border-border/70 bg-card/95">
             <CardHeader className="space-y-3">
-              <div className="flex items-center justify-between">
-                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                <Badge variant="finalized" className="rounded-full">
-                  Confirmed
-                </Badge>
-              </div>
+              <FileClock className="h-5 w-5 text-primary" />
               <div>
-                <CardTitle className="text-2xl">{confirmedCount}</CardTitle>
-                <CardDescription>Requests that have turned into scheduled visits.</CardDescription>
+                <CardTitle className="text-2xl">{pendingRequestCount}</CardTitle>
+                <CardDescription>Requests pending</CardDescription>
               </div>
             </CardHeader>
           </Card>
-
           <Card className="border-border/70 bg-card/95">
             <CardHeader className="space-y-3">
-              <div className="flex items-center justify-between">
-                <CircleSlash className="h-5 w-5 text-destructive" />
-                <Badge variant="outline" className="rounded-full">
-                  Closed
-                </Badge>
+              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              <div>
+                <CardTitle className="text-2xl">{completedCount}</CardTitle>
+                <CardDescription>Completed visits</CardDescription>
               </div>
+            </CardHeader>
+          </Card>
+          <Card className="border-border/70 bg-card/95">
+            <CardHeader className="space-y-3">
+              <Clock3 className="h-5 w-5 text-muted-foreground" />
               <div>
                 <CardTitle className="text-2xl">{closedCount}</CardTitle>
-                <CardDescription>
-                  Requests that were closed, declined, or cancelled.
-                </CardDescription>
+                <CardDescription>Cancelled or no-show</CardDescription>
               </div>
             </CardHeader>
           </Card>
         </section>
 
-        {loading && (
-          <div className="grid gap-4 md:grid-cols-2">
-            {Array.from({ length: 2 }).map((_, index) => (
+        {loading ? (
+          <div className="grid gap-4 lg:grid-cols-2">
+            {Array.from({ length: 4 }).map((_, index) => (
               <Card key={index} className="h-40 animate-pulse border-border/70 bg-muted/30" />
             ))}
           </div>
-        )}
-
-        {error ? (
-          <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-            {errorMessage}
-          </div>
         ) : null}
 
-        {!loading && !error && (
-          <section className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
-            <Card className="border-border/70 bg-card/95">
+        {error ? (
+          <InlineErrorState
+            title="Appointments could not load"
+            description={errorMessage ?? 'Check your connection and try again.'}
+            onRetry={() => void loadAppointments()}
+            retryLabel="Reload appointments"
+          />
+        ) : null}
+
+        {!loading && !error ? (
+          <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+            <Card className="border-border/70 bg-card/95 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg">Confirmed appointment history</CardTitle>
+                <CardDescription>
+                  Scheduled visits across upcoming, completed, cancelled, and missed outcomes.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Tabs
+                  value={activeAppointmentTab}
+                  onValueChange={(value) => setActiveAppointmentTab(value as AppointmentTab)}
+                >
+                  <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-2xl border border-border/70 bg-background p-2 md:grid-cols-4">
+                    <TabsTrigger value="all" className="rounded-xl">
+                      All
+                    </TabsTrigger>
+                    <TabsTrigger value="upcoming" className="rounded-xl">
+                      Upcoming
+                    </TabsTrigger>
+                    <TabsTrigger value="completed" className="rounded-xl">
+                      Completed
+                    </TabsTrigger>
+                    <TabsTrigger value="closed" className="rounded-xl">
+                      Closed
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+
+                {visibleAppointments.length === 0 ? (
+                  <EmptyPanel
+                    icon={CalendarDays}
+                    title="No appointments in this view"
+                    description="Confirmed appointments and past outcomes will appear here after your clinic schedules them."
+                  />
+                ) : (
+                  <div className="space-y-3">
+                    {visibleAppointments.map((appointment) => (
+                      <AppointmentRow
+                        key={appointment.id}
+                        appointment={appointment}
+                        pendingChangeRequest={pendingChangeRequestsByAppointment.get(
+                          appointment.id,
+                        )}
+                        onAction={openChangeDialog}
+                      />
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/70 bg-card/95 shadow-sm">
               <CardHeader>
                 <CardTitle className="text-lg">Request history</CardTitle>
                 <CardDescription>
-                  Track your preferred dates, clinic decisions, and confirmed appointments.
+                  New visit, cancellation, and reschedule requests your clinic can triage.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 <Tabs
-                  value={activeTab}
-                  onValueChange={(value) => setActiveTab(value as RequestTab)}
+                  value={activeRequestTab}
+                  onValueChange={(value) => setActiveRequestTab(value as RequestTab)}
                 >
                   <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-2xl border border-border/70 bg-background p-2 md:grid-cols-4">
                     <TabsTrigger value="all" className="rounded-xl">
@@ -348,171 +716,156 @@ export function AppointmentsPortalScreen() {
                       Closed
                     </TabsTrigger>
                   </TabsList>
-
-                  <TabsContent value={activeTab} className="mt-4">
-                    {visibleRequests.length === 0 ? (
-                      <div className="flex min-h-[240px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border/70 bg-muted/20 px-6 text-center">
-                        <FileClock className="h-6 w-6 text-muted-foreground" />
-                        <div className="space-y-1">
-                          <p className="font-medium">No requests in this view</p>
-                          <p className="text-sm text-muted-foreground">
-                            Submit a new appointment request when you need a follow-up or check-in.
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {visibleRequests.map((request) => (
-                          <div
-                            key={request.id}
-                            className="rounded-2xl border border-border/70 bg-background/70 p-4"
-                          >
-                            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                              <div className="space-y-2">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <Badge
-                                    variant={getStatusBadgeVariant(request.status)}
-                                    className="rounded-full"
-                                  >
-                                    {getStatusLabel(request.status)}
-                                  </Badge>
-                                  <span className="text-sm font-medium">
-                                    Preferred window: {getRequestWindow(request)}
-                                  </span>
-                                </div>
-                                <p className="text-sm text-muted-foreground">
-                                  Submitted {formatPortalDate(request.createdAt)}
-                                </p>
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                {request.triagedAt
-                                  ? `Updated ${formatPortalDate(request.triagedAt)}`
-                                  : 'Awaiting review'}
-                              </div>
-                            </div>
-
-                            <div className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr]">
-                              <div className="space-y-3">
-                                <div>
-                                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                                    Visit reason
-                                  </p>
-                                  <p className="mt-2 text-sm">
-                                    {request.reason || 'No reason provided'}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                                    Notes
-                                  </p>
-                                  <p className="mt-2 text-sm text-muted-foreground">
-                                    {request.notes || 'No notes were added to this request.'}
-                                  </p>
-                                </div>
-                              </div>
-
-                              <div className="space-y-3">
-                                {request.appointment ? (
-                                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
-                                    <div className="flex items-center gap-2">
-                                      <CalendarDays className="h-4 w-4 text-emerald-700" />
-                                      <p className="font-medium text-emerald-900">
-                                        Confirmed visit
-                                      </p>
-                                    </div>
-                                    <p className="mt-2 text-sm text-emerald-900">
-                                      {formatPortalDateTime(request.appointment.startsAt)}
-                                    </p>
-                                    <p className="text-sm text-emerald-800/80">
-                                      Ends {formatPortalDateTime(request.appointment.endsAt)}
-                                    </p>
-                                    {request.appointment.notes && (
-                                      <p className="mt-2 text-sm text-emerald-800/80">
-                                        {request.appointment.notes}
-                                      </p>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <div className="rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
-                                    The clinic has not attached a confirmed visit to this request
-                                    yet.
-                                  </div>
-                                )}
-
-                                {request.rejectionReason && (
-                                  <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-4">
-                                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-destructive">
-                                      Clinic note
-                                    </p>
-                                    <p className="mt-2 text-sm text-destructive">
-                                      {request.rejectionReason}
-                                    </p>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </TabsContent>
                 </Tabs>
+
+                {visibleRequests.length === 0 ? (
+                  <EmptyPanel
+                    icon={FileClock}
+                    title="No requests in this view"
+                    description="Appointment requests will appear here after you send them to your clinic."
+                  />
+                ) : (
+                  <div className="space-y-3">
+                    {visibleRequests.map((request) => (
+                      <RequestRow key={request.id} request={request} />
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
-
-            <div className="space-y-4">
-              <Card className="border-border/70 bg-card/95">
-                <CardHeader>
-                  <CardTitle className="text-lg">How scheduling works</CardTitle>
-                  <CardDescription>
-                    A quick guide to what happens after you submit a request.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
-                    <p className="font-medium">1. Share your preferred dates</p>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Pick the days that work best and tell your clinic why you need a visit.
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
-                    <p className="font-medium">2. Clinic review</p>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Staff review your request and may add scheduling notes or confirm a specific
-                      slot.
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
-                    <p className="font-medium">3. Confirmation and reminder</p>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Once confirmed, your appointment details appear here and reminder messages are
-                      scheduled automatically.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-border/70 bg-gradient-to-br from-secondary/10 via-card to-card">
-                <CardHeader>
-                  <CardTitle className="text-lg">Need a new visit?</CardTitle>
-                  <CardDescription>
-                    Start a new request with your preferred timing and a short description of what
-                    you need.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button asChild className="w-full justify-between">
-                    <Link href="/portal/appointments/request">
-                      Request an appointment
-                      <CalendarClock className="h-4 w-4" />
-                    </Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
           </section>
-        )}
+        ) : null}
       </div>
+
+      <Dialog
+        open={changeDialog !== null}
+        onOpenChange={(open) => {
+          if (!open) closeChangeDialog();
+        }}
+      >
+        <DialogContent className="max-w-xl rounded-[28px] border-border/80">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">
+              {changeDialog?.action === 'cancel' ? 'Request cancellation' : 'Request reschedule'}
+            </DialogTitle>
+            <DialogDescription className="leading-6">
+              {changeDialog
+                ? formatPortalDateTime(changeDialog.appointment.startsAt)
+                : 'Appointment request'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {changeDialog?.action === 'cancel' ? (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="cancel-reason">Cancellation reason</Label>
+                <Input
+                  id="cancel-reason"
+                  value={cancelReason}
+                  onChange={(event) => setCancelReason(event.target.value)}
+                  maxLength={120}
+                  disabled={submittingAction}
+                  placeholder="Example: I cannot attend this visit"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cancel-notes">Additional notes</Label>
+                <Textarea
+                  id="cancel-notes"
+                  value={cancelNotes}
+                  onChange={(event) => setCancelNotes(event.target.value)}
+                  rows={4}
+                  maxLength={2000}
+                  disabled={submittingAction}
+                  placeholder="Optional details for your clinic"
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {changeDialog?.action === 'reschedule' ? (
+            <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="reschedule-start">Preferred start date</Label>
+                  <Input
+                    id="reschedule-start"
+                    type="date"
+                    value={rescheduleStartDate}
+                    onChange={(event) => {
+                      const nextValue = event.target.value;
+                      setRescheduleStartDate(nextValue);
+                      if (rescheduleEndDate && rescheduleEndDate < nextValue) {
+                        setRescheduleEndDate(nextValue);
+                      }
+                    }}
+                    disabled={submittingAction}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reschedule-end">Preferred end date</Label>
+                  <Input
+                    id="reschedule-end"
+                    type="date"
+                    value={rescheduleEndDate}
+                    min={rescheduleStartDate}
+                    onChange={(event) => setRescheduleEndDate(event.target.value)}
+                    disabled={submittingAction}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reschedule-reason">Reason</Label>
+                <Input
+                  id="reschedule-reason"
+                  value={rescheduleReason}
+                  onChange={(event) => setRescheduleReason(event.target.value)}
+                  maxLength={120}
+                  disabled={submittingAction}
+                  placeholder="Example: need a morning appointment"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reschedule-notes">Additional notes</Label>
+                <Textarea
+                  id="reschedule-notes"
+                  value={rescheduleNotes}
+                  onChange={(event) => setRescheduleNotes(event.target.value)}
+                  rows={4}
+                  maxLength={2000}
+                  disabled={submittingAction}
+                  placeholder="Optional availability details"
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {actionError ? (
+            <div className="rounded-2xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {actionError}
+            </div>
+          ) : null}
+
+          <DialogFooter className="mt-2 gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={closeChangeDialog}
+              disabled={submittingAction}
+            >
+              Keep visit unchanged
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void submitChangeRequest()}
+              disabled={submittingAction}
+              variant={changeDialog?.action === 'cancel' ? 'destructive' : 'default'}
+            >
+              {submittingAction ? 'Sending...' : 'Send request'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </RouteGuard>
   );
 }

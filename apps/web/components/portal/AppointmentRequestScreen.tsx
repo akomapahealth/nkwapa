@@ -15,6 +15,7 @@ import {
   getPortalClinicName,
   type AppointmentRequestRecord,
 } from '@/lib/patient-portal';
+import { getAppointmentRequestTypeLabel } from '@/lib/portal-appointment-status';
 import { RouteGuard } from '@/components/RouteGuard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -235,7 +236,9 @@ export function AppointmentRequestScreen() {
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {latestRequest
-                      ? latestRequest.reason || 'No reason provided'
+                      ? `${getAppointmentRequestTypeLabel(latestRequest.requestType)} - ${
+                          latestRequest.reason || 'No reason provided'
+                        }`
                       : 'Your next request will appear here after submission.'}
                   </p>
                 </div>

@@ -78,6 +78,39 @@ export class ListAppointmentsQueryDto {
   patientSearch?: string;
 }
 
+export class PatientCancelAppointmentRequestDto {
+  @ToSanitizedString({ maxLength: 120 })
+  @IsString()
+  @MaxLength(120)
+  reason!: string;
+
+  @IsOptional()
+  @ToSanitizedString({ maxLength: 2000, preserveNewlines: true })
+  @IsString()
+  @MaxLength(2000)
+  notes?: string;
+}
+
+export class PatientRescheduleAppointmentRequestDto {
+  @IsDateString()
+  preferredStartDate!: string;
+
+  @IsDateString()
+  preferredEndDate!: string;
+
+  @IsOptional()
+  @ToSanitizedString({ maxLength: 120 })
+  @IsString()
+  @MaxLength(120)
+  reason?: string;
+
+  @IsOptional()
+  @ToSanitizedString({ maxLength: 2000, preserveNewlines: true })
+  @IsString()
+  @MaxLength(2000)
+  notes?: string;
+}
+
 export class ConfirmAppointmentRequestDto {
   @IsDateString()
   startsAt!: string;
