@@ -325,6 +325,44 @@ export class ReminderService {
     await this.auditReminderCreate(params.clinicId, params.actorUserId, reminder, params.requestId);
   }
 
+  async suppressQueuedAppointmentReminders(
+    clinicId: string,
+    appointmentId: string,
+    actorUserId: string,
+    failureReason: string,
+    requestId?: string,
+  ): Promise<void> {
+    const reminders = await this.prisma.reminder.findMany({
+      where: {
+        clinicId,
+        status: 'QUEUED',
+        templateKey: APPOINTMENT_TEMPLATE_KEY,
+        payloadJson: { contains: `"appointmentId":"${appointmentId}"` },
+      },
+    });
+
+    for (const reminder of reminders) {
+      const updated = await this.prisma.reminder.update({
+        where: { id: reminder.id },
+        data: {
+          status: 'FAILED',
+          failureReason,
+        },
+      });
+
+      await this.auditService.logWrite({
+        clinicId,
+        actorUserId,
+        action: 'REMINDER.SUPPRESS',
+        entityType: 'Reminder',
+        entityId: reminder.id,
+        beforeJson: JSON.stringify(reminder),
+        afterJson: JSON.stringify(updated),
+        requestId,
+      });
+    }
+  }
+
   async list(params: ListRemindersParams): Promise<ListRemindersResult> {
     const limit = Math.min(params.limit ?? 50, 200);
     const decoded = params.cursor ? decodeCursor(params.cursor) : null;

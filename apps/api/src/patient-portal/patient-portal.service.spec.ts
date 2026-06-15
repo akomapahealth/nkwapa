@@ -41,6 +41,7 @@ function createPrismaMock() {
     },
     reminder: {
       findMany: jest.fn(),
+      update: jest.fn(),
     },
     patientMeasurement: {
       create: jest.fn(),
@@ -60,7 +61,9 @@ function createPrismaMock() {
     appointment: {
       create: jest.fn(),
       count: jest.fn(),
+      findFirst: jest.fn(),
       findMany: jest.fn(),
+      updateMany: jest.fn(),
     },
     clinic: {
       findUnique: jest.fn(),
@@ -91,6 +94,34 @@ const portalPatient = {
   email: 'ama@example.com',
 };
 
+function appointmentFixture(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'appointment-1',
+    clinicId: 'clinic-1',
+    patientId: 'patient-1',
+    startsAt: new Date('2026-03-26T14:00:00.000Z'),
+    endsAt: new Date('2026-03-26T14:30:00.000Z'),
+    status: 'CONFIRMED',
+    linkedRequestId: 'appt-req-1',
+    assignedDoctorId: 'doctor-1',
+    assignedVolunteerId: 'volunteer-1',
+    notes: 'Bring home readings',
+    createdAt: new Date('2026-03-21T09:10:00.000Z'),
+    updatedAt: new Date('2026-03-21T09:10:00.000Z'),
+    patient: {
+      id: 'patient-1',
+      patientCode: 'NKP-2026-000001',
+      firstName: 'Ama',
+      lastName: 'Mensah',
+      phoneE164: '+233240000000',
+      email: 'ama@example.com',
+    },
+    assignedDoctor: { id: 'doctor-1', displayName: 'Dr One' },
+    assignedVolunteer: { id: 'volunteer-1', displayName: 'Volunteer One' },
+    ...overrides,
+  };
+}
+
 describe('PatientPortalService', () => {
   let service: PatientPortalService;
   let prisma: ReturnType<typeof createPrismaMock>;
@@ -100,6 +131,7 @@ describe('PatientPortalService', () => {
     scheduleAppointmentReminder: jest.Mock;
     scheduleAppointmentEmailReminder: jest.Mock;
     scheduleAppointmentReminderNoContact: jest.Mock;
+    suppressQueuedAppointmentReminders: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -112,6 +144,7 @@ describe('PatientPortalService', () => {
       scheduleAppointmentReminder: jest.fn().mockResolvedValue(undefined),
       scheduleAppointmentEmailReminder: jest.fn().mockResolvedValue(undefined),
       scheduleAppointmentReminderNoContact: jest.fn().mockResolvedValue(undefined),
+      suppressQueuedAppointmentReminders: jest.fn().mockResolvedValue(undefined),
     };
 
     prisma.user.findUnique.mockResolvedValue({
@@ -139,8 +172,27 @@ describe('PatientPortalService', () => {
     prisma.clinic.findUnique.mockResolvedValue({ name: 'Clinic One' });
     prisma.patientMeasurement.findMany.mockResolvedValue([]);
     prisma.appointment.findMany.mockResolvedValue([]);
+    prisma.appointment.findFirst.mockResolvedValue(null);
+    prisma.appointment.updateMany.mockResolvedValue({ count: 0 });
     prisma.appointmentRequest.count.mockResolvedValue(0);
     prisma.appointment.count.mockResolvedValue(0);
+    prisma.reminder.update.mockImplementation(async ({ where, data }) => ({
+      id: where.id,
+      clinicId: 'clinic-1',
+      patientId: 'patient-1',
+      encounterId: null,
+      channel: 'SMS',
+      toAddress: '+233240000000',
+      templateKey: 'APPOINTMENT_REMINDER_V1',
+      payloadJson: JSON.stringify({ appointmentId: 'appointment-1' }),
+      scheduledAt: new Date('2026-03-25T14:00:00.000Z'),
+      sentAt: null,
+      status: data.status,
+      providerMessageId: null,
+      failureReason: data.failureReason,
+      createdAt: new Date('2026-03-21T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-21T09:00:00.000Z'),
+    }));
     prisma.patientPortalInvite.findMany.mockResolvedValue([]);
     prisma.patientPortalInvite.updateMany.mockResolvedValue({ count: 0 });
     prisma.user.findMany.mockResolvedValue([]);
@@ -1018,6 +1070,299 @@ describe('PatientPortalService', () => {
 
     expect(result.status).toBe('REJECTED');
     expect(result.rejectionReason).toBe('No slots available');
+  });
+
+  it('reschedules confirmed appointments, audits the mutation, and replaces reminders', async () => {
+    const before = appointmentFixture();
+    const after = appointmentFixture({
+      startsAt: new Date('2026-03-27T15:00:00.000Z'),
+      endsAt: new Date('2026-03-27T15:45:00.000Z'),
+      notes: 'Updated slot',
+      updatedAt: new Date('2026-03-21T10:00:00.000Z'),
+    });
+    prisma.appointment.findFirst.mockResolvedValueOnce(before).mockResolvedValueOnce(after);
+    prisma.appointment.updateMany.mockResolvedValue({ count: 1 });
+
+    const result = await service.rescheduleAppointment(
+      'clinic-1',
+      'appointment-1',
+      'manager-1',
+      {
+        startsAt: '2026-03-27T15:00:00.000Z',
+        endsAt: '2026-03-27T15:45:00.000Z',
+        notes: 'Updated slot',
+      },
+      'req-reschedule',
+    );
+
+    expect(prisma.appointment.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'appointment-1', clinicId: 'clinic-1', status: 'CONFIRMED' },
+        data: expect.objectContaining({
+          startsAt: new Date('2026-03-27T15:00:00.000Z'),
+          endsAt: new Date('2026-03-27T15:45:00.000Z'),
+          notes: 'Updated slot',
+        }),
+      }),
+    );
+    expect(auditService.logWrite).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'APPT.RESCHEDULE',
+        actorUserId: 'manager-1',
+        clinicId: 'clinic-1',
+        entityId: 'appointment-1',
+      }),
+    );
+    expect(reminderService.suppressQueuedAppointmentReminders).toHaveBeenCalledWith(
+      'clinic-1',
+      'appointment-1',
+      'manager-1',
+      'APPOINTMENT_RESCHEDULED',
+      'req-reschedule',
+    );
+    expect(reminderService.scheduleAppointmentReminder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clinicId: 'clinic-1',
+        patientId: 'patient-1',
+        appointmentId: 'appointment-1',
+        startsAt: new Date('2026-03-27T15:00:00.000Z'),
+        actorUserId: 'manager-1',
+        requestId: 'req-reschedule',
+      }),
+    );
+    expect(reminderService.scheduleAppointmentEmailReminder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clinicId: 'clinic-1',
+        patientId: 'patient-1',
+        appointmentId: 'appointment-1',
+        startsAt: new Date('2026-03-27T15:00:00.000Z'),
+      }),
+    );
+    expect(result.startsAt).toBe('2026-03-27T15:00:00.000Z');
+  });
+
+  it('cancels confirmed appointments with a required reason and audit status metadata', async () => {
+    const before = appointmentFixture();
+    const after = appointmentFixture({
+      status: 'CANCELLED',
+      updatedAt: new Date('2026-03-21T10:05:00.000Z'),
+    });
+    prisma.appointment.findFirst.mockResolvedValueOnce(before).mockResolvedValueOnce(after);
+    prisma.appointment.updateMany.mockResolvedValue({ count: 1 });
+
+    const result = await service.cancelAppointment(
+      'clinic-1',
+      'appointment-1',
+      'doctor-1',
+      { reason: 'Patient requested a new date' },
+      'req-cancel',
+    );
+
+    expect(result.status).toBe('CANCELLED');
+    expect(reminderService.suppressQueuedAppointmentReminders).toHaveBeenCalledWith(
+      'clinic-1',
+      'appointment-1',
+      'doctor-1',
+      'APPOINTMENT_CANCELLED',
+      'req-cancel',
+    );
+    const auditCall = auditService.logWrite.mock.calls.find(
+      ([params]) => params.action === 'APPT.CANCEL',
+    )?.[0];
+    expect(auditCall).toMatchObject({
+      actorUserId: 'doctor-1',
+      clinicId: 'clinic-1',
+      entityId: 'appointment-1',
+    });
+    expect(JSON.parse(auditCall.afterJson)).toMatchObject({
+      actorUserId: 'doctor-1',
+      clinicId: 'clinic-1',
+      appointmentId: 'appointment-1',
+      previousStatus: 'CONFIRMED',
+      newStatus: 'CANCELLED',
+      reason: 'Patient requested a new date',
+    });
+  });
+
+  it('completes confirmed appointments after they have started', async () => {
+    const before = appointmentFixture();
+    const after = appointmentFixture({
+      status: 'COMPLETED',
+      notes: 'Visit completed',
+      updatedAt: new Date('2026-03-21T10:10:00.000Z'),
+    });
+    prisma.appointment.findFirst.mockResolvedValueOnce(before).mockResolvedValueOnce(after);
+    prisma.appointment.updateMany.mockResolvedValue({ count: 1 });
+
+    const result = await service.completeAppointment(
+      'clinic-1',
+      'appointment-1',
+      'doctor-1',
+      { notes: 'Visit completed' },
+      'req-complete',
+    );
+
+    expect(prisma.appointment.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'COMPLETED', notes: 'Visit completed' }),
+      }),
+    );
+    expect(result.status).toBe('COMPLETED');
+    expect(auditService.logWrite).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'APPT.COMPLETE', entityId: 'appointment-1' }),
+    );
+    expect(reminderService.suppressQueuedAppointmentReminders).toHaveBeenCalledWith(
+      'clinic-1',
+      'appointment-1',
+      'doctor-1',
+      'APPOINTMENT_COMPLETED',
+      'req-complete',
+    );
+  });
+
+  it('marks confirmed appointments no-show after they have started', async () => {
+    const before = appointmentFixture();
+    const after = appointmentFixture({
+      status: 'NO_SHOW',
+      updatedAt: new Date('2026-03-21T10:15:00.000Z'),
+    });
+    prisma.appointment.findFirst.mockResolvedValueOnce(before).mockResolvedValueOnce(after);
+    prisma.appointment.updateMany.mockResolvedValue({ count: 1 });
+
+    const result = await service.markAppointmentNoShow(
+      'clinic-1',
+      'appointment-1',
+      'manager-1',
+      { reason: 'Patient did not arrive' },
+      'req-no-show',
+    );
+
+    expect(result.status).toBe('NO_SHOW');
+    expect(auditService.logWrite).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'APPT.NO_SHOW', entityId: 'appointment-1' }),
+    );
+    expect(reminderService.suppressQueuedAppointmentReminders).toHaveBeenCalledWith(
+      'clinic-1',
+      'appointment-1',
+      'manager-1',
+      'APPOINTMENT_NO_SHOW',
+      'req-no-show',
+    );
+  });
+
+  it('blocks lifecycle mutations for terminal appointment states without mutating data', async () => {
+    prisma.appointment.findFirst.mockResolvedValueOnce(appointmentFixture({ status: 'CANCELLED' }));
+
+    await expect(
+      service.cancelAppointment(
+        'clinic-1',
+        'appointment-1',
+        'manager-1',
+        { reason: 'Duplicate cancellation' },
+        'req-blocked',
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'APPOINTMENT_INVALID_TRANSITION',
+        currentStatus: 'CANCELLED',
+        attemptedAction: 'cancel',
+        allowedSourceStatuses: ['CONFIRMED'],
+      }),
+    });
+
+    expect(prisma.appointment.updateMany).not.toHaveBeenCalled();
+    expect(auditService.logWrite).not.toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'APPT.CANCEL' }),
+    );
+  });
+
+  it('blocks complete and no-show before the appointment start time', async () => {
+    prisma.appointment.findFirst.mockResolvedValueOnce(
+      appointmentFixture({
+        startsAt: new Date('2099-03-26T14:00:00.000Z'),
+        endsAt: new Date('2099-03-26T14:30:00.000Z'),
+      }),
+    );
+
+    await expect(
+      service.completeAppointment('clinic-1', 'appointment-1', 'doctor-1', {}, 'req-too-early'),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'APPOINTMENT_ACTION_TOO_EARLY' }),
+    });
+
+    prisma.appointment.findFirst.mockResolvedValueOnce(
+      appointmentFixture({
+        startsAt: new Date('2099-03-26T14:00:00.000Z'),
+        endsAt: new Date('2099-03-26T14:30:00.000Z'),
+      }),
+    );
+
+    await expect(
+      service.markAppointmentNoShow('clinic-1', 'appointment-1', 'doctor-1', {}, 'req-too-early'),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'APPOINTMENT_ACTION_TOO_EARLY' }),
+    });
+
+    expect(prisma.appointment.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid reschedule times before mutating data', async () => {
+    await expect(
+      service.rescheduleAppointment(
+        'clinic-1',
+        'appointment-1',
+        'manager-1',
+        {
+          startsAt: '2026-03-27T15:00:00.000Z',
+          endsAt: '2026-03-27T15:00:00.000Z',
+        },
+        'req-invalid-time',
+      ),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(prisma.appointment.findFirst).not.toHaveBeenCalled();
+    expect(prisma.appointment.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('preserves clinic isolation when mutating appointments', async () => {
+    prisma.appointment.findFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.cancelAppointment(
+        'clinic-2',
+        'appointment-1',
+        'manager-1',
+        { reason: 'Wrong clinic attempt' },
+        'req-clinic-isolation',
+      ),
+    ).rejects.toThrow(NotFoundException);
+
+    expect(prisma.appointment.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'appointment-1', clinicId: 'clinic-2' },
+      }),
+    );
+    expect(prisma.appointment.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('requires a cancellation reason before mutating data', async () => {
+    await expect(
+      service.cancelAppointment(
+        'clinic-1',
+        'appointment-1',
+        'manager-1',
+        { reason: '   ' },
+        'req-empty-reason',
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'VALIDATION_ERROR',
+        fieldErrors: [{ field: 'reason', message: 'reason should not be empty' }],
+      }),
+    });
+
+    expect(prisma.appointment.findFirst).not.toHaveBeenCalled();
+    expect(prisma.appointment.updateMany).not.toHaveBeenCalled();
   });
 
   it('links portal accounts by keycloakSub and blocks linking a user to another patient', async () => {

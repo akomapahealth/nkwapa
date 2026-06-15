@@ -106,3 +106,48 @@ export class RejectAppointmentRequestDto {
   @MaxLength(2000)
   reason!: string;
 }
+
+export class RescheduleAppointmentDto {
+  @IsDateString()
+  startsAt!: string;
+
+  @IsDateString()
+  endsAt!: string;
+
+  @IsOptional()
+  @IsUUID()
+  assignedDoctorId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  assignedVolunteerId?: string;
+
+  @IsOptional()
+  @ToSanitizedString({ maxLength: 2000, preserveNewlines: true })
+  @IsString()
+  @MaxLength(2000)
+  notes?: string;
+}
+
+export class CancelAppointmentDto {
+  @ToSanitizedString({ maxLength: 2000, preserveNewlines: true })
+  @IsString()
+  @MaxLength(2000)
+  reason!: string;
+}
+
+export class CompleteAppointmentDto {
+  @IsOptional()
+  @ToSanitizedString({ maxLength: 2000, preserveNewlines: true })
+  @IsString()
+  @MaxLength(2000)
+  notes?: string;
+}
+
+export class MarkNoShowAppointmentDto {
+  @IsOptional()
+  @ToSanitizedString({ maxLength: 2000, preserveNewlines: true })
+  @IsString()
+  @MaxLength(2000)
+  reason?: string;
+}
