@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Ban,
+  BellRing,
   CalendarClock,
   CalendarDays,
   ChevronLeft,
@@ -213,6 +214,60 @@ function staffName(staff: StaffAppointmentRecord['assignedDoctor']) {
   return staff?.displayName ?? (staff?.id ? 'Assigned staff' : 'Unassigned');
 }
 
+function formatReminderFailure(reason: string | null) {
+  if (!reason) return null;
+  return reason
+    .split(':')[0]
+    .replaceAll('_', ' ')
+    .toLowerCase()
+    .replace(/^\w/, (letter) => letter.toUpperCase());
+}
+
+function AppointmentReminderStatus({
+  appointment,
+  timezone,
+}: {
+  appointment: StaffAppointmentRecord;
+  timezone: string;
+}) {
+  const summary = appointment.reminderSummary;
+  if (!summary || summary.total === 0) {
+    return (
+      <Badge variant="outline" className="w-fit gap-1 rounded-full bg-background/80">
+        <BellRing className="h-3.5 w-3.5" />
+        No reminders
+      </Badge>
+    );
+  }
+
+  const label = summary.failed
+    ? (formatReminderFailure(summary.latestFailureReason) ?? 'Reminder failed')
+    : summary.queued && summary.nextQueuedAt
+      ? `Queued ${formatOpsDateTime(summary.nextQueuedAt, timezone)}`
+      : summary.delivered
+        ? `${summary.delivered} delivered`
+        : summary.sent
+          ? `${summary.sent} sent`
+          : `${summary.total} tracked`;
+  const variant: 'destructive' | 'secondary' | 'finalized' = summary.failed
+    ? 'destructive'
+    : summary.queued
+      ? 'secondary'
+      : 'finalized';
+
+  return (
+    <div className="flex flex-col gap-1">
+      <Badge variant={variant} className="w-fit gap-1 rounded-full">
+        <BellRing className="h-3.5 w-3.5" />
+        {label}
+      </Badge>
+      {summary.channels.length ? (
+        <span className="text-xs text-muted-foreground">{summary.channels.join(' + ')}</span>
+      ) : null}
+    </div>
+  );
+}
+
 function groupAppointmentsByDay(
   items: StaffAppointmentRecord[],
   range: { from: string; to: string },
@@ -349,6 +404,7 @@ function AppointmentMobileCard({
             Volunteer: {staffName(appointment.assignedVolunteer)}
           </p>
         </div>
+        <AppointmentReminderStatus appointment={appointment} timezone={timezone} />
         {appointment.notes ? (
           <p className="rounded-2xl bg-muted/40 p-3 text-muted-foreground">{appointment.notes}</p>
         ) : null}
@@ -842,12 +898,13 @@ export default function StaffAppointmentsPage() {
                         </div>
 
                         <div className="hidden overflow-x-auto rounded-2xl border border-border/80 md:block">
-                          <table className="w-full min-w-[980px] border-collapse text-sm">
+                          <table className="w-full min-w-[1080px] border-collapse text-sm">
                             <thead className="bg-muted/50 text-left text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                               <tr>
                                 <th className="px-4 py-3">Time</th>
                                 <th className="px-4 py-3">Patient</th>
                                 <th className="px-4 py-3">Status</th>
+                                <th className="px-4 py-3">Reminders</th>
                                 <th className="px-4 py-3">Doctor</th>
                                 <th className="px-4 py-3">Volunteer</th>
                                 <th className="px-4 py-3">Notes</th>
@@ -876,6 +933,12 @@ export default function StaffAppointmentsPage() {
                                     <Badge variant={getStatusVariant(appointment.status)}>
                                       {getStatusLabel(appointment.status)}
                                     </Badge>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <AppointmentReminderStatus
+                                      appointment={appointment}
+                                      timezone={timezone}
+                                    />
                                   </td>
                                   <td className="px-4 py-3 text-muted-foreground">
                                     {staffName(appointment.assignedDoctor)}

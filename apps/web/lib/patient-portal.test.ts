@@ -93,6 +93,16 @@ const appointmentRecord: StaffAppointmentRecord = {
   assignedDoctor: null,
   assignedVolunteer: null,
   notes: null,
+  reminderSummary: {
+    total: 0,
+    queued: 0,
+    sent: 0,
+    delivered: 0,
+    failed: 0,
+    nextQueuedAt: null,
+    channels: [],
+    latestFailureReason: null,
+  },
   createdAt: '2026-03-21T09:00:00.000Z',
   updatedAt: '2026-03-21T09:00:00.000Z',
 };

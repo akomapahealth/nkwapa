@@ -49,9 +49,16 @@
     "@prisma/client": "7.5.0"
   },
   "overrides": {
+    "@babel/core": "7.29.7",
     "@hono/node-server": "2.0.4",
     "@nestjs/common": "11.1.24",
     "@nestjs/core": "11.1.24",
+    "@opentelemetry/core": "2.8.0",
+    "@opentelemetry/resources": "2.8.0",
+    "@opentelemetry/sdk-trace-base": "2.8.0",
+    "@istanbuljs/load-nyc-config": {
+      "js-yaml": "4.2.0"
+    },
     "@tootallnate/once": "3.0.1",
     "brace-expansion": "1.1.15",
     "anymatch": {
@@ -61,10 +68,18 @@
       "yaml": "1.10.3"
     },
     "effect": "3.20.0",
+    "engine.io": {
+      "ws": "8.21.0"
+    },
+    "engine.io-client": {
+      "ws": "8.21.0"
+    },
     "file-type": "21.3.4",
+    "form-data": "4.0.6",
     "jest-util": {
       "picomatch": "2.3.2"
     },
+    "js-yaml": "4.2.0",
     "hono": "4.12.23",
     "lodash": "4.18.1",
     "micromatch": {

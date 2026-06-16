@@ -210,9 +210,18 @@ Gate checks:
 3. Reminder records are created.
 4. BullMQ workers deliver them through the configured SMS or email provider.
 
+### Appointment reminders
+
+1. Staff confirm an appointment request.
+2. Reminder records are created for available contact channels and linked to the appointment.
+3. Rescheduling suppresses queued reminders for the previous appointment time and creates replacement reminders for the new time.
+4. Cancellation, completion, and no-show states suppress future queued appointment reminders.
+5. If a patient has no usable contact method, a failed reminder record is kept with `NO_CONTACT_METHOD`.
+6. Workers re-check appointment state before sending, so cancelled, completed, no-show, or stale rescheduled reminders are not delivered.
+
 ### Status review
 
-Staff can inspect queued, sent, delivered, or failed reminders from the reminder list.
+Staff can inspect queued, sent, delivered, or failed reminders from the reminder list. Appointment rows also summarize reminder state with queued, delivered, and failed counts so operators can spot delivery issues without leaving the schedule.
 
 ---
 

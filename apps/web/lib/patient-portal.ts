@@ -76,6 +76,17 @@ export interface StaffAppointmentPatientSummary {
   displayName: string;
 }
 
+export interface AppointmentReminderSummary {
+  total: number;
+  queued: number;
+  sent: number;
+  delivered: number;
+  failed: number;
+  nextQueuedAt: string | null;
+  channels: string[];
+  latestFailureReason: string | null;
+}
+
 export interface StaffAppointmentRecord {
   id: string;
   clinicId: string;
@@ -88,6 +99,7 @@ export interface StaffAppointmentRecord {
   assignedDoctor: { id: string; displayName: string | null } | null;
   assignedVolunteer: { id: string; displayName: string | null } | null;
   notes: string | null;
+  reminderSummary: AppointmentReminderSummary;
   createdAt: string;
   updatedAt: string;
 }

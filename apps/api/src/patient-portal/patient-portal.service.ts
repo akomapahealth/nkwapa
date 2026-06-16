@@ -85,6 +85,18 @@ const appointmentScheduleInclude = {
   },
   assignedDoctor: { select: { id: true, displayName: true } },
   assignedVolunteer: { select: { id: true, displayName: true } },
+  reminders: {
+    select: {
+      id: true,
+      status: true,
+      channel: true,
+      scheduledAt: true,
+      failureReason: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+    orderBy: { createdAt: 'desc' },
+  },
 } satisfies Prisma.AppointmentInclude;
 
 type AppointmentRequestWithRelations = Prisma.AppointmentRequestGetPayload<{
@@ -133,6 +145,17 @@ interface FollowUpSummary {
   completed: number;
   noShow: number;
   closed: number;
+}
+
+export interface AppointmentReminderSummary {
+  total: number;
+  queued: number;
+  sent: number;
+  delivered: number;
+  failed: number;
+  nextQueuedAt: string | null;
+  channels: string[];
+  latestFailureReason: string | null;
 }
 
 interface AppointmentRange {
@@ -2525,9 +2548,66 @@ export class PatientPortalService {
           ? { id: appointment.assignedVolunteerId, displayName: null }
           : null,
       notes: appointment.notes,
+      reminderSummary: this.summarizeAppointmentReminders(appointment.reminders ?? []),
       createdAt: appointment.createdAt.toISOString(),
       updatedAt: appointment.updatedAt.toISOString(),
     };
+  }
+
+  private summarizeAppointmentReminders(
+    reminders: Array<{
+      status: string;
+      channel: string;
+      scheduledAt: Date;
+      failureReason: string | null;
+      updatedAt: Date;
+    }>,
+  ): AppointmentReminderSummary {
+    const summary: AppointmentReminderSummary = {
+      total: reminders.length,
+      queued: 0,
+      sent: 0,
+      delivered: 0,
+      failed: 0,
+      nextQueuedAt: null,
+      channels: [],
+      latestFailureReason: null,
+    };
+    const channels = new Set<string>();
+    let nextQueuedAt: Date | null = null;
+    let latestFailedAt: Date | null = null;
+
+    for (const reminder of reminders) {
+      channels.add(reminder.channel);
+      switch (reminder.status) {
+        case 'QUEUED':
+          summary.queued += 1;
+          if (!nextQueuedAt || reminder.scheduledAt < nextQueuedAt) {
+            nextQueuedAt = reminder.scheduledAt;
+          }
+          break;
+        case 'SENT':
+          summary.sent += 1;
+          break;
+        case 'DELIVERED':
+          summary.delivered += 1;
+          break;
+        case 'FAILED':
+          summary.failed += 1;
+          if (
+            reminder.failureReason &&
+            (!latestFailedAt || reminder.updatedAt.getTime() > latestFailedAt.getTime())
+          ) {
+            latestFailedAt = reminder.updatedAt;
+            summary.latestFailureReason = reminder.failureReason;
+          }
+          break;
+      }
+    }
+
+    summary.channels = [...channels].sort();
+    summary.nextQueuedAt = nextQueuedAt?.toISOString() ?? null;
+    return summary;
   }
 
   private summarizeAppointments(appointments: Array<{ status: AppointmentStatus }>) {
