@@ -648,7 +648,7 @@ export class ReminderService {
     const delayMs = Math.max(0, scheduledAt.getTime() - Date.now());
     await this.reminderQueue.add(
       'send',
-      { reminderId, clinicId },
+      { reminderId, clinicId, userId: null },
       {
         jobId: this.getReminderJobId(reminderId),
         delay: delayMs,
