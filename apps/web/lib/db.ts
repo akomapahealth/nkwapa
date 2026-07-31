@@ -115,6 +115,32 @@ export interface PrescriptionRecord {
   updatedAt?: string;
 }
 
+export interface MedicalHistoryRecord {
+  id: string;
+  clinicId: string;
+  patientId: string;
+  category: string;
+  currentRevisionId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface MedicalHistoryRevisionRecord {
+  id: string;
+  recordId: string;
+  revisionNumber: number;
+  status: string;
+  onsetDate?: string;
+  occurrenceDate?: string;
+  resolvedDate?: string;
+  detailsSchemaVersion: number;
+  details: Record<string, unknown>;
+  notes?: string;
+  sourceEncounterId?: string;
+  authoredByUserId: string;
+  createdAt?: string;
+}
+
 export interface OutboxRecord {
   id: string;
   clinicId: string;
@@ -141,6 +167,8 @@ export class NkwapaDb extends Dexie {
   care_plans!: Table<CarePlanRecord, string>;
   patient_consents!: Table<PatientConsentRecord, string>;
   prescriptions!: Table<PrescriptionRecord, string>;
+  medical_history_records!: Table<MedicalHistoryRecord, string>;
+  medical_history_revisions!: Table<MedicalHistoryRevisionRecord, string>;
   outbox!: Table<OutboxRecord, string>;
   sync_state!: Table<SyncStateRecord, string>;
 
@@ -159,6 +187,10 @@ export class NkwapaDb extends Dexie {
     });
     this.version(2).stores({
       prescriptions: 'id, clinicId, encounterId, updatedAt',
+    });
+    this.version(3).stores({
+      medical_history_records: 'id, clinicId, patientId, category, updatedAt',
+      medical_history_revisions: 'id, recordId, status, createdAt',
     });
   }
 }

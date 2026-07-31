@@ -24,6 +24,8 @@ describe('OPS permissions', () => {
     expect(permissions).toContain(PERMISSIONS.OPS_ASSIGNMENT_READ_SELF);
     expect(permissions).toContain(PERMISSIONS.APPOINTMENT_READ);
     expect(permissions).not.toContain(PERMISSIONS.OPS_ASSIGNMENT_MANAGE);
+    expect(permissions).toContain(PERMISSIONS.MEDICAL_HISTORY_READ);
+    expect(permissions).toContain(PERMISSIONS.MEDICAL_HISTORY_WRITE);
   });
 
   it('grants doctors clinical review and finalization permissions', () => {
@@ -33,18 +35,31 @@ describe('OPS permissions', () => {
     expect(permissions).toContain(PERMISSIONS.SCREENING_WRITE);
     expect(permissions).toContain(PERMISSIONS.DOCTOR_FINALIZE);
     expect(permissions).toContain(PERMISSIONS.APPOINTMENT_READ);
+    expect(permissions).toContain(PERMISSIONS.MEDICAL_HISTORY_READ);
+    expect(permissions).toContain(PERMISSIONS.MEDICAL_HISTORY_WRITE);
   });
 
   it('grants directors appointment schedule access', () => {
     const permissions = computeEffectivePermissions([UserRole.DIRECTOR]);
 
     expect(permissions).toContain(PERMISSIONS.APPOINTMENT_READ);
+    expect(permissions).toContain(PERMISSIONS.MEDICAL_HISTORY_READ);
+    expect(permissions).not.toContain(PERMISSIONS.MEDICAL_HISTORY_WRITE);
+  });
+
+  it('keeps medical history management read-only for managers', () => {
+    const permissions = computeEffectivePermissions([UserRole.MANAGER]);
+
+    expect(permissions).toContain(PERMISSIONS.MEDICAL_HISTORY_READ);
+    expect(permissions).not.toContain(PERMISSIONS.MEDICAL_HISTORY_WRITE);
   });
 
   it('does not grant patient users staff appointment schedule access', () => {
     const permissions = computeEffectivePermissions([UserRole.PATIENT]);
 
     expect(permissions).not.toContain(PERMISSIONS.APPOINTMENT_READ);
+    expect(permissions).not.toContain(PERMISSIONS.MEDICAL_HISTORY_READ);
+    expect(permissions).not.toContain(PERMISSIONS.MEDICAL_HISTORY_WRITE);
   });
 
   it('does not expose the retired preceptor role enums', () => {

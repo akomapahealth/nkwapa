@@ -9,6 +9,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  requiresPrescriptionAllergyAcknowledgement,
+  type AllergySummaryState,
+} from '@/lib/medical-history';
 
 interface Drug {
   id: string;
@@ -22,6 +27,7 @@ interface PrescriptionFormProps {
   encounterId: string;
   userId: string;
   onSaved?: () => void;
+  allergyState?: AllergySummaryState;
 }
 
 function generateId(): string {
@@ -40,6 +46,7 @@ export function PrescriptionForm({
   encounterId,
   userId,
   onSaved,
+  allergyState,
 }: PrescriptionFormProps) {
   const getToken = useAuth();
   const [drugQuery, setDrugQuery] = useState('');
@@ -52,6 +59,7 @@ export function PrescriptionForm({
   const [instructions, setInstructions] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [allergyAcknowledged, setAllergyAcknowledged] = useState(false);
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -76,7 +84,9 @@ export function PrescriptionForm({
   }, [drugQuery, clinicId, getToken]);
 
   const handleSave = async () => {
-    if (!selectedDrug || !dosage || !frequency) return;
+    const acknowledgementRequired = requiresPrescriptionAllergyAcknowledgement(allergyState);
+    if (!selectedDrug || !dosage || !frequency || (acknowledgementRequired && !allergyAcknowledged))
+      return;
     setSaving(true);
     setError(null);
 
@@ -87,6 +97,7 @@ export function PrescriptionForm({
       duration: duration || undefined,
       quantity: quantity ? parseInt(quantity, 10) : undefined,
       instructions: instructions || undefined,
+      allergyReviewed: acknowledgementRequired ? allergyAcknowledged : undefined,
     };
 
     try {
@@ -133,6 +144,7 @@ export function PrescriptionForm({
             duration: duration || null,
             quantity: quantity ? parseInt(quantity, 10) : null,
             instructions: instructions || null,
+            allergyReviewed: acknowledgementRequired ? allergyAcknowledged : undefined,
             prescribedByUserId: userId,
           },
         });
@@ -154,15 +166,18 @@ export function PrescriptionForm({
     setDuration('');
     setQuantity('');
     setInstructions('');
+    setAllergyAcknowledged(false);
   }
 
+  const acknowledgementRequired = requiresPrescriptionAllergyAcknowledgement(allergyState);
+
   return (
-    <div className="space-y-4 rounded-md border p-4">
-      <h3 className="text-sm font-semibold">Add Prescription</h3>
+    <div className="space-y-4 rounded-3xl border border-border/80 bg-background/70 p-4 sm:p-5">
+      <h3 className="text-base font-semibold">Add prescription</h3>
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <div className="space-y-2">
-        <Label>Drug</Label>
+        <Label htmlFor="prescription-drug-search">Drug</Label>
         {selectedDrug ? (
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">{selectedDrug.name}</span>
@@ -173,6 +188,7 @@ export function PrescriptionForm({
         ) : (
           <div>
             <Input
+              id="prescription-drug-search"
               placeholder="Search drugs..."
               value={drugQuery}
               onChange={(e) => setDrugQuery(e.target.value)}
@@ -203,45 +219,81 @@ export function PrescriptionForm({
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label>Dosage</Label>
+          <Label htmlFor="prescription-dosage">Dosage</Label>
           <Input
+            id="prescription-dosage"
             value={dosage}
             onChange={(e) => setDosage(e.target.value)}
             placeholder="e.g. 10mg"
           />
         </div>
         <div className="space-y-2">
-          <Label>Frequency</Label>
+          <Label htmlFor="prescription-frequency">Frequency</Label>
           <Input
+            id="prescription-frequency"
             value={frequency}
             onChange={(e) => setFrequency(e.target.value)}
             placeholder="e.g. twice daily"
           />
         </div>
         <div className="space-y-2">
-          <Label>Duration</Label>
+          <Label htmlFor="prescription-duration">Duration</Label>
           <Input
+            id="prescription-duration"
             value={duration}
             onChange={(e) => setDuration(e.target.value)}
             placeholder="e.g. 30 days"
           />
         </div>
         <div className="space-y-2">
-          <Label>Quantity</Label>
-          <Input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+          <Label htmlFor="prescription-quantity">Quantity</Label>
+          <Input
+            id="prescription-quantity"
+            type="number"
+            min="1"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+          />
         </div>
       </div>
       <div className="space-y-2">
-        <Label>Instructions</Label>
+        <Label htmlFor="prescription-instructions">Instructions</Label>
         <Textarea
+          id="prescription-instructions"
           value={instructions}
           onChange={(e) => setInstructions(e.target.value)}
           placeholder="Additional instructions..."
         />
       </div>
-      <Button onClick={handleSave} disabled={saving || !selectedDrug || !dosage || !frequency}>
+      {acknowledgementRequired ? (
+        <div className="flex min-h-11 items-start gap-3 rounded-2xl border border-amber-500/35 bg-amber-500/10 p-3">
+          <Checkbox
+            id="prescription-allergy-acknowledgement"
+            checked={allergyAcknowledged}
+            onCheckedChange={(checked) => setAllergyAcknowledged(checked === true)}
+            className="mt-0.5 h-5 w-5"
+          />
+          <Label
+            htmlFor="prescription-allergy-acknowledgement"
+            className="cursor-pointer text-sm leading-5"
+          >
+            I reviewed the patient&apos;s allergy status before prescribing.
+          </Label>
+        </div>
+      ) : null}
+      <Button
+        className="min-h-11 w-full sm:w-auto"
+        onClick={handleSave}
+        disabled={
+          saving ||
+          !selectedDrug ||
+          !dosage ||
+          !frequency ||
+          (acknowledgementRequired && !allergyAcknowledged)
+        }
+      >
         {saving ? 'Saving...' : 'Add Prescription'}
       </Button>
     </div>

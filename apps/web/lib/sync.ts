@@ -160,6 +160,24 @@ export async function syncNow(options: SyncNowOptions): Promise<{
         );
       }
     }
+    if (pull.medicalHistoryRecords) {
+      for (const historyRecord of pull.medicalHistoryRecords) {
+        await db.medical_history_records.put(
+          toRecord(historyRecord) as unknown as Parameters<
+            typeof db.medical_history_records.put
+          >[0],
+        );
+      }
+    }
+    if (pull.medicalHistoryRevisions) {
+      for (const historyRevision of pull.medicalHistoryRevisions) {
+        await db.medical_history_revisions.put(
+          toRecord(historyRevision) as unknown as Parameters<
+            typeof db.medical_history_revisions.put
+          >[0],
+        );
+      }
+    }
 
     await db.sync_state.put({
       clinicId,

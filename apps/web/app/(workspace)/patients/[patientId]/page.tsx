@@ -18,6 +18,8 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { ArrowLeft, Stethoscope, FileCheck } from 'lucide-react';
 import { PatientTrendsPanel } from '@/components/patients/PatientTrendsPanel';
+import { MedicalHistoryPanel } from '@/components/patients/MedicalHistoryPanel';
+import { isWebFeatureEnabled } from '@/lib/feature-flags';
 
 interface ConsentStatusItem {
   consentType: string;
@@ -58,6 +60,10 @@ export default function PatientDetailPage() {
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
   const canRecordConsent = perms.includes('*') || perms.includes('CONSENT.RECORD');
   const canCreateOpsCheckIn = hasPermission(perms, 'OPS.CHECKIN.CREATE');
+  const canReadMedicalHistory = hasPermission(perms, 'MEDICAL_HISTORY.READ');
+  const canWriteMedicalHistory = hasPermission(perms, 'MEDICAL_HISTORY.WRITE');
+  const medicalHistoryEnabled = isWebFeatureEnabled('medicalHistory');
+  const userId = bootstrap?.userId ?? '';
   const opsDestination = getOpsDestination(perms);
 
   const [data, setData] = useState<PatientWithEncounters | null>(null);
@@ -355,6 +361,9 @@ export default function PatientDetailPage() {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="trends">Trends</TabsTrigger>
             <TabsTrigger value="encounters">Encounters</TabsTrigger>
+            {medicalHistoryEnabled && canReadMedicalHistory ? (
+              <TabsTrigger value="medical-history">Medical History</TabsTrigger>
+            ) : null}
             {canRecordConsent && <TabsTrigger value="consent">Consent</TabsTrigger>}
           </TabsList>
           <TabsContent value="overview">
@@ -423,6 +432,16 @@ export default function PatientDetailPage() {
               </CardContent>
             </Card>
           </TabsContent>
+          {medicalHistoryEnabled && canReadMedicalHistory ? (
+            <TabsContent value="medical-history">
+              <MedicalHistoryPanel
+                clinicId={clinicId}
+                patientId={patient.id}
+                userId={userId}
+                canWrite={canWriteMedicalHistory}
+              />
+            </TabsContent>
+          ) : null}
           {canRecordConsent && (
             <TabsContent value="consent">
               <Card>

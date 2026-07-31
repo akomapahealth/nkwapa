@@ -27,6 +27,40 @@ export interface OutboxRecordShape {
   createdAt: string;
 }
 
+export interface MedicalHistoryOutboxPayload {
+  patientId: string;
+  revisionId: string;
+  category?: string;
+  expectedCurrentRevisionId?: string;
+  status: string;
+  onsetDate?: string;
+  occurrenceDate?: string;
+  resolvedDate?: string;
+  details: Record<string, unknown>;
+  notes?: string;
+  sourceEncounterId?: string;
+}
+
+export function buildMedicalHistoryOutboxPayload(
+  payload: MedicalHistoryOutboxPayload,
+): Record<string, unknown> {
+  return {
+    patientId: payload.patientId,
+    revisionId: payload.revisionId,
+    ...(payload.category ? { category: payload.category } : {}),
+    ...(payload.expectedCurrentRevisionId
+      ? { expectedCurrentRevisionId: payload.expectedCurrentRevisionId }
+      : {}),
+    status: payload.status,
+    ...(payload.onsetDate ? { onsetDate: payload.onsetDate } : {}),
+    ...(payload.occurrenceDate ? { occurrenceDate: payload.occurrenceDate } : {}),
+    ...(payload.resolvedDate ? { resolvedDate: payload.resolvedDate } : {}),
+    details: payload.details,
+    ...(payload.notes ? { notes: payload.notes } : {}),
+    ...(payload.sourceEncounterId ? { sourceEncounterId: payload.sourceEncounterId } : {}),
+  };
+}
+
 function generateId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();

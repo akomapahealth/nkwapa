@@ -4,7 +4,8 @@
 
 Current with follow-on work.
 
-The patient module now covers registry, detail, update, portal access linking, patient claim onboarding support, and duplicate-chart merge handling.
+The patient module now covers registry, detail, longitudinal medical history, allergy safety,
+portal access linking, patient claim onboarding support, and duplicate-chart merge handling.
 
 ---
 
@@ -33,6 +34,14 @@ Registry reads support the older `page` and `pageSize` contract and the newer `c
 ### Duplicate resolution
 
 - `POST /admin/patients/merge`
+
+### Medical history and allergies
+
+- `GET /clinics/:clinicId/patients/:patientId/medical-history`
+- `POST /clinics/:clinicId/patients/:patientId/medical-history`
+- `POST /clinics/:clinicId/patients/:patientId/medical-history/:recordId/revisions`
+- `GET /clinics/:clinicId/patients/:patientId/medical-history/:recordId/revisions`
+- `GET /clinics/:clinicId/patients/:patientId/allergy-summary`
 
 ---
 
@@ -67,6 +76,13 @@ Registry reads support the older `page` and `pageSize` contract and the newer `c
 - system admin can merge duplicate charts inside the same clinic
 - the source chart points to the canonical chart instead of being deleted
 - the legacy patient code is stored as an alias for later lookup
+
+### Longitudinal history
+
+- keeps stable records with append-only, auditable revisions
+- distinguishes active, resolved, inactive, historical, and entered-in-error states
+- explicitly distinguishes no-known-allergies from allergy status not recorded
+- is hidden and rejected while the medical-history feature flag is disabled
 
 ---
 

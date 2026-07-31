@@ -5,6 +5,8 @@ import { AuditService } from '../audit/audit.service';
 import { PrescriptionRepository } from './prescription.repository';
 import { CreatePrescriptionDto } from './dto/create-prescription.dto';
 import { UpdatePrescriptionDto } from './dto/update-prescription.dto';
+import { MedicalHistoryService } from '../medical-history/medical-history.service';
+import { isApiFeatureEnabled } from '../common/feature-flags';
 
 export interface AuditContext {
   clinicId: string;
@@ -18,17 +20,22 @@ export class PrescriptionService {
     private readonly prescriptionRepository: PrescriptionRepository,
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    private readonly medicalHistoryService: MedicalHistoryService,
   ) {}
 
-  private async ensureEncounterNotFinalized(encounterId: string): Promise<void> {
+  private async ensureEncounterNotFinalized(encounterId: string, clinicId?: string) {
     const encounter = await this.prisma.encounter.findUnique({
       where: { id: encounterId },
-      select: { status: true },
+      select: { status: true, clinicId: true, patientId: true },
     });
     if (!encounter) throw new NotFoundException('Encounter not found');
+    if (clinicId && encounter.clinicId !== clinicId) {
+      throw new NotFoundException('Encounter not found');
+    }
     if (encounter.status === EncounterStatus.FINALIZED) {
       throw new BadRequestException('Cannot modify prescriptions on a finalized encounter');
     }
+    return encounter;
   }
 
   async create(
@@ -37,7 +44,22 @@ export class PrescriptionService {
     dto: CreatePrescriptionDto,
     auditContext: AuditContext,
   ): Promise<Prescription> {
-    await this.ensureEncounterNotFinalized(encounterId);
+    const encounter = await this.ensureEncounterNotFinalized(encounterId, clinicId);
+    if (isApiFeatureEnabled('medicalHistory')) {
+      const allergySummary = await this.medicalHistoryService.getAllergySummary(
+        clinicId,
+        encounter.patientId,
+      );
+      if (
+        (allergySummary.state === 'ACTIVE_ALLERGIES' || allergySummary.state === 'NOT_RECORDED') &&
+        dto.allergyReviewed !== true
+      ) {
+        throw new BadRequestException({
+          code: 'ALLERGY_REVIEW_REQUIRED',
+          message: 'Review and acknowledge the patient allergy status before prescribing.',
+        });
+      }
+    }
 
     const drug = await this.prisma.drug.findUnique({ where: { id: dto.drugId } });
     if (!drug) throw new NotFoundException('Drug not found');

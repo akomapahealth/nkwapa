@@ -1,4 +1,4 @@
-# 26. Research Export Transforms V1
+# 26. Research Export Transforms V1 And V2
 
 ## Status
 
@@ -53,7 +53,7 @@ The v1 sync target is one private GitHub repository.
 
 ## Fixed Pack Contract
 
-Every completed v1 export pack contains:
+Every completed v2 export pack preserves all v1 files and columns:
 
 - `manifest.json`
 - `SHA256SUMS.txt`
@@ -65,13 +65,21 @@ Every completed v1 export pack contains:
 - `research_measurements.csv`
 - `research_appointments.csv`
 - `research_revocations.csv`
+- `research_medical_history.csv`
 
 The contract is versioned as:
 
 - `policyVersion = research-export-v1`
-- `datasetVersion = 1`
+- `datasetVersion = 2`
 
-Any future schema change to the pack should increment the dataset version.
+The version increment adds only `research_medical_history.csv`; existing filenames and columns
+remain backward compatible. Any future schema change to the pack should increment the dataset
+version.
+
+The medical-history dataset contains current and historical revisions within the requested range.
+It includes de-identified patient, clinic, record, revision, and source-encounter keys; category,
+status, clinical dates, revision/schema metadata, approved categorical details, and rounded
+timestamps. It excludes notes, substance names, reactions, descriptions, and other free text.
 
 ---
 

@@ -110,6 +110,25 @@ const APPOINTMENT_HEADERS = [
 
 const REVOCATION_HEADERS = ['research_patient_key', 'research_clinic_key', 'revoked_at', 'status'];
 
+const MEDICAL_HISTORY_HEADERS = [
+  'research_history_revision_key',
+  'research_history_record_key',
+  'research_patient_key',
+  'research_clinic_key',
+  'research_source_encounter_key',
+  'category',
+  'status',
+  'onset_date',
+  'occurrence_date',
+  'resolved_date',
+  'revision_number',
+  'details_schema_version',
+  'allergy_kind',
+  'allergy_severity',
+  'social_history_type',
+  'recorded_at',
+];
+
 interface TransformContext {
   clinicId: string;
   fromDate: string;
@@ -181,6 +200,7 @@ export class ResearchTransformService {
       legacySelfReports,
       appointmentRequests,
       revokedConsents,
+      medicalHistoryRevisions,
     ] = await Promise.all([
       consentedPatientIds.length === 0
         ? Promise.resolve([])
@@ -281,6 +301,27 @@ export class ResearchTransformService {
         },
         orderBy: [{ revokedAt: 'asc' }, { id: 'asc' }],
       }),
+      consentedPatientIds.length === 0
+        ? Promise.resolve([])
+        : this.prisma.medicalHistoryRevision.findMany({
+            where: {
+              record: {
+                clinicId,
+                patientId: { in: consentedPatientIds },
+              },
+              createdAt: { gte: start, lte: end },
+            },
+            include: {
+              record: {
+                select: {
+                  id: true,
+                  patientId: true,
+                  category: true,
+                },
+              },
+            },
+            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          }),
     ]);
 
     const referencedPatientIds = new Set<string>();
@@ -307,6 +348,9 @@ export class ResearchTransformService {
     }
     for (const row of assignments) {
       referencedPatientIds.add(row.patientCheckIn.patientId);
+    }
+    for (const row of medicalHistoryRevisions) {
+      referencedPatientIds.add(row.record.patientId);
     }
 
     const patients =
@@ -464,6 +508,52 @@ export class ResearchTransformService {
       status: 'REVOKED',
     }));
 
+    const medicalHistoryRows = medicalHistoryRevisions.map((revision) => {
+      const details =
+        revision.details && typeof revision.details === 'object' && !Array.isArray(revision.details)
+          ? (revision.details as Record<string, unknown>)
+          : {};
+      return {
+        research_history_revision_key: this.deIdService.entityKey(
+          clinicId,
+          'medical_history_revision',
+          revision.id,
+        ),
+        research_history_record_key: this.deIdService.entityKey(
+          clinicId,
+          'medical_history_record',
+          revision.record.id,
+        ),
+        research_patient_key: this.deIdService.patientKey(clinicId, revision.record.patientId),
+        research_clinic_key: clinicKey,
+        research_source_encounter_key: this.deIdService.entityKey(
+          clinicId,
+          'encounter',
+          revision.sourceEncounterId,
+        ),
+        category: revision.record.category,
+        status: revision.status,
+        onset_date: this.deIdService.formatDate(revision.onsetDate),
+        occurrence_date: this.deIdService.formatDate(revision.occurrenceDate),
+        resolved_date: this.deIdService.formatDate(revision.resolvedDate),
+        revision_number: revision.revisionNumber,
+        details_schema_version: revision.detailsSchemaVersion,
+        allergy_kind:
+          revision.record.category === 'ALLERGY'
+            ? (this.deIdService.stringFromUnknown(details.kind) ?? null)
+            : null,
+        allergy_severity:
+          revision.record.category === 'ALLERGY'
+            ? (this.deIdService.stringFromUnknown(details.severity) ?? 'UNKNOWN')
+            : null,
+        social_history_type:
+          revision.record.category === 'SOCIAL_HISTORY'
+            ? (this.deIdService.stringFromUnknown(details.socialType) ?? null)
+            : null,
+        recorded_at: this.deIdService.roundTimestamp(revision.createdAt),
+      };
+    });
+
     const csvFiles = [
       this.createCsvFile('research_subjects.csv', SUBJECT_HEADERS, subjectRows),
       this.createCsvFile('research_ops_checkins.csv', CHECKIN_HEADERS, checkInRows),
@@ -472,6 +562,11 @@ export class ResearchTransformService {
       this.createCsvFile('research_clinical_screenings.csv', SCREENING_HEADERS, screeningRows),
       this.createCsvFile('research_measurements.csv', MEASUREMENT_HEADERS, measurementRows),
       this.createCsvFile('research_appointments.csv', APPOINTMENT_HEADERS, appointmentRows),
+      this.createCsvFile(
+        'research_medical_history.csv',
+        MEDICAL_HISTORY_HEADERS,
+        medicalHistoryRows,
+      ),
       this.createCsvFile('research_revocations.csv', REVOCATION_HEADERS, revocationRows),
     ];
 

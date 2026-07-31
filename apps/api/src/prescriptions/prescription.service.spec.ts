@@ -4,6 +4,7 @@ import { PrescriptionService } from './prescription.service';
 import { PrescriptionRepository } from './prescription.repository';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { MedicalHistoryService } from '../medical-history/medical-history.service';
 
 const mockPrescription = {
   id: 'rx-1',
@@ -21,6 +22,7 @@ const mockPrescription = {
 };
 
 describe('PrescriptionService', () => {
+  const originalMedicalHistoryFlag = process.env.FEATURE_MEDICAL_HISTORY_ENABLED;
   let service: PrescriptionService;
   let mockRepoCreate: jest.Mock;
   let mockRepoFindById: jest.Mock;
@@ -29,6 +31,7 @@ describe('PrescriptionService', () => {
   let mockAuditLogWrite: jest.Mock;
   let mockEncounterFind: jest.Mock;
   let mockDrugFind: jest.Mock;
+  let mockAllergySummary: jest.Mock;
 
   beforeEach(async () => {
     mockRepoCreate = jest.fn().mockResolvedValue(mockPrescription);
@@ -36,8 +39,16 @@ describe('PrescriptionService', () => {
     mockRepoUpdate = jest.fn().mockResolvedValue({ ...mockPrescription, dosage: '20mg' });
     mockRepoDelete = jest.fn().mockResolvedValue(undefined);
     mockAuditLogWrite = jest.fn().mockResolvedValue(undefined);
-    mockEncounterFind = jest.fn().mockResolvedValue({ status: 'DRAFT' });
+    process.env.FEATURE_MEDICAL_HISTORY_ENABLED = 'false';
+    mockEncounterFind = jest.fn().mockResolvedValue({
+      status: 'DRAFT',
+      clinicId: 'clinic-1',
+      patientId: 'patient-1',
+    });
     mockDrugFind = jest.fn().mockResolvedValue({ id: 'drug-1', clinicId: 'clinic-1' });
+    mockAllergySummary = jest
+      .fn()
+      .mockResolvedValue({ state: 'NO_KNOWN_ALLERGIES', activeAllergies: [] });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -63,10 +74,22 @@ describe('PrescriptionService', () => {
           provide: AuditService,
           useValue: { logWrite: mockAuditLogWrite },
         },
+        {
+          provide: MedicalHistoryService,
+          useValue: { getAllergySummary: mockAllergySummary },
+        },
       ],
     }).compile();
 
     service = module.get(PrescriptionService);
+  });
+
+  afterAll(() => {
+    if (originalMedicalHistoryFlag === undefined) {
+      delete process.env.FEATURE_MEDICAL_HISTORY_ENABLED;
+    } else {
+      process.env.FEATURE_MEDICAL_HISTORY_ENABLED = originalMedicalHistoryFlag;
+    }
   });
 
   it('creates prescription and logs audit', async () => {
@@ -92,7 +115,11 @@ describe('PrescriptionService', () => {
   });
 
   it('rejects creation on finalized encounter', async () => {
-    mockEncounterFind.mockResolvedValue({ status: 'FINALIZED' });
+    mockEncounterFind.mockResolvedValue({
+      status: 'FINALIZED',
+      clinicId: 'clinic-1',
+      patientId: 'patient-1',
+    });
 
     await expect(
       service.create(
@@ -106,6 +133,29 @@ describe('PrescriptionService', () => {
         { clinicId: 'clinic-1', actorUserId: 'user-1' },
       ),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('requires allergy review acknowledgement when active allergies exist', async () => {
+    process.env.FEATURE_MEDICAL_HISTORY_ENABLED = 'true';
+    mockAllergySummary.mockResolvedValue({
+      state: 'ACTIVE_ALLERGIES',
+      activeAllergies: [{ substance: 'Penicillin' }],
+    });
+
+    await expect(
+      service.create(
+        'clinic-1',
+        'enc-1',
+        {
+          drugId: 'drug-1',
+          dosage: '10mg',
+          frequency: 'daily',
+        },
+        { clinicId: 'clinic-1', actorUserId: 'user-1' },
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'ALLERGY_REVIEW_REQUIRED' }),
+    });
   });
 
   it('updates prescription and logs audit', async () => {

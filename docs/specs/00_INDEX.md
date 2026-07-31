@@ -37,7 +37,8 @@ Use this file first when you need to answer one of these questions:
 | `docs/specs/03_AUTH_AND_RBAC.md`                      | Current                     | Auth, RBAC, permissions, and onboarding model                                  |
 | `docs/specs/04_OFFLINE_FIRST_AND_SYNC.md`             | Current with follow-on work | Current offline scope, sync model, and limitations                             |
 | `docs/specs/06_PATIENTS_MODULE.md`                    | Current with follow-on work | Current patient registry, portal link/invite, and merge behavior               |
-| `docs/clinic-ops/26_RESEARCH_EXPORT_TRANSFORMS_V1.md` | Current                     | Research export pipeline contract and operator notes                           |
+| `docs/specs/07_MEDICAL_HISTORY_AND_ALLERGIES.md`      | Current                     | Longitudinal history, allergy safety, rollout, and release-gate contract       |
+| `docs/clinic-ops/26_RESEARCH_EXPORT_TRANSFORMS_V1.md` | Current                     | Research export v1 compatibility and v2 pipeline contract                      |
 
 ---
 

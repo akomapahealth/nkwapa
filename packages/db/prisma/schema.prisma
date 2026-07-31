@@ -181,6 +181,22 @@ enum SyncMutationStatus {
   ERROR
 }
 
+enum MedicalHistoryCategory {
+  CONDITION
+  ALLERGY
+  SURGERY_PROCEDURE
+  FAMILY_HISTORY
+  SOCIAL_HISTORY
+}
+
+enum MedicalHistoryStatus {
+  ACTIVE
+  RESOLVED
+  INACTIVE
+  HISTORICAL
+  ENTERED_IN_ERROR
+}
+
 model Organization {
   id       String @id @default(uuid()) @db.Uuid
   name     String
@@ -234,6 +250,7 @@ model Clinic {
   patientPortalInvites   PatientPortalInvite[]
   conversations          Conversation[]
   chatMessages           Message[]
+  medicalHistoryRecords  MedicalHistoryRecord[]
 
   @@unique([organizationId, locationCode])
   @@index([organizationId])
@@ -284,6 +301,7 @@ model User {
   mergedPatients                Patient[]                 @relation("PatientMergedBy")
   conversationParticipants      ConversationParticipant[]
   sentMessages                  Message[]                 @relation("MessageSender")
+  authoredHistoryRevisions      MedicalHistoryRevision[]  @relation("MedicalHistoryRevisionAuthor")
 
   @@index([isActive])
 }
@@ -333,23 +351,24 @@ model Patient {
   updatedAt DateTime @updatedAt
 
   // relations
-  primaryClinic        Clinic                @relation("PrimaryClinicPatients", fields: [primaryClinicId], references: [id])
-  createdBy            User?                 @relation("PatientCreatedBy", fields: [createdByUserId], references: [id])
-  portalUser           User?                 @relation("PatientPortalUser", fields: [portalUserId], references: [id], onDelete: SetNull)
-  mergedIntoPatient    Patient?              @relation("PatientMerge", fields: [mergedIntoPatientId], references: [id], onDelete: SetNull)
-  mergedSourcePatients Patient[]             @relation("PatientMerge")
-  mergedBy             User?                 @relation("PatientMergedBy", fields: [mergedByUserId], references: [id], onDelete: SetNull)
-  accountLink          PatientAccountLink?
-  encounters           Encounter[]
-  consents             PatientConsent[]
-  reminders            Reminder[]
-  selfReports          PatientSelfReport[]
-  measurements         PatientMeasurement[]
-  checkIns             PatientCheckIn[]
-  appointmentRequests  AppointmentRequest[]
-  appointments         Appointment[]
-  portalInvites        PatientPortalInvite[]
-  codeAliases          PatientCodeAlias[]
+  primaryClinic         Clinic                 @relation("PrimaryClinicPatients", fields: [primaryClinicId], references: [id])
+  createdBy             User?                  @relation("PatientCreatedBy", fields: [createdByUserId], references: [id])
+  portalUser            User?                  @relation("PatientPortalUser", fields: [portalUserId], references: [id], onDelete: SetNull)
+  mergedIntoPatient     Patient?               @relation("PatientMerge", fields: [mergedIntoPatientId], references: [id], onDelete: SetNull)
+  mergedSourcePatients  Patient[]              @relation("PatientMerge")
+  mergedBy              User?                  @relation("PatientMergedBy", fields: [mergedByUserId], references: [id], onDelete: SetNull)
+  accountLink           PatientAccountLink?
+  encounters            Encounter[]
+  consents              PatientConsent[]
+  reminders             Reminder[]
+  selfReports           PatientSelfReport[]
+  measurements          PatientMeasurement[]
+  checkIns              PatientCheckIn[]
+  appointmentRequests   AppointmentRequest[]
+  appointments          Appointment[]
+  portalInvites         PatientPortalInvite[]
+  codeAliases           PatientCodeAlias[]
+  medicalHistoryRecords MedicalHistoryRecord[]
 
   @@index([primaryClinicId])
   @@index([portalUserId])
@@ -421,8 +440,9 @@ model Encounter {
   patientCheckIn         PatientCheckIn?
   patientMeasurements    PatientMeasurement[]
 
-  reminders     Reminder[]
-  prescriptions Prescription[]
+  reminders               Reminder[]
+  prescriptions           Prescription[]
+  sourcedHistoryRevisions MedicalHistoryRevision[] @relation("MedicalHistoryRevisionSourceEncounter")
 
   @@index([clinicId, updatedAt])
   @@index([patientId, updatedAt])
@@ -892,6 +912,53 @@ model AuditEvent {
   @@index([actorUserId, createdAt])
   @@index([action])
   @@index([clinicId, createdAt, id])
+}
+
+model MedicalHistoryRecord {
+  id                String                 @id @default(uuid()) @db.Uuid
+  clinicId          String                 @db.Uuid
+  patientId         String                 @db.Uuid
+  category          MedicalHistoryCategory
+  currentRevisionId String?                @unique @db.Uuid
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clinic          Clinic                   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient         Patient                  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  revisions       MedicalHistoryRevision[] @relation("MedicalHistoryRecordRevisions")
+  currentRevision MedicalHistoryRevision?  @relation("CurrentMedicalHistoryRevision", fields: [currentRevisionId], references: [id], onDelete: SetNull)
+
+  @@index([clinicId, patientId, category])
+  @@index([clinicId, updatedAt, id])
+  @@index([patientId, updatedAt])
+}
+
+model MedicalHistoryRevision {
+  id                   String               @id @default(uuid()) @db.Uuid
+  recordId             String               @db.Uuid
+  revisionNumber       Int
+  status               MedicalHistoryStatus
+  onsetDate            DateTime?            @db.Date
+  occurrenceDate       DateTime?            @db.Date
+  resolvedDate         DateTime?            @db.Date
+  detailsSchemaVersion Int                  @default(1)
+  details              Json
+  notes                String?              @db.Text
+  sourceEncounterId    String?              @db.Uuid
+  authoredByUserId     String               @db.Uuid
+  createdAt            DateTime             @default(now())
+
+  record           MedicalHistoryRecord  @relation("MedicalHistoryRecordRevisions", fields: [recordId], references: [id], onDelete: Cascade)
+  currentForRecord MedicalHistoryRecord? @relation("CurrentMedicalHistoryRevision")
+  sourceEncounter  Encounter?            @relation("MedicalHistoryRevisionSourceEncounter", fields: [sourceEncounterId], references: [id], onDelete: SetNull)
+  authoredBy       User                  @relation("MedicalHistoryRevisionAuthor", fields: [authoredByUserId], references: [id])
+
+  @@unique([recordId, revisionNumber])
+  @@index([recordId, createdAt])
+  @@index([sourceEncounterId])
+  @@index([authoredByUserId, createdAt])
+  @@index([status, createdAt])
 }
 
 model SyncMutation {

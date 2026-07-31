@@ -28,6 +28,8 @@ import {
   UserPlus,
 } from 'lucide-react';
 import { PatientTrendsPanel } from '@/components/patients/PatientTrendsPanel';
+import { MedicalHistoryPanel } from '@/components/patients/MedicalHistoryPanel';
+import { isWebFeatureEnabled } from '@/lib/feature-flags';
 import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
 import {
   Dialog,
@@ -110,6 +112,10 @@ export default function PatientDetailPage() {
   const canUpdatePatient = perms.includes('*') || perms.includes('PATIENT.UPDATE');
   const canViewSelfReports = perms.includes('*') || perms.includes('PATIENT.SELF_REPORT.READ');
   const canLinkPortal = perms.includes('*') || perms.includes('PATIENT.PORTAL.LINK');
+  const canReadMedicalHistory = perms.includes('*') || perms.includes('MEDICAL_HISTORY.READ');
+  const canWriteMedicalHistory = perms.includes('*') || perms.includes('MEDICAL_HISTORY.WRITE');
+  const medicalHistoryEnabled = isWebFeatureEnabled('medicalHistory');
+  const userId = bootstrap?.userId ?? '';
   const canCreateOpsCheckIn = hasPermission(perms, 'OPS.CHECKIN.CREATE');
   const opsDestination = getOpsDestination(perms);
 
@@ -726,6 +732,9 @@ export default function PatientDetailPage() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="trends">Trends</TabsTrigger>
           <TabsTrigger value="encounters">Encounters</TabsTrigger>
+          {medicalHistoryEnabled && canReadMedicalHistory ? (
+            <TabsTrigger value="medical-history">Medical History</TabsTrigger>
+          ) : null}
           {canViewSelfReports ? (
             <TabsTrigger value="self-reports">Patient-reported</TabsTrigger>
           ) : null}
@@ -1148,6 +1157,17 @@ export default function PatientDetailPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {medicalHistoryEnabled && canReadMedicalHistory ? (
+          <TabsContent value="medical-history">
+            <MedicalHistoryPanel
+              clinicId={clinicId}
+              patientId={patient.id}
+              userId={userId}
+              canWrite={canWriteMedicalHistory}
+            />
+          </TabsContent>
+        ) : null}
 
         {canViewSelfReports ? (
           <TabsContent value="self-reports">

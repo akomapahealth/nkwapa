@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import {
   SyncOperation,
   SyncMutationStatus,
@@ -6,6 +6,9 @@ import {
   HypertensionClassification,
   NationalIdType,
   Sex,
+  UserRole,
+  MedicalHistoryCategory,
+  MedicalHistoryStatus,
 } from '@prisma/client';
 import {
   encryptNationalId,
@@ -21,6 +24,9 @@ import { EncounterRepository } from '../encounters/encounter.repository';
 import { SyncMutationDto, SYNC_OPERATION } from './dto/sync-mutation.dto';
 import { SyncMutationResultDto, SYNC_MUTATION_RESULT_STATUS } from './dto/sync-push-response.dto';
 import { SyncPullResponseDto } from './dto/sync-pull-response.dto';
+import { MedicalHistoryService } from '../medical-history/medical-history.service';
+import { hasPermission, PERMISSIONS } from '../auth/constants/permissions';
+import { isApiFeatureEnabled } from '../common/feature-flags';
 
 export type EntityType =
   | 'patient'
@@ -30,7 +36,8 @@ export type EntityType =
   | 'hypertension_assessment'
   | 'care_plan'
   | 'patient_consent'
-  | 'prescription';
+  | 'prescription'
+  | 'medical_history_revision';
 
 export interface RequestMetadata {
   ipAddress?: string;
@@ -39,7 +46,7 @@ export interface RequestMetadata {
 
 export interface UserWithId {
   user: { id: string };
-  roles: unknown[];
+  roles: Array<{ role: UserRole }>;
 }
 
 @Injectable()
@@ -49,6 +56,7 @@ export class SyncService {
     private readonly auditService: AuditService,
     private readonly patientRepository: PatientRepository,
     private readonly encounterRepository: EncounterRepository,
+    private readonly medicalHistoryService: MedicalHistoryService,
   ) {}
 
   async applyMutations(
@@ -93,15 +101,28 @@ export class SyncService {
       }
 
       try {
-        const result = await this.applyOne(clinicId, actorUserId, mut, metadata);
+        const result = await this.applyOne(clinicId, actorUserId, user, mut, metadata);
         results.push(result);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
+        const conflictResponse =
+          err instanceof ConflictException && typeof err.getResponse() === 'object'
+            ? (err.getResponse() as Record<string, unknown>)
+            : null;
+        const isRevisionConflict =
+          mut.entityType === 'medical_history_revision' && conflictResponse !== null;
+        const status = isRevisionConflict
+          ? SYNC_MUTATION_RESULT_STATUS.CONFLICT
+          : SYNC_MUTATION_RESULT_STATUS.ERROR;
+        const conflictType = isRevisionConflict
+          ? String(conflictResponse.code ?? 'MEDICAL_HISTORY_CONFLICT')
+          : 'APPLICATION_ERROR';
+        const conflictDetails = conflictResponse ?? { message: msg };
         results.push({
           id: mut.id,
-          status: SYNC_MUTATION_RESULT_STATUS.ERROR,
-          conflictType: 'APPLICATION_ERROR',
-          conflictDetails: { message: msg },
+          status,
+          conflictType,
+          conflictDetails,
         });
         await this.prisma.syncMutation.create({
           data: {
@@ -110,9 +131,9 @@ export class SyncService {
             entityId: mut.entityId,
             operation: mut.operation === 'UPSERT' ? SyncOperation.UPSERT : SyncOperation.DELETE,
             idempotencyKey: mut.idempotencyKey,
-            status: SyncMutationStatus.ERROR,
-            conflictType: 'APPLICATION_ERROR',
-            conflictDetailsJson: JSON.stringify({ message: msg }),
+            status: isRevisionConflict ? SyncMutationStatus.CONFLICT : SyncMutationStatus.ERROR,
+            conflictType,
+            conflictDetailsJson: JSON.stringify(conflictDetails),
           },
         });
       }
@@ -124,6 +145,7 @@ export class SyncService {
   private async applyOne(
     clinicId: string,
     actorUserId: string,
+    user: UserWithId,
     mut: SyncMutationDto,
     metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
@@ -206,6 +228,15 @@ export class SyncService {
           payload,
           idempotencyKey,
           metadata,
+        );
+      case 'medical_history_revision':
+        return this.applyMedicalHistoryRevision(
+          clinicId,
+          actorUserId,
+          user,
+          mut,
+          payload,
+          idempotencyKey,
         );
       default:
         throw new Error(`Unknown entity type: ${mut.entityType}`);
@@ -820,6 +851,25 @@ export class SyncService {
     const encounterId = payload.encounterId as string;
     if (!encounterId) throw new Error('Prescription payload must include encounterId');
     await this.ensureEncounterNotFinalized(encounterId);
+    if (isApiFeatureEnabled('medicalHistory')) {
+      const encounter = await this.prisma.encounter.findUnique({
+        where: { id: encounterId },
+        select: { clinicId: true, patientId: true },
+      });
+      if (!encounter || encounter.clinicId !== clinicId) {
+        throw new Error('Prescription encounter does not belong to this clinic');
+      }
+      const allergySummary = await this.medicalHistoryService.getAllergySummary(
+        clinicId,
+        encounter.patientId,
+      );
+      if (
+        (allergySummary.state === 'ACTIVE_ALLERGIES' || allergySummary.state === 'NOT_RECORDED') &&
+        payload.allergyReviewed !== true
+      ) {
+        throw new Error('Allergy review acknowledgement is required');
+      }
+    }
 
     const drugId = payload.drugId as string;
     if (!drugId) throw new Error('Prescription payload must include drugId');
@@ -876,6 +926,70 @@ export class SyncService {
       },
     });
 
+    return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
+  }
+
+  private async applyMedicalHistoryRevision(
+    clinicId: string,
+    actorUserId: string,
+    user: UserWithId,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+    idempotencyKey: string,
+  ): Promise<SyncMutationResultDto> {
+    if (!isApiFeatureEnabled('medicalHistory')) {
+      throw new Error('Medical history is not enabled');
+    }
+    if (!hasPermission(user.roles, PERMISSIONS.MEDICAL_HISTORY_WRITE)) {
+      throw new Error('Medical history write permission is required');
+    }
+    const patientId = payload.patientId as string | undefined;
+    const revisionId = payload.revisionId as string | undefined;
+    if (!patientId || !revisionId) {
+      throw new Error('Medical history payload must include patientId and revisionId');
+    }
+    const snapshot = {
+      revisionId,
+      status: payload.status as MedicalHistoryStatus,
+      onsetDate: payload.onsetDate as string | undefined,
+      occurrenceDate: payload.occurrenceDate as string | undefined,
+      resolvedDate: payload.resolvedDate as string | undefined,
+      details: (payload.details ?? {}) as Record<string, never>,
+      notes: payload.notes as string | undefined,
+      sourceEncounterId: payload.sourceEncounterId as string | undefined,
+    };
+    const expectedCurrentRevisionId = payload.expectedCurrentRevisionId as string | undefined;
+    if (expectedCurrentRevisionId) {
+      await this.medicalHistoryService.revise(
+        clinicId,
+        patientId,
+        mut.entityId,
+        actorUserId,
+        { ...snapshot, expectedCurrentRevisionId },
+        idempotencyKey,
+      );
+    } else {
+      const category = payload.category as MedicalHistoryCategory | undefined;
+      if (!category) throw new Error('New medical history records require a category');
+      await this.medicalHistoryService.create(
+        clinicId,
+        patientId,
+        actorUserId,
+        { ...snapshot, recordId: mut.entityId, category },
+        idempotencyKey,
+      );
+    }
+
+    await this.prisma.syncMutation.create({
+      data: {
+        clinicId,
+        entityType: 'medical_history_revision',
+        entityId: mut.entityId,
+        operation: SyncOperation.UPSERT,
+        idempotencyKey,
+        status: SyncMutationStatus.APPLIED,
+      },
+    });
     return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
   }
 
@@ -999,6 +1113,8 @@ export class SyncService {
       carePlans,
       patientConsents,
       prescriptions,
+      medicalHistoryRecords,
+      medicalHistoryRevisions,
     ] = await Promise.all([
       this.prisma.patient.findMany({
         where: {
@@ -1028,6 +1144,15 @@ export class SyncService {
       this.prisma.prescription.findMany({
         where: { ...where, ...updatedAtFilter },
       }),
+      this.prisma.medicalHistoryRecord.findMany({
+        where: { ...where, ...updatedAtFilter },
+      }),
+      this.prisma.medicalHistoryRevision.findMany({
+        where: {
+          record: { clinicId },
+          ...(sinceDate ? { createdAt: { gt: sinceDate } } : {}),
+        },
+      }),
     ]);
 
     const allRows = [
@@ -1039,6 +1164,14 @@ export class SyncService {
       ...carePlans.map((c) => ({ updatedAt: c.updatedAt, id: c.id })),
       ...patientConsents.map((pc) => ({ updatedAt: pc.updatedAt, id: pc.id })),
       ...prescriptions.map((p) => ({ updatedAt: p.updatedAt, id: p.id })),
+      ...medicalHistoryRecords.map((record) => ({
+        updatedAt: record.updatedAt,
+        id: record.id,
+      })),
+      ...medicalHistoryRevisions.map((revision) => ({
+        updatedAt: revision.createdAt,
+        id: revision.id,
+      })),
     ];
     const maxRow = allRows.reduce(
       (acc, r) =>
@@ -1061,6 +1194,8 @@ export class SyncService {
       carePlans,
       patientConsents,
       prescriptions,
+      medicalHistoryRecords,
+      medicalHistoryRevisions,
     };
   }
 }

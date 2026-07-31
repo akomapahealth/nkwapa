@@ -22,6 +22,8 @@ import { HypertensionForm } from '@/components/HypertensionForm';
 import { CarePlanForm } from '@/components/CarePlanForm';
 import { db } from '@/lib/db';
 import { ArrowLeft, ClipboardPlus, HeartPulse, ShieldCheck } from 'lucide-react';
+import { PrescriptionPanel } from '@/components/patients/PrescriptionPanel';
+import { isWebFeatureEnabled } from '@/lib/feature-flags';
 
 function hasPermission(permissions: string[], perm: string): boolean {
   return permissions.includes('*') || permissions.includes(perm);
@@ -51,6 +53,9 @@ export default function EncounterDetailPage() {
   const clinicId = getBootstrapActiveClinicId(bootstrap);
   const userId = bootstrap?.userId ?? '';
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
+  const canReadPrescriptions = hasPermission(perms, 'PRESCRIPTION.READ');
+  const canWritePrescriptions = hasPermission(perms, 'PRESCRIPTION.WRITE');
+  const medicalHistoryEnabled = isWebFeatureEnabled('medicalHistory');
 
   const [encounter, setEncounter] = useState<EncounterDetail | null>(null);
   const [vitals, setVitals] = useState<Record<string, unknown> | null>(null);
@@ -329,6 +334,18 @@ export default function EncounterDetailPage() {
               </p>
             </CardHeader>
           </Card>
+        ) : null}
+
+        {canReadPrescriptions && clinicId ? (
+          <PrescriptionPanel
+            clinicId={clinicId}
+            patientId={encounter.patientId}
+            encounterId={encounterId}
+            userId={userId}
+            canWrite={canWritePrescriptions}
+            isFinalized={isFinalized}
+            showAllergySafety={medicalHistoryEnabled}
+          />
         ) : null}
 
         {!isFinalized && clinicId && (

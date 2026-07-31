@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 import { ToSanitizedString } from '../../common/validation';
 
 export class CreatePrescriptionDto {
@@ -33,4 +33,8 @@ export class CreatePrescriptionDto {
   @IsString()
   @MaxLength(2000)
   instructions?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  allergyReviewed?: boolean;
 }
