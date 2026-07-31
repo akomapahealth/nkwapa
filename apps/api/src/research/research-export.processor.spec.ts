@@ -38,7 +38,10 @@ describe('ResearchExportProcessor tenant context', () => {
     await processor.process({ id: 'job-1', data: { exportId: 'export-1' } } as never);
 
     expect(prisma.withSystemContext).toHaveBeenCalledWith(
-      { requestId: 'job-1' },
+      {
+        requestId: 'job-1',
+        systemReason: 'Resolve tenant for a legacy research export payload',
+      },
       expect.any(Function),
     );
     expect(researchExportService.findExportClinicId).toHaveBeenCalledWith('export-1');

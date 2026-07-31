@@ -38,7 +38,10 @@ describe('ReminderProcessor tenant context', () => {
     await processor.process({ id: 'job-1', data: { reminderId: 'reminder-1' } } as never);
 
     expect(prisma.withSystemContext).toHaveBeenCalledWith(
-      { requestId: 'job-1' },
+      {
+        requestId: 'job-1',
+        systemReason: 'Resolve tenant for a legacy reminder payload',
+      },
       expect.any(Function),
     );
     expect(reminderService.findReminderClinicId).toHaveBeenCalledWith('reminder-1');

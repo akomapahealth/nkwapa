@@ -11,7 +11,15 @@ export interface PrismaRlsContext {
   activeClinicId?: string | null;
   zoneCode?: string | null;
   isSystemAdmin?: boolean;
+  systemReason?: string | null;
 }
+
+export type PrismaSystemContext = Omit<
+  PrismaRlsContext,
+  'clinicIds' | 'isSystemAdmin' | 'systemReason'
+> & {
+  systemReason: string;
+};
 
 type PrismaLikeClient = PrismaClient | Prisma.TransactionClient;
 
@@ -26,14 +34,39 @@ type TransactionOptions = {
   isolationLevel?: Prisma.TransactionIsolationLevel;
 };
 
+export class InvalidSystemContextError extends Error {
+  constructor() {
+    super('System context requires a non-empty reason');
+    this.name = 'InvalidSystemContextError';
+  }
+}
+
+export class PrismaContextConflictError extends Error {
+  constructor() {
+    super('Cannot change Prisma tenant context inside an active context');
+    this.name = 'PrismaContextConflictError';
+  }
+}
+
+export class UnknownClinicContextError extends Error {
+  constructor(clinicId: string) {
+    super(`Cannot establish tenant context for unknown clinic: ${clinicId}`);
+    this.name = 'UnknownClinicContextError';
+  }
+}
+
 const INTERNAL_PRISMA_KEYS = new Set([
   'applyRlsContext',
+  'assertCompatibleContext',
+  'assertCompatibleClinicContext',
   'constructor',
   'getActiveClient',
   'getCurrentRlsContext',
+  'normalizeRlsContext',
   'onModuleDestroy',
   'onModuleInit',
   'rlsStorage',
+  'transactionWithContext',
   'withClinicContext',
   'withRlsContext',
   'withSystemContext',
@@ -86,20 +119,19 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     context: PrismaRlsContext,
     callback: (client: Prisma.TransactionClient) => Promise<T>,
   ): Promise<T> {
+    const normalizedContext = this.normalizeRlsContext(context);
     const active = this.rlsStorage.getStore();
     if (active) {
+      this.assertCompatibleContext(active.rls, normalizedContext);
       return callback(active.client);
     }
 
-    return super.$transaction(async (tx) => {
-      await this.applyRlsContext(tx, context);
+    return this.transactionWithContext(async (tx) => {
+      await this.applyRlsContext(tx, normalizedContext);
       return this.rlsStorage.run(
         {
           client: tx,
-          rls: {
-            ...context,
-            clinicIds: [...new Set(context.clinicIds ?? [])],
-          },
+          rls: normalizedContext,
         },
         () => callback(tx),
       );
@@ -111,19 +143,67 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     context: Omit<PrismaRlsContext, 'activeClinicId' | 'clinicIds' | 'isSystemAdmin'>,
     callback: (client: Prisma.TransactionClient) => Promise<T>,
   ): Promise<T> {
-    const rlsContext = await this.buildClinicRlsContext(clinicId, context);
-    return this.withRlsContext(rlsContext, callback);
+    const normalizedClinicId = clinicId.trim();
+    if (!normalizedClinicId) {
+      throw new UnknownClinicContextError(normalizedClinicId);
+    }
+
+    const active = this.rlsStorage.getStore();
+    if (active) {
+      this.assertCompatibleClinicContext(active.rls, normalizedClinicId, context);
+      return callback(active.client);
+    }
+
+    const initialContext = this.normalizeRlsContext({
+      ...context,
+      organizationId: context.organizationId ?? null,
+      zoneCode: context.zoneCode ?? null,
+      clinicIds: [normalizedClinicId],
+      activeClinicId: normalizedClinicId,
+      isSystemAdmin: false,
+      systemReason: null,
+    });
+
+    return this.withRlsContext(initialContext, async (tx) => {
+      const clinic = await tx.clinic.findUnique({
+        where: { id: normalizedClinicId },
+        select: { organizationId: true, zoneCode: true },
+      });
+      if (!clinic) {
+        throw new UnknownClinicContextError(normalizedClinicId);
+      }
+
+      const enrichedContext = this.normalizeRlsContext({
+        ...initialContext,
+        organizationId: context.organizationId ?? clinic.organizationId,
+        zoneCode: context.zoneCode ?? clinic.zoneCode,
+      });
+      await this.applyRlsContext(tx, enrichedContext);
+
+      const current = this.rlsStorage.getStore();
+      if (current) {
+        current.rls = enrichedContext;
+      }
+
+      return callback(tx);
+    });
   }
 
   async withSystemContext<T>(
-    context: Omit<PrismaRlsContext, 'clinicIds' | 'isSystemAdmin'>,
+    context: PrismaSystemContext,
     callback: (client: Prisma.TransactionClient) => Promise<T>,
   ): Promise<T> {
+    const systemReason = context.systemReason.trim();
+    if (!systemReason) {
+      throw new InvalidSystemContextError();
+    }
+
     return this.withRlsContext(
       {
         ...context,
         clinicIds: [],
         isSystemAdmin: true,
+        systemReason,
       },
       callback,
     );
@@ -154,23 +234,63 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     return this.rlsStorage.getStore()?.client ?? this;
   }
 
-  private async buildClinicRlsContext(
-    clinicId: string,
-    context: Omit<PrismaRlsContext, 'activeClinicId' | 'clinicIds' | 'isSystemAdmin'>,
-  ): Promise<PrismaRlsContext> {
-    const clinic = await this.clinic.findUnique({
-      where: { id: clinicId },
-      select: { organizationId: true, zoneCode: true },
-    });
+  private transactionWithContext<T>(
+    callback: (client: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    return super.$transaction(callback);
+  }
 
+  private normalizeRlsContext(context: PrismaRlsContext): PrismaRlsContext {
     return {
       ...context,
-      organizationId: context.organizationId ?? clinic?.organizationId ?? null,
-      zoneCode: context.zoneCode ?? clinic?.zoneCode ?? null,
+      userId: context.userId ?? null,
+      organizationId: context.organizationId ?? null,
+      clinicIds: [...new Set(context.clinicIds ?? [])].sort(),
+      activeClinicId: context.activeClinicId ?? null,
+      zoneCode: context.zoneCode ?? null,
+      isSystemAdmin: context.isSystemAdmin ?? false,
+      systemReason: context.systemReason ?? null,
+    };
+  }
+
+  private assertCompatibleContext(active: PrismaRlsContext, requested: PrismaRlsContext) {
+    const normalizedActive = this.normalizeRlsContext(active);
+    const sameClinicIds =
+      normalizedActive.clinicIds?.length === requested.clinicIds?.length &&
+      normalizedActive.clinicIds?.every(
+        (clinicId, index) => clinicId === requested.clinicIds?.[index],
+      );
+    const isCompatible =
+      normalizedActive.requestId === requested.requestId &&
+      normalizedActive.userId === requested.userId &&
+      normalizedActive.organizationId === requested.organizationId &&
+      sameClinicIds &&
+      normalizedActive.activeClinicId === requested.activeClinicId &&
+      normalizedActive.zoneCode === requested.zoneCode &&
+      normalizedActive.isSystemAdmin === requested.isSystemAdmin &&
+      normalizedActive.systemReason === requested.systemReason;
+
+    if (!isCompatible) {
+      throw new PrismaContextConflictError();
+    }
+  }
+
+  private assertCompatibleClinicContext(
+    active: PrismaRlsContext,
+    clinicId: string,
+    context: Omit<PrismaRlsContext, 'activeClinicId' | 'clinicIds' | 'isSystemAdmin'>,
+  ) {
+    const requested = this.normalizeRlsContext({
+      ...active,
+      ...context,
+      organizationId: context.organizationId ?? active.organizationId,
+      zoneCode: context.zoneCode ?? active.zoneCode,
       clinicIds: [clinicId],
       activeClinicId: clinicId,
       isSystemAdmin: false,
-    };
+      systemReason: null,
+    });
+    this.assertCompatibleContext(active, requested);
   }
 
   private async applyRlsContext(client: Prisma.TransactionClient, context: PrismaRlsContext) {
@@ -183,6 +303,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         set_config('app.current_clinic_ids', ${clinicIds}, true),
         set_config('app.current_active_clinic_id', ${context.activeClinicId ?? ''}, true),
         set_config('app.current_zone_code', ${context.zoneCode ?? ''}, true),
+        set_config('app.system_context_reason', ${context.systemReason ?? ''}, true),
         set_config(
           'app.is_system_admin',
           ${context.isSystemAdmin ? 'true' : 'false'},

@@ -16,13 +16,21 @@ export class ReminderProcessor extends WorkerHost {
     const { reminderId } = job.data;
     const clinicId =
       job.data.clinicId ??
-      (await this.prisma.withSystemContext({ requestId: String(job.id ?? reminderId) }, () =>
-        this.reminderService.findReminderClinicId(reminderId),
+      (await this.prisma.withSystemContext(
+        {
+          requestId: String(job.id ?? reminderId),
+          systemReason: 'Resolve tenant for a legacy reminder payload',
+        },
+        () => this.reminderService.findReminderClinicId(reminderId),
       ));
 
     if (!clinicId) {
-      await this.prisma.withSystemContext({ requestId: String(job.id ?? reminderId) }, () =>
-        this.reminderService.processReminder(reminderId),
+      await this.prisma.withSystemContext(
+        {
+          requestId: String(job.id ?? reminderId),
+          systemReason: 'Process an unresolved legacy reminder payload',
+        },
+        () => this.reminderService.processReminder(reminderId),
       );
       return;
     }

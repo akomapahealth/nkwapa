@@ -17,13 +17,21 @@ export class ResearchExportProcessor extends WorkerHost {
     const { exportId } = job.data;
     const clinicId =
       job.data.clinicId ??
-      (await this.prisma.withSystemContext({ requestId: String(job.id ?? exportId) }, () =>
-        this.researchExportService.findExportClinicId(exportId),
+      (await this.prisma.withSystemContext(
+        {
+          requestId: String(job.id ?? exportId),
+          systemReason: 'Resolve tenant for a legacy research export payload',
+        },
+        () => this.researchExportService.findExportClinicId(exportId),
       ));
 
     if (!clinicId) {
-      await this.prisma.withSystemContext({ requestId: String(job.id ?? exportId) }, () =>
-        this.researchExportService.processQueuedExport(exportId),
+      await this.prisma.withSystemContext(
+        {
+          requestId: String(job.id ?? exportId),
+          systemReason: 'Process an unresolved legacy research export payload',
+        },
+        () => this.researchExportService.processQueuedExport(exportId),
       );
       return;
     }
