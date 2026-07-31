@@ -851,6 +851,25 @@ export class SyncService {
     const encounterId = payload.encounterId as string;
     if (!encounterId) throw new Error('Prescription payload must include encounterId');
     await this.ensureEncounterNotFinalized(encounterId);
+    if (isApiFeatureEnabled('medicalHistory')) {
+      const encounter = await this.prisma.encounter.findUnique({
+        where: { id: encounterId },
+        select: { clinicId: true, patientId: true },
+      });
+      if (!encounter || encounter.clinicId !== clinicId) {
+        throw new Error('Prescription encounter does not belong to this clinic');
+      }
+      const allergySummary = await this.medicalHistoryService.getAllergySummary(
+        clinicId,
+        encounter.patientId,
+      );
+      if (
+        (allergySummary.state === 'ACTIVE_ALLERGIES' || allergySummary.state === 'NOT_RECORDED') &&
+        payload.allergyReviewed !== true
+      ) {
+        throw new Error('Allergy review acknowledgement is required');
+      }
+    }
 
     const drugId = payload.drugId as string;
     if (!drugId) throw new Error('Prescription payload must include drugId');

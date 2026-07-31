@@ -120,7 +120,16 @@ export class MedicalHistoryService {
     return this.prisma.$transaction(async (tx) => {
       await this.assertPatientScope(tx, clinicId, patientId);
       await this.assertSourceEncounter(tx, clinicId, patientId, dto.sourceEncounterId);
-      await this.enforceAllergyState(tx, clinicId, patientId, actorUserId, dto.category, dto);
+      await this.enforceAllergyState(
+        tx,
+        clinicId,
+        patientId,
+        actorUserId,
+        dto.category,
+        dto,
+        undefined,
+        requestId,
+      );
 
       const recordId = dto.recordId ?? randomUUID();
       const revisionId = dto.revisionId ?? randomUUID();
@@ -190,6 +199,7 @@ export class MedicalHistoryService {
         record.category,
         dto,
         record.id,
+        requestId,
       );
 
       const revision = await tx.medicalHistoryRevision.create({
@@ -232,6 +242,7 @@ export class MedicalHistoryService {
     category: MedicalHistoryCategory,
     snapshot: MedicalHistorySnapshotDto,
     excludedRecordId?: string,
+    requestId?: string,
   ) {
     if (category !== MedicalHistoryCategory.ALLERGY || snapshot.status !== ACTIVE) return;
     const kind = snapshot.details.kind;
@@ -283,6 +294,16 @@ export class MedicalHistoryService {
       await tx.medicalHistoryRecord.update({
         where: { id: nka.id },
         data: { currentRevisionId: retired.id },
+      });
+      await this.auditService.logWrite({
+        clinicId,
+        actorUserId,
+        action: 'MEDICAL_HISTORY.NKA_RETIRE',
+        entityType: 'MedicalHistoryRecord',
+        entityId: nka.id,
+        beforeJson: JSON.stringify(current),
+        afterJson: JSON.stringify(retired),
+        requestId,
       });
     }
   }

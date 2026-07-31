@@ -21,6 +21,9 @@ import { db } from '@/lib/db';
 import { enqueueOutboxMutation } from '@/lib/outbox';
 import { SYNC_OPERATION } from '@/lib/outbox';
 import { ArrowLeft, ClipboardPlus, HeartPulse, ShieldCheck } from 'lucide-react';
+import { PrescriptionPanel } from '@/components/patients/PrescriptionPanel';
+import { isWebFeatureEnabled } from '@/lib/feature-flags';
+import { hasPermission } from '@/lib/ops';
 
 interface EncounterDetail {
   id: string;
@@ -38,6 +41,10 @@ export default function EncounterDetailPage() {
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const { syncNow } = useSync();
   const userId = bootstrap?.userId ?? '';
+  const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
+  const canReadPrescriptions = hasPermission(perms, 'PRESCRIPTION.READ');
+  const canWritePrescriptions = hasPermission(perms, 'PRESCRIPTION.WRITE');
+  const medicalHistoryEnabled = isWebFeatureEnabled('medicalHistory');
 
   const [encounter, setEncounter] = useState<EncounterDetail | null>(null);
   const [activeTab, setActiveTab] = useState('vitals');
@@ -340,6 +347,18 @@ export default function EncounterDetailPage() {
           </p>
         </CardHeader>
       </Card>
+
+      {canReadPrescriptions ? (
+        <PrescriptionPanel
+          clinicId={clinicId}
+          patientId={encounter.patientId}
+          encounterId={encounterId}
+          userId={userId}
+          canWrite={canWritePrescriptions}
+          isFinalized={isFinalized}
+          showAllergySafety={medicalHistoryEnabled}
+        />
+      ) : null}
 
       {!isFinalized && (
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">

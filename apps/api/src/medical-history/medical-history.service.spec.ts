@@ -172,6 +172,39 @@ describe('MedicalHistoryService', () => {
     });
   });
 
+  it('retires NKA with its own revision and audit event when an allergy is added', async () => {
+    const { service, prisma, audit } = setup();
+    prisma.medicalHistoryRecord.findMany.mockResolvedValue([
+      record({
+        id: 'nka-record',
+        category: MedicalHistoryCategory.ALLERGY,
+        currentRevision: revision({
+          recordId: 'nka-record',
+          details: { kind: 'NO_KNOWN_ALLERGIES', severity: 'UNKNOWN' },
+        }),
+      }),
+    ]);
+
+    await service.create(clinicId, patientId, actorId, {
+      category: MedicalHistoryCategory.ALLERGY,
+      status: MedicalHistoryStatus.ACTIVE,
+      details: { kind: 'ALLERGY', substance: 'Penicillin', severity: 'SEVERE' },
+    });
+
+    expect(prisma.medicalHistoryRevision.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        recordId: 'nka-record',
+        status: MedicalHistoryStatus.INACTIVE,
+      }),
+    });
+    expect(audit.logWrite).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'MEDICAL_HISTORY.NKA_RETIRE',
+        entityId: 'nka-record',
+      }),
+    );
+  });
+
   it('rejects a stale expected revision and returns the latest revision', async () => {
     const { service } = setup();
 
