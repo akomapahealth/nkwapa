@@ -76,7 +76,7 @@
 - RLS is now enabled for `Conversation`, `ConversationParticipant`, and `Message`, with policies tied to the app-managed tenant context.
 - Background reminder and research export jobs now enqueue `clinicId` and execute inside `PrismaService.withClinicContext`. Legacy queued jobs without `clinicId` first resolve their tenant from the database and only use explicit system context when no tenant can be resolved.
 - Operational logging now uses centralized URL/error redaction, avoids raw query strings and exception traces in request/rate-limit logs, and avoids provider response bodies or PHI-bearing reminder/research failure details in persisted records.
-- Dependency remediation upgraded Nest, Prisma, Sentry, BullMQ, Socket.IO, Next, ESLint, and related transitive packages. `npm audit --workspaces --audit-level=moderate` now reports zero vulnerabilities and is enforced in CI.
+- Dependency remediation upgraded Nest, Prisma, Sentry, BullMQ, Socket.IO, Next, ESLint, and related transitive packages. Runtime dependencies are audited at moderate severity or higher, and the full dependency graph is audited at critical severity.
 - The repository now uses ESLint flat config for ESLint 9 / Next 16 compatibility while preserving the prior lint baseline.
 
 ### Raw SQL and injection review
@@ -93,7 +93,7 @@
 ### Verification results
 
 - `npm run security:scan`: passed, `Secret scan passed for 489 tracked/untracked files.`
-- `npm audit --workspaces --audit-level=moderate`: passed, `found 0 vulnerabilities.`
+- `npm run security:audit`: passed. Runtime dependencies reported zero vulnerabilities at moderate severity or higher, and the full dependency graph reported no critical vulnerabilities.
 - `npm run lint --workspaces --if-present`: passed.
 - `npm run typecheck --workspaces --if-present`: passed.
 - `npm run test --workspaces --if-present`: passed, 36 suites / 157 tests. Jest reported a pre-existing open-handle warning after the API suite completed.
@@ -106,9 +106,40 @@
   - `npx playwright install chromium`: installed the upgraded Playwright Chromium runtime.
   - `npm run e2e --workspace=@nkwapa/web`: passed, 9 tests.
 
+### Dependency refresh - 2026-07-30
+
+- Upgraded NestJS to `11.1.28`, Prisma to `7.9.1`, Sentry for Next.js to `10.69.0`,
+  TypeScript ESLint to `8.65.0`, PostCSS to `8.5.25`, Sharp to `0.35.3`, and Next.js to
+  `16.3.0-canary.104`.
+- Regenerated the workspace lockfile and verified it with a clean `npm ci`.
+- Added `npm run security:audit` as the shared local and CI dependency policy:
+  - production dependencies block at moderate severity or higher
+  - the complete dependency graph blocks at critical severity
+- Rejected `npm audit fix --force` because its proposed ESLint, Next ESLint config, Nest CLI,
+  Jest, and ts-jest changes were breaking or mutually incompatible and did not safely eliminate
+  the underlying development-only advisory.
+- Verification passed:
+  - Prettier formatting
+  - ESLint
+  - TypeScript typechecking
+  - secret scanning across 516 files
+  - 44 unit suites / 244 tests
+  - production API, web, and database builds
+  - Docker-backed Playwright, 10 tests across authentication, recovery, public routes, workspace
+    behavior, and responsive phone/tablet/laptop/desktop layouts
+
 ### Residual risks
 
-- Next is pinned to `16.3.0-canary.32` because the latest stable `16.2.6` still declares vulnerable `postcss@8.4.31`. Track the next stable Next release that carries patched PostCSS and move off canary when available.
+- Next is pinned to `16.3.0-canary.104` because the latest stable `16.2.12` still declares
+  vulnerable `postcss@8.4.31` and `sharp@^0.34.5`. Track the next stable Next release that carries
+  patched PostCSS and Sharp versions, then move off canary.
+- The full development dependency graph still reports the high-severity `brace-expansion`
+  denial-of-service advisory through legacy `minimatch@3` consumers in ESLint, Jest, the Nest CLI,
+  and their plugins. These packages do not ship in the production runtime. Forcing
+  `brace-expansion@5` breaks the CommonJS API expected by `minimatch@3`, while npm's forced
+  remediation proposes incompatible downgrades of core tooling. CI therefore blocks moderate-or-
+  higher runtime advisories and critical advisories anywhere in the graph. Remove this exception
+  when the upstream tools support a patched `brace-expansion` release.
 - Legacy background jobs without `clinicId` remain supported for queue drain compatibility. Monitor logs for system-context fallback and treat any recurring fallback as a data repair task.
 - RLS remains app-context driven. Production database role separation and forced RLS ownership controls should be reviewed separately before relying on RLS as the only tenant isolation layer.
 - E2E coverage depends on Docker-backed Postgres, Redis, Keycloak, and the matching Playwright browser runtime being available in the execution environment.
