@@ -114,7 +114,7 @@ describe('ResearchExportService', () => {
     );
     expect(exportQueue.add).toHaveBeenCalledWith(
       'process',
-      { exportId: 'exp-1', clinicId },
+      { exportId: 'exp-1', clinicId, userId },
       expect.objectContaining({ jobId: 'exp-1' }),
     );
   });
@@ -145,7 +145,15 @@ describe('ResearchExportService', () => {
         status: 'APPROVED',
       }),
     );
-    expect(exportQueue.add).toHaveBeenCalled();
+    expect(exportQueue.add).toHaveBeenCalledWith(
+      'process',
+      {
+        exportId: 'exp-1',
+        clinicId,
+        userId: 'director-1',
+      },
+      expect.objectContaining({ jobId: 'exp-1' }),
+    );
   });
 
   it('retries a failed export by re-queueing it', async () => {
@@ -171,7 +179,15 @@ describe('ResearchExportService', () => {
     });
 
     expect(result.status).toBe('APPROVED');
-    expect(exportQueue.add).toHaveBeenCalled();
+    expect(exportQueue.add).toHaveBeenCalledWith(
+      'process',
+      {
+        exportId: 'exp-1',
+        clinicId,
+        userId,
+      },
+      expect.objectContaining({ jobId: 'exp-1' }),
+    );
   });
 
   it('marks a queued export completed after transform and sync succeed', async () => {
@@ -282,5 +298,21 @@ describe('ResearchExportService', () => {
     repo.findById.mockResolvedValue(null);
 
     await expect(service.processQueuedExport('missing')).rejects.toThrow(NotFoundException);
+  });
+
+  it('resolves legacy job tenant metadata from the export record', async () => {
+    repo.findById.mockResolvedValue(
+      makeExportRecord({
+        approvedByUserId: 'director-1',
+      }),
+    );
+
+    await expect(service.findExportJobTenant('exp-1')).resolves.toEqual({
+      clinicId,
+      userId: 'director-1',
+    });
+
+    repo.findById.mockResolvedValue(null);
+    await expect(service.findExportJobTenant('missing')).resolves.toBeNull();
   });
 });

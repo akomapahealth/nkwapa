@@ -354,9 +354,17 @@ export class ResearchExportService {
     }
   }
 
-  async findExportClinicId(exportId: string): Promise<string | null> {
+  async findExportJobTenant(
+    exportId: string,
+  ): Promise<{ clinicId: string; userId: string | null } | null> {
     const exportRecord = await this.repo.findById(exportId);
-    return exportRecord?.clinicId ?? null;
+    if (!exportRecord) {
+      return null;
+    }
+    return {
+      clinicId: exportRecord.clinicId,
+      userId: exportRecord.approvedByUserId ?? exportRecord.requestedByUserId,
+    };
   }
 
   async recordDownload(exportId: string, auditCtx?: ExportAuditContext) {
@@ -381,7 +389,11 @@ export class ResearchExportService {
     try {
       await this.exportQueue.add(
         'process',
-        { exportId: exportRecord.id, clinicId: exportRecord.clinicId },
+        {
+          exportId: exportRecord.id,
+          clinicId: exportRecord.clinicId,
+          userId: actorUserId,
+        },
         {
           jobId: exportRecord.id,
           attempts: 3,
