@@ -56,7 +56,7 @@
 ## Residual Risks / Follow-up
 
 - Exact staging and production frontend domains in the Keycloak export are currently assumed to be `https://staging.nkwapa.app` and `https://app.nkwapa.app`; update these if your real domains differ.
-- RLS protection depends on the app using the request-scoped Prisma context for HTTP traffic. Background jobs and standalone scripts still rely on owner-level access unless they explicitly opt into the same context.
+- RLS protection depends on every execution path establishing context. HTTP requests use the Prisma interceptor, queue processors use `JobTenantContextRunner`, and privileged standalone database scripts are explicitly documented exceptions.
 - Full end-to-end validation of Keycloak action token overrides should be confirmed in a running Keycloak environment after import.
 
 ## Follow-up Hardening - 2026-05-28
@@ -86,9 +86,29 @@
 
 ### Job context model
 
-- Normal job path: enqueue payload includes `clinicId`; processor wraps work in `withClinicContext(clinicId, ...)`.
-- Legacy job path: processor resolves `clinicId` from the reminder/export record, then uses tenant context.
-- Documented system fallback: only used for legacy payloads whose backing record no longer resolves to a clinic. These paths are logged as explicit system-context execution and should trend to zero as old queues drain.
+- Normal job path: queue payloads include `clinicId` and `userId`; processors delegate all
+  database work to `JobTenantContextRunner.runClinicJob(...)`.
+- Legacy job path: the runner uses a required static system reason while resolving clinic/user
+  metadata, then applies clinic context before invoking the processor callback.
+- Unresolved reminder jobs are logged and safely discarded because deleted/stale records are
+  already no-ops. Unresolved research export jobs throw `UnresolvedJobTenantError` so retries and
+  queue failure monitoring surface the integrity issue.
+- `runSystemJob(...)` requires a non-empty reason. System and legacy-resolution warnings include
+  queue/job/resource identifiers and static decisions only; payloads and PHI are not logged.
+- Prisma rejects incompatible nested contexts, enriches clinic metadata only after applying clinic
+  scope, and clears its AsyncLocalStorage context after success or failure.
+
+### Standalone script audit
+
+- Top-level repository scripts do not access clinic data.
+- `packages/db/prisma/seed.ts` is an explicit privileged bootstrap exception because it creates the
+  organization, clinic, identities, roles, and initial clinic records.
+- `packages/db/prisma/assign-system-admin.ts` is explicit privileged system maintenance because it
+  grants a global role.
+- `seed-drugs.ts` is not standalone and receives its clinic from the bootstrap seed.
+- Future clinic maintenance must use an authenticated API/application command with tenant context;
+  any new direct-client system exception requires an inline reason, least-privilege credential,
+  validation/failure tests, and security review.
 
 ### Verification results
 
@@ -140,6 +160,8 @@
   remediation proposes incompatible downgrades of core tooling. CI therefore blocks moderate-or-
   higher runtime advisories and critical advisories anywhere in the graph. Remove this exception
   when the upstream tools support a patched `brace-expansion` release.
-- Legacy background jobs without `clinicId` remain supported for queue drain compatibility. Monitor logs for system-context fallback and treat any recurring fallback as a data repair task.
+- Legacy background jobs without tenant metadata remain supported only for queue drain compatibility.
+  Monitor `legacy_job_tenant_resolution` warnings and treat recurring events as producer or data
+  repair work. No unresolved legacy job may execute clinic work under system context.
 - RLS remains app-context driven. Production database role separation and forced RLS ownership controls should be reviewed separately before relying on RLS as the only tenant isolation layer.
 - E2E coverage depends on Docker-backed Postgres, Redis, Keycloak, and the matching Playwright browser runtime being available in the execution environment.

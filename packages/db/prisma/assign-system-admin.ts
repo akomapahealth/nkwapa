@@ -3,6 +3,10 @@
  * Assign SYSTEM_ADMIN role to a user by Keycloak sub.
  * Usage: SEED_SYSTEM_ADMIN_SUB=<keycloak-sub> pnpm db:assign-system-admin
  *
+ * TENANT SAFETY: privileged system maintenance. This operation intentionally has no clinic scope
+ * because it grants a global role. Run it only with an approved administrative database credential.
+ * Do not copy this direct-client pattern into clinic-scoped maintenance scripts.
+ *
  * Get your Keycloak sub from: Keycloak Admin → Users → select user → Details tab
  * Or decode your JWT at jwt.io and copy the "sub" claim.
  */

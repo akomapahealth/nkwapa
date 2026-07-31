@@ -1,4 +1,12 @@
 // packages/db/prisma/seed.ts
+/**
+ * TENANT SAFETY: privileged system bootstrap.
+ *
+ * This script intentionally uses a direct Prisma client because it creates the organization,
+ * clinic, initial users, roles, and clinic seed data needed before an application tenant context
+ * can exist. Run it only with an approved administrative database credential. It is not a pattern
+ * for clinic maintenance or data repair scripts.
+ */
 import 'dotenv/config';
 import { PrismaClient, UserRole, Sex, NationalIdType, EncounterStatus } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';

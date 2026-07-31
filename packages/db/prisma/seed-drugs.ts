@@ -59,6 +59,11 @@ const SEED_DRUGS = [
   },
 ];
 
+/**
+ * This is not a standalone script. The privileged bootstrap seed is its only caller and supplies
+ * the clinic explicitly. Any future runtime or maintenance caller must establish tenant context
+ * before invoking clinic-scoped writes.
+ */
 export async function seedDrugs(prisma: PrismaClient, clinicId: string): Promise<void> {
   for (const drug of SEED_DRUGS) {
     const existing = await prisma.drug.findFirst({
