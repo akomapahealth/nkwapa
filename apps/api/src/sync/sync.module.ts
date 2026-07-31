@@ -4,9 +4,10 @@ import { SyncService } from './sync.service';
 import { AuthModule } from '../auth/auth.module';
 import { PatientModule } from '../patients/patient.module';
 import { EncounterModule } from '../encounters/encounter.module';
+import { MedicalHistoryModule } from '../medical-history/medical-history.module';
 
 @Module({
-  imports: [AuthModule, PatientModule, EncounterModule],
+  imports: [AuthModule, PatientModule, EncounterModule, MedicalHistoryModule],
   controllers: [SyncController],
   providers: [SyncService],
 })

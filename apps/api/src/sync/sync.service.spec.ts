@@ -7,6 +7,8 @@ import { EncounterRepository } from '../encounters/encounter.repository';
 import { EncounterStatus } from '@prisma/client';
 import { SYNC_MUTATION_RESULT_STATUS } from './dto/sync-push-response.dto';
 import type { SyncMutationDto } from './dto/sync-mutation.dto';
+import { MedicalHistoryService } from '../medical-history/medical-history.service';
+import { ConflictException } from '@nestjs/common';
 
 const mockUser = {
   user: { id: 'user-1' },
@@ -18,6 +20,7 @@ describe('SyncService', () => {
   let patientRepo: jest.Mocked<PatientRepository>;
   let encounterRepo: jest.Mocked<EncounterRepository>;
   let prisma: jest.Mocked<PrismaService>;
+  let medicalHistoryService: jest.Mocked<MedicalHistoryService>;
   beforeEach(async () => {
     const mockPrisma = {
       syncMutation: {
@@ -55,6 +58,13 @@ describe('SyncService', () => {
             findById: jest.fn().mockResolvedValue(null),
           },
         },
+        {
+          provide: MedicalHistoryService,
+          useValue: {
+            create: jest.fn().mockResolvedValue({}),
+            revise: jest.fn().mockResolvedValue({}),
+          },
+        },
       ],
     }).compile();
 
@@ -62,6 +72,7 @@ describe('SyncService', () => {
     patientRepo = module.get(PatientRepository);
     prisma = module.get(PrismaService);
     encounterRepo = module.get(EncounterRepository);
+    medicalHistoryService = module.get(MedicalHistoryService);
   });
 
   describe('patient UPSERT - DUPLICATE_NATIONAL_ID', () => {
@@ -136,6 +147,87 @@ describe('SyncService', () => {
         existingStatus: 'FINALIZED',
       });
       expect(prisma.encounter.upsert).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('medical history revision replay', () => {
+    const originalFlag = process.env.FEATURE_MEDICAL_HISTORY_ENABLED;
+
+    beforeEach(() => {
+      process.env.FEATURE_MEDICAL_HISTORY_ENABLED = 'true';
+    });
+
+    afterEach(() => {
+      if (originalFlag === undefined) delete process.env.FEATURE_MEDICAL_HISTORY_ENABLED;
+      else process.env.FEATURE_MEDICAL_HISTORY_ENABLED = originalFlag;
+    });
+
+    it('applies an idempotent offline create with client-generated IDs', async () => {
+      const mutation: SyncMutationDto = {
+        id: 'mut-history-1',
+        entityType: 'medical_history_revision',
+        entityId: 'record-1',
+        operation: 'UPSERT',
+        clinicId: 'clinic-1',
+        idempotencyKey: 'history-idem-1',
+        payloadJson: {
+          patientId: 'patient-1',
+          revisionId: 'revision-1',
+          category: 'CONDITION',
+          status: 'ACTIVE',
+          details: { conditionName: 'Hypertension' },
+        },
+      };
+
+      const result = await service.applyMutations('clinic-1', mockUser as never, [mutation]);
+
+      expect(result[0]?.status).toBe(SYNC_MUTATION_RESULT_STATUS.APPLIED);
+      expect(medicalHistoryService.create).toHaveBeenCalledWith(
+        'clinic-1',
+        'patient-1',
+        'user-1',
+        expect.objectContaining({ recordId: 'record-1', revisionId: 'revision-1' }),
+        'history-idem-1',
+      );
+    });
+
+    it('returns a structured conflict for a stale offline revision', async () => {
+      medicalHistoryService.revise.mockRejectedValue(
+        new ConflictException({
+          code: 'STALE_MEDICAL_HISTORY_REVISION',
+          message: 'Record changed.',
+          latestRevision: { id: 'revision-latest' },
+        }),
+      );
+      const mutation: SyncMutationDto = {
+        id: 'mut-history-2',
+        entityType: 'medical_history_revision',
+        entityId: 'record-1',
+        operation: 'UPSERT',
+        clinicId: 'clinic-1',
+        idempotencyKey: 'history-idem-2',
+        payloadJson: {
+          patientId: 'patient-1',
+          revisionId: 'revision-2',
+          expectedCurrentRevisionId: 'revision-old',
+          status: 'RESOLVED',
+          resolvedDate: '2026-07-30',
+          details: { conditionName: 'Hypertension' },
+        },
+      };
+
+      const result = await service.applyMutations('clinic-1', mockUser as never, [mutation]);
+
+      expect(result[0]).toMatchObject({
+        status: SYNC_MUTATION_RESULT_STATUS.CONFLICT,
+        conflictType: 'STALE_MEDICAL_HISTORY_REVISION',
+      });
+      expect(prisma.syncMutation.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          status: 'CONFLICT',
+          conflictType: 'STALE_MEDICAL_HISTORY_REVISION',
+        }),
+      });
     });
   });
 });

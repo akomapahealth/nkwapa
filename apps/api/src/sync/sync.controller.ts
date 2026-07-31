@@ -10,7 +10,8 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { IsDateString, IsOptional, IsUUID } from 'class-validator';
+import { IsOptional, IsString, IsUUID } from 'class-validator';
+import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 import { ClinicScoped } from '../auth/decorators/clinic-scoped.decorator';
@@ -28,7 +29,7 @@ class SyncQueryDto {
 
 class SyncPullQueryDto extends SyncQueryDto {
   @IsOptional()
-  @IsDateString()
+  @IsString()
   since?: string;
 }
 
@@ -47,7 +48,7 @@ export class SyncController {
     @Body() mutations: SyncMutationDto[],
     @Request()
     req: {
-      user: { user: { id: string }; roles: unknown[] };
+      user: { user: { id: string }; roles: Array<{ role: UserRole }> };
       ip?: string;
       headers?: { 'user-agent'?: string };
     },

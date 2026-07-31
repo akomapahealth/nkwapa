@@ -1,4 +1,4 @@
-import { buildOutboxMutation, SYNC_OPERATION } from './outbox';
+import { buildMedicalHistoryOutboxPayload, buildOutboxMutation, SYNC_OPERATION } from './outbox';
 
 describe('buildOutboxMutation', () => {
   it('produces objects with all required fields', () => {
@@ -65,5 +65,27 @@ describe('buildOutboxMutation', () => {
 
     expect(record.payloadJson).toBe(JSON.stringify(payload));
     expect(JSON.parse(record.payloadJson)).toEqual(payload);
+  });
+});
+
+describe('buildMedicalHistoryOutboxPayload', () => {
+  it('preserves client revision identity and optimistic concurrency fields', () => {
+    expect(
+      buildMedicalHistoryOutboxPayload({
+        patientId: 'patient-1',
+        revisionId: 'revision-2',
+        expectedCurrentRevisionId: 'revision-1',
+        status: 'RESOLVED',
+        resolvedDate: '2026-07-30',
+        details: { conditionName: 'Hypertension' },
+      }),
+    ).toEqual({
+      patientId: 'patient-1',
+      revisionId: 'revision-2',
+      expectedCurrentRevisionId: 'revision-1',
+      status: 'RESOLVED',
+      resolvedDate: '2026-07-30',
+      details: { conditionName: 'Hypertension' },
+    });
   });
 });
