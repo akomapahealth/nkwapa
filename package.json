@@ -12,6 +12,7 @@
     "db:seed": "ts-node --transpile-only packages/db/prisma/seed.ts",
     "db:assign-system-admin": "ts-node --transpile-only packages/db/prisma/assign-system-admin.ts",
     "keycloak:validate-realm": "node scripts/validate-keycloak-realm.mjs",
+    "security:audit": "npm audit --omit=dev --workspaces --audit-level=moderate && npm audit --workspaces --audit-level=critical",
     "security:scan": "node scripts/check-secrets.mjs",
     "security:scan:staged": "node scripts/check-secrets.mjs --staged",
     "lint": "npm run lint --workspaces --if-present",
@@ -26,41 +27,39 @@
     "postinstall": "npm run db:generate"
   },
   "devDependencies": {
-    "@nestjs/platform-express": "^11.1.24",
-    "@typescript-eslint/eslint-plugin": "^8.60.0",
-    "@typescript-eslint/parser": "^8.60.0",
+    "@nestjs/platform-express": "^11.1.28",
+    "@typescript-eslint/eslint-plugin": "^8.65.0",
+    "@typescript-eslint/parser": "^8.65.0",
     "dotenv": "^17.3.1",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^16.4.0",
     "husky": "^9.1.7",
     "lint-staged": "^15.2.11",
-    "next": "16.3.0-canary.32",
-    "postcss": "8.5.15",
-    "prettier": "^3.3.3",
-    "prisma": "7.5.0",
+    "next": "16.3.0-canary.104",
+    "postcss": "8.5.25",
+    "prettier": "3.8.1",
+    "prisma": "7.9.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "dependencies": {
-    "@prisma/client": "7.5.0"
+    "@prisma/client": "7.9.1"
   },
   "overrides": {
     "@babel/core": "7.29.7",
-    "@hono/node-server": "2.0.4",
-    "@nestjs/common": "11.1.24",
-    "@nestjs/core": "11.1.24",
+    "@nestjs/common": "11.1.28",
+    "@nestjs/core": "11.1.28",
     "@opentelemetry/core": "2.8.0",
     "@opentelemetry/resources": "2.8.0",
     "@opentelemetry/sdk-trace-base": "2.8.0",
     "@istanbuljs/load-nyc-config": {
-      "js-yaml": "4.2.0"
+      "js-yaml": "4.3.0"
     },
     "@tootallnate/once": "3.0.1",
-    "brace-expansion": "1.1.15",
     "anymatch": {
       "picomatch": "2.3.2"
     },
@@ -79,17 +78,14 @@
     "jest-util": {
       "picomatch": "2.3.2"
     },
-    "js-yaml": "4.2.0",
-    "hono": "4.12.23",
     "lodash": "4.18.1",
     "micromatch": {
       "picomatch": "2.3.2"
     },
     "next": {
-      ".": "16.3.0-canary.32",
-      "postcss": "8.5.10"
+      ".": "16.3.0-canary.104"
     },
-    "postcss": "8.5.15",
+    "postcss": "8.5.25",
     "qs": "6.15.2",
     "readdirp": {
       "picomatch": "2.3.2"

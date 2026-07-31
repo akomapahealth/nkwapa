@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '22'
   DATABASE_URL: postgresql://nkwapa:nkwapa@localhost:5432/nkwapa
 
 jobs:
@@ -154,8 +154,8 @@ jobs:
       - name: Secret and sensitive-file scan
         run: npm run security:scan
 
-      - name: npm audit
-        run: npm audit --workspaces --audit-level=moderate
+      - name: Dependency audit
+        run: npm run security:audit
 
   # ──────────────────────────────────────────────
   # E2E Smoke (Docker-backed)
