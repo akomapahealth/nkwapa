@@ -2,7 +2,7 @@ import { createHash } from 'crypto';
 
 export const RESEARCH_EXPORT_QUEUE_NAME = 'research-exports';
 export const RESEARCH_POLICY_VERSION = 'research-export-v1';
-export const RESEARCH_DATASET_VERSION = 1;
+export const RESEARCH_DATASET_VERSION = 2;
 export const RESEARCH_TIMESTAMP_ROUNDING_MINUTES = 15;
 export const RESEARCH_FILE_FORMAT = 'zip';
 
@@ -14,6 +14,7 @@ export const RESEARCH_TABLE_NAMES = [
   'research_clinical_screenings.csv',
   'research_measurements.csv',
   'research_appointments.csv',
+  'research_medical_history.csv',
   'research_revocations.csv',
 ] as const;
 

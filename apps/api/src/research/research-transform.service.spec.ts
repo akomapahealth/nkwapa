@@ -16,6 +16,7 @@ describe('ResearchTransformService', () => {
     patientSelfReport: { findMany: jest.Mock };
     appointmentRequest: { findMany: jest.Mock };
     patient: { findMany: jest.Mock };
+    medicalHistoryRevision: { findMany: jest.Mock };
   };
   let service: ResearchTransformService;
 
@@ -33,6 +34,7 @@ describe('ResearchTransformService', () => {
       patientSelfReport: { findMany: jest.fn() },
       appointmentRequest: { findMany: jest.fn() },
       patient: { findMany: jest.fn() },
+      medicalHistoryRevision: { findMany: jest.fn() },
     };
 
     service = new ResearchTransformService(prisma as never, new DeIdentificationService());
@@ -59,13 +61,15 @@ describe('ResearchTransformService', () => {
         'manifest.json',
         'SHA256SUMS.txt',
         'research_subjects.csv',
+        'research_medical_history.csv',
         'research_revocations.csv',
       ]),
     );
+    expect(result.manifest.datasetVersion).toBe(2);
     expect(fs.existsSync(result.artifactPath)).toBe(true);
   });
 
-  it('normalizes mixed data into the v1 research pack without leaking pii', async () => {
+  it('normalizes mixed data into the v2 research pack without leaking pii', async () => {
     prisma.patientConsent.findMany
       .mockResolvedValueOnce([
         {
@@ -253,6 +257,33 @@ describe('ResearchTransformService', () => {
         sex: 'FEMALE',
       },
     ]);
+    prisma.medicalHistoryRevision.findMany.mockResolvedValue([
+      {
+        id: 'history-revision-1',
+        recordId: 'history-record-1',
+        revisionNumber: 1,
+        status: 'ACTIVE',
+        onsetDate: new Date('2025-01-01T00:00:00.000Z'),
+        occurrenceDate: null,
+        resolvedDate: null,
+        detailsSchemaVersion: 1,
+        details: {
+          kind: 'ALLERGY',
+          substance: 'Penicillin',
+          reaction: 'Private reaction text',
+          severity: 'SEVERE',
+        },
+        notes: 'Private clinical note',
+        sourceEncounterId: 'enc-1',
+        authoredByUserId: 'doc-1',
+        createdAt: new Date('2026-03-18T08:45:00.000Z'),
+        record: {
+          id: 'history-record-1',
+          patientId: 'patient-1',
+          category: 'ALLERGY',
+        },
+      },
+    ]);
 
     const result = await service.generatePack('clinic-1', '2026-03-01', '2026-03-21', 'exp-full');
 
@@ -266,8 +297,12 @@ describe('ResearchTransformService', () => {
     const revocationsCsv = result.repoFiles.find(
       (file) => file.name === 'research_revocations.csv',
     );
+    const medicalHistoryCsv = result.repoFiles.find(
+      (file) => file.name === 'research_medical_history.csv',
+    );
 
     expect(result.recordCount).toBeGreaterThan(0);
+    expect(result.manifest.datasetVersion).toBe(2);
     expect(subjectsCsv?.content).toContain('research_patient_key');
     expect(subjectsCsv?.content).toContain('1990');
     expect(subjectsCsv?.content).not.toContain('Witness');
@@ -277,6 +312,11 @@ describe('ResearchTransformService', () => {
     expect(appointmentsCsv?.content).toContain('2026-03-25');
     expect(appointmentsCsv?.content).not.toContain('Should not leak');
     expect(revocationsCsv?.content).toContain('REVOKED');
+    expect(medicalHistoryCsv?.content).toContain('ALLERGY');
+    expect(medicalHistoryCsv?.content).toContain('SEVERE');
+    expect(medicalHistoryCsv?.content).not.toContain('Penicillin');
+    expect(medicalHistoryCsv?.content).not.toContain('Private reaction text');
+    expect(medicalHistoryCsv?.content).not.toContain('Private clinical note');
     expect(fs.existsSync(result.artifactPath)).toBe(true);
   });
 });
