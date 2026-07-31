@@ -238,3 +238,75 @@ Current product behavior includes:
 - timeout and network-aware frontend API errors
 
 This baseline exists across the app, though some newer pages still need more route-specific polish.
+
+---
+
+## 12. Feature Flag Convention
+
+Feature flags are temporary rollout controls for changes where independently enabling or disabling
+the API and web experience reduces release risk. V1 flags use environment variables and the typed
+readers in `apps/api/src/common/feature-flags.ts` and `apps/web/lib/feature-flags.ts`; do not read
+feature-flag environment variables directly at call sites.
+
+### Naming and defaults
+
+- API flags use `FEATURE_<DOMAIN>_<CAPABILITY>_ENABLED`.
+- Browser-visible flags use the paired
+  `NEXT_PUBLIC_FEATURE_<DOMAIN>_<CAPABILITY>_ENABLED` name.
+- Only a trimmed, case-insensitive `true` enables a flag.
+- Missing, empty, `false`, and invalid values fail closed to disabled in every environment.
+- Public `NEXT_PUBLIC_*` values are embedded when Next.js builds. Changing one requires rebuilding
+  and redeploying the web app.
+
+The first registered pair prepares the medical history and allergies work:
+
+```dotenv
+FEATURE_MEDICAL_HISTORY_ENABLED=false
+NEXT_PUBLIC_FEATURE_MEDICAL_HISTORY_ENABLED=false
+```
+
+### Reading flags
+
+The API is authoritative. A disabled API feature must reject access before running feature logic;
+the web flag only controls whether the corresponding entry point is shown.
+
+```ts
+import { NotFoundException } from '@nestjs/common';
+import { isApiFeatureEnabled } from '../common/feature-flags';
+
+export function assertMedicalHistoryEnabled() {
+  if (!isApiFeatureEnabled('medicalHistory')) {
+    throw new NotFoundException();
+  }
+}
+```
+
+```tsx
+import { isWebFeatureEnabled } from '@/lib/feature-flags';
+
+export function MedicalHistoryEntry() {
+  return isWebFeatureEnabled('medicalHistory') ? <MedicalHistoryTab /> : null;
+}
+```
+
+Never use a browser flag as authorization or as a substitute for permissions, tenant isolation,
+validation, or audit controls.
+
+### Adding and rolling out a flag
+
+1. Confirm that independent rollback materially reduces risk and name an owner in the feature issue.
+2. Register the typed key and explicit environment-variable reader in each affected app.
+3. Add the variable with a `false` default to local, staging, and production environment templates.
+4. Test parsing, mapping, disabled behavior, and both enabled and disabled feature paths.
+5. Enable and validate the API first. Then enable, rebuild, and deploy the web app.
+
+If rollback is needed, disable and redeploy the web app first, then disable the API after clients no
+longer expose the feature.
+
+### Removing a flag
+
+Flags are not permanent application settings. After full rollout and the agreed rollback window,
+the owning feature issue must schedule removal. The removal change deletes the disabled branch,
+typed registry entries, environment variables, flag-specific tests, and stale documentation
+together. Do not add flags for authorization policy, permanent tenant configuration, or low-risk
+changes that can ship normally.
