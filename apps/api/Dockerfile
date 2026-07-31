@@ -1,5 +1,5 @@
 # ── Stage 1: Install dependencies ──
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -12,10 +12,11 @@ RUN npm ci --omit=dev --ignore-scripts && \
     cp -R node_modules /prod_node_modules && \
     if [ -d apps/api/node_modules ]; then cp -R apps/api/node_modules/. /prod_apps_api_node_modules/; fi && \
     if [ -d packages/db/node_modules ]; then cp -R packages/db/node_modules/. /prod_packages_db_node_modules/; fi && \
-    npm ci --ignore-scripts
+    npm ci --ignore-scripts && \
+    mkdir -p apps/api/node_modules packages/db/node_modules
 
 # ── Stage 2: Generate Prisma & Build ──
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
@@ -31,7 +32,7 @@ RUN cd packages/db && npx tsc
 RUN cd apps/api && npx tsc -p tsconfig.build.json
 
 # ── Stage 3: Production image ──
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 
 RUN addgroup --system --gid 1001 app && \
