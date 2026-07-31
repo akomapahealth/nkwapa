@@ -16,6 +16,11 @@ export class ClinicAndPatientParamsDto extends ClinicIdParamDto {
   patientId!: string;
 }
 
+export class ClinicPatientHistoryParamsDto extends ClinicAndPatientParamsDto {
+  @IsUUID()
+  recordId!: string;
+}
+
 export class ClinicAndEncounterParamsDto extends ClinicIdParamDto {
   @IsUUID()
   encounterId!: string;
