@@ -258,7 +258,7 @@ feature-flag environment variables directly at call sites.
 - Public `NEXT_PUBLIC_*` values are embedded when Next.js builds. Changing one requires rebuilding
   and redeploying the web app.
 
-The first registered pair prepares the medical history and allergies work:
+The medical history and allergies workflow uses the first registered pair:
 
 ```dotenv
 FEATURE_MEDICAL_HISTORY_ENABLED=false
@@ -299,6 +299,10 @@ validation, or audit controls.
 3. Add the variable with a `false` default to local, staging, and production environment templates.
 4. Test parsing, mapping, disabled behavior, and both enabled and disabled feature paths.
 5. Enable and validate the API first. Then enable, rebuild, and deploy the web app.
+
+For medical history, validation includes clinic isolation, immutable revision conflicts,
+no-known-allergies transitions, offline replay, and prescription acknowledgement. The complete
+clinical rollout checklist is in `docs/specs/07_MEDICAL_HISTORY_AND_ALLERGIES.md`.
 
 If rollback is needed, disable and redeploy the web app first, then disable the API after clients no
 longer expose the feature.

@@ -57,6 +57,7 @@ Current permission families include:
 - screening and care plan actions
 - consent recording
 - prescription and drug access
+- medical-history read and write access
 - research settings and export actions
 - reminder actions
 - clinic management
@@ -67,6 +68,15 @@ Current permission families include:
 - patient portal self and staff-linked reads/actions
 
 Realm roles in Keycloak are descriptive, not the authoritative enforcement layer.
+
+Medical history has a narrower clinical write boundary:
+
+- `MEDICAL_HISTORY.READ`: system administrator, director, manager, doctor, and volunteer
+- `MEDICAL_HISTORY.WRITE`: doctor and volunteer
+- system administrators retain wildcard authority
+
+Every route also requires existing clinic scope. Patient portal roles receive neither permission in
+this version.
 
 ---
 

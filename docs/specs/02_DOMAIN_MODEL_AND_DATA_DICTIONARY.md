@@ -188,6 +188,17 @@ Clinic-scoped medication catalog.
 
 Encounter-linked prescription written by a clinician.
 
+### MedicalHistoryRecord
+
+Clinic- and patient-scoped stable identity for a longitudinal medical-history item. It points to
+the current revision but does not replace prior clinical values.
+
+### MedicalHistoryRevision
+
+Append-only revision containing category-specific structured details, clinical status and dates,
+source encounter, author, schema version, and revision number. Revisions represent corrections and
+status transitions; clinical history is never deleted to represent resolution.
+
 ---
 
 ## Operations And Portal Models
@@ -261,6 +272,8 @@ Year-based sequence state for generated patient codes.
 3. `SYSTEM_ADMIN` can bypass clinic-scoped restrictions; all other roles depend on clinic membership and permission checks.
 4. Patient portal access depends on both local role/identity state and a valid patient link or invite claim.
 5. Background jobs and scripts must opt into the same tenant context deliberately if they need the same RLS guarantees as HTTP requests.
+6. Medical-history records and revisions are protected by both clinic and patient ownership checks;
+   a source encounter must match both.
 
 ---
 

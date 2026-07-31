@@ -26,6 +26,7 @@ The local Dexie store currently covers the core EMR workflow:
 - care plans
 - patient consents
 - prescriptions
+- medical-history records and append-only revisions
 - outbox
 - sync state
 
@@ -65,6 +66,10 @@ Current important rules:
 - finalized encounter-linked data is treated as canonical
 - merged patients resolve toward the canonical chart
 - sync mutations preserve applied, conflict, and error state
+- medical-history creates and revisions use client-generated IDs for replay idempotency
+- stale medical-history revisions and no-known-allergies conflicts remain queued for user-visible
+  recovery instead of overwriting the server record
+- medical-history deletion is not a supported mutation
 
 ---
 
