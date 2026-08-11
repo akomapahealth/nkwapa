@@ -80,7 +80,10 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <ServiceWorkerAndSyncProvider getAccessToken={getToken}>
+    <ServiceWorkerAndSyncProvider
+      getAccessToken={getToken}
+      activeClinicId={bootstrapCtx?.activeClinicId}
+    >
       {isDisabledAccount ? (
         <FullscreenStatus
           eyebrow="Account status"

@@ -15,6 +15,12 @@ describe('expanded vitals and tobacco screening migration', () => {
     expect(migration).not.toContain('DROP COLUMN "heartRate"');
   });
 
+  it('keeps populated legacy rows readable while enforcing checks on new writes', () => {
+    const vitalsChecks = migration.match(/ADD CONSTRAINT "Vitals_[^"]+" CHECK[\s\S]*?NOT VALID/g);
+
+    expect(vitalsChecks).toHaveLength(11);
+  });
+
   it('adds canonical measurement constraints and structured tobacco storage', () => {
     expect(migration).toContain('"Vitals_blood_pressure_pair_check"');
     expect(migration).toContain('"Vitals_temperature_check"');

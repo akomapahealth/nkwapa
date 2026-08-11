@@ -1,13 +1,13 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { syncNow, onSyncStatusChange, type SyncStatus } from '@/lib/sync';
+import { syncNow, onSyncStatusChange, type SyncResult, type SyncStatus } from '@/lib/sync';
 
 interface SyncContextValue {
   isOnline: boolean;
   syncStatus: SyncStatus;
   syncError?: string;
-  syncNow: (clinicId: string) => Promise<void>;
+  syncNow: (clinicId: string) => Promise<SyncResult>;
 }
 
 const SyncContext = createContext<SyncContextValue | null>(null);
@@ -23,9 +23,11 @@ export function useSync() {
 export function ServiceWorkerAndSyncProvider({
   children,
   getAccessToken,
+  activeClinicId,
 }: {
   children: React.ReactNode;
   getAccessToken?: () => Promise<string | null>;
+  activeClinicId?: string | null;
 }) {
   const [isOnline, setIsOnline] = useState(
     typeof navigator !== 'undefined' ? navigator.onLine : true,
@@ -64,13 +66,18 @@ export function ServiceWorkerAndSyncProvider({
 
   const doSyncNow = useCallback(
     async (clinicId: string) => {
-      await syncNow({
+      return syncNow({
         clinicId,
         getAccessToken,
       });
     },
     [getAccessToken],
   );
+
+  useEffect(() => {
+    if (!isOnline || !activeClinicId) return;
+    void doSyncNow(activeClinicId);
+  }, [activeClinicId, doSyncNow, isOnline]);
 
   return (
     <SyncContext.Provider

@@ -60,20 +60,20 @@ ALTER TABLE "Vitals"
       AND "diastolicBp" BETWEEN 20 AND 200
       AND "systolicBp" > "diastolicBp"
     )
-  ),
+  ) NOT VALID,
   ADD CONSTRAINT "Vitals_bp_site_other_check" CHECK (
     ("bpSite" = 'OTHER' AND NULLIF(BTRIM("bpSiteOther"), '') IS NOT NULL)
     OR ("bpSite" IS DISTINCT FROM 'OTHER' AND "bpSiteOther" IS NULL)
-  ),
+  ) NOT VALID,
   ADD CONSTRAINT "Vitals_position_other_check" CHECK (
     ("patientPosition" = 'OTHER' AND NULLIF(BTRIM("patientPositionOther"), '') IS NOT NULL)
     OR ("patientPosition" IS DISTINCT FROM 'OTHER' AND "patientPositionOther" IS NULL)
-  ),
+  ) NOT VALID,
   ADD CONSTRAINT "Vitals_cuff_other_check" CHECK (
     ("cuffSize" = 'OTHER' AND NULLIF(BTRIM("cuffSizeOther"), '') IS NOT NULL)
     OR ("cuffSize" IS DISTINCT FROM 'OTHER' AND "cuffSizeOther" IS NULL)
-  ),
-  ADD CONSTRAINT "Vitals_pulse_check" CHECK ("pulseBpm" IS NULL OR "pulseBpm" BETWEEN 20 AND 300),
+  ) NOT VALID,
+  ADD CONSTRAINT "Vitals_pulse_check" CHECK ("pulseBpm" IS NULL OR "pulseBpm" BETWEEN 20 AND 300) NOT VALID,
   ADD CONSTRAINT "Vitals_temperature_check" CHECK (
     ("temperatureCelsius" IS NULL AND "temperatureSource" IS NULL AND "temperatureSourceOther" IS NULL)
     OR (
@@ -84,14 +84,14 @@ ALTER TABLE "Vitals"
         OR ("temperatureSource" <> 'OTHER' AND "temperatureSourceOther" IS NULL)
       )
     )
-  ),
+  ) NOT VALID,
   ADD CONSTRAINT "Vitals_respiratory_rate_check" CHECK (
     "respiratoryRate" IS NULL OR "respiratoryRate" BETWEEN 1 AND 100
-  ),
-  ADD CONSTRAINT "Vitals_spo2_check" CHECK ("spo2Percent" IS NULL OR "spo2Percent" BETWEEN 1 AND 100),
-  ADD CONSTRAINT "Vitals_weight_check" CHECK ("weightKg" IS NULL OR "weightKg" BETWEEN 0.1 AND 700),
-  ADD CONSTRAINT "Vitals_height_check" CHECK ("heightCm" IS NULL OR "heightCm" BETWEEN 20 AND 300),
-  ADD CONSTRAINT "Vitals_bmi_check" CHECK ("bmi" IS NULL OR "bmi" > 0);
+  ) NOT VALID,
+  ADD CONSTRAINT "Vitals_spo2_check" CHECK ("spo2Percent" IS NULL OR "spo2Percent" BETWEEN 1 AND 100) NOT VALID,
+  ADD CONSTRAINT "Vitals_weight_check" CHECK ("weightKg" IS NULL OR "weightKg" BETWEEN 0.1 AND 700) NOT VALID,
+  ADD CONSTRAINT "Vitals_height_check" CHECK ("heightCm" IS NULL OR "heightCm" BETWEEN 20 AND 300) NOT VALID,
+  ADD CONSTRAINT "Vitals_bmi_check" CHECK ("bmi" IS NULL OR "bmi" > 0) NOT VALID;
 
 CREATE TABLE "TobaccoScreening" (
   "id" UUID NOT NULL,

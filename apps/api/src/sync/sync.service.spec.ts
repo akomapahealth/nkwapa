@@ -40,6 +40,14 @@ describe('SyncService', () => {
         findUnique: jest.fn().mockResolvedValue(null),
         upsert: jest.fn().mockResolvedValue({ id: 'enc-1', status: 'DRAFT' }),
       },
+      vitals: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'vitals-1',
+          clinicId: 'clinic-1',
+          encounter: { status: EncounterStatus.DRAFT },
+        }),
+        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -102,6 +110,57 @@ describe('SyncService', () => {
 
     expect(result).toEqual([{ id: 'mut-vitals-1', status: 'APPLIED' }]);
     expect(clinicalMeasurementsService.applyBundle).not.toHaveBeenCalled();
+  });
+
+  it('rejects a vitals delete without screening write permission', async () => {
+    const results = await service.applyMutations(
+      'clinic-1',
+      {
+        user: { id: 'director-1' },
+        roles: [{ clinicId: 'clinic-1', role: 'DIRECTOR' }],
+      } as never,
+      [
+        {
+          id: 'mut-delete-vitals',
+          entityType: 'vitals',
+          entityId: 'vitals-1',
+          operation: 'DELETE',
+          clinicId: 'clinic-1',
+          idempotencyKey: 'delete-vitals-1',
+        },
+      ],
+    );
+
+    expect(results[0]).toMatchObject({
+      status: SYNC_MUTATION_RESULT_STATUS.ERROR,
+      conflictType: 'APPLICATION_REJECTED',
+    });
+    expect(prisma.vitals.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects deleting vitals from a finalized encounter', async () => {
+    (prisma.vitals.findFirst as jest.Mock).mockResolvedValue({
+      id: 'vitals-1',
+      clinicId: 'clinic-1',
+      encounter: { status: EncounterStatus.FINALIZED },
+    });
+
+    const results = await service.applyMutations('clinic-1', mockUser as never, [
+      {
+        id: 'mut-delete-finalized-vitals',
+        entityType: 'vitals',
+        entityId: 'vitals-1',
+        operation: 'DELETE',
+        clinicId: 'clinic-1',
+        idempotencyKey: 'delete-finalized-vitals-1',
+      },
+    ]);
+
+    expect(results[0]).toMatchObject({
+      status: SYNC_MUTATION_RESULT_STATUS.CONFLICT,
+      conflictType: 'CONFLICT_FINALIZED',
+    });
+    expect(prisma.vitals.deleteMany).not.toHaveBeenCalled();
   });
 
   describe('patient UPSERT - DUPLICATE_NATIONAL_ID', () => {

@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie';
+import { migrateLegacyPulse } from './db-migrations';
 
 export interface PatientRecord {
   id: string;
@@ -230,12 +231,7 @@ export class NkwapaDb extends Dexie {
         await transaction
           .table<VitalsRecord, string>('vitals')
           .toCollection()
-          .modify((record) => {
-            if (record.pulseBpm == null && record.heartRate != null) {
-              record.pulseBpm = record.heartRate;
-            }
-            delete record.heartRate;
-          });
+          .modify(migrateLegacyPulse);
       });
   }
 }

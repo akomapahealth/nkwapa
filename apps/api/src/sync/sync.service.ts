@@ -1,4 +1,10 @@
-import { ConflictException, HttpException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  HttpException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   SyncOperation,
   SyncMutationStatus,
@@ -162,7 +168,7 @@ export class SyncService {
     const idempotencyKey = mut.idempotencyKey;
 
     if (mut.operation === SYNC_OPERATION.DELETE) {
-      return this.applyDelete(clinicId, actorUserId, mut, metadata);
+      return this.applyDelete(clinicId, actorUserId, user, mut, metadata);
     }
 
     switch (mut.entityType as EntityType) {
@@ -988,6 +994,7 @@ export class SyncService {
   private async applyDelete(
     clinicId: string,
     actorUserId: string,
+    user: UserWithId,
     mut: SyncMutationDto,
     metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
@@ -1024,28 +1031,49 @@ export class SyncService {
       };
     }
 
+    if (entityType === 'vitals') {
+      if (!hasPermission(user.roles, PERMISSIONS.SCREENING_WRITE)) {
+        throw new ForbiddenException('SCREENING.WRITE permission is required to delete vitals');
+      }
+      const vitals = await this.prisma.vitals.findFirst({
+        where: { id: mut.entityId, clinicId },
+        select: { encounter: { select: { status: true } } },
+      });
+      if (!vitals) throw new NotFoundException('Vitals not found in the active clinic');
+      if (vitals.encounter.status === EncounterStatus.FINALIZED) {
+        throw new ConflictException({
+          code: 'CONFLICT_FINALIZED',
+          message: 'Cannot delete measurements for a finalized encounter',
+          existingStatus: EncounterStatus.FINALIZED,
+        });
+      }
+    }
+
     const beforeMap: Record<string, (id: string) => Promise<unknown>> = {
-      vitals: (id) => this.prisma.vitals.findUnique({ where: { id } }),
-      diabetes_screening: (id) => this.prisma.diabetesScreening.findUnique({ where: { id } }),
+      vitals: (id) => this.prisma.vitals.findFirst({ where: { id, clinicId } }),
+      diabetes_screening: (id) =>
+        this.prisma.diabetesScreening.findFirst({ where: { id, clinicId } }),
       hypertension_assessment: (id) =>
-        this.prisma.hypertensionAssessment.findUnique({ where: { id } }),
-      care_plan: (id) => this.prisma.carePlan.findUnique({ where: { id } }),
-      patient_consent: (id) => this.prisma.patientConsent.findUnique({ where: { id } }),
-      prescription: (id) => this.prisma.prescription.findUnique({ where: { id } }),
+        this.prisma.hypertensionAssessment.findFirst({ where: { id, clinicId } }),
+      care_plan: (id) => this.prisma.carePlan.findFirst({ where: { id, clinicId } }),
+      patient_consent: (id) => this.prisma.patientConsent.findFirst({ where: { id, clinicId } }),
+      prescription: (id) => this.prisma.prescription.findFirst({ where: { id, clinicId } }),
     };
     const finder = beforeMap[entityType];
     const beforeRecord = finder ? await finder(mut.entityId) : null;
     const before = beforeRecord ? JSON.stringify(beforeRecord) : null;
 
     const deleteMap: Record<string, () => Promise<unknown>> = {
-      vitals: () => this.prisma.vitals.deleteMany({ where: { id: mut.entityId } }),
+      vitals: () => this.prisma.vitals.deleteMany({ where: { id: mut.entityId, clinicId } }),
       diabetes_screening: () =>
-        this.prisma.diabetesScreening.deleteMany({ where: { id: mut.entityId } }),
+        this.prisma.diabetesScreening.deleteMany({ where: { id: mut.entityId, clinicId } }),
       hypertension_assessment: () =>
-        this.prisma.hypertensionAssessment.deleteMany({ where: { id: mut.entityId } }),
-      care_plan: () => this.prisma.carePlan.deleteMany({ where: { id: mut.entityId } }),
-      patient_consent: () => this.prisma.patientConsent.deleteMany({ where: { id: mut.entityId } }),
-      prescription: () => this.prisma.prescription.deleteMany({ where: { id: mut.entityId } }),
+        this.prisma.hypertensionAssessment.deleteMany({ where: { id: mut.entityId, clinicId } }),
+      care_plan: () => this.prisma.carePlan.deleteMany({ where: { id: mut.entityId, clinicId } }),
+      patient_consent: () =>
+        this.prisma.patientConsent.deleteMany({ where: { id: mut.entityId, clinicId } }),
+      prescription: () =>
+        this.prisma.prescription.deleteMany({ where: { id: mut.entityId, clinicId } }),
     };
     await deleteMap[entityType]!();
 

@@ -31,6 +31,7 @@ import {
   type VitalsFormValues,
 } from '@/lib/clinical-measurements';
 import { cn } from '@/lib/utils';
+import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 
 const NONE_VALUE = '__NONE__';
 
@@ -324,7 +325,20 @@ export function VitalsForm({
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [statusIsError, setStatusIsError] = useState(false);
+  const { isOnline, syncNow } = useSync();
   const bmi = useMemo(() => derivedBmi(vitals), [vitals]);
+
+  useEffect(() => {
+    if (!initialData || initialData.updatedAt === localVitals?.updatedAt) return;
+    setLocalVitals(initialData);
+    setVitals(initialVitals(initialData));
+  }, [initialData, localVitals?.updatedAt]);
+
+  useEffect(() => {
+    if (!initialTobaccoData || initialTobaccoData.updatedAt === localTobacco?.updatedAt) return;
+    setLocalTobacco(initialTobaccoData);
+    setTobacco(initialTobacco(initialTobaccoData));
+  }, [initialTobaccoData, localTobacco?.updatedAt]);
 
   const updateVital = (field: keyof VitalsFormValues, value: string) => {
     setVitals((current) => ({ ...current, [field]: value }));
@@ -367,17 +381,41 @@ export function VitalsForm({
         setErrors({});
         setLocalVitals(result.vitalsRecord ?? null);
         setLocalTobacco(result.tobaccoRecord ?? null);
-        setStatus(
-          markTobaccoReviewed
-            ? 'Review saved on this device and pending sync.'
-            : 'Measurements saved on this device and pending sync.',
-        );
+        if (isOnline) {
+          const syncResult = await syncNow(clinicId);
+          setStatus(
+            syncResult.success
+              ? markTobaccoReviewed
+                ? 'Tobacco screening reviewed and synced.'
+                : 'Measurements saved and synced.'
+              : markTobaccoReviewed
+                ? 'Review saved on this device and pending sync.'
+                : 'Measurements saved on this device and pending sync.',
+          );
+        } else {
+          setStatus(
+            markTobaccoReviewed
+              ? 'Review saved on this device and pending sync.'
+              : 'Measurements saved on this device and pending sync.',
+          );
+        }
         onSaved?.();
       } finally {
         setSaving(false);
       }
     },
-    [canEdit, clinicId, encounterId, localTobacco, localVitals, onSaved, tobacco, vitals],
+    [
+      canEdit,
+      clinicId,
+      encounterId,
+      isOnline,
+      localTobacco,
+      localVitals,
+      onSaved,
+      syncNow,
+      tobacco,
+      vitals,
+    ],
   );
 
   const handleButtonSave = async (markTobaccoReviewed: boolean) => {
