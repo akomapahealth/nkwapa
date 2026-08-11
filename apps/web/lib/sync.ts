@@ -189,6 +189,38 @@ async function performSync(options: SyncNowOptions): Promise<SyncResult> {
         );
       }
     }
+    for (const record of pull.patientMedicationRecords ?? []) {
+      await db.patient_medication_records.put(
+        toRecord(record) as unknown as Parameters<typeof db.patient_medication_records.put>[0],
+      );
+    }
+    for (const revision of pull.patientMedicationRevisions ?? []) {
+      await db.patient_medication_revisions.put(
+        toRecord(revision) as unknown as Parameters<typeof db.patient_medication_revisions.put>[0],
+      );
+    }
+    for (const event of pull.medicationReconciliationEvents ?? []) {
+      await db.medication_reconciliation_events.put(
+        toRecord(event) as unknown as Parameters<typeof db.medication_reconciliation_events.put>[0],
+      );
+    }
+    for (const record of pull.patientPharmacyRecords ?? []) {
+      await db.patient_pharmacy_records.put(
+        toRecord(record) as unknown as Parameters<typeof db.patient_pharmacy_records.put>[0],
+      );
+    }
+    for (const revision of pull.patientPharmacyRevisions ?? []) {
+      await db.patient_pharmacy_revisions.put(
+        toRecord(revision) as unknown as Parameters<typeof db.patient_pharmacy_revisions.put>[0],
+      );
+    }
+    for (const preference of pull.patientPharmacyPreferences ?? []) {
+      await db.patient_pharmacy_preferences.put(
+        toRecord(preference) as unknown as Parameters<
+          typeof db.patient_pharmacy_preferences.put
+        >[0],
+      );
+    }
 
     await db.sync_state.put({
       clinicId,

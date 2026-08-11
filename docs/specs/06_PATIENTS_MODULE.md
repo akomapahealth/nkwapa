@@ -5,7 +5,8 @@
 Current with follow-on work.
 
 The patient module now covers registry, detail, longitudinal medical history, allergy safety,
-portal access linking, patient claim onboarding support, and duplicate-chart merge handling.
+medication reconciliation and pharmacy history, portal access linking, patient claim onboarding
+support, and duplicate-chart merge handling.
 
 ---
 
@@ -42,6 +43,15 @@ Registry reads support the older `page` and `pageSize` contract and the newer `c
 - `POST /clinics/:clinicId/patients/:patientId/medical-history/:recordId/revisions`
 - `GET /clinics/:clinicId/patients/:patientId/medical-history/:recordId/revisions`
 - `GET /clinics/:clinicId/patients/:patientId/allergy-summary`
+
+### Medication reconciliation and pharmacies
+
+- `GET /clinics/:clinicId/patients/:patientId/medication-reconciliation`
+- `POST /clinics/:clinicId/patients/:patientId/medication-reconciliation/medications`
+- `POST /clinics/:clinicId/patients/:patientId/medication-reconciliation/reconciliations`
+- medication and pharmacy revision-history subroutes
+- pharmacy preference set/end subroutes
+- permission-gated read-only prescription-history subroute
 
 ---
 
@@ -83,6 +93,14 @@ Registry reads support the older `page` and `pageSize` contract and the newer `c
 - distinguishes active, resolved, inactive, historical, and entered-in-error states
 - explicitly distinguishes no-known-allergies from allergy status not recorded
 - is hidden and rejected while the medical-history feature flag is disabled
+
+### Medication and pharmacy history
+
+- separates patient-reported medications from encounter prescriptions
+- keeps immutable medication and pharmacy revisions with visible authorship and source visits
+- distinguishes an empty record from an explicit no-known-current-medications attestation
+- enforces one open preferred-pharmacy period while retaining prior periods
+- supports idempotent offline replay and visible optimistic-concurrency conflicts
 
 ---
 

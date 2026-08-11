@@ -61,6 +61,34 @@ export function buildMedicalHistoryOutboxPayload(
   };
 }
 
+function withoutUndefined(payload: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined));
+}
+
+export function buildMedicationRevisionOutboxPayload(
+  payload: Record<string, unknown> & { patientId: string; revisionId: string },
+) {
+  return withoutUndefined(payload);
+}
+
+export function buildMedicationReconciliationOutboxPayload(
+  payload: Record<string, unknown> & { patientId: string; outcome: string; items: unknown[] },
+) {
+  return withoutUndefined(payload);
+}
+
+export function buildPharmacyRevisionOutboxPayload(
+  payload: Record<string, unknown> & { patientId: string; revisionId: string },
+) {
+  return withoutUndefined(payload);
+}
+
+export function buildPharmacyPreferenceOutboxPayload(
+  payload: Record<string, unknown> & { patientId: string; action: 'SET' | 'END' },
+) {
+  return withoutUndefined(payload);
+}
+
 function generateId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();

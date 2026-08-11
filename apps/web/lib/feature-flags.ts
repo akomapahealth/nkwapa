@@ -4,6 +4,7 @@ export function parseFeatureFlag(value: string | undefined): boolean {
 
 const webFeatureFlagReaders = {
   medicalHistory: () => process.env.NEXT_PUBLIC_FEATURE_MEDICAL_HISTORY_ENABLED,
+  medicationReconciliation: () => process.env.NEXT_PUBLIC_FEATURE_MEDICATION_RECONCILIATION_ENABLED,
 } as const;
 
 export type WebFeatureFlag = keyof typeof webFeatureFlagReaders;

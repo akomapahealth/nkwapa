@@ -6,9 +6,16 @@ import { PatientModule } from '../patients/patient.module';
 import { EncounterModule } from '../encounters/encounter.module';
 import { MedicalHistoryModule } from '../medical-history/medical-history.module';
 import { ClinicalMeasurementsService } from './clinical-measurements.service';
+import { MedicationReconciliationModule } from '../medication-reconciliation/medication-reconciliation.module';
 
 @Module({
-  imports: [AuthModule, PatientModule, EncounterModule, MedicalHistoryModule],
+  imports: [
+    AuthModule,
+    PatientModule,
+    EncounterModule,
+    MedicalHistoryModule,
+    MedicationReconciliationModule,
+  ],
   controllers: [SyncController],
   providers: [SyncService, ClinicalMeasurementsService],
 })
