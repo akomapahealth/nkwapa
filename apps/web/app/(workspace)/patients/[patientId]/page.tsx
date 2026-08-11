@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { ArrowLeft, Stethoscope, FileCheck } from 'lucide-react';
 import { PatientTrendsPanel } from '@/components/patients/PatientTrendsPanel';
 import { MedicalHistoryPanel } from '@/components/patients/MedicalHistoryPanel';
+import { MedicationReconciliationPanel } from '@/components/patients/MedicationReconciliationPanel';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 
 interface ConsentStatusItem {
@@ -62,7 +63,11 @@ export default function PatientDetailPage() {
   const canCreateOpsCheckIn = hasPermission(perms, 'OPS.CHECKIN.CREATE');
   const canReadMedicalHistory = hasPermission(perms, 'MEDICAL_HISTORY.READ');
   const canWriteMedicalHistory = hasPermission(perms, 'MEDICAL_HISTORY.WRITE');
+  const canReadMedicationReconciliation = hasPermission(perms, 'MEDICATION_RECONCILIATION.READ');
+  const canWriteMedicationReconciliation = hasPermission(perms, 'MEDICATION_RECONCILIATION.WRITE');
+  const canReadPrescriptions = hasPermission(perms, 'PRESCRIPTION.READ');
   const medicalHistoryEnabled = isWebFeatureEnabled('medicalHistory');
+  const medicationReconciliationEnabled = isWebFeatureEnabled('medicationReconciliation');
   const userId = bootstrap?.userId ?? '';
   const opsDestination = getOpsDestination(perms);
 
@@ -357,15 +362,20 @@ export default function PatientDetailPage() {
         </Card>
 
         <Tabs defaultValue="overview" className="w-full">
-          <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="trends">Trends</TabsTrigger>
-            <TabsTrigger value="encounters">Encounters</TabsTrigger>
-            {medicalHistoryEnabled && canReadMedicalHistory ? (
-              <TabsTrigger value="medical-history">Medical History</TabsTrigger>
-            ) : null}
-            {canRecordConsent && <TabsTrigger value="consent">Consent</TabsTrigger>}
-          </TabsList>
+          <div className="max-w-full overflow-x-auto pb-1" aria-label="Patient chart sections">
+            <TabsList className="min-h-11 w-max justify-start">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="trends">Trends</TabsTrigger>
+              <TabsTrigger value="encounters">Encounters</TabsTrigger>
+              {medicalHistoryEnabled && canReadMedicalHistory ? (
+                <TabsTrigger value="medical-history">Medical History</TabsTrigger>
+              ) : null}
+              {medicationReconciliationEnabled && canReadMedicationReconciliation ? (
+                <TabsTrigger value="medications">Medications</TabsTrigger>
+              ) : null}
+              {canRecordConsent && <TabsTrigger value="consent">Consent</TabsTrigger>}
+            </TabsList>
+          </div>
           <TabsContent value="overview">
             <Card>
               <CardHeader>
@@ -439,6 +449,17 @@ export default function PatientDetailPage() {
                 patientId={patient.id}
                 userId={userId}
                 canWrite={canWriteMedicalHistory}
+              />
+            </TabsContent>
+          ) : null}
+          {medicationReconciliationEnabled && canReadMedicationReconciliation ? (
+            <TabsContent value="medications">
+              <MedicationReconciliationPanel
+                clinicId={clinicId}
+                patientId={patient.id}
+                userId={userId}
+                canWrite={canWriteMedicationReconciliation}
+                canReadPrescriptions={canReadPrescriptions}
               />
             </TabsContent>
           ) : null}
