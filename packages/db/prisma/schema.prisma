@@ -197,6 +197,61 @@ enum MedicalHistoryStatus {
   ENTERED_IN_ERROR
 }
 
+enum BloodPressureSite {
+  LEFT_ARM
+  RIGHT_ARM
+  LEFT_LEG
+  RIGHT_LEG
+  OTHER
+}
+
+enum PatientPosition {
+  SITTING
+  STANDING
+  SUPINE
+  OTHER
+}
+
+enum BloodPressureCuffSize {
+  INFANT
+  CHILD
+  SMALL_ADULT
+  ADULT
+  LARGE_ADULT
+  THIGH
+  OTHER
+}
+
+enum TemperatureSource {
+  ORAL
+  AXILLARY
+  TYMPANIC
+  TEMPORAL
+  RECTAL
+  OTHER
+}
+
+enum TobaccoUseStatus {
+  NOT_ASSESSED
+  NEVER
+  FORMER
+  CURRENT
+}
+
+enum ScreeningAnswer {
+  NOT_ASSESSED
+  NO
+  YES
+}
+
+enum ReadinessToQuit {
+  NOT_ASSESSED
+  NOT_READY
+  CONSIDERING
+  READY
+  NOT_APPLICABLE
+}
+
 model Organization {
   id       String @id @default(uuid()) @db.Uuid
   name     String
@@ -235,6 +290,7 @@ model Clinic {
   auditEvents            AuditEvent[]
   syncMutations          SyncMutation[]
   vitals                 Vitals[]
+  tobaccoScreenings      TobaccoScreening[]
   diabetesScreening      DiabetesScreening[]
   hypertensionAssessment HypertensionAssessment[]
   carePlans              CarePlan[]
@@ -302,6 +358,7 @@ model User {
   conversationParticipants      ConversationParticipant[]
   sentMessages                  Message[]                 @relation("MessageSender")
   authoredHistoryRevisions      MedicalHistoryRevision[]  @relation("MedicalHistoryRevisionAuthor")
+  reviewedTobaccoScreenings     TobaccoScreening[]        @relation("TobaccoScreeningReviewedBy")
 
   @@index([isActive])
 }
@@ -434,6 +491,7 @@ model Encounter {
   doctorFinalizedBy   User? @relation("EncounterDoctorFinalizedBy", fields: [doctorFinalizedById], references: [id])
 
   vitals                 Vitals?
+  tobaccoScreening       TobaccoScreening?
   diabetesScreening      DiabetesScreening?
   hypertensionAssessment HypertensionAssessment?
   carePlan               CarePlan?
@@ -519,7 +577,20 @@ model Vitals {
 
   systolicBp  Int?
   diastolicBp Int?
-  heartRate   Int?
+  bpSite      BloodPressureSite?
+  bpSiteOther String?            @db.VarChar(120)
+
+  patientPosition      PatientPosition?
+  patientPositionOther String?                @db.VarChar(120)
+  cuffSize             BloodPressureCuffSize?
+  cuffSizeOther        String?                @db.VarChar(120)
+
+  pulseBpm               Int?
+  temperatureCelsius     Float?
+  temperatureSource      TemperatureSource?
+  temperatureSourceOther String?            @db.VarChar(120)
+  respiratoryRate        Int?
+  spo2Percent            Int?
 
   weightKg Float?
   heightCm Float?
@@ -534,6 +605,31 @@ model Vitals {
   clinic    Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   @@index([clinicId, updatedAt])
+}
+
+model TobaccoScreening {
+  id          String @id @default(uuid()) @db.Uuid
+  clinicId    String @db.Uuid
+  encounterId String @unique @db.Uuid
+
+  smokingStatus          TobaccoUseStatus @default(NOT_ASSESSED)
+  smokelessTobaccoStatus TobaccoUseStatus @default(NOT_ASSESSED)
+  passiveExposure        ScreeningAnswer  @default(NOT_ASSESSED)
+  readinessToQuit        ReadinessToQuit  @default(NOT_ASSESSED)
+  counselingGiven        ScreeningAnswer  @default(NOT_ASSESSED)
+  reviewedByUserId       String?          @db.Uuid
+  reviewedAt             DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  encounter  Encounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+  clinic     Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  reviewedBy User?     @relation("TobaccoScreeningReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([clinicId, updatedAt])
+  @@index([clinicId, reviewedAt])
+  @@index([reviewedByUserId])
 }
 
 model DiabetesScreening {

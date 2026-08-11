@@ -53,7 +53,7 @@ The v1 sync target is one private GitHub repository.
 
 ## Fixed Pack Contract
 
-Every completed v2 export pack preserves all v1 files and columns:
+Every completed v3 export pack includes:
 
 - `manifest.json`
 - `SHA256SUMS.txt`
@@ -61,6 +61,7 @@ Every completed v2 export pack preserves all v1 files and columns:
 - `research_ops_checkins.csv`
 - `research_ops_assignments.csv`
 - `research_clinical_vitals.csv`
+- `research_clinical_tobacco.csv`
 - `research_clinical_screenings.csv`
 - `research_measurements.csv`
 - `research_appointments.csv`
@@ -70,11 +71,11 @@ Every completed v2 export pack preserves all v1 files and columns:
 The contract is versioned as:
 
 - `policyVersion = research-export-v1`
-- `datasetVersion = 2`
+- `datasetVersion = 3`
 
-The version increment adds only `research_medical_history.csv`; existing filenames and columns
-remain backward compatible. Any future schema change to the pack should increment the dataset
-version.
+Version 3 expands the canonical vitals columns, renames `heart_rate` to `pulse_bpm`, and adds the
+structured tobacco dataset. Reviewer identity is excluded; only reviewed state and rounded review
+time are exported. Consumers must select transforms by dataset version.
 
 The medical-history dataset contains current and historical revisions within the requested range.
 It includes de-identified patient, clinic, record, revision, and source-encounter keys; category,
@@ -159,6 +160,7 @@ The transform currently draws from:
 - consents
 - encounters
 - vitals
+- tobacco screenings
 - diabetes screenings
 - care context needed for encounter relation
 - staff shifts and patient check-ins through ops data

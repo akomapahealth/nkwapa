@@ -219,6 +219,7 @@ describe('SyncController', () => {
       patients: [],
       encounters: [],
       vitals: [],
+      tobaccoScreenings: [],
       diabetesScreenings: [],
       hypertensionAssessments: [],
       carePlans: [],

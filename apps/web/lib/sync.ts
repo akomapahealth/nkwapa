@@ -10,6 +10,7 @@ export type SyncStatus = 'idle' | 'syncing' | 'success' | 'error';
 export type SyncStatusListener = (status: SyncStatus, error?: string) => void;
 
 const listeners: Set<SyncStatusListener> = new Set();
+const inFlightByClinic = new Map<string, Promise<SyncResult>>();
 
 export function onSyncStatusChange(listener: SyncStatusListener): () => void {
   listeners.add(listener);
@@ -25,7 +26,7 @@ export interface SyncNowOptions {
   getAccessToken?: () => Promise<string | null>;
 }
 
-export async function syncNow(options: SyncNowOptions): Promise<{
+export interface SyncResult {
   success: boolean;
   error?: string;
   conflicts?: Array<{
@@ -33,7 +34,9 @@ export async function syncNow(options: SyncNowOptions): Promise<{
     conflictType?: string;
     conflictDetails?: Record<string, unknown>;
   }>;
-}> {
+}
+
+async function performSync(options: SyncNowOptions): Promise<SyncResult> {
   const { clinicId, getAccessToken } = options;
   notifyStatus('syncing');
 
@@ -133,7 +136,15 @@ export async function syncNow(options: SyncNowOptions): Promise<{
       await db.encounters.put(toRecord(e) as unknown as Parameters<typeof db.encounters.put>[0]);
     }
     for (const v of pull.vitals) {
-      await db.vitals.put(toRecord(v) as unknown as Parameters<typeof db.vitals.put>[0]);
+      const record = toRecord(v);
+      if (record.pulseBpm == null && record.heartRate != null) record.pulseBpm = record.heartRate;
+      delete record.heartRate;
+      await db.vitals.put(record as unknown as Parameters<typeof db.vitals.put>[0]);
+    }
+    for (const tobacco of pull.tobaccoScreenings ?? []) {
+      await db.tobacco_screenings.put(
+        toRecord(tobacco) as unknown as Parameters<typeof db.tobacco_screenings.put>[0],
+      );
     }
     for (const d of pull.diabetesScreenings) {
       await db.diabetes_screenings.put(
@@ -192,4 +203,18 @@ export async function syncNow(options: SyncNowOptions): Promise<{
     notifyStatus('error', msg);
     return { success: false, error: msg };
   }
+}
+
+/** Coalesces concurrent retries so one clinic never replays the same outbox batch twice. */
+export function syncNow(options: SyncNowOptions): Promise<SyncResult> {
+  const inFlight = inFlightByClinic.get(options.clinicId);
+  if (inFlight) return inFlight;
+
+  const request = performSync(options).finally(() => {
+    if (inFlightByClinic.get(options.clinicId) === request) {
+      inFlightByClinic.delete(options.clinicId);
+    }
+  });
+  inFlightByClinic.set(options.clinicId, request);
+  return request;
 }

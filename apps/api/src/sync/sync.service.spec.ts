@@ -9,6 +9,7 @@ import { SYNC_MUTATION_RESULT_STATUS } from './dto/sync-push-response.dto';
 import type { SyncMutationDto } from './dto/sync-mutation.dto';
 import { MedicalHistoryService } from '../medical-history/medical-history.service';
 import { ConflictException } from '@nestjs/common';
+import { ClinicalMeasurementsService } from './clinical-measurements.service';
 
 const mockUser = {
   user: { id: 'user-1' },
@@ -21,6 +22,7 @@ describe('SyncService', () => {
   let encounterRepo: jest.Mocked<EncounterRepository>;
   let prisma: jest.Mocked<PrismaService>;
   let medicalHistoryService: jest.Mocked<MedicalHistoryService>;
+  let clinicalMeasurementsService: jest.Mocked<ClinicalMeasurementsService>;
   beforeEach(async () => {
     const mockPrisma = {
       syncMutation: {
@@ -37,6 +39,14 @@ describe('SyncService', () => {
       encounter: {
         findUnique: jest.fn().mockResolvedValue(null),
         upsert: jest.fn().mockResolvedValue({ id: 'enc-1', status: 'DRAFT' }),
+      },
+      vitals: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'vitals-1',
+          clinicId: 'clinic-1',
+          encounter: { status: EncounterStatus.DRAFT },
+        }),
+        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
     };
 
@@ -65,6 +75,10 @@ describe('SyncService', () => {
             revise: jest.fn().mockResolvedValue({}),
           },
         },
+        {
+          provide: ClinicalMeasurementsService,
+          useValue: { applyBundle: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 
@@ -73,6 +87,80 @@ describe('SyncService', () => {
     prisma = module.get(PrismaService);
     encounterRepo = module.get(EncounterRepository);
     medicalHistoryService = module.get(MedicalHistoryService);
+    clinicalMeasurementsService = module.get(ClinicalMeasurementsService);
+  });
+
+  it('replays an applied vitals bundle idempotently without writing again', async () => {
+    (prisma.syncMutation.findUnique as jest.Mock).mockResolvedValue({
+      status: 'APPLIED',
+      conflictType: null,
+      conflictDetailsJson: null,
+    });
+    const result = await service.applyMutations('clinic-1', mockUser as never, [
+      {
+        id: 'mut-vitals-1',
+        entityType: 'encounter_vitals_bundle',
+        entityId: 'vitals-1',
+        operation: 'UPSERT',
+        clinicId: 'clinic-1',
+        payloadJson: {},
+        idempotencyKey: 'vitals-idem-1',
+      },
+    ]);
+
+    expect(result).toEqual([{ id: 'mut-vitals-1', status: 'APPLIED' }]);
+    expect(clinicalMeasurementsService.applyBundle).not.toHaveBeenCalled();
+  });
+
+  it('rejects a vitals delete without screening write permission', async () => {
+    const results = await service.applyMutations(
+      'clinic-1',
+      {
+        user: { id: 'director-1' },
+        roles: [{ clinicId: 'clinic-1', role: 'DIRECTOR' }],
+      } as never,
+      [
+        {
+          id: 'mut-delete-vitals',
+          entityType: 'vitals',
+          entityId: 'vitals-1',
+          operation: 'DELETE',
+          clinicId: 'clinic-1',
+          idempotencyKey: 'delete-vitals-1',
+        },
+      ],
+    );
+
+    expect(results[0]).toMatchObject({
+      status: SYNC_MUTATION_RESULT_STATUS.ERROR,
+      conflictType: 'APPLICATION_REJECTED',
+    });
+    expect(prisma.vitals.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects deleting vitals from a finalized encounter', async () => {
+    (prisma.vitals.findFirst as jest.Mock).mockResolvedValue({
+      id: 'vitals-1',
+      clinicId: 'clinic-1',
+      encounter: { status: EncounterStatus.FINALIZED },
+    });
+
+    const results = await service.applyMutations('clinic-1', mockUser as never, [
+      {
+        id: 'mut-delete-finalized-vitals',
+        entityType: 'vitals',
+        entityId: 'vitals-1',
+        operation: 'DELETE',
+        clinicId: 'clinic-1',
+        idempotencyKey: 'delete-finalized-vitals-1',
+      },
+    ]);
+
+    expect(results[0]).toMatchObject({
+      status: SYNC_MUTATION_RESULT_STATUS.CONFLICT,
+      conflictType: 'CONFLICT_FINALIZED',
+    });
+    expect(prisma.vitals.deleteMany).not.toHaveBeenCalled();
   });
 
   describe('patient UPSERT - DUPLICATE_NATIONAL_ID', () => {

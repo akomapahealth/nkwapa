@@ -15,6 +15,10 @@ import { ReviewDashboard } from '@/components/dashboard/ReviewDashboard';
 import { DirectorDashboard } from '@/components/dashboard/DirectorDashboard';
 import { VolunteerDashboard } from '@/components/dashboard/VolunteerDashboard';
 import { SystemAdminDashboard } from '@/components/dashboard/SystemAdminDashboard';
+import {
+  ClinicalMeasurementsDashboard,
+  type ClinicalMeasurementMetrics,
+} from '@/components/dashboard/ClinicalMeasurementsDashboard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
@@ -30,6 +34,7 @@ interface DashboardData {
     readyToFinalize: number;
   };
   doctor?: {
+    clinicalMeasurements: ClinicalMeasurementMetrics;
     awaitingFinalization: number;
     patientsSeen: { today: number; week: number; month: number };
     followUpComplianceRate: number;
@@ -45,6 +50,7 @@ interface DashboardData {
     finalizationsTrend: { date: string; count: number }[];
   };
   review?: {
+    clinicalMeasurements: ClinicalMeasurementMetrics;
     awaitingReview: number;
     reviewsCompleted: { today: number; week: number };
     reviewsTrend: { date: string; count: number }[];
@@ -58,6 +64,7 @@ interface DashboardData {
     }[];
   };
   director?: {
+    clinicalMeasurements: ClinicalMeasurementMetrics;
     patientRegistrationTrend: { date: string; count: number }[];
     encounterVolumeTrend: { date: string; count: number }[];
     screeningRates: { hypertension: number; diabetes: number };
@@ -73,6 +80,7 @@ interface DashboardData {
     encounterStatusDistribution: Record<string, number>;
   };
   volunteer?: {
+    clinicalMeasurements: ClinicalMeasurementMetrics;
     patientsRegisteredToday: number;
     encountersCreatedToday: number;
     pendingSubmissions: number;
@@ -234,6 +242,18 @@ export default function DashboardPage() {
             />
 
             <div className="space-y-8 border-t border-border/70 pt-6">
+              {(data.director?.clinicalMeasurements ??
+                data.doctor?.clinicalMeasurements ??
+                data.volunteer?.clinicalMeasurements) && (
+                <ClinicalMeasurementsDashboard
+                  metrics={
+                    data.director?.clinicalMeasurements ??
+                    data.doctor?.clinicalMeasurements ??
+                    data.volunteer!.clinicalMeasurements
+                  }
+                />
+              )}
+
               {data.doctor && <DoctorDashboard {...data.doctor} />}
 
               {data.review && <ReviewDashboard {...data.review} />}

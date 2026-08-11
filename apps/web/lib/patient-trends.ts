@@ -1,6 +1,10 @@
 'use client';
 
-import type { BloodPressureTrendPoint, GlucoseTrendPoint } from '@/lib/patient-portal';
+import type {
+  BloodPressureTrendPoint,
+  ExpandedVitalsTrendPoint,
+  GlucoseTrendPoint,
+} from '@/lib/patient-portal';
 
 export const TREND_RANGE_OPTIONS = [30, 90, 180] as const;
 
@@ -41,6 +45,30 @@ export function buildGlucoseTrendData(points: GlucoseTrendPoint[]) {
     }),
     glucose: point.value,
   }));
+}
+
+export type ExpandedMeasurementKey = Exclude<keyof ExpandedVitalsTrendPoint, 't' | 'source'>;
+
+export function buildExpandedVitalsTrendData(
+  points: ExpandedVitalsTrendPoint[],
+  key: ExpandedMeasurementKey,
+) {
+  return points
+    .filter((point) => point[key] != null)
+    .map((point) => ({
+      label: new Date(point.t).toLocaleDateString(undefined, {
+        month: 'numeric',
+        day: 'numeric',
+      }),
+      value: point[key],
+    }));
+}
+
+export function getLatestExpandedVital(
+  points: ExpandedVitalsTrendPoint[],
+  key: ExpandedMeasurementKey,
+) {
+  return [...points].reverse().find((point) => point[key] != null)?.[key] ?? null;
 }
 
 export function getLatestBloodPressureTrend(points: BloodPressureTrendPoint[]) {

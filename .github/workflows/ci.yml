@@ -119,6 +119,12 @@ jobs:
       - name: Build @nkwapa/db
         run: npm run build --workspace=@nkwapa/db
 
+      - name: Verify expanded vitals legacy migration
+        run: npm run test --workspace=@nkwapa/db -- --runInBand src/vitals-migration.integration.spec.ts
+        env:
+          RUN_MIGRATION_TESTS: '1'
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
       - name: Run tests with coverage
         run: npm run test --workspaces --if-present -- --coverage --ci
         env:

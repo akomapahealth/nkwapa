@@ -58,6 +58,9 @@ export class EncounterService {
       ? {
           patient: true,
           vitals: true,
+          tobaccoScreening: {
+            include: { reviewedBy: { select: { id: true, displayName: true } } },
+          },
           diabetesScreening: true,
           hypertensionAssessment: true,
           carePlan: true,

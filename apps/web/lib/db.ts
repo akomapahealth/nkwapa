@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie';
+import { migrateLegacyPulse } from './db-migrations';
 
 export interface PatientRecord {
   id: string;
@@ -37,11 +38,40 @@ export interface VitalsRecord {
   encounterId: string;
   systolicBp?: number;
   diastolicBp?: number;
+  /** @deprecated Migrated to pulseBpm in Dexie v4. */
   heartRate?: number;
+  pulseBpm?: number;
+  bpSite?: string;
+  bpSiteOther?: string;
+  patientPosition?: string;
+  patientPositionOther?: string;
+  cuffSize?: string;
+  cuffSizeOther?: string;
+  temperatureCelsius?: number;
+  temperatureSource?: string;
+  temperatureSourceOther?: string;
+  respiratoryRate?: number;
+  spo2Percent?: number;
   weightKg?: number;
   heightCm?: number;
   bmi?: number;
   notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TobaccoScreeningRecord {
+  id: string;
+  clinicId: string;
+  encounterId: string;
+  smokingStatus: string;
+  smokelessTobaccoStatus: string;
+  passiveExposure: string;
+  readinessToQuit: string;
+  counselingGiven: string;
+  reviewedByUserId?: string;
+  reviewedAt?: string;
+  reviewPending?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -162,6 +192,7 @@ export class NkwapaDb extends Dexie {
   patients!: Table<PatientRecord, string>;
   encounters!: Table<EncounterRecord, string>;
   vitals!: Table<VitalsRecord, string>;
+  tobacco_screenings!: Table<TobaccoScreeningRecord, string>;
   diabetes_screenings!: Table<DiabetesScreeningRecord, string>;
   hypertension_assessments!: Table<HypertensionAssessmentRecord, string>;
   care_plans!: Table<CarePlanRecord, string>;
@@ -192,6 +223,16 @@ export class NkwapaDb extends Dexie {
       medical_history_records: 'id, clinicId, patientId, category, updatedAt',
       medical_history_revisions: 'id, recordId, status, createdAt',
     });
+    this.version(4)
+      .stores({
+        tobacco_screenings: 'id, clinicId, encounterId, reviewedAt, updatedAt',
+      })
+      .upgrade(async (transaction) => {
+        await transaction
+          .table<VitalsRecord, string>('vitals')
+          .toCollection()
+          .modify(migrateLegacyPulse);
+      });
   }
 }
 

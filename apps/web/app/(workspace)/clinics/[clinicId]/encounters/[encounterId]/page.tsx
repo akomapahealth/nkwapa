@@ -17,7 +17,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { VitalsForm } from '@/components/VitalsForm';
 import { DiabetesScreeningForm } from '@/components/DiabetesScreeningForm';
 import { HypertensionForm } from '@/components/HypertensionForm';
-import { db } from '@/lib/db';
+import { db, type TobaccoScreeningRecord, type VitalsRecord } from '@/lib/db';
 import { enqueueOutboxMutation } from '@/lib/outbox';
 import { SYNC_OPERATION } from '@/lib/outbox';
 import { ArrowLeft, ClipboardPlus, HeartPulse, ShieldCheck } from 'lucide-react';
@@ -31,6 +31,8 @@ interface EncounterDetail {
   clinicId: string;
   patientId: string;
   createdAt: string;
+  vitals?: VitalsRecord | null;
+  tobaccoScreening?: TobaccoScreeningRecord | null;
 }
 
 export default function EncounterDetailPage() {
@@ -53,15 +55,8 @@ export default function EncounterDetailPage() {
   const vitalsSaveRef = useRef<(() => Promise<void>) | null>(null);
   const screeningSaveRef = useRef<(() => Promise<void>) | null>(null);
   const hypertensionSaveRef = useRef<(() => Promise<void>) | null>(null);
-  const [vitals, setVitals] = useState<{
-    systolicBp?: number | null;
-    diastolicBp?: number | null;
-    heartRate?: number | null;
-    weightKg?: number | null;
-    heightCm?: number | null;
-    bmi?: number | null;
-    notes?: string | null;
-  } | null>(null);
+  const [vitals, setVitals] = useState<VitalsRecord | null>(null);
+  const [tobacco, setTobacco] = useState<TobaccoScreeningRecord | null>(null);
   const [diabetesScreening, setDiabetesScreening] = useState<{
     glucoseMgDl?: number | null;
     glucoseType?: string | null;
@@ -89,6 +84,8 @@ export default function EncounterDetailPage() {
       if (!res.ok) throw new Error(await res.text());
       enc = (await res.json()) as EncounterDetail;
       setEncounter(enc);
+      setVitals(enc.vitals ?? null);
+      setTobacco(enc.tobaccoScreening ?? null);
     } catch {
       try {
         const dbEnc = await db.encounters.get(encounterId);
@@ -114,12 +111,14 @@ export default function EncounterDetailPage() {
     }
 
     try {
-      const [v, d, h] = await Promise.all([
+      const [v, tobaccoRecord, d, h] = await Promise.all([
         db.vitals.where('encounterId').equals(encounterId).first(),
+        db.tobacco_screenings.where('encounterId').equals(encounterId).first(),
         db.diabetes_screenings.where('encounterId').equals(encounterId).first(),
         db.hypertension_assessments.where('encounterId').equals(encounterId).first(),
       ]);
       if (v) setVitals(v);
+      if (tobaccoRecord) setTobacco(tobaccoRecord);
       if (d) setDiabetesScreening(d);
       if (h) setHypertension(h);
     } catch {
@@ -268,6 +267,7 @@ export default function EncounterDetailPage() {
   const canTransitionToReview = encounter.status === 'DRAFT';
   const canTransitionToFinalized = encounter.status === 'IN_REVIEW';
   const isFinalized = encounter.status === 'FINALIZED';
+  const canEditMeasurements = !isFinalized && hasPermission(perms, 'SCREENING.WRITE');
 
   return (
     <div className="space-y-6">
@@ -379,6 +379,8 @@ export default function EncounterDetailPage() {
               encounterId={encounterId}
               recordedByUserId={userId}
               initialData={vitals ?? undefined}
+              initialTobaccoData={tobacco}
+              canEdit={canEditMeasurements}
               onSaved={fetchData}
               saveRef={vitalsSaveRef}
             />
@@ -405,14 +407,24 @@ export default function EncounterDetailPage() {
       )}
 
       {isFinalized && (
-        <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
-          <CardContent className="pt-6">
-            <EmptyStateCard
-              title="Encounter finalized"
-              description="This encounter is complete and no further edits are allowed on the clinic chart."
-            />
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+            <CardContent className="pt-6">
+              <EmptyStateCard
+                title="Encounter finalized"
+                description="This encounter is complete and all measurements are read-only."
+              />
+            </CardContent>
+          </Card>
+          <VitalsForm
+            clinicId={clinicId}
+            encounterId={encounterId}
+            recordedByUserId={userId}
+            initialData={vitals}
+            initialTobaccoData={tobacco}
+            canEdit={false}
+          />
+        </div>
       )}
     </div>
   );

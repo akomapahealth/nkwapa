@@ -514,7 +514,15 @@ describe('PatientPortalService', () => {
         return [
           {
             createdAt: new Date('2026-03-18T08:00:00.000Z'),
-            vitals: { systolicBp: 141, diastolicBp: 92 },
+            vitals: {
+              systolicBp: 141,
+              diastolicBp: 92,
+              temperatureCelsius: 37,
+              respiratoryRate: 18,
+              spo2Percent: 97,
+              weightKg: 72,
+              bmi: 24.9,
+            },
             diabetesScreening: null,
           },
         ];
@@ -527,11 +535,23 @@ describe('PatientPortalService', () => {
     const staffResult = await service.listTrendsForStaff('patient-1', 'clinic-1', {});
 
     expect(patientResult.bp).toEqual([]);
+    expect(patientResult.measurements).toBeUndefined();
     expect(staffResult.bp).toEqual([
       {
         t: '2026-03-18T08:00:00.000Z',
         sys: 141,
         dia: 92,
+        source: 'ENCOUNTER',
+      },
+    ]);
+    expect(staffResult.measurements).toEqual([
+      {
+        t: '2026-03-18T08:00:00.000Z',
+        temperatureCelsius: 37,
+        respiratoryRate: 18,
+        spo2Percent: 97,
+        weightKg: 72,
+        bmi: 24.9,
         source: 'ENCOUNTER',
       },
     ]);

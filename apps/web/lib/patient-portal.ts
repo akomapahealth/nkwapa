@@ -160,6 +160,16 @@ export interface GlucoseTrendPoint {
   source: 'ENCOUNTER' | 'PATIENT';
 }
 
+export interface ExpandedVitalsTrendPoint {
+  t: string;
+  temperatureCelsius: number | null;
+  respiratoryRate: number | null;
+  spo2Percent: number | null;
+  weightKg: number | null;
+  bmi: number | null;
+  source: 'ENCOUNTER';
+}
+
 export interface FollowUpSummary {
   requested: number;
   confirmed: number;
@@ -171,6 +181,7 @@ export interface FollowUpSummary {
 export interface PatientTrendsResponse {
   bp: BloodPressureTrendPoint[];
   glucose: GlucoseTrendPoint[];
+  measurements?: ExpandedVitalsTrendPoint[];
   followUp: FollowUpSummary;
 }
 
