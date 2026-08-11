@@ -24,6 +24,7 @@ import { RequestLoggerMiddleware } from './common/request-logger.middleware';
 import { SecurityHeadersMiddleware } from './common/security-headers.middleware';
 import { RateLimitGuard } from './common/rate-limit.guard';
 import { MedicalHistoryModule } from './medical-history/medical-history.module';
+import { MedicationReconciliationModule } from './medication-reconciliation/medication-reconciliation.module';
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
 
@@ -52,6 +53,7 @@ const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
     OpsModule,
     ChatModule,
     MedicalHistoryModule,
+    MedicationReconciliationModule,
   ],
   providers: [RateLimitGuard],
 })
