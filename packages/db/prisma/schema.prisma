@@ -197,6 +197,26 @@ enum MedicalHistoryStatus {
   ENTERED_IN_ERROR
 }
 
+enum PatientMedicationStatus {
+  CURRENT
+  PAST
+  STOPPED
+}
+
+enum MedicationSourceType {
+  PATIENT_REPORTED
+  CAREGIVER_REPORTED
+  CLINIC_RECORD
+  EXTERNAL_DOCUMENT
+  MEDICATION_CONTAINER
+  OTHER
+}
+
+enum MedicationReconciliationOutcome {
+  CURRENT_LIST_REVIEWED
+  NO_KNOWN_CURRENT_MEDICATIONS
+}
+
 enum BloodPressureSite {
   LEFT_ARM
   RIGHT_ARM
@@ -279,34 +299,38 @@ model Clinic {
   updatedAt DateTime @updatedAt
 
   // relations
-  organization           Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  userRoles              UserClinicRole[]
-  patients               Patient[]                @relation("PrimaryClinicPatients")
-  encounters             Encounter[]
-  consents               PatientConsent[]
-  reminders              Reminder[]
-  researchSettings       ClinicResearchSettings?
-  researchExports        ResearchExport[]
-  auditEvents            AuditEvent[]
-  syncMutations          SyncMutation[]
-  vitals                 Vitals[]
-  tobaccoScreenings      TobaccoScreening[]
-  diabetesScreening      DiabetesScreening[]
-  hypertensionAssessment HypertensionAssessment[]
-  carePlans              CarePlan[]
-  drugs                  Drug[]
-  prescriptions          Prescription[]
-  patientSelfReports     PatientSelfReport[]
-  patientMeasurements    PatientMeasurement[]
-  staffShifts            StaffShift[]
-  patientCheckIns        PatientCheckIn[]
-  patientAssignments     PatientAssignment[]
-  appointmentRequests    AppointmentRequest[]
-  appointments           Appointment[]
-  patientPortalInvites   PatientPortalInvite[]
-  conversations          Conversation[]
-  chatMessages           Message[]
-  medicalHistoryRecords  MedicalHistoryRecord[]
+  organization              Organization                    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userRoles                 UserClinicRole[]
+  patients                  Patient[]                       @relation("PrimaryClinicPatients")
+  encounters                Encounter[]
+  consents                  PatientConsent[]
+  reminders                 Reminder[]
+  researchSettings          ClinicResearchSettings?
+  researchExports           ResearchExport[]
+  auditEvents               AuditEvent[]
+  syncMutations             SyncMutation[]
+  vitals                    Vitals[]
+  tobaccoScreenings         TobaccoScreening[]
+  diabetesScreening         DiabetesScreening[]
+  hypertensionAssessment    HypertensionAssessment[]
+  carePlans                 CarePlan[]
+  drugs                     Drug[]
+  prescriptions             Prescription[]
+  patientSelfReports        PatientSelfReport[]
+  patientMeasurements       PatientMeasurement[]
+  staffShifts               StaffShift[]
+  patientCheckIns           PatientCheckIn[]
+  patientAssignments        PatientAssignment[]
+  appointmentRequests       AppointmentRequest[]
+  appointments              Appointment[]
+  patientPortalInvites      PatientPortalInvite[]
+  conversations             Conversation[]
+  chatMessages              Message[]
+  medicalHistoryRecords     MedicalHistoryRecord[]
+  medicationRecords         PatientMedicationRecord[]
+  medicationReconciliations MedicationReconciliationEvent[]
+  pharmacyRecords           PatientPharmacyRecord[]
+  pharmacyPreferences       PatientPharmacyPreference[]
 
   @@unique([organizationId, locationCode])
   @@index([organizationId])
@@ -333,32 +357,40 @@ model User {
 
   // relations
   clinicRoles                   UserClinicRole[]
-  portalPatient                 Patient?                  @relation("PatientPortalUser")
-  createdPatients               Patient[]                 @relation("PatientCreatedBy")
-  createdEncounters             Encounter[]               @relation("EncounterCreatedBy")
-  preceptorReviewedEncounters   Encounter[]               @relation("EncounterPreceptorReviewedBy")
-  doctorFinalizedEncounters     Encounter[]               @relation("EncounterDoctorFinalizedBy")
-  recordedConsents              PatientConsent[]          @relation("ConsentRecordedBy")
-  updatedClinicResearchSettings ClinicResearchSettings[]  @relation("ResearchSettingsUpdatedBy")
-  requestedResearchExports      ResearchExport[]          @relation("ResearchExportRequestedBy")
-  approvedResearchExports       ResearchExport[]          @relation("ResearchExportApprovedBy")
-  auditEvents                   AuditEvent[]              @relation("AuditActor")
-  prescriptions                 Prescription[]            @relation("PrescriptionPrescribedBy")
-  patientSelfReports            PatientSelfReport[]       @relation("PatientSelfReportSubmittedBy")
-  triagedAppointmentRequests    AppointmentRequest[]      @relation("AppointmentRequestTriagedBy")
+  portalPatient                 Patient?                        @relation("PatientPortalUser")
+  createdPatients               Patient[]                       @relation("PatientCreatedBy")
+  createdEncounters             Encounter[]                     @relation("EncounterCreatedBy")
+  preceptorReviewedEncounters   Encounter[]                     @relation("EncounterPreceptorReviewedBy")
+  doctorFinalizedEncounters     Encounter[]                     @relation("EncounterDoctorFinalizedBy")
+  recordedConsents              PatientConsent[]                @relation("ConsentRecordedBy")
+  updatedClinicResearchSettings ClinicResearchSettings[]        @relation("ResearchSettingsUpdatedBy")
+  requestedResearchExports      ResearchExport[]                @relation("ResearchExportRequestedBy")
+  approvedResearchExports       ResearchExport[]                @relation("ResearchExportApprovedBy")
+  auditEvents                   AuditEvent[]                    @relation("AuditActor")
+  prescriptions                 Prescription[]                  @relation("PrescriptionPrescribedBy")
+  patientSelfReports            PatientSelfReport[]             @relation("PatientSelfReportSubmittedBy")
+  triagedAppointmentRequests    AppointmentRequest[]            @relation("AppointmentRequestTriagedBy")
   staffShifts                   StaffShift[]
-  volunteerAssignments          PatientAssignment[]       @relation("AssignmentVolunteer")
-  doctorAssignments             PatientAssignment[]       @relation("AssignmentDoctor")
-  createdAssignments            PatientAssignment[]       @relation("AssignmentAssignedBy")
-  doctorAppointments            Appointment[]             @relation("AppointmentAssignedDoctor")
-  volunteerAppointments         Appointment[]             @relation("AppointmentAssignedVolunteer")
-  createdPatientPortalInvites   PatientPortalInvite[]     @relation("PatientPortalInviteCreatedBy")
-  claimedPatientPortalInvites   PatientPortalInvite[]     @relation("PatientPortalInviteClaimedBy")
-  mergedPatients                Patient[]                 @relation("PatientMergedBy")
+  volunteerAssignments          PatientAssignment[]             @relation("AssignmentVolunteer")
+  doctorAssignments             PatientAssignment[]             @relation("AssignmentDoctor")
+  createdAssignments            PatientAssignment[]             @relation("AssignmentAssignedBy")
+  doctorAppointments            Appointment[]                   @relation("AppointmentAssignedDoctor")
+  volunteerAppointments         Appointment[]                   @relation("AppointmentAssignedVolunteer")
+  createdPatientPortalInvites   PatientPortalInvite[]           @relation("PatientPortalInviteCreatedBy")
+  claimedPatientPortalInvites   PatientPortalInvite[]           @relation("PatientPortalInviteClaimedBy")
+  mergedPatients                Patient[]                       @relation("PatientMergedBy")
   conversationParticipants      ConversationParticipant[]
-  sentMessages                  Message[]                 @relation("MessageSender")
-  authoredHistoryRevisions      MedicalHistoryRevision[]  @relation("MedicalHistoryRevisionAuthor")
-  reviewedTobaccoScreenings     TobaccoScreening[]        @relation("TobaccoScreeningReviewedBy")
+  sentMessages                  Message[]                       @relation("MessageSender")
+  authoredHistoryRevisions      MedicalHistoryRevision[]        @relation("MedicalHistoryRevisionAuthor")
+  recordedMedicationRecords     PatientMedicationRecord[]       @relation("PatientMedicationRecordedBy")
+  authoredMedicationRevisions   PatientMedicationRevision[]     @relation("PatientMedicationRevisionAuthor")
+  reconciledMedicationRevisions PatientMedicationRevision[]     @relation("PatientMedicationRevisionReconciler")
+  medicationReconciliations     MedicationReconciliationEvent[] @relation("MedicationReconciliationActor")
+  recordedPharmacyRecords       PatientPharmacyRecord[]         @relation("PatientPharmacyRecordedBy")
+  authoredPharmacyRevisions     PatientPharmacyRevision[]       @relation("PatientPharmacyRevisionAuthor")
+  setPharmacyPreferences        PatientPharmacyPreference[]     @relation("PatientPharmacyPreferenceSetBy")
+  endedPharmacyPreferences      PatientPharmacyPreference[]     @relation("PatientPharmacyPreferenceEndedBy")
+  reviewedTobaccoScreenings     TobaccoScreening[]              @relation("TobaccoScreeningReviewedBy")
 
   @@index([isActive])
 }
@@ -408,24 +440,28 @@ model Patient {
   updatedAt DateTime @updatedAt
 
   // relations
-  primaryClinic         Clinic                 @relation("PrimaryClinicPatients", fields: [primaryClinicId], references: [id])
-  createdBy             User?                  @relation("PatientCreatedBy", fields: [createdByUserId], references: [id])
-  portalUser            User?                  @relation("PatientPortalUser", fields: [portalUserId], references: [id], onDelete: SetNull)
-  mergedIntoPatient     Patient?               @relation("PatientMerge", fields: [mergedIntoPatientId], references: [id], onDelete: SetNull)
-  mergedSourcePatients  Patient[]              @relation("PatientMerge")
-  mergedBy              User?                  @relation("PatientMergedBy", fields: [mergedByUserId], references: [id], onDelete: SetNull)
-  accountLink           PatientAccountLink?
-  encounters            Encounter[]
-  consents              PatientConsent[]
-  reminders             Reminder[]
-  selfReports           PatientSelfReport[]
-  measurements          PatientMeasurement[]
-  checkIns              PatientCheckIn[]
-  appointmentRequests   AppointmentRequest[]
-  appointments          Appointment[]
-  portalInvites         PatientPortalInvite[]
-  codeAliases           PatientCodeAlias[]
-  medicalHistoryRecords MedicalHistoryRecord[]
+  primaryClinic             Clinic                          @relation("PrimaryClinicPatients", fields: [primaryClinicId], references: [id])
+  createdBy                 User?                           @relation("PatientCreatedBy", fields: [createdByUserId], references: [id])
+  portalUser                User?                           @relation("PatientPortalUser", fields: [portalUserId], references: [id], onDelete: SetNull)
+  mergedIntoPatient         Patient?                        @relation("PatientMerge", fields: [mergedIntoPatientId], references: [id], onDelete: SetNull)
+  mergedSourcePatients      Patient[]                       @relation("PatientMerge")
+  mergedBy                  User?                           @relation("PatientMergedBy", fields: [mergedByUserId], references: [id], onDelete: SetNull)
+  accountLink               PatientAccountLink?
+  encounters                Encounter[]
+  consents                  PatientConsent[]
+  reminders                 Reminder[]
+  selfReports               PatientSelfReport[]
+  measurements              PatientMeasurement[]
+  checkIns                  PatientCheckIn[]
+  appointmentRequests       AppointmentRequest[]
+  appointments              Appointment[]
+  portalInvites             PatientPortalInvite[]
+  codeAliases               PatientCodeAlias[]
+  medicalHistoryRecords     MedicalHistoryRecord[]
+  medicationRecords         PatientMedicationRecord[]
+  medicationReconciliations MedicationReconciliationEvent[]
+  pharmacyRecords           PatientPharmacyRecord[]
+  pharmacyPreferences       PatientPharmacyPreference[]
 
   @@index([primaryClinicId])
   @@index([portalUserId])
@@ -498,9 +534,11 @@ model Encounter {
   patientCheckIn         PatientCheckIn?
   patientMeasurements    PatientMeasurement[]
 
-  reminders               Reminder[]
-  prescriptions           Prescription[]
-  sourcedHistoryRevisions MedicalHistoryRevision[] @relation("MedicalHistoryRevisionSourceEncounter")
+  reminders                  Reminder[]
+  prescriptions              Prescription[]
+  sourcedHistoryRevisions    MedicalHistoryRevision[]        @relation("MedicalHistoryRevisionSourceEncounter")
+  sourcedMedicationRevisions PatientMedicationRevision[]     @relation("PatientMedicationRevisionSourceEncounter")
+  medicationReconciliations  MedicationReconciliationEvent[] @relation("MedicationReconciliationSourceEncounter")
 
   @@index([clinicId, updatedAt])
   @@index([patientId, updatedAt])
@@ -714,8 +752,9 @@ model Drug {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  clinic        Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  prescriptions Prescription[]
+  clinic              Clinic                      @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  prescriptions       Prescription[]
+  medicationRevisions PatientMedicationRevision[]
 
   @@index([clinicId, category])
   @@index([clinicId, isActive])
@@ -1055,6 +1094,165 @@ model MedicalHistoryRevision {
   @@index([sourceEncounterId])
   @@index([authoredByUserId, createdAt])
   @@index([status, createdAt])
+}
+
+model PatientMedicationRecord {
+  id                String  @id @default(uuid()) @db.Uuid
+  clinicId          String  @db.Uuid
+  patientId         String  @db.Uuid
+  currentRevisionId String? @unique @db.Uuid
+  recordedByUserId  String  @db.Uuid
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clinic          Clinic                      @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient         Patient                     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  recordedBy      User                        @relation("PatientMedicationRecordedBy", fields: [recordedByUserId], references: [id])
+  revisions       PatientMedicationRevision[] @relation("PatientMedicationRecordRevisions")
+  currentRevision PatientMedicationRevision?  @relation("CurrentPatientMedicationRevision", fields: [currentRevisionId], references: [id], onDelete: SetNull)
+
+  @@index([clinicId, patientId, updatedAt])
+  @@index([clinicId, updatedAt, id])
+  @@index([patientId, updatedAt])
+  @@index([recordedByUserId, createdAt])
+}
+
+model PatientMedicationRevision {
+  id                 String                  @id @default(uuid()) @db.Uuid
+  recordId           String                  @db.Uuid
+  revisionNumber     Int
+  medicationName     String                  @db.VarChar(200)
+  drugId             String?                 @db.Uuid
+  strength           String?                 @db.VarChar(100)
+  dose               String?                 @db.VarChar(100)
+  doseUnit           String?                 @db.VarChar(80)
+  route              String?                 @db.VarChar(100)
+  frequency          String?                 @db.VarChar(120)
+  duration           String?                 @db.VarChar(120)
+  startDate          DateTime?               @db.Date
+  endDate            DateTime?               @db.Date
+  indication         String?                 @db.VarChar(300)
+  status             PatientMedicationStatus
+  notes              String?                 @db.Text
+  sourceEncounterId  String?                 @db.Uuid
+  sourceType         MedicationSourceType
+  authoredByUserId   String                  @db.Uuid
+  reconciledByUserId String?                 @db.Uuid
+  lastReconciledAt   DateTime?
+  createdAt          DateTime                @default(now())
+
+  record           PatientMedicationRecord  @relation("PatientMedicationRecordRevisions", fields: [recordId], references: [id], onDelete: Cascade)
+  currentForRecord PatientMedicationRecord? @relation("CurrentPatientMedicationRevision")
+  drug             Drug?                    @relation(fields: [drugId], references: [id], onDelete: SetNull)
+  sourceEncounter  Encounter?               @relation("PatientMedicationRevisionSourceEncounter", fields: [sourceEncounterId], references: [id], onDelete: SetNull)
+  authoredBy       User                     @relation("PatientMedicationRevisionAuthor", fields: [authoredByUserId], references: [id])
+  reconciledBy     User?                    @relation("PatientMedicationRevisionReconciler", fields: [reconciledByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([recordId, revisionNumber])
+  @@index([recordId, createdAt])
+  @@index([drugId])
+  @@index([sourceEncounterId])
+  @@index([authoredByUserId, createdAt])
+  @@index([reconciledByUserId, lastReconciledAt])
+  @@index([status, createdAt])
+}
+
+model MedicationReconciliationEvent {
+  id                 String                          @id @default(uuid()) @db.Uuid
+  clinicId           String                          @db.Uuid
+  patientId          String                          @db.Uuid
+  outcome            MedicationReconciliationOutcome
+  sourceEncounterId  String?                         @db.Uuid
+  reconciledByUserId String                          @db.Uuid
+  notes              String?                         @db.Text
+  createdAt          DateTime                        @default(now())
+
+  clinic          Clinic     @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient         Patient    @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  sourceEncounter Encounter? @relation("MedicationReconciliationSourceEncounter", fields: [sourceEncounterId], references: [id], onDelete: SetNull)
+  reconciledBy    User       @relation("MedicationReconciliationActor", fields: [reconciledByUserId], references: [id])
+
+  @@index([clinicId, patientId, createdAt])
+  @@index([clinicId, createdAt, id])
+  @@index([sourceEncounterId])
+  @@index([reconciledByUserId, createdAt])
+}
+
+model PatientPharmacyRecord {
+  id                String  @id @default(uuid()) @db.Uuid
+  clinicId          String  @db.Uuid
+  patientId         String  @db.Uuid
+  currentRevisionId String? @unique @db.Uuid
+  recordedByUserId  String  @db.Uuid
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clinic          Clinic                      @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient         Patient                     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  recordedBy      User                        @relation("PatientPharmacyRecordedBy", fields: [recordedByUserId], references: [id])
+  revisions       PatientPharmacyRevision[]   @relation("PatientPharmacyRecordRevisions")
+  currentRevision PatientPharmacyRevision?    @relation("CurrentPatientPharmacyRevision", fields: [currentRevisionId], references: [id], onDelete: SetNull)
+  preferences     PatientPharmacyPreference[]
+
+  @@index([clinicId, patientId, updatedAt])
+  @@index([clinicId, updatedAt, id])
+  @@index([patientId, updatedAt])
+  @@index([recordedByUserId, createdAt])
+}
+
+model PatientPharmacyRevision {
+  id               String   @id @default(uuid()) @db.Uuid
+  recordId         String   @db.Uuid
+  revisionNumber   Int
+  name             String   @db.VarChar(200)
+  phoneE164        String?  @db.VarChar(32)
+  addressLine1     String?  @db.VarChar(200)
+  addressLine2     String?  @db.VarChar(200)
+  city             String?  @db.VarChar(120)
+  region           String?  @db.VarChar(120)
+  postalCode       String?  @db.VarChar(32)
+  countryCode      String?  @db.VarChar(2)
+  addressText      String?  @db.Text
+  notes            String?  @db.Text
+  authoredByUserId String   @db.Uuid
+  createdAt        DateTime @default(now())
+
+  record           PatientPharmacyRecord  @relation("PatientPharmacyRecordRevisions", fields: [recordId], references: [id], onDelete: Cascade)
+  currentForRecord PatientPharmacyRecord? @relation("CurrentPatientPharmacyRevision")
+  authoredBy       User                   @relation("PatientPharmacyRevisionAuthor", fields: [authoredByUserId], references: [id])
+
+  @@unique([recordId, revisionNumber])
+  @@index([recordId, createdAt])
+  @@index([authoredByUserId, createdAt])
+}
+
+model PatientPharmacyPreference {
+  id               String    @id @default(uuid()) @db.Uuid
+  clinicId         String    @db.Uuid
+  patientId        String    @db.Uuid
+  pharmacyRecordId String    @db.Uuid
+  effectiveFrom    DateTime  @default(now())
+  effectiveTo      DateTime?
+  notes            String?   @db.Text
+  setByUserId      String    @db.Uuid
+  endedByUserId    String?   @db.Uuid
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  clinic         Clinic                @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient        Patient               @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  pharmacyRecord PatientPharmacyRecord @relation(fields: [pharmacyRecordId], references: [id], onDelete: Cascade)
+  setBy          User                  @relation("PatientPharmacyPreferenceSetBy", fields: [setByUserId], references: [id])
+  endedBy        User?                 @relation("PatientPharmacyPreferenceEndedBy", fields: [endedByUserId], references: [id], onDelete: SetNull)
+
+  // A partial unique index for one open preference is created in the SQL migration.
+  @@index([clinicId, patientId, effectiveFrom])
+  @@index([clinicId, updatedAt, id])
+  @@index([pharmacyRecordId, effectiveFrom])
+  @@index([setByUserId, createdAt])
+  @@index([endedByUserId, effectiveTo])
 }
 
 model SyncMutation {

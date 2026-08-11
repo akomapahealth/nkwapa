@@ -2,14 +2,21 @@ import { isWebFeatureEnabled, parseFeatureFlag } from './feature-flags';
 
 describe('web feature flags', () => {
   const originalMedicalHistoryFlag = process.env.NEXT_PUBLIC_FEATURE_MEDICAL_HISTORY_ENABLED;
+  const originalMedicationReconciliationFlag =
+    process.env.NEXT_PUBLIC_FEATURE_MEDICATION_RECONCILIATION_ENABLED;
 
   afterEach(() => {
     if (originalMedicalHistoryFlag === undefined) {
       delete process.env.NEXT_PUBLIC_FEATURE_MEDICAL_HISTORY_ENABLED;
-      return;
+    } else {
+      process.env.NEXT_PUBLIC_FEATURE_MEDICAL_HISTORY_ENABLED = originalMedicalHistoryFlag;
     }
-
-    process.env.NEXT_PUBLIC_FEATURE_MEDICAL_HISTORY_ENABLED = originalMedicalHistoryFlag;
+    if (originalMedicationReconciliationFlag === undefined) {
+      delete process.env.NEXT_PUBLIC_FEATURE_MEDICATION_RECONCILIATION_ENABLED;
+    } else {
+      process.env.NEXT_PUBLIC_FEATURE_MEDICATION_RECONCILIATION_ENABLED =
+        originalMedicationReconciliationFlag;
+    }
   });
 
   it.each([
@@ -33,5 +40,11 @@ describe('web feature flags', () => {
     delete process.env.NEXT_PUBLIC_FEATURE_MEDICAL_HISTORY_ENABLED;
 
     expect(isWebFeatureEnabled('medicalHistory')).toBe(false);
+  });
+
+  it('maps medication reconciliation to its public web environment variable', () => {
+    process.env.NEXT_PUBLIC_FEATURE_MEDICATION_RECONCILIATION_ENABLED = 'true';
+
+    expect(isWebFeatureEnabled('medicationReconciliation')).toBe(true);
   });
 });

@@ -26,6 +26,8 @@ describe('OPS permissions', () => {
     expect(permissions).not.toContain(PERMISSIONS.OPS_ASSIGNMENT_MANAGE);
     expect(permissions).toContain(PERMISSIONS.MEDICAL_HISTORY_READ);
     expect(permissions).toContain(PERMISSIONS.MEDICAL_HISTORY_WRITE);
+    expect(permissions).toContain(PERMISSIONS.MEDICATION_RECONCILIATION_READ);
+    expect(permissions).toContain(PERMISSIONS.MEDICATION_RECONCILIATION_WRITE);
   });
 
   it('grants doctors clinical review and finalization permissions', () => {
@@ -37,6 +39,8 @@ describe('OPS permissions', () => {
     expect(permissions).toContain(PERMISSIONS.APPOINTMENT_READ);
     expect(permissions).toContain(PERMISSIONS.MEDICAL_HISTORY_READ);
     expect(permissions).toContain(PERMISSIONS.MEDICAL_HISTORY_WRITE);
+    expect(permissions).toContain(PERMISSIONS.MEDICATION_RECONCILIATION_READ);
+    expect(permissions).toContain(PERMISSIONS.MEDICATION_RECONCILIATION_WRITE);
   });
 
   it('grants directors appointment schedule access', () => {
@@ -45,6 +49,8 @@ describe('OPS permissions', () => {
     expect(permissions).toContain(PERMISSIONS.APPOINTMENT_READ);
     expect(permissions).toContain(PERMISSIONS.MEDICAL_HISTORY_READ);
     expect(permissions).not.toContain(PERMISSIONS.MEDICAL_HISTORY_WRITE);
+    expect(permissions).toContain(PERMISSIONS.MEDICATION_RECONCILIATION_READ);
+    expect(permissions).not.toContain(PERMISSIONS.MEDICATION_RECONCILIATION_WRITE);
   });
 
   it('keeps medical history management read-only for managers', () => {
@@ -52,6 +58,8 @@ describe('OPS permissions', () => {
 
     expect(permissions).toContain(PERMISSIONS.MEDICAL_HISTORY_READ);
     expect(permissions).not.toContain(PERMISSIONS.MEDICAL_HISTORY_WRITE);
+    expect(permissions).toContain(PERMISSIONS.MEDICATION_RECONCILIATION_READ);
+    expect(permissions).not.toContain(PERMISSIONS.MEDICATION_RECONCILIATION_WRITE);
   });
 
   it('does not grant patient users staff appointment schedule access', () => {
@@ -60,6 +68,8 @@ describe('OPS permissions', () => {
     expect(permissions).not.toContain(PERMISSIONS.APPOINTMENT_READ);
     expect(permissions).not.toContain(PERMISSIONS.MEDICAL_HISTORY_READ);
     expect(permissions).not.toContain(PERMISSIONS.MEDICAL_HISTORY_WRITE);
+    expect(permissions).not.toContain(PERMISSIONS.MEDICATION_RECONCILIATION_READ);
+    expect(permissions).not.toContain(PERMISSIONS.MEDICATION_RECONCILIATION_WRITE);
   });
 
   it('does not expose the retired preceptor role enums', () => {
