@@ -133,7 +133,15 @@ export async function syncNow(options: SyncNowOptions): Promise<{
       await db.encounters.put(toRecord(e) as unknown as Parameters<typeof db.encounters.put>[0]);
     }
     for (const v of pull.vitals) {
-      await db.vitals.put(toRecord(v) as unknown as Parameters<typeof db.vitals.put>[0]);
+      const record = toRecord(v);
+      if (record.pulseBpm == null && record.heartRate != null) record.pulseBpm = record.heartRate;
+      delete record.heartRate;
+      await db.vitals.put(record as unknown as Parameters<typeof db.vitals.put>[0]);
+    }
+    for (const tobacco of pull.tobaccoScreenings ?? []) {
+      await db.tobacco_screenings.put(
+        toRecord(tobacco) as unknown as Parameters<typeof db.tobacco_screenings.put>[0],
+      );
     }
     for (const d of pull.diabetesScreenings) {
       await db.diabetes_screenings.put(

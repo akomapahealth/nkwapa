@@ -20,7 +20,7 @@ import { VitalsForm } from '@/components/VitalsForm';
 import { DiabetesScreeningForm } from '@/components/DiabetesScreeningForm';
 import { HypertensionForm } from '@/components/HypertensionForm';
 import { CarePlanForm } from '@/components/CarePlanForm';
-import { db } from '@/lib/db';
+import { db, type TobaccoScreeningRecord, type VitalsRecord } from '@/lib/db';
 import { ArrowLeft, ClipboardPlus, HeartPulse, ShieldCheck } from 'lucide-react';
 import { PrescriptionPanel } from '@/components/patients/PrescriptionPanel';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
@@ -39,6 +39,7 @@ interface EncounterDetail {
   createdAt: string;
   patient?: { firstName: string; lastName: string; patientCode: string };
   vitals?: Record<string, unknown>;
+  tobaccoScreening?: Record<string, unknown>;
   diabetesScreening?: Record<string, unknown>;
   hypertensionAssessment?: Record<string, unknown>;
   carePlan?: Record<string, unknown>;
@@ -58,7 +59,8 @@ export default function EncounterDetailPage() {
   const medicalHistoryEnabled = isWebFeatureEnabled('medicalHistory');
 
   const [encounter, setEncounter] = useState<EncounterDetail | null>(null);
-  const [vitals, setVitals] = useState<Record<string, unknown> | null>(null);
+  const [vitals, setVitals] = useState<VitalsRecord | null>(null);
+  const [tobacco, setTobacco] = useState<TobaccoScreeningRecord | null>(null);
   const [diabetes, setDiabetes] = useState<Record<string, unknown> | null>(null);
   const [hypertension, setHypertension] = useState<Record<string, unknown> | null>(null);
   const [carePlan, setCarePlan] = useState<Record<string, unknown> | null>(null);
@@ -82,7 +84,8 @@ export default function EncounterDetailPage() {
       if (!res.ok) throw new Error(await res.text());
       const enc = (await res.json()) as EncounterDetail;
       setEncounter(enc);
-      setVitals(enc.vitals ?? null);
+      setVitals((enc.vitals as VitalsRecord | undefined) ?? null);
+      setTobacco((enc.tobaccoScreening as TobaccoScreeningRecord | undefined) ?? null);
       setDiabetes(enc.diabetesScreening ?? null);
       setHypertension(enc.hypertensionAssessment ?? null);
       setCarePlan(enc.carePlan ?? null);
@@ -98,13 +101,15 @@ export default function EncounterDetailPage() {
             createdAt: dbEnc.createdAt ?? new Date().toISOString(),
           });
         }
-        const [v, d, h, c] = await Promise.all([
+        const [v, tobaccoRecord, d, h, c] = await Promise.all([
           db.vitals.where('encounterId').equals(encounterId).first(),
+          db.tobacco_screenings.where('encounterId').equals(encounterId).first(),
           db.diabetes_screenings.where('encounterId').equals(encounterId).first(),
           db.hypertension_assessments.where('encounterId').equals(encounterId).first(),
           db.care_plans.where('encounterId').equals(encounterId).first(),
         ]);
-        if (v) setVitals(v as unknown as Record<string, unknown>);
+        if (v) setVitals(v);
+        if (tobaccoRecord) setTobacco(tobaccoRecord);
         if (d) setDiabetes(d as unknown as Record<string, unknown>);
         if (h) setHypertension(h as unknown as Record<string, unknown>);
         if (c) setCarePlan(c as unknown as Record<string, unknown>);
@@ -217,6 +222,7 @@ export default function EncounterDetailPage() {
     );
 
   const isFinalized = encounter.status === 'FINALIZED';
+  const canEditMeasurements = !isFinalized && hasPermission(perms, 'SCREENING.WRITE');
   const canSubmit =
     encounter.status === 'DRAFT' && hasPermission(perms, 'ENCOUNTER.SUBMIT_FOR_REVIEW');
   const canReview =
@@ -372,6 +378,8 @@ export default function EncounterDetailPage() {
                 encounterId={encounterId}
                 recordedByUserId={userId}
                 initialData={vitals as Parameters<typeof VitalsForm>[0]['initialData']}
+                initialTobaccoData={tobacco}
+                canEdit={canEditMeasurements}
                 onSaved={fetchData}
                 saveRef={vitalsSaveRef}
               />
@@ -409,36 +417,50 @@ export default function EncounterDetailPage() {
         )}
 
         {isFinalized && (
-          <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
-            <CardContent className="pt-6">
-              <EmptyStateCard
-                title="Encounter finalized"
-                description="This encounter is complete and no further edits are allowed."
-              />
-              {carePlan && (
-                <div className="mt-4 space-y-2">
-                  <p>
-                    <span className="font-medium">Counseling given:</span>{' '}
-                    {(carePlan as { counselingGiven?: boolean }).counselingGiven ? 'Yes' : 'No'}
-                  </p>
-                  <p>
-                    <span className="font-medium">Medication prescribed:</span>{' '}
-                    {(carePlan as { medicationPrescribed?: boolean }).medicationPrescribed
-                      ? 'Yes'
-                      : 'No'}
-                  </p>
-                  {(carePlan as { followUpDate?: string }).followUpDate && (
+          <div className="space-y-4">
+            <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+              <CardContent className="pt-6">
+                <EmptyStateCard
+                  title="Encounter finalized"
+                  description="This encounter is complete and all measurements are read-only."
+                />
+              </CardContent>
+            </Card>
+            <VitalsForm
+              clinicId={encounter.clinicId}
+              encounterId={encounterId}
+              recordedByUserId={userId}
+              initialData={vitals}
+              initialTobaccoData={tobacco}
+              canEdit={false}
+            />
+            <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+              <CardContent className="pt-6">
+                {carePlan && (
+                  <div className="mt-4 space-y-2">
                     <p>
-                      <span className="font-medium">Follow-up:</span>{' '}
-                      {new Date(
-                        (carePlan as { followUpDate: string }).followUpDate,
-                      ).toLocaleDateString()}
+                      <span className="font-medium">Counseling given:</span>{' '}
+                      {(carePlan as { counselingGiven?: boolean }).counselingGiven ? 'Yes' : 'No'}
                     </p>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                    <p>
+                      <span className="font-medium">Medication prescribed:</span>{' '}
+                      {(carePlan as { medicationPrescribed?: boolean }).medicationPrescribed
+                        ? 'Yes'
+                        : 'No'}
+                    </p>
+                    {(carePlan as { followUpDate?: string }).followUpDate && (
+                      <p>
+                        <span className="font-medium">Follow-up:</span>{' '}
+                        {new Date(
+                          (carePlan as { followUpDate: string }).followUpDate,
+                        ).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         )}
       </div>
     </RouteGuard>

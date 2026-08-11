@@ -4,6 +4,16 @@
   "private": true,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./clinical-measurements": {
+      "types": "./dist/src/clinical-measurements.d.ts",
+      "default": "./dist/src/clinical-measurements.js"
+    }
+  },
   "scripts": {
     "build": "tsc",
     "lint": "eslint \"src/**/*.ts\" \"index.ts\" --max-warnings 0",
