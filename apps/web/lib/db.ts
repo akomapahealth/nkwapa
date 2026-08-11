@@ -171,6 +171,94 @@ export interface MedicalHistoryRevisionRecord {
   createdAt?: string;
 }
 
+export interface PatientMedicationRecord {
+  id: string;
+  clinicId: string;
+  patientId: string;
+  currentRevisionId?: string;
+  recordedByUserId: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PatientMedicationRevisionRecord {
+  id: string;
+  recordId: string;
+  revisionNumber: number;
+  medicationName: string;
+  drugId?: string;
+  strength?: string;
+  dose?: string;
+  doseUnit?: string;
+  route?: string;
+  frequency?: string;
+  duration?: string;
+  startDate?: string;
+  endDate?: string;
+  indication?: string;
+  status: string;
+  notes?: string;
+  sourceEncounterId?: string;
+  sourceType: string;
+  authoredByUserId: string;
+  reconciledByUserId?: string;
+  lastReconciledAt?: string;
+  createdAt?: string;
+}
+
+export interface MedicationReconciliationEventRecord {
+  id: string;
+  clinicId: string;
+  patientId: string;
+  outcome: string;
+  sourceEncounterId?: string;
+  reconciledByUserId: string;
+  notes?: string;
+  createdAt?: string;
+}
+
+export interface PatientPharmacyRecord {
+  id: string;
+  clinicId: string;
+  patientId: string;
+  currentRevisionId?: string;
+  recordedByUserId: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PatientPharmacyRevisionRecord {
+  id: string;
+  recordId: string;
+  revisionNumber: number;
+  name: string;
+  phoneE164?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  region?: string;
+  postalCode?: string;
+  countryCode?: string;
+  addressText?: string;
+  notes?: string;
+  authoredByUserId: string;
+  createdAt?: string;
+}
+
+export interface PatientPharmacyPreferenceRecord {
+  id: string;
+  clinicId: string;
+  patientId: string;
+  pharmacyRecordId: string;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  notes?: string;
+  setByUserId: string;
+  endedByUserId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface OutboxRecord {
   id: string;
   clinicId: string;
@@ -200,6 +288,12 @@ export class NkwapaDb extends Dexie {
   prescriptions!: Table<PrescriptionRecord, string>;
   medical_history_records!: Table<MedicalHistoryRecord, string>;
   medical_history_revisions!: Table<MedicalHistoryRevisionRecord, string>;
+  patient_medication_records!: Table<PatientMedicationRecord, string>;
+  patient_medication_revisions!: Table<PatientMedicationRevisionRecord, string>;
+  medication_reconciliation_events!: Table<MedicationReconciliationEventRecord, string>;
+  patient_pharmacy_records!: Table<PatientPharmacyRecord, string>;
+  patient_pharmacy_revisions!: Table<PatientPharmacyRevisionRecord, string>;
+  patient_pharmacy_preferences!: Table<PatientPharmacyPreferenceRecord, string>;
   outbox!: Table<OutboxRecord, string>;
   sync_state!: Table<SyncStateRecord, string>;
 
@@ -233,6 +327,15 @@ export class NkwapaDb extends Dexie {
           .toCollection()
           .modify(migrateLegacyPulse);
       });
+    this.version(5).stores({
+      patient_medication_records: 'id, clinicId, patientId, updatedAt',
+      patient_medication_revisions: 'id, recordId, status, createdAt',
+      medication_reconciliation_events: 'id, clinicId, patientId, createdAt',
+      patient_pharmacy_records: 'id, clinicId, patientId, updatedAt',
+      patient_pharmacy_revisions: 'id, recordId, createdAt',
+      patient_pharmacy_preferences:
+        'id, clinicId, patientId, pharmacyRecordId, effectiveTo, updatedAt',
+    });
   }
 }
 

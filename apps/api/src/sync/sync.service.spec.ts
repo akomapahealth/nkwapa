@@ -10,6 +10,7 @@ import type { SyncMutationDto } from './dto/sync-mutation.dto';
 import { MedicalHistoryService } from '../medical-history/medical-history.service';
 import { ConflictException } from '@nestjs/common';
 import { ClinicalMeasurementsService } from './clinical-measurements.service';
+import { MedicationReconciliationService } from '../medication-reconciliation/medication-reconciliation.service';
 
 const mockUser = {
   user: { id: 'user-1' },
@@ -23,6 +24,7 @@ describe('SyncService', () => {
   let prisma: jest.Mocked<PrismaService>;
   let medicalHistoryService: jest.Mocked<MedicalHistoryService>;
   let clinicalMeasurementsService: jest.Mocked<ClinicalMeasurementsService>;
+  let medicationReconciliationService: jest.Mocked<MedicationReconciliationService>;
   beforeEach(async () => {
     const mockPrisma = {
       syncMutation: {
@@ -79,6 +81,18 @@ describe('SyncService', () => {
           provide: ClinicalMeasurementsService,
           useValue: { applyBundle: jest.fn().mockResolvedValue(undefined) },
         },
+        {
+          provide: MedicationReconciliationService,
+          useValue: {
+            createMedication: jest.fn().mockResolvedValue({}),
+            reviseMedication: jest.fn().mockResolvedValue({}),
+            reconcile: jest.fn().mockResolvedValue({}),
+            createPharmacy: jest.fn().mockResolvedValue({}),
+            revisePharmacy: jest.fn().mockResolvedValue({}),
+            setPreferredPharmacy: jest.fn().mockResolvedValue({}),
+            endPreferredPharmacy: jest.fn().mockResolvedValue({}),
+          },
+        },
       ],
     }).compile();
 
@@ -88,6 +102,7 @@ describe('SyncService', () => {
     encounterRepo = module.get(EncounterRepository);
     medicalHistoryService = module.get(MedicalHistoryService);
     clinicalMeasurementsService = module.get(ClinicalMeasurementsService);
+    medicationReconciliationService = module.get(MedicationReconciliationService);
   });
 
   it('replays an applied vitals bundle idempotently without writing again', async () => {
@@ -316,6 +331,143 @@ describe('SyncService', () => {
           conflictType: 'STALE_MEDICAL_HISTORY_REVISION',
         }),
       });
+    });
+  });
+
+  describe('medication reconciliation replay', () => {
+    const originalFlag = process.env.FEATURE_MEDICATION_RECONCILIATION_ENABLED;
+
+    beforeEach(() => {
+      process.env.FEATURE_MEDICATION_RECONCILIATION_ENABLED = 'true';
+    });
+
+    afterEach(() => {
+      if (originalFlag === undefined) delete process.env.FEATURE_MEDICATION_RECONCILIATION_ENABLED;
+      else process.env.FEATURE_MEDICATION_RECONCILIATION_ENABLED = originalFlag;
+    });
+
+    it('replays a client-identified external medication through the dedicated service', async () => {
+      const mutation: SyncMutationDto = {
+        id: 'mut-medication-1',
+        entityType: 'patient_medication_revision',
+        entityId: 'medication-record-1',
+        operation: 'UPSERT',
+        clinicId: 'clinic-1',
+        idempotencyKey: 'medication-idem-1',
+        payloadJson: {
+          patientId: 'patient-1',
+          revisionId: 'medication-revision-1',
+          medicationName: 'External medicine',
+          status: 'CURRENT',
+          sourceType: 'PATIENT_REPORTED',
+        },
+      };
+
+      const results = await service.applyMutations('clinic-1', mockUser as never, [mutation]);
+
+      expect(results).toEqual([{ id: mutation.id, status: 'APPLIED' }]);
+      expect(medicationReconciliationService.createMedication).toHaveBeenCalledWith(
+        'clinic-1',
+        'patient-1',
+        'user-1',
+        expect.objectContaining({
+          recordId: mutation.entityId,
+          medicationName: 'External medicine',
+        }),
+        { requestId: mutation.idempotencyKey },
+      );
+    });
+
+    it('rejects reconciliation replay for a read-only director', async () => {
+      const results = await service.applyMutations(
+        'clinic-1',
+        {
+          user: { id: 'director-1' },
+          roles: [{ clinicId: 'clinic-1', role: 'DIRECTOR' }],
+        } as never,
+        [
+          {
+            id: 'mut-medication-2',
+            entityType: 'medication_reconciliation',
+            entityId: 'event-1',
+            operation: 'UPSERT',
+            clinicId: 'clinic-1',
+            idempotencyKey: 'medication-idem-2',
+            payloadJson: {
+              patientId: 'patient-1',
+              outcome: 'NO_KNOWN_CURRENT_MEDICATIONS',
+              items: [],
+            },
+          },
+        ],
+      );
+
+      expect(results[0]).toMatchObject({
+        status: SYNC_MUTATION_RESULT_STATUS.ERROR,
+        conflictType: 'APPLICATION_REJECTED',
+      });
+      expect(medicationReconciliationService.reconcile).not.toHaveBeenCalled();
+    });
+
+    it('keeps a stale medication revision as a structured replay conflict', async () => {
+      medicationReconciliationService.reviseMedication.mockRejectedValue(
+        new ConflictException({
+          code: 'MEDICATION_REVISION_CONFLICT',
+          latest: { currentRevisionId: 'revision-4' },
+        }),
+      );
+      const results = await service.applyMutations('clinic-1', mockUser as never, [
+        {
+          id: 'mut-medication-3',
+          entityType: 'patient_medication_revision',
+          entityId: 'medication-record-1',
+          operation: 'UPSERT',
+          clinicId: 'clinic-1',
+          idempotencyKey: 'medication-idem-3',
+          payloadJson: {
+            patientId: 'patient-1',
+            revisionId: 'revision-5',
+            expectedCurrentRevisionId: 'revision-3',
+            medicationName: 'External medicine',
+            status: 'CURRENT',
+            sourceType: 'PATIENT_REPORTED',
+          },
+        },
+      ]);
+
+      expect(results[0]).toMatchObject({
+        status: SYNC_MUTATION_RESULT_STATUS.CONFLICT,
+        conflictType: 'MEDICATION_REVISION_CONFLICT',
+      });
+      expect(prisma.syncMutation.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          status: 'CONFLICT',
+          conflictType: 'MEDICATION_REVISION_CONFLICT',
+        }),
+      });
+    });
+
+    it('does not reapply an already-applied medication mutation', async () => {
+      (prisma.syncMutation.findUnique as jest.Mock).mockResolvedValue({
+        status: 'APPLIED',
+        conflictType: null,
+        conflictDetailsJson: null,
+      });
+      const results = await service.applyMutations('clinic-1', mockUser as never, [
+        {
+          id: 'mut-medication-4',
+          entityType: 'patient_medication_revision',
+          entityId: 'medication-record-1',
+          operation: 'UPSERT',
+          clinicId: 'clinic-1',
+          idempotencyKey: 'medication-idem-4',
+          payloadJson: {},
+        },
+      ]);
+
+      expect(results).toEqual([{ id: 'mut-medication-4', status: 'APPLIED' }]);
+      expect(medicationReconciliationService.createMedication).not.toHaveBeenCalled();
+      expect(medicationReconciliationService.reviseMedication).not.toHaveBeenCalled();
     });
   });
 });

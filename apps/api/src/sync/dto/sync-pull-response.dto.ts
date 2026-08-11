@@ -10,6 +10,12 @@ import {
   MedicalHistoryRecord,
   MedicalHistoryRevision,
   TobaccoScreening,
+  PatientMedicationRecord,
+  PatientMedicationRevision,
+  MedicationReconciliationEvent,
+  PatientPharmacyRecord,
+  PatientPharmacyRevision,
+  PatientPharmacyPreference,
 } from '@prisma/client';
 
 export type SyncVitalsRecord = Vitals & {
@@ -30,4 +36,10 @@ export interface SyncPullResponseDto {
   prescriptions: Prescription[];
   medicalHistoryRecords: MedicalHistoryRecord[];
   medicalHistoryRevisions: MedicalHistoryRevision[];
+  patientMedicationRecords: PatientMedicationRecord[];
+  patientMedicationRevisions: PatientMedicationRevision[];
+  medicationReconciliationEvents: MedicationReconciliationEvent[];
+  patientPharmacyRecords: PatientPharmacyRecord[];
+  patientPharmacyRevisions: PatientPharmacyRevision[];
+  patientPharmacyPreferences: PatientPharmacyPreference[];
 }

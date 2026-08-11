@@ -34,6 +34,16 @@ import { MedicalHistoryService } from '../medical-history/medical-history.servic
 import { hasPermission, PERMISSIONS } from '../auth/constants/permissions';
 import { isApiFeatureEnabled } from '../common/feature-flags';
 import { ClinicalMeasurementsService } from './clinical-measurements.service';
+import { MedicationReconciliationService } from '../medication-reconciliation/medication-reconciliation.service';
+import type {
+  CreatePatientMedicationDto,
+  CreatePatientPharmacyDto,
+  EndPreferredPharmacyDto,
+  ReconcileMedicationListDto,
+  RevisePatientMedicationDto,
+  RevisePatientPharmacyDto,
+  SetPreferredPharmacyDto,
+} from '../medication-reconciliation/dto/medication-reconciliation.dto';
 
 export type EntityType =
   | 'patient'
@@ -45,7 +55,11 @@ export type EntityType =
   | 'care_plan'
   | 'patient_consent'
   | 'prescription'
-  | 'medical_history_revision';
+  | 'medical_history_revision'
+  | 'patient_medication_revision'
+  | 'medication_reconciliation'
+  | 'patient_pharmacy_revision'
+  | 'patient_pharmacy_preference';
 
 export interface RequestMetadata {
   ipAddress?: string;
@@ -66,6 +80,7 @@ export class SyncService {
     private readonly encounterRepository: EncounterRepository,
     private readonly medicalHistoryService: MedicalHistoryService,
     private readonly clinicalMeasurementsService: ClinicalMeasurementsService,
+    private readonly medicationReconciliationService: MedicationReconciliationService,
   ) {}
 
   async applyMutations(
@@ -257,6 +272,42 @@ export class SyncService {
         );
       case 'medical_history_revision':
         return this.applyMedicalHistoryRevision(
+          clinicId,
+          actorUserId,
+          user,
+          mut,
+          payload,
+          idempotencyKey,
+        );
+      case 'patient_medication_revision':
+        return this.applyPatientMedicationRevision(
+          clinicId,
+          actorUserId,
+          user,
+          mut,
+          payload,
+          idempotencyKey,
+        );
+      case 'medication_reconciliation':
+        return this.applyMedicationReconciliation(
+          clinicId,
+          actorUserId,
+          user,
+          mut,
+          payload,
+          idempotencyKey,
+        );
+      case 'patient_pharmacy_revision':
+        return this.applyPatientPharmacyRevision(
+          clinicId,
+          actorUserId,
+          user,
+          mut,
+          payload,
+          idempotencyKey,
+        );
+      case 'patient_pharmacy_preference':
+        return this.applyPatientPharmacyPreference(
           clinicId,
           actorUserId,
           user,
@@ -991,6 +1042,159 @@ export class SyncService {
     return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
   }
 
+  private async applyPatientMedicationRevision(
+    clinicId: string,
+    actorUserId: string,
+    user: UserWithId,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+    idempotencyKey: string,
+  ): Promise<SyncMutationResultDto> {
+    this.requireMedicationReconciliationWrite(user);
+    const patientId = payload.patientId as string | undefined;
+    const revisionId = payload.revisionId as string | undefined;
+    if (!patientId || !revisionId)
+      throw new Error('Medication payload requires patientId and revisionId');
+    const expected = payload.expectedCurrentRevisionId as string | undefined;
+    const snapshot = { ...payload, revisionId };
+    if (expected) {
+      await this.medicationReconciliationService.reviseMedication(
+        clinicId,
+        patientId,
+        mut.entityId,
+        actorUserId,
+        snapshot as unknown as RevisePatientMedicationDto,
+        { requestId: idempotencyKey },
+      );
+    } else {
+      await this.medicationReconciliationService.createMedication(
+        clinicId,
+        patientId,
+        actorUserId,
+        { ...snapshot, recordId: mut.entityId } as unknown as CreatePatientMedicationDto,
+        { requestId: idempotencyKey },
+      );
+    }
+    return this.recordAppliedMutation(clinicId, mut, idempotencyKey);
+  }
+
+  private async applyMedicationReconciliation(
+    clinicId: string,
+    actorUserId: string,
+    user: UserWithId,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+    idempotencyKey: string,
+  ): Promise<SyncMutationResultDto> {
+    this.requireMedicationReconciliationWrite(user);
+    const patientId = payload.patientId as string | undefined;
+    if (!patientId) throw new Error('Reconciliation payload requires patientId');
+    await this.medicationReconciliationService.reconcile(
+      clinicId,
+      patientId,
+      actorUserId,
+      { ...payload, eventId: mut.entityId } as unknown as ReconcileMedicationListDto,
+      { requestId: idempotencyKey },
+    );
+    return this.recordAppliedMutation(clinicId, mut, idempotencyKey);
+  }
+
+  private async applyPatientPharmacyRevision(
+    clinicId: string,
+    actorUserId: string,
+    user: UserWithId,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+    idempotencyKey: string,
+  ): Promise<SyncMutationResultDto> {
+    this.requireMedicationReconciliationWrite(user);
+    const patientId = payload.patientId as string | undefined;
+    const revisionId = payload.revisionId as string | undefined;
+    if (!patientId || !revisionId)
+      throw new Error('Pharmacy payload requires patientId and revisionId');
+    const expected = payload.expectedCurrentRevisionId as string | undefined;
+    if (expected) {
+      await this.medicationReconciliationService.revisePharmacy(
+        clinicId,
+        patientId,
+        mut.entityId,
+        actorUserId,
+        payload as unknown as RevisePatientPharmacyDto,
+        { requestId: idempotencyKey },
+      );
+    } else {
+      await this.medicationReconciliationService.createPharmacy(
+        clinicId,
+        patientId,
+        actorUserId,
+        { ...payload, recordId: mut.entityId } as unknown as CreatePatientPharmacyDto,
+        { requestId: idempotencyKey },
+      );
+    }
+    return this.recordAppliedMutation(clinicId, mut, idempotencyKey);
+  }
+
+  private async applyPatientPharmacyPreference(
+    clinicId: string,
+    actorUserId: string,
+    user: UserWithId,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+    idempotencyKey: string,
+  ): Promise<SyncMutationResultDto> {
+    this.requireMedicationReconciliationWrite(user);
+    const patientId = payload.patientId as string | undefined;
+    const action = payload.action as string | undefined;
+    if (!patientId) throw new Error('Pharmacy preference payload requires patientId');
+    if (action === 'END') {
+      await this.medicationReconciliationService.endPreferredPharmacy(
+        clinicId,
+        patientId,
+        actorUserId,
+        payload as unknown as EndPreferredPharmacyDto,
+        { requestId: idempotencyKey },
+      );
+    } else {
+      const pharmacyRecordId = payload.pharmacyRecordId as string | undefined;
+      if (!pharmacyRecordId) throw new Error('Preference SET requires pharmacyRecordId');
+      await this.medicationReconciliationService.setPreferredPharmacy(
+        clinicId,
+        patientId,
+        pharmacyRecordId,
+        actorUserId,
+        { ...payload, preferenceId: mut.entityId } as unknown as SetPreferredPharmacyDto,
+        { requestId: idempotencyKey },
+      );
+    }
+    return this.recordAppliedMutation(clinicId, mut, idempotencyKey);
+  }
+
+  private requireMedicationReconciliationWrite(user: UserWithId) {
+    if (!isApiFeatureEnabled('medicationReconciliation'))
+      throw new Error('Medication reconciliation is not enabled');
+    if (!hasPermission(user.roles, PERMISSIONS.MEDICATION_RECONCILIATION_WRITE)) {
+      throw new ForbiddenException('Medication reconciliation write permission is required');
+    }
+  }
+
+  private async recordAppliedMutation(
+    clinicId: string,
+    mut: SyncMutationDto,
+    idempotencyKey: string,
+  ) {
+    await this.prisma.syncMutation.create({
+      data: {
+        clinicId,
+        entityType: mut.entityType,
+        entityId: mut.entityId,
+        operation: SyncOperation.UPSERT,
+        idempotencyKey,
+        status: SyncMutationStatus.APPLIED,
+      },
+    });
+    return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
+  }
+
   private async applyDelete(
     clinicId: string,
     actorUserId: string,
@@ -1136,6 +1340,12 @@ export class SyncService {
       prescriptions,
       medicalHistoryRecords,
       medicalHistoryRevisions,
+      patientMedicationRecords,
+      patientMedicationRevisions,
+      medicationReconciliationEvents,
+      patientPharmacyRecords,
+      patientPharmacyRevisions,
+      patientPharmacyPreferences,
     ] = await Promise.all([
       this.prisma.patient.findMany({
         where: {
@@ -1177,6 +1387,18 @@ export class SyncService {
           ...(sinceDate ? { createdAt: { gt: sinceDate } } : {}),
         },
       }),
+      this.prisma.patientMedicationRecord.findMany({ where: { ...where, ...updatedAtFilter } }),
+      this.prisma.patientMedicationRevision.findMany({
+        where: { record: { clinicId }, ...(sinceDate ? { createdAt: { gt: sinceDate } } : {}) },
+      }),
+      this.prisma.medicationReconciliationEvent.findMany({
+        where: { ...where, ...(sinceDate ? { createdAt: { gt: sinceDate } } : {}) },
+      }),
+      this.prisma.patientPharmacyRecord.findMany({ where: { ...where, ...updatedAtFilter } }),
+      this.prisma.patientPharmacyRevision.findMany({
+        where: { record: { clinicId }, ...(sinceDate ? { createdAt: { gt: sinceDate } } : {}) },
+      }),
+      this.prisma.patientPharmacyPreference.findMany({ where: { ...where, ...updatedAtFilter } }),
     ]);
     const vitals = vitalsRows.map((record) => ({
       ...record,
@@ -1200,6 +1422,24 @@ export class SyncService {
       ...medicalHistoryRevisions.map((revision) => ({
         updatedAt: revision.createdAt,
         id: revision.id,
+      })),
+      ...patientMedicationRecords.map((record) => ({ updatedAt: record.updatedAt, id: record.id })),
+      ...patientMedicationRevisions.map((revision) => ({
+        updatedAt: revision.createdAt,
+        id: revision.id,
+      })),
+      ...medicationReconciliationEvents.map((event) => ({
+        updatedAt: event.createdAt,
+        id: event.id,
+      })),
+      ...patientPharmacyRecords.map((record) => ({ updatedAt: record.updatedAt, id: record.id })),
+      ...patientPharmacyRevisions.map((revision) => ({
+        updatedAt: revision.createdAt,
+        id: revision.id,
+      })),
+      ...patientPharmacyPreferences.map((preference) => ({
+        updatedAt: preference.updatedAt,
+        id: preference.id,
       })),
     ];
     const maxRow = allRows.reduce(
@@ -1226,6 +1466,12 @@ export class SyncService {
       prescriptions,
       medicalHistoryRecords,
       medicalHistoryRevisions,
+      patientMedicationRecords,
+      patientMedicationRevisions,
+      medicationReconciliationEvents,
+      patientPharmacyRecords,
+      patientPharmacyRevisions,
+      patientPharmacyPreferences,
     };
   }
 }

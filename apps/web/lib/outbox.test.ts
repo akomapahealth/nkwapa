@@ -1,4 +1,11 @@
-import { buildMedicalHistoryOutboxPayload, buildOutboxMutation, SYNC_OPERATION } from './outbox';
+import {
+  buildMedicalHistoryOutboxPayload,
+  buildMedicationReconciliationOutboxPayload,
+  buildMedicationRevisionOutboxPayload,
+  buildOutboxMutation,
+  buildPharmacyPreferenceOutboxPayload,
+  SYNC_OPERATION,
+} from './outbox';
 
 describe('buildOutboxMutation', () => {
   it('produces objects with all required fields', () => {
@@ -87,5 +94,49 @@ describe('buildMedicalHistoryOutboxPayload', () => {
       resolvedDate: '2026-07-30',
       details: { conditionName: 'Hypertension' },
     });
+  });
+});
+
+describe('medication reconciliation outbox payloads', () => {
+  it('preserves client revision IDs and omits undefined catalog links', () => {
+    expect(
+      buildMedicationRevisionOutboxPayload({
+        patientId: 'patient-1',
+        revisionId: 'revision-1',
+        medicationName: 'External medicine',
+        drugId: undefined,
+      }),
+    ).toEqual({
+      patientId: 'patient-1',
+      revisionId: 'revision-1',
+      medicationName: 'External medicine',
+    });
+  });
+
+  it('preserves exact revision sets for whole-list reconciliation', () => {
+    const items = [
+      {
+        recordId: 'record-1',
+        expectedCurrentRevisionId: 'revision-1',
+        newRevisionId: 'revision-2',
+      },
+    ];
+    expect(
+      buildMedicationReconciliationOutboxPayload({
+        patientId: 'patient-1',
+        outcome: 'CURRENT_LIST_REVIEWED',
+        items,
+      }),
+    ).toEqual({ patientId: 'patient-1', outcome: 'CURRENT_LIST_REVIEWED', items });
+  });
+
+  it('keeps preference mutations distinct from prescriptions', () => {
+    expect(
+      buildPharmacyPreferenceOutboxPayload({
+        patientId: 'patient-1',
+        action: 'SET',
+        pharmacyRecordId: 'pharmacy-1',
+      }),
+    ).toEqual({ patientId: 'patient-1', action: 'SET', pharmacyRecordId: 'pharmacy-1' });
   });
 });
