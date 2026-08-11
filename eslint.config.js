@@ -29,6 +29,8 @@ module.exports = [
       '**/out/**',
       '**/node_modules/**',
       '**/coverage/**',
+      '**/playwright-report/**',
+      '**/test-results/**',
       '**/next-env.d.ts',
       'apps/web/public/**',
     ],

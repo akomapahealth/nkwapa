@@ -1,6 +1,6 @@
 # Nkwapa EMR - Implementation Status
 
-> Last updated: 2026-04-08
+> Last updated: 2026-08-11
 >
 > This document reflects the live repository state in `release/dev`, including the April 2026 security, RLS, multi-clinic, UX hardening pass, and the new clinic-scoped messaging feature.
 
@@ -130,6 +130,7 @@ nkwapa/
 | Hypertension assessment                           | ✅     | 100% | BP classification per thresholds                                                         |
 | Care plan creation                                | ✅     | 100% | Counseling, medication, follow-up date                                                   |
 | Prescription & drug catalog                       | ✅     | 100% | Clinic-scoped drug catalog, encounter prescriptions                                      |
+| Medication reconciliation & pharmacy history      | ✅     | 100% | Patient-level revisions, reconciliation, preference periods, offline sync                |
 | Consent grant/revoke                              | ✅     | 100% | Witness fields, snapshot text, offline supported                                         |
 
 ### Clinic Operations

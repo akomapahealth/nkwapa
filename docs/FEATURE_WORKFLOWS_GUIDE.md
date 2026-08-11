@@ -304,6 +304,17 @@ For medical history, validation includes clinic isolation, immutable revision co
 no-known-allergies transitions, offline replay, and prescription acknowledgement. The complete
 clinical rollout checklist is in `docs/specs/07_MEDICAL_HISTORY_AND_ALLERGIES.md`.
 
+Medication reconciliation uses a separate pair:
+
+```dotenv
+FEATURE_MEDICATION_RECONCILIATION_ENABLED=false
+NEXT_PUBLIC_FEATURE_MEDICATION_RECONCILIATION_ENABLED=false
+```
+
+Its release validation covers exact-list reconciliation, no-known-current attestation,
+preferred-pharmacy uniqueness and transitions, prescription-permission separation, offline replay,
+and clinic isolation. See `docs/specs/08_MEDICATION_RECONCILIATION_AND_PHARMACIES.md`.
+
 If rollback is needed, disable and redeploy the web app first, then disable the API after clients no
 longer expose the feature.
 

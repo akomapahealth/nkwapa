@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { PatientTrendsPanel } from '@/components/patients/PatientTrendsPanel';
 import { MedicalHistoryPanel } from '@/components/patients/MedicalHistoryPanel';
+import { MedicationReconciliationPanel } from '@/components/patients/MedicationReconciliationPanel';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
 import {
@@ -114,7 +115,13 @@ export default function PatientDetailPage() {
   const canLinkPortal = perms.includes('*') || perms.includes('PATIENT.PORTAL.LINK');
   const canReadMedicalHistory = perms.includes('*') || perms.includes('MEDICAL_HISTORY.READ');
   const canWriteMedicalHistory = perms.includes('*') || perms.includes('MEDICAL_HISTORY.WRITE');
+  const canReadMedicationReconciliation =
+    perms.includes('*') || perms.includes('MEDICATION_RECONCILIATION.READ');
+  const canWriteMedicationReconciliation =
+    perms.includes('*') || perms.includes('MEDICATION_RECONCILIATION.WRITE');
+  const canReadPrescriptions = perms.includes('*') || perms.includes('PRESCRIPTION.READ');
   const medicalHistoryEnabled = isWebFeatureEnabled('medicalHistory');
+  const medicationReconciliationEnabled = isWebFeatureEnabled('medicationReconciliation');
   const userId = bootstrap?.userId ?? '';
   const canCreateOpsCheckIn = hasPermission(perms, 'OPS.CHECKIN.CREATE');
   const opsDestination = getOpsDestination(perms);
@@ -728,18 +735,23 @@ export default function PatientDetailPage() {
       ) : null}
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="h-auto flex-wrap justify-start gap-2 rounded-3xl border border-border/80 bg-card/75 p-2">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="trends">Trends</TabsTrigger>
-          <TabsTrigger value="encounters">Encounters</TabsTrigger>
-          {medicalHistoryEnabled && canReadMedicalHistory ? (
-            <TabsTrigger value="medical-history">Medical History</TabsTrigger>
-          ) : null}
-          {canViewSelfReports ? (
-            <TabsTrigger value="self-reports">Patient-reported</TabsTrigger>
-          ) : null}
-          {canRecordConsent ? <TabsTrigger value="consent">Consent</TabsTrigger> : null}
-        </TabsList>
+        <div className="max-w-full overflow-x-auto pb-1" aria-label="Patient chart sections">
+          <TabsList className="min-h-11 w-max justify-start gap-2 rounded-3xl border border-border/80 bg-card/75 p-2">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="trends">Trends</TabsTrigger>
+            <TabsTrigger value="encounters">Encounters</TabsTrigger>
+            {medicalHistoryEnabled && canReadMedicalHistory ? (
+              <TabsTrigger value="medical-history">Medical History</TabsTrigger>
+            ) : null}
+            {medicationReconciliationEnabled && canReadMedicationReconciliation ? (
+              <TabsTrigger value="medications">Medications</TabsTrigger>
+            ) : null}
+            {canViewSelfReports ? (
+              <TabsTrigger value="self-reports">Patient-reported</TabsTrigger>
+            ) : null}
+            {canRecordConsent ? <TabsTrigger value="consent">Consent</TabsTrigger> : null}
+          </TabsList>
+        </div>
 
         <TabsContent value="overview">
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -1165,6 +1177,18 @@ export default function PatientDetailPage() {
               patientId={patient.id}
               userId={userId}
               canWrite={canWriteMedicalHistory}
+            />
+          </TabsContent>
+        ) : null}
+
+        {medicationReconciliationEnabled && canReadMedicationReconciliation ? (
+          <TabsContent value="medications">
+            <MedicationReconciliationPanel
+              clinicId={clinicId}
+              patientId={patientId}
+              userId={userId}
+              canWrite={canWriteMedicationReconciliation}
+              canReadPrescriptions={canReadPrescriptions}
             />
           </TabsContent>
         ) : null}

@@ -166,6 +166,14 @@ function optional(value: string) {
   return trimmed || undefined;
 }
 
+function toOnlineMutationPayload(payload: Record<string, unknown>) {
+  return Object.fromEntries(
+    Object.entries(payload).filter(
+      ([key]) => key !== 'patientId' && key !== 'action' && key !== 'pharmacyRecordId',
+    ),
+  );
+}
+
 export function MedicationReconciliationPanel({
   clinicId,
   patientId,
@@ -421,7 +429,10 @@ export function MedicationReconciliationPanel({
     try {
       const response = await apiFetch(url, {
         method: 'POST',
-        body: JSON.stringify({ ...payload, recordId }),
+        body: JSON.stringify({
+          ...toOnlineMutationPayload(payload),
+          ...(!editingMedication ? { recordId } : {}),
+        }),
         getToken,
         activeClinicId: clinicId,
       });
@@ -502,7 +513,7 @@ export function MedicationReconciliationPanel({
     try {
       const response = await apiFetch(`${endpoint}/reconciliations`, {
         method: 'POST',
-        body: JSON.stringify({ ...payload, eventId }),
+        body: JSON.stringify({ ...toOnlineMutationPayload(payload), eventId }),
         getToken,
         activeClinicId: clinicId,
       });
@@ -620,7 +631,10 @@ export function MedicationReconciliationPanel({
     try {
       const response = await apiFetch(url, {
         method: 'POST',
-        body: JSON.stringify({ ...payload, recordId }),
+        body: JSON.stringify({
+          ...toOnlineMutationPayload(payload),
+          ...(!editingPharmacy ? { recordId } : {}),
+        }),
         getToken,
         activeClinicId: clinicId,
       });
@@ -696,7 +710,7 @@ export function MedicationReconciliationPanel({
         `${endpoint}/pharmacies/${encodeURIComponent(record.id)}/preference`,
         {
           method: 'POST',
-          body: JSON.stringify({ ...payload, preferenceId }),
+          body: JSON.stringify({ ...toOnlineMutationPayload(payload), preferenceId }),
           getToken,
           activeClinicId: clinicId,
         },
@@ -754,7 +768,7 @@ export function MedicationReconciliationPanel({
     try {
       const response = await apiFetch(`${endpoint}/pharmacy-preference/end`, {
         method: 'POST',
-        body: JSON.stringify(payload),
+        body: JSON.stringify(toOnlineMutationPayload(payload)),
         getToken,
         activeClinicId: clinicId,
       });
@@ -1099,6 +1113,7 @@ export function MedicationReconciliationPanel({
         drugQuery={drugQuery}
         setDrugQuery={setDrugQuery}
         drugResults={drugResults}
+        error={error}
         onSelectDrug={(drug) => {
           setMedicationForm((currentForm) => ({
             ...currentForm,
@@ -1117,6 +1132,7 @@ export function MedicationReconciliationPanel({
         form={pharmacyForm}
         setForm={setPharmacyForm}
         saving={saving}
+        error={error}
         onSave={() => void savePharmacy()}
       />
       <Dialog open={historyItems.length > 0} onOpenChange={(open) => !open && setHistoryItems([])}>
@@ -1308,6 +1324,7 @@ function MedicationDialog({
   drugQuery,
   setDrugQuery,
   drugResults,
+  error,
   onSelectDrug,
   onSave,
 }: {
@@ -1320,6 +1337,7 @@ function MedicationDialog({
   drugQuery: string;
   setDrugQuery: (value: string) => void;
   drugResults: DrugSearchResult[];
+  error: string | null;
   onSelectDrug: (drug: DrugSearchResult) => void;
   onSave: () => void;
 }) {
@@ -1484,6 +1502,11 @@ function MedicationDialog({
             />
           </div>
         </div>
+        {error ? (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
@@ -1504,6 +1527,7 @@ function PharmacyDialog({
   form,
   setForm,
   saving,
+  error,
   onSave,
 }: {
   open: boolean;
@@ -1512,6 +1536,7 @@ function PharmacyDialog({
   form: PharmacyForm;
   setForm: React.Dispatch<React.SetStateAction<PharmacyForm>>;
   saving: boolean;
+  error: string | null;
   onSave: () => void;
 }) {
   const fields: Array<[keyof PharmacyForm, string]> = [
@@ -1565,6 +1590,11 @@ function PharmacyDialog({
             />
           </div>
         </div>
+        {error ? (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
