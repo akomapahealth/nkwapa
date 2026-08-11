@@ -1,8 +1,10 @@
 import {
   buildBloodPressureTrendData,
+  buildExpandedVitalsTrendData,
   buildGlucoseTrendData,
   formatTrendRangeFrom,
   getLatestBloodPressureTrend,
+  getLatestExpandedVital,
   getLatestGlucoseTrend,
 } from '@/lib/patient-trends';
 
@@ -64,5 +66,33 @@ describe('patient trend helpers', () => {
       expect.objectContaining({ glucose: 145 }),
     ]);
     expect(getLatestGlucoseTrend(points)).toEqual(points[1]);
+  });
+
+  it('filters expanded staff measurements and returns the latest recorded value', () => {
+    const points = [
+      {
+        t: '2026-03-18T08:00:00.000Z',
+        temperatureCelsius: 37,
+        respiratoryRate: 16,
+        spo2Percent: null,
+        weightKg: 70,
+        bmi: 24.2,
+        source: 'ENCOUNTER' as const,
+      },
+      {
+        t: '2026-03-20T08:00:00.000Z',
+        temperatureCelsius: null,
+        respiratoryRate: null,
+        spo2Percent: 98,
+        weightKg: null,
+        bmi: null,
+        source: 'ENCOUNTER' as const,
+      },
+    ];
+
+    expect(buildExpandedVitalsTrendData(points, 'spo2Percent')).toEqual([
+      expect.objectContaining({ value: 98 }),
+    ]);
+    expect(getLatestExpandedVital(points, 'temperatureCelsius')).toBe(37);
   });
 });

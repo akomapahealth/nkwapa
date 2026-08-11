@@ -12,6 +12,7 @@ import type {
   TrendPoint,
   StaffActivityRow,
   ClinicComparisonRow,
+  ClinicalMeasurementMetrics,
 } from './dto/dashboard-response.dto';
 
 @Injectable()
@@ -31,19 +32,35 @@ export class DashboardService {
     const isDoctor = roles.includes('DOCTOR');
     const isDirector = roles.includes('DIRECTOR') || roles.includes('MANAGER');
     const isVolunteer = roles.includes('VOLUNTEER');
+    const clinicalMeasurements =
+      isDoctor || isDirector || isVolunteer
+        ? await this.getClinicalMeasurementMetrics(clinicId)
+        : null;
 
     if (isAdmin) {
       response.systemAdmin = await this.getSystemAdminMetrics();
     }
     if (isDoctor) {
-      response.doctor = await this.getDoctorMetrics(clinicId, userId);
-      response.review = await this.getReviewMetrics(clinicId, userId);
+      response.doctor = {
+        ...(await this.getDoctorMetrics(clinicId, userId)),
+        clinicalMeasurements: clinicalMeasurements!,
+      };
+      response.review = {
+        ...(await this.getReviewMetrics(clinicId, userId)),
+        clinicalMeasurements: clinicalMeasurements!,
+      };
     }
     if (isDirector) {
-      response.director = await this.getDirectorMetrics(clinicId);
+      response.director = {
+        ...(await this.getDirectorMetrics(clinicId)),
+        clinicalMeasurements: clinicalMeasurements!,
+      };
     }
     if (isVolunteer) {
-      response.volunteer = await this.getVolunteerMetrics(clinicId, userId);
+      response.volunteer = {
+        ...(await this.getVolunteerMetrics(clinicId, userId)),
+        clinicalMeasurements: clinicalMeasurements!,
+      };
     }
 
     return response;
@@ -81,7 +98,10 @@ export class DashboardService {
     return { totalPatients, encountersToday, pendingDrafts, pendingReview, readyToFinalize };
   }
 
-  private async getDoctorMetrics(clinicId: string, userId: string): Promise<DoctorMetrics> {
+  private async getDoctorMetrics(
+    clinicId: string,
+    userId: string,
+  ): Promise<Omit<DoctorMetrics, 'clinicalMeasurements'>> {
     const now = new Date();
     const todayStart = startOfDay(now);
     const weekStart = startOfWeek(now);
@@ -187,7 +207,10 @@ export class DashboardService {
     };
   }
 
-  private async getReviewMetrics(clinicId: string, userId: string): Promise<ReviewMetrics> {
+  private async getReviewMetrics(
+    clinicId: string,
+    userId: string,
+  ): Promise<Omit<ReviewMetrics, 'clinicalMeasurements'>> {
     const now = new Date();
     const todayStart = startOfDay(now);
     const weekStart = startOfWeek(now);
@@ -256,7 +279,9 @@ export class DashboardService {
     };
   }
 
-  private async getDirectorMetrics(clinicId: string): Promise<DirectorMetrics> {
+  private async getDirectorMetrics(
+    clinicId: string,
+  ): Promise<Omit<DirectorMetrics, 'clinicalMeasurements'>> {
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
@@ -365,7 +390,10 @@ export class DashboardService {
     };
   }
 
-  private async getVolunteerMetrics(clinicId: string, userId: string): Promise<VolunteerMetrics> {
+  private async getVolunteerMetrics(
+    clinicId: string,
+    userId: string,
+  ): Promise<Omit<VolunteerMetrics, 'clinicalMeasurements'>> {
     const now = new Date();
     const todayStart = startOfDay(now);
     const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
@@ -524,6 +552,84 @@ export class DashboardService {
       systemWideEncounters,
       clinicComparison,
       systemEncountersTrend,
+    };
+  }
+
+  private async getClinicalMeasurementMetrics(
+    clinicId: string,
+  ): Promise<ClinicalMeasurementMetrics> {
+    const windowStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const [totalEncounters, vitals, tobaccoScreens, tobaccoGroups] = await Promise.all([
+      this.prisma.encounter.count({ where: { clinicId, createdAt: { gte: windowStart } } }),
+      this.prisma.vitals.findMany({
+        where: { clinicId, encounter: { createdAt: { gte: windowStart } } },
+        select: {
+          temperatureCelsius: true,
+          respiratoryRate: true,
+          spo2Percent: true,
+          bmi: true,
+        },
+      }),
+      this.prisma.tobaccoScreening.findMany({
+        where: { clinicId, encounter: { createdAt: { gte: windowStart } } },
+        select: {
+          smokingStatus: true,
+          smokelessTobaccoStatus: true,
+          passiveExposure: true,
+          counselingGiven: true,
+          reviewedAt: true,
+        },
+      }),
+      this.prisma.tobaccoScreening.groupBy({
+        by: ['smokingStatus'],
+        where: { clinicId, encounter: { createdAt: { gte: windowStart } } },
+        _count: true,
+      }),
+    ]);
+
+    const assessed = tobaccoScreens.filter(
+      (screen) =>
+        screen.smokingStatus !== 'NOT_ASSESSED' ||
+        screen.smokelessTobaccoStatus !== 'NOT_ASSESSED' ||
+        screen.passiveExposure !== 'NOT_ASSESSED',
+    ).length;
+    const currentUsers = tobaccoScreens.filter(
+      (screen) => screen.smokingStatus === 'CURRENT' || screen.smokelessTobaccoStatus === 'CURRENT',
+    );
+    const counselingDocumented = currentUsers.filter(
+      (screen) => screen.counselingGiven !== 'NOT_ASSESSED',
+    ).length;
+    const rate = (numerator: number, denominator: number) =>
+      denominator > 0 ? Math.round((numerator / denominator) * 100) : 0;
+    const aggregate = (values: Array<number | null>) => {
+      const recorded = values.filter((value): value is number => value != null);
+      return {
+        count: recorded.length,
+        average:
+          recorded.length > 0
+            ? Math.round((recorded.reduce((sum, value) => sum + value, 0) / recorded.length) * 10) /
+              10
+            : null,
+      };
+    };
+    const tobaccoStatusDistribution: Record<string, number> = {};
+    for (const group of tobaccoGroups)
+      tobaccoStatusDistribution[group.smokingStatus] = group._count;
+
+    return {
+      windowDays: 30,
+      sampleSize: totalEncounters,
+      vitalsCaptureRate: rate(vitals.length, totalEncounters),
+      tobaccoAssessmentRate: rate(assessed, totalEncounters),
+      counselingDocumentationRate: rate(counselingDocumented, currentUsers.length),
+      pendingTobaccoReviews: tobaccoScreens.filter((screen) => screen.reviewedAt == null).length,
+      measurements: {
+        temperatureCelsius: aggregate(vitals.map((record) => record.temperatureCelsius)),
+        respiratoryRate: aggregate(vitals.map((record) => record.respiratoryRate)),
+        spo2Percent: aggregate(vitals.map((record) => record.spo2Percent)),
+        bmi: aggregate(vitals.map((record) => record.bmi)),
+      },
+      tobaccoStatusDistribution,
     };
   }
 }

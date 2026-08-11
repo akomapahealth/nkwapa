@@ -139,6 +139,16 @@ interface GlucoseTrendPoint {
   source: 'ENCOUNTER' | 'PATIENT';
 }
 
+interface ExpandedVitalsTrendPoint {
+  t: string;
+  temperatureCelsius: number | null;
+  respiratoryRate: number | null;
+  spo2Percent: number | null;
+  weightKg: number | null;
+  bmi: number | null;
+  source: 'ENCOUNTER';
+}
+
 interface FollowUpSummary {
   requested: number;
   confirmed: number;
@@ -168,6 +178,7 @@ interface AppointmentRange {
 export interface PatientTrendsResponse {
   bp: BloodPressureTrendPoint[];
   glucose: GlucoseTrendPoint[];
+  measurements?: ExpandedVitalsTrendPoint[];
   followUp: FollowUpSummary;
 }
 
@@ -260,12 +271,12 @@ export class PatientPortalService {
     query: ListPatientTrendsQueryDto,
   ) {
     const patient = await this.resolvePortalPatient(clinicId, userId);
-    return this.listTrends(patient.id, clinicId, query, ['FINALIZED']);
+    return this.listTrends(patient.id, clinicId, query, ['FINALIZED'], false);
   }
 
   async listTrendsForStaff(patientId: string, clinicId: string, query: ListPatientTrendsQueryDto) {
     await this.assertPatientInClinic(patientId, clinicId);
-    return this.listTrends(patientId, clinicId, query, ['DRAFT', 'IN_REVIEW', 'FINALIZED']);
+    return this.listTrends(patientId, clinicId, query, ['DRAFT', 'IN_REVIEW', 'FINALIZED'], true);
   }
 
   async createMeasurementForAuthenticatedPatient(
@@ -1708,6 +1719,7 @@ export class PatientPortalService {
     clinicId: string,
     query: ListPatientTrendsQueryDto,
     encounterStatuses: EncounterStatus[],
+    includeExpandedVitals: boolean,
   ): Promise<PatientTrendsResponse> {
     const dateFilter = this.buildRecordedAtFilter(query.from, query.to);
 
@@ -1743,6 +1755,11 @@ export class PatientPortalService {
             select: {
               systolicBp: true,
               diastolicBp: true,
+              temperatureCelsius: true,
+              respiratoryRate: true,
+              spo2Percent: true,
+              weightKg: true,
+              bmi: true,
             },
           },
           diabetesScreening: {
@@ -1878,9 +1895,39 @@ export class PatientPortalService {
       }),
     ].sort((left, right) => new Date(left.t).getTime() - new Date(right.t).getTime());
 
+    const expandedMeasurements: ExpandedVitalsTrendPoint[] = includeExpandedVitals
+      ? encounters.flatMap((encounter) => {
+          const vitals = encounter.vitals;
+          if (
+            !vitals ||
+            [
+              vitals.temperatureCelsius,
+              vitals.respiratoryRate,
+              vitals.spo2Percent,
+              vitals.weightKg,
+              vitals.bmi,
+            ].every((value) => value == null)
+          ) {
+            return [];
+          }
+          return [
+            {
+              t: encounter.createdAt.toISOString(),
+              temperatureCelsius: vitals.temperatureCelsius,
+              respiratoryRate: vitals.respiratoryRate,
+              spo2Percent: vitals.spo2Percent,
+              weightKg: vitals.weightKg,
+              bmi: vitals.bmi,
+              source: 'ENCOUNTER' as const,
+            },
+          ];
+        })
+      : [];
+
     return {
       bp,
       glucose,
+      ...(includeExpandedVitals ? { measurements: expandedMeasurements } : {}),
       followUp: {
         requested,
         confirmed,

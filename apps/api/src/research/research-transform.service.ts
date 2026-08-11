@@ -53,10 +53,33 @@ const VITALS_HEADERS = [
   'recorded_at',
   'systolic_bp',
   'diastolic_bp',
-  'heart_rate',
+  'bp_site',
+  'patient_position',
+  'cuff_size',
+  'pulse_bpm',
+  'temperature_celsius',
+  'temperature_source',
+  'respiratory_rate',
+  'spo2_percent',
   'weight_kg',
   'height_cm',
   'bmi',
+];
+
+const TOBACCO_HEADERS = [
+  'research_encounter_key',
+  'research_patient_key',
+  'research_clinic_key',
+  'encounter_status',
+  'encounter_created_at',
+  'recorded_at',
+  'smoking_status',
+  'smokeless_tobacco_status',
+  'passive_exposure',
+  'readiness_to_quit',
+  'counseling_given',
+  'reviewed',
+  'reviewed_at',
 ];
 
 const SCREENING_HEADERS = [
@@ -242,6 +265,7 @@ export class ResearchTransformService {
             },
             include: {
               vitals: true,
+              tobaccoScreening: true,
               diabetesScreening: true,
               hypertensionAssessment: true,
             },
@@ -432,10 +456,37 @@ export class ResearchTransformService {
         recorded_at: this.deIdService.roundTimestamp(encounter.vitals?.createdAt ?? null),
         systolic_bp: encounter.vitals?.systolicBp ?? null,
         diastolic_bp: encounter.vitals?.diastolicBp ?? null,
-        heart_rate: encounter.vitals?.pulseBpm ?? null,
+        bp_site: encounter.vitals?.bpSite ?? null,
+        patient_position: encounter.vitals?.patientPosition ?? null,
+        cuff_size: encounter.vitals?.cuffSize ?? null,
+        pulse_bpm: encounter.vitals?.pulseBpm ?? null,
+        temperature_celsius: encounter.vitals?.temperatureCelsius ?? null,
+        temperature_source: encounter.vitals?.temperatureSource ?? null,
+        respiratory_rate: encounter.vitals?.respiratoryRate ?? null,
+        spo2_percent: encounter.vitals?.spo2Percent ?? null,
         weight_kg: encounter.vitals?.weightKg ?? null,
         height_cm: encounter.vitals?.heightCm ?? null,
         bmi: encounter.vitals?.bmi ?? null,
+      }));
+
+    const tobaccoRows = encounters
+      .filter((encounter) => encounter.tobaccoScreening != null)
+      .map((encounter) => ({
+        research_encounter_key: this.deIdService.entityKey(clinicId, 'encounter', encounter.id),
+        research_patient_key: this.deIdService.patientKey(clinicId, encounter.patientId),
+        research_clinic_key: clinicKey,
+        encounter_status: encounter.status,
+        encounter_created_at: this.deIdService.roundTimestamp(encounter.createdAt),
+        recorded_at: this.deIdService.roundTimestamp(encounter.tobaccoScreening?.createdAt ?? null),
+        smoking_status: encounter.tobaccoScreening?.smokingStatus ?? null,
+        smokeless_tobacco_status: encounter.tobaccoScreening?.smokelessTobaccoStatus ?? null,
+        passive_exposure: encounter.tobaccoScreening?.passiveExposure ?? null,
+        readiness_to_quit: encounter.tobaccoScreening?.readinessToQuit ?? null,
+        counseling_given: encounter.tobaccoScreening?.counselingGiven ?? null,
+        reviewed: encounter.tobaccoScreening?.reviewedAt != null,
+        reviewed_at: this.deIdService.roundTimestamp(
+          encounter.tobaccoScreening?.reviewedAt ?? null,
+        ),
       }));
 
     const screeningRows = encounters
@@ -559,6 +610,7 @@ export class ResearchTransformService {
       this.createCsvFile('research_ops_checkins.csv', CHECKIN_HEADERS, checkInRows),
       this.createCsvFile('research_ops_assignments.csv', ASSIGNMENT_HEADERS, assignmentRows),
       this.createCsvFile('research_clinical_vitals.csv', VITALS_HEADERS, vitalsRows),
+      this.createCsvFile('research_clinical_tobacco.csv', TOBACCO_HEADERS, tobaccoRows),
       this.createCsvFile('research_clinical_screenings.csv', SCREENING_HEADERS, screeningRows),
       this.createCsvFile('research_measurements.csv', MEASUREMENT_HEADERS, measurementRows),
       this.createCsvFile('research_appointments.csv', APPOINTMENT_HEADERS, appointmentRows),

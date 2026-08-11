@@ -35,7 +35,29 @@ export interface DashboardSummary {
   readyToFinalize: number;
 }
 
+export interface MeasurementAggregate {
+  count: number;
+  average: number | null;
+}
+
+export interface ClinicalMeasurementMetrics {
+  windowDays: 30;
+  sampleSize: number;
+  vitalsCaptureRate: number;
+  tobaccoAssessmentRate: number;
+  counselingDocumentationRate: number;
+  pendingTobaccoReviews: number;
+  measurements: {
+    temperatureCelsius: MeasurementAggregate;
+    respiratoryRate: MeasurementAggregate;
+    spo2Percent: MeasurementAggregate;
+    bmi: MeasurementAggregate;
+  };
+  tobaccoStatusDistribution: Record<string, number>;
+}
+
 export interface DoctorMetrics {
+  clinicalMeasurements: ClinicalMeasurementMetrics;
   awaitingFinalization: number;
   patientsSeen: { today: number; week: number; month: number };
   followUpComplianceRate: number;
@@ -46,6 +68,7 @@ export interface DoctorMetrics {
 }
 
 export interface ReviewMetrics {
+  clinicalMeasurements: ClinicalMeasurementMetrics;
   awaitingReview: number;
   reviewsCompleted: { today: number; week: number };
   recentReviews: EncounterSummary[];
@@ -54,6 +77,7 @@ export interface ReviewMetrics {
 }
 
 export interface DirectorMetrics {
+  clinicalMeasurements: ClinicalMeasurementMetrics;
   patientRegistrationTrend: TrendPoint[];
   encounterVolumeTrend: TrendPoint[];
   screeningRates: { hypertension: number; diabetes: number };
@@ -64,6 +88,7 @@ export interface DirectorMetrics {
 }
 
 export interface VolunteerMetrics {
+  clinicalMeasurements: ClinicalMeasurementMetrics;
   patientsRegisteredToday: number;
   encountersCreatedToday: number;
   pendingSubmissions: number;

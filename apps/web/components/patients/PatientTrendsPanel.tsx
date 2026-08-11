@@ -1,14 +1,25 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Activity, CalendarClock, HeartPulse, Syringe } from 'lucide-react';
+import {
+  Activity,
+  CalendarClock,
+  HeartPulse,
+  Scale,
+  Syringe,
+  Thermometer,
+  Wind,
+} from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { fetchStaffPatientTrends, type PatientTrendsResponse } from '@/lib/patient-portal';
 import {
   TREND_RANGE_OPTIONS,
   buildBloodPressureTrendData,
+  buildExpandedVitalsTrendData,
   buildGlucoseTrendData,
   formatTrendRangeFrom,
+  getLatestExpandedVital,
+  type ExpandedMeasurementKey,
   type TrendRangeDays,
 } from '@/lib/patient-trends';
 import { MeasurementTrendChart } from '@/components/portal/MeasurementTrendChart';
@@ -27,6 +38,19 @@ const FOLLOW_UP_LABELS: Array<{
   { key: 'closed', label: 'Closed' },
 ];
 
+const EXPANDED_MEASUREMENTS: Array<{
+  key: ExpandedMeasurementKey;
+  label: string;
+  suffix: string;
+  icon: typeof Thermometer;
+}> = [
+  { key: 'temperatureCelsius', label: 'Temperature', suffix: ' °C', icon: Thermometer },
+  { key: 'respiratoryRate', label: 'Respiratory rate', suffix: '/min', icon: Wind },
+  { key: 'spo2Percent', label: 'SpO₂', suffix: '%', icon: Activity },
+  { key: 'weightKg', label: 'Weight', suffix: ' kg', icon: Scale },
+  { key: 'bmi', label: 'BMI', suffix: '', icon: HeartPulse },
+];
+
 interface PatientTrendsPanelProps {
   patientId: string;
   clinicId: string;
@@ -38,6 +62,8 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
   const [trends, setTrends] = useState<PatientTrendsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedMeasurement, setSelectedMeasurement] =
+    useState<ExpandedMeasurementKey>('spo2Percent');
 
   useEffect(() => {
     let cancelled = false;
@@ -75,6 +101,11 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
 
   const bpTrend = buildBloodPressureTrendData(trends?.bp ?? []);
   const glucoseTrend = buildGlucoseTrendData(trends?.glucose ?? []);
+  const expandedMeasurements = trends?.measurements ?? [];
+  const selectedConfig =
+    EXPANDED_MEASUREMENTS.find((item) => item.key === selectedMeasurement) ??
+    EXPANDED_MEASUREMENTS[0];
+  const selectedTrend = buildExpandedVitalsTrendData(expandedMeasurements, selectedMeasurement);
   const followUp = trends?.followUp ?? {
     requested: 0,
     confirmed: 0,
@@ -181,6 +212,45 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
               </CardHeader>
             </Card>
           </div>
+
+          <section className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              {EXPANDED_MEASUREMENTS.map(({ key, label, suffix, icon: Icon }) => {
+                const latest = getLatestExpandedVital(expandedMeasurements, key);
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setSelectedMeasurement(key)}
+                    className={`min-h-24 cursor-pointer rounded-2xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                      selectedMeasurement === key
+                        ? 'border-primary/40 bg-primary/10'
+                        : 'border-border/70 bg-card/95 hover:bg-muted/40'
+                    }`}
+                    aria-pressed={selectedMeasurement === key}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                        {label}
+                      </span>
+                      <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
+                    </div>
+                    <p className="mt-3 text-xl font-semibold">
+                      {latest == null ? 'No data' : `${latest}${suffix}`}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+            <MeasurementTrendChart
+              title={`${selectedConfig.label} trend`}
+              description="Encounter measurements recorded by clinic staff across the selected range."
+              emptyMessage={`No ${selectedConfig.label.toLowerCase()} readings were recorded in this timeframe.`}
+              valueSuffix={selectedConfig.suffix}
+              lines={[{ key: 'value', label: selectedConfig.label, color: 'hsl(var(--chart-3))' }]}
+              data={selectedTrend}
+            />
+          </section>
 
           <section className="grid gap-4 lg:grid-cols-2">
             <div className="lg:col-span-2">

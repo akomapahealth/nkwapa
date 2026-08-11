@@ -65,7 +65,7 @@ describe('ResearchTransformService', () => {
         'research_revocations.csv',
       ]),
     );
-    expect(result.manifest.datasetVersion).toBe(2);
+    expect(result.manifest.datasetVersion).toBe(3);
     expect(fs.existsSync(result.artifactPath)).toBe(true);
   });
 
@@ -158,10 +158,27 @@ describe('ResearchTransformService', () => {
           createdAt: new Date('2026-03-18T08:35:00.000Z'),
           systolicBp: 128,
           diastolicBp: 83,
-          heartRate: 70,
+          bpSite: 'LEFT_ARM',
+          patientPosition: 'SITTING',
+          cuffSize: 'ADULT',
+          pulseBpm: 70,
+          temperatureCelsius: 37,
+          temperatureSource: 'ORAL',
+          respiratoryRate: 16,
+          spo2Percent: 98,
           weightKg: 72,
           heightCm: 174,
           bmi: 23.8,
+        },
+        tobaccoScreening: {
+          createdAt: new Date('2026-03-18T08:40:00.000Z'),
+          smokingStatus: 'NEVER',
+          smokelessTobaccoStatus: 'NOT_ASSESSED',
+          passiveExposure: 'NO',
+          readinessToQuit: 'NOT_APPLICABLE',
+          counselingGiven: 'NO',
+          reviewedByUserId: 'doctor-private-id',
+          reviewedAt: new Date('2026-03-18T08:45:00.000Z'),
         },
         diabetesScreening: {
           createdAt: new Date('2026-03-18T08:38:00.000Z'),
@@ -300,15 +317,21 @@ describe('ResearchTransformService', () => {
     const medicalHistoryCsv = result.repoFiles.find(
       (file) => file.name === 'research_medical_history.csv',
     );
+    const tobaccoCsv = result.repoFiles.find(
+      (file) => file.name === 'research_clinical_tobacco.csv',
+    );
 
     expect(result.recordCount).toBeGreaterThan(0);
-    expect(result.manifest.datasetVersion).toBe(2);
+    expect(result.manifest.datasetVersion).toBe(3);
     expect(subjectsCsv?.content).toContain('research_patient_key');
     expect(subjectsCsv?.content).toContain('1990');
     expect(subjectsCsv?.content).not.toContain('Witness');
     expect(measurementsCsv?.content).toContain('126');
     expect(measurementsCsv?.content).toContain('102');
     expect(measurementsCsv?.content).not.toContain('Do not leak');
+    expect(tobaccoCsv?.content).toContain('smoking_status');
+    expect(tobaccoCsv?.content).toContain('NEVER');
+    expect(tobaccoCsv?.content).not.toContain('doctor-private-id');
     expect(appointmentsCsv?.content).toContain('2026-03-25');
     expect(appointmentsCsv?.content).not.toContain('Should not leak');
     expect(revocationsCsv?.content).toContain('REVOKED');
