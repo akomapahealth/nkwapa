@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, HttpException, Injectable } from '@nestjs/common';
 import {
   SyncOperation,
   SyncMutationStatus,
@@ -27,11 +27,13 @@ import { SyncPullResponseDto } from './dto/sync-pull-response.dto';
 import { MedicalHistoryService } from '../medical-history/medical-history.service';
 import { hasPermission, PERMISSIONS } from '../auth/constants/permissions';
 import { isApiFeatureEnabled } from '../common/feature-flags';
+import { ClinicalMeasurementsService } from './clinical-measurements.service';
 
 export type EntityType =
   | 'patient'
   | 'encounter'
   | 'vitals'
+  | 'encounter_vitals_bundle'
   | 'diabetes_screening'
   | 'hypertension_assessment'
   | 'care_plan'
@@ -57,6 +59,7 @@ export class SyncService {
     private readonly patientRepository: PatientRepository,
     private readonly encounterRepository: EncounterRepository,
     private readonly medicalHistoryService: MedicalHistoryService,
+    private readonly clinicalMeasurementsService: ClinicalMeasurementsService,
   ) {}
 
   async applyMutations(
@@ -105,19 +108,25 @@ export class SyncService {
         results.push(result);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        const conflictResponse =
-          err instanceof ConflictException && typeof err.getResponse() === 'object'
+        const httpResponse =
+          err instanceof HttpException && typeof err.getResponse() === 'object'
             ? (err.getResponse() as Record<string, unknown>)
             : null;
+        const conflictResponse = err instanceof ConflictException ? httpResponse : null;
         const isRevisionConflict =
           mut.entityType === 'medical_history_revision' && conflictResponse !== null;
-        const status = isRevisionConflict
+        const isConflict = conflictResponse !== null;
+        const status = isConflict
           ? SYNC_MUTATION_RESULT_STATUS.CONFLICT
           : SYNC_MUTATION_RESULT_STATUS.ERROR;
-        const conflictType = isRevisionConflict
-          ? String(conflictResponse.code ?? 'MEDICAL_HISTORY_CONFLICT')
-          : 'APPLICATION_ERROR';
-        const conflictDetails = conflictResponse ?? { message: msg };
+        const conflictType = httpResponse?.code
+          ? String(httpResponse.code)
+          : isRevisionConflict
+            ? 'MEDICAL_HISTORY_CONFLICT'
+            : err instanceof HttpException
+              ? 'APPLICATION_REJECTED'
+              : 'APPLICATION_ERROR';
+        const conflictDetails = httpResponse ?? { message: msg };
         results.push({
           id: mut.id,
           status,
@@ -131,7 +140,7 @@ export class SyncService {
             entityId: mut.entityId,
             operation: mut.operation === 'UPSERT' ? SyncOperation.UPSERT : SyncOperation.DELETE,
             idempotencyKey: mut.idempotencyKey,
-            status: isRevisionConflict ? SyncMutationStatus.CONFLICT : SyncMutationStatus.ERROR,
+            status: isConflict ? SyncMutationStatus.CONFLICT : SyncMutationStatus.ERROR,
             conflictType,
             conflictDetailsJson: JSON.stringify(conflictDetails),
           },
@@ -179,6 +188,17 @@ export class SyncService {
         return this.applyVitalsUpsert(
           clinicId,
           actorUserId,
+          user,
+          mut,
+          payload,
+          idempotencyKey,
+          metadata,
+        );
+      case 'encounter_vitals_bundle':
+        return this.applyVitalsBundle(
+          clinicId,
+          actorUserId,
+          user,
           mut,
           payload,
           idempotencyKey,
@@ -449,69 +469,41 @@ export class SyncService {
   private async applyVitalsUpsert(
     clinicId: string,
     actorUserId: string,
+    user: UserWithId,
     mut: SyncMutationDto,
     payload: Record<string, unknown>,
     idempotencyKey: string,
     metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
-    const encounterId = payload.encounterId as string;
-    if (!encounterId) throw new Error('Vitals payload must include encounterId');
-    await this.ensureEncounterNotFinalized(encounterId);
-
-    const existing = await this.prisma.vitals.findUnique({
-      where: { encounterId },
-    });
-    const before = existing ? JSON.stringify(existing) : null;
-
-    const vitals = await this.prisma.vitals.upsert({
-      where: { encounterId },
-      create: {
-        id: mut.entityId,
-        clinicId,
-        encounterId,
-        systolicBp: (payload.systolicBp as number) ?? null,
-        diastolicBp: (payload.diastolicBp as number) ?? null,
-        heartRate: (payload.heartRate as number) ?? null,
-        weightKg: (payload.weightKg as number) ?? null,
-        heightCm: (payload.heightCm as number) ?? null,
-        bmi: (payload.bmi as number) ?? null,
-        notes: (payload.notes as string) ?? null,
-      },
-      update: {
-        systolicBp: (payload.systolicBp as number) ?? existing?.systolicBp ?? null,
-        diastolicBp: (payload.diastolicBp as number) ?? existing?.diastolicBp ?? null,
-        heartRate: (payload.heartRate as number) ?? existing?.heartRate ?? null,
-        weightKg: (payload.weightKg as number) ?? existing?.weightKg ?? null,
-        heightCm: (payload.heightCm as number) ?? existing?.heightCm ?? null,
-        bmi: (payload.bmi as number) ?? existing?.bmi ?? null,
-        notes: (payload.notes as string) ?? existing?.notes ?? null,
-      },
-    });
-
-    await this.auditService.logWrite({
+    await this.clinicalMeasurementsService.applyBundle({
       clinicId,
       actorUserId,
-      action: existing ? 'VITALS.UPSERT' : 'VITALS.CREATE',
-      entityType: 'Vitals',
-      entityId: vitals.id,
-      beforeJson: before,
-      afterJson: JSON.stringify(vitals),
-      requestId: idempotencyKey,
-      ipAddress: metadata?.ipAddress,
-      userAgent: metadata?.userAgent,
+      user,
+      mutation: mut,
+      payload,
+      metadata,
+      legacy: true,
     });
+    return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
+  }
 
-    await this.prisma.syncMutation.create({
-      data: {
-        clinicId,
-        entityType: 'vitals',
-        entityId: mut.entityId,
-        operation: SyncOperation.UPSERT,
-        idempotencyKey,
-        status: SyncMutationStatus.APPLIED,
-      },
+  private async applyVitalsBundle(
+    clinicId: string,
+    actorUserId: string,
+    user: UserWithId,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+    _idempotencyKey: string,
+    metadata?: RequestMetadata,
+  ): Promise<SyncMutationResultDto> {
+    await this.clinicalMeasurementsService.applyBundle({
+      clinicId,
+      actorUserId,
+      user,
+      mutation: mut,
+      payload,
+      metadata,
     });
-
     return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
   }
 
@@ -1107,7 +1099,8 @@ export class SyncService {
     const [
       patients,
       encounters,
-      vitals,
+      vitalsRows,
+      tobaccoScreenings,
       diabetesScreenings,
       hypertensionAssessments,
       carePlans,
@@ -1127,6 +1120,9 @@ export class SyncService {
         where: { ...where, ...updatedAtFilter },
       }),
       this.prisma.vitals.findMany({
+        where: { ...where, ...updatedAtFilter },
+      }),
+      this.prisma.tobaccoScreening.findMany({
         where: { ...where, ...updatedAtFilter },
       }),
       this.prisma.diabetesScreening.findMany({
@@ -1154,11 +1150,16 @@ export class SyncService {
         },
       }),
     ]);
+    const vitals = vitalsRows.map((record) => ({
+      ...record,
+      heartRate: record.pulseBpm,
+    }));
 
     const allRows = [
       ...patients.map((p) => ({ updatedAt: p.updatedAt, id: p.id })),
       ...encounters.map((e) => ({ updatedAt: e.updatedAt, id: e.id })),
       ...vitals.map((v) => ({ updatedAt: v.updatedAt, id: v.id })),
+      ...tobaccoScreenings.map((t) => ({ updatedAt: t.updatedAt, id: t.id })),
       ...diabetesScreenings.map((d) => ({ updatedAt: d.updatedAt, id: d.id })),
       ...hypertensionAssessments.map((h) => ({ updatedAt: h.updatedAt, id: h.id })),
       ...carePlans.map((c) => ({ updatedAt: c.updatedAt, id: c.id })),
@@ -1189,6 +1190,7 @@ export class SyncService {
       patients,
       encounters,
       vitals,
+      tobaccoScreenings,
       diabetesScreenings,
       hypertensionAssessments,
       carePlans,

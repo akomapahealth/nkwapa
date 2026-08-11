@@ -432,7 +432,7 @@ export class ResearchTransformService {
         recorded_at: this.deIdService.roundTimestamp(encounter.vitals?.createdAt ?? null),
         systolic_bp: encounter.vitals?.systolicBp ?? null,
         diastolic_bp: encounter.vitals?.diastolicBp ?? null,
-        heart_rate: encounter.vitals?.heartRate ?? null,
+        heart_rate: encounter.vitals?.pulseBpm ?? null,
         weight_kg: encounter.vitals?.weightKg ?? null,
         height_cm: encounter.vitals?.heightCm ?? null,
         bmi: encounter.vitals?.bmi ?? null,

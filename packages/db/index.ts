@@ -9,3 +9,9 @@ export {
 } from './src/national-id';
 export { generatePatientCode } from './src/patient-code';
 export { normalizePhoneToE164 } from './src/phone';
+export {
+  computeBmi,
+  roundClinicalValue,
+  toCelsius,
+  type TemperatureUnit,
+} from './src/clinical-measurements';

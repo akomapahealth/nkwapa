@@ -9,13 +9,20 @@ import {
   Prescription,
   MedicalHistoryRecord,
   MedicalHistoryRevision,
+  TobaccoScreening,
 } from '@prisma/client';
+
+export type SyncVitalsRecord = Vitals & {
+  /** @deprecated Compatibility alias for pulseBpm. */
+  heartRate: number | null;
+};
 
 export interface SyncPullResponseDto {
   cursor: string;
   patients: Patient[];
   encounters: Encounter[];
-  vitals: Vitals[];
+  vitals: SyncVitalsRecord[];
+  tobaccoScreenings: TobaccoScreening[];
   diabetesScreenings: DiabetesScreening[];
   hypertensionAssessments: HypertensionAssessment[];
   carePlans: CarePlan[];

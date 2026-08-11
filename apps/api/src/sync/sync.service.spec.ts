@@ -9,6 +9,7 @@ import { SYNC_MUTATION_RESULT_STATUS } from './dto/sync-push-response.dto';
 import type { SyncMutationDto } from './dto/sync-mutation.dto';
 import { MedicalHistoryService } from '../medical-history/medical-history.service';
 import { ConflictException } from '@nestjs/common';
+import { ClinicalMeasurementsService } from './clinical-measurements.service';
 
 const mockUser = {
   user: { id: 'user-1' },
@@ -21,6 +22,7 @@ describe('SyncService', () => {
   let encounterRepo: jest.Mocked<EncounterRepository>;
   let prisma: jest.Mocked<PrismaService>;
   let medicalHistoryService: jest.Mocked<MedicalHistoryService>;
+  let clinicalMeasurementsService: jest.Mocked<ClinicalMeasurementsService>;
   beforeEach(async () => {
     const mockPrisma = {
       syncMutation: {
@@ -65,6 +67,10 @@ describe('SyncService', () => {
             revise: jest.fn().mockResolvedValue({}),
           },
         },
+        {
+          provide: ClinicalMeasurementsService,
+          useValue: { applyBundle: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 
@@ -73,6 +79,29 @@ describe('SyncService', () => {
     prisma = module.get(PrismaService);
     encounterRepo = module.get(EncounterRepository);
     medicalHistoryService = module.get(MedicalHistoryService);
+    clinicalMeasurementsService = module.get(ClinicalMeasurementsService);
+  });
+
+  it('replays an applied vitals bundle idempotently without writing again', async () => {
+    (prisma.syncMutation.findUnique as jest.Mock).mockResolvedValue({
+      status: 'APPLIED',
+      conflictType: null,
+      conflictDetailsJson: null,
+    });
+    const result = await service.applyMutations('clinic-1', mockUser as never, [
+      {
+        id: 'mut-vitals-1',
+        entityType: 'encounter_vitals_bundle',
+        entityId: 'vitals-1',
+        operation: 'UPSERT',
+        clinicId: 'clinic-1',
+        payloadJson: {},
+        idempotencyKey: 'vitals-idem-1',
+      },
+    ]);
+
+    expect(result).toEqual([{ id: 'mut-vitals-1', status: 'APPLIED' }]);
+    expect(clinicalMeasurementsService.applyBundle).not.toHaveBeenCalled();
   });
 
   describe('patient UPSERT - DUPLICATE_NATIONAL_ID', () => {
