@@ -8,9 +8,10 @@ import { EncounterStatus } from '@prisma/client';
 import { SYNC_MUTATION_RESULT_STATUS } from './dto/sync-push-response.dto';
 import type { SyncMutationDto } from './dto/sync-mutation.dto';
 import { MedicalHistoryService } from '../medical-history/medical-history.service';
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { ClinicalMeasurementsService } from './clinical-measurements.service';
 import { MedicationReconciliationService } from '../medication-reconciliation/medication-reconciliation.service';
+import { DiabetesScreeningService } from '../diabetes-screening/diabetes-screening.service';
 
 const mockUser = {
   user: { id: 'user-1' },
@@ -25,6 +26,7 @@ describe('SyncService', () => {
   let medicalHistoryService: jest.Mocked<MedicalHistoryService>;
   let clinicalMeasurementsService: jest.Mocked<ClinicalMeasurementsService>;
   let medicationReconciliationService: jest.Mocked<MedicationReconciliationService>;
+  let diabetesScreeningService: jest.Mocked<DiabetesScreeningService>;
   beforeEach(async () => {
     const mockPrisma = {
       syncMutation: {
@@ -45,6 +47,14 @@ describe('SyncService', () => {
       vitals: {
         findFirst: jest.fn().mockResolvedValue({
           id: 'vitals-1',
+          clinicId: 'clinic-1',
+          encounter: { status: EncounterStatus.DRAFT },
+        }),
+        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      diabetesScreening: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'diabetes-1',
           clinicId: 'clinic-1',
           encounter: { status: EncounterStatus.DRAFT },
         }),
@@ -93,6 +103,23 @@ describe('SyncService', () => {
             endPreferredPharmacy: jest.fn().mockResolvedValue({}),
           },
         },
+        {
+          provide: DiabetesScreeningService,
+          useValue: {
+            validateSyncPayload: jest.fn().mockResolvedValue({
+              dto: {
+                glucoseMgDl: 126,
+                glucoseType: 'FASTING',
+                hba1cPercent: 6.4,
+                symptoms: ['POLYURIA'],
+                notes: null,
+                collectedAt: '2026-08-12T12:00:00.000Z',
+              },
+              compatibility: {},
+            }),
+            upsert: jest.fn().mockResolvedValue({ id: 'diabetes-1' }),
+          },
+        },
       ],
     }).compile();
 
@@ -103,6 +130,95 @@ describe('SyncService', () => {
     medicalHistoryService = module.get(MedicalHistoryService);
     clinicalMeasurementsService = module.get(ClinicalMeasurementsService);
     medicationReconciliationService = module.get(MedicationReconciliationService);
+    diabetesScreeningService = module.get(DiabetesScreeningService);
+  });
+
+  it('routes structured diabetes replay through the shared validated service', async () => {
+    const mutation: SyncMutationDto = {
+      id: 'mut-diabetes-1',
+      entityType: 'diabetes_screening',
+      entityId: 'diabetes-1',
+      operation: 'UPSERT',
+      clinicId: 'clinic-1',
+      idempotencyKey: 'diabetes-idem-1',
+      createdAt: '2026-08-12T12:00:00.000Z',
+      payloadJson: {
+        encounterId: 'enc-1',
+        glucoseMgDl: 126,
+        glucoseType: 'FASTING',
+        hba1cPercent: 6.4,
+        symptoms: ['POLYURIA'],
+        notes: null,
+        collectedAt: '2026-08-12T12:00:00.000Z',
+      },
+    };
+
+    const results = await service.applyMutations('clinic-1', mockUser as never, [mutation]);
+
+    expect(results).toEqual([{ id: 'mut-diabetes-1', status: 'APPLIED' }]);
+    expect(diabetesScreeningService.validateSyncPayload).toHaveBeenCalledWith(
+      mutation.payloadJson,
+      mutation.createdAt,
+    );
+    expect(diabetesScreeningService.upsert).toHaveBeenCalledWith(
+      'clinic-1',
+      'enc-1',
+      expect.objectContaining({ userId: 'user-1' }),
+      expect.objectContaining({ symptoms: ['POLYURIA'] }),
+      expect.objectContaining({
+        syncMutation: expect.objectContaining({ idempotencyKey: 'diabetes-idem-1' }),
+      }),
+      'diabetes-1',
+      {},
+    );
+  });
+
+  it('rejects diabetes replay for a read-only director', async () => {
+    diabetesScreeningService.upsert.mockRejectedValue(
+      new ForbiddenException('SCREENING.WRITE is required'),
+    );
+    const results = await service.applyMutations(
+      'clinic-1',
+      {
+        user: { id: 'director-1' },
+        roles: [{ clinicId: 'clinic-1', role: 'DIRECTOR' }],
+      } as never,
+      [
+        {
+          id: 'mut-diabetes-2',
+          entityType: 'diabetes_screening',
+          entityId: 'diabetes-1',
+          operation: 'UPSERT',
+          clinicId: 'clinic-1',
+          idempotencyKey: 'diabetes-idem-2',
+          payloadJson: { encounterId: 'enc-1' },
+        },
+      ],
+    );
+
+    expect(results[0]).toMatchObject({ status: 'ERROR', conflictType: 'APPLICATION_REJECTED' });
+  });
+
+  it('rejects deleting diabetes screening from a finalized encounter', async () => {
+    (prisma.diabetesScreening.findFirst as jest.Mock).mockResolvedValue({
+      encounter: { status: EncounterStatus.FINALIZED },
+    });
+    const results = await service.applyMutations('clinic-1', mockUser as never, [
+      {
+        id: 'mut-delete-diabetes',
+        entityType: 'diabetes_screening',
+        entityId: 'diabetes-1',
+        operation: 'DELETE',
+        clinicId: 'clinic-1',
+        idempotencyKey: 'delete-diabetes-1',
+      },
+    ]);
+
+    expect(results[0]).toMatchObject({
+      status: 'CONFLICT',
+      conflictType: 'CONFLICT_FINALIZED',
+    });
+    expect(prisma.diabetesScreening.deleteMany).not.toHaveBeenCalled();
   });
 
   it('replays an applied vitals bundle idempotently without writing again', async () => {

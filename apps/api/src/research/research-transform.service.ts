@@ -501,7 +501,7 @@ export class ResearchTransformService {
         encounter_status: encounter.status,
         encounter_created_at: this.deIdService.roundTimestamp(encounter.createdAt),
         recorded_at: this.deIdService.roundTimestamp(
-          encounter.diabetesScreening?.createdAt ??
+          encounter.diabetesScreening?.collectedAt ??
             encounter.hypertensionAssessment?.createdAt ??
             null,
         ),

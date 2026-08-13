@@ -7,6 +7,9 @@ import {
 } from '@nestjs/common';
 import { EncounterStatus, Prisma, type UserRole } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
+import { plainToInstance } from 'class-transformer';
+import { validate, type ValidationError } from 'class-validator';
+import { parseLegacyDiabetesSymptoms } from '@nkwapa/db';
 import { hasPermission, PERMISSIONS } from '../auth/constants/permissions';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpsertDiabetesScreeningDto } from './dto/diabetes-screening.dto';
@@ -30,6 +33,16 @@ export interface DiabetesRequestMetadata {
   requestId?: string;
   ipAddress?: string;
   userAgent?: string;
+  syncMutation?: {
+    entityType: string;
+    entityId: string;
+    idempotencyKey: string;
+  };
+}
+
+export interface DiabetesCompatibilityInput {
+  symptomsJson?: string | null;
+  legacySymptomsUnmapped?: boolean;
 }
 
 @Injectable()
@@ -81,6 +94,7 @@ export class DiabetesScreeningService {
     dto: UpsertDiabetesScreeningDto,
     metadata: DiabetesRequestMetadata = {},
     screeningId?: string,
+    compatibility: DiabetesCompatibilityInput = {},
   ) {
     this.assertWritePermission(actor.roles);
     const collectedAt = this.validateCollectionTime(dto.collectedAt);
@@ -112,6 +126,8 @@ export class DiabetesScreeningService {
           glucoseType: dto.glucoseType,
           hba1cPercent: dto.hba1cPercent,
           symptoms: dto.symptoms,
+          symptomsJson: compatibility.symptomsJson ?? null,
+          legacySymptomsUnmapped: compatibility.legacySymptomsUnmapped ?? false,
           notes: dto.notes,
           collectedAt,
           authoredByUserId: actor.userId,
@@ -124,7 +140,10 @@ export class DiabetesScreeningService {
           notes: dto.notes,
           collectedAt,
           authoredByUserId: actor.userId,
-          legacySymptomsUnmapped: false,
+          legacySymptomsUnmapped: compatibility.legacySymptomsUnmapped ?? false,
+          ...(compatibility.symptomsJson !== undefined
+            ? { symptomsJson: compatibility.symptomsJson }
+            : {}),
         },
         include: this.contextInclude(),
       });
@@ -143,10 +162,68 @@ export class DiabetesScreeningService {
           userAgent: metadata.userAgent,
         },
       });
+      if (metadata.syncMutation) {
+        await tx.syncMutation.create({
+          data: {
+            clinicId,
+            entityType: metadata.syncMutation.entityType,
+            entityId: metadata.syncMutation.entityId,
+            operation: 'UPSERT',
+            idempotencyKey: metadata.syncMutation.idempotencyKey,
+            status: 'APPLIED',
+          },
+        });
+      }
       return saved;
     });
 
     return this.toResponse(screening, actor.roles);
+  }
+
+  async validateSyncPayload(payload: Record<string, unknown>, fallbackCollectedAt: string) {
+    const hasStructuredSymptoms = Object.prototype.hasOwnProperty.call(payload, 'symptoms');
+    const hasLegacySymptoms = Object.prototype.hasOwnProperty.call(payload, 'symptomsJson');
+    if (hasStructuredSymptoms && hasLegacySymptoms) {
+      throw new BadRequestException({
+        code: 'AMBIGUOUS_SYMPTOMS_CONTRACT',
+        message: 'Provide symptoms or the deprecated symptomsJson field, not both.',
+      });
+    }
+
+    const legacy = hasLegacySymptoms
+      ? parseLegacyDiabetesSymptoms(payload.symptomsJson)
+      : { symptoms: [], hasUnmapped: false };
+    const candidate = {
+      glucoseMgDl: payload.glucoseMgDl ?? null,
+      glucoseType: payload.glucoseType ?? 'UNKNOWN',
+      hba1cPercent: payload.hba1cPercent ?? null,
+      symptoms: hasStructuredSymptoms ? payload.symptoms : legacy.symptoms,
+      notes: payload.notes ?? null,
+      collectedAt: payload.collectedAt ?? fallbackCollectedAt,
+    };
+    const dto = plainToInstance(UpsertDiabetesScreeningDto, candidate);
+    const errors = await validate(dto, {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      forbidUnknownValues: true,
+    });
+    if (errors.length) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Diabetes screening validation failed.',
+        fieldErrors: this.flattenValidationErrors(errors),
+      });
+    }
+    this.validateCollectionTime(dto.collectedAt);
+    return {
+      dto,
+      compatibility: hasLegacySymptoms
+        ? {
+            symptomsJson: typeof payload.symptomsJson === 'string' ? payload.symptomsJson : null,
+            legacySymptomsUnmapped: legacy.hasUnmapped,
+          }
+        : {},
+    };
   }
 
   toResponse(record: DiabetesWithContext, roles: Array<{ role: UserRole }>) {
@@ -190,6 +267,19 @@ export class DiabetesScreeningService {
       });
     }
     return collectedAt;
+  }
+
+  private flattenValidationErrors(
+    errors: ValidationError[],
+    parentPath?: string,
+  ): Array<{ field: string; message: string }> {
+    return errors.flatMap((error) => {
+      const field = parentPath ? `${parentPath}.${error.property}` : error.property;
+      const own = error.constraints
+        ? Object.values(error.constraints).map((message) => ({ field, message }))
+        : [];
+      return [...own, ...this.flattenValidationErrors(error.children ?? [], field)];
+    });
   }
 
   private async assertPatientScope(clinicId: string, patientId: string): Promise<void> {

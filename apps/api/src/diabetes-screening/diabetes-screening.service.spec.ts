@@ -54,6 +54,7 @@ describe('DiabetesScreeningService', () => {
         upsert: jest.fn().mockResolvedValue(saved()),
       },
       auditEvent: { create: jest.fn().mockResolvedValue({}) },
+      syncMutation: { create: jest.fn().mockResolvedValue({}) },
     };
     const prisma = {
       $transaction: jest.fn((callback: (client: typeof tx) => unknown) => callback(tx)),
@@ -115,6 +116,57 @@ describe('DiabetesScreeningService', () => {
         }),
       }),
     );
+  });
+
+  it('normalizes deprecated symptoms JSON and rejects ambiguous contracts', async () => {
+    const { service } = setup();
+    await expect(
+      service.validateSyncPayload(
+        {
+          glucoseMgDl: 145,
+          glucoseType: 'RANDOM',
+          hba1cPercent: null,
+          symptomsJson: '["Polydipsia","Other"]',
+          notes: null,
+        },
+        '2026-08-12T12:00:00.000Z',
+      ),
+    ).resolves.toMatchObject({
+      dto: { symptoms: ['POLYDIPSIA'], collectedAt: '2026-08-12T12:00:00.000Z' },
+      compatibility: {
+        symptomsJson: '["Polydipsia","Other"]',
+        legacySymptomsUnmapped: true,
+      },
+    });
+
+    await expect(
+      service.validateSyncPayload(
+        { symptoms: ['FATIGUE'], symptomsJson: '["Fatigue"]' },
+        '2026-08-12T12:00:00.000Z',
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'AMBIGUOUS_SYMPTOMS_CONTRACT' }),
+    });
+  });
+
+  it('records sync idempotency in the same transaction as the screening', async () => {
+    const { service, tx } = setup();
+    await service.upsert('clinic-1', 'encounter-1', doctor, dto as never, {
+      requestId: 'sync-idempotency-1',
+      syncMutation: {
+        entityType: 'diabetes_screening',
+        entityId: 'screening-1',
+        idempotencyKey: 'sync-idempotency-1',
+      },
+    });
+
+    expect(tx.syncMutation.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        entityType: 'diabetes_screening',
+        idempotencyKey: 'sync-idempotency-1',
+        status: 'APPLIED',
+      }),
+    });
   });
 
   it('rejects writes without screening permission', async () => {
