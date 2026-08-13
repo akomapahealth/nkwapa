@@ -1726,6 +1726,7 @@ export class PatientPortalService {
     const [
       measurements,
       encounters,
+      diabetesScreenings,
       requested,
       confirmed,
       completed,
@@ -1762,13 +1763,15 @@ export class PatientPortalService {
               bmi: true,
             },
           },
-          diabetesScreening: {
-            select: {
-              glucoseMgDl: true,
-              glucoseType: true,
-            },
-          },
         },
+      }),
+      this.prisma.diabetesScreening.findMany({
+        where: {
+          clinicId,
+          encounter: { patientId, status: { in: encounterStatuses } },
+          ...(dateFilter ? { collectedAt: dateFilter } : {}),
+        },
+        select: { collectedAt: true, glucoseMgDl: true, glucoseType: true },
       }),
       this.prisma.appointmentRequest.count({
         where: {
@@ -1859,16 +1862,16 @@ export class PatientPortalService {
     ].sort((left, right) => new Date(left.t).getTime() - new Date(right.t).getTime());
 
     const glucose: GlucoseTrendPoint[] = [
-      ...encounters.flatMap((encounter) => {
-        if (encounter.diabetesScreening?.glucoseMgDl == null) {
+      ...diabetesScreenings.flatMap((screening) => {
+        if (screening.glucoseMgDl == null) {
           return [];
         }
 
         return [
           {
-            t: encounter.createdAt.toISOString(),
-            value: encounter.diabetesScreening.glucoseMgDl,
-            type: this.normalizeTrendGlucoseType(encounter.diabetesScreening.glucoseType),
+            t: screening.collectedAt.toISOString(),
+            value: screening.glucoseMgDl,
+            type: this.normalizeTrendGlucoseType(screening.glucoseType),
             source: 'ENCOUNTER' as const,
           },
         ];

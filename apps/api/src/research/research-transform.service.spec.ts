@@ -182,6 +182,7 @@ describe('ResearchTransformService', () => {
         },
         diabetesScreening: {
           createdAt: new Date('2026-03-18T08:38:00.000Z'),
+          collectedAt: new Date('2026-03-18T08:53:00.000Z'),
           glucoseMgDl: 96,
           glucoseType: 'FASTING',
           hba1cPercent: 5.4,
@@ -320,6 +321,9 @@ describe('ResearchTransformService', () => {
     const tobaccoCsv = result.repoFiles.find(
       (file) => file.name === 'research_clinical_tobacco.csv',
     );
+    const screeningsCsv = result.repoFiles.find(
+      (file) => file.name === 'research_clinical_screenings.csv',
+    );
 
     expect(result.recordCount).toBeGreaterThan(0);
     expect(result.manifest.datasetVersion).toBe(3);
@@ -332,6 +336,7 @@ describe('ResearchTransformService', () => {
     expect(tobaccoCsv?.content).toContain('smoking_status');
     expect(tobaccoCsv?.content).toContain('NEVER');
     expect(tobaccoCsv?.content).not.toContain('doctor-private-id');
+    expect(screeningsCsv?.content).toContain('2026-03-18T08:45:00.000Z');
     expect(appointmentsCsv?.content).toContain('2026-03-25');
     expect(appointmentsCsv?.content).not.toContain('Should not leak');
     expect(revocationsCsv?.content).toContain('REVOKED');

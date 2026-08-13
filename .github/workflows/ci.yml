@@ -125,6 +125,12 @@ jobs:
           RUN_MIGRATION_TESTS: '1'
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
+      - name: Verify diabetes screening migration compatibility
+        run: npm run test --workspace=@nkwapa/db -- --runInBand src/diabetes-migration.integration.spec.ts
+        env:
+          RUN_DIABETES_MIGRATION_TESTS: '1'
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
       - name: Run tests with coverage
         run: npm run test --workspaces --if-present -- --coverage --ci
         env:

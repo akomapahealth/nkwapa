@@ -44,6 +44,8 @@ import type {
   RevisePatientPharmacyDto,
   SetPreferredPharmacyDto,
 } from '../medication-reconciliation/dto/medication-reconciliation.dto';
+import { DiabetesScreeningService } from '../diabetes-screening/diabetes-screening.service';
+import { serializeLegacyDiabetesSymptoms } from '@nkwapa/db';
 
 export type EntityType =
   | 'patient'
@@ -81,6 +83,7 @@ export class SyncService {
     private readonly medicalHistoryService: MedicalHistoryService,
     private readonly clinicalMeasurementsService: ClinicalMeasurementsService,
     private readonly medicationReconciliationService: MedicationReconciliationService,
+    private readonly diabetesScreeningService: DiabetesScreeningService,
   ) {}
 
   async applyMutations(
@@ -229,6 +232,7 @@ export class SyncService {
         return this.applyDiabetesScreeningUpsert(
           clinicId,
           actorUserId,
+          user,
           mut,
           payload,
           idempotencyKey,
@@ -567,6 +571,7 @@ export class SyncService {
   private async applyDiabetesScreeningUpsert(
     clinicId: string,
     actorUserId: string,
+    user: UserWithId,
     mut: SyncMutationDto,
     payload: Record<string, unknown>,
     idempotencyKey: string,
@@ -574,60 +579,28 @@ export class SyncService {
   ): Promise<SyncMutationResultDto> {
     const encounterId = payload.encounterId as string;
     if (!encounterId) throw new Error('DiabetesScreening payload must include encounterId');
-    await this.ensureEncounterNotFinalized(encounterId);
-
-    const existing = await this.prisma.diabetesScreening.findUnique({
-      where: { encounterId },
-    });
-    const before = existing ? JSON.stringify(existing) : null;
-
-    const screening = await this.prisma.diabetesScreening.upsert({
-      where: { encounterId },
-      create: {
-        id: mut.entityId,
-        clinicId,
-        encounterId,
-        glucoseMgDl: (payload.glucoseMgDl as number) ?? null,
-        glucoseType: (payload.glucoseType as 'FASTING' | 'RANDOM' | 'UNKNOWN') ?? 'UNKNOWN',
-        hba1cPercent: (payload.hba1cPercent as number) ?? null,
-        symptomsJson: (payload.symptomsJson as string) ?? null,
-        notes: (payload.notes as string) ?? null,
-      },
-      update: {
-        glucoseMgDl: (payload.glucoseMgDl as number) ?? existing?.glucoseMgDl ?? null,
-        glucoseType:
-          (payload.glucoseType as 'FASTING' | 'RANDOM' | 'UNKNOWN') ??
-          existing?.glucoseType ??
-          'UNKNOWN',
-        hba1cPercent: (payload.hba1cPercent as number) ?? existing?.hba1cPercent ?? null,
-        symptomsJson: (payload.symptomsJson as string) ?? existing?.symptomsJson ?? null,
-        notes: (payload.notes as string) ?? existing?.notes ?? null,
-      },
-    });
-
-    await this.auditService.logWrite({
+    const normalized = await this.diabetesScreeningService.validateSyncPayload(
+      payload,
+      mut.createdAt ?? new Date().toISOString(),
+    );
+    await this.diabetesScreeningService.upsert(
       clinicId,
-      actorUserId,
-      action: existing ? 'DIABETES_SCREENING.UPSERT' : 'DIABETES_SCREENING.CREATE',
-      entityType: 'DiabetesScreening',
-      entityId: screening.id,
-      beforeJson: before,
-      afterJson: JSON.stringify(screening),
-      requestId: idempotencyKey,
-      ipAddress: metadata?.ipAddress,
-      userAgent: metadata?.userAgent,
-    });
-
-    await this.prisma.syncMutation.create({
-      data: {
-        clinicId,
-        entityType: 'diabetes_screening',
-        entityId: mut.entityId,
-        operation: SyncOperation.UPSERT,
-        idempotencyKey,
-        status: SyncMutationStatus.APPLIED,
+      encounterId,
+      { userId: actorUserId, roles: user.roles },
+      normalized.dto,
+      {
+        requestId: idempotencyKey,
+        ipAddress: metadata?.ipAddress,
+        userAgent: metadata?.userAgent,
+        syncMutation: {
+          entityType: mut.entityType,
+          entityId: mut.entityId,
+          idempotencyKey,
+        },
       },
-    });
+      mut.entityId,
+      normalized.compatibility,
+    );
 
     return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
   }
@@ -1253,6 +1226,28 @@ export class SyncService {
       }
     }
 
+    if (entityType === 'diabetes_screening') {
+      if (!hasPermission(user.roles, PERMISSIONS.SCREENING_WRITE)) {
+        throw new ForbiddenException(
+          'SCREENING.WRITE permission is required to delete diabetes screening',
+        );
+      }
+      const screening = await this.prisma.diabetesScreening.findFirst({
+        where: { id: mut.entityId, clinicId },
+        select: { encounter: { select: { status: true } } },
+      });
+      if (!screening) {
+        throw new NotFoundException('Diabetes screening not found in the active clinic');
+      }
+      if (screening.encounter.status === EncounterStatus.FINALIZED) {
+        throw new ConflictException({
+          code: 'CONFLICT_FINALIZED',
+          message: 'Cannot delete diabetes screening for a finalized encounter',
+          existingStatus: EncounterStatus.FINALIZED,
+        });
+      }
+    }
+
     const beforeMap: Record<string, (id: string) => Promise<unknown>> = {
       vitals: (id) => this.prisma.vitals.findFirst({ where: { id, clinicId } }),
       diabetes_screening: (id) =>
@@ -1365,6 +1360,7 @@ export class SyncService {
       }),
       this.prisma.diabetesScreening.findMany({
         where: { ...where, ...updatedAtFilter },
+        include: { authoredBy: { select: { id: true, displayName: true } } },
       }),
       this.prisma.hypertensionAssessment.findMany({
         where: { ...where, ...updatedAtFilter },
@@ -1403,6 +1399,11 @@ export class SyncService {
     const vitals = vitalsRows.map((record) => ({
       ...record,
       heartRate: record.pulseBpm,
+    }));
+
+    const diabetesScreeningRecords = diabetesScreenings.map((record) => ({
+      ...record,
+      symptomsJson: serializeLegacyDiabetesSymptoms(record.symptoms),
     }));
 
     const allRows = [
@@ -1459,7 +1460,7 @@ export class SyncService {
       encounters,
       vitals,
       tobaccoScreenings,
-      diabetesScreenings,
+      diabetesScreenings: diabetesScreeningRecords,
       hypertensionAssessments,
       carePlans,
       patientConsents,

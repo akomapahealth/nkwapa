@@ -191,6 +191,7 @@ export default function NewEncounterPage() {
         <DiabetesScreeningForm
           clinicId={clinicId}
           encounterId={encounterId}
+          recordedByUserId={userId}
           onSaved={() => setStep(4)}
         />
       )}

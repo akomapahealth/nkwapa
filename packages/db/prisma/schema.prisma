@@ -75,6 +75,14 @@ enum GlucoseType {
   UNKNOWN
 }
 
+enum DiabetesSymptom {
+  POLYURIA
+  POLYDIPSIA
+  WEIGHT_LOSS
+  BLURRED_VISION
+  FATIGUE
+}
+
 enum PatientSelfReportType {
   FOLLOW_UP_UPDATE
   HOME_BP
@@ -391,6 +399,7 @@ model User {
   setPharmacyPreferences        PatientPharmacyPreference[]     @relation("PatientPharmacyPreferenceSetBy")
   endedPharmacyPreferences      PatientPharmacyPreference[]     @relation("PatientPharmacyPreferenceEndedBy")
   reviewedTobaccoScreenings     TobaccoScreening[]              @relation("TobaccoScreeningReviewedBy")
+  authoredDiabetesScreenings    DiabetesScreening[]             @relation("DiabetesScreeningAuthoredBy")
 
   @@index([isActive])
 }
@@ -679,17 +688,25 @@ model DiabetesScreening {
   glucoseType  GlucoseType @default(UNKNOWN)
   hba1cPercent Float?
 
-  symptomsJson String? @db.Text // store JSON string (or move to Json type if preferred)
+  symptoms               DiabetesSymptom[] @default([])
+  symptomsJson           String?           @db.Text
+  legacySymptomsUnmapped Boolean           @default(false)
 
   notes String? @db.Text
+
+  collectedAt     DateTime @default(now())
+  authoredByUserId String   @db.Uuid
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  encounter Encounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
-  clinic    Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  encounter  Encounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+  clinic     Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  authoredBy User      @relation("DiabetesScreeningAuthoredBy", fields: [authoredByUserId], references: [id])
 
   @@index([clinicId, updatedAt])
+  @@index([clinicId, collectedAt])
+  @@index([authoredByUserId, collectedAt])
 }
 
 model HypertensionAssessment {

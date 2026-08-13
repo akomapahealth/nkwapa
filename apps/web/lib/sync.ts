@@ -11,6 +11,7 @@ export type SyncStatusListener = (status: SyncStatus, error?: string) => void;
 
 const listeners: Set<SyncStatusListener> = new Set();
 const inFlightByClinic = new Map<string, Promise<SyncResult>>();
+const rerunRequestedByClinic = new Set<string>();
 
 export function onSyncStatusChange(listener: SyncStatusListener): () => void {
   listeners.add(listener);
@@ -237,12 +238,30 @@ async function performSync(options: SyncNowOptions): Promise<SyncResult> {
   }
 }
 
-/** Coalesces concurrent retries so one clinic never replays the same outbox batch twice. */
+/**
+ * Coalesces concurrent retries without losing mutations queued during an active sync pass.
+ * A concurrent caller requests one follow-up pass after the current push/pull completes.
+ */
 export function syncNow(options: SyncNowOptions): Promise<SyncResult> {
   const inFlight = inFlightByClinic.get(options.clinicId);
-  if (inFlight) return inFlight;
+  if (inFlight) {
+    rerunRequestedByClinic.add(options.clinicId);
+    return inFlight;
+  }
 
-  const request = performSync(options).finally(() => {
+  const request = (async () => {
+    const conflicts: NonNullable<SyncResult['conflicts']> = [];
+    let result: SyncResult;
+
+    do {
+      rerunRequestedByClinic.delete(options.clinicId);
+      result = await performSync(options);
+      if (result.conflicts) conflicts.push(...result.conflicts);
+    } while (result.success && rerunRequestedByClinic.has(options.clinicId));
+
+    return conflicts.length ? { ...result, conflicts } : result;
+  })().finally(() => {
+    rerunRequestedByClinic.delete(options.clinicId);
     if (inFlightByClinic.get(options.clinicId) === request) {
       inFlightByClinic.delete(options.clinicId);
     }

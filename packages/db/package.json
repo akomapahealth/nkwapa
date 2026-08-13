@@ -12,6 +12,10 @@
     "./clinical-measurements": {
       "types": "./dist/src/clinical-measurements.d.ts",
       "default": "./dist/src/clinical-measurements.js"
+    },
+    "./diabetes-screening": {
+      "types": "./dist/src/diabetes-screening.d.ts",
+      "default": "./dist/src/diabetes-screening.js"
     }
   },
   "scripts": {

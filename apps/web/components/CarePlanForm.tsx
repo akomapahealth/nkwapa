@@ -31,6 +31,7 @@ interface CarePlanFormProps {
     notes?: string | null;
   };
   onSaved?: () => void;
+  canEdit?: boolean;
   /** Optional ref to expose save for parent-driven save (e.g. on tab change) */
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>;
 }
@@ -40,6 +41,7 @@ export function CarePlanForm({
   encounterId,
   initialData,
   onSaved,
+  canEdit = true,
   saveRef,
 }: CarePlanFormProps) {
   const [counselingGiven, setCounselingGiven] = useState(initialData?.counselingGiven ?? false);
@@ -54,6 +56,7 @@ export function CarePlanForm({
   const [error, setError] = useState<string | null>(null);
 
   const handleSave = useCallback(async () => {
+    if (!canEdit || saving) return;
     setSaving(true);
     setError(null);
     const existing = await db.care_plans.where('encounterId').equals(encounterId).first();
@@ -96,7 +99,17 @@ export function CarePlanForm({
     } finally {
       setSaving(false);
     }
-  }, [clinicId, encounterId, counselingGiven, medicationPrescribed, followUpDate, notes, onSaved]);
+  }, [
+    canEdit,
+    saving,
+    clinicId,
+    encounterId,
+    counselingGiven,
+    medicationPrescribed,
+    followUpDate,
+    notes,
+    onSaved,
+  ]);
 
   useEffect(() => {
     if (saveRef) saveRef.current = handleSave;
@@ -111,44 +124,51 @@ export function CarePlanForm({
         <h2 className="text-lg font-semibold">Care Plan</h2>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id="counselingGiven"
-            checked={counselingGiven}
-            onCheckedChange={(v) => setCounselingGiven(v === true)}
-          />
-          <Label htmlFor="counselingGiven">Counseling given</Label>
-        </div>
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id="medicationPrescribed"
-            checked={medicationPrescribed}
-            onCheckedChange={(v) => setMedicationPrescribed(v === true)}
-          />
-          <Label htmlFor="medicationPrescribed">Medication prescribed</Label>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="followUpDate">Follow-up date</Label>
-          <Input
-            id="followUpDate"
-            type="date"
-            value={followUpDate}
-            onChange={(e) => setFollowUpDate(e.target.value)}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="notes">Notes</Label>
-          <Input
-            id="notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Optional notes"
-          />
-        </div>
+        <fieldset disabled={!canEdit || saving} className="space-y-4 disabled:opacity-75">
+          <legend className="sr-only">Care plan details</legend>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="counselingGiven"
+              checked={counselingGiven}
+              onCheckedChange={(v) => setCounselingGiven(v === true)}
+            />
+            <Label htmlFor="counselingGiven">Counseling given</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="medicationPrescribed"
+              checked={medicationPrescribed}
+              onCheckedChange={(v) => setMedicationPrescribed(v === true)}
+            />
+            <Label htmlFor="medicationPrescribed">Medication prescribed</Label>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="followUpDate">Follow-up date</Label>
+            <Input
+              id="followUpDate"
+              type="date"
+              value={followUpDate}
+              onChange={(e) => setFollowUpDate(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="notes">Notes</Label>
+            <Input
+              id="notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Optional notes"
+            />
+          </div>
+        </fieldset>
         {error && <p className="text-sm text-destructive">{error}</p>}
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? 'Saving…' : 'Save Care Plan'}
-        </Button>
+        {canEdit ? (
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? 'Saving…' : 'Save Care Plan'}
+          </Button>
+        ) : (
+          <p className="text-sm text-muted-foreground">This care plan is read-only.</p>
+        )}
       </CardContent>
     </Card>
   );

@@ -20,6 +20,7 @@ import { ArrowLeft, Stethoscope, FileCheck } from 'lucide-react';
 import { PatientTrendsPanel } from '@/components/patients/PatientTrendsPanel';
 import { MedicalHistoryPanel } from '@/components/patients/MedicalHistoryPanel';
 import { MedicationReconciliationPanel } from '@/components/patients/MedicationReconciliationPanel';
+import { DiabetesHistoryPanel } from '@/components/patients/DiabetesHistoryPanel';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 
 interface ConsentStatusItem {
@@ -66,6 +67,7 @@ export default function PatientDetailPage() {
   const canReadMedicationReconciliation = hasPermission(perms, 'MEDICATION_RECONCILIATION.READ');
   const canWriteMedicationReconciliation = hasPermission(perms, 'MEDICATION_RECONCILIATION.WRITE');
   const canReadPrescriptions = hasPermission(perms, 'PRESCRIPTION.READ');
+  const canReadDiabetes = hasPermission(perms, 'SCREENING.READ');
   const medicalHistoryEnabled = isWebFeatureEnabled('medicalHistory');
   const medicationReconciliationEnabled = isWebFeatureEnabled('medicationReconciliation');
   const userId = bootstrap?.userId ?? '';
@@ -366,6 +368,7 @@ export default function PatientDetailPage() {
             <TabsList className="min-h-11 w-max justify-start">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="trends">Trends</TabsTrigger>
+              {canReadDiabetes ? <TabsTrigger value="diabetes">Diabetes</TabsTrigger> : null}
               <TabsTrigger value="encounters">Encounters</TabsTrigger>
               {medicalHistoryEnabled && canReadMedicalHistory ? (
                 <TabsTrigger value="medical-history">Medical History</TabsTrigger>
@@ -406,6 +409,11 @@ export default function PatientDetailPage() {
           <TabsContent value="trends">
             <PatientTrendsPanel patientId={patientId} clinicId={clinicId} />
           </TabsContent>
+          {canReadDiabetes ? (
+            <TabsContent value="diabetes">
+              <DiabetesHistoryPanel clinicId={clinicId} patientId={patientId} />
+            </TabsContent>
+          ) : null}
           <TabsContent value="encounters">
             <Card>
               <CardHeader>

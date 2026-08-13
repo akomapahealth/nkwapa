@@ -1,6 +1,16 @@
-import { DashboardService } from './dashboard.service';
+import { DashboardService, FLAGGED_DIABETES_WHERE } from './dashboard.service';
 
 describe('DashboardService clinical measurement metrics', () => {
+  it('keeps approved fasting and random flag thresholds and excludes unknown context', () => {
+    expect(FLAGGED_DIABETES_WHERE).toEqual({
+      OR: [
+        { glucoseType: 'FASTING', glucoseMgDl: { gte: 126 } },
+        { glucoseType: 'RANDOM', glucoseMgDl: { gte: 200 } },
+      ],
+    });
+    expect(JSON.stringify(FLAGGED_DIABETES_WHERE)).not.toContain('UNKNOWN');
+  });
+
   it('computes clinic-scoped 30-day coverage and descriptive averages', async () => {
     const prisma = {
       encounter: { count: jest.fn().mockResolvedValue(10) },

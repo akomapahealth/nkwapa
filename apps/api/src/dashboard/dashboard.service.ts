@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import type {
   DashboardResponse,
   DashboardSummary,
@@ -14,6 +15,13 @@ import type {
   ClinicComparisonRow,
   ClinicalMeasurementMetrics,
 } from './dto/dashboard-response.dto';
+
+export const FLAGGED_DIABETES_WHERE = {
+  OR: [
+    { glucoseType: 'FASTING', glucoseMgDl: { gte: 126 } },
+    { glucoseType: 'RANDOM', glucoseMgDl: { gte: 200 } },
+  ],
+} satisfies Prisma.DiabetesScreeningWhereInput;
 
 @Injectable()
 export class DashboardService {
@@ -144,10 +152,7 @@ export class DashboardService {
       this.prisma.diabetesScreening.count({
         where: {
           clinicId,
-          OR: [
-            { glucoseType: 'FASTING', glucoseMgDl: { gte: 126 } },
-            { glucoseType: 'RANDOM', glucoseMgDl: { gte: 200 } },
-          ],
+          ...FLAGGED_DIABETES_WHERE,
         },
       }),
       this.prisma.diabetesScreening.count({ where: { clinicId } }),
@@ -454,10 +459,7 @@ export class DashboardService {
         where: {
           clinicId,
           encounter: { createdByUserId: userId },
-          OR: [
-            { glucoseType: 'FASTING', glucoseMgDl: { gte: 126 } },
-            { glucoseType: 'RANDOM', glucoseMgDl: { gte: 200 } },
-          ],
+          ...FLAGGED_DIABETES_WHERE,
         },
       }),
       this.prisma.diabetesScreening.count({

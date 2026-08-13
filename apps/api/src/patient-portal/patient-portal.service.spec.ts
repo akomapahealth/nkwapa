@@ -39,6 +39,9 @@ function createPrismaMock() {
       findFirst: jest.fn(),
       findMany: jest.fn(),
     },
+    diabetesScreening: {
+      findMany: jest.fn(),
+    },
     reminder: {
       findMany: jest.fn(),
       update: jest.fn(),
@@ -155,6 +158,7 @@ describe('PatientPortalService', () => {
     prisma.patientAccountLink.findFirst.mockResolvedValue({ patient: portalPatient });
     prisma.encounter.findFirst.mockResolvedValue(null);
     prisma.encounter.findMany.mockResolvedValue([]);
+    prisma.diabetesScreening.findMany.mockResolvedValue([]);
     prisma.reminder.findMany.mockResolvedValue([]);
     prisma.patient.findFirst.mockResolvedValue({ id: 'patient-1' });
     prisma.patient.findUnique.mockResolvedValue({
@@ -429,7 +433,13 @@ describe('PatientPortalService', () => {
       {
         createdAt: new Date('2026-03-19T08:00:00.000Z'),
         vitals: { systolicBp: 132, diastolicBp: 86 },
-        diabetesScreening: { glucoseMgDl: 201, glucoseType: 'RANDOM' },
+      },
+    ]);
+    prisma.diabetesScreening.findMany.mockResolvedValue([
+      {
+        collectedAt: new Date('2026-03-19T08:15:00.000Z'),
+        glucoseMgDl: 201,
+        glucoseType: 'RANDOM',
       },
     ]);
     prisma.appointmentRequest.count.mockResolvedValueOnce(2).mockResolvedValueOnce(1);
@@ -470,6 +480,18 @@ describe('PatientPortalService', () => {
         }),
       }),
     );
+    expect(prisma.diabetesScreening.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          clinicId: 'clinic-1',
+          encounter: { patientId: 'patient-1', status: { in: ['FINALIZED'] } },
+          collectedAt: {
+            gte: new Date('2026-03-01T00:00:00.000Z'),
+            lte: new Date('2026-03-31T23:59:59.999Z'),
+          },
+        }),
+      }),
+    );
     expect(result.bp).toEqual([
       {
         t: '2026-03-19T08:00:00.000Z',
@@ -486,7 +508,7 @@ describe('PatientPortalService', () => {
     ]);
     expect(result.glucose).toEqual([
       {
-        t: '2026-03-19T08:00:00.000Z',
+        t: '2026-03-19T08:15:00.000Z',
         value: 201,
         type: 'RANDOM',
         source: 'ENCOUNTER',
