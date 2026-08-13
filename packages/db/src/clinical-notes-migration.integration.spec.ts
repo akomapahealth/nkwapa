@@ -27,22 +27,18 @@ describeMigration('clinical notes database safeguards', () => {
     try {
       await target.connect();
       const migrationsRoot = resolve(__dirname, '../prisma/migrations');
-      const targetMigration = '20260813090000_add_clinical_notes';
-      const migrations = (await readdir(migrationsRoot))
-        .filter((name) => /^\d/.test(name) && name !== targetMigration)
-        .sort();
+      const migrations = (await readdir(migrationsRoot)).filter((name) => /^\d/.test(name)).sort();
       for (const migration of migrations) {
         await target.query(
           await readFile(resolve(migrationsRoot, migration, 'migration.sql'), 'utf8'),
         );
       }
-      await target.query(
-        await readFile(resolve(migrationsRoot, targetMigration, 'migration.sql'), 'utf8'),
-      );
-
       await target.query(`
         INSERT INTO "Clinic" ("id", "name", "organizationId", "timezone", "locationCode", "updatedAt")
         SELECT '71000000-0000-4000-8000-000000000001', 'Notes Clinic', "id", 'Africa/Accra', 'notes', CURRENT_TIMESTAMP
+        FROM "Organization" LIMIT 1;
+        INSERT INTO "Clinic" ("id", "name", "organizationId", "timezone", "locationCode", "updatedAt")
+        SELECT '71000000-0000-4000-8000-000000000009', 'Other Clinic', "id", 'Africa/Accra', 'other-notes', CURRENT_TIMESTAMP
         FROM "Organization" LIMIT 1;
         INSERT INTO "User" ("id", "keycloakSub", "displayName", "updatedAt") VALUES
           ('71000000-0000-4000-8000-000000000002', 'notes-doctor', 'Notes Doctor', CURRENT_TIMESTAMP);
@@ -89,6 +85,17 @@ describeMigration('clinical notes database safeguards', () => {
           `DELETE FROM "ClinicalNoteAddendum" WHERE "id" = '71000000-0000-4000-8000-000000000007'`,
         ),
       ).rejects.toMatchObject({ code: '55000' });
+      await expect(
+        target.query(`
+          INSERT INTO "ClinicalNoteAddendum" (
+            "id", "clinicId", "clinicalNoteId", "authorUserId", "reason", "content"
+          ) VALUES (
+            '71000000-0000-4000-8000-000000000008', '71000000-0000-4000-8000-000000000009',
+            '71000000-0000-4000-8000-000000000006', '71000000-0000-4000-8000-000000000002',
+            'Invalid scope', 'This must be rejected'
+          )
+        `),
+      ).rejects.toMatchObject({ code: '23514' });
     } finally {
       await target.end().catch(() => undefined);
       await admin.query(
