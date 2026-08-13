@@ -10,6 +10,28 @@ describe('OPS permissions', () => {
     expect(permissions).toContain(PERMISSIONS.APPOINTMENT_READ);
   });
 
+  it('keeps clinical note content limited to doctors and volunteers', () => {
+    for (const role of [UserRole.DOCTOR, UserRole.VOLUNTEER]) {
+      const permissions = computeEffectivePermissions([role]);
+      expect(permissions).toContain(PERMISSIONS.CLINICAL_NOTE_READ);
+      expect(permissions).toContain(PERMISSIONS.CLINICAL_NOTE_WRITE);
+    }
+    for (const role of [UserRole.DIRECTOR, UserRole.MANAGER, UserRole.PATIENT]) {
+      const permissions = computeEffectivePermissions([role]);
+      expect(permissions).not.toContain(PERMISSIONS.CLINICAL_NOTE_READ);
+      expect(permissions).not.toContain(PERMISSIONS.CLINICAL_NOTE_WRITE);
+    }
+    expect(computeEffectivePermissions([UserRole.DOCTOR])).toEqual(
+      expect.arrayContaining([
+        PERMISSIONS.CLINICAL_NOTE_COSIGN,
+        PERMISSIONS.CLINICAL_NOTE_ADDENDUM,
+      ]),
+    );
+    expect(computeEffectivePermissions([UserRole.VOLUNTEER])).not.toContain(
+      PERMISSIONS.CLINICAL_NOTE_COSIGN,
+    );
+  });
+
   it('grants managers clinic scope but not org-wide research export approval', () => {
     const permissions = computeEffectivePermissions([UserRole.MANAGER]);
 

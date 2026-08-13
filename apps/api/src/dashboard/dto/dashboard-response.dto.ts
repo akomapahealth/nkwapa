@@ -65,6 +65,7 @@ export interface DoctorMetrics {
   diabetesStats: { flagged: number; total: number };
   recentEncounters: EncounterSummary[];
   finalizationsTrend: TrendPoint[];
+  pendingClinicalNoteCosigns?: number;
 }
 
 export interface ReviewMetrics {
@@ -85,6 +86,7 @@ export interface DirectorMetrics {
   followUpComplianceRate: number;
   staffActivity: StaffActivityRow[];
   encounterStatusDistribution: Record<string, number>;
+  pendingClinicalNoteCosigns?: number;
 }
 
 export interface VolunteerMetrics {
@@ -97,6 +99,7 @@ export interface VolunteerMetrics {
   statusBreakdown: Record<string, number>;
   bpDistribution: Record<string, number>;
   diabetesStats: { flagged: number; total: number };
+  clinicalNotes?: { drafts: number; pendingCosign: number };
 }
 
 export interface SystemAdminMetrics {

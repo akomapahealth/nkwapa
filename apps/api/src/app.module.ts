@@ -26,6 +26,7 @@ import { RateLimitGuard } from './common/rate-limit.guard';
 import { MedicalHistoryModule } from './medical-history/medical-history.module';
 import { MedicationReconciliationModule } from './medication-reconciliation/medication-reconciliation.module';
 import { DiabetesScreeningModule } from './diabetes-screening/diabetes-screening.module';
+import { ClinicalNoteModule } from './clinical-notes/clinical-note.module';
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
 
@@ -56,6 +57,7 @@ const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
     MedicalHistoryModule,
     MedicationReconciliationModule,
     DiabetesScreeningModule,
+    ClinicalNoteModule,
   ],
   providers: [RateLimitGuard],
 })

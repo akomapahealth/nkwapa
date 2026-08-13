@@ -4,6 +4,7 @@ describe('API feature flags', () => {
   const originalMedicalHistoryFlag = process.env.FEATURE_MEDICAL_HISTORY_ENABLED;
   const originalMedicationReconciliationFlag =
     process.env.FEATURE_MEDICATION_RECONCILIATION_ENABLED;
+  const originalClinicalNotesFlag = process.env.FEATURE_CLINICAL_NOTES_ENABLED;
 
   afterEach(() => {
     if (originalMedicalHistoryFlag === undefined) {
@@ -15,6 +16,11 @@ describe('API feature flags', () => {
       delete process.env.FEATURE_MEDICATION_RECONCILIATION_ENABLED;
     } else {
       process.env.FEATURE_MEDICATION_RECONCILIATION_ENABLED = originalMedicationReconciliationFlag;
+    }
+    if (originalClinicalNotesFlag === undefined) {
+      delete process.env.FEATURE_CLINICAL_NOTES_ENABLED;
+    } else {
+      process.env.FEATURE_CLINICAL_NOTES_ENABLED = originalClinicalNotesFlag;
     }
   });
 
@@ -45,5 +51,12 @@ describe('API feature flags', () => {
     process.env.FEATURE_MEDICATION_RECONCILIATION_ENABLED = 'true';
 
     expect(isApiFeatureEnabled('medicationReconciliation')).toBe(true);
+  });
+
+  it('keeps clinical notes disabled by default and maps its dedicated flag', () => {
+    delete process.env.FEATURE_CLINICAL_NOTES_ENABLED;
+    expect(isApiFeatureEnabled('clinicalNotes')).toBe(false);
+    process.env.FEATURE_CLINICAL_NOTES_ENABLED = 'true';
+    expect(isApiFeatureEnabled('clinicalNotes')).toBe(true);
   });
 });

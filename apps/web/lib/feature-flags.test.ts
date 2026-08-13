@@ -4,6 +4,7 @@ describe('web feature flags', () => {
   const originalMedicalHistoryFlag = process.env.NEXT_PUBLIC_FEATURE_MEDICAL_HISTORY_ENABLED;
   const originalMedicationReconciliationFlag =
     process.env.NEXT_PUBLIC_FEATURE_MEDICATION_RECONCILIATION_ENABLED;
+  const originalClinicalNotesFlag = process.env.NEXT_PUBLIC_FEATURE_CLINICAL_NOTES_ENABLED;
 
   afterEach(() => {
     if (originalMedicalHistoryFlag === undefined) {
@@ -16,6 +17,11 @@ describe('web feature flags', () => {
     } else {
       process.env.NEXT_PUBLIC_FEATURE_MEDICATION_RECONCILIATION_ENABLED =
         originalMedicationReconciliationFlag;
+    }
+    if (originalClinicalNotesFlag === undefined) {
+      delete process.env.NEXT_PUBLIC_FEATURE_CLINICAL_NOTES_ENABLED;
+    } else {
+      process.env.NEXT_PUBLIC_FEATURE_CLINICAL_NOTES_ENABLED = originalClinicalNotesFlag;
     }
   });
 
@@ -46,5 +52,12 @@ describe('web feature flags', () => {
     process.env.NEXT_PUBLIC_FEATURE_MEDICATION_RECONCILIATION_ENABLED = 'true';
 
     expect(isWebFeatureEnabled('medicationReconciliation')).toBe(true);
+  });
+
+  it('keeps clinical notes disabled by default and maps its public flag', () => {
+    delete process.env.NEXT_PUBLIC_FEATURE_CLINICAL_NOTES_ENABLED;
+    expect(isWebFeatureEnabled('clinicalNotes')).toBe(false);
+    process.env.NEXT_PUBLIC_FEATURE_CLINICAL_NOTES_ENABLED = 'true';
+    expect(isWebFeatureEnabled('clinicalNotes')).toBe(true);
   });
 });
