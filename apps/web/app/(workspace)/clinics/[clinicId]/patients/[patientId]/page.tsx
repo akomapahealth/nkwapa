@@ -30,6 +30,7 @@ import {
 import { PatientTrendsPanel } from '@/components/patients/PatientTrendsPanel';
 import { MedicalHistoryPanel } from '@/components/patients/MedicalHistoryPanel';
 import { MedicationReconciliationPanel } from '@/components/patients/MedicationReconciliationPanel';
+import { DiabetesHistoryPanel } from '@/components/patients/DiabetesHistoryPanel';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
 import {
@@ -120,6 +121,7 @@ export default function PatientDetailPage() {
   const canWriteMedicationReconciliation =
     perms.includes('*') || perms.includes('MEDICATION_RECONCILIATION.WRITE');
   const canReadPrescriptions = perms.includes('*') || perms.includes('PRESCRIPTION.READ');
+  const canReadDiabetes = perms.includes('*') || perms.includes('SCREENING.READ');
   const medicalHistoryEnabled = isWebFeatureEnabled('medicalHistory');
   const medicationReconciliationEnabled = isWebFeatureEnabled('medicationReconciliation');
   const userId = bootstrap?.userId ?? '';
@@ -739,6 +741,7 @@ export default function PatientDetailPage() {
           <TabsList className="min-h-11 w-max justify-start gap-2 rounded-3xl border border-border/80 bg-card/75 p-2">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="trends">Trends</TabsTrigger>
+            {canReadDiabetes ? <TabsTrigger value="diabetes">Diabetes</TabsTrigger> : null}
             <TabsTrigger value="encounters">Encounters</TabsTrigger>
             {medicalHistoryEnabled && canReadMedicalHistory ? (
               <TabsTrigger value="medical-history">Medical History</TabsTrigger>
@@ -1129,6 +1132,12 @@ export default function PatientDetailPage() {
         <TabsContent value="trends">
           <PatientTrendsPanel patientId={patientId} clinicId={clinicId} />
         </TabsContent>
+
+        {canReadDiabetes ? (
+          <TabsContent value="diabetes">
+            <DiabetesHistoryPanel clinicId={clinicId} patientId={patientId} />
+          </TabsContent>
+        ) : null}
 
         <TabsContent value="encounters">
           <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">

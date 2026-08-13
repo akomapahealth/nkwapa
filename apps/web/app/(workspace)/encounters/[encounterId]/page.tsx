@@ -10,7 +10,7 @@ import { apiFetch } from '@/lib/api';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
-import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
+import { InlineNotice } from '@/components/ops/OpsShared';
 import { RouteGuard } from '@/components/RouteGuard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -20,10 +20,16 @@ import { VitalsForm } from '@/components/VitalsForm';
 import { DiabetesScreeningForm } from '@/components/DiabetesScreeningForm';
 import { HypertensionForm } from '@/components/HypertensionForm';
 import { CarePlanForm } from '@/components/CarePlanForm';
-import { db, type TobaccoScreeningRecord, type VitalsRecord } from '@/lib/db';
+import {
+  db,
+  type DiabetesScreeningRecord,
+  type TobaccoScreeningRecord,
+  type VitalsRecord,
+} from '@/lib/db';
 import { ArrowLeft, ClipboardPlus, HeartPulse, ShieldCheck } from 'lucide-react';
 import { PrescriptionPanel } from '@/components/patients/PrescriptionPanel';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
+import { DiabetesHistoryPanel } from '@/components/patients/DiabetesHistoryPanel';
 
 function hasPermission(permissions: string[], perm: string): boolean {
   return permissions.includes('*') || permissions.includes(perm);
@@ -61,7 +67,7 @@ export default function EncounterDetailPage() {
   const [encounter, setEncounter] = useState<EncounterDetail | null>(null);
   const [vitals, setVitals] = useState<VitalsRecord | null>(null);
   const [tobacco, setTobacco] = useState<TobaccoScreeningRecord | null>(null);
-  const [diabetes, setDiabetes] = useState<Record<string, unknown> | null>(null);
+  const [diabetes, setDiabetes] = useState<DiabetesScreeningRecord | null>(null);
   const [hypertension, setHypertension] = useState<Record<string, unknown> | null>(null);
   const [carePlan, setCarePlan] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -71,7 +77,7 @@ export default function EncounterDetailPage() {
   const [savingBeforeSwitch, setSavingBeforeSwitch] = useState(false);
 
   const vitalsSaveRef = useRef<(() => Promise<void>) | null>(null);
-  const screeningSaveRef = useRef<(() => Promise<void>) | null>(null);
+  const diabetesSaveRef = useRef<(() => Promise<void>) | null>(null);
   const hypertensionSaveRef = useRef<(() => Promise<void>) | null>(null);
   const carePlanSaveRef = useRef<(() => Promise<void>) | null>(null);
 
@@ -86,7 +92,7 @@ export default function EncounterDetailPage() {
       setEncounter(enc);
       setVitals((enc.vitals as VitalsRecord | undefined) ?? null);
       setTobacco((enc.tobaccoScreening as TobaccoScreeningRecord | undefined) ?? null);
-      setDiabetes(enc.diabetesScreening ?? null);
+      setDiabetes((enc.diabetesScreening as DiabetesScreeningRecord | undefined) ?? null);
       setHypertension(enc.hypertensionAssessment ?? null);
       setCarePlan(enc.carePlan ?? null);
     } catch {
@@ -110,7 +116,7 @@ export default function EncounterDetailPage() {
         ]);
         if (v) setVitals(v);
         if (tobaccoRecord) setTobacco(tobaccoRecord);
-        if (d) setDiabetes(d as unknown as Record<string, unknown>);
+        if (d) setDiabetes(d);
         if (h) setHypertension(h as unknown as Record<string, unknown>);
         if (c) setCarePlan(c as unknown as Record<string, unknown>);
       } catch {
@@ -128,7 +134,7 @@ export default function EncounterDetailPage() {
   const saveAllForms = useCallback(async () => {
     const refs = [
       vitalsSaveRef.current,
-      screeningSaveRef.current,
+      diabetesSaveRef.current,
       hypertensionSaveRef.current,
       carePlanSaveRef.current,
     ];
@@ -142,7 +148,7 @@ export default function EncounterDetailPage() {
       if (newValue === activeTab) return;
       const saveFns: Record<string, (() => Promise<void>) | null> = {
         vitals: vitalsSaveRef.current,
-        screening: screeningSaveRef.current,
+        diabetes: diabetesSaveRef.current,
         hypertension: hypertensionSaveRef.current,
         careplan: carePlanSaveRef.current,
       };
@@ -244,7 +250,7 @@ export default function EncounterDetailPage() {
               ? `${encounter.patient.firstName} ${encounter.patient.lastName}`
               : 'Encounter Workspace'
           }
-          description="Capture vitals, screening assessments, hypertension evaluation, and care plan decisions from a shared charting flow."
+          description="Capture vitals, diabetes assessments, hypertension evaluation, and care plan decisions from a shared charting flow."
           badges={
             <>
               {encounter.patient ? (
@@ -314,7 +320,7 @@ export default function EncounterDetailPage() {
             title="Forms"
             value={canFinalize ? '4' : '3'}
             icon={HeartPulse}
-            detail="Vitals, screening, hypertension, and care plan appear based on workflow state."
+            detail="Vitals, diabetes, hypertension, and care plan appear based on workflow state."
           />
           <AppMetricCard
             title="Editability"
@@ -354,24 +360,33 @@ export default function EncounterDetailPage() {
           />
         ) : null}
 
-        {!isFinalized && clinicId && (
-          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-            <TabsList className="h-auto flex-wrap justify-start gap-2 rounded-3xl border border-border/80 bg-card/75 p-2">
-              <TabsTrigger value="vitals" disabled={savingBeforeSwitch}>
-                Vitals
-              </TabsTrigger>
-              <TabsTrigger value="screening" disabled={savingBeforeSwitch}>
-                Screening
-              </TabsTrigger>
-              <TabsTrigger value="hypertension" disabled={savingBeforeSwitch}>
-                Hypertension
-              </TabsTrigger>
-              {canFinalize && (
-                <TabsTrigger value="careplan" disabled={savingBeforeSwitch}>
-                  Care Plan
+        {clinicId && (
+          <Tabs
+            value={activeTab}
+            onValueChange={isFinalized ? setActiveTab : handleTabChange}
+            className="w-full"
+          >
+            <div
+              className="max-w-full overflow-x-auto pb-1"
+              aria-label="Encounter clinical sections"
+            >
+              <TabsList className="min-h-11 w-max justify-start gap-2 rounded-3xl border border-border/80 bg-card/75 p-2">
+                <TabsTrigger value="vitals" disabled={savingBeforeSwitch}>
+                  Vitals
                 </TabsTrigger>
-              )}
-            </TabsList>
+                <TabsTrigger value="diabetes" disabled={savingBeforeSwitch}>
+                  Diabetes
+                </TabsTrigger>
+                <TabsTrigger value="hypertension" disabled={savingBeforeSwitch}>
+                  Hypertension
+                </TabsTrigger>
+                {canFinalize && (
+                  <TabsTrigger value="careplan" disabled={savingBeforeSwitch}>
+                    Care Plan
+                  </TabsTrigger>
+                )}
+              </TabsList>
+            </div>
             <TabsContent value="vitals">
               <VitalsForm
                 clinicId={clinicId}
@@ -384,13 +399,20 @@ export default function EncounterDetailPage() {
                 saveRef={vitalsSaveRef}
               />
             </TabsContent>
-            <TabsContent value="screening">
+            <TabsContent value="diabetes" className="space-y-4">
               <DiabetesScreeningForm
                 clinicId={clinicId}
                 encounterId={encounterId}
-                initialData={diabetes as Parameters<typeof DiabetesScreeningForm>[0]['initialData']}
+                recordedByUserId={userId}
+                initialData={diabetes}
+                canEdit={canEditMeasurements}
                 onSaved={fetchData}
-                saveRef={screeningSaveRef}
+                saveRef={diabetesSaveRef}
+              />
+              <DiabetesHistoryPanel
+                clinicId={clinicId}
+                patientId={encounter.patientId}
+                currentEncounterId={encounterId}
               />
             </TabsContent>
             <TabsContent value="hypertension">
@@ -418,22 +440,9 @@ export default function EncounterDetailPage() {
 
         {isFinalized && (
           <div className="space-y-4">
-            <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
-              <CardContent className="pt-6">
-                <EmptyStateCard
-                  title="Encounter finalized"
-                  description="This encounter is complete and all measurements are read-only."
-                />
-              </CardContent>
-            </Card>
-            <VitalsForm
-              clinicId={encounter.clinicId}
-              encounterId={encounterId}
-              recordedByUserId={userId}
-              initialData={vitals}
-              initialTobaccoData={tobacco}
-              canEdit={false}
-            />
+            <InlineNotice tone="info">
+              This encounter is finalized. Every clinical tab remains available in read-only mode.
+            </InlineNotice>
             <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
               <CardContent className="pt-6">
                 {carePlan && (

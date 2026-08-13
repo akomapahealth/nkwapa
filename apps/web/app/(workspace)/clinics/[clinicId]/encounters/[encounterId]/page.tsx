@@ -9,21 +9,27 @@ import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { apiFetch } from '@/lib/api';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
-import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
+import { InlineNotice } from '@/components/ops/OpsShared';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardHeader } from '@/components/ui/card';
 import { VitalsForm } from '@/components/VitalsForm';
 import { DiabetesScreeningForm } from '@/components/DiabetesScreeningForm';
 import { HypertensionForm } from '@/components/HypertensionForm';
-import { db, type TobaccoScreeningRecord, type VitalsRecord } from '@/lib/db';
+import {
+  db,
+  type DiabetesScreeningRecord,
+  type TobaccoScreeningRecord,
+  type VitalsRecord,
+} from '@/lib/db';
 import { enqueueOutboxMutation } from '@/lib/outbox';
 import { SYNC_OPERATION } from '@/lib/outbox';
 import { ArrowLeft, ClipboardPlus, HeartPulse, ShieldCheck } from 'lucide-react';
 import { PrescriptionPanel } from '@/components/patients/PrescriptionPanel';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 import { hasPermission } from '@/lib/ops';
+import { DiabetesHistoryPanel } from '@/components/patients/DiabetesHistoryPanel';
 
 interface EncounterDetail {
   id: string;
@@ -53,17 +59,11 @@ export default function EncounterDetailPage() {
   const [savingBeforeSwitch, setSavingBeforeSwitch] = useState(false);
 
   const vitalsSaveRef = useRef<(() => Promise<void>) | null>(null);
-  const screeningSaveRef = useRef<(() => Promise<void>) | null>(null);
+  const diabetesSaveRef = useRef<(() => Promise<void>) | null>(null);
   const hypertensionSaveRef = useRef<(() => Promise<void>) | null>(null);
   const [vitals, setVitals] = useState<VitalsRecord | null>(null);
   const [tobacco, setTobacco] = useState<TobaccoScreeningRecord | null>(null);
-  const [diabetesScreening, setDiabetesScreening] = useState<{
-    glucoseMgDl?: number | null;
-    glucoseType?: string | null;
-    hba1cPercent?: number | null;
-    symptomsJson?: string | null;
-    notes?: string | null;
-  } | null>(null);
+  const [diabetesScreening, setDiabetesScreening] = useState<DiabetesScreeningRecord | null>(null);
   const [hypertension, setHypertension] = useState<{
     classification?: string | null;
     suspected?: boolean | null;
@@ -133,7 +133,7 @@ export default function EncounterDetailPage() {
   }, [fetchData]);
 
   const saveAllForms = useCallback(async () => {
-    const refs = [vitalsSaveRef.current, screeningSaveRef.current, hypertensionSaveRef.current];
+    const refs = [vitalsSaveRef.current, diabetesSaveRef.current, hypertensionSaveRef.current];
     for (const saveFn of refs) {
       if (saveFn) await saveFn();
     }
@@ -144,7 +144,7 @@ export default function EncounterDetailPage() {
       if (newValue === activeTab) return;
       const saveFns: Record<string, (() => Promise<void>) | null> = {
         vitals: vitalsSaveRef.current,
-        screening: screeningSaveRef.current,
+        diabetes: diabetesSaveRef.current,
         hypertension: hypertensionSaveRef.current,
       };
       const saveCurrent = saveFns[activeTab];
@@ -274,7 +274,7 @@ export default function EncounterDetailPage() {
       <AppPageHeader
         eyebrow="Clinic encounter"
         title="Encounter Workspace"
-        description="Capture vitals, screening data, and hypertension findings in a cleaner encounter flow with clearer state transitions."
+        description="Capture vitals, diabetes screening data, and hypertension findings with longitudinal clinical context."
         badges={
           <Badge
             variant={
@@ -360,71 +360,67 @@ export default function EncounterDetailPage() {
         />
       ) : null}
 
-      {!isFinalized && (
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-          <TabsList className="h-auto flex-wrap justify-start gap-2 rounded-3xl border border-border/80 bg-card/75 p-2">
+      <Tabs
+        value={activeTab}
+        onValueChange={isFinalized ? setActiveTab : handleTabChange}
+        className="w-full"
+      >
+        <div className="max-w-full overflow-x-auto pb-1" aria-label="Encounter clinical sections">
+          <TabsList className="min-h-11 w-max justify-start gap-2 rounded-3xl border border-border/80 bg-card/75 p-2">
             <TabsTrigger value="vitals" disabled={savingBeforeSwitch}>
               Vitals
             </TabsTrigger>
-            <TabsTrigger value="screening" disabled={savingBeforeSwitch}>
-              Screening
+            <TabsTrigger value="diabetes" disabled={savingBeforeSwitch}>
+              Diabetes
             </TabsTrigger>
             <TabsTrigger value="hypertension" disabled={savingBeforeSwitch}>
               Hypertension
             </TabsTrigger>
           </TabsList>
-          <TabsContent value="vitals">
-            <VitalsForm
-              clinicId={clinicId}
-              encounterId={encounterId}
-              recordedByUserId={userId}
-              initialData={vitals ?? undefined}
-              initialTobaccoData={tobacco}
-              canEdit={canEditMeasurements}
-              onSaved={fetchData}
-              saveRef={vitalsSaveRef}
-            />
-          </TabsContent>
-          <TabsContent value="screening">
-            <DiabetesScreeningForm
-              clinicId={clinicId}
-              encounterId={encounterId}
-              initialData={diabetesScreening ?? undefined}
-              onSaved={fetchData}
-              saveRef={screeningSaveRef}
-            />
-          </TabsContent>
-          <TabsContent value="hypertension">
-            <HypertensionForm
-              clinicId={clinicId}
-              encounterId={encounterId}
-              initialData={hypertension ?? undefined}
-              onSaved={fetchData}
-              saveRef={hypertensionSaveRef}
-            />
-          </TabsContent>
-        </Tabs>
-      )}
-
-      {isFinalized && (
-        <div className="space-y-4">
-          <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
-            <CardContent className="pt-6">
-              <EmptyStateCard
-                title="Encounter finalized"
-                description="This encounter is complete and all measurements are read-only."
-              />
-            </CardContent>
-          </Card>
+        </div>
+        <TabsContent value="vitals">
           <VitalsForm
             clinicId={clinicId}
             encounterId={encounterId}
             recordedByUserId={userId}
-            initialData={vitals}
+            initialData={vitals ?? undefined}
             initialTobaccoData={tobacco}
-            canEdit={false}
+            canEdit={canEditMeasurements}
+            onSaved={fetchData}
+            saveRef={vitalsSaveRef}
           />
-        </div>
+        </TabsContent>
+        <TabsContent value="diabetes" className="space-y-4">
+          <DiabetesScreeningForm
+            clinicId={clinicId}
+            encounterId={encounterId}
+            recordedByUserId={userId}
+            initialData={diabetesScreening}
+            canEdit={canEditMeasurements}
+            onSaved={fetchData}
+            saveRef={diabetesSaveRef}
+          />
+          <DiabetesHistoryPanel
+            clinicId={clinicId}
+            patientId={encounter.patientId}
+            currentEncounterId={encounterId}
+          />
+        </TabsContent>
+        <TabsContent value="hypertension">
+          <HypertensionForm
+            clinicId={clinicId}
+            encounterId={encounterId}
+            initialData={hypertension ?? undefined}
+            onSaved={fetchData}
+            saveRef={hypertensionSaveRef}
+          />
+        </TabsContent>
+      </Tabs>
+
+      {isFinalized && (
+        <InlineNotice tone="info">
+          This encounter is finalized. Every clinical tab remains available in read-only mode.
+        </InlineNotice>
       )}
     </div>
   );
