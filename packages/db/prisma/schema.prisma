@@ -39,6 +39,13 @@ enum EncounterStatus {
   FINALIZED
 }
 
+enum ClinicalNoteStatus {
+  DRAFT
+  PENDING_COSIGN
+  COSIGNED
+  AMENDED
+}
+
 enum ShiftStatus {
   ACTIVE
   CLOSED
@@ -339,6 +346,8 @@ model Clinic {
   medicationReconciliations MedicationReconciliationEvent[]
   pharmacyRecords           PatientPharmacyRecord[]
   pharmacyPreferences       PatientPharmacyPreference[]
+  clinicalNotes             ClinicalNote[]
+  clinicalNoteAddenda       ClinicalNoteAddendum[]
 
   @@unique([organizationId, locationCode])
   @@index([organizationId])
@@ -400,6 +409,12 @@ model User {
   endedPharmacyPreferences      PatientPharmacyPreference[]     @relation("PatientPharmacyPreferenceEndedBy")
   reviewedTobaccoScreenings     TobaccoScreening[]              @relation("TobaccoScreeningReviewedBy")
   authoredDiabetesScreenings    DiabetesScreening[]             @relation("DiabetesScreeningAuthoredBy")
+  authoredClinicalNotes         ClinicalNote[]                  @relation("ClinicalNoteAuthor")
+  submittedClinicalNotes        ClinicalNote[]                  @relation("ClinicalNoteSubmitter")
+  cosignedClinicalNotes         ClinicalNote[]                  @relation("ClinicalNoteCosigner")
+  assignedVolunteerNotes        ClinicalNote[]                  @relation("ClinicalNoteAssignedVolunteer")
+  assignedDoctorNotes           ClinicalNote[]                  @relation("ClinicalNoteAssignedDoctor")
+  authoredClinicalNoteAddenda   ClinicalNoteAddendum[]          @relation("ClinicalNoteAddendumAuthor")
 
   @@index([isActive])
 }
@@ -471,6 +486,7 @@ model Patient {
   medicationReconciliations MedicationReconciliationEvent[]
   pharmacyRecords           PatientPharmacyRecord[]
   pharmacyPreferences       PatientPharmacyPreference[]
+  clinicalNotes             ClinicalNote[]
 
   @@index([primaryClinicId])
   @@index([portalUserId])
@@ -548,6 +564,7 @@ model Encounter {
   sourcedHistoryRevisions    MedicalHistoryRevision[]        @relation("MedicalHistoryRevisionSourceEncounter")
   sourcedMedicationRevisions PatientMedicationRevision[]     @relation("PatientMedicationRevisionSourceEncounter")
   medicationReconciliations  MedicationReconciliationEvent[] @relation("MedicationReconciliationSourceEncounter")
+  clinicalNote               ClinicalNote?
 
   @@index([clinicId, updatedAt])
   @@index([patientId, updatedAt])
@@ -612,9 +629,80 @@ model PatientAssignment {
   assignedVolunteer User           @relation("AssignmentVolunteer", fields: [assignedVolunteerId], references: [id], onDelete: Cascade)
   assignedDoctor    User           @relation("AssignmentDoctor", fields: [assignedDoctorId], references: [id], onDelete: Cascade)
   assignedBy        User           @relation("AssignmentAssignedBy", fields: [assignedByUserId], references: [id], onDelete: Cascade)
+  clinicalNotes     ClinicalNote[]
 
   @@index([clinicId, status, assignedAt])
   @@index([patientCheckInId])
+}
+
+model ClinicalNote {
+  id          String             @id @default(uuid()) @db.Uuid
+  clinicId    String             @db.Uuid
+  patientId   String             @db.Uuid
+  encounterId String             @unique @db.Uuid
+  status      ClinicalNoteStatus @default(DRAFT)
+  version     Int                @default(1)
+
+  history    String @default("") @db.Text
+  assessment String @default("") @db.Text
+  plan       String @default("") @db.Text
+
+  signedHistory     String? @db.Text
+  signedAssessment  String? @db.Text
+  signedPlan        String? @db.Text
+  signedContentHash String? @db.VarChar(64)
+
+  authorUserId String   @db.Uuid
+  authorRole   UserRole
+
+  assignmentId                  String?   @db.Uuid
+  assignedVolunteerId           String?   @db.Uuid
+  assignedVolunteerNameSnapshot String?   @db.VarChar(200)
+  assignedDoctorId              String?   @db.Uuid
+  assignedDoctorNameSnapshot    String?   @db.VarChar(200)
+  assignmentAssignedAtSnapshot  DateTime?
+
+  submittedByUserId String?   @db.Uuid
+  submittedAt       DateTime?
+  cosignedByUserId  String?   @db.Uuid
+  cosignedAt        DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clinic            Clinic                 @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  patient           Patient                @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  encounter         Encounter              @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  author            User                   @relation("ClinicalNoteAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  assignment        PatientAssignment?     @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  assignedVolunteer User?                  @relation("ClinicalNoteAssignedVolunteer", fields: [assignedVolunteerId], references: [id], onDelete: Restrict)
+  assignedDoctor    User?                  @relation("ClinicalNoteAssignedDoctor", fields: [assignedDoctorId], references: [id], onDelete: Restrict)
+  submittedBy       User?                  @relation("ClinicalNoteSubmitter", fields: [submittedByUserId], references: [id], onDelete: Restrict)
+  cosignedBy        User?                  @relation("ClinicalNoteCosigner", fields: [cosignedByUserId], references: [id], onDelete: Restrict)
+  addenda           ClinicalNoteAddendum[]
+
+  @@index([clinicId, patientId, createdAt])
+  @@index([clinicId, status, assignedDoctorId, submittedAt])
+  @@index([authorUserId, status, updatedAt])
+  @@index([assignmentId])
+}
+
+model ClinicalNoteAddendum {
+  id             String   @id @default(uuid()) @db.Uuid
+  clinicId       String   @db.Uuid
+  clinicalNoteId String   @db.Uuid
+  authorUserId   String   @db.Uuid
+  reason         String   @db.VarChar(500)
+  content        String   @db.Text
+  createdAt      DateTime @default(now())
+
+  clinic       Clinic       @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  clinicalNote ClinicalNote @relation(fields: [clinicalNoteId], references: [id], onDelete: Restrict)
+  author       User         @relation("ClinicalNoteAddendumAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+
+  @@index([clinicalNoteId, createdAt])
+  @@index([clinicId, createdAt])
+  @@index([authorUserId, createdAt])
 }
 
 model Vitals {
