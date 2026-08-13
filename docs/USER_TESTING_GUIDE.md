@@ -146,6 +146,9 @@ Also verify:
 ## 9. Doctor Review Matrix
 
 - [ ] queues page shows review workload
+- [ ] Pending HAP Cosign lane shows only notes assigned to the signed-in doctor
+- [ ] assigned volunteer HAP note can be reviewed and cosigned exactly once
+- [ ] signed HAP content is read-only and a doctor can append, but not edit, an addendum
 - [ ] in-review encounter loads
 - [ ] clinical review action works
 - [ ] finalize remains disabled until review is complete
@@ -160,6 +163,15 @@ Also verify:
 - [ ] encounter finalization works
 - [ ] finalized encounter becomes read-only
 - [ ] follow-up reminder is created when follow-up date exists
+
+### Clinical note connectivity and layout
+
+- [ ] doctor-authored HAP note signs without a second cosigner
+- [ ] volunteer draft preserves unsaved-change state and supports `Ctrl+S` or `Command+S`
+- [ ] going offline removes rendered note content and disables every note action
+- [ ] manager, director, patient, and unscoped system administrator cannot retrieve note content
+- [ ] editor, signed view, dialogs, and queue have visible focus and no horizontal overflow at 375,
+      768, 1024, and 1440 pixels
 
 ---
 

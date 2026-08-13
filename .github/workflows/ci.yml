@@ -131,6 +131,12 @@ jobs:
           RUN_DIABETES_MIGRATION_TESTS: '1'
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
+      - name: Verify clinical note immutability and append-only safeguards
+        run: npm run test --workspace=@nkwapa/db -- --runInBand src/clinical-notes-migration.integration.spec.ts
+        env:
+          RUN_CLINICAL_NOTES_MIGRATION_TESTS: '1'
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
       - name: Run tests with coverage
         run: npm run test --workspaces --if-present -- --coverage --ci
         env:
