@@ -83,8 +83,14 @@ export interface DiabetesScreeningRecord {
   glucoseMgDl?: number;
   glucoseType?: string;
   hba1cPercent?: number;
+  symptoms?: import('@nkwapa/db/diabetes-screening').DiabetesSymptom[];
   symptomsJson?: string;
+  legacySymptomsUnmapped?: boolean;
   notes?: string;
+  collectedAt?: string;
+  authoredByUserId?: string;
+  authoredBy?: { id: string; displayName: string };
+  encounterStatus?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -336,6 +342,17 @@ export class NkwapaDb extends Dexie {
       patient_pharmacy_preferences:
         'id, clinicId, patientId, pharmacyRecordId, effectiveTo, updatedAt',
     });
+    this.version(6)
+      .stores({
+        diabetes_screenings: 'id, clinicId, encounterId, collectedAt, updatedAt',
+      })
+      .upgrade(async (transaction) => {
+        const { migrateLegacyDiabetesScreening } = await import('./db-migrations');
+        await transaction
+          .table<DiabetesScreeningRecord, string>('diabetes_screenings')
+          .toCollection()
+          .modify(migrateLegacyDiabetesScreening);
+      });
   }
 }
 

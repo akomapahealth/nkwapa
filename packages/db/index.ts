@@ -15,3 +15,17 @@ export {
   toCelsius,
   type TemperatureUnit,
 } from './src/clinical-measurements';
+export {
+  DIABETES_GLUCOSE_TYPES,
+  DIABETES_SYMPTOMS,
+  DIABETES_SYMPTOM_LABELS,
+  DIABETES_GLUCOSE_MIN_MG_DL,
+  DIABETES_GLUCOSE_MAX_MG_DL,
+  DIABETES_HBA1C_MIN_PERCENT,
+  DIABETES_HBA1C_MAX_PERCENT,
+  parseLegacyDiabetesSymptoms,
+  serializeLegacyDiabetesSymptoms,
+  type DiabetesGlucoseType,
+  type DiabetesSymptom,
+  type ParsedLegacyDiabetesSymptoms,
+} from './src/diabetes-screening';
