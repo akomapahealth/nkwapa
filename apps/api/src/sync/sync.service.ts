@@ -592,6 +592,7 @@ export class SyncService {
         hba1cPercent: (payload.hba1cPercent as number) ?? null,
         symptomsJson: (payload.symptomsJson as string) ?? null,
         notes: (payload.notes as string) ?? null,
+        authoredByUserId: actorUserId,
       },
       update: {
         glucoseMgDl: (payload.glucoseMgDl as number) ?? existing?.glucoseMgDl ?? null,

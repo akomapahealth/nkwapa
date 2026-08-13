@@ -1,4 +1,4 @@
-import { parseLegacyDiabetesSymptoms, type DiabetesSymptom } from '@nkwapa/db/diabetes-screening';
+import { parseLegacyDiabetesSymptoms, type DiabetesSymptom } from '@nkwapa/db';
 
 export interface LegacyPulseRecord {
   heartRate?: number;

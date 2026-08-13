@@ -61,7 +61,9 @@ export class EncounterService {
           tobaccoScreening: {
             include: { reviewedBy: { select: { id: true, displayName: true } } },
           },
-          diabetesScreening: true,
+          diabetesScreening: {
+            include: { authoredBy: { select: { id: true, displayName: true } } },
+          },
           hypertensionAssessment: true,
           carePlan: true,
         }
