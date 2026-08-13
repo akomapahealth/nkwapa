@@ -420,6 +420,7 @@ export default function EncounterDetailPage() {
                 clinicId={clinicId}
                 encounterId={encounterId}
                 initialData={hypertension as Parameters<typeof HypertensionForm>[0]['initialData']}
+                canEdit={canEditMeasurements}
                 onSaved={fetchData}
                 saveRef={hypertensionSaveRef}
               />
@@ -430,6 +431,7 @@ export default function EncounterDetailPage() {
                   clinicId={clinicId}
                   encounterId={encounterId}
                   initialData={carePlan as Parameters<typeof CarePlanForm>[0]['initialData']}
+                  canEdit={!isFinalized}
                   onSaved={fetchData}
                   saveRef={carePlanSaveRef}
                 />

@@ -40,6 +40,7 @@ interface HypertensionFormProps {
     notes?: string | null;
   };
   onSaved?: () => void;
+  canEdit?: boolean;
   /** Optional ref to expose save for parent-driven save (e.g. on tab change) */
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>;
 }
@@ -49,6 +50,7 @@ export function HypertensionForm({
   encounterId,
   initialData,
   onSaved,
+  canEdit = true,
   saveRef,
 }: HypertensionFormProps) {
   const [classification, setClassification] = useState<string>(
@@ -61,6 +63,7 @@ export function HypertensionForm({
   const [error, setError] = useState<string | null>(null);
 
   const handleSave = useCallback(async () => {
+    if (!canEdit || saving) return;
     setSaving(true);
     setError(null);
     const assessmentId = generateId();
@@ -104,7 +107,17 @@ export function HypertensionForm({
     } finally {
       setSaving(false);
     }
-  }, [clinicId, encounterId, classification, suspected, confirmed, notes, onSaved]);
+  }, [
+    canEdit,
+    saving,
+    clinicId,
+    encounterId,
+    classification,
+    suspected,
+    confirmed,
+    notes,
+    onSaved,
+  ]);
 
   useEffect(() => {
     if (saveRef) saveRef.current = handleSave;
@@ -119,56 +132,63 @@ export function HypertensionForm({
         <h2 className="text-lg font-semibold">Hypertension Assessment</h2>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="classification">Classification</Label>
-          <Select value={classification} onValueChange={setClassification}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {CLASSIFICATIONS.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex flex-wrap gap-6">
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="suspected"
-              checked={suspected}
-              onCheckedChange={(v) => setSuspected(!!v)}
-            />
-            <Label htmlFor="suspected" className="cursor-pointer text-sm font-normal">
-              Suspected
-            </Label>
+        <fieldset disabled={!canEdit || saving} className="space-y-4 disabled:opacity-75">
+          <legend className="sr-only">Hypertension assessment details</legend>
+          <div className="space-y-2">
+            <Label htmlFor="classification">Classification</Label>
+            <Select value={classification} onValueChange={setClassification}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CLASSIFICATIONS.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="confirmed"
-              checked={confirmed}
-              onCheckedChange={(v) => setConfirmed(!!v)}
-            />
-            <Label htmlFor="confirmed" className="cursor-pointer text-sm font-normal">
-              Confirmed
-            </Label>
+          <div className="flex flex-wrap gap-6">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="suspected"
+                checked={suspected}
+                onCheckedChange={(v) => setSuspected(!!v)}
+              />
+              <Label htmlFor="suspected" className="cursor-pointer text-sm font-normal">
+                Suspected
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="confirmed"
+                checked={confirmed}
+                onCheckedChange={(v) => setConfirmed(!!v)}
+              />
+              <Label htmlFor="confirmed" className="cursor-pointer text-sm font-normal">
+                Confirmed
+              </Label>
+            </div>
           </div>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="notes">Notes</Label>
-          <Input
-            id="notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Optional notes"
-          />
-        </div>
+          <div className="space-y-2">
+            <Label htmlFor="notes">Notes</Label>
+            <Input
+              id="notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Optional notes"
+            />
+          </div>
+        </fieldset>
         {error && <p className="text-sm text-destructive">{error}</p>}
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? 'Saving…' : 'Save Assessment'}
-        </Button>
+        {canEdit ? (
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? 'Saving…' : 'Save Assessment'}
+          </Button>
+        ) : (
+          <p className="text-sm text-muted-foreground">This assessment is read-only.</p>
+        )}
       </CardContent>
     </Card>
   );

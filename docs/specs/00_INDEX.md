@@ -39,6 +39,7 @@ Use this file first when you need to answer one of these questions:
 | `docs/specs/06_PATIENTS_MODULE.md`                          | Current with follow-on work | Current patient registry, portal link/invite, and merge behavior               |
 | `docs/specs/07_MEDICAL_HISTORY_AND_ALLERGIES.md`            | Current                     | Longitudinal history, allergy safety, rollout, and release-gate contract       |
 | `docs/specs/08_MEDICATION_RECONCILIATION_AND_PHARMACIES.md` | Current                     | Reported medications, pharmacy history, offline conflicts, and rollout         |
+| `docs/specs/09_DIABETES_SCREENING.md`                       | Current                     | Diabetes record, compatibility, access, downstream, and release-gate contract  |
 | `docs/clinic-ops/26_RESEARCH_EXPORT_TRANSFORMS_V1.md`       | Current                     | Research export v1 compatibility and v2 pipeline contract                      |
 
 ---

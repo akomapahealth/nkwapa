@@ -27,6 +27,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { InlineNotice } from '@/components/ops/OpsShared';
+import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { db, type DiabetesScreeningRecord } from '@/lib/db';
 import { enqueueOutboxMutation, SYNC_OPERATION } from '@/lib/outbox';
 
@@ -75,6 +76,7 @@ export function DiabetesScreeningForm({
   onSaved,
   saveRef,
 }: DiabetesScreeningFormProps) {
+  const { isOnline, syncNow } = useSync();
   const idPrefix = useId();
   const screeningId = useRef(initialData?.id ?? generateId());
   const [glucoseMgDl, setGlucoseMgDl] = useState(String(initialData?.glucoseMgDl ?? ''));
@@ -185,10 +187,11 @@ export function DiabetesScreeningForm({
           payloadJson: payload,
         });
       });
+      const syncResult = isOnline ? await syncNow(clinicId) : null;
       setMessage({
         tone: 'success',
-        text: navigator.onLine
-          ? 'Diabetes screening saved and queued for sync.'
+        text: syncResult?.success
+          ? 'Diabetes screening saved and synced.'
           : 'Diabetes screening saved on this device and pending sync.',
       });
       onSaved?.();
@@ -208,13 +211,19 @@ export function DiabetesScreeningForm({
     glucoseType,
     hba1cPercent,
     initialData?.createdAt,
+    isOnline,
     notes,
     onSaved,
     recordedByUserId,
     saving,
     symptoms,
+    syncNow,
     validateForm,
   ]);
+
+  const handleButtonSave = useCallback(() => {
+    void handleSave().catch(() => undefined);
+  }, [handleSave]);
 
   useEffect(() => {
     if (!saveRef) return;
@@ -387,7 +396,7 @@ export function DiabetesScreeningForm({
               : 'This screening is read-only.'}
           </p>
           {canEdit ? (
-            <Button onClick={handleSave} disabled={saving} className="min-h-11 rounded-2xl">
+            <Button onClick={handleButtonSave} disabled={saving} className="min-h-11 rounded-2xl">
               {saving ? 'Saving…' : 'Save diabetes screening'}
             </Button>
           ) : null}

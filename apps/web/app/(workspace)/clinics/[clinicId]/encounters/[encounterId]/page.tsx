@@ -411,6 +411,7 @@ export default function EncounterDetailPage() {
             clinicId={clinicId}
             encounterId={encounterId}
             initialData={hypertension ?? undefined}
+            canEdit={canEditMeasurements}
             onSaved={fetchData}
             saveRef={hypertensionSaveRef}
           />
