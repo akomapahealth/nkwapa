@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
@@ -30,6 +30,7 @@ import { ArrowLeft, ClipboardPlus, HeartPulse, ShieldCheck } from 'lucide-react'
 import { PrescriptionPanel } from '@/components/patients/PrescriptionPanel';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 import { DiabetesHistoryPanel } from '@/components/patients/DiabetesHistoryPanel';
+import { ClinicalNotePanel } from '@/components/clinical-notes/ClinicalNotePanel';
 
 function hasPermission(permissions: string[], perm: string): boolean {
   return permissions.includes('*') || permissions.includes(perm);
@@ -53,16 +54,22 @@ interface EncounterDetail {
 
 export default function EncounterDetailPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const encounterId = params.encounterId as string;
   const getToken = useAuth();
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const { syncNow } = useSync();
-  const clinicId = getBootstrapActiveClinicId(bootstrap);
+  const clinicId = (params.clinicId as string | undefined) ?? getBootstrapActiveClinicId(bootstrap);
   const userId = bootstrap?.userId ?? '';
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
   const canReadPrescriptions = hasPermission(perms, 'PRESCRIPTION.READ');
   const canWritePrescriptions = hasPermission(perms, 'PRESCRIPTION.WRITE');
   const medicalHistoryEnabled = isWebFeatureEnabled('medicalHistory');
+  const clinicalNotesEnabled = isWebFeatureEnabled('clinicalNotes');
+  const clinicRoles =
+    bootstrap?.memberships.find((membership) => membership.clinicId === clinicId)?.roles ?? [];
+  const isClinicalUser = clinicRoles.includes('DOCTOR') || clinicRoles.includes('VOLUNTEER');
+  const isDoctor = clinicRoles.includes('DOCTOR');
 
   const [encounter, setEncounter] = useState<EncounterDetail | null>(null);
   const [vitals, setVitals] = useState<VitalsRecord | null>(null);
@@ -73,7 +80,9 @@ export default function EncounterDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [transitioning, setTransitioning] = useState(false);
-  const [activeTab, setActiveTab] = useState('vitals');
+  const [activeTab, setActiveTab] = useState(
+    searchParams.get('tab') === 'clinical-note' ? 'clinical-note' : 'vitals',
+  );
   const [savingBeforeSwitch, setSavingBeforeSwitch] = useState(false);
 
   const vitalsSaveRef = useRef<(() => Promise<void>) | null>(null);
@@ -385,6 +394,11 @@ export default function EncounterDetailPage() {
                     Care Plan
                   </TabsTrigger>
                 )}
+                {clinicalNotesEnabled && isClinicalUser ? (
+                  <TabsTrigger value="clinical-note" disabled={savingBeforeSwitch}>
+                    Clinical Note
+                  </TabsTrigger>
+                ) : null}
               </TabsList>
             </div>
             <TabsContent value="vitals">
@@ -437,6 +451,16 @@ export default function EncounterDetailPage() {
                 />
               </TabsContent>
             )}
+            {clinicalNotesEnabled && isClinicalUser ? (
+              <TabsContent value="clinical-note">
+                <ClinicalNotePanel
+                  clinicId={clinicId}
+                  encounterId={encounterId}
+                  userId={userId}
+                  isDoctor={isDoctor}
+                />
+              </TabsContent>
+            ) : null}
           </Tabs>
         )}
 

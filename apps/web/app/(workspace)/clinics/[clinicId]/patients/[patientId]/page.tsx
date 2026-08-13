@@ -31,6 +31,7 @@ import { PatientTrendsPanel } from '@/components/patients/PatientTrendsPanel';
 import { MedicalHistoryPanel } from '@/components/patients/MedicalHistoryPanel';
 import { MedicationReconciliationPanel } from '@/components/patients/MedicationReconciliationPanel';
 import { DiabetesHistoryPanel } from '@/components/patients/DiabetesHistoryPanel';
+import { PatientClinicalNotesPanel } from '@/components/clinical-notes/PatientClinicalNotesPanel';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
 import {
@@ -124,6 +125,11 @@ export default function PatientDetailPage() {
   const canReadDiabetes = perms.includes('*') || perms.includes('SCREENING.READ');
   const medicalHistoryEnabled = isWebFeatureEnabled('medicalHistory');
   const medicationReconciliationEnabled = isWebFeatureEnabled('medicationReconciliation');
+  const clinicalNotesEnabled = isWebFeatureEnabled('clinicalNotes');
+  const clinicRoles =
+    bootstrap?.memberships.find((membership) => membership.clinicId === clinicId)?.roles ?? [];
+  const canReadClinicalNotes =
+    clinicalNotesEnabled && (clinicRoles.includes('DOCTOR') || clinicRoles.includes('VOLUNTEER'));
   const userId = bootstrap?.userId ?? '';
   const canCreateOpsCheckIn = hasPermission(perms, 'OPS.CHECKIN.CREATE');
   const opsDestination = getOpsDestination(perms);
@@ -749,6 +755,9 @@ export default function PatientDetailPage() {
             {medicationReconciliationEnabled && canReadMedicationReconciliation ? (
               <TabsTrigger value="medications">Medications</TabsTrigger>
             ) : null}
+            {canReadClinicalNotes ? (
+              <TabsTrigger value="clinical-notes">Clinical Notes</TabsTrigger>
+            ) : null}
             {canViewSelfReports ? (
               <TabsTrigger value="self-reports">Patient-reported</TabsTrigger>
             ) : null}
@@ -1199,6 +1208,12 @@ export default function PatientDetailPage() {
               canWrite={canWriteMedicationReconciliation}
               canReadPrescriptions={canReadPrescriptions}
             />
+          </TabsContent>
+        ) : null}
+
+        {canReadClinicalNotes ? (
+          <TabsContent value="clinical-notes">
+            <PatientClinicalNotesPanel clinicId={clinicId} patientId={patientId} />
           </TabsContent>
         ) : null}
 

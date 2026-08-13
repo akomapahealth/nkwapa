@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ClipboardList, Eye, FileEdit, Stethoscope } from 'lucide-react';
+import { ClipboardList, Eye, FileCheck2, FileEdit, Stethoscope } from 'lucide-react';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
@@ -19,6 +19,7 @@ import { dataGridSx } from '@/lib/datagrid-theme';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
+import { isWebFeatureEnabled } from '@/lib/feature-flags';
 
 interface QueueRow {
   id: string;
@@ -42,19 +43,34 @@ export default function QueuesPage() {
   const getToken = useAuth();
   const clinicId = getBootstrapActiveClinicId(bootstrap);
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
+  const clinicRoles =
+    bootstrap?.memberships.find((membership) => membership.clinicId === clinicId)?.roles ?? [];
 
   const canFinalize = hasPermission(perms, 'DOCTOR.FINALIZE');
   const canReview = hasPermission(perms, 'ENCOUNTER.REVIEW');
   const canDrafts = hasPermission(perms, 'ENCOUNTER.READ');
+  const canCosignClinicalNotes =
+    isWebFeatureEnabled('clinicalNotes') &&
+    clinicRoles.includes('DOCTOR') &&
+    hasPermission(perms, 'CLINICAL_NOTE.COSIGN');
 
-  const defaultTab = canFinalize ? 'finalize' : canReview ? 'review' : 'drafts';
+  const defaultTab = canCosignClinicalNotes
+    ? 'cosign'
+    : canFinalize
+      ? 'finalize'
+      : canReview
+        ? 'review'
+        : 'drafts';
   const [activeTab, setActiveTab] = useState(
-    tabParam && ['drafts', 'review', 'finalize'].includes(tabParam) ? tabParam : defaultTab,
+    tabParam && ['drafts', 'review', 'finalize', 'cosign'].includes(tabParam)
+      ? tabParam
+      : defaultTab,
   );
 
   const [drafts, setDrafts] = useState<QueueRow[]>([]);
   const [review, setReview] = useState<QueueRow[]>([]);
   const [finalize, setFinalize] = useState<QueueRow[]>([]);
+  const [cosign, setCosign] = useState<QueueRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -110,20 +126,43 @@ export default function QueuesPage() {
     setLoading(true);
     setError(null);
     try {
-      const [d, r, f] = await Promise.all([
+      const [d, r, f, c] = await Promise.all([
         canDrafts ? fetchQueue('DRAFT') : [],
         canReview ? fetchQueue('REVIEW') : [],
         canFinalize ? fetchQueue('DOCTOR_READY') : [],
+        canCosignClinicalNotes && getToken
+          ? apiFetch(`/clinics/${encodeURIComponent(clinicId)}/clinical-notes/pending-cosign`, {
+              getToken,
+              activeClinicId: clinicId,
+            }).then(async (response) => {
+              if (!response.ok) throw new Error(await response.text());
+              const rows = (await response.json()) as Array<{
+                id: string;
+                encounterId: string;
+                submittedAt: string;
+                author: { displayName: string };
+                patient: { patientCode: string; firstName: string; lastName: string };
+              }>;
+              return rows.map((note) => ({
+                id: note.encounterId,
+                patientCode: note.patient.patientCode,
+                patientName: `${note.patient.firstName} ${note.patient.lastName}`.trim(),
+                createdAt: note.submittedAt,
+                status: `HAP note by ${note.author.displayName}`,
+              }));
+            })
+          : [],
       ]);
       setDrafts(d);
       setReview(r);
       setFinalize(f);
+      setCosign(c);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, [clinicId, canDrafts, canReview, canFinalize, fetchQueue]);
+  }, [clinicId, canDrafts, canReview, canFinalize, canCosignClinicalNotes, fetchQueue, getToken]);
 
   useEffect(() => {
     loadAll();
@@ -178,13 +217,21 @@ export default function QueuesPage() {
           helpText="Each lane groups encounters by the step they are currently in so staff can jump straight to the right record without bouncing between screens."
         />
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <AppMetricCard
             title="Drafts"
             value={drafts.length}
             icon={FileEdit}
             detail="Encounters still being prepared before review."
           />
+          {canCosignClinicalNotes ? (
+            <AppMetricCard
+              title="Pending HAP cosigns"
+              value={cosign.length}
+              icon={FileCheck2}
+              detail="HAP notes assigned to you and waiting for cosign."
+            />
+          ) : null}
           <AppMetricCard
             title="Needs review"
             value={review.length}
@@ -215,7 +262,9 @@ export default function QueuesPage() {
                     ? drafts.length
                     : activeTab === 'review'
                       ? review.length
-                      : finalize.length}
+                      : activeTab === 'finalize'
+                        ? finalize.length
+                        : cosign.length}
                 </p>
               </div>
             </div>
@@ -226,10 +275,13 @@ export default function QueuesPage() {
               to finalize is waiting on doctor sign-off.
             </ProgressiveHelp>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl border border-border/70 bg-background p-2 sm:grid-cols-3">
+              <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl border border-border/70 bg-background p-2 sm:grid-cols-2 xl:grid-cols-4">
                 {canDrafts && <TabsTrigger value="drafts">Drafts</TabsTrigger>}
                 {canReview && <TabsTrigger value="review">Needs Review</TabsTrigger>}
                 {canFinalize && <TabsTrigger value="finalize">Ready to Finalize</TabsTrigger>}
+                {canCosignClinicalNotes ? (
+                  <TabsTrigger value="cosign">Pending HAP Cosign</TabsTrigger>
+                ) : null}
               </TabsList>
               <TabsContent value="drafts" className="mt-4">
                 <QueueContent
@@ -255,6 +307,16 @@ export default function QueuesPage() {
                   onRowClick={handleRowClick}
                 />
               </TabsContent>
+              {canCosignClinicalNotes ? (
+                <TabsContent value="cosign" className="mt-4">
+                  <QueueContent
+                    rows={cosign}
+                    loading={loading}
+                    columns={columns}
+                    onRowClick={handleRowClick}
+                  />
+                </TabsContent>
+              ) : null}
             </Tabs>
           </CardContent>
         </Card>

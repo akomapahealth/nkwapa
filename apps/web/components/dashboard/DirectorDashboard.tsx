@@ -7,6 +7,7 @@ import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { Box } from '@mui/material';
 import { dataGridSx } from '@/lib/datagrid-theme';
 import { DashboardSectionHeader } from './DashboardSectionHeader';
+import { DashboardKpiCard } from './DashboardKpiCard';
 
 interface StaffActivityRow {
   userId: string;
@@ -24,6 +25,7 @@ interface DirectorDashboardProps {
   followUpComplianceRate: number;
   staffActivity: StaffActivityRow[];
   encounterStatusDistribution: Record<string, number>;
+  pendingClinicalNoteCosigns?: number;
 }
 
 const staffColumns: GridColDef[] = [
@@ -51,6 +53,7 @@ export function DirectorDashboard({
   followUpComplianceRate,
   staffActivity,
   encounterStatusDistribution,
+  pendingClinicalNoteCosigns,
 }: DirectorDashboardProps) {
   return (
     <section className="space-y-6">
@@ -58,6 +61,16 @@ export function DirectorDashboard({
         title="Clinic trends"
         hint="Use this section to watch how the clinic is performing across patient flow and follow-up."
       />
+
+      {pendingClinicalNoteCosigns !== undefined ? (
+        <div className="grid gap-4 sm:max-w-sm">
+          <DashboardKpiCard
+            title="Pending HAP cosigns"
+            value={pendingClinicalNoteCosigns}
+            hint="Clinic-level operational count only. Clinical note content remains restricted."
+          />
+        </div>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">
         <TrendChart
