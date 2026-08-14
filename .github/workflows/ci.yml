@@ -131,6 +131,12 @@ jobs:
           RUN_DIABETES_MIGRATION_TESTS: '1'
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
+      - name: Verify clinical note immutability and append-only safeguards
+        run: npm run test --workspace=@nkwapa/db -- --runInBand src/clinical-notes-migration.integration.spec.ts
+        env:
+          RUN_CLINICAL_NOTES_MIGRATION_TESTS: '1'
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
       - name: Run tests with coverage
         run: npm run test --workspaces --if-present -- --coverage --ci
         env:
@@ -190,6 +196,8 @@ jobs:
       NEXT_PUBLIC_FEATURE_MEDICAL_HISTORY_ENABLED: true
       FEATURE_MEDICATION_RECONCILIATION_ENABLED: true
       NEXT_PUBLIC_FEATURE_MEDICATION_RECONCILIATION_ENABLED: true
+      FEATURE_CLINICAL_NOTES_ENABLED: true
+      NEXT_PUBLIC_FEATURE_CLINICAL_NOTES_ENABLED: true
       NATIONAL_ID_ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000001'
       E2E_STAFF_SUB: 00000000-0000-4000-8000-000000000042
       E2E_STAFF_USERNAME: e2e.staff

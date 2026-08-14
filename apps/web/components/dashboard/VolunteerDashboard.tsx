@@ -17,6 +17,7 @@ interface VolunteerDashboardProps {
   statusBreakdown: Record<string, number>;
   bpDistribution: Record<string, number>;
   diabetesStats: { flagged: number; total: number };
+  clinicalNotes?: { drafts: number; pendingCosign: number };
 }
 
 export function VolunteerDashboard({
@@ -28,6 +29,7 @@ export function VolunteerDashboard({
   statusBreakdown,
   bpDistribution,
   diabetesStats,
+  clinicalNotes,
 }: VolunteerDashboardProps) {
   return (
     <section className="space-y-6">
@@ -36,7 +38,14 @@ export function VolunteerDashboard({
         hint="Use this section to track your intake work and move patients to the next step."
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {clinicalNotes ? (
+          <DashboardKpiCard
+            title="Your HAP notes"
+            value={clinicalNotes.drafts + clinicalNotes.pendingCosign}
+            hint={`${clinicalNotes.drafts} draft · ${clinicalNotes.pendingCosign} awaiting cosign`}
+          />
+        ) : null}
         <DashboardKpiCard
           title="Patients added today"
           value={patientsRegisteredToday}

@@ -48,6 +48,7 @@ interface DashboardData {
       createdAt: string;
     }[];
     finalizationsTrend: { date: string; count: number }[];
+    pendingClinicalNoteCosigns?: number;
   };
   review?: {
     clinicalMeasurements: ClinicalMeasurementMetrics;
@@ -78,6 +79,7 @@ interface DashboardData {
       encountersFinalized: number;
     }[];
     encounterStatusDistribution: Record<string, number>;
+    pendingClinicalNoteCosigns?: number;
   };
   volunteer?: {
     clinicalMeasurements: ClinicalMeasurementMetrics;
@@ -89,6 +91,7 @@ interface DashboardData {
     statusBreakdown: Record<string, number>;
     bpDistribution: Record<string, number>;
     diabetesStats: { flagged: number; total: number };
+    clinicalNotes?: { drafts: number; pendingCosign: number };
   };
   systemAdmin?: {
     totalClinics: number;

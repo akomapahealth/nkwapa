@@ -25,6 +25,7 @@ interface DoctorDashboardProps {
     status: string;
     createdAt: string;
   }[];
+  pendingClinicalNoteCosigns?: number;
 }
 
 const columns: GridColDef[] = [
@@ -47,6 +48,7 @@ export function DoctorDashboard({
   diabetesStats,
   finalizationsTrend,
   recentEncounters,
+  pendingClinicalNoteCosigns,
 }: DoctorDashboardProps) {
   return (
     <section className="space-y-6">
@@ -55,7 +57,15 @@ export function DoctorDashboard({
         hint="Use this section to spot visits that still need a doctor's final decision."
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {pendingClinicalNoteCosigns !== undefined ? (
+          <DashboardKpiCard
+            title="HAP notes to cosign"
+            value={pendingClinicalNoteCosigns}
+            icon={ClipboardList}
+            hint="Volunteer-authored notes assigned to you and waiting for review."
+          />
+        ) : null}
         <DashboardKpiCard
           title="Waiting for sign-off"
           value={awaitingFinalization}

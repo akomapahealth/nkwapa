@@ -16,6 +16,10 @@
     "./diabetes-screening": {
       "types": "./dist/src/diabetes-screening.d.ts",
       "default": "./dist/src/diabetes-screening.js"
+    },
+    "./clinical-notes": {
+      "types": "./dist/src/clinical-notes.d.ts",
+      "default": "./dist/src/clinical-notes.js"
     }
   },
   "scripts": {

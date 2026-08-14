@@ -15,6 +15,7 @@ import type {
   ClinicComparisonRow,
   ClinicalMeasurementMetrics,
 } from './dto/dashboard-response.dto';
+import { isApiFeatureEnabled } from '../common/feature-flags';
 
 export const FLAGGED_DIABETES_WHERE = {
   OR: [
@@ -49,9 +50,15 @@ export class DashboardService {
       response.systemAdmin = await this.getSystemAdminMetrics();
     }
     if (isDoctor) {
+      const pendingClinicalNoteCosigns = isApiFeatureEnabled('clinicalNotes')
+        ? await this.prisma.clinicalNote.count({
+            where: { clinicId, status: 'PENDING_COSIGN', assignedDoctorId: userId },
+          })
+        : undefined;
       response.doctor = {
         ...(await this.getDoctorMetrics(clinicId, userId)),
         clinicalMeasurements: clinicalMeasurements!,
+        ...(pendingClinicalNoteCosigns === undefined ? {} : { pendingClinicalNoteCosigns }),
       };
       response.review = {
         ...(await this.getReviewMetrics(clinicId, userId)),
@@ -59,19 +66,41 @@ export class DashboardService {
       };
     }
     if (isDirector) {
+      const pendingClinicalNoteCosigns = isApiFeatureEnabled('clinicalNotes')
+        ? await this.getPendingClinicalNoteCount(clinicId)
+        : undefined;
       response.director = {
         ...(await this.getDirectorMetrics(clinicId)),
         clinicalMeasurements: clinicalMeasurements!,
+        ...(pendingClinicalNoteCosigns === undefined ? {} : { pendingClinicalNoteCosigns }),
       };
     }
     if (isVolunteer) {
+      const clinicalNotes = isApiFeatureEnabled('clinicalNotes')
+        ? {
+            drafts: await this.prisma.clinicalNote.count({
+              where: { clinicId, authorUserId: userId, status: 'DRAFT' },
+            }),
+            pendingCosign: await this.prisma.clinicalNote.count({
+              where: { clinicId, authorUserId: userId, status: 'PENDING_COSIGN' },
+            }),
+          }
+        : undefined;
       response.volunteer = {
         ...(await this.getVolunteerMetrics(clinicId, userId)),
         clinicalMeasurements: clinicalMeasurements!,
+        ...(clinicalNotes ? { clinicalNotes } : {}),
       };
     }
 
     return response;
+  }
+
+  private async getPendingClinicalNoteCount(clinicId: string): Promise<number> {
+    const rows = await this.prisma.$queryRaw<Array<{ count: number }>>`
+      SELECT app.clinical_note_pending_count(${clinicId}::uuid) AS count
+    `;
+    return Number(rows[0]?.count ?? 0);
   }
 
   private async getSummary(clinicId: string): Promise<DashboardSummary> {

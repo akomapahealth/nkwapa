@@ -22,25 +22,26 @@ Use this file first when you need to answer one of these questions:
 
 ## Current Source-Of-Truth Docs
 
-| Document                                                    | Status                      | Use it for                                                                     |
-| ----------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------ |
-| `IMPLEMENTATION_STATUS.md`                                  | Current with follow-on work | Product-wide implementation snapshot and gap map                               |
-| `docs/security-audit-2026-04-04.md`                         | Current                     | Security posture, hardening decisions, and residual risks                      |
-| `docs/FEATURE_GAPS_AND_NEXT_ADDITIONS.md`                   | Current                     | Prioritized list of partially completed areas and recommended additions        |
-| `docs/PRIORITIZED_IMPLEMENTATION_PLAN.md`                   | Current                     | Phase-based execution roadmap with concrete tickets and sequencing             |
-| `docs/DATABASE_SETUP.md`                                    | Current                     | Local/remote DB setup, migrate/generate workflow, pooled vs direct connections |
-| `docs/FEATURE_WORKFLOWS_GUIDE.md`                           | Current with follow-on work | Operator-facing workflow map across staff, admin, and portal surfaces          |
-| `docs/USER_AND_ROLE_SETUP_GUIDE.md`                         | Current                     | How identity, local roles, portal access, and lifecycle setup work             |
-| `docs/USER_TESTING_GUIDE.md`                                | Current with follow-on work | Smoke/UAT checks for the current product surface                               |
-| `docs/specs/01_ARCHITECTURE_OVERVIEW.md`                    | Current                     | Repo/runtime architecture and cross-cutting design rules                       |
-| `docs/specs/02_DOMAIN_MODEL_AND_DATA_DICTIONARY.md`         | Current                     | Current schema/domain model and scoping rules                                  |
-| `docs/specs/03_AUTH_AND_RBAC.md`                            | Current                     | Auth, RBAC, permissions, and onboarding model                                  |
-| `docs/specs/04_OFFLINE_FIRST_AND_SYNC.md`                   | Current with follow-on work | Current offline scope, sync model, and limitations                             |
-| `docs/specs/06_PATIENTS_MODULE.md`                          | Current with follow-on work | Current patient registry, portal link/invite, and merge behavior               |
-| `docs/specs/07_MEDICAL_HISTORY_AND_ALLERGIES.md`            | Current                     | Longitudinal history, allergy safety, rollout, and release-gate contract       |
-| `docs/specs/08_MEDICATION_RECONCILIATION_AND_PHARMACIES.md` | Current                     | Reported medications, pharmacy history, offline conflicts, and rollout         |
-| `docs/specs/09_DIABETES_SCREENING.md`                       | Current                     | Diabetes record, compatibility, access, downstream, and release-gate contract  |
-| `docs/clinic-ops/26_RESEARCH_EXPORT_TRANSFORMS_V1.md`       | Current                     | Research export v1 compatibility and v2 pipeline contract                      |
+| Document                                                    | Status                      | Use it for                                                                       |
+| ----------------------------------------------------------- | --------------------------- | -------------------------------------------------------------------------------- |
+| `IMPLEMENTATION_STATUS.md`                                  | Current with follow-on work | Product-wide implementation snapshot and gap map                                 |
+| `docs/security-audit-2026-04-04.md`                         | Current                     | Security posture, hardening decisions, and residual risks                        |
+| `docs/FEATURE_GAPS_AND_NEXT_ADDITIONS.md`                   | Current                     | Prioritized list of partially completed areas and recommended additions          |
+| `docs/PRIORITIZED_IMPLEMENTATION_PLAN.md`                   | Current                     | Phase-based execution roadmap with concrete tickets and sequencing               |
+| `docs/DATABASE_SETUP.md`                                    | Current                     | Local/remote DB setup, migrate/generate workflow, pooled vs direct connections   |
+| `docs/FEATURE_WORKFLOWS_GUIDE.md`                           | Current with follow-on work | Operator-facing workflow map across staff, admin, and portal surfaces            |
+| `docs/USER_AND_ROLE_SETUP_GUIDE.md`                         | Current                     | How identity, local roles, portal access, and lifecycle setup work               |
+| `docs/USER_TESTING_GUIDE.md`                                | Current with follow-on work | Smoke/UAT checks for the current product surface                                 |
+| `docs/specs/01_ARCHITECTURE_OVERVIEW.md`                    | Current                     | Repo/runtime architecture and cross-cutting design rules                         |
+| `docs/specs/02_DOMAIN_MODEL_AND_DATA_DICTIONARY.md`         | Current                     | Current schema/domain model and scoping rules                                    |
+| `docs/specs/03_AUTH_AND_RBAC.md`                            | Current                     | Auth, RBAC, permissions, and onboarding model                                    |
+| `docs/specs/04_OFFLINE_FIRST_AND_SYNC.md`                   | Current with follow-on work | Current offline scope, sync model, and limitations                               |
+| `docs/specs/06_PATIENTS_MODULE.md`                          | Current with follow-on work | Current patient registry, portal link/invite, and merge behavior                 |
+| `docs/specs/07_MEDICAL_HISTORY_AND_ALLERGIES.md`            | Current                     | Longitudinal history, allergy safety, rollout, and release-gate contract         |
+| `docs/specs/08_MEDICATION_RECONCILIATION_AND_PHARMACIES.md` | Current                     | Reported medications, pharmacy history, offline conflicts, and rollout           |
+| `docs/specs/09_DIABETES_SCREENING.md`                       | Current                     | Diabetes record, compatibility, access, downstream, and release-gate contract    |
+| `docs/specs/10_CLINICAL_NOTES.md`                           | Current                     | HAP lifecycle, clinical access boundary, immutability, rollout, and release gate |
+| `docs/clinic-ops/26_RESEARCH_EXPORT_TRANSFORMS_V1.md`       | Current                     | Research export v1 compatibility and v2 pipeline contract                        |
 
 ---
 

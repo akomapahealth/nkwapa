@@ -315,6 +315,20 @@ Its release validation covers exact-list reconciliation, no-known-current attest
 preferred-pharmacy uniqueness and transitions, prescription-permission separation, offline replay,
 and clinic isolation. See `docs/specs/08_MEDICATION_RECONCILIATION_AND_PHARMACIES.md`.
 
+HAP clinical notes use an online-only pair:
+
+```dotenv
+FEATURE_CLINICAL_NOTES_ENABLED=false
+NEXT_PUBLIC_FEATURE_CLINICAL_NOTES_ENABLED=false
+```
+
+The API flag protects every note route, while the web flag controls encounter, patient-chart,
+dashboard, and cosign-queue entry points. Enable the API first, then rebuild with the web flag.
+Rollback occurs in the opposite order. Clinical-note validation includes database immutability,
+explicit clinic clinical roles, assignment snapshots, idempotent signing, audit redaction, downstream
+exclusion, offline content removal, and responsive browser coverage. See
+`docs/specs/10_CLINICAL_NOTES.md`.
+
 If rollback is needed, disable and redeploy the web app first, then disable the API after clients no
 longer expose the feature.
 

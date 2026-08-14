@@ -29,3 +29,10 @@ export {
   type DiabetesSymptom,
   type ParsedLegacyDiabetesSymptoms,
 } from './src/diabetes-screening';
+export {
+  CLINICAL_NOTE_SECTION_MAX_LENGTH,
+  CLINICAL_NOTE_ADDENDUM_REASON_MAX_LENGTH,
+  CLINICAL_NOTE_ADDENDUM_CONTENT_MAX_LENGTH,
+  CLINICAL_NOTE_STATUS,
+  type ClinicalNoteStatusValue,
+} from './src/clinical-notes';
