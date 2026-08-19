@@ -67,6 +67,7 @@
       "js-yaml": "5.2.3",
       "yaml": "1.10.3"
     },
+    "deepmerge-ts": "8.0.1",
     "effect": "3.20.0",
     "engine.io": {
       "ws": "8.21.0"
