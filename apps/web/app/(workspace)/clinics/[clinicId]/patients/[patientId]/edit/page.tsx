@@ -25,6 +25,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ArrowLeft, FilePenLine, ShieldCheck, UserRoundPen } from 'lucide-react';
+import { ResidentialLocationFields } from '@/components/patients/ResidentialLocationFields';
+import {
+  emptyResidentialLocation,
+  toResidentialLocationPayload,
+  toResidentialLocationValue,
+  type PatientLocationStatus,
+  type ResidentialLocationValue,
+} from '@/lib/residential-location';
 
 interface PatientData {
   id: string;
@@ -36,6 +44,11 @@ interface PatientData {
   phoneE164?: string | null;
   email?: string | null;
   nationalIdLast4?: string | null;
+  residentialLocationStatus?: PatientLocationStatus | string | null;
+  residentialRegion?: string | null;
+  residentialDistrict?: string | null;
+  residentialCommunity?: string | null;
+  residentialAddressNote?: string | null;
 }
 
 export default function EditPatientPage() {
@@ -59,6 +72,7 @@ export default function EditPatientPage() {
   const [sex, setSex] = useState('UNKNOWN');
   const [phoneE164, setPhoneE164] = useState('');
   const [email, setEmail] = useState('');
+  const [location, setLocation] = useState<ResidentialLocationValue>(emptyResidentialLocation());
 
   const fetchPatient = useCallback(async () => {
     setLoading(true);
@@ -85,6 +99,11 @@ export default function EditPatientPage() {
             phoneE164: local.phoneE164,
             email: local.email,
             nationalIdLast4: local.nationalIdLast4,
+            residentialLocationStatus: local.residentialLocationStatus,
+            residentialRegion: local.residentialRegion,
+            residentialDistrict: local.residentialDistrict,
+            residentialCommunity: local.residentialCommunity,
+            residentialAddressNote: local.residentialAddressNote,
           });
         } else {
           setError('Patient not found');
@@ -105,6 +124,7 @@ export default function EditPatientPage() {
     setSex(p.sex);
     setPhoneE164(p.phoneE164 ?? '');
     setEmail(p.email ?? '');
+    setLocation(toResidentialLocationValue(p));
   }
 
   useEffect(() => {
@@ -125,6 +145,20 @@ export default function EditPatientPage() {
     if (sex !== patient.sex) body.sex = sex;
     if (phoneE164 !== (patient.phoneE164 ?? '')) body.phoneE164 = phoneE164;
     if (email !== (patient.email ?? '')) body.email = email;
+
+    // Residential location is diffed and sent as a coherent block; the server
+    // re-applies the status invariant.
+    const locationPayload = toResidentialLocationPayload(location);
+    const currentStatus = patient.residentialLocationStatus ?? 'NOT_RECORDED';
+    const locationChanged =
+      locationPayload.residentialLocationStatus !== currentStatus ||
+      (locationPayload.residentialRegion ?? null) !== (patient.residentialRegion ?? null) ||
+      (locationPayload.residentialDistrict ?? null) !== (patient.residentialDistrict ?? null) ||
+      (locationPayload.residentialCommunity ?? null) !== (patient.residentialCommunity ?? null) ||
+      (locationPayload.residentialAddressNote ?? null) !== (patient.residentialAddressNote ?? null);
+    if (locationChanged) {
+      Object.assign(body, locationPayload);
+    }
 
     if (Object.keys(body).length === 0) {
       router.push(`/clinics/${clinicId}/patients/${patientId}`);
@@ -307,6 +341,8 @@ export default function EditPatientPage() {
             </div>
           </div>
         </FormSectionCard>
+
+        <ResidentialLocationFields value={location} onChange={setLocation} />
 
         <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
           <CardHeader className="space-y-2">
