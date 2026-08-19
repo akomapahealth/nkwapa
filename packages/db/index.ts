@@ -36,3 +36,12 @@ export {
   CLINICAL_NOTE_STATUS,
   type ClinicalNoteStatusValue,
 } from './src/clinical-notes';
+export {
+  GHANA_REGIONS,
+  GHANA_REGION_LABELS,
+  GHANA_DISTRICTS_BY_REGION,
+  PATIENT_LOCATION_STATUS_LABELS,
+  isGhanaRegion,
+  isDistrictInRegion,
+  normalizeDistrict,
+} from './src/ghana-locations';

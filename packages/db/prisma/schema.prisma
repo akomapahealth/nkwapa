@@ -15,6 +15,38 @@ enum Sex {
   UNKNOWN
 }
 
+// Ghana's 16 administrative regions. Used for a patient's residential
+// location, which is deliberately kept separate from their primary clinic.
+enum GhanaRegion {
+  AHAFO
+  ASHANTI
+  BONO
+  BONO_EAST
+  CENTRAL
+  EASTERN
+  GREATER_ACCRA
+  NORTH_EAST
+  NORTHERN
+  OTI
+  SAVANNAH
+  UPPER_EAST
+  UPPER_WEST
+  VOLTA
+  WESTERN
+  WESTERN_NORTH
+}
+
+// Deliberate capture state for a patient's residential location so that a
+// missing location is never ambiguous blank text.
+// - RECORDED: staff captured a residential location (region required).
+// - UNKNOWN: staff asked but the location is not known.
+// - NOT_RECORDED: never captured (default for migrated/new patients).
+enum PatientLocationStatus {
+  RECORDED
+  UNKNOWN
+  NOT_RECORDED
+}
+
 enum UserRole {
   SYSTEM_ADMIN
   DIRECTOR
@@ -454,6 +486,14 @@ model Patient {
   nationalIdHash       String         @unique @db.VarChar(128) // SHA-256 hex or base64url
   nationalIdLast4      String?        @db.VarChar(8)
 
+  // Residential/community location. Distinct from primaryClinicId (care site)
+  // and Clinic.locationCode. Privacy-conscious: no GPS/lat/long in v1.
+  residentialLocationStatus PatientLocationStatus @default(NOT_RECORDED)
+  residentialRegion         GhanaRegion?
+  residentialDistrict       String?               @db.VarChar(120)
+  residentialCommunity      String?               @db.VarChar(120)
+  residentialAddressNote    String?               @db.VarChar(280)
+
   createdByUserId     String?   @db.Uuid
   portalUserId        String?   @unique @db.Uuid
   mergedIntoPatientId String?   @db.Uuid
@@ -495,6 +535,8 @@ model Patient {
   @@index([phoneE164])
   @@index([updatedAt])
   @@index([primaryClinicId, updatedAt, id])
+  @@index([primaryClinicId, residentialRegion])
+  @@index([primaryClinicId, residentialLocationStatus])
 }
 
 model PatientConsent {
