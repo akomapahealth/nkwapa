@@ -15,6 +15,12 @@ export interface PatientRecord {
   nationalIdCiphertext?: string;
   nationalIdHash?: string;
   nationalIdLast4?: string;
+  // Residential location (see @nkwapa/db residential-location helpers).
+  residentialLocationStatus?: string;
+  residentialRegion?: string | null;
+  residentialDistrict?: string | null;
+  residentialCommunity?: string | null;
+  residentialAddressNote?: string | null;
   createdByUserId?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -353,6 +359,11 @@ export class NkwapaDb extends Dexie {
           .toCollection()
           .modify(migrateLegacyDiabetesScreening);
       });
+    // v7 indexes the residential region for offline registry filtering. New
+    // non-indexed location fields need no migration; existing rows resync.
+    this.version(7).stores({
+      patients: 'id, primaryClinicId, updatedAt, nationalIdHash, residentialRegion',
+    });
   }
 }
 
