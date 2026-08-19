@@ -332,6 +332,80 @@ describe('SyncService', () => {
     });
   });
 
+  describe('patient UPSERT - residential location', () => {
+    beforeAll(() => {
+      process.env.NATIONAL_ID_ENCRYPTION_KEY = 'a'.repeat(64);
+    });
+
+    it('resolves and persists a recorded location on upsert', async () => {
+      const mutations: SyncMutationDto[] = [
+        {
+          id: 'mut-loc-1',
+          entityType: 'patient',
+          entityId: 'patient-loc-1',
+          operation: 'UPSERT',
+          clinicId: 'clinic-1',
+          payloadJson: {
+            patientCode: 'NKP-2025-000123',
+            nationalId: '1234567890',
+            primaryClinicId: 'clinic-1',
+            firstName: 'Ama',
+            lastName: 'Mensah',
+            residentialRegion: 'GREATER_ACCRA',
+            residentialDistrict: 'accra metropolitan',
+            residentialCommunity: 'Osu',
+          },
+          idempotencyKey: 'idem-loc-1',
+        },
+      ];
+
+      await service.applyMutations('clinic-1', mockUser as never, mutations);
+
+      expect(prisma.patient.upsert).toHaveBeenCalledTimes(1);
+      const args = (prisma.patient.upsert as jest.Mock).mock.calls[0][0];
+      expect(args.create).toEqual(
+        expect.objectContaining({
+          residentialLocationStatus: 'RECORDED',
+          residentialRegion: 'GREATER_ACCRA',
+          residentialDistrict: 'Accra Metropolitan',
+          residentialCommunity: 'Osu',
+        }),
+      );
+      expect(args.update).toEqual(
+        expect.objectContaining({
+          residentialLocationStatus: 'RECORDED',
+          residentialRegion: 'GREATER_ACCRA',
+        }),
+      );
+    });
+
+    it('defaults to NOT_RECORDED when a synced patient carries no location', async () => {
+      const mutations: SyncMutationDto[] = [
+        {
+          id: 'mut-loc-2',
+          entityType: 'patient',
+          entityId: 'patient-loc-2',
+          operation: 'UPSERT',
+          clinicId: 'clinic-1',
+          payloadJson: {
+            patientCode: 'NKP-2025-000124',
+            nationalId: '1234567891',
+            primaryClinicId: 'clinic-1',
+            firstName: 'Kofi',
+            lastName: 'Owusu',
+          },
+          idempotencyKey: 'idem-loc-2',
+        },
+      ];
+
+      await service.applyMutations('clinic-1', mockUser as never, mutations);
+
+      const args = (prisma.patient.upsert as jest.Mock).mock.calls[0][0];
+      expect(args.create.residentialLocationStatus).toBe('NOT_RECORDED');
+      expect(args.create.residentialRegion).toBeNull();
+    });
+  });
+
   describe('encounter UPSERT - CONFLICT_FINALIZED', () => {
     it('returns CONFLICT with CONFLICT_FINALIZED when encounter is FINALIZED', async () => {
       (encounterRepo.findById as jest.Mock).mockResolvedValue({
