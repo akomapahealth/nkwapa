@@ -18,6 +18,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
 import { dataGridSx } from '@/lib/datagrid-theme';
+import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
+import {
+  EMPTY_LOCATION_FILTER,
+  ResidentialLocationFilters,
+  type ResidentialLocationFilterValue,
+} from '@/components/patients/ResidentialLocationFilters';
+import { GHANA_REGION_LABELS, PATIENT_LOCATION_STATUS_LABELS } from '@/lib/residential-location';
 
 interface PatientSummary {
   id: string;
@@ -45,6 +52,8 @@ export default function ClinicPatientsPage() {
   const canCreateOpsCheckIn = hasPermission(perms, 'OPS.CHECKIN.CREATE');
 
   const [q, setQ] = useState('');
+  const [locationFilter, setLocationFilter] =
+    useState<ResidentialLocationFilterValue>(EMPTY_LOCATION_FILTER);
   const [results, setResults] = useState<PatientSummary[]>([]);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
@@ -62,8 +71,19 @@ export default function ClinicPatientsPage() {
     setError(null);
 
     try {
+      const query = new URLSearchParams({
+        page: String(page + 1),
+        pageSize: String(pageSize),
+      });
+      if (q.trim()) query.set('q', q.trim());
+      if (locationFilter.region) query.set('residentialRegion', locationFilter.region);
+      if (locationFilter.district) query.set('residentialDistrict', locationFilter.district);
+      if (locationFilter.community.trim())
+        query.set('residentialCommunity', locationFilter.community.trim());
+      if (locationFilter.status) query.set('residentialLocationStatus', locationFilter.status);
+
       const response = await apiFetch(
-        `/clinics/${encodeURIComponent(clinicId)}/patients?page=${page + 1}&pageSize=${pageSize}&q=${encodeURIComponent(q)}`,
+        `/clinics/${encodeURIComponent(clinicId)}/patients?${query.toString()}`,
         { getToken, activeClinicId: clinicId },
       );
       if (!response.ok) {
@@ -80,18 +100,16 @@ export default function ClinicPatientsPage() {
     } finally {
       setLoading(false);
     }
-  }, [clinicId, getToken, page, pageSize, q]);
+  }, [clinicId, getToken, page, pageSize, q, locationFilter]);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(
-      () => {
-        void search();
-      },
-      q.trim() ? 300 : 0,
-    );
+    const debounce = q.trim() || locationFilter.community.trim() ? 300 : 0;
+    const timeoutId = window.setTimeout(() => {
+      void search();
+    }, debounce);
 
     return () => window.clearTimeout(timeoutId);
-  }, [q, search]);
+  }, [q, locationFilter.community, search]);
 
   const handleCheckIn = async (patient: PatientSummary) => {
     if (!clinicId || !getToken) {
@@ -229,7 +247,7 @@ export default function ClinicPatientsPage() {
               Results update as you type and stay scoped to the active clinic.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <Input
               type="search"
               value={q}
@@ -240,6 +258,36 @@ export default function ClinicPatientsPage() {
               placeholder="Search by name, patient code, phone, or national ID last 4"
               className="w-full md:max-w-xl"
             />
+            <div className="space-y-3 border-t border-border/70 pt-4">
+              <p className="text-sm font-medium text-foreground">Residential location filters</p>
+              <ResidentialLocationFilters
+                value={locationFilter}
+                onChange={(next) => {
+                  setLocationFilter(next);
+                  setPage(0);
+                }}
+              />
+              <ActiveFilterSummary
+                items={[
+                  { label: 'Query', value: q.trim() || null },
+                  {
+                    label: 'Region',
+                    value: locationFilter.region
+                      ? GHANA_REGION_LABELS[locationFilter.region]
+                      : null,
+                  },
+                  { label: 'District', value: locationFilter.district || null },
+                  { label: 'Community', value: locationFilter.community.trim() || null },
+                  {
+                    label: 'Location status',
+                    value: locationFilter.status
+                      ? PATIENT_LOCATION_STATUS_LABELS[locationFilter.status]
+                      : null,
+                  },
+                ]}
+                emptyLabel="Browsing the full clinic registry"
+              />
+            </div>
           </CardContent>
         </Card>
 
