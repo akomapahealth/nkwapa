@@ -1,4 +1,4 @@
-import { NationalIdType, Sex } from '@prisma/client';
+import { GhanaRegion, NationalIdType, PatientLocationStatus, Sex } from '@prisma/client';
 
 /** DTO for creating patient; primaryClinicId comes from route param. */
 export interface CreatePatientDto {
@@ -12,4 +12,10 @@ export interface CreatePatientDto {
   nationalIdType: NationalIdType;
   nationalId: string; // plaintext, encrypted/hashed by service
   createdByUserId?: string;
+  // Residential location (see ResidentialLocationDto); resolved by service.
+  residentialLocationStatus?: PatientLocationStatus;
+  residentialRegion?: GhanaRegion;
+  residentialDistrict?: string;
+  residentialCommunity?: string;
+  residentialAddressNote?: string;
 }

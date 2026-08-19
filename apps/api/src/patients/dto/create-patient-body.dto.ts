@@ -2,9 +2,10 @@ import { NationalIdType, Sex } from '@prisma/client';
 import { IsDateString, IsEmail, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 import { IsAllowedEmailDomain } from '../../common/email-policy';
 import { ToNormalizedEmail, ToSanitizedString } from '../../common/validation';
+import { ResidentialLocationDto } from './residential-location.dto';
 
 /** Body DTO for POST /clinics/:clinicId/patients; primaryClinicId from route. */
-export class CreatePatientBodyDto {
+export class CreatePatientBodyDto extends ResidentialLocationDto {
   @ToSanitizedString({ maxLength: 120 })
   @IsString()
   @MaxLength(120)

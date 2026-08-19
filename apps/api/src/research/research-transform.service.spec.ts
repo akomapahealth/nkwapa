@@ -65,7 +65,7 @@ describe('ResearchTransformService', () => {
         'research_revocations.csv',
       ]),
     );
-    expect(result.manifest.datasetVersion).toBe(3);
+    expect(result.manifest.datasetVersion).toBe(4);
     expect(fs.existsSync(result.artifactPath)).toBe(true);
   });
 
@@ -268,11 +268,18 @@ describe('ResearchTransformService', () => {
         id: 'patient-1',
         dob: new Date('1990-05-15T00:00:00.000Z'),
         sex: 'MALE',
+        residentialLocationStatus: 'RECORDED',
+        residentialRegion: 'GREATER_ACCRA',
+        residentialDistrict: 'Accra Metropolitan',
+        residentialCommunity: 'SecretCommunityName',
+        residentialAddressNote: 'SecretAddressNote',
       },
       {
         id: 'patient-2',
         dob: new Date('1982-01-10T00:00:00.000Z'),
         sex: 'FEMALE',
+        residentialLocationStatus: 'UNKNOWN',
+        residentialRegion: null,
       },
     ]);
     prisma.medicalHistoryRevision.findMany.mockResolvedValue([
@@ -326,10 +333,16 @@ describe('ResearchTransformService', () => {
     );
 
     expect(result.recordCount).toBeGreaterThan(0);
-    expect(result.manifest.datasetVersion).toBe(3);
+    expect(result.manifest.datasetVersion).toBe(4);
     expect(subjectsCsv?.content).toContain('research_patient_key');
     expect(subjectsCsv?.content).toContain('1990');
     expect(subjectsCsv?.content).not.toContain('Witness');
+    // Coarse region only; granular residence must never leak into exports.
+    expect(subjectsCsv?.content).toContain('residential_region');
+    expect(subjectsCsv?.content).toContain('GREATER_ACCRA');
+    expect(subjectsCsv?.content).not.toContain('Accra Metropolitan');
+    expect(subjectsCsv?.content).not.toContain('SecretCommunityName');
+    expect(subjectsCsv?.content).not.toContain('SecretAddressNote');
     expect(measurementsCsv?.content).toContain('126');
     expect(measurementsCsv?.content).toContain('102');
     expect(measurementsCsv?.content).not.toContain('Do not leak');

@@ -9,8 +9,10 @@ import {
   SyncOperation,
   SyncMutationStatus,
   EncounterStatus,
+  GhanaRegion,
   HypertensionClassification,
   NationalIdType,
+  PatientLocationStatus,
   Sex,
   UserRole,
   MedicalHistoryCategory,
@@ -26,6 +28,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { PatientRepository } from '../patients/patient.repository';
+import { resolveResidentialLocation } from '../patients/residential-location.util';
 import { EncounterRepository } from '../encounters/encounter.repository';
 import { SyncMutationDto, SYNC_OPERATION } from './dto/sync-mutation.dto';
 import { SyncMutationResultDto, SYNC_MUTATION_RESULT_STATUS } from './dto/sync-push-response.dto';
@@ -375,6 +378,18 @@ export class SyncService {
     const rawPhone = (payload.phoneE164 as string) ?? (payload.phone as string) ?? null;
     const phoneE164 = rawPhone ? (normalizePhoneToE164(rawPhone, 'GH') ?? null) : null;
 
+    // Residential location is resolved through the shared invariant so an
+    // offline-synced patient stores the same consistent shape as a REST write.
+    const location = resolveResidentialLocation({
+      residentialLocationStatus: payload.residentialLocationStatus as
+        | PatientLocationStatus
+        | undefined,
+      residentialRegion: payload.residentialRegion as GhanaRegion | undefined,
+      residentialDistrict: payload.residentialDistrict as string | undefined,
+      residentialCommunity: payload.residentialCommunity as string | undefined,
+      residentialAddressNote: payload.residentialAddressNote as string | undefined,
+    });
+
     const before = existingById ? JSON.stringify(existingById) : null;
     const patient = await this.prisma.patient.upsert({
       where: { id: mut.entityId },
@@ -393,6 +408,7 @@ export class SyncService {
         nationalIdHash: hash,
         nationalIdLast4: nationalIdLast4(nationalId),
         createdBy: createdByUserId ? { connect: { id: createdByUserId } } : undefined,
+        ...location,
       },
       update: {
         patientCode,
@@ -402,6 +418,7 @@ export class SyncService {
         sex: (payload.sex as Sex) ?? 'UNKNOWN',
         phoneE164,
         email: (payload.email as string) ?? null,
+        ...location,
       },
     });
 

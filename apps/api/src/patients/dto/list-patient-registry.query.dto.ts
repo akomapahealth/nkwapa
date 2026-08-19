@@ -1,10 +1,27 @@
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { GhanaRegion, PatientLocationStatus } from '@prisma/client';
+import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
 import { ToCursor, ToOptionalNumber, ToSanitizedString } from '../../common/validation';
 
 export class ListPatientRegistryQueryDto {
   @IsOptional()
   @ToSanitizedString({ maxLength: 120 })
   q?: string;
+
+  @IsOptional()
+  @IsEnum(GhanaRegion)
+  residentialRegion?: GhanaRegion;
+
+  @IsOptional()
+  @ToSanitizedString({ maxLength: 120 })
+  residentialDistrict?: string;
+
+  @IsOptional()
+  @ToSanitizedString({ maxLength: 120 })
+  residentialCommunity?: string;
+
+  @IsOptional()
+  @IsEnum(PatientLocationStatus)
+  residentialLocationStatus?: PatientLocationStatus;
 
   @IsOptional()
   @ToOptionalNumber()

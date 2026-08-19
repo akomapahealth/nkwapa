@@ -31,6 +31,7 @@ import { PatientTrendsPanel } from '@/components/patients/PatientTrendsPanel';
 import { MedicalHistoryPanel } from '@/components/patients/MedicalHistoryPanel';
 import { MedicationReconciliationPanel } from '@/components/patients/MedicationReconciliationPanel';
 import { DiabetesHistoryPanel } from '@/components/patients/DiabetesHistoryPanel';
+import { ResidentialLocationSummary } from '@/components/patients/ResidentialLocationSummary';
 import { PatientClinicalNotesPanel } from '@/components/clinical-notes/PatientClinicalNotesPanel';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
@@ -66,6 +67,11 @@ interface PatientWithEncounters {
     phoneE164?: string | null;
     email?: string | null;
     nationalIdLast4?: string | null;
+    residentialLocationStatus?: string | null;
+    residentialRegion?: string | null;
+    residentialDistrict?: string | null;
+    residentialCommunity?: string | null;
+    residentialAddressNote?: string | null;
   };
   portalAccess?: {
     status: 'LINKED' | 'INVITED' | 'UNLINKED' | 'MERGED';
@@ -767,51 +773,55 @@ export default function PatientDetailPage() {
 
         <TabsContent value="overview">
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-            <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
-              <CardHeader>
-                <h2 className="text-lg font-semibold">Patient details</h2>
-              </CardHeader>
-              <CardContent className="grid gap-4 sm:grid-cols-2">
-                <div className="rounded-3xl border border-border/80 bg-background/75 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                    Patient code
-                  </p>
-                  <p className="mt-2 font-mono text-lg font-semibold text-foreground">
-                    {patient.patientCode}
-                  </p>
-                </div>
-                <div className="rounded-3xl border border-border/80 bg-background/75 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                    Contact
-                  </p>
-                  <p className="mt-2 text-sm text-foreground">
-                    {patient.phoneE164 || 'No phone on file'}
-                  </p>
-                </div>
-                <div className="rounded-3xl border border-border/80 bg-background/75 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                    Date of birth
-                  </p>
-                  <p className="mt-2 text-sm text-foreground">
-                    {patient.dob ? new Date(patient.dob).toLocaleDateString() : 'Not recorded'}
-                  </p>
-                </div>
-                <div className="rounded-3xl border border-border/80 bg-background/75 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                    Sex
-                  </p>
-                  <p className="mt-2 text-sm text-foreground">{patient.sex}</p>
-                </div>
-                {patient.nationalIdLast4 ? (
-                  <div className="rounded-3xl border border-border/80 bg-background/75 p-4 sm:col-span-2">
+            <div className="space-y-4">
+              <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+                <CardHeader>
+                  <h2 className="text-lg font-semibold">Patient details</h2>
+                </CardHeader>
+                <CardContent className="grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-3xl border border-border/80 bg-background/75 p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                      National ID
+                      Patient code
                     </p>
-                    <p className="mt-2 text-sm text-foreground">...{patient.nationalIdLast4}</p>
+                    <p className="mt-2 font-mono text-lg font-semibold text-foreground">
+                      {patient.patientCode}
+                    </p>
                   </div>
-                ) : null}
-              </CardContent>
-            </Card>
+                  <div className="rounded-3xl border border-border/80 bg-background/75 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                      Contact
+                    </p>
+                    <p className="mt-2 text-sm text-foreground">
+                      {patient.phoneE164 || 'No phone on file'}
+                    </p>
+                  </div>
+                  <div className="rounded-3xl border border-border/80 bg-background/75 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                      Date of birth
+                    </p>
+                    <p className="mt-2 text-sm text-foreground">
+                      {patient.dob ? new Date(patient.dob).toLocaleDateString() : 'Not recorded'}
+                    </p>
+                  </div>
+                  <div className="rounded-3xl border border-border/80 bg-background/75 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                      Sex
+                    </p>
+                    <p className="mt-2 text-sm text-foreground">{patient.sex}</p>
+                  </div>
+                  {patient.nationalIdLast4 ? (
+                    <div className="rounded-3xl border border-border/80 bg-background/75 p-4 sm:col-span-2">
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                        National ID
+                      </p>
+                      <p className="mt-2 text-sm text-foreground">...{patient.nationalIdLast4}</p>
+                    </div>
+                  ) : null}
+                </CardContent>
+              </Card>
+
+              <ResidentialLocationSummary patient={patient} />
+            </div>
 
             <div className="space-y-4">
               {canLinkPortal ? (

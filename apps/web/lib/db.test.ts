@@ -20,4 +20,10 @@ describe('NkwapaDb longitudinal clinical schema', () => {
       ]),
     );
   });
+
+  it('indexes the residential region on the patients store for offline filtering', () => {
+    const patients = db.tables.find((table) => table.name === 'patients');
+    const indexNames = patients?.schema.indexes.map((index) => index.name) ?? [];
+    expect(indexNames).toContain('residentialRegion');
+  });
 });

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Patient, Prisma } from '@prisma/client';
+import { GhanaRegion, Patient, PatientLocationStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface PatientFindManyFilters {
@@ -7,6 +7,11 @@ export interface PatientFindManyFilters {
   search?: string;
   /** When q matches phone pattern, service sets normalized E.164 for exact match. */
   phoneE164?: string;
+  /** Residential location filters, AND-ed within the clinic scope. */
+  residentialRegion?: GhanaRegion;
+  residentialDistrict?: string;
+  residentialCommunity?: string;
+  residentialLocationStatus?: PatientLocationStatus;
   cursor?: string;
   skip?: number;
   take?: number;
@@ -98,6 +103,26 @@ export class PatientRepository {
     }
     if (!filters.includeMerged) {
       where.mergedIntoPatientId = null;
+    }
+    // Residential location filters are AND-ed with the clinic scope above so
+    // they can only ever narrow results, never widen them across clinics.
+    if (filters.residentialRegion) {
+      where.residentialRegion = filters.residentialRegion;
+    }
+    if (filters.residentialLocationStatus) {
+      where.residentialLocationStatus = filters.residentialLocationStatus;
+    }
+    if (filters.residentialDistrict) {
+      where.residentialDistrict = {
+        contains: filters.residentialDistrict.trim(),
+        mode: 'insensitive',
+      };
+    }
+    if (filters.residentialCommunity) {
+      where.residentialCommunity = {
+        contains: filters.residentialCommunity.trim(),
+        mode: 'insensitive',
+      };
     }
     if (filters.search || filters.phoneE164) {
       const orConditions: Prisma.PatientWhereInput[] = [];

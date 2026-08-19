@@ -20,6 +20,9 @@ const SUBJECT_HEADERS = [
   'research_clinic_key',
   'sex',
   'birth_year',
+  // Coarse geography only. District, community and the free-text address note
+  // are deliberately excluded from research exports as re-identifying.
+  'residential_region',
   'latest_consent_status',
 ];
 
@@ -388,6 +391,8 @@ export class ResearchTransformService {
               id: true,
               dob: true,
               sex: true,
+              residentialLocationStatus: true,
+              residentialRegion: true,
             },
           });
 
@@ -405,6 +410,11 @@ export class ResearchTransformService {
         research_clinic_key: clinicKey,
         sex: patient?.sex ?? 'UNKNOWN',
         birth_year: this.deIdService.birthYear(patient?.dob ?? null),
+        // Region only, and only when deliberately recorded.
+        residential_region:
+          patient?.residentialLocationStatus === 'RECORDED' && patient.residentialRegion
+            ? patient.residentialRegion
+            : '',
         latest_consent_status: currentConsent
           ? 'GRANTED'
           : latestRevocation

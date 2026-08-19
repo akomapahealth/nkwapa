@@ -13,6 +13,13 @@ import { AuditService } from '../audit/audit.service';
 import { PatientRepository, PatientFindManyFilters } from './patient.repository';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientBodyDto } from './dto/update-patient-body.dto';
+import {
+  hasResidentialLocationInput,
+  ResidentialLocationFilters,
+  ResidentialLocationInput,
+  ResolvedResidentialLocation,
+  resolveResidentialLocation,
+} from './residential-location.util';
 
 export interface AuditContext {
   clinicId: string;
@@ -90,6 +97,7 @@ export class PatientService {
     const phoneE164 = dto.phoneE164
       ? (normalizePhoneToE164(dto.phoneE164, 'GH') ?? dto.phoneE164)
       : null;
+    const location = this.resolveResidentialLocation(dto);
 
     const year = new Date().getFullYear();
     const patient = await this.prisma.$transaction(async (tx) => {
@@ -114,6 +122,7 @@ export class PatientService {
           nationalIdHash: hash,
           nationalIdLast4: nationalIdLast4(dto.nationalId),
           createdByUserId: dto.createdByUserId,
+          ...location,
         },
       });
     });
@@ -166,7 +175,7 @@ export class PatientService {
     q = '',
     page = 1,
     pageSize = 25,
-    options?: { cursor?: string; limit?: number },
+    options?: { cursor?: string; limit?: number; location?: ResidentialLocationFilters },
   ): Promise<PatientRegistryPage> {
     const normalizedPage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
     const normalizedPageSize = Math.min(
@@ -189,6 +198,10 @@ export class PatientService {
       cursor: options?.cursor,
       skip: options?.cursor ? undefined : (normalizedPage - 1) * normalizedPageSize,
       take: options?.cursor ? normalizedLimit : normalizedPageSize,
+      residentialRegion: options?.location?.residentialRegion,
+      residentialDistrict: options?.location?.residentialDistrict,
+      residentialCommunity: options?.location?.residentialCommunity,
+      residentialLocationStatus: options?.location?.residentialLocationStatus,
     };
 
     if (trimmed) {
@@ -298,6 +311,13 @@ export class PatientService {
         : null;
     }
 
+    // Residential location is resolved as a coherent block: when any location
+    // field is supplied, re-apply the status invariant across all of them so a
+    // partial edit can never leave region/status inconsistent.
+    if (hasResidentialLocationInput(dto)) {
+      Object.assign(data, this.resolveResidentialLocation(dto));
+    }
+
     const updated = await this.patientRepository.update(id, data);
 
     if (auditContext) {
@@ -318,6 +338,11 @@ export class PatientService {
 
   async findMany(filters: PatientFindManyFilters): Promise<Patient[]> {
     return this.patientRepository.findMany(filters);
+  }
+
+  /** Enforce the deliberate residential-location invariant. See the util. */
+  resolveResidentialLocation(input: ResidentialLocationInput): ResolvedResidentialLocation {
+    return resolveResidentialLocation(input);
   }
 
   private toRegistryItem(patient: Patient): PatientRegistryItem {

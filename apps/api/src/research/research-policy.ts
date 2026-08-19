@@ -2,7 +2,8 @@ import { createHash } from 'crypto';
 
 export const RESEARCH_EXPORT_QUEUE_NAME = 'research-exports';
 export const RESEARCH_POLICY_VERSION = 'research-export-v1';
-export const RESEARCH_DATASET_VERSION = 3;
+// v4 adds a coarse residential_region column to research_subjects.csv.
+export const RESEARCH_DATASET_VERSION = 4;
 export const RESEARCH_TIMESTAMP_ROUNDING_MINUTES = 15;
 export const RESEARCH_FILE_FORMAT = 'zip';
 
