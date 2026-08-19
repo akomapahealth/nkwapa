@@ -8,7 +8,15 @@
  * for clinic maintenance or data repair scripts.
  */
 import 'dotenv/config';
-import { PrismaClient, UserRole, Sex, NationalIdType, EncounterStatus } from '@prisma/client';
+import {
+  PrismaClient,
+  UserRole,
+  Sex,
+  NationalIdType,
+  EncounterStatus,
+  GhanaRegion,
+  PatientLocationStatus,
+} from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import {
   encryptNationalId,
@@ -198,6 +206,12 @@ async function main() {
             nationalIdHash: hashNationalId(nationalIdPlain),
             nationalIdLast4: nationalIdLast4(nationalIdPlain),
             createdByUserId: user.id,
+            // Demonstrates a deliberately recorded residential location. Other
+            // patients default to NOT_RECORDED (the safe migration state).
+            residentialLocationStatus: PatientLocationStatus.RECORDED,
+            residentialRegion: GhanaRegion.GREATER_ACCRA,
+            residentialDistrict: 'Accra Metropolitan',
+            residentialCommunity: 'Osu',
           },
         });
         await prisma.encounter.create({
