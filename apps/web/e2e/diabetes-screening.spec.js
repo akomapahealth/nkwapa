@@ -91,9 +91,14 @@ test('diabetes screening round-trips longitudinally, offline, read-only, and res
     page.getByText('Diabetes screening saved on this device and pending sync.'),
   ).toBeVisible();
 
+  // Wait for the specific push that carries the offline edit, not just the
+  // first push after reconnect: an unrelated/empty sync can resolve early and
+  // race the reload below, leaving the read to see stale server data.
   const reconnectPush = page.waitForResponse(
     (response) =>
-      response.request().method() === 'POST' && new URL(response.url()).pathname === '/sync/push',
+      response.request().method() === 'POST' &&
+      new URL(response.url()).pathname === '/sync/push' &&
+      (response.request().postData() ?? '').includes('Second encounter screening updated offline'),
   );
   await context.setOffline(false);
   expect((await reconnectPush).ok()).toBeTruthy();
