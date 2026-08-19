@@ -71,7 +71,5 @@ test('represents an unknown residential location deliberately', async ({ page })
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
 
   await expect(page.getByRole('heading', { name: 'Residential location' })).toBeVisible();
-  await expect(
-    page.getByText(/residential location is not known/i),
-  ).toBeVisible();
+  await expect(page.getByText(/residential location is not known/i)).toBeVisible();
 });
