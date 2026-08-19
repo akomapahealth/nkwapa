@@ -21,6 +21,7 @@ import { PatientTrendsPanel } from '@/components/patients/PatientTrendsPanel';
 import { MedicalHistoryPanel } from '@/components/patients/MedicalHistoryPanel';
 import { MedicationReconciliationPanel } from '@/components/patients/MedicationReconciliationPanel';
 import { DiabetesHistoryPanel } from '@/components/patients/DiabetesHistoryPanel';
+import { ResidentialLocationSummary } from '@/components/patients/ResidentialLocationSummary';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 
 interface ConsentStatusItem {
@@ -39,6 +40,11 @@ interface PatientWithEncounters {
     sex: string;
     phoneE164?: string | null;
     nationalIdLast4?: string | null;
+    residentialLocationStatus?: string | null;
+    residentialRegion?: string | null;
+    residentialDistrict?: string | null;
+    residentialCommunity?: string | null;
+    residentialAddressNote?: string | null;
   };
   resolvedFromPatientId?: string | null;
   recentEncounters: Array<{
@@ -380,31 +386,34 @@ export default function PatientDetailPage() {
             </TabsList>
           </div>
           <TabsContent value="overview">
-            <Card>
-              <CardHeader>
-                <h2 className="text-lg font-semibold">Patient Details</h2>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <p>
-                  <span className="font-medium">Patient Code:</span>{' '}
-                  <span className="font-mono">{patient.patientCode}</span>
-                </p>
-                {patient.phoneE164 && (
+            <div className="grid gap-4 xl:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <h2 className="text-lg font-semibold">Patient Details</h2>
+                </CardHeader>
+                <CardContent className="space-y-2">
                   <p>
-                    <span className="font-medium">Phone:</span> {patient.phoneE164}
+                    <span className="font-medium">Patient Code:</span>{' '}
+                    <span className="font-mono">{patient.patientCode}</span>
                   </p>
-                )}
-                {patient.dob && (
+                  {patient.phoneE164 && (
+                    <p>
+                      <span className="font-medium">Phone:</span> {patient.phoneE164}
+                    </p>
+                  )}
+                  {patient.dob && (
+                    <p>
+                      <span className="font-medium">DOB:</span>{' '}
+                      {new Date(patient.dob).toLocaleDateString()}
+                    </p>
+                  )}
                   <p>
-                    <span className="font-medium">DOB:</span>{' '}
-                    {new Date(patient.dob).toLocaleDateString()}
+                    <span className="font-medium">Sex:</span> {patient.sex}
                   </p>
-                )}
-                <p>
-                  <span className="font-medium">Sex:</span> {patient.sex}
-                </p>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+              <ResidentialLocationSummary patient={patient} />
+            </div>
           </TabsContent>
           <TabsContent value="trends">
             <PatientTrendsPanel patientId={patientId} clinicId={clinicId} />
