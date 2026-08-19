@@ -1,11 +1,12 @@
-import { ConflictException, Injectable } from '@nestjs/common';
-import { Encounter, Patient } from '@prisma/client';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { Encounter, GhanaRegion, Patient, PatientLocationStatus } from '@prisma/client';
 import { EncounterService } from '../encounters/encounter.service';
 import { ConsentService } from '../consents/consent.service';
 import {
   encryptNationalId,
   hashNationalId,
   nationalIdLast4,
+  normalizeDistrict,
   normalizePhoneToE164,
 } from '@nkwapa/db';
 import { PrismaService } from '../prisma/prisma.service';
@@ -18,6 +19,32 @@ export interface AuditContext {
   clinicId: string;
   actorUserId: string;
   requestId?: string;
+}
+
+/** Raw residential location fields as supplied by create/update DTOs. */
+export interface ResidentialLocationInput {
+  residentialLocationStatus?: PatientLocationStatus;
+  residentialRegion?: GhanaRegion;
+  residentialDistrict?: string;
+  residentialCommunity?: string;
+  residentialAddressNote?: string;
+}
+
+/** Resolved residential location, ready to persist. */
+export interface ResolvedResidentialLocation {
+  residentialLocationStatus: PatientLocationStatus;
+  residentialRegion: GhanaRegion | null;
+  residentialDistrict: string | null;
+  residentialCommunity: string | null;
+  residentialAddressNote: string | null;
+}
+
+/** Optional residential location filters for the registry, within clinic scope. */
+export interface ResidentialLocationFilters {
+  residentialRegion?: GhanaRegion;
+  residentialDistrict?: string;
+  residentialCommunity?: string;
+  residentialLocationStatus?: PatientLocationStatus;
 }
 
 export interface ExistingPatientSummary {
@@ -90,6 +117,7 @@ export class PatientService {
     const phoneE164 = dto.phoneE164
       ? (normalizePhoneToE164(dto.phoneE164, 'GH') ?? dto.phoneE164)
       : null;
+    const location = this.resolveResidentialLocation(dto);
 
     const year = new Date().getFullYear();
     const patient = await this.prisma.$transaction(async (tx) => {
@@ -114,6 +142,7 @@ export class PatientService {
           nationalIdHash: hash,
           nationalIdLast4: nationalIdLast4(dto.nationalId),
           createdByUserId: dto.createdByUserId,
+          ...location,
         },
       });
     });
@@ -166,7 +195,7 @@ export class PatientService {
     q = '',
     page = 1,
     pageSize = 25,
-    options?: { cursor?: string; limit?: number },
+    options?: { cursor?: string; limit?: number; location?: ResidentialLocationFilters },
   ): Promise<PatientRegistryPage> {
     const normalizedPage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
     const normalizedPageSize = Math.min(
@@ -189,6 +218,10 @@ export class PatientService {
       cursor: options?.cursor,
       skip: options?.cursor ? undefined : (normalizedPage - 1) * normalizedPageSize,
       take: options?.cursor ? normalizedLimit : normalizedPageSize,
+      residentialRegion: options?.location?.residentialRegion,
+      residentialDistrict: options?.location?.residentialDistrict,
+      residentialCommunity: options?.location?.residentialCommunity,
+      residentialLocationStatus: options?.location?.residentialLocationStatus,
     };
 
     if (trimmed) {
@@ -298,6 +331,19 @@ export class PatientService {
         : null;
     }
 
+    // Residential location is resolved as a coherent block: when any location
+    // field is supplied, re-apply the status invariant across all of them so a
+    // partial edit can never leave region/status inconsistent.
+    const hasLocationInput =
+      dto.residentialLocationStatus !== undefined ||
+      dto.residentialRegion !== undefined ||
+      dto.residentialDistrict !== undefined ||
+      dto.residentialCommunity !== undefined ||
+      dto.residentialAddressNote !== undefined;
+    if (hasLocationInput) {
+      Object.assign(data, this.resolveResidentialLocation(dto));
+    }
+
     const updated = await this.patientRepository.update(id, data);
 
     if (auditContext) {
@@ -318,6 +364,44 @@ export class PatientService {
 
   async findMany(filters: PatientFindManyFilters): Promise<Patient[]> {
     return this.patientRepository.findMany(filters);
+  }
+
+  /**
+   * Enforce the deliberate residential-location invariant so a missing location
+   * is never ambiguous blank text:
+   * - RECORDED requires a region (district is normalized to its canonical name);
+   * - UNKNOWN / NOT_RECORDED clear every granular field;
+   * - an omitted status is inferred: RECORDED when a region is present,
+   *   otherwise NOT_RECORDED.
+   */
+  resolveResidentialLocation(input: ResidentialLocationInput): ResolvedResidentialLocation {
+    const region = input.residentialRegion ?? null;
+    const status: PatientLocationStatus =
+      input.residentialLocationStatus ?? (region ? 'RECORDED' : 'NOT_RECORDED');
+
+    if (status !== 'RECORDED') {
+      return {
+        residentialLocationStatus: status,
+        residentialRegion: null,
+        residentialDistrict: null,
+        residentialCommunity: null,
+        residentialAddressNote: null,
+      };
+    }
+
+    if (!region) {
+      throw new BadRequestException(
+        'residentialRegion is required when residentialLocationStatus is RECORDED',
+      );
+    }
+
+    return {
+      residentialLocationStatus: 'RECORDED',
+      residentialRegion: region,
+      residentialDistrict: normalizeDistrict(region, input.residentialDistrict),
+      residentialCommunity: input.residentialCommunity?.trim() || null,
+      residentialAddressNote: input.residentialAddressNote?.trim() || null,
+    };
   }
 
   private toRegistryItem(patient: Patient): PatientRegistryItem {

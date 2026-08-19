@@ -27,6 +27,11 @@ const mockPatient: Patient = {
   mergedIntoPatientId: null,
   mergedAt: null,
   mergedByUserId: null,
+  residentialLocationStatus: 'NOT_RECORDED',
+  residentialRegion: null,
+  residentialDistrict: null,
+  residentialCommunity: null,
+  residentialAddressNote: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
@@ -251,5 +256,173 @@ describe('PatientService - update', () => {
     expect(updateCall).not.toHaveProperty('nationalIdCiphertext');
     expect(updateCall).not.toHaveProperty('nationalIdHash');
     expect(updateCall).not.toHaveProperty('nationalIdLast4');
+  });
+
+  it('does not touch residential location when no location field is provided', async () => {
+    await service.update(
+      'patient-1',
+      { firstName: 'Jane' },
+      { clinicId: 'clinic-1', actorUserId: 'user-1' },
+    );
+
+    const updateCall = mockRepoUpdate.mock.calls[0][1];
+    expect(updateCall).not.toHaveProperty('residentialRegion');
+    expect(updateCall).not.toHaveProperty('residentialLocationStatus');
+  });
+
+  it('resolves a recorded location block on update', async () => {
+    await service.update(
+      'patient-1',
+      {
+        residentialRegion: 'GREATER_ACCRA',
+        residentialDistrict: 'accra metropolitan',
+        residentialCommunity: '  Osu  ',
+      },
+      { clinicId: 'clinic-1', actorUserId: 'user-1' },
+    );
+
+    expect(mockRepoUpdate).toHaveBeenCalledWith(
+      'patient-1',
+      expect.objectContaining({
+        residentialLocationStatus: 'RECORDED',
+        residentialRegion: 'GREATER_ACCRA',
+        residentialDistrict: 'Accra Metropolitan',
+        residentialCommunity: 'Osu',
+      }),
+    );
+  });
+
+  it('clears granular fields when location status is UNKNOWN', async () => {
+    await service.update(
+      'patient-1',
+      {
+        residentialLocationStatus: 'UNKNOWN',
+        residentialRegion: 'ASHANTI',
+        residentialCommunity: 'Bantama',
+      },
+      { clinicId: 'clinic-1', actorUserId: 'user-1' },
+    );
+
+    expect(mockRepoUpdate).toHaveBeenCalledWith(
+      'patient-1',
+      expect.objectContaining({
+        residentialLocationStatus: 'UNKNOWN',
+        residentialRegion: null,
+        residentialDistrict: null,
+        residentialCommunity: null,
+        residentialAddressNote: null,
+      }),
+    );
+  });
+});
+
+describe('PatientService - create persists resolved location', () => {
+  let service: PatientService;
+  let txCreate: jest.Mock;
+
+  beforeAll(() => {
+    // National ID encryption requires a 32-byte key; deterministic for tests.
+    process.env.NATIONAL_ID_ENCRYPTION_KEY = 'a'.repeat(64);
+  });
+
+  beforeEach(async () => {
+    txCreate = jest.fn().mockResolvedValue(mockPatient);
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        PatientService,
+        {
+          provide: PatientRepository,
+          useValue: { findByNationalIdHash: jest.fn().mockResolvedValue(null) },
+        },
+        {
+          provide: PrismaService,
+          useValue: {
+            $transaction: jest.fn((cb) =>
+              cb({
+                patientCodeSequence: {
+                  upsert: jest.fn().mockResolvedValue({ year: 2025, lastNumber: 1 }),
+                },
+                patient: { create: txCreate },
+              }),
+            ),
+          },
+        },
+        { provide: AuditService, useValue: { logWrite: jest.fn().mockResolvedValue(undefined) } },
+        { provide: EncounterService, useValue: { listByPatient: jest.fn() } },
+        { provide: ConsentService, useValue: { getConsentStatusForClinic: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(PatientService);
+  });
+
+  it('writes a resolved RECORDED location with a canonical district', async () => {
+    await service.create({
+      primaryClinicId: 'clinic-1',
+      firstName: 'Ama',
+      lastName: 'Mensah',
+      nationalIdType: 'NATIONAL_ID',
+      nationalId: 'GHA-1',
+      residentialRegion: 'GREATER_ACCRA',
+      residentialDistrict: 'accra metropolitan',
+    });
+
+    const data = txCreate.mock.calls[0][0].data;
+    expect(data.residentialLocationStatus).toBe('RECORDED');
+    expect(data.residentialRegion).toBe('GREATER_ACCRA');
+    expect(data.residentialDistrict).toBe('Accra Metropolitan');
+  });
+
+  it('defaults to NOT_RECORDED with no fabricated location', async () => {
+    await service.create({
+      primaryClinicId: 'clinic-1',
+      firstName: 'Kofi',
+      lastName: 'Owusu',
+      nationalIdType: 'NATIONAL_ID',
+      nationalId: 'GHA-2',
+    });
+
+    const data = txCreate.mock.calls[0][0].data;
+    expect(data.residentialLocationStatus).toBe('NOT_RECORDED');
+    expect(data.residentialRegion).toBeNull();
+  });
+});
+
+describe('PatientService - resolveResidentialLocation invariant', () => {
+  const service = new PatientService(
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+
+  it('infers NOT_RECORDED with null fields when nothing is supplied', () => {
+    expect(service.resolveResidentialLocation({})).toEqual({
+      residentialLocationStatus: 'NOT_RECORDED',
+      residentialRegion: null,
+      residentialDistrict: null,
+      residentialCommunity: null,
+      residentialAddressNote: null,
+    });
+  });
+
+  it('infers RECORDED when a region is present', () => {
+    const resolved = service.resolveResidentialLocation({ residentialRegion: 'VOLTA' });
+    expect(resolved.residentialLocationStatus).toBe('RECORDED');
+    expect(resolved.residentialRegion).toBe('VOLTA');
+  });
+
+  it('drops a district that does not belong to the region', () => {
+    const resolved = service.resolveResidentialLocation({
+      residentialRegion: 'GREATER_ACCRA',
+      residentialDistrict: 'Kumasi Metropolitan',
+    });
+    expect(resolved.residentialDistrict).toBeNull();
+  });
+
+  it('rejects RECORDED without a region', () => {
+    expect(() =>
+      service.resolveResidentialLocation({ residentialLocationStatus: 'RECORDED' }),
+    ).toThrow();
   });
 });

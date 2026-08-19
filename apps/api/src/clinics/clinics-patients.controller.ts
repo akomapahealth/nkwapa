@@ -91,6 +91,12 @@ export class ClinicsPatientsController {
       {
         cursor: query.cursor,
         limit: query.limit,
+        location: {
+          residentialRegion: query.residentialRegion,
+          residentialDistrict: query.residentialDistrict,
+          residentialCommunity: query.residentialCommunity,
+          residentialLocationStatus: query.residentialLocationStatus,
+        },
       },
     );
   }
