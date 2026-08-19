@@ -39,10 +39,13 @@ test('records a residential location, distinguishes it from the clinic, and filt
   const clinicId = page.url().match(/\/clinics\/([^/]+)\//)[1];
 
   // Registry: filter by region and confirm the active-filter chip + result.
+  // The registry renders both a mobile card list and the desktop DataGrid in
+  // the DOM (breakpoint-hidden via CSS); target the grid cell the default
+  // desktop viewport actually shows to avoid a strict-mode double match.
   await page.goto(`/clinics/${clinicId}/patients`);
   await chooseSelect(page, 'Region', 'Greater Accra');
   await expect(page.getByText('Region: Greater Accra')).toBeVisible();
-  await expect(page.getByText(lastName)).toBeVisible();
+  await expect(page.getByRole('gridcell', { name: lastName })).toBeVisible();
 
   // No horizontal overflow across breakpoints.
   for (const viewport of [
