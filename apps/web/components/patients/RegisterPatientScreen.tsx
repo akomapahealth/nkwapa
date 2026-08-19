@@ -30,6 +30,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { InlineNotice } from '@/components/ops/OpsShared';
+import { ResidentialLocationFields } from '@/components/patients/ResidentialLocationFields';
+import {
+  emptyResidentialLocation,
+  toResidentialLocationPayload,
+  type ResidentialLocationValue,
+} from '@/lib/residential-location';
 
 interface CreatePatientBody {
   firstName: string;
@@ -72,6 +78,7 @@ export function RegisterPatientScreen({
     nationalIdType: 'OTHER',
     nationalId: '',
   });
+  const [location, setLocation] = useState<ResidentialLocationValue>(emptyResidentialLocation());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conflictPatient, setConflictPatient] = useState<ExistingPatient | null>(null);
@@ -87,11 +94,12 @@ export function RegisterPatientScreen({
     setConflictPatient(null);
 
     try {
-      const body: CreatePatientBody = {
+      const body = {
         ...form,
         dob: form.dob || undefined,
         phoneE164: form.phoneE164 || undefined,
         email: form.email || undefined,
+        ...toResidentialLocationPayload(location),
       };
 
       const response = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}/patients`, {
@@ -302,6 +310,8 @@ export function RegisterPatientScreen({
                 </div>
               </div>
             </FormSectionCard>
+
+            <ResidentialLocationFields value={location} onChange={setLocation} />
 
             <FormSectionCard
               title="National ID"
