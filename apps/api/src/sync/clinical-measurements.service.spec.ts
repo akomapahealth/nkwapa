@@ -129,6 +129,47 @@ describe('ClinicalMeasurementsService', () => {
     );
   });
 
+  // The web client builds this payload in apps/web/lib/clinical-measurements.ts. It used to
+  // send the form's default temperature unit alongside an empty temperature, which this
+  // validator rejects; because a rejected sync mutation is retried rather than dropped, one
+  // such save left the outbox permanently undrainable. Both shapes are pinned here.
+  describe('optional temperature pairing', () => {
+    it('accepts a vitals bundle with no temperature recorded at all', async () => {
+      const { service } = createHarness();
+      const normalized = await service.validateAndNormalize(
+        payload({
+          vitals: {
+            systolicBp: 120,
+            diastolicBp: 80,
+            bpSite: BloodPressureSite.LEFT_ARM,
+            temperatureValue: null,
+            temperatureUnit: null,
+            temperatureSource: null,
+          },
+        }),
+      );
+
+      expect(normalized.vitals.temperatureCelsius).toBeNull();
+    });
+
+    it('accepts an otherwise empty vitals bundle', async () => {
+      const { service } = createHarness();
+      const normalized = await service.validateAndNormalize(payload({ vitals: {} }));
+
+      expect(normalized.vitals.temperatureCelsius).toBeNull();
+      expect(normalized.vitals.systolicBp).toBeNull();
+    });
+
+    it('rejects a unit sent without a temperature value', async () => {
+      const { service } = createHarness();
+      await expect(
+        service.validateAndNormalize(
+          payload({ vitals: { temperatureValue: null, temperatureUnit: 'CELSIUS' } }),
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
   it('requires screening write permission', async () => {
     const { service } = createHarness();
     await expect(

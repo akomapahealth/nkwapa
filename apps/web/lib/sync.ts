@@ -35,6 +35,12 @@ export interface SyncResult {
     conflictType?: string;
     conflictDetails?: Record<string, unknown>;
   }>;
+  /** Mutations the server refused outright, e.g. a payload it will never accept. */
+  rejected?: Array<{
+    id: string;
+    conflictType?: string;
+    conflictDetails?: Record<string, unknown>;
+  }>;
 }
 
 async function performSync(options: SyncNowOptions): Promise<SyncResult> {
@@ -94,11 +100,44 @@ async function performSync(options: SyncNowOptions): Promise<SyncResult> {
         pushJson.results.filter((r) => r.status === 'APPLIED').map((r) => r.id),
       );
       const conflicts = pushJson.results.filter((r) => r.status === 'CONFLICT');
+      // Anything the server neither applied nor flagged as a conflict is a mutation it will
+      // not accept in its current shape. The row is deliberately kept so a clinician's entry
+      // is never silently discarded, but it must be surfaced: previously these were invisible
+      // and re-pushed on every sync forever, leaving a pending counter that never cleared.
+      const rejected = pushJson.results.filter(
+        (r) => r.status !== 'APPLIED' && r.status !== 'CONFLICT',
+      );
 
       for (const m of pending) {
         if (appliedIds.has(m.id)) {
           await db.outbox.delete(m.id);
         }
+      }
+
+      if (rejected.length > 0) {
+        const detail =
+          rejected
+            .map((r) => {
+              const fieldErrors = (
+                r.conflictDetails as { fieldErrors?: Array<{ message?: string }> } | undefined
+              )?.fieldErrors;
+              return fieldErrors?.[0]?.message ?? r.conflictType;
+            })
+            .find((message): message is string => Boolean(message)) ?? 'Unknown validation error';
+        const message =
+          rejected.length === 1
+            ? `A pending change could not be synced: ${detail}`
+            : `${rejected.length} pending changes could not be synced: ${detail}`;
+        notifyStatus('error', message);
+        return {
+          success: false,
+          error: message,
+          rejected: rejected.map((r) => ({
+            id: r.id,
+            conflictType: r.conflictType,
+            conflictDetails: r.conflictDetails,
+          })),
+        };
       }
 
       if (conflicts.length > 0) {
