@@ -52,6 +52,25 @@ describe('OPS permissions', () => {
     expect(permissions).toContain(PERMISSIONS.MEDICATION_RECONCILIATION_WRITE);
   });
 
+  it('lets volunteers read back the screenings they are allowed to record', () => {
+    const permissions = computeEffectivePermissions([UserRole.VOLUNTEER]);
+
+    expect(permissions).toContain(PERMISSIONS.SCREENING_WRITE);
+    expect(permissions).toContain(PERMISSIONS.SCREENING_READ);
+    // Prescribing stays a doctor concern; reading it is not implied by screening access.
+    expect(permissions).not.toContain(PERMISSIONS.PRESCRIPTION_READ);
+    expect(permissions).not.toContain(PERMISSIONS.PRESCRIPTION_WRITE);
+  });
+
+  it('keeps screening read available to every clinical staff role', () => {
+    for (const role of [UserRole.DIRECTOR, UserRole.MANAGER, UserRole.DOCTOR, UserRole.VOLUNTEER]) {
+      expect(computeEffectivePermissions([role])).toContain(PERMISSIONS.SCREENING_READ);
+    }
+    expect(computeEffectivePermissions([UserRole.PATIENT])).not.toContain(
+      PERMISSIONS.SCREENING_READ,
+    );
+  });
+
   it('grants doctors clinical review and finalization permissions', () => {
     const permissions = computeEffectivePermissions([UserRole.DOCTOR]);
 
