@@ -10,6 +10,7 @@ import {
   useState,
 } from 'react';
 import {
+  ApiError,
   apiFetch,
   getErrorMessage,
   markBootstrapResolved,
@@ -17,6 +18,7 @@ import {
   type GetToken,
   readApiError,
 } from './api';
+import { getBootstrapRetryDelay } from './route-access';
 import {
   getBootstrapActiveClinicId,
   isStoredClinicIdValid,
@@ -63,13 +65,17 @@ export interface WhoAmIResponse {
 
 interface BootstrapContextValue {
   bootstrap: WhoAmIResponse | null;
+  /** True while identity is unresolved, including while an automatic retry is pending. */
   isLoading: boolean;
   isRefreshing: boolean;
   error: string | null;
   errorCode: string | null;
+  errorStatus: number | null;
   activeClinicId: string | null;
   setActiveClinicId: (id: string | null) => void;
   refetch: () => Promise<void>;
+  /** Clears the retry budget and loads identity again, for a user-initiated retry. */
+  retry: () => void;
 }
 
 const BootstrapContext = createContext<BootstrapContextValue | null>(null);
@@ -86,10 +92,44 @@ export function BootstrapProvider({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
   const [activeClinicIdOverride, setActiveClinicIdOverride] = useState<string | null | undefined>(
     undefined,
   );
   const bootstrapRef = useRef<WhoAmIResponse | null>(null);
+
+  // Identity is the gate for every guarded route, so a transient failure here must not be
+  // mistaken for "no access". Retryable failures are retried in place, and the provider
+  // keeps reporting "loading" until the budget is spent.
+  const [retryPending, setRetryPending] = useState(false);
+  const [retryTick, setRetryTick] = useState(0);
+  const retryAttemptRef = useRef(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearRetryTimer = useCallback(() => {
+    if (retryTimerRef.current !== null) {
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleRetry = useCallback(
+    (retryable: boolean) => {
+      const delay = getBootstrapRetryDelay(retryAttemptRef.current, retryable);
+      if (delay === null) return false;
+      retryAttemptRef.current += 1;
+      clearRetryTimer();
+      setRetryPending(true);
+      retryTimerRef.current = setTimeout(() => {
+        retryTimerRef.current = null;
+        setRetryTick((tick) => tick + 1);
+      }, delay);
+      return true;
+    },
+    [clearRetryTimer],
+  );
+
+  useEffect(() => clearRetryTimer, [clearRetryTimer]);
 
   const activeClinicId =
     activeClinicIdOverride !== undefined
@@ -112,9 +152,16 @@ export function BootstrapProvider({
     }
     setError(null);
     setErrorCode(null);
+    setErrorStatus(null);
     try {
       const token = await getToken();
       if (!token) {
+        // The session may simply not have settled yet (a redirect back from Keycloak, or a
+        // token refresh in flight). Retry before concluding the user is signed out, so a
+        // race does not present itself as a permissions problem.
+        if (initialLoad && scheduleRetry(true)) {
+          return;
+        }
         bootstrapRef.current = null;
         setBootstrap(null);
         setErrorCode(null);
@@ -161,42 +208,78 @@ export function BootstrapProvider({
 
       setStoredActiveClinicId(data.activeClinicId ?? null);
       markBootstrapResolved();
+      retryAttemptRef.current = 0;
+      setRetryPending(false);
     } catch (e) {
       const nextError = e instanceof Error ? e : new Error(String(e));
       const nextCode =
         'code' in nextError && typeof nextError.code === 'string' ? nextError.code : null;
+      const nextStatus = nextError instanceof ApiError ? nextError.status : null;
+      const isRetryable = nextError instanceof ApiError ? nextError.retryable : true;
+
+      // Only surface the failure once retrying cannot help, or the budget is spent.
+      // Until then the route keeps showing its loading state rather than a false denial.
+      if (initialLoad && scheduleRetry(isRetryable)) {
+        return;
+      }
+
       setError(getErrorMessage(nextError));
       setErrorCode(nextCode);
+      setErrorStatus(nextStatus);
+      setRetryPending(false);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [getToken]);
+  }, [getToken, scheduleRetry]);
 
   useEffect(() => {
-    fetchWhoami();
-  }, [fetchWhoami]);
+    void fetchWhoami();
+  }, [fetchWhoami, retryTick]);
+
+  const retry = useCallback(() => {
+    clearRetryTimer();
+    retryAttemptRef.current = 0;
+    setRetryPending(false);
+    setRetryTick((tick) => tick + 1);
+  }, [clearRetryTimer]);
+
+  // Coming back online is the most likely moment a failed identity load will succeed.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onOnline = () => {
+      if (bootstrapRef.current == null) retry();
+    };
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, [retry]);
 
   const value = useMemo(
     () => ({
       bootstrap,
-      isLoading,
+      // A pending retry is still "loading" as far as guarded routes are concerned.
+      isLoading: isLoading || retryPending,
       isRefreshing,
       error,
       errorCode,
+      errorStatus,
       activeClinicId,
       setActiveClinicId,
       refetch: fetchWhoami,
+      retry,
     }),
     [
       bootstrap,
       isLoading,
+      retryPending,
       isRefreshing,
       error,
       errorCode,
+      errorStatus,
       activeClinicId,
       setActiveClinicId,
       fetchWhoami,
+      retry,
     ],
   );
 

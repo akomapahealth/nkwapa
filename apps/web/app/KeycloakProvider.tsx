@@ -1,7 +1,8 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import type { GetToken } from '@/lib/api';
+import { resetBootstrapResolved, type GetToken } from '@/lib/api';
+import { setStoredActiveClinicId } from '@/lib/bootstrap-storage';
 import { FullscreenStatus, PageSkeleton } from '@/components/feedback/AppState';
 import { getKeycloak, initKeycloak, resetKeycloak } from '@/lib/keycloak';
 import { AuthBootstrapWrapper } from './AuthBootstrapWrapper';
@@ -42,6 +43,10 @@ export function KeycloakProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(() => {
     const kc = getKeycloak();
     if (kc) {
+      // Drop per-session client state before leaving, so the next user to sign in on this
+      // device is not bootstrapped with the previous user's clinic selection.
+      setStoredActiveClinicId(null);
+      resetBootstrapResolved();
       resetKeycloak();
       kc.logout();
     }

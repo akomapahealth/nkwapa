@@ -2,13 +2,10 @@
 
 import Link from 'next/link';
 import { useBootstrap } from '@/lib/bootstrap-context';
+import { resolveRouteAccess } from '@/lib/route-access';
 import { InlineErrorState, PageSkeleton } from '@/components/feedback/AppState';
 import { Button } from '@/components/ui/button';
 import { Lock } from 'lucide-react';
-
-function hasPermission(permissions: string[], perm: string): boolean {
-  return permissions.includes('*') || permissions.includes(perm);
-}
 
 export function RouteGuard({
   children,
@@ -17,12 +14,21 @@ export function RouteGuard({
   children: React.ReactNode;
   requiredPermission: string;
 }) {
-  const { bootstrap, isLoading } = useBootstrap() ?? { bootstrap: null, isLoading: true };
-  const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
-  const isSystemAdmin = bootstrap?.globalRoles?.includes('SYSTEM_ADMIN') ?? false;
-  const allowed = isSystemAdmin || hasPermission(perms, requiredPermission);
+  const ctx = useBootstrap();
+  const bootstrap = ctx?.bootstrap ?? null;
+  const state = resolveRouteAccess({
+    bootstrap,
+    isLoading: ctx?.isLoading ?? true,
+    error: ctx?.error ?? null,
+    errorStatus: ctx?.errorStatus ?? null,
+    requiredPermission,
+  });
 
-  if (isLoading && !bootstrap) {
+  if (state === 'allowed') {
+    return <>{children}</>;
+  }
+
+  if (state === 'resolving') {
     return (
       <PageSkeleton
         title="Checking your access"
@@ -31,8 +37,34 @@ export function RouteGuard({
     );
   }
 
-  if (allowed) {
-    return <>{children}</>;
+  // Identity could not be loaded. This is not a permission decision, so it must not read
+  // like one: say what actually happened and offer a way forward.
+  if (state === 'unavailable' || state === 'session-expired') {
+    const isSessionIssue = state === 'session-expired';
+    return (
+      <div className="space-y-4">
+        <InlineErrorState
+          title={
+            isSessionIssue ? 'Your session needs to be renewed' : "We couldn't confirm your access"
+          }
+          description={
+            isSessionIssue
+              ? 'Sign in again to reload your clinic membership and permissions.'
+              : (ctx?.error ??
+                'Your permissions could not be loaded. This is usually a connection problem rather than a change to your access.')
+          }
+          onRetry={isSessionIssue ? undefined : ctx?.retry}
+          retryLabel="Try again"
+        />
+        {isSessionIssue ? (
+          <div className="flex justify-center">
+            <Button asChild variant="outline" className="rounded-2xl">
+              <Link href="/login">Go to secure sign in</Link>
+            </Button>
+          </div>
+        ) : null}
+      </div>
+    );
   }
 
   const memberships = bootstrap?.memberships ?? [];
@@ -50,9 +82,18 @@ export function RouteGuard({
       />
       <div className="flex flex-col items-center justify-center gap-4 p-8 text-center">
         <Lock className="h-8 w-8 text-primary" />
-        <Button asChild variant="outline">
-          <Link href="/queues">Back to Queues</Link>
-        </Button>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          {/* If an administrator has just changed this user's role, re-reading identity is
+              enough; they should not have to hard-refresh to pick it up. */}
+          {ctx?.retry ? (
+            <Button variant="outline" className="rounded-2xl" onClick={ctx.retry}>
+              Check again
+            </Button>
+          ) : null}
+          <Button asChild variant="outline" className="rounded-2xl">
+            <Link href="/queues">Back to Queues</Link>
+          </Button>
+        </div>
       </div>
     </div>
   );
