@@ -44,6 +44,7 @@ import {
   type PatientChartSummary,
 } from '@/lib/patient-chart';
 import { getErrorMessage } from '@/lib/api';
+import { useChartTabs } from '@/lib/use-chart-tabs';
 import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
 import {
   Dialog,
@@ -191,6 +192,8 @@ function PatientChartWorkspace() {
     () => reconcileChartSections(localSections, summary?.sections.map((s) => s.id) ?? null),
     [localSections, summary],
   );
+
+  const chartTabs = useChartTabs(chartSections);
 
   const loadSummary = useCallback(async () => {
     if (!getToken) return;
@@ -793,6 +796,7 @@ function PatientChartWorkspace() {
 
       <PatientChartTabs
         sections={chartSections}
+        controller={chartTabs}
         renderSection={(section) => {
           switch (section.id) {
             case 'overview':
@@ -804,6 +808,7 @@ function PatientChartWorkspace() {
                   loading={summaryLoading}
                   error={summaryError}
                   onRetry={loadSummary}
+                  onNavigate={chartTabs.goToSection}
                 >
                   <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
                     <div className="space-y-4">

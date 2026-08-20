@@ -231,9 +231,7 @@ export function Header({
               }`}
             />
             <span className="text-muted-foreground">{isOnline ? 'Online' : 'Offline'}</span>
-            <span className="text-muted-foreground" data-testid="sync-pending-count">
-              Pending {pendingCount}
-            </span>
+            <span className="text-muted-foreground">Pending {pendingCount}</span>
             <Button
               variant="outline"
               size="sm"

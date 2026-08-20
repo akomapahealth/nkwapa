@@ -36,6 +36,18 @@ Registry reads support the older `page` and `pageSize` contract and the newer `c
 
 - `POST /admin/patients/merge`
 
+### Patient chart (longitudinal)
+
+- `GET /clinics/:clinicId/patients/:patientId/chart/summary`
+- `GET /clinics/:clinicId/patients/:patientId/chart/vitals`
+- `GET /clinics/:clinicId/patients/:patientId/chart/visits`
+
+Chart reads are cursor-paginated (default 25, maximum 100) and ordered by
+`[createdAt desc, id desc]`. The summary returns the sections the caller may open plus one
+block per section; a block the caller may not read is omitted from the payload entirely
+rather than blanked, so clinical note content never reaches a role without
+`CLINICAL_NOTE.READ`.
+
 ### Medical history and allergies
 
 - `GET /clinics/:clinicId/patients/:patientId/medical-history`
@@ -104,12 +116,28 @@ Registry reads support the older `page` and `pageSize` contract and the newer `c
 
 ---
 
+## Patient Chart Information Architecture
+
+The chart presents current summaries before chronological history, across role-aware tabs:
+Overview, Vitals, Medications, Diabetes, Medical History, Notes, Visits, Patient-reported,
+and Consent.
+
+- section definitions, required permissions, and feature flags live in
+  `packages/db/src/patient-chart-sections.ts`, which the API and the web app both import so
+  the rendered tab list and the enforced access policy cannot drift
+- the active section is held in `?tab=`, so a section is linkable, bookmarkable, and
+  restored on reload; unknown or unauthorised values fall back to the first accessible
+  section and the URL is normalised to match
+- a section's data is fetched only once that section has been opened
+- every chronological record carries recorded time, author, clinic, source-encounter link,
+  and whether it is locked by a finalized encounter
+
 ## UI Surfaces
 
 - `/patients`
 - `/patients/new`
-- `/patients/[patientId]`
-- `/clinics/[clinicId]/patients/[patientId]`
+- `/patients/[patientId]` redirects to the clinic-scoped chart, preserving `?tab=`
+- `/clinics/[clinicId]/patients/[patientId]` is the canonical chart
 - `/claim-record` for patient onboarding when a pending invite exists
 
 ---

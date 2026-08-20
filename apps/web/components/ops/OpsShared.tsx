@@ -146,7 +146,7 @@ export function OnlineOnlyBanner({ className }: { className?: string }) {
 export function EmptyStateCard({ title, description }: { title: string; description: string }) {
   return (
     <div className="rounded-2xl border border-dashed border-border bg-background/80 p-5 text-sm text-muted-foreground">
-      <p className="font-medium text-foreground">{title}</p>
+      <h3 className="font-medium text-foreground">{title}</h3>
       <p className="mt-1">{description}</p>
     </div>
   );

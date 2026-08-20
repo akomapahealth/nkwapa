@@ -1,81 +1,27 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import type { ReactNode } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EmptyStateCard } from '@/components/ops/OpsShared';
-import {
-  CHART_TAB_PARAM,
-  resolveChartTab,
-  type PatientChartSection,
-  type PatientChartSectionId,
-} from '@/lib/patient-chart';
+import type { PatientChartSection, PatientChartSectionId } from '@/lib/patient-chart';
+import type { ChartTabsController } from '@/lib/use-chart-tabs';
 
 export interface PatientChartTabsProps {
   sections: readonly PatientChartSection[];
-  /** Renders the body for a section. Only ever called for sections already opened. */
+  controller: ChartTabsController;
+  /** Renders a section body. Only called for sections that have been opened. */
   renderSection: (section: PatientChartSection) => ReactNode;
-  /** Notified whenever the active section changes, for analytics or prefetching. */
-  onSectionChange?: (section: PatientChartSectionId) => void;
 }
 
 /**
- * Role-aware, deep-linkable chart navigation.
+ * Role-aware chart navigation.
  *
- * Three behaviours the previous implementation lacked:
- * - the active tab lives in `?tab=`, so a section can be linked, bookmarked, and restored
- * - a section's body is only mounted once it has been opened, so inactive tabs never fetch
- * - an unknown or unauthorised `?tab=` falls back instead of rendering an empty chart
+ * Presentational: `useChartTabs` owns the active section, the URL mirroring, and which
+ * sections have been opened. A section's body is mounted only after it has been visited,
+ * so an unopened tab never fetches its longitudinal data.
  */
-export function PatientChartTabs({
-  sections,
-  renderSection,
-  onSectionChange,
-}: PatientChartTabsProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const requestedTab = searchParams.get(CHART_TAB_PARAM);
-
-  const activeTab = useMemo(
-    () => resolveChartTab(requestedTab, sections),
-    [requestedTab, sections],
-  );
-
-  // Sections the user has actually opened. Mounting is sticky so switching back to a tab
-  // does not refetch, while a tab never opened is never mounted at all.
-  const [openedSections, setOpenedSections] = useState<PatientChartSectionId[]>(() =>
-    activeTab ? [activeTab] : [],
-  );
-
-  useEffect(() => {
-    if (!activeTab) return;
-    setOpenedSections((previous) =>
-      previous.includes(activeTab) ? previous : [...previous, activeTab],
-    );
-  }, [activeTab]);
-
-  // Normalise the URL when it names a tab this user cannot open, so the address bar
-  // always reflects what is actually being shown.
-  const normalisedRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!activeTab || requestedTab === activeTab) return;
-    const target = `${pathname}?${CHART_TAB_PARAM}=${activeTab}`;
-    if (normalisedRef.current === target) return;
-    normalisedRef.current = target;
-    router.replace(target, { scroll: false });
-  }, [activeTab, pathname, requestedTab, router]);
-
-  const handleValueChange = useCallback(
-    (value: string) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set(CHART_TAB_PARAM, value);
-      normalisedRef.current = null;
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-      onSectionChange?.(value as PatientChartSectionId);
-    },
-    [onSectionChange, pathname, router, searchParams],
-  );
+export function PatientChartTabs({ sections, controller, renderSection }: PatientChartTabsProps) {
+  const { activeTab, openedSections, goToSection } = controller;
 
   if (sections.length === 0 || !activeTab) {
     return (
@@ -87,7 +33,11 @@ export function PatientChartTabs({
   }
 
   return (
-    <Tabs value={activeTab} onValueChange={handleValueChange} className="w-full">
+    <Tabs
+      value={activeTab}
+      onValueChange={(value) => goToSection(value as PatientChartSectionId)}
+      className="w-full"
+    >
       <div className="max-w-full overflow-x-auto pb-1">
         <TabsList
           aria-label="Patient chart sections"
