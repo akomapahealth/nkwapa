@@ -93,13 +93,27 @@ test('diabetes screening round-trips longitudinally, offline, read-only, and res
     page.getByText('Diabetes screening saved on this device and pending sync.'),
   ).toBeVisible();
 
-  // Assert the end state the test actually cares about: the server holds the offline edit.
-  // Waiting on a specific /sync/push body was unreliable (the edit can be replayed in a
-  // batch or retry whose body never matches), and waiting for the outbox to fully drain is
-  // unreachable here because an earlier mutation against the finalized encounter conflicts
-  // permanently and never leaves the queue. Re-reading until the value appears is immune to
-  // both, and fails loudly if sync genuinely never lands.
+  // Let sync finish before navigating. Reloading in a loop while a push is in flight can
+  // abort it, which made this race the reconnect on a loaded CI runner. lib/sync.ts removes
+  // an outbox row only when the server reports APPLIED, so an applied push is proof the
+  // offline edit reached the server, whatever order sync batched the queue in.
+  const appliedPush = page.waitForResponse(
+    async (response) => {
+      if (response.request().method() !== 'POST') return false;
+      if (new URL(response.url()).pathname !== '/sync/push') return false;
+      try {
+        const body = await response.json();
+        return (body?.results ?? []).some((result) => result.status === 'APPLIED');
+      } catch {
+        return false;
+      }
+    },
+    { timeout: 60_000 },
+  );
   await context.setOffline(false);
+  await appliedPush;
+
+  // One navigation, with a short poll only for read-after-write lag.
   await expect(async () => {
     await page.goto(`/patients/${patientId}`);
     await page.getByRole('tab', { name: 'Diabetes' }).click();
@@ -107,7 +121,7 @@ test('diabetes screening round-trips longitudinally, offline, read-only, and res
     await expect(page.getByText('Second encounter screening updated offline')).toBeVisible({
       timeout: 5_000,
     });
-  }).toPass({ timeout: 45_000 });
+  }).toPass({ timeout: 30_000 });
 
   await expect(page.getByRole('link', { name: 'Open source visit' })).toHaveCount(2);
 
