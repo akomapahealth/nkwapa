@@ -78,10 +78,17 @@ export function useChartTabs(sections: readonly PatientChartSection[]): ChartTab
     }
   }, [activeTab, goToSection, requested, sections]);
 
-  // Normalise an unknown or unauthorised ?tab= so the address bar matches what is shown.
+  // Normalise only when the URL named a section we could not honour, so the address bar
+  // matches what is actually shown. A chart URL with no ?tab= is deliberately left alone:
+  // rewriting it would race callers that read the patient id straight off the URL.
+  const normalisedRef = useRef(false);
   useEffect(() => {
-    if (activeTab) writeUrl(activeTab);
-  }, [activeTab, writeUrl]);
+    if (normalisedRef.current || !activeTab) return;
+    if (requested && requested !== activeTab) {
+      normalisedRef.current = true;
+      writeUrl(activeTab);
+    }
+  }, [activeTab, requested, writeUrl]);
 
   return { activeTab, openedSections, goToSection };
 }
