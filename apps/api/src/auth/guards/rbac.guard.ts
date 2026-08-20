@@ -3,6 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { UserRole } from '@prisma/client';
 import { REQUIRE_PERMISSION_KEY } from '../decorators/require-permission.decorator';
 import { hasPermission } from '../constants/permissions';
+import { rolesForClinic } from '../clinic-roles';
 
 export interface ReqUserWithRoles {
   user: { id: string };
@@ -31,16 +32,7 @@ export class RbacGuard implements CanActivate {
     }
 
     const clinicId = request.clinicId as string | undefined;
-    const rolesToCheck =
-      clinicId != null
-        ? user.roles
-            .filter(
-              (r) =>
-                r.clinicId === clinicId ||
-                (r.clinicId === null && r.role === UserRole.SYSTEM_ADMIN),
-            )
-            .map((r) => ({ role: r.role }))
-        : user.roles.map((r) => ({ role: r.role }));
+    const rolesToCheck = rolesForClinic(user.roles, clinicId);
 
     const allowed = hasPermission(rolesToCheck, requiredPermission);
 
