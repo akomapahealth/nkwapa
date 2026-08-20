@@ -91,17 +91,16 @@ test('diabetes screening round-trips longitudinally, offline, read-only, and res
     page.getByText('Diabetes screening saved on this device and pending sync.'),
   ).toBeVisible();
 
-  // Wait for the specific push that carries the offline edit, not just the
-  // first push after reconnect: an unrelated/empty sync can resolve early and
-  // race the reload below, leaving the read to see stale server data.
-  const reconnectPush = page.waitForResponse(
-    (response) =>
-      response.request().method() === 'POST' &&
-      new URL(response.url()).pathname === '/sync/push' &&
-      (response.request().postData() ?? '').includes('Second encounter screening updated offline'),
-  );
+  // Wait for the outbox to drain rather than matching a request body. lib/sync.ts only
+  // deletes an outbox row once the server reports APPLIED, so "Pending 0" proves the
+  // offline edit reached the server. Matching on postData was unreliable: the offline
+  // edit can be replayed in a batch or a retry whose body never matches the predicate,
+  // which left the test waiting out its full timeout.
+  await expect(page.getByTestId('sync-pending-count')).not.toHaveText('Pending 0');
   await context.setOffline(false);
-  expect((await reconnectPush).ok()).toBeTruthy();
+  await expect(page.getByTestId('sync-pending-count')).toHaveText('Pending 0', {
+    timeout: 45_000,
+  });
 
   await page.goto(`/patients/${patientId}`);
   await page.getByRole('tab', { name: 'Diabetes' }).click();
