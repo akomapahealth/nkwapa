@@ -7,6 +7,11 @@ import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { redactLogValue } from '../common/redaction';
+import {
+  buildKeysetWhere,
+  decodeJsonKeysetCursor,
+  encodeJsonKeysetCursor,
+} from '../common/keyset-cursor';
 
 const REMINDER_QUEUE_NAME = 'reminders';
 const FOLLOWUP_TEMPLATE_KEY = 'FOLLOWUP_REMINDER_V1';
@@ -137,24 +142,6 @@ type ScheduleAppointmentReminderRecordParams = {
   status: ReminderStatus;
   failureReason?: string;
 };
-
-function decodeCursor(cursor: string): { createdAt: Date; id: string } | null {
-  try {
-    const decoded = Buffer.from(cursor, 'base64').toString('utf-8');
-    const parsed = JSON.parse(decoded) as { createdAt: string; id: string };
-    const createdAt = new Date(parsed.createdAt);
-    if (isNaN(createdAt.getTime())) return null;
-    return { createdAt, id: parsed.id };
-  } catch {
-    return null;
-  }
-}
-
-function encodeCursor(createdAt: Date, id: string): string {
-  return Buffer.from(JSON.stringify({ createdAt: createdAt.toISOString(), id }), 'utf-8').toString(
-    'base64',
-  );
-}
 
 @Injectable()
 export class ReminderService {
@@ -363,15 +350,8 @@ export class ReminderService {
 
   async list(params: ListRemindersParams): Promise<ListRemindersResult> {
     const limit = Math.min(params.limit ?? 50, 200);
-    const decoded = params.cursor ? decodeCursor(params.cursor) : null;
-    const cursorWhere = decoded
-      ? {
-          OR: [
-            { createdAt: { lt: decoded.createdAt } },
-            { createdAt: decoded.createdAt, id: { lt: decoded.id } },
-          ],
-        }
-      : {};
+    const decoded = params.cursor ? decodeJsonKeysetCursor('createdAt', params.cursor) : null;
+    const cursorWhere = buildKeysetWhere('createdAt', decoded);
 
     const reminders = await this.prisma.reminder.findMany({
       where: {
@@ -394,7 +374,8 @@ export class ReminderService {
     const hasMore = reminders.length > limit;
     const items = hasMore ? reminders.slice(0, limit) : reminders;
     const last = items[items.length - 1];
-    const nextCursor = hasMore && last ? encodeCursor(last.createdAt, last.id) : null;
+    const nextCursor =
+      hasMore && last ? encodeJsonKeysetCursor('createdAt', last.createdAt, last.id) : null;
 
     return {
       items: items.map((r) => ({
