@@ -133,6 +133,92 @@ describe('SyncService', () => {
     diabetesScreeningService = module.get(DiabetesScreeningService);
   });
 
+  describe('offline writes stay inside the request clinic', () => {
+    const pushEncounter = (payload: Record<string, unknown>) =>
+      service.applyMutations('clinic-1', mockUser as never, [
+        {
+          id: 'mut-enc-scope',
+          entityType: 'encounter',
+          entityId: '22222222-2222-4222-8222-222222222222',
+          operation: 'UPSERT',
+          clinicId: 'clinic-1',
+          idempotencyKey: `idem-enc-${JSON.stringify(payload)}`,
+          payloadJson: payload,
+        } as SyncMutationDto,
+      ]);
+
+    beforeEach(() => {
+      (prisma.patient.findFirst as jest.Mock) = jest.fn().mockResolvedValue({ id: 'patient-1' });
+    });
+
+    it('refuses an encounter payload that names another clinic', async () => {
+      const results = await pushEncounter({ clinicId: 'clinic-2', patientId: 'patient-1' });
+
+      expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.ERROR);
+      expect(prisma.encounter.upsert).not.toHaveBeenCalled();
+    });
+
+    it('refuses a patient payload that names another primary clinic', async () => {
+      process.env.NATIONAL_ID_ENCRYPTION_KEY = 'a'.repeat(64);
+      const results = await service.applyMutations('clinic-1', mockUser as never, [
+        {
+          id: 'mut-pat-scope',
+          entityType: 'patient',
+          entityId: '33333333-3333-4333-8333-333333333333',
+          operation: 'UPSERT',
+          clinicId: 'clinic-1',
+          idempotencyKey: 'idem-pat-scope',
+          payloadJson: {
+            patientCode: 'NKP-2025-000777',
+            nationalId: '5555555555',
+            primaryClinicId: 'clinic-2',
+            firstName: 'Cross',
+            lastName: 'Tenant',
+          },
+        } as SyncMutationDto,
+      ]);
+
+      expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.ERROR);
+      expect(prisma.patient.upsert).not.toHaveBeenCalled();
+    });
+
+    it('refuses an encounter whose patient belongs to another clinic', async () => {
+      (prisma.patient.findFirst as jest.Mock).mockResolvedValue(null);
+
+      const results = await pushEncounter({ patientId: 'patient-elsewhere' });
+
+      expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.ERROR);
+      expect(prisma.encounter.upsert).not.toHaveBeenCalled();
+    });
+
+    it('refuses to finalize an encounter through offline replay', async () => {
+      // Finalization locks vitals, screenings, and clinical notes. It has its own route and its
+      // own permission, and must not be reachable by replaying a queued payload.
+      const results = await pushEncounter({ patientId: 'patient-1', status: 'FINALIZED' });
+
+      expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.CONFLICT);
+      expect(results[0].conflictType).toBe('UNSUPPORTED_STATUS_TRANSITION');
+      expect(prisma.encounter.upsert).not.toHaveBeenCalled();
+    });
+
+    it('refuses to submit an encounter for review through offline replay', async () => {
+      const results = await pushEncounter({ patientId: 'patient-1', status: 'IN_REVIEW' });
+
+      expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.CONFLICT);
+      expect(prisma.encounter.upsert).not.toHaveBeenCalled();
+    });
+
+    it('still applies a queued draft encounter', async () => {
+      const results = await pushEncounter({ patientId: 'patient-1', status: 'DRAFT' });
+
+      expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.APPLIED);
+      expect(prisma.encounter.upsert).toHaveBeenCalledTimes(1);
+      const args = (prisma.encounter.upsert as jest.Mock).mock.calls[0][0];
+      expect(args.create.clinic).toEqual({ connect: { id: 'clinic-1' } });
+      expect(args.create.status).toBe('DRAFT');
+    });
+  });
+
   describe('offline authorization', () => {
     const push = (
       roles: Array<{ clinicId: string | null; role: string }>,

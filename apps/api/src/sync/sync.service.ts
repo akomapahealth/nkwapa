@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   HttpException,
   Injectable,
   NotFoundException,
@@ -422,7 +423,8 @@ export class SyncService {
       (payload.patientCode as string) ??
       existingById?.patientCode ??
       (await generatePatientCode(this.prisma));
-    const primaryClinicId = (payload.primaryClinicId as string) ?? clinicId;
+    this.assertPayloadClinicMatches(payload.primaryClinicId, clinicId, 'Patient');
+    const primaryClinicId = clinicId;
     const createdByUserId = (payload.createdByUserId as string) ?? actorUserId;
 
     const rawPhone = (payload.phoneE164 as string) ?? (payload.phone as string) ?? null;
@@ -537,20 +539,24 @@ export class SyncService {
     }
 
     const before = existing ? JSON.stringify(existing) : null;
-    const encClinicId = (payload.clinicId as string) ?? clinicId;
+    // The encounter belongs to the clinic the request was scoped to. Taking the clinic from the
+    // payload would let a client queue an encounter into a clinic it was never admitted to.
+    this.assertPayloadClinicMatches(payload.clinicId, clinicId, 'Encounter');
     const encPatientId = payload.patientId as string;
+    await this.assertPatientInClinic(encPatientId, clinicId, 'Encounter');
     const encCreatedBy = (payload.createdByUserId as string) ?? actorUserId;
+    const status = this.resolveSyncedEncounterStatus(payload.status, existing?.status ?? null);
     const encounter = await this.prisma.encounter.upsert({
       where: { id: mut.entityId },
       create: {
         id: mut.entityId,
-        clinic: { connect: { id: encClinicId } },
+        clinic: { connect: { id: clinicId } },
         patient: { connect: { id: encPatientId } },
-        status: (payload.status as EncounterStatus) ?? 'DRAFT',
+        status,
         createdBy: { connect: { id: encCreatedBy } },
       },
       update: {
-        status: (payload.status as EncounterStatus) ?? existing!.status,
+        status,
       },
     });
 
@@ -582,6 +588,64 @@ export class SyncService {
       id: mut.id,
       status: SYNC_MUTATION_RESULT_STATUS.APPLIED,
     };
+  }
+
+  /**
+   * Reject a payload that names a different clinic than the request was scoped to.
+   *
+   * `applyMutations` already compares the mutation envelope's `clinicId`, but the payload carries
+   * its own copy, and writing that one would place the record outside the clinic the caller was
+   * admitted to.
+   */
+  private assertPayloadClinicMatches(
+    payloadClinicId: unknown,
+    clinicId: string,
+    entityLabel: string,
+  ): void {
+    if (payloadClinicId != null && payloadClinicId !== clinicId) {
+      throw new ForbiddenException(
+        `${entityLabel} payload names a different clinic than the active clinic`,
+      );
+    }
+  }
+
+  private async assertPatientInClinic(
+    patientId: string | undefined,
+    clinicId: string,
+    entityLabel: string,
+  ): Promise<void> {
+    if (!patientId) throw new BadRequestException(`${entityLabel} payload must include patientId`);
+    const patient = await this.prisma.patient.findFirst({
+      where: { id: patientId, primaryClinicId: clinicId },
+      select: { id: true },
+    });
+    if (!patient) {
+      throw new NotFoundException(`${entityLabel} patient not found in the active clinic`);
+    }
+  }
+
+  /**
+   * The encounter status an offline replay may set.
+   *
+   * Finalization is a doctor's deliberate, audited act that locks vitals, screenings, and clinical
+   * notes. It has its own route and its own permission, and it must not be reachable by replaying
+   * a queued payload. Review submission likewise belongs to the online workflow.
+   */
+  private resolveSyncedEncounterStatus(
+    requested: unknown,
+    existingStatus: EncounterStatus | null,
+  ): EncounterStatus {
+    if (requested == null) return existingStatus ?? EncounterStatus.DRAFT;
+    if (requested !== EncounterStatus.DRAFT) {
+      throw new ConflictException({
+        code: 'UNSUPPORTED_STATUS_TRANSITION',
+        message: 'Encounter status changes are made online, not through offline replay.',
+        requestedStatus: String(requested),
+        existingStatus: existingStatus ?? EncounterStatus.DRAFT,
+      });
+    }
+    // A queued draft must not silently reopen an encounter that has since moved on.
+    return existingStatus ?? EncounterStatus.DRAFT;
   }
 
   private async ensureEncounterNotFinalized(encounterId: string): Promise<void> {
