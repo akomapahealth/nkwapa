@@ -1,5 +1,4 @@
 import {
-  Patient,
   Encounter,
   Vitals,
   DiabetesScreening,
@@ -17,6 +16,7 @@ import {
   PatientPharmacyRevision,
   PatientPharmacyPreference,
 } from '@prisma/client';
+import type { SyncPatientProjection } from '../sync-projection';
 
 export type SyncVitalsRecord = Vitals & {
   /** @deprecated Compatibility alias for pulseBpm. */
@@ -25,7 +25,11 @@ export type SyncVitalsRecord = Vitals & {
 
 export interface SyncPullResponseDto {
   cursor: string;
-  patients: Patient[];
+  /**
+   * Narrowed to the fields the offline client actually uses; see SYNC_PATIENT_SELECT. Typing this
+   * as the whole Prisma row is what let every new column reach the browser automatically.
+   */
+  patients: SyncPatientProjection[];
   encounters: Encounter[];
   vitals: SyncVitalsRecord[];
   tobaccoScreenings: TobaccoScreening[];

@@ -30,3 +30,16 @@ export function migrateLegacyDiabetesScreening(record: LegacyDiabetesScreeningRe
   }
   record.collectedAt ??= record.createdAt ?? new Date().toISOString();
 }
+
+/**
+ * Remove the encrypted national id and its hash from a cached patient record.
+ *
+ * Both were pulled from the server and written to IndexedDB, and neither was ever read: the
+ * client cannot decrypt the ciphertext, and the hash was only ever an unused index. They were
+ * sensitive data sitting on every clinician's device for no purpose.
+ */
+export function stripStoredNationalIdSecrets(record: object): void {
+  const stored = record as { nationalIdCiphertext?: unknown; nationalIdHash?: unknown };
+  delete stored.nationalIdCiphertext;
+  delete stored.nationalIdHash;
+}

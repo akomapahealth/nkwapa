@@ -12,8 +12,9 @@ export interface PatientRecord {
   phoneE164?: string;
   email?: string;
   nationalIdType?: string;
-  nationalIdCiphertext?: string;
-  nationalIdHash?: string;
+  // The ciphertext and its hash are deliberately absent: only the server can decrypt one and
+  // nothing on the client ever read either, so they are not synced or stored on the device.
+  // The last four digits are shown when confirming a patient's identity.
   nationalIdLast4?: string;
   // Residential location (see @nkwapa/db residential-location helpers).
   residentialLocationStatus?: string;
@@ -364,6 +365,21 @@ export class NkwapaDb extends Dexie {
     this.version(7).stores({
       patients: 'id, primaryClinicId, updatedAt, nationalIdHash, residentialRegion',
     });
+    // v8 stops keeping the encrypted national id on the device. Neither the ciphertext nor its
+    // hash was ever read by the client, and the server stopped sending them in the same release,
+    // so a resync cannot reintroduce them. Dropping nationalIdHash from the index list removes
+    // the index; the remaining indexes must be restated for Dexie to keep them.
+    this.version(8)
+      .stores({
+        patients: 'id, primaryClinicId, updatedAt, residentialRegion',
+      })
+      .upgrade(async (transaction) => {
+        const { stripStoredNationalIdSecrets } = await import('./db-migrations');
+        await transaction
+          .table<PatientRecord, string>('patients')
+          .toCollection()
+          .modify(stripStoredNationalIdSecrets);
+      });
   }
 }
 

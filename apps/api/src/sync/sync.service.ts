@@ -28,6 +28,7 @@ import { assertPermissionAtClinic, type ScopedRole } from '../auth/clinic-roles'
 import type { EntityType as SyncEntityType } from './entity-types';
 import { SYNC_ENTITY_PERMISSIONS, isSyncEntityType } from './sync-permissions';
 import { classifySyncFailure, isTerminalOutcome } from './sync-outcome';
+import { SYNC_PATIENT_SELECT } from './sync-projection';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { PatientRepository } from '../patients/patient.repository';
@@ -1480,6 +1481,7 @@ export class SyncService {
           mergedIntoPatientId: null,
           ...updatedAtFilter,
         },
+        select: SYNC_PATIENT_SELECT,
       }),
       this.prisma.encounter.findMany({
         where: { ...where, ...updatedAtFilter },
