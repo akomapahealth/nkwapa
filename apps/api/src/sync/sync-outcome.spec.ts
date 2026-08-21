@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { classifySyncFailure, isTerminalOutcome, safeConflictDetails } from './sync-outcome';
 
 describe('sync failure classification', () => {
