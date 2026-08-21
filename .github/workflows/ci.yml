@@ -137,6 +137,25 @@ jobs:
           RUN_CLINICAL_NOTES_MIGRATION_TESTS: '1'
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
+      - name: Provision the unprivileged application database role
+        run: node scripts/provision-app-db-role.mjs
+        env:
+          APP_DATABASE_PASSWORD: nkwapa_app
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
+      - name: Verify tenant isolation is enforced by the database
+        run: npm run test --workspace=@nkwapa/db -- --runInBand src/tenant-isolation.integration.spec.ts
+        env:
+          RUN_TENANT_ISOLATION_TESTS: '1'
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          APP_DATABASE_URL: postgresql://nkwapa_app:nkwapa_app@localhost:5432/nkwapa
+
+      - name: Rehearse migrations against a synthetic legacy snapshot
+        run: npm run test --workspace=@nkwapa/db -- --runInBand src/legacy-snapshot-migration.integration.spec.ts
+        env:
+          RUN_LEGACY_SNAPSHOT_TESTS: '1'
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
       - name: Run tests with coverage
         run: npm run test --workspaces --if-present -- --coverage --ci
         env:
@@ -183,6 +202,11 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: postgresql://nkwapa:nkwapa@localhost:5433/nkwapa
+      # Migrations run as the owner; the API runs as the unprivileged role that row level security
+      # actually applies to, so the E2E suite exercises the same isolation production relies on.
+      APP_DATABASE_URL: postgresql://nkwapa_app:nkwapa_app@localhost:5433/nkwapa
+      APP_DATABASE_PASSWORD: nkwapa_app
+      DATABASE_RLS_ENFORCEMENT: required
       REDIS_URL: redis://localhost:6379
       KEYCLOAK_BASE_URL: http://localhost:8080
       KEYCLOAK_REALM: nkwapa
@@ -248,6 +272,9 @@ jobs:
 
       - name: Prisma migrate deploy
         run: npm run db:migrate:deploy
+
+      - name: Provision the unprivileged application database role
+        run: node scripts/provision-app-db-role.mjs
 
       - name: Create deterministic Keycloak user
         run: npm run e2e:keycloak-user

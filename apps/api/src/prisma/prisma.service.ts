@@ -1,7 +1,14 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import {
+  evaluateRlsEnforcement,
+  reportRlsEnforcement,
+  resolveApplicationDatabaseUrl,
+  rlsEnforcementMode,
+  RlsNotEnforcedError,
+} from './rls-enforcement';
 
 export interface PrismaRlsContext {
   requestId?: string;
@@ -62,11 +69,13 @@ const INTERNAL_PRISMA_KEYS = new Set([
   'constructor',
   'getActiveClient',
   'getCurrentRlsContext',
+  'logger',
   'normalizeRlsContext',
   'onModuleDestroy',
   'onModuleInit',
   'rlsStorage',
   'transactionWithContext',
+  'verifyRlsEnforcement',
   'withClinicContext',
   'withRlsContext',
   'withSystemContext',
@@ -81,10 +90,11 @@ const INTERNAL_PRISMA_KEYS = new Set([
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   private readonly rlsStorage = new AsyncLocalStorage<ActivePrismaContext>();
+  private readonly logger = new Logger(PrismaService.name);
 
   constructor() {
     const adapter = new PrismaPg({
-      connectionString: process.env.DATABASE_URL ?? '',
+      connectionString: resolveApplicationDatabaseUrl(process.env),
     });
     super({ adapter });
 
@@ -105,6 +115,43 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
   async onModuleInit() {
     await super.$connect();
+    await this.verifyRlsEnforcement();
+  }
+
+  /**
+   * Confirm at boot that the declared row-level-security policies can actually apply to this
+   * connection. See rls-enforcement.ts for why a declared policy is not a enforced one.
+   */
+  private async verifyRlsEnforcement(): Promise<void> {
+    try {
+      const [probe] = await super.$queryRaw<
+        Array<{ role: string; isSuperuser: boolean; bypassesRls: boolean }>
+      >`SELECT current_user::text AS role, rolsuper AS "isSuperuser", rolbypassrls AS "bypassesRls"
+        FROM pg_roles WHERE rolname = current_user`;
+
+      const unforced = await super.$queryRaw<Array<{ table: string }>>`
+        SELECT c.relname::text AS "table"
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relrowsecurity AND NOT c.relforcerowsecurity
+        ORDER BY c.relname`;
+
+      const status = evaluateRlsEnforcement({
+        role: probe?.role ?? 'unknown',
+        isSuperuser: Boolean(probe?.isSuperuser),
+        bypassesRls: Boolean(probe?.bypassesRls),
+        unforcedTables: unforced.map((row) => row.table),
+      });
+
+      reportRlsEnforcement(status, rlsEnforcementMode(process.env), this.logger);
+    } catch (error) {
+      if (error instanceof RlsNotEnforcedError) throw error;
+      // A probe failure must not take the service down on its own; it is reported and the
+      // configured mode still governs whether a known-bad database is fatal.
+      this.logger.warn(
+        `Could not verify row level security enforcement: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   async onModuleDestroy() {

@@ -27,8 +27,16 @@ import {
 } from '../index';
 import { seedDrugs } from './seed-drugs';
 
+/**
+ * Seeding creates the organization and clinic that a tenant context is later derived from, so it
+ * has to run before one can exist. Every tenant-scoped table forces row level security, and the
+ * insert policies require `app.is_system_admin`, so the flag is set as a connection option: that
+ * applies it when each pooled connection is opened rather than relying on which connection a
+ * given statement happens to get.
+ */
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL ?? '',
+  options: '-c app.is_system_admin=true',
 });
 const prisma = new PrismaClient({ adapter });
 
