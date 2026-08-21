@@ -7,3 +7,8 @@ pnpm-lock.yaml
 package-lock.json
 *.tsbuildinfo
 apps/web/next-env.d.ts
+
+# Generated from apps/api/src/testing/clinical-record-surfaces.ts by
+# `npm run docs:role-matrix --workspace=@nkwapa/api`. A test asserts it matches byte for byte,
+# so reformatting it here would put the two checks permanently at odds.
+docs/security/clinical-records-role-matrix.md
