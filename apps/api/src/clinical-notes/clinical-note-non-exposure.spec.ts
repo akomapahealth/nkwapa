@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path';
 import { SYNC_ENTITY_PERMISSIONS, isSyncEntityType } from '../sync/sync-permissions';
 import { SYNC_PATIENT_SELECT } from '../sync/sync-projection';
 import { CLINICAL_RECORD_SURFACES } from '../testing/clinical-record-surfaces';
+import { RESEARCH_FIELD_DECISIONS, fullyExcludedModels } from '../research/research-field-registry';
 
 const API_SRC = resolve(__dirname, '..');
 const SCHEMA = readFileSync(
@@ -61,14 +62,47 @@ describe('signed clinical notes stay where they belong', () => {
     }
   });
 
-  it.each(['research', 'patient-portal'])('is absent from the %s module', (module) => {
-    for (const file of sourceFilesUnder(resolve(API_SRC, module))) {
+  it('is absent from the patient-portal module', () => {
+    for (const file of sourceFilesUnder(resolve(API_SRC, 'patient-portal'))) {
       const source = readFileSync(file, 'utf8');
       expect(source).not.toMatch(/clinicalNote|ClinicalNote/);
       for (const field of NOTE_CONTENT_FIELDS) {
         expect(source).not.toMatch(new RegExp(`\\b${field}\\b`));
       }
     }
+  });
+
+  it('is never queried or emitted by the research module', () => {
+    // The field registry names ClinicalNote deliberately, to record that it is excluded. So the
+    // rule here is not "never mentioned" but "never read and never written to a file": no Prisma
+    // access to the note tables, and no note content in any transform.
+    for (const file of sourceFilesUnder(resolve(API_SRC, 'research'))) {
+      const source = readFileSync(file, 'utf8');
+      const isRegistry = file.endsWith('research-field-registry.ts');
+
+      expect(source).not.toMatch(/prisma\.clinicalNote/);
+      expect(source).not.toMatch(/tx\.clinicalNote/);
+
+      if (isRegistry) continue;
+      for (const field of NOTE_CONTENT_FIELDS) {
+        expect(source).not.toMatch(new RegExp(`\\b${field}\\b`));
+      }
+    }
+  });
+
+  it('is recorded as excluded rather than merely missing from the research contract', () => {
+    // Silence is what made this a finding: an unwired table and an unconsidered one looked the
+    // same. Every note field now carries a disposition that says it is withheld.
+    for (const model of ['ClinicalNote', 'ClinicalNoteAddendum'] as const) {
+      const decisions = RESEARCH_FIELD_DECISIONS[model];
+      expect(Object.keys(decisions).length).toBeGreaterThan(0);
+      for (const [, decision] of Object.entries(decisions)) {
+        expect(decision.disposition).toMatch(/^(EXCLUDED_|COARSENED$)/);
+      }
+    }
+    expect(fullyExcludedModels()).toEqual(
+      expect.arrayContaining(['ClinicalNote', 'ClinicalNoteAddendum']),
+    );
   });
 
   it('reaches the dashboard as a count and nothing else', () => {
