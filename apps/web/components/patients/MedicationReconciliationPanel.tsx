@@ -11,7 +11,6 @@ import {
   Pencil,
   Plus,
   RefreshCw,
-  RotateCcw,
   ShieldCheck,
   WifiOff,
 } from 'lucide-react';
@@ -65,6 +64,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  ChartSectionEmpty,
+  ChartSectionError,
+  ChartSectionLoading,
+  ChartSectionOffline,
+} from '@/components/patients/chart/ChartSectionState';
 
 const unavailableAllergies: AllergySummary = { state: 'UNAVAILABLE', activeAllergies: [] };
 
@@ -839,9 +844,7 @@ export function MedicationReconciliationPanel({
     <div className="space-y-5">
       <AllergySummaryBanner summary={allergies} compact />
       {offline ? (
-        <StatusMessage icon={WifiOff}>
-          Offline data is shown from this device. Pending changes will sync automatically.
-        </StatusMessage>
+        <ChartSectionOffline description="Showing medications saved on this device. Pending changes sync automatically once you reconnect." />
       ) : null}
       {notice ? (
         <StatusMessage icon={CheckCircle2} tone="success">
@@ -849,16 +852,11 @@ export function MedicationReconciliationPanel({
         </StatusMessage>
       ) : null}
       {error ? (
-        <div
-          role="alert"
-          className="flex items-start justify-between gap-3 rounded-2xl border border-destructive/35 bg-destructive/10 p-3 text-sm text-destructive"
-        >
-          <span>{error}</span>
-          <Button variant="ghost" size="sm" onClick={() => void load()}>
-            <RotateCcw className="h-4 w-4" />
-            Retry
-          </Button>
-        </div>
+        <ChartSectionError
+          title="Unable to load medications"
+          description={error}
+          onRetry={() => void load()}
+        />
       ) : null}
 
       <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
@@ -900,9 +898,7 @@ export function MedicationReconciliationPanel({
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="py-8 text-center text-sm text-muted-foreground" aria-live="polite">
-              Loading medications…
-            </p>
+            <ChartSectionLoading label="medications" />
           ) : current.length ? (
             <MedicationList
               records={current}
@@ -1263,31 +1259,27 @@ function MedicationList({
 }
 
 function MedicationEmpty({ state }: { state: ReturnType<typeof medicationListState> }) {
+  // Three distinct clinical meanings that must not be confused with one another: an attested
+  // "none", a chart with only past medications, and a chart nobody has filled in.
   const noKnown = state === 'NO_KNOWN_CURRENT_MEDICATIONS';
   return (
-    <div className="rounded-3xl border border-dashed p-8 text-center">
-      {noKnown ? (
-        <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-600" />
-      ) : state === 'HISTORICAL_ONLY' ? (
-        <History className="mx-auto h-8 w-8 text-muted-foreground" />
-      ) : (
-        <CircleSlash2 className="mx-auto h-8 w-8 text-muted-foreground" />
-      )}
-      <h3 className="mt-3 font-semibold">
-        {noKnown
+    <ChartSectionEmpty
+      icon={noKnown ? CheckCircle2 : state === 'HISTORICAL_ONLY' ? History : CircleSlash2}
+      title={
+        noKnown
           ? 'No known current medications'
           : state === 'HISTORICAL_ONLY'
             ? 'No current medications'
-            : 'No medications recorded'}
-      </h3>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {noKnown
+            : 'No medications recorded'
+      }
+      description={
+        noKnown
           ? 'A staff member explicitly reconciled this state.'
           : state === 'HISTORICAL_ONLY'
             ? 'Past or stopped medications remain available below.'
-            : 'This empty chart is not a clinical claim of no known medications.'}
-      </p>
-    </div>
+            : 'This empty chart is not a clinical claim of no known medications.'
+      }
+    />
   );
 }
 

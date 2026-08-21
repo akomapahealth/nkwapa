@@ -1,15 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  AlertTriangle,
-  CheckCircle2,
-  CircleOff,
-  History,
-  Pencil,
-  Plus,
-  RotateCcw,
-} from 'lucide-react';
+import { AlertTriangle, CheckCircle2, CircleOff, History, Pencil, Plus } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
 import { db } from '@/lib/db';
@@ -52,6 +44,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  ChartSectionEmpty,
+  ChartSectionError,
+  ChartSectionLoading,
+  ChartSectionOffline,
+} from '@/components/patients/chart/ChartSectionState';
 
 const emptyAllergySummary: AllergySummary = {
   state: 'NOT_RECORDED',
@@ -453,34 +451,23 @@ export function MedicalHistoryPanel({
         </CardHeader>
         <CardContent className="space-y-3">
           {offline ? (
-            <div className="rounded-2xl border border-amber-500/35 bg-amber-500/10 p-3 text-sm">
-              Offline history is shown from this device. Pending changes will sync automatically.
-            </div>
+            <ChartSectionOffline description="Showing history saved on this device. Pending changes sync automatically once you reconnect." />
           ) : null}
           {error ? (
-            <div
-              role="alert"
-              className="flex items-start justify-between gap-3 rounded-2xl border border-destructive/35 bg-destructive/10 p-3 text-sm text-destructive"
-            >
-              <span>{error}</span>
-              <Button variant="ghost" size="sm" onClick={() => void load()}>
-                <RotateCcw className="h-4 w-4" />
-                Retry
-              </Button>
-            </div>
+            <ChartSectionError
+              title="Unable to load medical history"
+              description={error}
+              onRetry={() => void load()}
+            />
           ) : null}
           {loading ? (
-            <p className="py-8 text-center text-sm text-muted-foreground" aria-live="polite">
-              Loading medical history…
-            </p>
+            <ChartSectionLoading label="medical history" />
           ) : visibleRecords.length === 0 ? (
-            <div className="rounded-3xl border border-dashed border-border p-8 text-center">
-              <History className="mx-auto h-8 w-8 text-muted-foreground" aria-hidden="true" />
-              <h3 className="mt-3 font-semibold">No matching history records</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                This is an explicit empty state, not a record of no known conditions or allergies.
-              </p>
-            </div>
+            <ChartSectionEmpty
+              icon={History}
+              title="No matching history records"
+              description="This is an explicit empty state, not a record of no known conditions or allergies."
+            />
           ) : (
             <ul className="space-y-3">
               {visibleRecords.map((record) => {

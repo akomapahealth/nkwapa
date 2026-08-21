@@ -10,7 +10,13 @@ import { db, type DiabetesScreeningRecord } from '@/lib/db';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
+import { InlineNotice } from '@/components/ops/OpsShared';
+import {
+  ChartSectionEmpty,
+  ChartSectionError,
+  ChartSectionLoading,
+  ChartSectionOffline,
+} from '@/components/patients/chart/ChartSectionState';
 
 interface DiabetesHistoryItem {
   id: string;
@@ -72,10 +78,14 @@ export function DiabetesHistoryPanel({
   const [items, setItems] = useState<DiabetesHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Whether what is on screen came from this device rather than the server. Falling back to the
+  // cache silently made stale screenings indistinguishable from current ones.
+  const [servedFromCache, setServedFromCache] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setServedFromCache(false);
     try {
       const response = await apiFetch(
         `/clinics/${encodeURIComponent(clinicId)}/patients/${encodeURIComponent(patientId)}/diabetes-screenings?limit=100`,
@@ -106,6 +116,8 @@ export function DiabetesHistoryPanel({
         setError(
           loadError instanceof Error ? loadError.message : 'Unable to load diabetes history.',
         );
+      } else {
+        setServedFromCache(true);
       }
     } finally {
       setLoading(false);
@@ -186,7 +198,7 @@ export function DiabetesHistoryPanel({
     <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
       <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
         <div>
-          <h2 className="font-heading text-xl font-semibold">Longitudinal diabetes history</h2>
+          <h2 className="text-lg font-semibold">Longitudinal diabetes history</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Staff-recorded screenings remain linked to their source visits. Patient-entered portal
             measurements are unchanged and stay in Trends.
@@ -195,12 +207,20 @@ export function DiabetesHistoryPanel({
         <Droplets className="h-6 w-6 shrink-0 text-primary" aria-hidden="true" />
       </CardHeader>
       <CardContent className="space-y-6">
-        {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
-        {loading ? (
-          <p role="status" className="text-sm text-muted-foreground">
-            Loading diabetes history…
-          </p>
+        {error ? (
+          <ChartSectionError
+            title="Unable to load diabetes history"
+            description={error}
+            onRetry={load}
+          />
         ) : null}
+        {servedFromCache ? (
+          <ChartSectionOffline
+            title="Showing screenings saved on this device"
+            description="This history could not be refreshed from the server, so it may be missing recent screenings recorded elsewhere."
+          />
+        ) : null}
+        {loading ? <ChartSectionLoading label="diabetes history" /> : null}
         {!loading && currentEncounterId ? (
           <section aria-labelledby="current-diabetes-record" className="space-y-3">
             <h3
@@ -226,7 +246,7 @@ export function DiabetesHistoryPanel({
             {currentEncounterId ? 'Previous screenings' : 'Screening history'}
           </h3>
           {!loading && history.length === 0 ? (
-            <EmptyStateCard
+            <ChartSectionEmpty
               title="No previous diabetes screenings"
               description="A chronological history will appear after staff save screenings in encounters."
             />

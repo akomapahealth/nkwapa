@@ -2,15 +2,20 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { FileText, LockKeyhole } from 'lucide-react';
+import { FileText } from 'lucide-react';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch, getErrorMessage, readApiError } from '@/lib/api';
 import type { ClinicalNoteSummary } from '@/lib/clinical-notes';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
 import { ClinicalNoteStatusBadge } from './ClinicalNoteStatusBadge';
+import {
+  ChartSectionEmpty,
+  ChartSectionError,
+  ChartSectionLoading,
+  ChartSectionOffline,
+} from '@/components/patients/chart/ChartSectionState';
 
 export function PatientClinicalNotesPanel({
   clinicId,
@@ -52,27 +57,26 @@ export function PatientClinicalNotesPanel({
 
   if (!isOnline) {
     return (
-      <InlineNotice>
-        <div className="flex items-start gap-3">
-          <LockKeyhole className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-          <div>
-            <p className="font-medium">Clinical notes require a secure connection</p>
-            <p className="mt-1 text-muted-foreground">
-              Note status and content are not cached for offline use on this device.
-            </p>
-          </div>
-        </div>
-      </InlineNotice>
+      <ChartSectionOffline
+        title="Clinical notes require a secure connection"
+        description="Note status and content are never cached for offline use on this device."
+      />
     );
   }
 
-  if (loading) return <p className="p-4 text-sm text-muted-foreground">Loading notes…</p>;
+  if (loading) return <ChartSectionLoading label="clinical notes" />;
 
   return (
     <div className="space-y-4">
-      {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
+      {error ? (
+        <ChartSectionError
+          title="Unable to load clinical notes"
+          description={error}
+          onRetry={() => void load()}
+        />
+      ) : null}
       {!notes.length ? (
-        <EmptyStateCard
+        <ChartSectionEmpty
           title="No clinical notes recorded"
           description="HAP notes created from this patient's encounters will appear here."
         />

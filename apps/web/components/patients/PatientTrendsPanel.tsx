@@ -25,7 +25,11 @@ import {
 import { MeasurementTrendChart } from '@/components/portal/MeasurementTrendChart';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
+import {
+  ChartSectionError,
+  ChartSectionLoading,
+} from '@/components/patients/chart/ChartSectionState';
 
 const FOLLOW_UP_LABELS: Array<{
   key: keyof PatientTrendsResponse['followUp'];
@@ -64,6 +68,8 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
   const [error, setError] = useState<string | null>(null);
   const [selectedMeasurement, setSelectedMeasurement] =
     useState<ExpandedMeasurementKey>('spo2Percent');
+  // A failed load must be recoverable without a full page reload; bumping this re-runs the fetch.
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,7 +103,7 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
     return () => {
       cancelled = true;
     };
-  }, [clinicId, getToken, patientId, rangeDays]);
+  }, [clinicId, getToken, patientId, rangeDays, reloadNonce]);
 
   const bpTrend = buildBloodPressureTrendData(trends?.bp ?? []);
   const glucoseTrend = buildGlucoseTrendData(trends?.glucose ?? []);
@@ -127,7 +133,7 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
             </Badge>
           </div>
           <div className="space-y-2">
-            <CardTitle className="text-xl">Trend view for clinic and home readings.</CardTitle>
+            <h2 className="text-lg font-semibold">Trend view for clinic and home readings</h2>
             <CardDescription className="max-w-3xl text-sm md:text-base">
               Blood pressure and glucose combine patient-entered logs with encounter data for this
               clinic. Staff views include in-progress encounter readings so the timeline stays
@@ -166,18 +172,14 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
         </CardContent>
       </Card>
 
-      {loading && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {Array.from({ length: 2 }).map((_, index) => (
-            <Card key={index} className="h-80 animate-pulse border-border/70 bg-muted/30" />
-          ))}
-        </div>
-      )}
+      {loading && <ChartSectionLoading label="patient trends" lines={6} />}
 
       {error && (
-        <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-          {error}
-        </div>
+        <ChartSectionError
+          title="Unable to load trends"
+          description={error}
+          onRetry={() => setReloadNonce((nonce) => nonce + 1)}
+        />
       )}
 
       {!loading && !error && (
@@ -192,8 +194,12 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
                   </Badge>
                 </div>
                 <div>
-                  <CardTitle className="text-xl">{trends?.bp.length ?? 0}</CardTitle>
-                  <CardDescription>Readings in the selected timeframe.</CardDescription>
+                  {/* A real heading: CardTitle renders a div, so these summary counts were
+                      invisible to anything navigating the page by structure. */}
+                  <h3 className="text-xl font-semibold">{trends?.bp.length ?? 0}</h3>
+                  <CardDescription>
+                    Blood pressure readings in the selected timeframe.
+                  </CardDescription>
                 </div>
               </CardHeader>
             </Card>
@@ -206,8 +212,8 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
                   </Badge>
                 </div>
                 <div>
-                  <CardTitle className="text-xl">{trends?.glucose.length ?? 0}</CardTitle>
-                  <CardDescription>Readings in the selected timeframe.</CardDescription>
+                  <h3 className="text-xl font-semibold">{trends?.glucose.length ?? 0}</h3>
+                  <CardDescription>Glucose readings in the selected timeframe.</CardDescription>
                 </div>
               </CardHeader>
             </Card>
@@ -276,7 +282,7 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
             />
             <Card className="border-border/70 bg-card/95">
               <CardHeader>
-                <CardTitle className="text-base">How to read this panel</CardTitle>
+                <h3 className="text-base font-semibold">How to read this panel</h3>
                 <CardDescription>
                   Use this trend view to compare clinic intake readings with patient logs before or
                   after the visit.

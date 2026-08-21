@@ -143,11 +143,25 @@ export function OnlineOnlyBanner({ className }: { className?: string }) {
   );
 }
 
-export function EmptyStateCard({ title, description }: { title: string; description: string }) {
+export function EmptyStateCard({
+  title,
+  description,
+  icon,
+}: {
+  title: string;
+  description: string;
+  /** Optional leading glyph. Several panels had hand-rolled an icon variant of this card. */
+  icon?: React.ReactNode;
+}) {
   return (
     <div className="rounded-2xl border border-dashed border-border bg-background/80 p-5 text-sm text-muted-foreground">
-      <h3 className="font-medium text-foreground">{title}</h3>
-      <p className="mt-1">{description}</p>
+      <div className="flex items-start gap-3">
+        {icon ? <span className="mt-0.5 shrink-0 text-muted-foreground">{icon}</span> : null}
+        <div>
+          <h3 className="font-medium text-foreground">{title}</h3>
+          <p className="mt-1">{description}</p>
+        </div>
+      </div>
     </div>
   );
 }
