@@ -32,6 +32,7 @@ describe('SyncService', () => {
       syncMutation: {
         findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({}),
+        delete: jest.fn().mockResolvedValue({}),
       },
       patient: {
         upsert: jest.fn().mockResolvedValue({
@@ -131,6 +132,84 @@ describe('SyncService', () => {
     clinicalMeasurementsService = module.get(ClinicalMeasurementsService);
     medicationReconciliationService = module.get(MedicationReconciliationService);
     diabetesScreeningService = module.get(DiabetesScreeningService);
+  });
+
+  describe('replay recovery', () => {
+    const vitalsMutation = (idempotencyKey: string): SyncMutationDto =>
+      ({
+        id: 'mut-replay',
+        entityType: 'diabetes_screening',
+        entityId: '44444444-4444-4444-8444-444444444444',
+        operation: 'UPSERT',
+        clinicId: 'clinic-1',
+        idempotencyKey,
+        payloadJson: { encounterId: 'enc-1' },
+      }) as SyncMutationDto;
+
+    beforeEach(() => {
+      (encounterRepo.findById as jest.Mock).mockResolvedValue({
+        id: 'enc-1',
+        clinicId: 'clinic-1',
+        status: EncounterStatus.DRAFT,
+      });
+    });
+
+    it('does not re-apply a mutation that already succeeded', async () => {
+      (prisma.syncMutation.findUnique as jest.Mock).mockResolvedValue({
+        status: 'APPLIED',
+        conflictType: null,
+        conflictDetailsJson: null,
+      });
+
+      const results = await service.applyMutations('clinic-1', mockUser as never, [
+        vitalsMutation('idem-applied'),
+      ]);
+
+      expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.APPLIED);
+      expect(diabetesScreeningService.upsert).not.toHaveBeenCalled();
+      expect(prisma.syncMutation.delete).not.toHaveBeenCalled();
+    });
+
+    it('does not re-attempt a conflict that server state cannot resolve', async () => {
+      (prisma.syncMutation.findUnique as jest.Mock).mockResolvedValue({
+        status: 'CONFLICT',
+        conflictType: 'CONFLICT_FINALIZED',
+        conflictDetailsJson: JSON.stringify({ message: 'locked' }),
+      });
+
+      const results = await service.applyMutations('clinic-1', mockUser as never, [
+        vitalsMutation('idem-finalized'),
+      ]);
+
+      expect(results[0]).toMatchObject({
+        status: SYNC_MUTATION_RESULT_STATUS.CONFLICT,
+        conflictType: 'CONFLICT_FINALIZED',
+        retryable: false,
+      });
+      expect(diabetesScreeningService.upsert).not.toHaveBeenCalled();
+    });
+
+    it('re-attempts a mutation whose earlier failure could since have been fixed', async () => {
+      // The poisoned outbox: the server cached the failure against the idempotency key, so a
+      // client that kept its queued row could never drain it even once the cause was resolved.
+      (prisma.syncMutation.findUnique as jest.Mock).mockResolvedValue({
+        status: 'ERROR',
+        conflictType: 'FORBIDDEN',
+        conflictDetailsJson: JSON.stringify({ message: 'permission required' }),
+      });
+
+      const results = await service.applyMutations('clinic-1', mockUser as never, [
+        vitalsMutation('idem-was-forbidden'),
+      ]);
+
+      expect(prisma.syncMutation.delete).toHaveBeenCalledWith({
+        where: {
+          clinicId_idempotencyKey: { clinicId: 'clinic-1', idempotencyKey: 'idem-was-forbidden' },
+        },
+      });
+      expect(diabetesScreeningService.upsert).toHaveBeenCalledTimes(1);
+      expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.APPLIED);
+    });
   });
 
   describe('offline writes stay inside the request clinic', () => {
@@ -252,14 +331,17 @@ describe('SyncService', () => {
       });
 
       expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.ERROR);
-      expect(results[0].conflictType).toBe('APPLICATION_REJECTED');
+      // A permission denial is labelled distinctly and stays retryable, because granting the
+      // role later is exactly the thing that should let the queued change through.
+      expect(results[0].conflictType).toBe('FORBIDDEN');
+      expect(results[0].retryable).toBe(true);
       // Denied before dispatch, so no handler ran and no record was written.
       expect(prisma.patient.upsert).not.toHaveBeenCalled();
       expect(prisma.encounter.upsert).not.toHaveBeenCalled();
       // The refusal is still recorded, so an operator can see what a client tried to replay.
       expect(prisma.syncMutation.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ status: 'ERROR', conflictType: 'APPLICATION_REJECTED' }),
+          data: expect.objectContaining({ status: 'ERROR', conflictType: 'FORBIDDEN' }),
         }),
       );
     });
@@ -383,7 +465,7 @@ describe('SyncService', () => {
       ],
     );
 
-    expect(results[0]).toMatchObject({ status: 'ERROR', conflictType: 'APPLICATION_REJECTED' });
+    expect(results[0]).toMatchObject({ status: 'ERROR', conflictType: 'FORBIDDEN' });
   });
 
   it('rejects deleting diabetes screening from a finalized encounter', async () => {
@@ -451,7 +533,7 @@ describe('SyncService', () => {
 
     expect(results[0]).toMatchObject({
       status: SYNC_MUTATION_RESULT_STATUS.ERROR,
-      conflictType: 'APPLICATION_REJECTED',
+      conflictType: 'FORBIDDEN',
     });
     expect(prisma.vitals.deleteMany).not.toHaveBeenCalled();
   });
@@ -781,7 +863,7 @@ describe('SyncService', () => {
 
       expect(results[0]).toMatchObject({
         status: SYNC_MUTATION_RESULT_STATUS.ERROR,
-        conflictType: 'APPLICATION_REJECTED',
+        conflictType: 'FORBIDDEN',
       });
       expect(medicationReconciliationService.reconcile).not.toHaveBeenCalled();
     });

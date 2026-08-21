@@ -28,6 +28,7 @@ import {
 import { assertPermissionAtClinic, type ScopedRole } from '../auth/clinic-roles';
 import type { EntityType as SyncEntityType } from './entity-types';
 import { SYNC_ENTITY_PERMISSIONS, isSyncEntityType } from './sync-permissions';
+import { classifySyncFailure, isTerminalOutcome } from './sync-outcome';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { PatientRepository } from '../patients/patient.repository';
@@ -106,48 +107,47 @@ export class SyncService {
         },
       });
 
-      if (existing) {
-        results.push({
+      if (existing && isTerminalOutcome(existing.status, existing.conflictType)) {
+        const replayed: SyncMutationResultDto = {
           id: mut.id,
           status: existing.status as SyncMutationResultDto['status'],
-          conflictType: existing.conflictType ?? undefined,
-          conflictDetails: existing.conflictDetailsJson
+        };
+        if (existing.conflictType) {
+          replayed.conflictType = existing.conflictType;
+          replayed.conflictDetails = existing.conflictDetailsJson
             ? (JSON.parse(existing.conflictDetailsJson) as Record<string, unknown>)
-            : undefined,
-        });
+            : undefined;
+          replayed.retryable = false;
+        }
+        results.push(replayed);
         continue;
+      }
+
+      if (existing) {
+        // A recorded failure that a replay could still resolve: the payload may have been fixed,
+        // a permission granted, or a feature flag turned on. Leaving the row in place would make
+        // the outcome permanent and the client's queue undrainable, which is the mechanism behind
+        // the poisoned outbox. The row is cleared so the mutation is genuinely re-attempted.
+        await this.prisma.syncMutation.delete({
+          where: { clinicId_idempotencyKey: { clinicId, idempotencyKey: mut.idempotencyKey } },
+        });
       }
 
       try {
         const result = await this.applyOne(clinicId, actorUserId, user, mut, metadata);
         results.push(result);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        const httpResponse =
-          err instanceof HttpException && typeof err.getResponse() === 'object'
-            ? (err.getResponse() as Record<string, unknown>)
-            : null;
-        const conflictResponse = err instanceof ConflictException ? httpResponse : null;
-        const isRevisionConflict =
-          mut.entityType === 'medical_history_revision' && conflictResponse !== null;
-        const isConflict = conflictResponse !== null;
-        const status = isConflict
-          ? SYNC_MUTATION_RESULT_STATUS.CONFLICT
-          : SYNC_MUTATION_RESULT_STATUS.ERROR;
-        const conflictType = httpResponse?.code
-          ? String(httpResponse.code)
-          : isRevisionConflict
-            ? 'MEDICAL_HISTORY_CONFLICT'
-            : err instanceof HttpException
-              ? 'APPLICATION_REJECTED'
-              : 'APPLICATION_ERROR';
-        const conflictDetails = httpResponse ?? { message: msg };
+        const outcome = classifySyncFailure(err, mut.entityType);
         results.push({
           id: mut.id,
-          status,
-          conflictType,
-          conflictDetails,
+          status: outcome.status,
+          conflictType: outcome.conflictType,
+          conflictDetails: outcome.conflictDetails,
+          retryable: outcome.retryable,
         });
+
+        // Every refusal is recorded so an operator can see what a client tried to replay. Only a
+        // terminal one is allowed to short-circuit the next attempt; see isTerminalOutcome.
         await this.prisma.syncMutation.create({
           data: {
             clinicId,
@@ -155,9 +155,12 @@ export class SyncService {
             entityId: mut.entityId,
             operation: mut.operation === 'UPSERT' ? SyncOperation.UPSERT : SyncOperation.DELETE,
             idempotencyKey: mut.idempotencyKey,
-            status: isConflict ? SyncMutationStatus.CONFLICT : SyncMutationStatus.ERROR,
-            conflictType,
-            conflictDetailsJson: JSON.stringify(conflictDetails),
+            status:
+              outcome.status === SYNC_MUTATION_RESULT_STATUS.CONFLICT
+                ? SyncMutationStatus.CONFLICT
+                : SyncMutationStatus.ERROR,
+            conflictType: outcome.conflictType,
+            conflictDetailsJson: JSON.stringify(outcome.conflictDetails),
           },
         });
       }
@@ -648,13 +651,26 @@ export class SyncService {
     return existingStatus ?? EncounterStatus.DRAFT;
   }
 
+  /**
+   * Refuse a write against a locked encounter.
+   *
+   * Reported as a conflict rather than a plain error, matching what the vitals, diabetes, and
+   * encounter paths already do. The client treats a conflict as recoverable and an error as a hard
+   * rejection that halts the whole sync pass, so signalling the same condition two different ways
+   * meant a care plan or prescription queued against a finalized encounter wedged the outbox while
+   * a vitals row against the same encounter recovered cleanly.
+   */
   private async ensureEncounterNotFinalized(encounterId: string): Promise<void> {
     const encounter = await this.prisma.encounter.findUnique({
       where: { id: encounterId },
       select: { status: true },
     });
     if (encounter?.status === EncounterStatus.FINALIZED) {
-      throw new Error('Cannot modify encounter data: encounter is finalized');
+      throw new ConflictException({
+        code: 'CONFLICT_FINALIZED',
+        message: 'Cannot modify encounter data: encounter is finalized',
+        existingStatus: EncounterStatus.FINALIZED,
+      });
     }
   }
 
