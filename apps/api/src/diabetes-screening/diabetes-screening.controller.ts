@@ -1,11 +1,11 @@
 import { Body, Controller, Get, Param, Put, Query, Request, UseGuards } from '@nestjs/common';
-import type { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 import { ClinicScoped } from '../auth/decorators/clinic-scoped.decorator';
 import { ClinicScopeGuard } from '../auth/guards/clinic-scope.guard';
 import { RbacGuard } from '../auth/guards/rbac.guard';
 import { PERMISSIONS } from '../auth/constants/permissions';
+import type { ScopedRole } from '../auth/clinic-roles';
 import {
   ClinicAndEncounterParamsDto,
   ClinicAndPatientParamsDto,
@@ -15,7 +15,7 @@ import { DiabetesScreeningService } from './diabetes-screening.service';
 import { UpsertDiabetesScreeningDto } from './dto/diabetes-screening.dto';
 
 type DiabetesRequest = {
-  user: { user: { id: string }; roles: Array<{ role: UserRole }> };
+  user: { user: { id: string }; roles: ScopedRole[] };
   headers?: { 'x-request-id'?: string; 'user-agent'?: string };
   ip?: string;
 };

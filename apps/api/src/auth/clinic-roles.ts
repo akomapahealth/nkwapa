@@ -1,5 +1,6 @@
+import { ForbiddenException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
-import { computeEffectivePermissions } from './constants/permissions';
+import { computeEffectivePermissions, hasPermission } from './constants/permissions';
 
 export interface ScopedRole {
   clinicId: string | null;
@@ -38,4 +39,31 @@ export function permissionsForClinic(
   clinicId: string | null | undefined,
 ): string[] {
   return computeEffectivePermissions(rolesForClinic(roles, clinicId).map((entry) => entry.role));
+}
+
+/** Whether a user holds `permission` through a role seated at `clinicId`. */
+export function hasPermissionAtClinic(
+  roles: readonly ScopedRole[],
+  clinicId: string | null | undefined,
+  permission: string,
+): boolean {
+  return hasPermission(rolesForClinic(roles, clinicId), permission);
+}
+
+/**
+ * Assert a permission held *at one clinic*, throwing `ForbiddenException` otherwise.
+ *
+ * Services that re-check a permission below the guard layer must use this rather than
+ * `hasPermission` over the raw role array. A user may be a manager here and a volunteer elsewhere;
+ * checking the unscoped array lets the elsewhere-role authorize a write here.
+ */
+export function assertPermissionAtClinic(
+  roles: readonly ScopedRole[],
+  clinicId: string | null | undefined,
+  permission: string,
+  message?: string,
+): void {
+  if (!hasPermissionAtClinic(roles, clinicId, permission)) {
+    throw new ForbiddenException(message ?? `${permission} permission is required`);
+  }
 }

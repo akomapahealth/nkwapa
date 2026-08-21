@@ -11,9 +11,9 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { IsOptional, IsString, IsUUID } from 'class-validator';
-import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
+import type { ScopedRole } from '../auth/clinic-roles';
 import { ClinicScoped } from '../auth/decorators/clinic-scoped.decorator';
 import { RbacGuard } from '../auth/guards/rbac.guard';
 import { ClinicScopeGuard } from '../auth/guards/clinic-scope.guard';
@@ -48,7 +48,7 @@ export class SyncController {
     @Body() mutations: SyncMutationDto[],
     @Request()
     req: {
-      user: { user: { id: string }; roles: Array<{ role: UserRole }> };
+      user: { user: { id: string }; roles: ScopedRole[] };
       ip?: string;
       headers?: { 'user-agent'?: string };
     },

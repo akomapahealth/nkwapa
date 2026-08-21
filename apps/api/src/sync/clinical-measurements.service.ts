@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -18,10 +17,10 @@ import {
   SyncOperation,
   TemperatureSource,
   TobaccoUseStatus,
-  type UserRole,
 } from '@prisma/client';
 import { computeBmi, toCelsius } from '@nkwapa/db';
-import { hasPermission, PERMISSIONS } from '../auth/constants/permissions';
+import { PERMISSIONS } from '../auth/constants/permissions';
+import { assertPermissionAtClinic } from '../auth/clinic-roles';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   EncounterVitalsBundleDto,
@@ -84,13 +83,14 @@ export class ClinicalMeasurementsService {
     metadata?: RequestMetadata;
     legacy?: boolean;
   }): Promise<void> {
-    if (
-      !hasPermission(params.user.roles as Array<{ role: UserRole }>, PERMISSIONS.SCREENING_WRITE)
-    ) {
-      throw new ForbiddenException(
-        'SCREENING.WRITE permission is required for clinical measurements',
-      );
-    }
+    // Scoped to the target clinic: a volunteer seat at another clinic must not authorize a
+    // measurement write here. SyncService gates this too; this is the service-level backstop.
+    assertPermissionAtClinic(
+      params.user.roles,
+      params.clinicId,
+      PERMISSIONS.SCREENING_WRITE,
+      'SCREENING.WRITE permission is required for clinical measurements',
+    );
 
     const bundlePayload = params.legacy
       ? this.fromLegacyVitals(params.mutation, params.payload)

@@ -176,7 +176,10 @@ describe('ClinicalMeasurementsService', () => {
       service.applyBundle({
         clinicId: IDS.clinic,
         actorUserId: IDS.user,
-        user: { user: { id: IDS.user }, roles: [{ role: UserRole.DIRECTOR }] },
+        user: {
+          user: { id: IDS.user },
+          roles: [{ clinicId: IDS.clinic, role: UserRole.DIRECTOR }],
+        },
         mutation: {
           id: 'mutation-1',
           entityType: 'encounter_vitals_bundle',
@@ -192,7 +195,10 @@ describe('ClinicalMeasurementsService', () => {
   });
 
   it('rejects cross-clinic and finalized encounters', async () => {
-    const user = { user: { id: IDS.user }, roles: [{ role: UserRole.VOLUNTEER }] };
+    const user = {
+      user: { id: IDS.user },
+      roles: [{ clinicId: IDS.clinic, role: UserRole.VOLUNTEER }],
+    };
     const mutation = {
       id: 'mutation-1',
       entityType: 'encounter_vitals_bundle',
@@ -237,7 +243,7 @@ describe('ClinicalMeasurementsService', () => {
     await service.applyBundle({
       clinicId: IDS.clinic,
       actorUserId: IDS.user,
-      user: { user: { id: IDS.user }, roles: [{ role: UserRole.VOLUNTEER }] },
+      user: { user: { id: IDS.user }, roles: [{ clinicId: IDS.clinic, role: UserRole.VOLUNTEER }] },
       mutation: {
         id: 'mutation-1',
         entityType: 'encounter_vitals_bundle',
@@ -276,7 +282,7 @@ describe('ClinicalMeasurementsService', () => {
     await service.applyBundle({
       clinicId: IDS.clinic,
       actorUserId: IDS.user,
-      user: { user: { id: IDS.user }, roles: [{ role: UserRole.DOCTOR }] },
+      user: { user: { id: IDS.user }, roles: [{ clinicId: IDS.clinic, role: UserRole.DOCTOR }] },
       mutation: {
         id: 'mutation-1',
         entityType: 'encounter_vitals_bundle',

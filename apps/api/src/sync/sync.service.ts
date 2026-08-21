@@ -1,6 +1,6 @@
 import {
+  BadRequestException,
   ConflictException,
-  ForbiddenException,
   HttpException,
   Injectable,
   NotFoundException,
@@ -14,7 +14,6 @@ import {
   NationalIdType,
   PatientLocationStatus,
   Sex,
-  UserRole,
   MedicalHistoryCategory,
   MedicalHistoryStatus,
 } from '@prisma/client';
@@ -25,6 +24,9 @@ import {
   nationalIdLast4,
   normalizePhoneToE164,
 } from '@nkwapa/db';
+import { assertPermissionAtClinic, type ScopedRole } from '../auth/clinic-roles';
+import type { EntityType as SyncEntityType } from './entity-types';
+import { SYNC_ENTITY_PERMISSIONS, isSyncEntityType } from './sync-permissions';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { PatientRepository } from '../patients/patient.repository';
@@ -34,7 +36,6 @@ import { SyncMutationDto, SYNC_OPERATION } from './dto/sync-mutation.dto';
 import { SyncMutationResultDto, SYNC_MUTATION_RESULT_STATUS } from './dto/sync-push-response.dto';
 import { SyncPullResponseDto } from './dto/sync-pull-response.dto';
 import { MedicalHistoryService } from '../medical-history/medical-history.service';
-import { hasPermission, PERMISSIONS } from '../auth/constants/permissions';
 import { isApiFeatureEnabled } from '../common/feature-flags';
 import { ClinicalMeasurementsService } from './clinical-measurements.service';
 import { MedicationReconciliationService } from '../medication-reconciliation/medication-reconciliation.service';
@@ -50,21 +51,7 @@ import type {
 import { DiabetesScreeningService } from '../diabetes-screening/diabetes-screening.service';
 import { serializeLegacyDiabetesSymptoms } from '@nkwapa/db';
 
-export type EntityType =
-  | 'patient'
-  | 'encounter'
-  | 'vitals'
-  | 'encounter_vitals_bundle'
-  | 'diabetes_screening'
-  | 'hypertension_assessment'
-  | 'care_plan'
-  | 'patient_consent'
-  | 'prescription'
-  | 'medical_history_revision'
-  | 'patient_medication_revision'
-  | 'medication_reconciliation'
-  | 'patient_pharmacy_revision'
-  | 'patient_pharmacy_preference';
+export type { EntityType } from './entity-types';
 
 export interface RequestMetadata {
   ipAddress?: string;
@@ -73,7 +60,7 @@ export interface RequestMetadata {
 
 export interface UserWithId {
   user: { id: string };
-  roles: Array<{ role: UserRole }>;
+  roles: ScopedRole[];
 }
 
 @Injectable()
@@ -178,6 +165,67 @@ export class SyncService {
     return results;
   }
 
+  /**
+   * Authorize an offline mutation against the roles the actor holds *at the target clinic*.
+   *
+   * `POST /sync/push` only proves the caller may synchronize; it says nothing about which records
+   * they may write. Every entity type is therefore mapped back to the permission its online REST
+   * route requires, so a queued write is never more powerful than the same write made live.
+   */
+  private async assertMutationPermitted(
+    clinicId: string,
+    user: UserWithId,
+    mut: SyncMutationDto,
+  ): Promise<void> {
+    if (!isSyncEntityType(mut.entityType)) {
+      throw new BadRequestException(`Unknown entity type: ${mut.entityType}`);
+    }
+    const policy = SYNC_ENTITY_PERMISSIONS[mut.entityType];
+
+    if (mut.operation === SYNC_OPERATION.DELETE) {
+      // A non-deletable type is reported as DELETE_NOT_SUPPORTED by applyDelete, which records the
+      // attempt. Failing here instead would lose that record.
+      if (policy.delete === null) return;
+      assertPermissionAtClinic(
+        user.roles,
+        clinicId,
+        policy.delete,
+        `${policy.delete} permission is required to delete ${mut.entityType} in this clinic`,
+      );
+      return;
+    }
+
+    const required =
+      policy.create === policy.update
+        ? policy.create
+        : (await this.mutationTargetExists(mut.entityType, mut.entityId))
+          ? policy.update
+          : policy.create;
+
+    assertPermissionAtClinic(
+      user.roles,
+      clinicId,
+      required,
+      `${required} permission is required to write ${mut.entityType} in this clinic`,
+    );
+  }
+
+  /**
+   * Whether an upsert will update rather than create, for the entity types whose create and update
+   * permissions differ. Registering a patient and editing an existing chart are separate
+   * permissions over REST, and a volunteer holds only the first.
+   */
+  private async mutationTargetExists(
+    entityType: SyncEntityType,
+    entityId: string,
+  ): Promise<boolean> {
+    if (entityType !== 'patient') return false;
+    // Same lookup applyPatientUpsert performs, through the repository, so the create/update
+    // decision here and the upsert below can never disagree.
+    const existing = await this.patientRepository.findById(entityId);
+    return Boolean(existing);
+  }
+
   private async applyOne(
     clinicId: string,
     actorUserId: string,
@@ -188,11 +236,13 @@ export class SyncService {
     const payload = mut.payloadJson ?? {};
     const idempotencyKey = mut.idempotencyKey;
 
+    await this.assertMutationPermitted(clinicId, user, mut);
+
     if (mut.operation === SYNC_OPERATION.DELETE) {
       return this.applyDelete(clinicId, actorUserId, user, mut, metadata);
     }
 
-    switch (mut.entityType as EntityType) {
+    switch (mut.entityType as SyncEntityType) {
       case 'patient':
         return this.applyPatientUpsert(
           clinicId,
@@ -979,9 +1029,6 @@ export class SyncService {
     if (!isApiFeatureEnabled('medicalHistory')) {
       throw new Error('Medical history is not enabled');
     }
-    if (!hasPermission(user.roles, PERMISSIONS.MEDICAL_HISTORY_WRITE)) {
-      throw new Error('Medical history write permission is required');
-    }
     const patientId = payload.patientId as string | undefined;
     const revisionId = payload.revisionId as string | undefined;
     if (!patientId || !revisionId) {
@@ -1040,7 +1087,7 @@ export class SyncService {
     payload: Record<string, unknown>,
     idempotencyKey: string,
   ): Promise<SyncMutationResultDto> {
-    this.requireMedicationReconciliationWrite(user);
+    this.requireMedicationReconciliationEnabled();
     const patientId = payload.patientId as string | undefined;
     const revisionId = payload.revisionId as string | undefined;
     if (!patientId || !revisionId)
@@ -1076,7 +1123,7 @@ export class SyncService {
     payload: Record<string, unknown>,
     idempotencyKey: string,
   ): Promise<SyncMutationResultDto> {
-    this.requireMedicationReconciliationWrite(user);
+    this.requireMedicationReconciliationEnabled();
     const patientId = payload.patientId as string | undefined;
     if (!patientId) throw new Error('Reconciliation payload requires patientId');
     await this.medicationReconciliationService.reconcile(
@@ -1097,7 +1144,7 @@ export class SyncService {
     payload: Record<string, unknown>,
     idempotencyKey: string,
   ): Promise<SyncMutationResultDto> {
-    this.requireMedicationReconciliationWrite(user);
+    this.requireMedicationReconciliationEnabled();
     const patientId = payload.patientId as string | undefined;
     const revisionId = payload.revisionId as string | undefined;
     if (!patientId || !revisionId)
@@ -1132,7 +1179,7 @@ export class SyncService {
     payload: Record<string, unknown>,
     idempotencyKey: string,
   ): Promise<SyncMutationResultDto> {
-    this.requireMedicationReconciliationWrite(user);
+    this.requireMedicationReconciliationEnabled();
     const patientId = payload.patientId as string | undefined;
     const action = payload.action as string | undefined;
     if (!patientId) throw new Error('Pharmacy preference payload requires patientId');
@@ -1159,12 +1206,9 @@ export class SyncService {
     return this.recordAppliedMutation(clinicId, mut, idempotencyKey);
   }
 
-  private requireMedicationReconciliationWrite(user: UserWithId) {
+  private requireMedicationReconciliationEnabled() {
     if (!isApiFeatureEnabled('medicationReconciliation'))
       throw new Error('Medication reconciliation is not enabled');
-    if (!hasPermission(user.roles, PERMISSIONS.MEDICATION_RECONCILIATION_WRITE)) {
-      throw new ForbiddenException('Medication reconciliation write permission is required');
-    }
   }
 
   private async recordAppliedMutation(
@@ -1192,10 +1236,10 @@ export class SyncService {
     mut: SyncMutationDto,
     metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
-    const entityType = mut.entityType as EntityType;
+    const entityType = mut.entityType as SyncEntityType;
     const idempotencyKey = mut.idempotencyKey;
 
-    const deletableTypes: EntityType[] = [
+    const deletableTypes: SyncEntityType[] = [
       'vitals',
       'diabetes_screening',
       'hypertension_assessment',
@@ -1226,9 +1270,6 @@ export class SyncService {
     }
 
     if (entityType === 'vitals') {
-      if (!hasPermission(user.roles, PERMISSIONS.SCREENING_WRITE)) {
-        throw new ForbiddenException('SCREENING.WRITE permission is required to delete vitals');
-      }
       const vitals = await this.prisma.vitals.findFirst({
         where: { id: mut.entityId, clinicId },
         select: { encounter: { select: { status: true } } },
@@ -1244,11 +1285,6 @@ export class SyncService {
     }
 
     if (entityType === 'diabetes_screening') {
-      if (!hasPermission(user.roles, PERMISSIONS.SCREENING_WRITE)) {
-        throw new ForbiddenException(
-          'SCREENING.WRITE permission is required to delete diabetes screening',
-        );
-      }
       const screening = await this.prisma.diabetesScreening.findFirst({
         where: { id: mut.entityId, clinicId },
         select: { encounter: { select: { status: true } } },

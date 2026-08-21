@@ -133,6 +133,107 @@ describe('SyncService', () => {
     diabetesScreeningService = module.get(DiabetesScreeningService);
   });
 
+  describe('offline authorization', () => {
+    const push = (
+      roles: Array<{ clinicId: string | null; role: string }>,
+      entityType: string,
+      payload: Record<string, unknown> = {},
+      operation: 'UPSERT' | 'DELETE' = 'UPSERT',
+    ) =>
+      service.applyMutations('clinic-1', { user: { id: 'actor-1' }, roles } as never, [
+        {
+          id: 'mut-authz',
+          entityType,
+          entityId: '11111111-1111-4111-8111-111111111111',
+          operation,
+          clinicId: 'clinic-1',
+          idempotencyKey: `key-${entityType}-${operation}`,
+          payloadJson: payload,
+        } as SyncMutationDto,
+      ]);
+
+    it.each([
+      ['DIRECTOR', 'care_plan'],
+      ['DIRECTOR', 'prescription'],
+      ['DIRECTOR', 'patient_consent'],
+      ['MANAGER', 'prescription'],
+      ['VOLUNTEER', 'prescription'],
+      ['VOLUNTEER', 'care_plan'],
+      ['DOCTOR', 'patient_consent'],
+    ])('refuses a %s the %s write that REST already forbids', async (role, entityType) => {
+      const results = await push([{ clinicId: 'clinic-1', role }], entityType, {
+        encounterId: 'encounter-1',
+      });
+
+      expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.ERROR);
+      expect(results[0].conflictType).toBe('APPLICATION_REJECTED');
+      // Denied before dispatch, so no handler ran and no record was written.
+      expect(prisma.patient.upsert).not.toHaveBeenCalled();
+      expect(prisma.encounter.upsert).not.toHaveBeenCalled();
+      // The refusal is still recorded, so an operator can see what a client tried to replay.
+      expect(prisma.syncMutation.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'ERROR', conflictType: 'APPLICATION_REJECTED' }),
+        }),
+      );
+    });
+
+    it('does not let a volunteer seat at another clinic authorize a screening write here', async () => {
+      // Manager at clinic-1, volunteer at clinic-2. The manager seat admits the request; only the
+      // roles held at clinic-1 may decide what it is allowed to write.
+      const results = await push(
+        [
+          { clinicId: 'clinic-1', role: 'MANAGER' },
+          { clinicId: 'clinic-2', role: 'VOLUNTEER' },
+        ],
+        'diabetes_screening',
+        { encounterId: 'encounter-1' },
+      );
+
+      expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.ERROR);
+      expect(diabetesScreeningService.upsert).not.toHaveBeenCalled();
+    });
+
+    it('lets a volunteer register a patient but not edit an existing chart', async () => {
+      process.env.NATIONAL_ID_ENCRYPTION_KEY = 'a'.repeat(64);
+      (patientRepo.findById as jest.Mock).mockResolvedValue(null);
+      const created = await push([{ clinicId: 'clinic-1', role: 'VOLUNTEER' }], 'patient', {
+        patientCode: 'NKP-2025-000999',
+        nationalId: '9876543210',
+        primaryClinicId: 'clinic-1',
+        firstName: 'New',
+        lastName: 'Patient',
+      });
+      expect(created[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.APPLIED);
+
+      (patientRepo.findById as jest.Mock).mockResolvedValue({
+        id: '11111111-1111-4111-8111-111111111111',
+        patientCode: 'NKP-1',
+      });
+      const edited = await service.applyMutations(
+        'clinic-1',
+        { user: { id: 'actor-1' }, roles: [{ clinicId: 'clinic-1', role: 'VOLUNTEER' }] } as never,
+        [
+          {
+            id: 'mut-edit',
+            entityType: 'patient',
+            entityId: '11111111-1111-4111-8111-111111111111',
+            operation: 'UPSERT',
+            clinicId: 'clinic-1',
+            idempotencyKey: 'key-patient-edit',
+            payloadJson: { firstName: 'Edited' },
+          } as SyncMutationDto,
+        ],
+      );
+      expect(edited[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.ERROR);
+    });
+
+    it('rejects an entity type that has no declared permission', async () => {
+      const results = await push([{ clinicId: 'clinic-1', role: 'DOCTOR' }], 'clinical_note');
+      expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.ERROR);
+    });
+  });
+
   it('routes structured diabetes replay through the shared validated service', async () => {
     const mutation: SyncMutationDto = {
       id: 'mut-diabetes-1',

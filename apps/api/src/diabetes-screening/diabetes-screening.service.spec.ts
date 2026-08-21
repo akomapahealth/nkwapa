@@ -6,8 +6,11 @@ import {
 } from '@nestjs/common';
 import { DiabetesScreeningService } from './diabetes-screening.service';
 
-const doctor = { userId: 'user-1', roles: [{ role: 'DOCTOR' }] } as never;
-const director = { userId: 'director-1', roles: [{ role: 'DIRECTOR' }] } as never;
+const doctor = { userId: 'user-1', roles: [{ clinicId: 'clinic-1', role: 'DOCTOR' }] } as never;
+const director = {
+  userId: 'director-1',
+  roles: [{ clinicId: 'clinic-1', role: 'DIRECTOR' }],
+} as never;
 
 const dto = {
   glucoseMgDl: 126,
