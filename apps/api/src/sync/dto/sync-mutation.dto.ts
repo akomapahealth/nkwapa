@@ -8,6 +8,7 @@ import {
   MaxLength,
 } from 'class-validator';
 import { ToSanitizedString } from '../../common/validation';
+import { SYNC_ENTITY_TYPES } from '../sync-permissions';
 
 export const SYNC_OPERATION = {
   UPSERT: 'UPSERT',
@@ -22,14 +23,14 @@ export class SyncMutationDto {
   @MaxLength(80)
   id!: string;
 
-  @ToSanitizedString({ maxLength: 80 })
-  @IsString()
-  @MaxLength(80)
+  // Constrained to the types the dispatcher knows, so an unrecognised value is a 400 at the
+  // boundary rather than a per-row error after the request has been accepted.
+  @IsIn(SYNC_ENTITY_TYPES)
   entityType!: string;
 
-  @ToSanitizedString({ maxLength: 80 })
-  @IsString()
-  @MaxLength(80)
+  // Used directly as a database primary key, so it has to be a real identifier. Every client
+  // generates it with crypto.randomUUID().
+  @IsUUID()
   entityId!: string;
 
   @IsIn(Object.values(SYNC_OPERATION))

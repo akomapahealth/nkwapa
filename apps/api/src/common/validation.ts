@@ -1,3 +1,4 @@
+import type { ValidationError } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 const MULTI_SPACE_RE = /\s+/g;
@@ -131,4 +132,24 @@ export function ToOptionalNumber() {
 
 export function ToOptionalBoolean() {
   return Transform(({ value }) => normalizeBooleanInput(value));
+}
+
+/**
+ * Flatten nested class-validator errors into the flat `fieldErrors` shape the API's error envelope
+ * uses, so a caller can point at the field that failed rather than parse a tree.
+ */
+export function flattenValidationErrors(
+  errors: ValidationError[],
+  parentPath?: string,
+): Array<{ field: string; message: string }> {
+  return errors.flatMap((error) => {
+    const field = parentPath ? `${parentPath}.${error.property}` : error.property;
+    const ownErrors = error.constraints
+      ? Object.values(error.constraints).map((message) => ({ field, message }))
+      : [];
+    const childErrors = error.children?.length
+      ? flattenValidationErrors(error.children, field)
+      : [];
+    return [...ownErrors, ...childErrors];
+  });
 }

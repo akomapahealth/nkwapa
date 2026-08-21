@@ -1,36 +1,24 @@
 import './instrument';
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
-import { BadRequestException, ValidationError, ValidationPipe } from '@nestjs/common';
+import { BadRequestException, ValidationPipe } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
+import { SYNC_PUSH_MAX_BODY_SIZE } from './sync/sync.controller';
 import { StructuredLogger } from './common/structured-logger.service';
+import { flattenValidationErrors } from './common/validation';
 import { ApiExceptionFilter } from './common/http-exception.filter';
 import { getAllowedCorsOrigins } from './common/api-config';
 import { RateLimitGuard } from './common/rate-limit.guard';
 
-function flattenValidationErrors(
-  errors: ValidationError[],
-  parentPath?: string,
-): Array<{ field: string; message: string }> {
-  return errors.flatMap((error) => {
-    const field = parentPath ? `${parentPath}.${error.property}` : error.property;
-    const ownErrors = error.constraints
-      ? Object.values(error.constraints).map((message) => ({
-          field,
-          message,
-        }))
-      : [];
-    const childErrors = error.children?.length
-      ? flattenValidationErrors(error.children, field)
-      : [];
-    return [...ownErrors, ...childErrors];
-  });
-}
-
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: process.env.NODE_ENV === 'production' ? new StructuredLogger() : undefined,
   });
+  // Express defaults to 100 KB, which a full offline batch can exceed. The two limits are set
+  // together so a client that respects SYNC_PUSH_MAX_MUTATIONS is never rejected by the body
+  // parser with an error it cannot act on.
+  app.useBodyParser('json', { limit: SYNC_PUSH_MAX_BODY_SIZE });
   const httpAdapter = app.getHttpAdapter();
   const adapterInstance = httpAdapter.getInstance?.() as {
     disable?: (setting: string) => void;
