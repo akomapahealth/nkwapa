@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  decodeJsonKeysetCursor,
+  encodeJsonKeysetCursor,
+  type KeysetCursor,
+} from '../common/keyset-cursor';
 import { randomUUID } from 'crypto';
 
 export interface LogWriteParams {
@@ -63,7 +68,9 @@ export class AuditService {
     nextCursor: string | null;
   }> {
     const limit = Math.min(params.limit ?? 50, 200);
-    const decoded = params.cursor ? this.decodeCursor(params.cursor) : null;
+    const decoded: KeysetCursor | null = params.cursor
+      ? decodeJsonKeysetCursor('createdAt', params.cursor)
+      : null;
 
     const where: {
       clinicId: string;
@@ -89,8 +96,8 @@ export class AuditService {
 
     if (decoded) {
       where.OR = [
-        { createdAt: { lt: decoded.createdAt } },
-        { createdAt: decoded.createdAt, id: { lt: decoded.id } },
+        { createdAt: { lt: decoded.timestamp } },
+        { createdAt: decoded.timestamp, id: { lt: decoded.id } },
       ];
     }
 
@@ -106,7 +113,8 @@ export class AuditService {
     const hasMore = events.length > limit;
     const items = hasMore ? events.slice(0, limit) : events;
     const last = items[items.length - 1];
-    const nextCursor = hasMore && last ? this.encodeCursor(last.createdAt, last.id) : null;
+    const nextCursor =
+      hasMore && last ? encodeJsonKeysetCursor('createdAt', last.createdAt, last.id) : null;
 
     return {
       items: items.map((e) => ({
@@ -122,24 +130,5 @@ export class AuditService {
       })),
       nextCursor,
     };
-  }
-
-  private decodeCursor(cursor: string): { createdAt: Date; id: string } | null {
-    try {
-      const decoded = Buffer.from(cursor, 'base64').toString('utf-8');
-      const parsed = JSON.parse(decoded) as { createdAt: string; id: string };
-      const createdAt = new Date(parsed.createdAt);
-      if (isNaN(createdAt.getTime())) return null;
-      return { createdAt, id: parsed.id };
-    } catch {
-      return null;
-    }
-  }
-
-  private encodeCursor(createdAt: Date, id: string): string {
-    return Buffer.from(
-      JSON.stringify({ createdAt: createdAt.toISOString(), id }),
-      'utf-8',
-    ).toString('base64');
   }
 }

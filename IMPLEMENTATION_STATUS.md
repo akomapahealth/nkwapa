@@ -125,6 +125,7 @@ nkwapa/
 | Duplicate review queue                            | ❌     | 0%   | Hashed ID collision detected, no dedicated queue UI                                      |
 | Cross-clinic chart consolidation                  | ❌     | 0%   | Merge is clinic-local only                                                               |
 | Encounter workflow (draft -> review -> finalize)  | ✅     | 100% | Full state machine with role-based transitions                                           |
+| Role-aware patient chart and longitudinal history | ✅     | 100% | Deep-linked lazy tabs, server-enforced sections, cursor-paginated vitals and visits      |
 | HAP clinical notes, cosign, and addenda           | ✅     | 100% | Flagged online-only HAP lifecycle with immutable signing and assigned-doctor cosign      |
 | Vitals recording                                  | ✅     | 100% | Contextual BP, pulse, temperature, respiration, SpO2, anthropometrics, tobacco screening |
 | Diabetes screening                                | ✅     | 100% | Glucose, HbA1c, symptoms, DM suspicion                                                   |

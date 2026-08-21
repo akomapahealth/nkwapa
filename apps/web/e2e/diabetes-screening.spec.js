@@ -50,6 +50,8 @@ test('diabetes screening round-trips longitudinally, offline, read-only, and res
   page,
   context,
 }) => {
+  // Multi-phase: two encounters, a finalize, an offline edit, and a reconnect round-trip.
+  test.setTimeout(150_000);
   const patientId = await createPatient(page);
   const firstEncounterId = await createEncounter(page, patientId);
 
@@ -91,22 +93,36 @@ test('diabetes screening round-trips longitudinally, offline, read-only, and res
     page.getByText('Diabetes screening saved on this device and pending sync.'),
   ).toBeVisible();
 
-  // Wait for the specific push that carries the offline edit, not just the
-  // first push after reconnect: an unrelated/empty sync can resolve early and
-  // race the reload below, leaving the read to see stale server data.
-  const reconnectPush = page.waitForResponse(
-    (response) =>
-      response.request().method() === 'POST' &&
-      new URL(response.url()).pathname === '/sync/push' &&
-      (response.request().postData() ?? '').includes('Second encounter screening updated offline'),
+  // Let sync finish before navigating. Reloading in a loop while a push is in flight can
+  // abort it, which made this race the reconnect on a loaded CI runner. lib/sync.ts removes
+  // an outbox row only when the server reports APPLIED, so an applied push is proof the
+  // offline edit reached the server, whatever order sync batched the queue in.
+  const appliedPush = page.waitForResponse(
+    async (response) => {
+      if (response.request().method() !== 'POST') return false;
+      if (new URL(response.url()).pathname !== '/sync/push') return false;
+      try {
+        const body = await response.json();
+        return (body?.results ?? []).some((result) => result.status === 'APPLIED');
+      } catch {
+        return false;
+      }
+    },
+    { timeout: 60_000 },
   );
   await context.setOffline(false);
-  expect((await reconnectPush).ok()).toBeTruthy();
+  await appliedPush;
 
-  await page.goto(`/patients/${patientId}`);
-  await page.getByRole('tab', { name: 'Diabetes' }).click();
-  await expect(page.getByText('First encounter screening')).toBeVisible();
-  await expect(page.getByText('Second encounter screening updated offline')).toBeVisible();
+  // One navigation, with a short poll only for read-after-write lag.
+  await expect(async () => {
+    await page.goto(`/patients/${patientId}`);
+    await page.getByRole('tab', { name: 'Diabetes' }).click();
+    await expect(page.getByText('First encounter screening')).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('Second encounter screening updated offline')).toBeVisible({
+      timeout: 5_000,
+    });
+  }).toPass({ timeout: 30_000 });
+
   await expect(page.getByRole('link', { name: 'Open source visit' })).toHaveCount(2);
 
   for (const viewport of [

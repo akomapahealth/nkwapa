@@ -12,6 +12,7 @@ import { validate, type ValidationError } from 'class-validator';
 import { parseLegacyDiabetesSymptoms } from '@nkwapa/db';
 import { hasPermission, PERMISSIONS } from '../auth/constants/permissions';
 import { PrismaService } from '../prisma/prisma.service';
+import { buildKeysetWhere, decodeKeysetCursor, encodeKeysetCursor } from '../common/keyset-cursor';
 import { UpsertDiabetesScreeningDto } from './dto/diabetes-screening.dto';
 
 const MAX_FUTURE_COLLECTION_SKEW_MS = 5 * 60 * 1000;
@@ -58,20 +59,15 @@ export class DiabetesScreeningService {
     this.assertReadPermission(actor.roles);
     await this.assertPatientScope(clinicId, patientId);
 
-    const cursor = params.cursor ? this.decodeCursor(params.cursor) : null;
+    const cursor = params.cursor
+      ? decodeKeysetCursor(params.cursor, 'The diabetes history cursor is invalid.')
+      : null;
     const limit = params.limit ?? DEFAULT_PAGE_SIZE;
     const records = await this.prisma.diabetesScreening.findMany({
       where: {
         clinicId,
         encounter: { patientId },
-        ...(cursor
-          ? {
-              OR: [
-                { collectedAt: { lt: cursor.collectedAt } },
-                { collectedAt: cursor.collectedAt, id: { lt: cursor.id } },
-              ],
-            }
-          : {}),
+        ...buildKeysetWhere('collectedAt', cursor),
       },
       include: this.contextInclude(),
       orderBy: [{ collectedAt: 'desc' }, { id: 'desc' }],
@@ -83,7 +79,7 @@ export class DiabetesScreeningService {
     const last = items.at(-1);
     return {
       items,
-      nextCursor: hasMore && last ? this.encodeCursor(new Date(last.collectedAt), last.id) : null,
+      nextCursor: hasMore && last ? encodeKeysetCursor(new Date(last.collectedAt), last.id) : null,
     };
   }
 
@@ -307,25 +303,5 @@ export class DiabetesScreeningService {
       authoredBy: { select: { id: true, displayName: true } },
       encounter: { select: { id: true, patientId: true, createdAt: true, status: true } },
     } satisfies Prisma.DiabetesScreeningInclude;
-  }
-
-  private encodeCursor(collectedAt: Date, id: string): string {
-    return Buffer.from(`${collectedAt.toISOString()}|${id}`).toString('base64url');
-  }
-
-  private decodeCursor(cursor: string): { collectedAt: Date; id: string } {
-    try {
-      const decoded = Buffer.from(cursor, 'base64url').toString('utf8');
-      const separator = decoded.lastIndexOf('|');
-      const collectedAt = new Date(decoded.slice(0, separator));
-      const id = decoded.slice(separator + 1);
-      if (separator < 1 || !id || !Number.isFinite(collectedAt.getTime())) throw new Error();
-      return { collectedAt, id };
-    } catch {
-      throw new BadRequestException({
-        code: 'INVALID_CURSOR',
-        message: 'The diabetes history cursor is invalid.',
-      });
-    }
   }
 }

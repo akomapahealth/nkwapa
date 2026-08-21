@@ -262,7 +262,11 @@ export async function saveClinicalMeasurementsOffline(params: {
         cuffSizeOther: params.vitals.cuffSizeOther.trim() || null,
         pulseBpm: optionalNumber(params.vitals.pulseBpm),
         temperatureValue,
-        temperatureUnit: params.vitals.temperatureUnit,
+        // The unit is meaningless without a reading, and the server requires temperature
+        // value, unit, and source to be all present or all absent. Sending the form's
+        // default unit alongside an empty temperature produced a mutation the server
+        // rejected on every retry, which left the outbox permanently undrainable.
+        temperatureUnit: temperatureValue == null ? null : params.vitals.temperatureUnit,
         temperatureSource: params.vitals.temperatureSource || null,
         temperatureSourceOther: params.vitals.temperatureSourceOther.trim() || null,
         respiratoryRate: optionalNumber(params.vitals.respiratoryRate),

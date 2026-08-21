@@ -45,3 +45,16 @@ export {
   isDistrictInRegion,
   normalizeDistrict,
 } from './src/ghana-locations';
+export {
+  PATIENT_CHART_SECTION_IDS,
+  PATIENT_CHART_SECTIONS,
+  canAccessPatientChartSection,
+  getPatientChartSection,
+  isPatientChartSectionId,
+  resolveAccessiblePatientChartSections,
+  resolvePatientChartSectionId,
+  type PatientChartAccessInput,
+  type PatientChartFeatureFlag,
+  type PatientChartSection,
+  type PatientChartSectionId,
+} from './src/patient-chart-sections';

@@ -92,4 +92,89 @@ describe('clinical measurement offline helpers', () => {
       expect.objectContaining({ entityType: 'encounter_vitals_bundle' }),
     );
   });
+
+  describe('temperature is queued in a shape the server will accept', () => {
+    // apps/api/src/sync/clinical-measurements.service.ts requires temperature value, unit,
+    // and source to be all present or all absent. Sending the form's default unit next to an
+    // empty temperature produced a mutation the server rejected with VALIDATION_ERROR on
+    // every retry. lib/sync.ts only removes an outbox row on APPLIED, so that one bad
+    // mutation made the queue permanently undrainable and the pending counter never cleared.
+    const queuedVitals = () => {
+      const call = mockOutboxAdd.mock.calls.at(-1)?.[0] as { payloadJson: string };
+      return (JSON.parse(call.payloadJson) as { vitals: Record<string, unknown> }).vitals;
+    };
+
+    it('omits the unit when no temperature was recorded', async () => {
+      await saveClinicalMeasurementsOffline({
+        clinicId: 'clinic-1',
+        encounterId: 'encounter-1',
+        vitalsId: 'vitals-1',
+        tobaccoScreeningId: 'tobacco-1',
+        vitals: { ...vitals, temperatureValue: '', temperatureSource: '' },
+        tobacco,
+      });
+
+      const queued = queuedVitals();
+      expect(queued.temperatureValue).toBeNull();
+      expect(queued.temperatureUnit).toBeNull();
+      expect(queued.temperatureSource).toBeNull();
+    });
+
+    it('keeps value, unit, and source together when a temperature was recorded', async () => {
+      await saveClinicalMeasurementsOffline({
+        clinicId: 'clinic-1',
+        encounterId: 'encounter-1',
+        vitalsId: 'vitals-1',
+        tobaccoScreeningId: 'tobacco-1',
+        vitals,
+        tobacco,
+      });
+
+      const queued = queuedVitals();
+      expect(queued.temperatureValue).toBe(98.6);
+      expect(queued.temperatureUnit).toBe('FAHRENHEIT');
+      expect(queued.temperatureSource).toBe('ORAL');
+    });
+
+    it('queues an otherwise empty vitals form with every optional field absent', async () => {
+      const empty: VitalsFormValues = {
+        systolicBp: '',
+        diastolicBp: '',
+        bpSite: '',
+        bpSiteOther: '',
+        patientPosition: '',
+        patientPositionOther: '',
+        cuffSize: '',
+        cuffSizeOther: '',
+        pulseBpm: '',
+        temperatureValue: '',
+        temperatureUnit: 'CELSIUS',
+        temperatureSource: '',
+        temperatureSourceOther: '',
+        respiratoryRate: '',
+        spo2Percent: '',
+        weightKg: '',
+        heightCm: '',
+        notes: '',
+      };
+
+      const result = await saveClinicalMeasurementsOffline({
+        clinicId: 'clinic-1',
+        encounterId: 'encounter-1',
+        vitalsId: 'vitals-1',
+        tobaccoScreeningId: 'tobacco-1',
+        vitals: empty,
+        tobacco,
+      });
+
+      expect(result.errors).toEqual({});
+      const queued = queuedVitals();
+      // Each paired group must be wholly absent, matching the server's pairing rules.
+      expect(queued.systolicBp).toBeNull();
+      expect(queued.diastolicBp).toBeNull();
+      expect(queued.temperatureValue).toBeNull();
+      expect(queued.temperatureUnit).toBeNull();
+      expect(queued.temperatureSource).toBeNull();
+    });
+  });
 });

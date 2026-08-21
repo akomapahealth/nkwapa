@@ -20,6 +20,10 @@
     "./clinical-notes": {
       "types": "./dist/src/clinical-notes.d.ts",
       "default": "./dist/src/clinical-notes.js"
+    },
+    "./patient-chart-sections": {
+      "types": "./dist/src/patient-chart-sections.d.ts",
+      "default": "./dist/src/patient-chart-sections.js"
     }
   },
   "scripts": {

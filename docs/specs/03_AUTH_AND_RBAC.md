@@ -78,6 +78,15 @@ Medical history has a narrower clinical write boundary:
 Every route also requires existing clinic scope. Patient portal roles receive neither permission in
 this version.
 
+Screening reads follow the same read-back principle:
+
+- `SCREENING.WRITE`: doctor and volunteer
+- `SCREENING.READ`: director, manager, doctor, and volunteer
+
+A volunteer previously held `SCREENING.WRITE` without `SCREENING.READ`, so they could record a
+diabetes screening and then not see it. Any role allowed to record a clinical value is allowed to
+read that value back.
+
 ---
 
 ## Enforcement Path

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { decodeJsonKeysetCursor, encodeJsonKeysetCursor } from '../common/keyset-cursor';
 
 export const researchExportInclude = {
   requestedBy: { select: { id: true, displayName: true } },
@@ -46,11 +47,11 @@ export class ResearchExportRepository {
     const where: Prisma.ResearchExportWhereInput = { clinicId };
 
     if (cursor) {
-      const decoded = this.decodeCursor(cursor);
+      const decoded = decodeJsonKeysetCursor('requestedAt', cursor);
       if (decoded) {
         where.OR = [
-          { requestedAt: { lt: decoded.requestedAt } },
-          { requestedAt: decoded.requestedAt, id: { lt: decoded.id } },
+          { requestedAt: { lt: decoded.timestamp } },
+          { requestedAt: decoded.timestamp, id: { lt: decoded.id } },
         ];
       }
     }
@@ -65,27 +66,9 @@ export class ResearchExportRepository {
     const hasMore = items.length > take;
     const result = hasMore ? items.slice(0, take) : items;
     const last = result[result.length - 1];
-    const nextCursor = hasMore && last ? this.encodeCursor(last.requestedAt, last.id) : null;
+    const nextCursor =
+      hasMore && last ? encodeJsonKeysetCursor('requestedAt', last.requestedAt, last.id) : null;
 
     return { items: result, nextCursor };
-  }
-
-  private decodeCursor(cursor: string): { requestedAt: Date; id: string } | null {
-    try {
-      const decoded = Buffer.from(cursor, 'base64').toString('utf-8');
-      const parsed = JSON.parse(decoded) as { requestedAt: string; id: string };
-      const requestedAt = new Date(parsed.requestedAt);
-      if (isNaN(requestedAt.getTime())) return null;
-      return { requestedAt, id: parsed.id };
-    } catch {
-      return null;
-    }
-  }
-
-  private encodeCursor(requestedAt: Date, id: string): string {
-    return Buffer.from(
-      JSON.stringify({ requestedAt: requestedAt.toISOString(), id }),
-      'utf-8',
-    ).toString('base64');
   }
 }
