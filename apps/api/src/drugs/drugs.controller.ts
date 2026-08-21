@@ -13,7 +13,6 @@ import {
 } from '@nestjs/common';
 import { DrugCategory } from '@prisma/client';
 import { IsEnum, IsOptional } from 'class-validator';
-import { randomUUID } from 'crypto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 import { ClinicScoped } from '../auth/decorators/clinic-scoped.decorator';
@@ -69,7 +68,6 @@ export class DrugsController {
     return this.drugService.create(params.clinicId, body, {
       clinicId: params.clinicId,
       actorUserId: req.user.user.id,
-      requestId: randomUUID(),
     });
   }
 
@@ -89,7 +87,6 @@ export class DrugsController {
     return this.drugService.update(params.drugId, body, {
       clinicId: params.clinicId,
       actorUserId: req.user.user.id,
-      requestId: randomUUID(),
     });
   }
 }

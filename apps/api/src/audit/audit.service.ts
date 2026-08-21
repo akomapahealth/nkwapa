@@ -6,6 +6,7 @@ import {
   type KeysetCursor,
 } from '../common/keyset-cursor';
 import { randomUUID } from 'crypto';
+import { getRequestContext } from '../common/request-context.store';
 
 export interface LogWriteParams {
   clinicId: string | null;
@@ -25,7 +26,12 @@ export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
 
   async logWrite(params: LogWriteParams): Promise<void> {
-    const requestId = params.requestId ?? randomUUID();
+    // Fall back to the ambient request rather than a fresh id: an invented id looks like a
+    // correlation and is not one, which is worse than an honest absence.
+    const ambient = getRequestContext();
+    const requestId = params.requestId ?? ambient?.requestId ?? randomUUID();
+    const ipAddress = params.ipAddress ?? ambient?.ipAddress ?? undefined;
+    const userAgent = params.userAgent ?? ambient?.userAgent ?? undefined;
     await this.prisma.auditEvent.create({
       data: {
         clinicId: params.clinicId,
@@ -36,8 +42,8 @@ export class AuditService {
         beforeJson: params.beforeJson ?? undefined,
         afterJson: params.afterJson ?? undefined,
         requestId,
-        ipAddress: params.ipAddress ?? undefined,
-        userAgent: params.userAgent ?? undefined,
+        ipAddress: ipAddress ?? undefined,
+        userAgent: userAgent ?? undefined,
       },
     });
   }

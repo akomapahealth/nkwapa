@@ -8,7 +8,6 @@ import {
   UseGuards,
   NotFoundException,
 } from '@nestjs/common';
-import { randomUUID } from 'crypto';
 import { IsBoolean, IsOptional } from 'class-validator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
@@ -76,7 +75,6 @@ export class ClinicsResearchController {
       entityType: 'ClinicResearchSettings',
       entityId: params.clinicId,
       afterJson: JSON.stringify(dto),
-      requestId: randomUUID(),
     });
     return updated;
   }

@@ -72,7 +72,6 @@ export class ClinicsPatientsController {
     return this.patientService.create(dto, {
       clinicId: params.clinicId,
       actorUserId: req.user.user.id,
-      requestId: randomUUID(),
     });
   }
 
@@ -117,7 +116,6 @@ export class ClinicsPatientsController {
     return this.patientService.update(params.patientId, body, {
       clinicId: params.clinicId,
       actorUserId: req.user.user.id,
-      requestId: randomUUID(),
     });
   }
 

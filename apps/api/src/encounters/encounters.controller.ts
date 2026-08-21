@@ -10,7 +10,6 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { randomUUID } from 'crypto';
 import { EncounterStatus } from '@prisma/client';
 import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -99,7 +98,6 @@ export class EncountersController {
       return await this.encounterService.submitForReview(params.encounterId, {
         clinicId: params.clinicId,
         actorUserId: req.user.user.id,
-        requestId: randomUUID(),
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -125,7 +123,6 @@ export class EncountersController {
       return await this.encounterService.reviewEncounter(params.encounterId, req.user.user.id, {
         clinicId: params.clinicId,
         actorUserId: req.user.user.id,
-        requestId: randomUUID(),
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -161,7 +158,6 @@ export class EncountersController {
       return await this.encounterService.finalize(params.encounterId, req.user.user.id, {
         clinicId: params.clinicId,
         actorUserId: req.user.user.id,
-        requestId: randomUUID(),
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -189,7 +185,6 @@ export class EncountersController {
       return await this.encounterService.create(dto, {
         clinicId: params.clinicId,
         actorUserId: req.user.user.id,
-        requestId: randomUUID(),
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

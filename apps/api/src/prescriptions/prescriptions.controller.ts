@@ -9,7 +9,6 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
-import { randomUUID } from 'crypto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 import { ClinicScoped } from '../auth/decorators/clinic-scoped.decorator';
@@ -40,7 +39,6 @@ export class PrescriptionsController {
     return this.prescriptionService.create(params.clinicId, params.encounterId, body, {
       clinicId: params.clinicId,
       actorUserId: req.user.user.id,
-      requestId: randomUUID(),
     });
   }
 
@@ -62,7 +60,6 @@ export class PrescriptionsController {
     return this.prescriptionService.update(params.id, body, {
       clinicId: params.clinicId,
       actorUserId: req.user.user.id,
-      requestId: randomUUID(),
     });
   }
 
@@ -76,7 +73,6 @@ export class PrescriptionsController {
     await this.prescriptionService.remove(params.id, {
       clinicId: params.clinicId,
       actorUserId: req.user.user.id,
-      requestId: randomUUID(),
     });
     return { deleted: true };
   }

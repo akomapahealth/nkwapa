@@ -1,5 +1,4 @@
 import { Controller, Post, Body, Param, Request, UseGuards } from '@nestjs/common';
-import { randomUUID } from 'crypto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 import { ClinicScoped } from '../auth/decorators/clinic-scoped.decorator';
@@ -27,7 +26,6 @@ export class ConsentsController {
     const actorUserId = req.user.user.id;
     return this.consentService.grant(params.clinicId, params.patientId, body, {
       actorUserId,
-      requestId: randomUUID(),
       ipAddress: req.ip ?? null,
       userAgent: req.headers?.['user-agent'] ?? null,
     });
@@ -46,7 +44,6 @@ export class ConsentsController {
     const consentType = body?.consentType ?? 'RESEARCH_DEIDENTIFIED';
     return this.consentService.revoke(params.clinicId, params.patientId, consentType, {
       actorUserId,
-      requestId: randomUUID(),
       ipAddress: req.ip ?? null,
       userAgent: req.headers?.['user-agent'] ?? null,
     });
