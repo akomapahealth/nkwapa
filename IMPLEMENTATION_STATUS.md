@@ -1,6 +1,6 @@
 # Nkwapa EMR - Implementation Status
 
-> Last updated: 2026-08-11
+> Last updated: 2026-08-21
 >
 > This document reflects the live repository state in `release/dev`, including the April 2026 security, RLS, multi-clinic, UX hardening pass, and the new clinic-scoped messaging feature.
 

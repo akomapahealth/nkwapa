@@ -165,3 +165,69 @@
   repair work. No unresolved legacy job may execute clinic work under system context.
 - RLS remains app-context driven. Production database role separation and forced RLS ownership controls should be reviewed separately before relying on RLS as the only tenant isolation layer.
 - E2E coverage depends on Docker-backed Postgres, Redis, Keycloak, and the matching Playwright browser runtime being available in the execution environment.
+
+## Follow-up Hardening - 2026-08-21
+
+### Scope reviewed
+
+The clinical-records initiative as an integrated whole, rather than feature by feature: medical
+history and allergies, expanded vitals and tobacco screening, medication reconciliation and pharmacy
+history, diabetes screening, HAP clinical notes, patient residential location, and the role-aware
+patient chart. The review targeted the seams between them — the offline path against the REST path,
+one clinic's roles against another's, and what leaves the system through exports, dashboards, sync
+payloads, and error reports.
+
+### Findings addressed
+
+**Row level security was declared but never enforced.** `FORCE ROW LEVEL SECURITY` was set on two of
+41 tables, and PostgreSQL exempts a table's owner from its own policies without it. The application
+also connected as a superuser holding `BYPASSRLS`. Measured before the fix, a query with an empty
+clinic context returned all 215 patients, all 33 vitals rows, and all 10 clinical notes in the local
+database; after forcing every tenant-scoped table and connecting as a plain role, the same query
+returns nothing. Isolation had been resting entirely on application code. Mitigated by a migration
+forcing every table, a dedicated unprivileged `nkwapa_app` role, an opt-in `APP_DATABASE_URL`, and a
+boot check that reports — or refuses to start on — a connection that cannot enforce the policies.
+
+**Offline writes outranked online ones.** `POST /sync/push` was gated by `SYNC.PUSH` alone; six
+entity types reached their handler with no permission check and four checked against the caller's
+whole cross-clinic role array. A director could queue a prescription; a manager at one clinic who
+volunteers at another gained clinical writes at the first. Mitigated by a total entity-to-permission
+table applied centrally before dispatch, and a single clinic-scoped assertion helper.
+
+**Sync payloads could cross tenants and change lifecycle.** A payload could name a different clinic
+than the request, and a queued encounter could carry `FINALIZED`, locking the encounter and its
+notes without `DOCTOR.FINALIZE`. Both refused now.
+
+**Push bodies were unvalidated.** Nest cannot infer an element type from an array annotation, so
+every DTO constraint was inert and `entityId` reached a primary key unchecked. Mitigated with an
+explicit array pipe, a UUID constraint, a closed entity-type list, and a bounded batch.
+
+**Encrypted national identifiers were stored on every device.** `nationalIdCiphertext` and
+`nationalIdHash` were sent by `/sync/pull` and written to IndexedDB, neither ever read by the client.
+Removed from the projection and from records already on disk.
+
+**Error reports carried patient data.** Neither Sentry configuration scrubbed anything, and browser
+Session Replay recorded ten percent of all sessions on a clinical UI. Mitigated by scrubbing URLs,
+bodies, messages and breadcrumbs, reducing the reporting user to an id, disabling background replay,
+and pinning masking explicitly.
+
+**Failed offline mutations were permanent.** Any failure was cached against its idempotency key, so a
+queued change could never succeed even after the cause was resolved. Only outcomes a replay cannot
+change are cached now.
+
+**Audit events did not correlate.** Twenty-two call sites invented a request id, discarding the
+inbound one. The request identity is now ambient and the audit service falls back to it.
+
+### Verification
+
+Tenant isolation is asserted against real PostgreSQL as the unprivileged role, across two
+organizations and three clinics. Migrations are rehearsed against a synthetic pre-initiative dataset.
+The per-role matrix is generated from the code and compared byte for byte with the published
+document. Signed clinical notes are asserted absent from sync, research, dashboards, audit payloads
+and the portal.
+
+### Residual risks
+
+See `docs/specs/11_CLINICAL_RECORDS_RELEASE_GATE.md`. The most significant is that production
+continues to connect as the table owner until `APP_DATABASE_URL` is set there; the service reports
+this on every start.
