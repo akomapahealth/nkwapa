@@ -72,9 +72,14 @@ test('the dashboard and registry have no automatically detectable violations', a
 test('a keyboard alone reaches the chart, its tabs, and its content', async ({ page }) => {
   const { clinicId, patientId } = await createPatient(page);
   await page.goto(`/clinics/${clinicId}/patients/${patientId}`);
+  await expect(page.getByRole('tab', { name: 'Overview', exact: true })).toBeVisible();
+
+  // Start from the top of the document, as a keyboard user arriving on the page does, rather
+  // than from wherever the previous navigation happened to leave focus.
+  await page.evaluate(() => document.body.focus());
+  await page.keyboard.press('Tab');
 
   // The skip link is the first stop, so a keyboard user does not walk the whole shell first.
-  await page.keyboard.press('Tab');
   const skipLink = page.getByRole('link', { name: 'Skip to main content' });
   await expect(skipLink).toBeFocused();
   await skipLink.press('Enter');
@@ -91,8 +96,11 @@ test('a keyboard alone reaches the chart, its tabs, and its content', async ({ p
 test('every focused control shows a visible focus indicator', async ({ page }) => {
   const { clinicId, patientId } = await createPatient(page);
   await page.goto(`/clinics/${clinicId}/patients/${patientId}`);
+  await expect(page.getByRole('tab', { name: 'Overview', exact: true })).toBeVisible();
 
-  const focusable = page.locator('main a[href], main button:not([disabled]), main [role="tab"]');
+  const focusable = page.locator(
+    '#main-content a[href], #main-content button:not([disabled]), [role="tab"]',
+  );
   const count = Math.min(await focusable.count(), 15);
   expect(count).toBeGreaterThan(0);
 
@@ -138,17 +146,37 @@ test('reduced motion is respected', async ({ page }) => {
   const { clinicId, patientId } = await createPatient(page);
   await page.goto(`/clinics/${clinicId}/patients/${patientId}`);
 
-  const durations = await page.evaluate(() =>
-    Array.from(document.querySelectorAll('main *'))
-      .slice(0, 200)
+  // The reduce block neutralises motion with 0.01ms rather than 0s, which is deliberate: an
+  // animation that never starts also never fires its end event, and code that waits for one would
+  // hang. So the assertion is that nothing is perceptibly animated, not that every duration is
+  // literally zero.
+  const PERCEPTIBLE_MS = 1;
+  const animated = await page.evaluate((thresholdMs) => {
+    const toMs = (value) =>
+      value
+        .split(',')
+        .map((part) => {
+          const trimmed = part.trim();
+          return trimmed.endsWith('ms') ? parseFloat(trimmed) : parseFloat(trimmed) * 1000;
+        })
+        .reduce((longest, current) => Math.max(longest, Number.isFinite(current) ? current : 0), 0);
+
+    return Array.from(document.querySelectorAll('#main-content *'))
+      .slice(0, 300)
       .map((node) => {
         const style = window.getComputedStyle(node);
-        return `${style.transitionDuration}|${style.animationDuration}`;
+        return {
+          selector:
+            node.tagName.toLowerCase() +
+            (node.className ? `.${String(node.className).split(' ')[0]}` : ''),
+          transition: toMs(style.transitionDuration),
+          animation: toMs(style.animationDuration),
+        };
       })
-      .filter((value) => !/^0s\|/.test(value) || !/\|0(\.0+)?s$/.test(value)),
-  );
+      .filter((entry) => entry.transition > thresholdMs || entry.animation > thresholdMs);
+  }, PERCEPTIBLE_MS);
 
-  expect(durations, 'animation survives prefers-reduced-motion').toEqual([]);
+  expect(animated, 'animation survives prefers-reduced-motion').toEqual([]);
 });
 
 for (const breakpoint of BREAKPOINTS) {

@@ -15,21 +15,27 @@
     --card-foreground: 200 25% 15%;
     --popover: 50 33% 98%;
     --popover-foreground: 200 25% 15%;
-    --primary: 191 98% 36%;
+    /* 30% rather than 36%: white on the brand teal measured 3.52:1, below the 4.5:1 WCAG AA
+       needs for normal text, so every primary button and filled badge failed. Same hue and
+       saturation, six points darker, which reads as the same colour and measures 4.85:1. */
+    --primary: 191 98% 30%;
     --primary-foreground: 0 0% 100%;
     --secondary: 43 84% 55%;
     --secondary-foreground: 200 25% 15%;
     --muted: 45 30% 93%;
-    --muted-foreground: 200 10% 45%;
+    /* 40% rather than 45%: secondary text measured 4.51:1 on card and 4.09:1 on the muted fill,
+       either side of the 4.5:1 line depending on which surface it lands on. Five points darker
+       clears it on every surface the app actually uses. */
+    --muted-foreground: 200 10% 40%;
     --accent: 43 60% 92%;
     --accent-foreground: 200 25% 15%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
     --border: 45 20% 87%;
     --input: 45 20% 87%;
-    --ring: 191 98% 36%;
+    --ring: 191 98% 30%;
     --radius: 0.625rem;
-    --chart-1: 191 98% 36%;
+    --chart-1: 191 98% 30%;
     --chart-2: 43 84% 55%;
     --chart-3: 191 60% 25%;
     --chart-4: 43 60% 70%;
@@ -43,10 +49,13 @@
     --card-foreground: 54 20% 92%;
     --popover: 200 20% 11%;
     --popover-foreground: 54 20% 92%;
+    /* Dark mode keeps the fills bright so they read against the background, which means their
+       text has to be dark rather than white: white measured 2.66:1 on primary and 2.22:1 on
+       secondary. Dark ink measures 6.52:1 and 7.79:1. */
     --primary: 191 80% 45%;
-    --primary-foreground: 0 0% 100%;
+    --primary-foreground: 200 25% 10%;
     --secondary: 43 70% 50%;
-    --secondary-foreground: 0 0% 100%;
+    --secondary-foreground: 200 25% 10%;
     --muted: 200 15% 18%;
     --muted-foreground: 200 10% 60%;
     --accent: 200 15% 18%;

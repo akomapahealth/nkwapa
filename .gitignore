@@ -74,3 +74,7 @@ apps/web/pnpm-lock.yaml
 
 .claude/
 .codex/
+
+# Playwright run artifacts
+test-results/
+playwright-report/

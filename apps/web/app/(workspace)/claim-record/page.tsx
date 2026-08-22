@@ -80,7 +80,7 @@ export default function ClaimRecordPage() {
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.14),transparent_35%),radial-gradient(circle_at_bottom_right,hsl(var(--secondary)/0.12),transparent_32%)]" />
               <div className="relative space-y-6">
                 <div className="space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary/80">
+                  <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">
                     Patient onboarding
                   </p>
                   <div className="space-y-2">

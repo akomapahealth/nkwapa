@@ -83,7 +83,7 @@ test('medical history shows cached empty state when the device is offline', asyn
   await context.setOffline(true);
   await page.getByRole('tab', { name: 'Medical History' }).click();
 
-  await expect(page.getByText(/Offline history is shown from this device/)).toBeVisible();
+  await expect(page.getByText(/Showing history saved on this device/)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'No matching history records' })).toBeVisible();
 
   await context.setOffline(false);

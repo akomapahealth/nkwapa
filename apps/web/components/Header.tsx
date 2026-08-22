@@ -178,7 +178,7 @@ export function Header({
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary/80">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
               Active clinic
             </p>
             <InfoHint

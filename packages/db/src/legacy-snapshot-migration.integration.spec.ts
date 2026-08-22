@@ -1,6 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Client } from 'pg';
+import { PRE_CLINICAL_RECORDS_WATERMARK } from './migration-watermarks';
 
 /**
  * Migration rehearsal for the clinical-records initiative.
@@ -14,9 +15,6 @@ import { Client } from 'pg';
  * The dataset is fabricated. See prisma/testdata/legacy-pre-clinical-records.sql.
  */
 const describeRehearsal = process.env.RUN_LEGACY_SNAPSHOT_TESTS === '1' ? describe : describe.skip;
-
-/** The last migration before 20260731000000_add_medical_history. */
-export const PRE_CLINICAL_RECORDS_WATERMARK = '20260615110000_appointment_reminder_lifecycle';
 
 function databaseUrl(source: string, database: string): string {
   const url = new URL(source);

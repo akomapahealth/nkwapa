@@ -1,8 +1,9 @@
 import { readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { PRE_CLINICAL_RECORDS_WATERMARK } from './legacy-snapshot-migration.integration.spec';
-
-const FIRST_CLINICAL_RECORDS_MIGRATION = '20260731000000_add_medical_history';
+import {
+  FIRST_CLINICAL_RECORDS_MIGRATION,
+  PRE_CLINICAL_RECORDS_WATERMARK,
+} from './migration-watermarks';
 
 describe('migration rehearsal watermark', () => {
   const migrations = readdirSync(resolve(__dirname, '../prisma/migrations'))

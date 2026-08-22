@@ -37,7 +37,7 @@ export function AppPageHeader({
       <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
         <div className="max-w-3xl">
           {eyebrow ? (
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary/80">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary">
               {eyebrow}
             </p>
           ) : null}
