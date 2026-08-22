@@ -61,7 +61,7 @@ export function SyncStatusBar({ clinicId }: SyncStatusBarProps) {
         type="button"
         variant="outline"
         size="sm"
-        className="min-h-11 cursor-pointer rounded-2xl"
+        className="cursor-pointer rounded-2xl"
         onClick={() => syncNow(clinicId)}
         disabled={!isOnline || isSyncing}
       >

@@ -99,7 +99,7 @@ export function PatientClinicalNotesPanel({
                       {note._count.addenda ? ` · ${note._count.addenda} addenda` : ''}
                     </p>
                   </div>
-                  <Button asChild variant="outline" className="min-h-11 rounded-2xl">
+                  <Button asChild variant="outline" className="rounded-2xl">
                     <Link
                       href={`/clinics/${clinicId}/encounters/${note.encounterId}?tab=clinical-note`}
                     >

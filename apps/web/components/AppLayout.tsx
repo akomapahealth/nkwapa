@@ -36,6 +36,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background">
+      {/*
+        First thing in the tab order, hidden until focused. Without it a keyboard or screen reader
+        user walks the whole sidebar and header on every page before reaching the chart.
+      */}
+      <a
+        href="#main-content"
+        className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:left-4 focus-visible:top-4 focus-visible:z-50 focus-visible:rounded-2xl focus-visible:bg-background focus-visible:px-4 focus-visible:py-3 focus-visible:text-sm focus-visible:font-medium focus-visible:shadow-lg focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Skip to main content
+      </a>
       <div className="flex min-h-screen bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.08),transparent_28%),radial-gradient(circle_at_bottom_right,hsl(var(--secondary)/0.08),transparent_24%)]">
         <Sidebar collapsed={sidebarCollapsed} />
         <div className="flex min-w-0 flex-1 flex-col">
@@ -45,7 +55,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             mobileOpen={mobileNavOpen}
             onMobileOpenChange={setMobileNavOpen}
           />
-          <main className="min-w-0 flex-1 overflow-auto px-4 py-5 pb-24 md:px-6 md:pb-8 lg:px-8">
+          <main
+            id="main-content"
+            tabIndex={-1}
+            className="min-w-0 flex-1 overflow-auto px-4 py-5 pb-24 focus-visible:outline-none md:px-6 md:pb-8 lg:px-8"
+          >
             <div className="mx-auto w-full max-w-[1440px] space-y-6">{children}</div>
           </main>
         </div>

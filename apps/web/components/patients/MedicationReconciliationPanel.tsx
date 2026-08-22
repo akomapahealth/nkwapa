@@ -872,14 +872,14 @@ export function MedicationReconciliationPanel({
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
-                  className="min-h-11 rounded-2xl"
+                  className="rounded-2xl"
                   onClick={() => void reconcileList()}
                   disabled={saving}
                 >
                   <RefreshCw className="h-4 w-4" />
                   {current.length ? 'Reconcile list' : 'Record no known medications'}
                 </Button>
-                <Button className="min-h-11 rounded-2xl" onClick={() => openMedication()}>
+                <Button className="rounded-2xl" onClick={() => openMedication()}>
                   <Plus className="h-4 w-4" />
                   Add medication
                 </Button>
@@ -944,7 +944,7 @@ export function MedicationReconciliationPanel({
             </p>
           </div>
           {canWrite ? (
-            <Button className="min-h-11 rounded-2xl" onClick={() => openPharmacy()}>
+            <Button className="rounded-2xl" onClick={() => openPharmacy()}>
               <Plus className="h-4 w-4" />
               Add pharmacy
             </Button>
@@ -977,7 +977,7 @@ export function MedicationReconciliationPanel({
                         <Button
                           variant="outline"
                           size="sm"
-                          className="min-h-11 rounded-2xl"
+                          className="rounded-2xl"
                           onClick={() => void openHistory('pharmacy', record)}
                         >
                           <History className="h-4 w-4" />
@@ -988,7 +988,7 @@ export function MedicationReconciliationPanel({
                             <Button
                               variant="outline"
                               size="sm"
-                              className="min-h-11 rounded-2xl"
+                              className="rounded-2xl"
                               onClick={() => openPharmacy(record)}
                             >
                               <Pencil className="h-4 w-4" />
@@ -997,7 +997,7 @@ export function MedicationReconciliationPanel({
                             {!preferred ? (
                               <Button
                                 size="sm"
-                                className="min-h-11 rounded-2xl"
+                                className="rounded-2xl"
                                 disabled={saving}
                                 onClick={() => void setPreferred(record)}
                               >
@@ -1007,7 +1007,7 @@ export function MedicationReconciliationPanel({
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="min-h-11 rounded-2xl"
+                                className="rounded-2xl"
                                 disabled={saving}
                                 onClick={() => void endPreferred()}
                               >
@@ -1132,7 +1132,7 @@ export function MedicationReconciliationPanel({
         onSave={() => void savePharmacy()}
       />
       <Dialog open={historyItems.length > 0} onOpenChange={(open) => !open && setHistoryItems([])}>
-        <DialogContent className="max-h-[88vh] w-[calc(100%-1.5rem)] max-w-xl overflow-y-auto rounded-3xl">
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>Revision history</DialogTitle>
             <DialogDescription>{historyTitle}</DialogDescription>
@@ -1232,7 +1232,7 @@ function MedicationList({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="min-h-11 rounded-2xl"
+                  className="rounded-2xl"
                   onClick={() => onHistory(record)}
                 >
                   <History className="h-4 w-4" />
@@ -1242,7 +1242,7 @@ function MedicationList({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="min-h-11 rounded-2xl"
+                    className="rounded-2xl"
                     onClick={() => onEdit(record)}
                   >
                     <Pencil className="h-4 w-4" />
@@ -1335,7 +1335,7 @@ function MedicationDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] w-[calc(100%-1.5rem)] max-w-3xl overflow-y-auto rounded-3xl">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>
             {editing ? 'Revise reported medication' : 'Add reported medication'}
@@ -1356,7 +1356,6 @@ function MedicationDialog({
             <Label htmlFor="medication-drug-search">Link clinic Drug (optional)</Label>
             <Input
               id="medication-drug-search"
-              className="min-h-11"
               value={drugQuery}
               onChange={(event) => {
                 setDrugQuery(event.target.value);
@@ -1376,7 +1375,7 @@ function MedicationDialog({
                       type="button"
                       role="option"
                       aria-selected={form.drugId === drug.id}
-                      className="min-h-11 w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       onClick={() => onSelectDrug(drug)}
                     >
                       {drug.name}
@@ -1503,7 +1502,7 @@ function MedicationDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button className="min-h-11" disabled={saving} onClick={onSave}>
+          <Button disabled={saving} onClick={onSave}>
             {saving ? 'Saving…' : editing ? 'Save revision' : 'Add medication'}
           </Button>
         </DialogFooter>
@@ -1543,7 +1542,7 @@ function PharmacyDialog({
   ];
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] w-[calc(100%-1.5rem)] max-w-2xl overflow-y-auto rounded-3xl">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{editing ? 'Revise pharmacy' : 'Add pharmacy'}</DialogTitle>
           <DialogDescription>
@@ -1591,7 +1590,7 @@ function PharmacyDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button className="min-h-11" disabled={saving} onClick={onSave}>
+          <Button disabled={saving} onClick={onSave}>
             {saving ? 'Saving…' : editing ? 'Save revision' : 'Add pharmacy'}
           </Button>
         </DialogFooter>
@@ -1622,7 +1621,6 @@ function Field({
         id={id}
         type={type}
         disabled={disabled}
-        className="min-h-11"
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
@@ -1646,7 +1644,7 @@ function SelectField({
     <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger id={id} className="min-h-11">
+        <SelectTrigger id={id}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

@@ -280,7 +280,6 @@ export function DiabetesScreeningForm({
                 value={glucoseMgDl}
                 onChange={(event) => setGlucoseMgDl(event.target.value)}
                 placeholder="100"
-                className="min-h-11"
               />
             </div>
             <div className="space-y-2">
@@ -290,7 +289,7 @@ export function DiabetesScreeningForm({
                 onValueChange={(value) => setGlucoseType(value as DiabetesGlucoseType)}
                 disabled={!canEdit || saving}
               >
-                <SelectTrigger id={`${idPrefix}-context`} className="min-h-11">
+                <SelectTrigger id={`${idPrefix}-context`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -315,7 +314,6 @@ export function DiabetesScreeningForm({
                 value={hba1cPercent}
                 onChange={(event) => setHba1cPercent(event.target.value)}
                 placeholder="5.7"
-                className="min-h-11"
               />
             </div>
             <div className="space-y-2 md:col-span-2 xl:col-span-3">
@@ -330,7 +328,7 @@ export function DiabetesScreeningForm({
                   type="datetime-local"
                   value={collectedAt}
                   onChange={(event) => setCollectedAt(event.target.value)}
-                  className="min-h-11 pl-10"
+                  className="pl-10"
                 />
               </div>
               <p className="text-xs text-muted-foreground">
@@ -348,7 +346,7 @@ export function DiabetesScreeningForm({
                   <label
                     key={symptom}
                     htmlFor={checkboxId}
-                    className="flex min-h-11 cursor-pointer items-center gap-3 rounded-2xl border border-border/80 bg-background/70 px-4 py-2.5 transition-colors hover:bg-accent/60 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2"
+                    className="flex cursor-pointer items-center gap-3 rounded-2xl border border-border/80 bg-background/70 px-4 py-2.5 transition-colors hover:bg-accent/60 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2"
                   >
                     <Checkbox
                       id={checkboxId}
@@ -396,7 +394,7 @@ export function DiabetesScreeningForm({
               : 'This screening is read-only.'}
           </p>
           {canEdit ? (
-            <Button onClick={handleButtonSave} disabled={saving} className="min-h-11 rounded-2xl">
+            <Button onClick={handleButtonSave} disabled={saving} className="rounded-2xl">
               {saving ? 'Saving…' : 'Save diabetes screening'}
             </Button>
           ) : null}

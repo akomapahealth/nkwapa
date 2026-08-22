@@ -408,7 +408,7 @@ export function MedicalHistoryPanel({
               </p>
             </div>
             {canWrite ? (
-              <Button onClick={openCreate} className="min-h-11 rounded-2xl">
+              <Button onClick={openCreate} className="rounded-2xl">
                 <Plus className="h-4 w-4" />
                 Add history
               </Button>
@@ -418,7 +418,7 @@ export function MedicalHistoryPanel({
             <div className="space-y-2">
               <Label htmlFor="medical-history-category-filter">Category</Label>
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger id="medical-history-category-filter" className="min-h-11">
+                <SelectTrigger id="medical-history-category-filter">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -434,7 +434,7 @@ export function MedicalHistoryPanel({
             <div className="space-y-2">
               <Label htmlFor="medical-history-status-filter">Status</Label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger id="medical-history-status-filter" className="min-h-11">
+                <SelectTrigger id="medical-history-status-filter">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -505,7 +505,7 @@ export function MedicalHistoryPanel({
                         <Button
                           variant="outline"
                           size="sm"
-                          className="min-h-11 rounded-2xl"
+                          className="rounded-2xl"
                           onClick={() => void openRevisions(record)}
                         >
                           <History className="h-4 w-4" />
@@ -515,7 +515,7 @@ export function MedicalHistoryPanel({
                           <Button
                             variant="outline"
                             size="sm"
-                            className="min-h-11 rounded-2xl"
+                            className="rounded-2xl"
                             onClick={() => openEdit(record)}
                           >
                             <Pencil className="h-4 w-4" />
@@ -533,7 +533,7 @@ export function MedicalHistoryPanel({
       </Card>
 
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
-        <DialogContent className="max-h-[92vh] w-[calc(100%-1.5rem)] max-w-2xl overflow-y-auto rounded-3xl">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editing ? 'Revise history record' : 'Add history record'}</DialogTitle>
             <DialogDescription>
@@ -612,7 +612,7 @@ export function MedicalHistoryPanel({
             <Button variant="outline" onClick={() => setEditorOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={() => void handleSave()} disabled={saving} className="min-h-11">
+            <Button onClick={() => void handleSave()} disabled={saving}>
               {saving ? 'Saving…' : editing ? 'Save revision' : 'Add record'}
             </Button>
           </DialogFooter>
@@ -623,7 +623,7 @@ export function MedicalHistoryPanel({
         open={Boolean(revisionRecord)}
         onOpenChange={(open) => !open && setRevisionRecord(null)}
       >
-        <DialogContent className="max-h-[88vh] w-[calc(100%-1.5rem)] max-w-xl overflow-y-auto rounded-3xl">
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>Revision history</DialogTitle>
             <DialogDescription>
@@ -711,7 +711,7 @@ function FormSelect({
     <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
       <Select value={selectedValue} onValueChange={onChange} disabled={disabled}>
-        <SelectTrigger id={id} className="min-h-11">
+        <SelectTrigger id={id}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -746,7 +746,6 @@ function TextField({
         id={id}
         value={fieldValue}
         required={required}
-        className="min-h-11"
         onChange={(event) => onChange(event.target.value)}
       />
     </div>
@@ -771,7 +770,6 @@ function DateField({
         id={id}
         type="date"
         value={dateValue}
-        className="min-h-11"
         onChange={(event) => onChange(event.target.value)}
       />
     </div>

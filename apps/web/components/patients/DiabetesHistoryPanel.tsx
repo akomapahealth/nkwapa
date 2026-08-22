@@ -185,7 +185,7 @@ export function DiabetesHistoryPanel({
             </InlineNotice>
           ) : null}
         </div>
-        <Button asChild variant="outline" className="min-h-11 shrink-0 rounded-2xl">
+        <Button asChild variant="outline" className="shrink-0 rounded-2xl">
           <Link href={`/clinics/${clinicId}/encounters/${item.sourceEncounter.id}`}>
             Open source visit <ExternalLink className="h-4 w-4" aria-hidden="true" />
           </Link>

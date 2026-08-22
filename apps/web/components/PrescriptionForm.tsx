@@ -268,7 +268,7 @@ export function PrescriptionForm({
         />
       </div>
       {acknowledgementRequired ? (
-        <div className="flex min-h-11 items-start gap-3 rounded-2xl border border-amber-500/35 bg-amber-500/10 p-3">
+        <div className="flex items-start gap-3 rounded-2xl border border-amber-500/35 bg-amber-500/10 p-3">
           <Checkbox
             id="prescription-allergy-acknowledgement"
             checked={allergyAcknowledged}
@@ -284,7 +284,7 @@ export function PrescriptionForm({
         </div>
       ) : null}
       <Button
-        className="min-h-11 w-full sm:w-auto"
+        className="w-full sm:w-auto"
         onClick={handleSave}
         disabled={
           saving ||

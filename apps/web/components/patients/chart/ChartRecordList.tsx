@@ -69,7 +69,7 @@ export function ChartRecordList<T extends { id: string }>({
             variant="outline"
             onClick={list.loadMore}
             disabled={list.isLoadingMore}
-            className="min-h-11 cursor-pointer"
+            className="cursor-pointer"
           >
             {list.isLoadingMore ? 'Loading…' : 'Load more'}
           </Button>

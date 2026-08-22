@@ -85,7 +85,7 @@ function VisitRecordCard({ visit, clinicId }: { visit: ChartVisitRecord; clinicI
       footer={
         <Link
           href={buildEncounterHref(clinicId, visit.id)}
-          className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-primary underline-offset-4 transition-colors duration-150 hover:underline"
+          className="inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 transition-colors duration-150 hover:underline"
         >
           Open visit
           <ArrowUpRight className="h-4 w-4" aria-hidden="true" />

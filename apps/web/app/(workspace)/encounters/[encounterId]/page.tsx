@@ -379,7 +379,7 @@ export default function EncounterDetailPage() {
               className="max-w-full overflow-x-auto pb-1"
               aria-label="Encounter clinical sections"
             >
-              <TabsList className="min-h-11 w-max justify-start gap-2 rounded-3xl border border-border/80 bg-card/75 p-2">
+              <TabsList className="w-max justify-start gap-2 rounded-3xl border border-border/80 bg-card/75 p-2">
                 <TabsTrigger value="vitals" disabled={savingBeforeSwitch}>
                   Vitals
                 </TabsTrigger>

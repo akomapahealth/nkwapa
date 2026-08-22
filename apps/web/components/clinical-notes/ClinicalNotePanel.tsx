@@ -229,7 +229,7 @@ export function ClinicalNotePanel({
           type="button"
           onClick={() => void saveDraft()}
           disabled={busy}
-          className="min-h-11 cursor-pointer rounded-2xl"
+          className="cursor-pointer rounded-2xl"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
           Start HAP note
@@ -324,7 +324,7 @@ export function ClinicalNotePanel({
                     variant="outline"
                     onClick={() => void saveDraft()}
                     disabled={busy || !dirty}
-                    className="min-h-11 cursor-pointer rounded-2xl"
+                    className="cursor-pointer rounded-2xl"
                   >
                     <Save className="h-4 w-4" aria-hidden="true" />
                     Save draft
@@ -333,7 +333,7 @@ export function ClinicalNotePanel({
                     type="button"
                     onClick={() => setConfirmAction('submit')}
                     disabled={busy}
-                    className="min-h-11 cursor-pointer rounded-2xl"
+                    className="cursor-pointer rounded-2xl"
                   >
                     <FileCheck2 className="h-4 w-4" aria-hidden="true" />
                     {note.authorRole === 'DOCTOR' ? 'Sign note' : 'Submit for cosign'}
@@ -345,7 +345,7 @@ export function ClinicalNotePanel({
                   type="button"
                   onClick={() => setConfirmAction('cosign')}
                   disabled={busy}
-                  className="min-h-11 cursor-pointer rounded-2xl"
+                  className="cursor-pointer rounded-2xl"
                 >
                   <Stethoscope className="h-4 w-4" aria-hidden="true" />
                   Cosign note
@@ -356,7 +356,7 @@ export function ClinicalNotePanel({
                   type="button"
                   variant="outline"
                   onClick={() => setAddendumOpen(true)}
-                  className="min-h-11 cursor-pointer rounded-2xl"
+                  className="cursor-pointer rounded-2xl"
                 >
                   <Plus className="h-4 w-4" aria-hidden="true" />
                   Add addendum
@@ -392,7 +392,7 @@ export function ClinicalNotePanel({
         open={confirmAction !== null}
         onOpenChange={(open) => !open && setConfirmAction(null)}
       >
-        <DialogContent className="max-w-xl rounded-3xl">
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>
               {confirmAction === 'cosign' ? 'Cosign this HAP note?' : 'Submit this HAP note?'}
@@ -414,7 +414,7 @@ export function ClinicalNotePanel({
       </Dialog>
 
       <Dialog open={addendumOpen} onOpenChange={setAddendumOpen}>
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-3xl">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Append an addendum</DialogTitle>
             <DialogDescription>
