@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Activity,
   ArrowLeft,
@@ -1022,8 +1023,9 @@ function PatientChartWorkspace() {
                             <InlineNotice tone="error">{portalLinkError}</InlineNotice>
                           ) : null}
                           <div className="space-y-2">
-                            <label className="text-sm font-medium">Search app account</label>
+                            <Label htmlFor="portal-link-search">Search app account</Label>
                             <Input
+                              id="portal-link-search"
                               value={portalLinkSearch}
                               onChange={(event) => setPortalLinkSearch(event.target.value)}
                               placeholder="Search by email, phone, or name"
@@ -1035,9 +1037,9 @@ function PatientChartWorkspace() {
                             </p>
                           </div>
                           <div className="space-y-2">
-                            <label className="text-sm font-medium">Select user</label>
+                            <Label htmlFor="portal-link-user">Select user</Label>
                             <Select value={portalLinkUserId} onValueChange={setPortalLinkUserId}>
-                              <SelectTrigger>
+                              <SelectTrigger id="portal-link-user">
                                 <SelectValue placeholder="Choose user" />
                               </SelectTrigger>
                               <SelectContent>
@@ -1102,8 +1104,10 @@ function PatientChartWorkspace() {
                             <InlineNotice tone="error">{portalInviteError}</InlineNotice>
                           ) : null}
                           <div className="space-y-2">
-                            <label className="text-sm font-medium">Email</label>
+                            <Label htmlFor="portal-invite-email">Email</Label>
                             <Input
+                              id="portal-invite-email"
+                              type="email"
                               value={portalInviteEmail}
                               onChange={(event: ChangeEvent<HTMLInputElement>) =>
                                 setPortalInviteEmail(event.target.value)
@@ -1112,8 +1116,10 @@ function PatientChartWorkspace() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <label className="text-sm font-medium">Phone</label>
+                            <Label htmlFor="portal-invite-phone">Phone</Label>
                             <Input
+                              id="portal-invite-phone"
+                              type="tel"
                               value={portalInvitePhone}
                               onChange={(event: ChangeEvent<HTMLInputElement>) =>
                                 setPortalInvitePhone(event.target.value)
