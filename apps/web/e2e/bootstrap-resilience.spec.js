@@ -1,9 +1,8 @@
-const path = require('path');
 const { test, expect } = require('@playwright/test');
 
-const authFile = path.join(__dirname, '..', 'playwright', '.auth', 'staff.json');
+const { storageStateFor } = require('../playwright/roles');
 
-test.use({ storageState: authFile });
+test.use({ storageState: storageStateFor('staff') });
 
 // Regression cover for a transient /auth/whoami failure being reported as a permissions
 // problem. Identity is the gate for every guarded route, so a slow or flaky first load used

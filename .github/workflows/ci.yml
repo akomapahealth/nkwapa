@@ -233,6 +233,18 @@ jobs:
       E2E_RESET_PASSWORD: NkwapaReset!23
       E2E_RESET_NAME: E2E Reset
       E2E_RESET_EMAIL: e2e.reset@nkwapa.local
+      # Single-role identities. The staff user holds every role at once, so it cannot show what
+      # one role sees; these can.
+      E2E_DOCTOR_SUB: 00000000-0000-4000-8000-000000000044
+      E2E_DOCTOR_USERNAME: e2e.doctor
+      E2E_DOCTOR_PASSWORD: NkwapaDoctor!23
+      E2E_DOCTOR_NAME: E2E Doctor
+      E2E_DOCTOR_EMAIL: e2e.doctor@nkwapa.local
+      E2E_VOLUNTEER_SUB: 00000000-0000-4000-8000-000000000045
+      E2E_VOLUNTEER_USERNAME: e2e.volunteer
+      E2E_VOLUNTEER_PASSWORD: NkwapaVolunteer!23
+      E2E_VOLUNTEER_NAME: E2E Volunteer
+      E2E_VOLUNTEER_EMAIL: e2e.volunteer@nkwapa.local
       MAILPIT_BASE_URL: http://localhost:8025
       CORS_ALLOWED_ORIGINS: http://localhost:3000
       PLAYWRIGHT_BASE_URL: http://localhost:3000
@@ -279,11 +291,15 @@ jobs:
       - name: Create deterministic Keycloak user
         run: npm run e2e:keycloak-user
 
-      - name: Seed deterministic dashboard staff user
+      - name: Seed deterministic dashboard staff and single-role users
         run: npm run db:seed
         env:
           SEED_E2E_STAFF_NAME: ${{ env.E2E_STAFF_NAME }}
           SEED_E2E_STAFF_EMAIL: ${{ env.E2E_STAFF_EMAIL }}
+          SEED_E2E_DOCTOR_NAME: ${{ env.E2E_DOCTOR_NAME }}
+          SEED_E2E_DOCTOR_EMAIL: ${{ env.E2E_DOCTOR_EMAIL }}
+          SEED_E2E_VOLUNTEER_NAME: ${{ env.E2E_VOLUNTEER_NAME }}
+          SEED_E2E_VOLUNTEER_EMAIL: ${{ env.E2E_VOLUNTEER_EMAIL }}
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium

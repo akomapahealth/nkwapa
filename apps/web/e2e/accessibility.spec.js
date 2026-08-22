@@ -1,11 +1,10 @@
-const path = require('path');
 const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 
-const authFile = path.join(__dirname, '..', 'playwright', '.auth', 'staff.json');
+const { storageStateFor } = require('../playwright/roles');
 
-test.use({ storageState: authFile });
+test.use({ storageState: storageStateFor('staff') });
 
 /** The widths the specs commit to supporting. */
 const BREAKPOINTS = [
