@@ -32,6 +32,7 @@ describe('SyncService', () => {
       syncMutation: {
         findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({}),
+        delete: jest.fn().mockResolvedValue({}),
       },
       patient: {
         upsert: jest.fn().mockResolvedValue({
@@ -133,6 +134,274 @@ describe('SyncService', () => {
     diabetesScreeningService = module.get(DiabetesScreeningService);
   });
 
+  describe('replay recovery', () => {
+    const vitalsMutation = (idempotencyKey: string): SyncMutationDto =>
+      ({
+        id: 'mut-replay',
+        entityType: 'diabetes_screening',
+        entityId: '44444444-4444-4444-8444-444444444444',
+        operation: 'UPSERT',
+        clinicId: 'clinic-1',
+        idempotencyKey,
+        payloadJson: { encounterId: 'enc-1' },
+      }) as SyncMutationDto;
+
+    beforeEach(() => {
+      (encounterRepo.findById as jest.Mock).mockResolvedValue({
+        id: 'enc-1',
+        clinicId: 'clinic-1',
+        status: EncounterStatus.DRAFT,
+      });
+    });
+
+    it('does not re-apply a mutation that already succeeded', async () => {
+      (prisma.syncMutation.findUnique as jest.Mock).mockResolvedValue({
+        status: 'APPLIED',
+        conflictType: null,
+        conflictDetailsJson: null,
+      });
+
+      const results = await service.applyMutations('clinic-1', mockUser as never, [
+        vitalsMutation('idem-applied'),
+      ]);
+
+      expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.APPLIED);
+      expect(diabetesScreeningService.upsert).not.toHaveBeenCalled();
+      expect(prisma.syncMutation.delete).not.toHaveBeenCalled();
+    });
+
+    it('does not re-attempt a conflict that server state cannot resolve', async () => {
+      (prisma.syncMutation.findUnique as jest.Mock).mockResolvedValue({
+        status: 'CONFLICT',
+        conflictType: 'CONFLICT_FINALIZED',
+        conflictDetailsJson: JSON.stringify({ message: 'locked' }),
+      });
+
+      const results = await service.applyMutations('clinic-1', mockUser as never, [
+        vitalsMutation('idem-finalized'),
+      ]);
+
+      expect(results[0]).toMatchObject({
+        status: SYNC_MUTATION_RESULT_STATUS.CONFLICT,
+        conflictType: 'CONFLICT_FINALIZED',
+        retryable: false,
+      });
+      expect(diabetesScreeningService.upsert).not.toHaveBeenCalled();
+    });
+
+    it('re-attempts a mutation whose earlier failure could since have been fixed', async () => {
+      // The poisoned outbox: the server cached the failure against the idempotency key, so a
+      // client that kept its queued row could never drain it even once the cause was resolved.
+      (prisma.syncMutation.findUnique as jest.Mock).mockResolvedValue({
+        status: 'ERROR',
+        conflictType: 'FORBIDDEN',
+        conflictDetailsJson: JSON.stringify({ message: 'permission required' }),
+      });
+
+      const results = await service.applyMutations('clinic-1', mockUser as never, [
+        vitalsMutation('idem-was-forbidden'),
+      ]);
+
+      expect(prisma.syncMutation.delete).toHaveBeenCalledWith({
+        where: {
+          clinicId_idempotencyKey: { clinicId: 'clinic-1', idempotencyKey: 'idem-was-forbidden' },
+        },
+      });
+      expect(diabetesScreeningService.upsert).toHaveBeenCalledTimes(1);
+      expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.APPLIED);
+    });
+  });
+
+  describe('offline writes stay inside the request clinic', () => {
+    const pushEncounter = (payload: Record<string, unknown>) =>
+      service.applyMutations('clinic-1', mockUser as never, [
+        {
+          id: 'mut-enc-scope',
+          entityType: 'encounter',
+          entityId: '22222222-2222-4222-8222-222222222222',
+          operation: 'UPSERT',
+          clinicId: 'clinic-1',
+          idempotencyKey: `idem-enc-${JSON.stringify(payload)}`,
+          payloadJson: payload,
+        } as SyncMutationDto,
+      ]);
+
+    beforeEach(() => {
+      (prisma.patient.findFirst as jest.Mock) = jest.fn().mockResolvedValue({ id: 'patient-1' });
+    });
+
+    it('refuses an encounter payload that names another clinic', async () => {
+      const results = await pushEncounter({ clinicId: 'clinic-2', patientId: 'patient-1' });
+
+      expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.ERROR);
+      expect(prisma.encounter.upsert).not.toHaveBeenCalled();
+    });
+
+    it('refuses a patient payload that names another primary clinic', async () => {
+      process.env.NATIONAL_ID_ENCRYPTION_KEY = 'a'.repeat(64);
+      const results = await service.applyMutations('clinic-1', mockUser as never, [
+        {
+          id: 'mut-pat-scope',
+          entityType: 'patient',
+          entityId: '33333333-3333-4333-8333-333333333333',
+          operation: 'UPSERT',
+          clinicId: 'clinic-1',
+          idempotencyKey: 'idem-pat-scope',
+          payloadJson: {
+            patientCode: 'NKP-2025-000777',
+            nationalId: '5555555555',
+            primaryClinicId: 'clinic-2',
+            firstName: 'Cross',
+            lastName: 'Tenant',
+          },
+        } as SyncMutationDto,
+      ]);
+
+      expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.ERROR);
+      expect(prisma.patient.upsert).not.toHaveBeenCalled();
+    });
+
+    it('refuses an encounter whose patient belongs to another clinic', async () => {
+      (prisma.patient.findFirst as jest.Mock).mockResolvedValue(null);
+
+      const results = await pushEncounter({ patientId: 'patient-elsewhere' });
+
+      expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.ERROR);
+      expect(prisma.encounter.upsert).not.toHaveBeenCalled();
+    });
+
+    it('refuses to finalize an encounter through offline replay', async () => {
+      // Finalization locks vitals, screenings, and clinical notes. It has its own route and its
+      // own permission, and must not be reachable by replaying a queued payload.
+      const results = await pushEncounter({ patientId: 'patient-1', status: 'FINALIZED' });
+
+      expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.CONFLICT);
+      expect(results[0].conflictType).toBe('UNSUPPORTED_STATUS_TRANSITION');
+      expect(prisma.encounter.upsert).not.toHaveBeenCalled();
+    });
+
+    it('refuses to submit an encounter for review through offline replay', async () => {
+      const results = await pushEncounter({ patientId: 'patient-1', status: 'IN_REVIEW' });
+
+      expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.CONFLICT);
+      expect(prisma.encounter.upsert).not.toHaveBeenCalled();
+    });
+
+    it('still applies a queued draft encounter', async () => {
+      const results = await pushEncounter({ patientId: 'patient-1', status: 'DRAFT' });
+
+      expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.APPLIED);
+      expect(prisma.encounter.upsert).toHaveBeenCalledTimes(1);
+      const args = (prisma.encounter.upsert as jest.Mock).mock.calls[0][0];
+      expect(args.create.clinic).toEqual({ connect: { id: 'clinic-1' } });
+      expect(args.create.status).toBe('DRAFT');
+    });
+  });
+
+  describe('offline authorization', () => {
+    const push = (
+      roles: Array<{ clinicId: string | null; role: string }>,
+      entityType: string,
+      payload: Record<string, unknown> = {},
+      operation: 'UPSERT' | 'DELETE' = 'UPSERT',
+    ) =>
+      service.applyMutations('clinic-1', { user: { id: 'actor-1' }, roles } as never, [
+        {
+          id: 'mut-authz',
+          entityType,
+          entityId: '11111111-1111-4111-8111-111111111111',
+          operation,
+          clinicId: 'clinic-1',
+          idempotencyKey: `key-${entityType}-${operation}`,
+          payloadJson: payload,
+        } as SyncMutationDto,
+      ]);
+
+    it.each([
+      ['DIRECTOR', 'care_plan'],
+      ['DIRECTOR', 'prescription'],
+      ['DIRECTOR', 'patient_consent'],
+      ['MANAGER', 'prescription'],
+      ['VOLUNTEER', 'prescription'],
+      ['VOLUNTEER', 'care_plan'],
+      ['DOCTOR', 'patient_consent'],
+    ])('refuses a %s the %s write that REST already forbids', async (role, entityType) => {
+      const results = await push([{ clinicId: 'clinic-1', role }], entityType, {
+        encounterId: 'encounter-1',
+      });
+
+      expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.ERROR);
+      // A permission denial is labelled distinctly and stays retryable, because granting the
+      // role later is exactly the thing that should let the queued change through.
+      expect(results[0].conflictType).toBe('FORBIDDEN');
+      expect(results[0].retryable).toBe(true);
+      // Denied before dispatch, so no handler ran and no record was written.
+      expect(prisma.patient.upsert).not.toHaveBeenCalled();
+      expect(prisma.encounter.upsert).not.toHaveBeenCalled();
+      // The refusal is still recorded, so an operator can see what a client tried to replay.
+      expect(prisma.syncMutation.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'ERROR', conflictType: 'FORBIDDEN' }),
+        }),
+      );
+    });
+
+    it('does not let a volunteer seat at another clinic authorize a screening write here', async () => {
+      // Manager at clinic-1, volunteer at clinic-2. The manager seat admits the request; only the
+      // roles held at clinic-1 may decide what it is allowed to write.
+      const results = await push(
+        [
+          { clinicId: 'clinic-1', role: 'MANAGER' },
+          { clinicId: 'clinic-2', role: 'VOLUNTEER' },
+        ],
+        'diabetes_screening',
+        { encounterId: 'encounter-1' },
+      );
+
+      expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.ERROR);
+      expect(diabetesScreeningService.upsert).not.toHaveBeenCalled();
+    });
+
+    it('lets a volunteer register a patient but not edit an existing chart', async () => {
+      process.env.NATIONAL_ID_ENCRYPTION_KEY = 'a'.repeat(64);
+      (patientRepo.findById as jest.Mock).mockResolvedValue(null);
+      const created = await push([{ clinicId: 'clinic-1', role: 'VOLUNTEER' }], 'patient', {
+        patientCode: 'NKP-2025-000999',
+        nationalId: '9876543210',
+        primaryClinicId: 'clinic-1',
+        firstName: 'New',
+        lastName: 'Patient',
+      });
+      expect(created[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.APPLIED);
+
+      (patientRepo.findById as jest.Mock).mockResolvedValue({
+        id: '11111111-1111-4111-8111-111111111111',
+        patientCode: 'NKP-1',
+      });
+      const edited = await service.applyMutations(
+        'clinic-1',
+        { user: { id: 'actor-1' }, roles: [{ clinicId: 'clinic-1', role: 'VOLUNTEER' }] } as never,
+        [
+          {
+            id: 'mut-edit',
+            entityType: 'patient',
+            entityId: '11111111-1111-4111-8111-111111111111',
+            operation: 'UPSERT',
+            clinicId: 'clinic-1',
+            idempotencyKey: 'key-patient-edit',
+            payloadJson: { firstName: 'Edited' },
+          } as SyncMutationDto,
+        ],
+      );
+      expect(edited[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.ERROR);
+    });
+
+    it('rejects an entity type that has no declared permission', async () => {
+      const results = await push([{ clinicId: 'clinic-1', role: 'DOCTOR' }], 'clinical_note');
+      expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.ERROR);
+    });
+  });
+
   it('routes structured diabetes replay through the shared validated service', async () => {
     const mutation: SyncMutationDto = {
       id: 'mut-diabetes-1',
@@ -196,7 +465,7 @@ describe('SyncService', () => {
       ],
     );
 
-    expect(results[0]).toMatchObject({ status: 'ERROR', conflictType: 'APPLICATION_REJECTED' });
+    expect(results[0]).toMatchObject({ status: 'ERROR', conflictType: 'FORBIDDEN' });
   });
 
   it('rejects deleting diabetes screening from a finalized encounter', async () => {
@@ -264,7 +533,7 @@ describe('SyncService', () => {
 
     expect(results[0]).toMatchObject({
       status: SYNC_MUTATION_RESULT_STATUS.ERROR,
-      conflictType: 'APPLICATION_REJECTED',
+      conflictType: 'FORBIDDEN',
     });
     expect(prisma.vitals.deleteMany).not.toHaveBeenCalled();
   });
@@ -594,7 +863,7 @@ describe('SyncService', () => {
 
       expect(results[0]).toMatchObject({
         status: SYNC_MUTATION_RESULT_STATUS.ERROR,
-        conflictType: 'APPLICATION_REJECTED',
+        conflictType: 'FORBIDDEN',
       });
       expect(medicationReconciliationService.reconcile).not.toHaveBeenCalled();
     });

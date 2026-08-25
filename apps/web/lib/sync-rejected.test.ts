@@ -146,3 +146,61 @@ describe('sync push rejections', () => {
     expect(result.rejected).toBeUndefined();
   });
 });
+
+describe('a retryable failure does not stop the pass', () => {
+  beforeEach(() => {
+    mockDelete.mockClear();
+  });
+
+  const pushResponding = (results: unknown) => {
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => results })
+      .mockResolvedValueOnce({ ok: true, json: async () => emptyPull });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    return fetchMock;
+  };
+
+  it('keeps the row queued and still runs the pull', async () => {
+    // A permission not yet granted, a referenced record not yet pulled, a transient failure. The
+    // server says the same push could succeed later, so nothing here needs a clinician, and one
+    // queued change must not cut the clinic off from inbound data.
+    const fetchMock = pushResponding({
+      results: [{ id: bundle.id, status: 'ERROR', conflictType: 'FORBIDDEN', retryable: true }],
+    });
+
+    const result = await syncNow({ clinicId: bundle.clinicId });
+
+    expect(result.success).toBe(true);
+    expect(result.rejected).toBeUndefined();
+    expect(mockDelete).not.toHaveBeenCalled();
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/sync/pull'))).toBe(true);
+  });
+
+  it('treats a failure the server will not reconsider as a rejection', async () => {
+    const fetchMock = pushResponding({
+      results: [
+        { id: bundle.id, status: 'ERROR', conflictType: 'VALIDATION_ERROR', retryable: false },
+      ],
+    });
+
+    const result = await syncNow({ clinicId: bundle.clinicId });
+
+    expect(result.success).toBe(false);
+    expect(result.rejected).toHaveLength(1);
+    expect(mockDelete).not.toHaveBeenCalled();
+    // A rejection still halts the pass, because it needs the clinician before anything else helps.
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/sync/pull'))).toBe(false);
+  });
+
+  it('treats an unlabelled failure as a rejection rather than assuming it will pass', async () => {
+    // An older server that does not send `retryable` must not have its silence read as optimism.
+    pushResponding({
+      results: [{ id: bundle.id, status: 'ERROR', conflictType: 'APPLICATION_ERROR' }],
+    });
+
+    const result = await syncNow({ clinicId: bundle.clinicId });
+
+    expect(result.success).toBe(false);
+  });
+});

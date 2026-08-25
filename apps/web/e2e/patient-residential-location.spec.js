@@ -1,10 +1,9 @@
-const path = require('path');
 const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
 
-const authFile = path.join(__dirname, '..', 'playwright', '.auth', 'staff.json');
+const { storageStateFor } = require('../playwright/roles');
 
-test.use({ storageState: authFile });
+test.use({ storageState: storageStateFor('staff') });
 
 async function chooseSelect(page, label, option) {
   await page.getByLabel(label, { exact: true }).click();

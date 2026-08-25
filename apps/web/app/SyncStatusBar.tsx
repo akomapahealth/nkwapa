@@ -1,8 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { CloudOff, RefreshCw, TriangleAlert, Wifi } from 'lucide-react';
 import { useSync } from './ServiceWorkerAndSyncProvider';
+import { Button } from '@/components/ui/button';
 import { db } from '@/lib/db';
+import { cn } from '@/lib/utils';
 
 interface SyncStatusBarProps {
   clinicId: string;
@@ -22,44 +25,62 @@ export function SyncStatusBar({ clinicId }: SyncStatusBarProps) {
     return () => clearInterval(interval);
   }, [clinicId]);
 
-  const handleSync = async () => {
-    await syncNow(clinicId);
-  };
+  const isSyncing = syncStatus === 'syncing';
 
   return (
     <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '1rem',
-        padding: '0.5rem 1rem',
-        background: isOnline ? '#e8f5e9' : '#ffebee',
-        borderBottom: '1px solid #ccc',
-        fontSize: '0.875rem',
-      }}
+      className={cn(
+        'flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2 text-sm',
+        isOnline ? 'border-border/70 bg-card' : 'border-amber-300/60 bg-amber-50',
+      )}
+      // Connection and queue state change without user action, so the change is announced.
+      role="status"
+      aria-live="polite"
     >
-      <span>
+      <span className="flex items-center gap-1.5 font-medium">
         {isOnline ? (
-          <span style={{ color: '#2e7d32' }}>Online</span>
+          <>
+            <Wifi aria-hidden="true" className="size-4 text-emerald-600" />
+            <span className="text-emerald-700">Online</span>
+          </>
         ) : (
-          <span style={{ color: '#c62828' }}>Offline</span>
+          <>
+            <CloudOff aria-hidden="true" className="size-4 text-amber-700" />
+            <span className="text-amber-800">Offline</span>
+          </>
         )}
       </span>
-      <span>Pending: {pendingCount}</span>
-      <button
-        onClick={handleSync}
-        disabled={!isOnline || syncStatus === 'syncing'}
-        style={{
-          padding: '0.25rem 0.5rem',
-          cursor: isOnline && syncStatus !== 'syncing' ? 'pointer' : 'not-allowed',
-        }}
+
+      <span className="text-muted-foreground">
+        {pendingCount === 0
+          ? 'All changes saved'
+          : `${pendingCount} change${pendingCount === 1 ? '' : 's'} waiting to sync`}
+      </span>
+
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="cursor-pointer rounded-2xl"
+        onClick={() => syncNow(clinicId)}
+        disabled={!isOnline || isSyncing}
       >
-        {syncStatus === 'syncing' ? 'Syncing…' : 'Sync now'}
-      </button>
-      {syncError && (
-        <span style={{ color: '#c62828', fontSize: '0.75rem' }}>
-          {syncError.slice(0, 60)}
-          {syncError.length > 60 ? '…' : ''}
+        <RefreshCw aria-hidden="true" className={cn('size-4', isSyncing && 'animate-spin')} />
+        {isSyncing ? 'Syncing…' : 'Sync now'}
+      </Button>
+
+      {/*
+        A change the server said it may yet accept is not a problem the clinician has to solve, so
+        it reads as information. A change it will not accept needs attention and reads as a warning.
+      */}
+      {syncStatus === 'retrying' && syncError && (
+        <span className="text-muted-foreground">{syncError}</span>
+      )}
+
+      {syncStatus === 'error' && syncError && (
+        <span className="flex items-start gap-1.5 text-destructive">
+          <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+          <span>{syncError}</span>
         </span>
       )}
     </div>

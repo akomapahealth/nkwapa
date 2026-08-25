@@ -362,7 +362,7 @@ export default function MyAssignedPage() {
         <section className="overflow-hidden rounded-[28px] border border-primary/15 bg-gradient-to-br from-primary/15 via-card to-secondary/15 p-6 shadow-xl shadow-primary/5">
           <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-2xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary/80">
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary">
                 Clinic Ops
               </p>
               <h1 className="mt-3 font-heading text-3xl font-semibold tracking-tight sm:text-4xl">

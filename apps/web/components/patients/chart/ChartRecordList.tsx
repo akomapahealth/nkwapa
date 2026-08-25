@@ -1,10 +1,14 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
-import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
+import {
+  CHART_OFFLINE_DESCRIPTION,
+  ChartSectionEmpty,
+  ChartSectionError,
+  ChartSectionLoading,
+  ChartSectionOffline,
+} from './ChartSectionState';
 import type { CursorListState } from '@/lib/use-cursor-list';
 
 interface ChartRecordListProps<T> {
@@ -31,44 +35,23 @@ export function ChartRecordList<T extends { id: string }>({
   emptyTitle,
   emptyDescription,
   errorTitle,
-  offlineDescription = 'Reconnect to load this history. Records already synced to this device stay available on other tabs.',
+  offlineDescription = CHART_OFFLINE_DESCRIPTION,
   children,
 }: ChartRecordListProps<T>) {
   if (list.isOfflineBlocked) {
-    return (
-      <InlineNotice>
-        <div className="flex items-start gap-3">
-          <WifiOff className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-          <div>
-            <p className="font-medium">You are offline</p>
-            <p className="mt-1 text-muted-foreground">{offlineDescription}</p>
-          </div>
-        </div>
-      </InlineNotice>
-    );
+    return <ChartSectionOffline description={offlineDescription} />;
   }
 
   if (list.status === 'error') {
-    return (
-      <InlineErrorState
-        title={errorTitle}
-        description={list.error ?? 'Something went wrong loading this history.'}
-        onRetry={list.retry}
-      />
-    );
+    return <ChartSectionError title={errorTitle} description={list.error} onRetry={list.retry} />;
   }
 
   if (list.isInitialLoading) {
-    return (
-      <div role="status" aria-live="polite" aria-busy="true">
-        <span className="sr-only">Loading {label}</span>
-        <SectionSkeleton lines={4} className="border-0 bg-transparent p-0 shadow-none" />
-      </div>
-    );
+    return <ChartSectionLoading label={label} />;
   }
 
   if (list.isEmpty) {
-    return <EmptyStateCard title={emptyTitle} description={emptyDescription} />;
+    return <ChartSectionEmpty title={emptyTitle} description={emptyDescription} />;
   }
 
   return (
@@ -86,7 +69,7 @@ export function ChartRecordList<T extends { id: string }>({
             variant="outline"
             onClick={list.loadMore}
             disabled={list.isLoadingMore}
-            className="min-h-11 cursor-pointer"
+            className="cursor-pointer"
           >
             {list.isLoadingMore ? 'Loading…' : 'Load more'}
           </Button>

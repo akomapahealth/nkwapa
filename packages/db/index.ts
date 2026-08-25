@@ -58,3 +58,20 @@ export {
   type PatientChartSection,
   type PatientChartSectionId,
 } from './src/patient-chart-sections';
+export {
+  TENANT_ORGANIZATIONS,
+  TENANT_CLINICS,
+  TENANT_CLINICAL_ROLES,
+  TENANT_CROSS_CLINIC_USERS,
+  TENANT_SYSTEM_ADMIN,
+  TENANT_USERS,
+  TENANT_PATIENTS,
+  tenantUser,
+  tenantFixtureSql,
+  type TenantFixtureRole,
+  type TenantFixtureOrganization,
+  type TenantFixtureClinic,
+  type TenantFixtureRoleGrant,
+  type TenantFixtureUser,
+  type TenantFixturePatient,
+} from './src/testing/tenant-fixture';

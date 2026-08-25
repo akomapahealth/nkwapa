@@ -1,5 +1,5 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import { lastValueFrom, defer, from, mergeMap } from 'rxjs';
 import { getRequestId } from '../common/request-context';
 import { PrismaRlsContext, PrismaService } from './prisma.service';
@@ -47,7 +47,10 @@ export class PrismaRlsInterceptor implements NestInterceptor {
     const isSystemAdmin = roles.some(
       (role) => role.role === UserRole.SYSTEM_ADMIN && role.clinicId == null,
     );
-    const supplementalClinicIds = await this.resolveSupplementalClinicIds(userId);
+    const supplementalClinicIds = await this.resolveSupplementalClinicIds(
+      userId,
+      getRequestId(request as never),
+    );
     const effectiveClinicIds = [...new Set([...allowedClinicIds, ...supplementalClinicIds])];
     const activeClinicId =
       request.clinicId ??
@@ -71,14 +74,25 @@ export class PrismaRlsInterceptor implements NestInterceptor {
     let zoneCode: string | null = null;
 
     if (lookupClinicIds.length > 0) {
-      const clinics = await this.prisma.clinic.findMany({
-        where: { id: { in: lookupClinicIds } },
-        select: {
-          id: true,
-          organizationId: true,
-          zoneCode: true,
+      // Bootstrap read: this runs before the request's own context exists, and Clinic is
+      // row-level-security scoped, so it needs an explicit system context to resolve the very
+      // organization the request will then be scoped to.
+      const clinics = await this.prisma.withSystemContext(
+        {
+          requestId: getRequestId(request as never),
+          userId,
+          systemReason: 'Resolve the tenant context for an inbound request',
         },
-      });
+        (tx) =>
+          tx.clinic.findMany({
+            where: { id: { in: lookupClinicIds } },
+            select: {
+              id: true,
+              organizationId: true,
+              zoneCode: true,
+            },
+          }),
+      );
       const clinicMap = new Map(clinics.map((clinic) => [clinic.id, clinic]));
       const activeClinic = activeClinicId ? clinicMap.get(activeClinicId) : null;
       organizationId = activeClinic?.organizationId ?? clinics[0]?.organizationId ?? null;
@@ -96,12 +110,26 @@ export class PrismaRlsInterceptor implements NestInterceptor {
     };
   }
 
-  private async resolveSupplementalClinicIds(userId: string | null) {
+  private async resolveSupplementalClinicIds(userId: string | null, requestId?: string) {
     if (!userId) {
       return [];
     }
 
-    const user = await this.prisma.user.findUnique({
+    // Also a bootstrap read. `portalPatient` traverses into Patient and the invite lookup reads
+    // PatientPortalInvite, both scoped, and neither is reachable until the clinics they would
+    // grant have been resolved.
+    return this.prisma.withSystemContext(
+      {
+        requestId,
+        userId,
+        systemReason: 'Resolve portal clinic access for an inbound request',
+      },
+      async (tx) => this.collectSupplementalClinicIds(tx, userId),
+    );
+  }
+
+  private async collectSupplementalClinicIds(tx: Prisma.TransactionClient, userId: string) {
+    const user = await tx.user.findUnique({
       where: { id: userId },
       select: {
         email: true,
@@ -138,7 +166,7 @@ export class PrismaRlsInterceptor implements NestInterceptor {
       return [...clinicIds];
     }
 
-    const invites = await this.prisma.patientPortalInvite.findMany({
+    const invites = await tx.patientPortalInvite.findMany({
       where: {
         status: 'PENDING',
         OR: inviteMatchConditions,

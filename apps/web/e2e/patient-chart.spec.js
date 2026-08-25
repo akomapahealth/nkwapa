@@ -1,10 +1,9 @@
-const path = require('path');
 const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
 
-const authFile = path.join(__dirname, '..', 'playwright', '.auth', 'staff.json');
+const { storageStateFor } = require('../playwright/roles');
 
-test.use({ storageState: authFile });
+test.use({ storageState: storageStateFor('staff') });
 
 // The seeded e2e staff user holds SYSTEM_ADMIN plus DIRECTOR, DOCTOR, and VOLUNTEER at the
 // clinic, so every chart section is available here. Per-role visibility is asserted in

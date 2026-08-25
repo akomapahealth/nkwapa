@@ -1,9 +1,8 @@
-const path = require('path');
 const { test, expect } = require('@playwright/test');
 
-const authFile = path.join(__dirname, '..', 'playwright', '.auth', 'staff.json');
+const { storageStateFor } = require('../playwright/roles');
 
-test.use({ storageState: authFile });
+test.use({ storageState: storageStateFor('staff') });
 
 test('login route hands authenticated users back to the workspace', async ({ page }) => {
   await page.goto('/login?next=%2Fdashboard');

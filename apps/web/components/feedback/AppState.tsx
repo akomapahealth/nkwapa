@@ -27,7 +27,7 @@ export function PageSkeleton({
           <div className="p-6 md:p-8">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
               <div className="space-y-3">
-                <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.28em] text-primary/80">
+                <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.28em] text-primary">
                   <Activity className="h-3.5 w-3.5 animate-pulse" />
                   Loading
                 </div>
@@ -201,7 +201,7 @@ export function FullscreenStatus({
               <p
                 className={cn(
                   'text-xs font-semibold uppercase tracking-[0.28em]',
-                  tone === 'danger' ? 'text-destructive/80' : 'text-primary/80',
+                  tone === 'danger' ? 'text-destructive' : 'text-primary',
                 )}
               >
                 {eyebrow}

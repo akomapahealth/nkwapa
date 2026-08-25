@@ -28,14 +28,16 @@ export function AppPageHeader({
   return (
     <section
       className={cn(
-        'overflow-hidden rounded-[30px] border border-primary/15 bg-gradient-to-br from-primary/12 via-card to-secondary/10 p-5 shadow-xl shadow-primary/5 md:p-6',
+        // Flat, per the design system: no gradient and no heavy shadow on a clinical view. The
+        // header should frame the chart, not compete with the measurements in it.
+        'overflow-hidden rounded-[30px] border border-border/80 bg-card p-5 md:p-6',
         className,
       )}
     >
       <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
         <div className="max-w-3xl">
           {eyebrow ? (
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary/80">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary">
               {eyebrow}
             </p>
           ) : null}

@@ -1,10 +1,10 @@
-const path = require('path');
 const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
+const { waitForOutboxDrain } = require('../playwright/outbox');
 
-const authFile = path.join(__dirname, '..', 'playwright', '.auth', 'staff.json');
+const { storageStateFor } = require('../playwright/roles');
 
-test.use({ storageState: authFile });
+test.use({ storageState: storageStateFor('staff') });
 
 async function createPatient(page) {
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
@@ -38,12 +38,10 @@ async function chooseContext(page, option) {
 }
 
 async function saveAndSync(page) {
-  const push = page.waitForResponse(
-    (response) =>
-      response.request().method() === 'POST' && new URL(response.url()).pathname === '/sync/push',
-  );
   await page.getByRole('button', { name: 'Save diabetes screening' }).click();
-  expect((await push).ok()).toBeTruthy();
+  // Waiting for a push response would catch whichever pass happened to be in flight, which may
+  // predate this save. The queue draining is the thing that actually means "it reached the server".
+  await waitForOutboxDrain(page, expect, { entityType: 'diabetes_screening' });
 }
 
 test('diabetes screening round-trips longitudinally, offline, read-only, and responsively', async ({
@@ -93,25 +91,10 @@ test('diabetes screening round-trips longitudinally, offline, read-only, and res
     page.getByText('Diabetes screening saved on this device and pending sync.'),
   ).toBeVisible();
 
-  // Let sync finish before navigating. Reloading in a loop while a push is in flight can
-  // abort it, which made this race the reconnect on a loaded CI runner. lib/sync.ts removes
-  // an outbox row only when the server reports APPLIED, so an applied push is proof the
-  // offline edit reached the server, whatever order sync batched the queue in.
-  const appliedPush = page.waitForResponse(
-    async (response) => {
-      if (response.request().method() !== 'POST') return false;
-      if (new URL(response.url()).pathname !== '/sync/push') return false;
-      try {
-        const body = await response.json();
-        return (body?.results ?? []).some((result) => result.status === 'APPLIED');
-      } catch {
-        return false;
-      }
-    },
-    { timeout: 60_000 },
-  );
   await context.setOffline(false);
-  await appliedPush;
+  // The queued edit is gone from the outbox only once the server reported it applied, so this is
+  // proof it landed rather than a guess about timing.
+  await waitForOutboxDrain(page, expect, { entityType: 'diabetes_screening' });
 
   // One navigation, with a short poll only for read-after-write lag.
   await expect(async () => {

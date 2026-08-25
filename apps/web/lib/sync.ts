@@ -5,7 +5,12 @@ import type { SyncPullResponseDto } from './sync-types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
 
-export type SyncStatus = 'idle' | 'syncing' | 'success' | 'error';
+/**
+ * `retrying` means the pass completed but some changes stayed queued because the server said they
+ * could still succeed later. It is deliberately distinct from `error`: nothing needs the
+ * clinician's attention, and the pass did not stop.
+ */
+export type SyncStatus = 'idle' | 'syncing' | 'success' | 'retrying' | 'error';
 
 export type SyncStatusListener = (status: SyncStatus, error?: string) => void;
 
@@ -93,6 +98,7 @@ async function performSync(options: SyncNowOptions): Promise<SyncResult> {
           status: string;
           conflictType?: string;
           conflictDetails?: Record<string, unknown>;
+          retryable?: boolean;
         }>;
       };
 
@@ -100,12 +106,20 @@ async function performSync(options: SyncNowOptions): Promise<SyncResult> {
         pushJson.results.filter((r) => r.status === 'APPLIED').map((r) => r.id),
       );
       const conflicts = pushJson.results.filter((r) => r.status === 'CONFLICT');
-      // Anything the server neither applied nor flagged as a conflict is a mutation it will
-      // not accept in its current shape. The row is deliberately kept so a clinician's entry
-      // is never silently discarded, but it must be surfaced: previously these were invisible
-      // and re-pushed on every sync forever, leaving a pending counter that never cleared.
+
+      // A failure the server says could still succeed -- a permission not yet granted, a
+      // referenced record that has not arrived, a transient error. The row stays queued and the
+      // pass continues, so one such change cannot hold back everything behind it or block the
+      // inbound half of the sync.
+      const retryable = pushJson.results.filter(
+        (r) => r.status !== 'APPLIED' && r.status !== 'CONFLICT' && r.retryable === true,
+      );
+
+      // A failure that replaying will not resolve. The row is deliberately kept so a clinician's
+      // entry is never silently discarded, but it must be surfaced: these were once invisible and
+      // re-pushed forever, leaving a pending counter that never cleared.
       const rejected = pushJson.results.filter(
-        (r) => r.status !== 'APPLIED' && r.status !== 'CONFLICT',
+        (r) => r.status !== 'APPLIED' && r.status !== 'CONFLICT' && r.retryable !== true,
       );
 
       for (const m of pending) {
@@ -138,6 +152,15 @@ async function performSync(options: SyncNowOptions): Promise<SyncResult> {
             conflictDetails: r.conflictDetails,
           })),
         };
+      }
+
+      if (retryable.length > 0) {
+        notifyStatus(
+          'retrying',
+          retryable.length === 1
+            ? 'A pending change will be retried.'
+            : `${retryable.length} pending changes will be retried.`,
+        );
       }
 
       if (conflicts.length > 0) {

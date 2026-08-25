@@ -1,6 +1,7 @@
 import {
   migrateLegacyDiabetesScreening,
   migrateLegacyPulse,
+  stripStoredNationalIdSecrets,
   type LegacyDiabetesScreeningRecord,
 } from './db-migrations';
 
@@ -47,5 +48,31 @@ describe('Dexie clinical measurement migrations', () => {
     expect(record.symptoms).toEqual([]);
     expect(record.legacySymptomsUnmapped).toBe(true);
     expect(record.collectedAt).toEqual(expect.any(String));
+  });
+});
+
+describe('offline national id cleanup', () => {
+  it('removes the encrypted national id and its hash from a cached record', () => {
+    const record = {
+      id: 'patient-1',
+      firstName: 'Ama',
+      nationalIdLast4: '1234',
+      nationalIdCiphertext: 'cipher',
+      nationalIdHash: 'hash',
+    };
+
+    stripStoredNationalIdSecrets(record);
+
+    expect(record).not.toHaveProperty('nationalIdCiphertext');
+    expect(record).not.toHaveProperty('nationalIdHash');
+    // The last four digits stay: they are what a clinician reads back to confirm identity.
+    expect(record.nationalIdLast4).toBe('1234');
+    expect(record.firstName).toBe('Ama');
+  });
+
+  it('leaves a record that never held them untouched', () => {
+    const record = { id: 'patient-2', nationalIdLast4: null };
+    stripStoredNationalIdSecrets(record);
+    expect(record).toEqual({ id: 'patient-2', nationalIdLast4: null });
   });
 });

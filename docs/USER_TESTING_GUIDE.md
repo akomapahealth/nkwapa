@@ -91,6 +91,20 @@ Also verify:
 - [ ] rate-limited endpoints return `429` with a readable recovery message
 - [ ] API failures return a structured error with a request ID
 
+### Clinical records release gate
+
+Run once per environment, before enabling clinical records there. See
+`docs/specs/11_CLINICAL_RECORDS_RELEASE_GATE.md` for the operator steps behind these.
+
+- [ ] the API boot log reads `Row level security is enforced for database role "nkwapa_app"`
+- [ ] `DATABASE_RLS_ENFORCEMENT=required` is set, and the service refuses to start without it when
+      pointed at the owner credential
+- [ ] a doctor at clinic A, signed in and switched to clinic A, cannot open a patient belonging to
+      clinic B by URL
+- [ ] a user holding a seat at two clinics sees only the first clinic's patients while it is active
+- [ ] an audit entry for a clinical write shows the caller's address and a request ID shared with
+      the other writes from the same action
+
 ---
 
 ## 5. System Admin Matrix
@@ -210,7 +224,56 @@ Also verify:
 
 ---
 
-## 14. Partial Areas To Test Carefully
+## 14. Clinical Workflow Matrix (Doctor And Volunteer)
+
+The two roles the release gate covers end to end. Run each column separately, signed in as that
+role only, not as the multi-role staff account.
+
+### Volunteer
+
+- [ ] register a patient, including residential location
+- [ ] record expanded vitals and a tobacco screening in an encounter
+- [ ] record a diabetes screening and read it back on the chart
+- [ ] add a medical history entry and revise it, and confirm the earlier revision is still visible
+- [ ] record a patient-reported medication and reconcile it
+- [ ] author a clinical note and submit it for cosign
+- [ ] confirm no cosign action is offered
+- [ ] confirm an existing chart cannot be edited
+- [ ] go offline, record vitals and a screening, reconnect, and confirm both sync
+- [ ] go offline and confirm clinical notes show a connection-required notice with no content
+
+### Doctor
+
+- [ ] open the pending cosign queue and cosign the volunteer's note
+- [ ] add an addendum and confirm the signed content is unchanged
+- [ ] confirm the signed note cannot be edited
+- [ ] prescribe from an encounter
+- [ ] finalize the encounter and confirm its vitals and screenings become read-only
+- [ ] confirm a queued offline change against the finalized encounter reports a conflict rather
+      than disappearing or blocking the rest of the queue
+
+### Manager or director
+
+- [ ] confirm a pending cosign count is visible
+- [ ] confirm no clinical note content is reachable anywhere, including the chart tab
+- [ ] confirm medical history and medications are readable but not editable
+
+### Accessibility and layout
+
+Automated checks cover axe rules, focus indicators, keyboard tab movement, 200 percent zoom, and
+horizontal overflow. These are the parts a person still has to judge.
+
+- [ ] text and status colours are legible against their backgrounds on the chart and in dialogs
+- [ ] focus order follows reading order through a clinical form
+- [ ] each field label describes what the field is actually for
+- [ ] a screen reader announces loading, empty, error and offline states when a tab changes
+- [ ] the chart, its dialogs and the sync bar have no horizontal overflow at 375, 768, 1024, and
+      1440 pixels
+- [ ] dialogs can be completed and dismissed at 375 pixels
+
+---
+
+## 15. Partial Areas To Test Carefully
 
 These areas are implemented but still worth extra regression attention:
 

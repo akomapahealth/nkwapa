@@ -27,8 +27,16 @@ import {
 } from '../index';
 import { seedDrugs } from './seed-drugs';
 
+/**
+ * Seeding creates the organization and clinic that a tenant context is later derived from, so it
+ * has to run before one can exist. Every tenant-scoped table forces row level security, and the
+ * insert policies require `app.is_system_admin`, so the flag is set as a connection option: that
+ * applies it when each pooled connection is opened rather than relying on which connection a
+ * given statement happens to get.
+ */
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL ?? '',
+  options: '-c app.is_system_admin=true',
 });
 const prisma = new PrismaClient({ adapter });
 
@@ -88,6 +96,44 @@ async function ensureResearchSettings(
       requiresDirectorApprovalEachExport: true,
     },
   });
+}
+
+/**
+ * A staff identity holding exactly one clinic role.
+ *
+ * The multi-role E2E user is convenient for walking the product and useless for proving what a
+ * single role can see, because it holds every role at once. These identities exist so the browser
+ * can show what a doctor and a volunteer actually get, including what they are refused.
+ */
+async function ensureSingleRoleUser(params: {
+  sub: string;
+  displayName: string;
+  email: string;
+  clinicId: string;
+  role: UserRole;
+}) {
+  const [firstName, ...lastNameParts] = params.displayName.trim().split(/\s+/);
+  const user = await prisma.user.upsert({
+    where: { keycloakSub: params.sub },
+    update: {
+      displayName: params.displayName,
+      firstName: firstName || 'E2E',
+      lastName: lastNameParts.join(' ') || 'User',
+      email: params.email,
+      isActive: true,
+    },
+    create: {
+      keycloakSub: params.sub,
+      displayName: params.displayName,
+      firstName: firstName || 'E2E',
+      lastName: lastNameParts.join(' ') || 'User',
+      email: params.email,
+      isActive: true,
+    },
+  });
+
+  await ensureClinicRole(prisma, user.id, params.clinicId, params.role);
+  return user;
 }
 
 async function main() {
@@ -279,6 +325,32 @@ async function main() {
     ]);
 
     console.log('Seeded deterministic multi-role E2E staff user.');
+  }
+
+  const e2eDoctorSub = (process.env.SEED_E2E_DOCTOR_SUB ?? process.env.E2E_DOCTOR_SUB)?.trim();
+  if (e2eDoctorSub) {
+    await ensureSingleRoleUser({
+      sub: e2eDoctorSub,
+      displayName: process.env.SEED_E2E_DOCTOR_NAME ?? 'E2E Doctor',
+      email: process.env.SEED_E2E_DOCTOR_EMAIL ?? 'e2e.doctor@nkwapa.local',
+      clinicId: clinic.id,
+      role: UserRole.DOCTOR,
+    });
+    console.log('Seeded deterministic single-role E2E doctor.');
+  }
+
+  const e2eVolunteerSub = (
+    process.env.SEED_E2E_VOLUNTEER_SUB ?? process.env.E2E_VOLUNTEER_SUB
+  )?.trim();
+  if (e2eVolunteerSub) {
+    await ensureSingleRoleUser({
+      sub: e2eVolunteerSub,
+      displayName: process.env.SEED_E2E_VOLUNTEER_NAME ?? 'E2E Volunteer',
+      email: process.env.SEED_E2E_VOLUNTEER_EMAIL ?? 'e2e.volunteer@nkwapa.local',
+      clinicId: clinic.id,
+      role: UserRole.VOLUNTEER,
+    });
+    console.log('Seeded deterministic single-role E2E volunteer.');
   }
 
   if (researchSettingsOwnerId) {

@@ -1,4 +1,4 @@
-import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserRole } from '@prisma/client';
@@ -6,7 +6,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ClinicScopeGuard } from '../auth/guards/clinic-scope.guard';
 import { RbacGuard } from '../auth/guards/rbac.guard';
 import { SYNC_MUTATION_RESULT_STATUS } from './dto/sync-push-response.dto';
-import { SyncController } from './sync.controller';
+import { SYNC_PUSH_BODY_PIPE, SyncController } from './sync.controller';
 import { SyncService } from './sync.service';
 
 type RequestShape = {
@@ -245,5 +245,64 @@ describe('SyncController', () => {
 
     expect(authGuard.canActivate(context)).toBe(true);
     expect(() => clinicScopeGuard.canActivate(context)).toThrow('Clinic scope required');
+  });
+});
+
+describe('sync push body validation', () => {
+  const validate = async (body: unknown) =>
+    SYNC_PUSH_BODY_PIPE.transform(
+      body as never,
+      {
+        type: 'body',
+        metatype: Array,
+      } as never,
+    );
+
+  const mutation = (overrides: Record<string, unknown> = {}) => ({
+    id: '11111111-1111-4111-8111-111111111111',
+    entityType: 'vitals',
+    entityId: '22222222-2222-4222-8222-222222222222',
+    operation: 'UPSERT',
+    clinicId: '33333333-3333-4333-8333-333333333333',
+    idempotencyKey: 'idem-1',
+    ...overrides,
+  });
+
+  it('accepts a well-formed mutation', async () => {
+    await expect(validate([mutation()])).resolves.toHaveLength(1);
+  });
+
+  it('rejects a clinic id that is not a uuid', async () => {
+    // Before an explicit pipe, Nest could not infer the element type from the array annotation, so
+    // every constraint on SyncMutationDto was declared and never applied.
+    await expect(validate([mutation({ clinicId: 'not-a-uuid' })])).rejects.toThrow(
+      BadRequestException,
+    );
+  });
+
+  it('rejects an entity id that is not a uuid', async () => {
+    // entityId is written straight into a primary key.
+    await expect(validate([mutation({ entityId: "'; DROP TABLE" })])).rejects.toThrow(
+      BadRequestException,
+    );
+  });
+
+  it('rejects an unrecognised entity type', async () => {
+    await expect(validate([mutation({ entityType: 'clinical_note' })])).rejects.toThrow(
+      BadRequestException,
+    );
+  });
+
+  it('rejects an unknown property', async () => {
+    await expect(validate([mutation({ isAdmin: true })])).rejects.toThrow(BadRequestException);
+  });
+
+  it('reports which field failed', async () => {
+    await expect(validate([mutation({ clinicId: 'nope' })])).rejects.toMatchObject({
+      response: {
+        code: 'VALIDATION_ERROR',
+        fieldErrors: expect.arrayContaining([expect.objectContaining({ field: 'clinicId' })]),
+      },
+    });
   });
 });

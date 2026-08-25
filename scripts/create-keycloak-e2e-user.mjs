@@ -28,6 +28,30 @@ const resetUser = {
   displayName: process.env.E2E_RESET_NAME || 'E2E Reset',
 };
 
+/**
+ * Single-role identities.
+ *
+ * The staff user holds SYSTEM_ADMIN plus every clinic role at once, which is convenient for
+ * walking the whole product and useless for proving that a role sees only what it should. These
+ * two hold exactly one seat each, so the browser can show what a doctor and a volunteer actually
+ * get -- including what they are refused.
+ */
+const doctorUser = {
+  id: process.env.E2E_DOCTOR_SUB || '00000000-0000-4000-8000-000000000044',
+  username: process.env.E2E_DOCTOR_USERNAME || 'e2e.doctor',
+  password: process.env.E2E_DOCTOR_PASSWORD || 'NkwapaDoctor!23',
+  email: process.env.E2E_DOCTOR_EMAIL || 'e2e.doctor@nkwapa.local',
+  displayName: process.env.E2E_DOCTOR_NAME || 'E2E Doctor',
+};
+
+const volunteerUser = {
+  id: process.env.E2E_VOLUNTEER_SUB || '00000000-0000-4000-8000-000000000045',
+  username: process.env.E2E_VOLUNTEER_USERNAME || 'e2e.volunteer',
+  password: process.env.E2E_VOLUNTEER_PASSWORD || 'NkwapaVolunteer!23',
+  email: process.env.E2E_VOLUNTEER_EMAIL || 'e2e.volunteer@nkwapa.local',
+  displayName: process.env.E2E_VOLUNTEER_NAME || 'E2E Volunteer',
+};
+
 function splitName(displayName) {
   const [firstName, ...lastNameParts] = displayName.trim().split(/\s+/);
   return {
@@ -241,10 +265,16 @@ async function main() {
   const accessToken = await getAdminAccessToken();
   const staffUserId = await upsertUser(accessToken, staffUser);
   const resetUserId = await upsertUser(accessToken, resetUser);
+  const doctorUserId = await upsertUser(accessToken, doctorUser);
+  const volunteerUserId = await upsertUser(accessToken, volunteerUser);
   await appendGithubEnv('E2E_STAFF_SUB', staffUserId);
   await appendGithubEnv('E2E_RESET_SUB', resetUserId);
+  await appendGithubEnv('E2E_DOCTOR_SUB', doctorUserId);
+  await appendGithubEnv('E2E_VOLUNTEER_SUB', volunteerUserId);
   await appendGithubOutput('staff-user-id', staffUserId);
   await appendGithubOutput('reset-user-id', resetUserId);
+  await appendGithubOutput('doctor-user-id', doctorUserId);
+  await appendGithubOutput('volunteer-user-id', volunteerUserId);
 
   console.log(
     JSON.stringify(
@@ -262,6 +292,18 @@ async function main() {
           userId: resetUserId,
           username: resetUser.username,
           email: resetUser.email,
+        },
+        doctor: {
+          requestedUserId: doctorUser.id,
+          userId: doctorUserId,
+          username: doctorUser.username,
+          email: doctorUser.email,
+        },
+        volunteer: {
+          requestedUserId: volunteerUser.id,
+          userId: volunteerUserId,
+          username: volunteerUser.username,
+          email: volunteerUser.email,
         },
       },
       null,

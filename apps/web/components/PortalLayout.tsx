@@ -52,7 +52,7 @@ export function PortalLayout({ children }: { children: React.ReactNode }) {
                 <div className="relative flex flex-col gap-6">
                   <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                     <div className="space-y-2">
-                      <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary/80">
+                      <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">
                         Patient Portal
                       </p>
                       <div className="space-y-1">

@@ -13,7 +13,6 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { Response } from 'express';
-import { randomUUID } from 'crypto';
 import * as fs from 'fs';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
@@ -45,7 +44,6 @@ export class ResearchExportController {
     return this.exportService.requestExport(params.clinicId, req.user.user.id, body, {
       clinicId: params.clinicId,
       actorUserId: req.user.user.id,
-      requestId: randomUUID(),
     });
   }
 
@@ -81,7 +79,6 @@ export class ResearchExportController {
     return this.exportService.approveExport(params.exportId, req.user.user.id, {
       clinicId: params.clinicId,
       actorUserId: req.user.user.id,
-      requestId: randomUUID(),
     });
   }
 
@@ -100,7 +97,6 @@ export class ResearchExportController {
     return this.exportService.rejectExport(params.exportId, req.user.user.id, body.reason, {
       clinicId: params.clinicId,
       actorUserId: req.user.user.id,
-      requestId: randomUUID(),
     });
   }
 
@@ -118,7 +114,6 @@ export class ResearchExportController {
     return this.exportService.retryExport(params.exportId, req.user.user.id, {
       clinicId: params.clinicId,
       actorUserId: req.user.user.id,
-      requestId: randomUUID(),
     });
   }
 
@@ -144,7 +139,6 @@ export class ResearchExportController {
     await this.exportService.recordDownload(params.exportId, {
       clinicId: params.clinicId,
       actorUserId: req.user.user.id,
-      requestId: randomUUID(),
     });
 
     const contentType = 'application/zip';

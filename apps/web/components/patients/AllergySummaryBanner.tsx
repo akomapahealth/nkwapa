@@ -60,7 +60,8 @@ export function AllergySummaryBanner({
       <div className="flex items-start gap-3">
         <Icon className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
         <div className="min-w-0 flex-1">
-          <h2 className="font-semibold">{presentation.title}</h2>
+          {/* h3: this banner is nested inside a section that already owns the h2. */}
+          <h3 className="font-semibold">{presentation.title}</h3>
           <p className="mt-1 text-sm opacity-90">{presentation.description}</p>
         </div>
       </div>

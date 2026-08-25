@@ -1,16 +1,20 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { EncounterStatus, Prisma, type UserRole } from '@prisma/client';
+import { EncounterStatus, Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { plainToInstance } from 'class-transformer';
 import { validate, type ValidationError } from 'class-validator';
 import { parseLegacyDiabetesSymptoms } from '@nkwapa/db';
-import { hasPermission, PERMISSIONS } from '../auth/constants/permissions';
+import { PERMISSIONS } from '../auth/constants/permissions';
+import {
+  assertPermissionAtClinic,
+  hasPermissionAtClinic,
+  type ScopedRole,
+} from '../auth/clinic-roles';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildKeysetWhere, decodeKeysetCursor, encodeKeysetCursor } from '../common/keyset-cursor';
 import { UpsertDiabetesScreeningDto } from './dto/diabetes-screening.dto';
@@ -27,7 +31,7 @@ type DiabetesWithContext = Prisma.DiabetesScreeningGetPayload<{
 
 export interface DiabetesActor {
   userId: string;
-  roles: Array<{ role: UserRole }>;
+  roles: ScopedRole[];
 }
 
 export interface DiabetesRequestMetadata {
@@ -56,7 +60,7 @@ export class DiabetesScreeningService {
     actor: DiabetesActor,
     params: { cursor?: string; limit?: number } = {},
   ) {
-    this.assertReadPermission(actor.roles);
+    this.assertReadPermission(actor.roles, clinicId);
     await this.assertPatientScope(clinicId, patientId);
 
     const cursor = params.cursor
@@ -75,7 +79,9 @@ export class DiabetesScreeningService {
     });
 
     const hasMore = records.length > limit;
-    const items = records.slice(0, limit).map((record) => this.toResponse(record, actor.roles));
+    const items = records
+      .slice(0, limit)
+      .map((record) => this.toResponse(record, actor.roles, clinicId));
     const last = items.at(-1);
     return {
       items,
@@ -92,7 +98,7 @@ export class DiabetesScreeningService {
     screeningId?: string,
     compatibility: DiabetesCompatibilityInput = {},
   ) {
-    this.assertWritePermission(actor.roles);
+    this.assertWritePermission(actor.roles, clinicId);
     const collectedAt = this.validateCollectionTime(dto.collectedAt);
 
     const screening = await this.prisma.$transaction(async (tx) => {
@@ -173,7 +179,7 @@ export class DiabetesScreeningService {
       return saved;
     });
 
-    return this.toResponse(screening, actor.roles);
+    return this.toResponse(screening, actor.roles, clinicId);
   }
 
   async validateSyncPayload(payload: Record<string, unknown>, fallbackCollectedAt: string) {
@@ -222,7 +228,7 @@ export class DiabetesScreeningService {
     };
   }
 
-  toResponse(record: DiabetesWithContext, roles: Array<{ role: UserRole }>) {
+  toResponse(record: DiabetesWithContext, roles: ScopedRole[], clinicId: string) {
     return {
       id: record.id,
       clinicId: record.clinicId,
@@ -242,7 +248,7 @@ export class DiabetesScreeningService {
       legacySymptomsUnmapped: record.legacySymptomsUnmapped,
       isEditable:
         record.encounter.status !== EncounterStatus.FINALIZED &&
-        hasPermission(roles, PERMISSIONS.SCREENING_WRITE),
+        hasPermissionAtClinic(roles, clinicId, PERMISSIONS.SCREENING_WRITE),
       createdAt: record.createdAt.toISOString(),
       updatedAt: record.updatedAt.toISOString(),
     };
@@ -286,16 +292,22 @@ export class DiabetesScreeningService {
     if (!patient) throw new NotFoundException('Patient not found in the active clinic');
   }
 
-  private assertReadPermission(roles: Array<{ role: UserRole }>): void {
-    if (!hasPermission(roles, PERMISSIONS.SCREENING_READ)) {
-      throw new ForbiddenException('SCREENING.READ permission is required');
-    }
+  private assertReadPermission(roles: ScopedRole[], clinicId: string): void {
+    assertPermissionAtClinic(
+      roles,
+      clinicId,
+      PERMISSIONS.SCREENING_READ,
+      'SCREENING.READ permission is required',
+    );
   }
 
-  private assertWritePermission(roles: Array<{ role: UserRole }>): void {
-    if (!hasPermission(roles, PERMISSIONS.SCREENING_WRITE)) {
-      throw new ForbiddenException('SCREENING.WRITE permission is required');
-    }
+  private assertWritePermission(roles: ScopedRole[], clinicId: string): void {
+    assertPermissionAtClinic(
+      roles,
+      clinicId,
+      PERMISSIONS.SCREENING_WRITE,
+      'SCREENING.WRITE permission is required',
+    );
   }
 
   private contextInclude() {

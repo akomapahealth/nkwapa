@@ -1,12 +1,7 @@
-const path = require('path');
 const { test: setup, expect } = require('@playwright/test');
+const { ROLES } = require('../playwright/roles');
 
-const authFile = path.join(__dirname, '..', 'playwright', '.auth', 'staff.json');
-
-setup('authenticate deterministic staff user', async ({ page }) => {
-  const username = process.env.E2E_STAFF_USERNAME || 'e2e.staff';
-  const password = process.env.E2E_STAFF_PASSWORD || 'NkwapaE2E!23';
-
+async function authenticate(page, { username, password, storageState }) {
   await page.goto('/login?next=%2Fdashboard');
   await expect(
     page.getByRole('button', { name: /continue to secure sign in|try secure sign in again/i }),
@@ -31,7 +26,17 @@ setup('authenticate deterministic staff user', async ({ page }) => {
   await page.locator('#kc-login, button[type="submit"]').click();
 
   await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
-  await expect(page.getByText('Today at a glance')).toBeVisible({ timeout: 60_000 });
+  // The main landmark rather than a named tile: the dashboard composes different sections per
+  // role, and this setup runs for identities that see different ones.
+  await expect(page.locator('#main-content')).toBeVisible({ timeout: 60_000 });
 
-  await page.context().storageState({ path: authFile });
-});
+  await page.context().storageState({ path: storageState });
+}
+
+// One sign-in per identity, each saved separately, so a spec picks the role it needs rather than
+// arranging permissions inside the test.
+for (const [role, credentials] of Object.entries(ROLES)) {
+  setup(`authenticate deterministic ${role} user`, async ({ page }) => {
+    await authenticate(page, credentials);
+  });
+}

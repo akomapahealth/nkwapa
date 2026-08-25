@@ -1,10 +1,9 @@
-const path = require('path');
 const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
 
-const authFile = path.join(__dirname, '..', 'playwright', '.auth', 'staff.json');
+const { storageStateFor } = require('../playwright/roles');
 
-test.use({ storageState: authFile });
+test.use({ storageState: storageStateFor('staff') });
 
 async function createPatient(page) {
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
@@ -84,7 +83,7 @@ test('medical history shows cached empty state when the device is offline', asyn
   await context.setOffline(true);
   await page.getByRole('tab', { name: 'Medical History' }).click();
 
-  await expect(page.getByText(/Offline history is shown from this device/)).toBeVisible();
+  await expect(page.getByText(/Showing history saved on this device/)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'No matching history records' })).toBeVisible();
 
   await context.setOffline(false);

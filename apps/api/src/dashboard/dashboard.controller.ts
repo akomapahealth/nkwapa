@@ -6,6 +6,7 @@ import { RbacGuard } from '../auth/guards/rbac.guard';
 import { ClinicScopeGuard } from '../auth/guards/clinic-scope.guard';
 import { DashboardService } from './dashboard.service';
 import { PERMISSIONS } from '../auth/constants/permissions';
+import { rolesForClinic, type ScopedRole } from '../auth/clinic-roles';
 
 @Controller('clinics/:clinicId/dashboard')
 @UseGuards(JwtAuthGuard, ClinicScopeGuard, RbacGuard)
@@ -23,9 +24,9 @@ export class DashboardController {
     },
   ) {
     const userId = req.user.user.id;
-    const roles = req.user.roles
-      .filter((r) => r.clinicId === clinicId || r.clinicId === null)
-      .map((r) => r.role);
+    // Through the shared helper rather than a local filter: a global grant other than
+    // SYSTEM_ADMIN would otherwise unlock this clinic's dashboard from a seat elsewhere.
+    const roles = rolesForClinic(req.user.roles as ScopedRole[], clinicId).map((r) => r.role);
 
     return this.dashboardService.getDashboard(clinicId, roles, userId);
   }

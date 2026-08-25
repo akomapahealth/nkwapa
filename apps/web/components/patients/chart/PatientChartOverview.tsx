@@ -80,7 +80,7 @@ function SectionLink({
           onNavigate(section);
         }
       }}
-      className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-primary underline-offset-4 transition-colors duration-150 hover:underline"
+      className="inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 transition-colors duration-150 hover:underline"
     >
       {children}
       <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
@@ -111,7 +111,7 @@ function PendingActionRow({
       {action.encounterId ? (
         <Link
           href={buildEncounterHref(clinicId, action.encounterId)}
-          className="inline-flex min-h-11 shrink-0 items-center gap-1 text-sm font-medium text-primary underline-offset-4 transition-colors duration-150 hover:underline"
+          className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary underline-offset-4 transition-colors duration-150 hover:underline"
         >
           Open visit
           <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
@@ -407,7 +407,7 @@ export function PatientChartOverview({
 
 export function ChartRetryButton({ onRetry }: { onRetry: () => void }) {
   return (
-    <Button type="button" variant="outline" onClick={onRetry} className="min-h-11 cursor-pointer">
+    <Button type="button" variant="outline" onClick={onRetry} className="cursor-pointer">
       Try again
     </Button>
   );

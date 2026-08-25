@@ -1,9 +1,8 @@
-const path = require('path');
 const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
 
-const authFile = path.join(__dirname, '..', 'playwright', '.auth', 'staff.json');
-test.use({ storageState: authFile });
+const { storageStateFor } = require('../playwright/roles');
+test.use({ storageState: storageStateFor('staff') });
 
 async function createPatient(page) {
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
@@ -111,7 +110,7 @@ test('an empty offline chart remains not-recorded until an authorized attestatio
   await context.setOffline(true);
   await medicationsTab.click();
 
-  await expect(page.getByText(/Offline data is shown from this device/)).toBeVisible();
+  await expect(page.getByText(/Showing medications saved on this device/)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'No medications recorded' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'No known current medications' })).toHaveCount(0);
 

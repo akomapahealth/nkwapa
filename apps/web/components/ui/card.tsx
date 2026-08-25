@@ -7,7 +7,10 @@ const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElemen
     <div
       ref={ref}
       className={cn(
-        'rounded-[24px] border border-border/80 bg-card/92 text-card-foreground shadow-sm shadow-black/5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/5',
+        // No hover translate: the design system forbids layout shift on hover, and a card that
+        // lifts under the cursor is actively unhelpful when someone is reading a measurement off
+        // it. Colour and border still respond, which is the affordance that was wanted.
+        'rounded-[24px] border border-border/80 bg-card/92 text-card-foreground shadow-sm shadow-black/5 transition-colors duration-200 hover:border-border',
         className,
       )}
       {...props}

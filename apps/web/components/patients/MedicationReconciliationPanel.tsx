@@ -11,7 +11,6 @@ import {
   Pencil,
   Plus,
   RefreshCw,
-  RotateCcw,
   ShieldCheck,
   WifiOff,
 } from 'lucide-react';
@@ -65,6 +64,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  ChartSectionEmpty,
+  ChartSectionError,
+  ChartSectionLoading,
+  ChartSectionOffline,
+} from '@/components/patients/chart/ChartSectionState';
 
 const unavailableAllergies: AllergySummary = { state: 'UNAVAILABLE', activeAllergies: [] };
 
@@ -839,9 +844,7 @@ export function MedicationReconciliationPanel({
     <div className="space-y-5">
       <AllergySummaryBanner summary={allergies} compact />
       {offline ? (
-        <StatusMessage icon={WifiOff}>
-          Offline data is shown from this device. Pending changes will sync automatically.
-        </StatusMessage>
+        <ChartSectionOffline description="Showing medications saved on this device. Pending changes sync automatically once you reconnect." />
       ) : null}
       {notice ? (
         <StatusMessage icon={CheckCircle2} tone="success">
@@ -849,16 +852,11 @@ export function MedicationReconciliationPanel({
         </StatusMessage>
       ) : null}
       {error ? (
-        <div
-          role="alert"
-          className="flex items-start justify-between gap-3 rounded-2xl border border-destructive/35 bg-destructive/10 p-3 text-sm text-destructive"
-        >
-          <span>{error}</span>
-          <Button variant="ghost" size="sm" onClick={() => void load()}>
-            <RotateCcw className="h-4 w-4" />
-            Retry
-          </Button>
-        </div>
+        <ChartSectionError
+          title="Unable to load medications"
+          description={error}
+          onRetry={() => void load()}
+        />
       ) : null}
 
       <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
@@ -874,14 +872,14 @@ export function MedicationReconciliationPanel({
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
-                  className="min-h-11 rounded-2xl"
+                  className="rounded-2xl"
                   onClick={() => void reconcileList()}
                   disabled={saving}
                 >
                   <RefreshCw className="h-4 w-4" />
                   {current.length ? 'Reconcile list' : 'Record no known medications'}
                 </Button>
-                <Button className="min-h-11 rounded-2xl" onClick={() => openMedication()}>
+                <Button className="rounded-2xl" onClick={() => openMedication()}>
                   <Plus className="h-4 w-4" />
                   Add medication
                 </Button>
@@ -900,9 +898,7 @@ export function MedicationReconciliationPanel({
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="py-8 text-center text-sm text-muted-foreground" aria-live="polite">
-              Loading medications…
-            </p>
+            <ChartSectionLoading label="medications" />
           ) : current.length ? (
             <MedicationList
               records={current}
@@ -948,7 +944,7 @@ export function MedicationReconciliationPanel({
             </p>
           </div>
           {canWrite ? (
-            <Button className="min-h-11 rounded-2xl" onClick={() => openPharmacy()}>
+            <Button className="rounded-2xl" onClick={() => openPharmacy()}>
               <Plus className="h-4 w-4" />
               Add pharmacy
             </Button>
@@ -981,7 +977,7 @@ export function MedicationReconciliationPanel({
                         <Button
                           variant="outline"
                           size="sm"
-                          className="min-h-11 rounded-2xl"
+                          className="rounded-2xl"
                           onClick={() => void openHistory('pharmacy', record)}
                         >
                           <History className="h-4 w-4" />
@@ -992,7 +988,7 @@ export function MedicationReconciliationPanel({
                             <Button
                               variant="outline"
                               size="sm"
-                              className="min-h-11 rounded-2xl"
+                              className="rounded-2xl"
                               onClick={() => openPharmacy(record)}
                             >
                               <Pencil className="h-4 w-4" />
@@ -1001,7 +997,7 @@ export function MedicationReconciliationPanel({
                             {!preferred ? (
                               <Button
                                 size="sm"
-                                className="min-h-11 rounded-2xl"
+                                className="rounded-2xl"
                                 disabled={saving}
                                 onClick={() => void setPreferred(record)}
                               >
@@ -1011,7 +1007,7 @@ export function MedicationReconciliationPanel({
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="min-h-11 rounded-2xl"
+                                className="rounded-2xl"
                                 disabled={saving}
                                 onClick={() => void endPreferred()}
                               >
@@ -1136,7 +1132,7 @@ export function MedicationReconciliationPanel({
         onSave={() => void savePharmacy()}
       />
       <Dialog open={historyItems.length > 0} onOpenChange={(open) => !open && setHistoryItems([])}>
-        <DialogContent className="max-h-[88vh] w-[calc(100%-1.5rem)] max-w-xl overflow-y-auto rounded-3xl">
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>Revision history</DialogTitle>
             <DialogDescription>{historyTitle}</DialogDescription>
@@ -1236,7 +1232,7 @@ function MedicationList({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="min-h-11 rounded-2xl"
+                  className="rounded-2xl"
                   onClick={() => onHistory(record)}
                 >
                   <History className="h-4 w-4" />
@@ -1246,7 +1242,7 @@ function MedicationList({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="min-h-11 rounded-2xl"
+                    className="rounded-2xl"
                     onClick={() => onEdit(record)}
                   >
                     <Pencil className="h-4 w-4" />
@@ -1263,31 +1259,27 @@ function MedicationList({
 }
 
 function MedicationEmpty({ state }: { state: ReturnType<typeof medicationListState> }) {
+  // Three distinct clinical meanings that must not be confused with one another: an attested
+  // "none", a chart with only past medications, and a chart nobody has filled in.
   const noKnown = state === 'NO_KNOWN_CURRENT_MEDICATIONS';
   return (
-    <div className="rounded-3xl border border-dashed p-8 text-center">
-      {noKnown ? (
-        <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-600" />
-      ) : state === 'HISTORICAL_ONLY' ? (
-        <History className="mx-auto h-8 w-8 text-muted-foreground" />
-      ) : (
-        <CircleSlash2 className="mx-auto h-8 w-8 text-muted-foreground" />
-      )}
-      <h3 className="mt-3 font-semibold">
-        {noKnown
+    <ChartSectionEmpty
+      icon={noKnown ? CheckCircle2 : state === 'HISTORICAL_ONLY' ? History : CircleSlash2}
+      title={
+        noKnown
           ? 'No known current medications'
           : state === 'HISTORICAL_ONLY'
             ? 'No current medications'
-            : 'No medications recorded'}
-      </h3>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {noKnown
+            : 'No medications recorded'
+      }
+      description={
+        noKnown
           ? 'A staff member explicitly reconciled this state.'
           : state === 'HISTORICAL_ONLY'
             ? 'Past or stopped medications remain available below.'
-            : 'This empty chart is not a clinical claim of no known medications.'}
-      </p>
-    </div>
+            : 'This empty chart is not a clinical claim of no known medications.'
+      }
+    />
   );
 }
 
@@ -1343,7 +1335,7 @@ function MedicationDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] w-[calc(100%-1.5rem)] max-w-3xl overflow-y-auto rounded-3xl">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>
             {editing ? 'Revise reported medication' : 'Add reported medication'}
@@ -1364,7 +1356,6 @@ function MedicationDialog({
             <Label htmlFor="medication-drug-search">Link clinic Drug (optional)</Label>
             <Input
               id="medication-drug-search"
-              className="min-h-11"
               value={drugQuery}
               onChange={(event) => {
                 setDrugQuery(event.target.value);
@@ -1384,7 +1375,7 @@ function MedicationDialog({
                       type="button"
                       role="option"
                       aria-selected={form.drugId === drug.id}
-                      className="min-h-11 w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       onClick={() => onSelectDrug(drug)}
                     >
                       {drug.name}
@@ -1511,7 +1502,7 @@ function MedicationDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button className="min-h-11" disabled={saving} onClick={onSave}>
+          <Button disabled={saving} onClick={onSave}>
             {saving ? 'Saving…' : editing ? 'Save revision' : 'Add medication'}
           </Button>
         </DialogFooter>
@@ -1551,7 +1542,7 @@ function PharmacyDialog({
   ];
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] w-[calc(100%-1.5rem)] max-w-2xl overflow-y-auto rounded-3xl">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{editing ? 'Revise pharmacy' : 'Add pharmacy'}</DialogTitle>
           <DialogDescription>
@@ -1599,7 +1590,7 @@ function PharmacyDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button className="min-h-11" disabled={saving} onClick={onSave}>
+          <Button disabled={saving} onClick={onSave}>
             {saving ? 'Saving…' : editing ? 'Save revision' : 'Add pharmacy'}
           </Button>
         </DialogFooter>
@@ -1630,7 +1621,6 @@ function Field({
         id={id}
         type={type}
         disabled={disabled}
-        className="min-h-11"
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
@@ -1654,7 +1644,7 @@ function SelectField({
     <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger id={id} className="min-h-11">
+        <SelectTrigger id={id}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
