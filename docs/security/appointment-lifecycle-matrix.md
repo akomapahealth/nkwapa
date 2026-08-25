@@ -79,6 +79,8 @@ at send time against the appointment it names, so a stale job still cannot reach
 | `GET /clinics/:clinicId/appointment-requests` | path parameter | `APPOINTMENT.READ` |
 | `POST /clinics/:clinicId/appointment-requests/:requestId/confirm` | path parameter | `APPOINTMENT.WRITE` |
 | `POST /clinics/:clinicId/appointment-requests/:requestId/reject` | path parameter | `APPOINTMENT.WRITE` |
+| `POST /patients/me/appointment-requests` | `X-Clinic-Id` header | `PATIENT.PORTAL.WRITE_SELF_REPORT` |
+| `GET /patients/me/appointment-requests` | `X-Clinic-Id` header | `PATIENT.PORTAL.READ_SELF` |
 | `GET /patients/me/appointments` | `X-Clinic-Id` header | `PATIENT.PORTAL.READ_SELF` |
 | `POST /patients/me/appointments/:appointmentId/cancel-request` | `X-Clinic-Id` header | `PATIENT.PORTAL.WRITE_SELF_REPORT` |
 | `POST /patients/me/appointments/:appointmentId/reschedule-request` | `X-Clinic-Id` header | `PATIENT.PORTAL.WRITE_SELF_REPORT` |
