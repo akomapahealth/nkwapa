@@ -1,7 +1,16 @@
+/**
+ * One status vocabulary for appointments, shared by the staff calendar and the patient portal.
+ *
+ * The two surfaces used to map statuses independently, and they disagreed: a request reading
+ * `CONFIRMED` rendered as one colour while an appointment reading `CONFIRMED` rendered as another,
+ * on the same page. A status means the same thing to a clinician and to the patient it belongs to,
+ * so it reads the same way in both places.
+ */
 import type { AppointmentRequestRecord, AppointmentSummary } from '@/lib/patient-portal';
 
 export type PortalStatusBadgeVariant =
   | 'secondary'
+  | 'review'
   | 'warning'
   | 'finalized'
   | 'destructive'
@@ -25,21 +34,21 @@ export function getAppointmentRequestStatusView(
       return {
         label: 'Requested',
         description: 'Sent to the clinic and waiting for review.',
-        badgeVariant: 'secondary',
+        badgeVariant: 'outline',
         category: 'pending',
       };
     case 'TRIAGED':
       return {
         label: 'Under review',
         description: 'Clinic staff have started reviewing this request.',
-        badgeVariant: 'warning',
+        badgeVariant: 'review',
         category: 'pending',
       };
     case 'CONFIRMED':
       return {
         label: 'Confirmed',
         description: 'The clinic approved this request and attached an appointment.',
-        badgeVariant: 'finalized',
+        badgeVariant: 'secondary',
         category: 'confirmed',
       };
     case 'REJECTED':
@@ -53,7 +62,7 @@ export function getAppointmentRequestStatusView(
       return {
         label: 'Cancelled',
         description: 'This request was closed before completion.',
-        badgeVariant: 'outline',
+        badgeVariant: 'destructive',
         category: 'closed',
       };
     default:
@@ -151,4 +160,29 @@ function formatUnknownStatus(status: string) {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
     .join(' ');
+}
+
+/** Filter value for the staff schedule, where `ALL` is a UI concept rather than a status. */
+export type AppointmentStatusFilter = AppointmentSummary['status'] | 'ALL';
+
+export function getAppointmentStatusFilterLabel(value: AppointmentStatusFilter | string) {
+  return value === 'ALL' ? 'All statuses' : getAppointmentStatusView(value).label;
+}
+
+/** Labels for the four staff lifecycle actions, matching the API's action names. */
+export type AppointmentLifecycleAction = 'reschedule' | 'cancel' | 'complete' | 'no-show';
+
+export function getAppointmentActionLabel(action: AppointmentLifecycleAction | string) {
+  switch (action) {
+    case 'reschedule':
+      return 'Reschedule';
+    case 'cancel':
+      return 'Cancel';
+    case 'complete':
+      return 'Complete';
+    case 'no-show':
+      return 'Mark no-show';
+    default:
+      return 'Update';
+  }
 }

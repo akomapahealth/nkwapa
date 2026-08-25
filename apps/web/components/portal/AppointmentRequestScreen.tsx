@@ -15,7 +15,7 @@ import {
   getPortalClinicName,
   type AppointmentRequestRecord,
 } from '@/lib/patient-portal';
-import { getAppointmentRequestTypeLabel } from '@/lib/portal-appointment-status';
+import { getAppointmentRequestTypeLabel } from '@/lib/appointment-status';
 import { RouteGuard } from '@/components/RouteGuard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

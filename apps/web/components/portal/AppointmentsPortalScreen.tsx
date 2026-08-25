@@ -18,6 +18,10 @@ import { InlineErrorState } from '@/components/feedback/AppState';
 import { PortalLinkRequiredState } from '@/components/portal/PortalLinkRequiredState';
 import { RouteGuard } from '@/components/RouteGuard';
 import { Badge } from '@/components/ui/badge';
+import {
+  AppointmentRequestStatusBadge,
+  AppointmentStatusBadge,
+} from '@/components/appointments/AppointmentStatusBadge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -55,7 +59,7 @@ import {
   getAppointmentStatusView,
   getNextConfirmedAppointment,
   isPatientAppointmentActionable,
-} from '@/lib/portal-appointment-status';
+} from '@/lib/appointment-status';
 import { cn } from '@/lib/utils';
 
 type RequestTab = 'all' | 'pending' | 'confirmed' | 'closed';
@@ -148,7 +152,6 @@ function AppointmentRow({
   pendingChangeRequest?: AppointmentRequestRecord;
   onAction: (action: ChangeAction, appointment: AppointmentSummary) => void;
 }) {
-  const statusView = getAppointmentStatusView(appointment.status);
   const actionable = isPatientAppointmentActionable(appointment) && !pendingChangeRequest;
 
   return (
@@ -156,13 +159,7 @@ function AppointmentRow({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge
-              variant={statusView.badgeVariant}
-              aria-label={`${statusView.label}: ${statusView.description}`}
-              className="rounded-full"
-            >
-              {statusView.label}
-            </Badge>
+            <AppointmentStatusBadge status={appointment.status} className="rounded-full" />
             {pendingChangeRequest ? (
               <Badge variant="warning" className="rounded-full">
                 {getAppointmentRequestTypeLabel(pendingChangeRequest.requestType)} pending
@@ -216,7 +213,6 @@ function AppointmentRow({
 }
 
 function RequestRow({ request }: { request: AppointmentRequestRecord }) {
-  const statusView = getAppointmentRequestStatusView(request.status);
   const typeLabel = getAppointmentRequestTypeLabel(request.requestType);
 
   return (
@@ -227,13 +223,7 @@ function RequestRow({ request }: { request: AppointmentRequestRecord }) {
             <Badge variant="outline" className="rounded-full bg-card">
               {typeLabel}
             </Badge>
-            <Badge
-              variant={statusView.badgeVariant}
-              aria-label={`${statusView.label}: ${statusView.description}`}
-              className="rounded-full"
-            >
-              {statusView.label}
-            </Badge>
+            <AppointmentRequestStatusBadge status={request.status} className="rounded-full" />
           </div>
           <p className="font-medium text-foreground">
             Preferred window: {getRequestWindow(request)}

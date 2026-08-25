@@ -57,6 +57,11 @@ import { useAuth } from '@/lib/auth-context';
 import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { cn } from '@/lib/utils';
+import { AppointmentStatusBadge } from '@/components/appointments/AppointmentStatusBadge';
+import {
+  getAppointmentActionLabel as getActionLabel,
+  getAppointmentStatusFilterLabel as getStatusLabel,
+} from '@/lib/appointment-status';
 import {
   cancelStaffAppointment,
   completeStaffAppointment,
@@ -143,54 +148,6 @@ function getRangeForView(selectedDate: string, viewMode: ViewMode) {
     from,
     to: addDays(from, 6),
   };
-}
-
-function getStatusLabel(status: StaffAppointmentStatus | StatusFilter) {
-  switch (status) {
-    case 'CONFIRMED':
-      return 'Confirmed';
-    case 'COMPLETED':
-      return 'Completed';
-    case 'NO_SHOW':
-      return 'No-show';
-    case 'CANCELLED':
-      return 'Cancelled';
-    case 'ALL':
-    default:
-      return 'All statuses';
-  }
-}
-
-function getStatusVariant(
-  status: StaffAppointmentStatus,
-): 'finalized' | 'secondary' | 'warning' | 'destructive' | 'outline' {
-  switch (status) {
-    case 'CONFIRMED':
-      return 'secondary';
-    case 'COMPLETED':
-      return 'finalized';
-    case 'NO_SHOW':
-      return 'warning';
-    case 'CANCELLED':
-      return 'destructive';
-    default:
-      return 'outline';
-  }
-}
-
-function getActionLabel(action: LifecycleAction) {
-  switch (action) {
-    case 'reschedule':
-      return 'Reschedule';
-    case 'cancel':
-      return 'Cancel';
-    case 'complete':
-      return 'Complete';
-    case 'no-show':
-      return 'Mark no-show';
-    default:
-      return 'Update';
-  }
 }
 
 function toDateTimeLocalValue(value: string) {
@@ -386,9 +343,7 @@ function AppointmentMobileCard({
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">{appointment.patient.patientCode}</p>
         </div>
-        <Badge variant={getStatusVariant(appointment.status)}>
-          {getStatusLabel(appointment.status)}
-        </Badge>
+        <AppointmentStatusBadge status={appointment.status} />
       </div>
       <div className="mt-4 grid gap-3 text-sm">
         <div className="flex items-center gap-2 text-foreground">
@@ -930,9 +885,7 @@ export default function StaffAppointmentsPage() {
                                     </div>
                                   </td>
                                   <td className="px-4 py-3">
-                                    <Badge variant={getStatusVariant(appointment.status)}>
-                                      {getStatusLabel(appointment.status)}
-                                    </Badge>
+                                    <AppointmentStatusBadge status={appointment.status} />
                                   </td>
                                   <td className="px-4 py-3">
                                     <AppointmentReminderStatus
