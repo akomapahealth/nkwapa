@@ -57,6 +57,7 @@ import { useAuth } from '@/lib/auth-context';
 import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { cn } from '@/lib/utils';
+import { AppointmentRequestsPanel } from '@/components/appointments/AppointmentRequestsPanel';
 import { AppointmentStatusBadge } from '@/components/appointments/AppointmentStatusBadge';
 import {
   getAppointmentActionLabel as getActionLabel,
@@ -603,6 +604,15 @@ export default function StaffAppointmentsPage() {
               Refresh
             </Button>
           }
+        />
+
+        <AppointmentRequestsPanel
+          clinicId={clinicId}
+          getToken={getToken}
+          canManage={canManageAppointments}
+          staffOptions={staffOptions}
+          timezone={timezone}
+          onRequestResolved={() => loadSchedule({ background: true })}
         />
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
