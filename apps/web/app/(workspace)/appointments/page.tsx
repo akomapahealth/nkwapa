@@ -877,7 +877,7 @@ export default function StaffAppointmentsPage() {
                         </div>
                       ) : (
                         <>
-                          <div className="space-y-3 lg:hidden">
+                          <div className="space-y-3 xl:hidden">
                             {appointments.map((appointment) => (
                               <AppointmentMobileCard
                                 key={appointment.id}
@@ -890,7 +890,7 @@ export default function StaffAppointmentsPage() {
                             ))}
                           </div>
 
-                          <div className="hidden overflow-x-auto rounded-2xl border border-border/80 lg:block">
+                          <div className="hidden overflow-x-auto rounded-2xl border border-border/80 xl:block">
                             <table className="w-full min-w-[1080px] border-collapse text-sm">
                               <caption className="sr-only">
                                 Appointments on {formatOpsDate(date, timezone)}, with status,
