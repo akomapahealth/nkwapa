@@ -6,128 +6,15 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ReminderService } from '../reminders/reminder.service';
 import { EmailDeliverabilityService } from '../common/email-policy';
-
-function createPrismaMock() {
-  const prisma = {
-    user: {
-      findUnique: jest.fn(),
-      findFirst: jest.fn(),
-      findMany: jest.fn(),
-    },
-    patientAccountLink: {
-      findFirst: jest.fn(),
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      upsert: jest.fn(),
-      create: jest.fn(),
-      deleteMany: jest.fn(),
-    },
-    patient: {
-      findFirst: jest.fn(),
-      findMany: jest.fn(),
-      findUnique: jest.fn(),
-      update: jest.fn(),
-    },
-    patientPortalInvite: {
-      create: jest.fn(),
-      findFirst: jest.fn(),
-      findMany: jest.fn(),
-      update: jest.fn(),
-      updateMany: jest.fn(),
-    },
-    encounter: {
-      findFirst: jest.fn(),
-      findMany: jest.fn(),
-    },
-    diabetesScreening: {
-      findMany: jest.fn(),
-    },
-    reminder: {
-      findMany: jest.fn(),
-      update: jest.fn(),
-    },
-    patientMeasurement: {
-      create: jest.fn(),
-      findMany: jest.fn(),
-    },
-    patientSelfReport: {
-      create: jest.fn(),
-      findMany: jest.fn(),
-    },
-    appointmentRequest: {
-      create: jest.fn(),
-      findMany: jest.fn(),
-      findFirst: jest.fn(),
-      update: jest.fn(),
-      count: jest.fn(),
-    },
-    appointment: {
-      create: jest.fn(),
-      count: jest.fn(),
-      findFirst: jest.fn(),
-      findMany: jest.fn(),
-      updateMany: jest.fn(),
-    },
-    clinic: {
-      findUnique: jest.fn(),
-    },
-    userClinicRole: {
-      upsert: jest.fn(),
-      findFirst: jest.fn(),
-      findMany: jest.fn(),
-    },
-    $transaction: jest.fn(),
-  };
-
-  prisma.$transaction.mockImplementation(async (callback: (tx: typeof prisma) => unknown) =>
-    callback(prisma),
-  );
-  return prisma;
-}
-
-const portalPatient = {
-  id: 'patient-1',
-  patientCode: 'NKP-2026-000001',
-  firstName: 'Ama',
-  lastName: 'Mensah',
-  dob: null,
-  sex: 'FEMALE',
-  primaryClinicId: 'clinic-1',
-  phoneE164: '+233240000000',
-  email: 'ama@example.com',
-};
-
-function appointmentFixture(overrides: Record<string, unknown> = {}) {
-  return {
-    id: 'appointment-1',
-    clinicId: 'clinic-1',
-    patientId: 'patient-1',
-    startsAt: new Date('2026-03-26T14:00:00.000Z'),
-    endsAt: new Date('2026-03-26T14:30:00.000Z'),
-    status: 'CONFIRMED',
-    linkedRequestId: 'appt-req-1',
-    assignedDoctorId: 'doctor-1',
-    assignedVolunteerId: 'volunteer-1',
-    notes: 'Bring home readings',
-    createdAt: new Date('2026-03-21T09:10:00.000Z'),
-    updatedAt: new Date('2026-03-21T09:10:00.000Z'),
-    patient: {
-      id: 'patient-1',
-      patientCode: 'NKP-2026-000001',
-      firstName: 'Ama',
-      lastName: 'Mensah',
-      phoneE164: '+233240000000',
-      email: 'ama@example.com',
-    },
-    assignedDoctor: { id: 'doctor-1', displayName: 'Dr One' },
-    assignedVolunteer: { id: 'volunteer-1', displayName: 'Volunteer One' },
-    ...overrides,
-  };
-}
+import {
+  appointmentFixture,
+  createAppointmentPrismaMock,
+  portalPatientFixture as portalPatient,
+} from '../testing/appointment-fixtures';
 
 describe('PatientPortalService', () => {
   let service: PatientPortalService;
-  let prisma: ReturnType<typeof createPrismaMock>;
+  let prisma: ReturnType<typeof createAppointmentPrismaMock>;
   let auditService: { logWrite: jest.Mock };
   let emailDeliverabilityService: { assertDomainAcceptsEmail: jest.Mock };
   let reminderService: {
@@ -138,7 +25,7 @@ describe('PatientPortalService', () => {
   };
 
   beforeEach(async () => {
-    prisma = createPrismaMock();
+    prisma = createAppointmentPrismaMock();
     auditService = { logWrite: jest.fn().mockResolvedValue(undefined) };
     emailDeliverabilityService = {
       assertDomainAcceptsEmail: jest.fn().mockResolvedValue(undefined),
