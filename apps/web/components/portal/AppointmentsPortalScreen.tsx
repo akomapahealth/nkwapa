@@ -14,7 +14,7 @@ import {
   RotateCcw,
   XCircle,
 } from 'lucide-react';
-import { InlineErrorState } from '@/components/feedback/AppState';
+import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { PortalLinkRequiredState } from '@/components/portal/PortalLinkRequiredState';
 import { RouteGuard } from '@/components/RouteGuard';
 import { Badge } from '@/components/ui/badge';
@@ -271,15 +271,20 @@ function RequestRow({ request }: { request: AppointmentRequestRecord }) {
           ) : null}
 
           {request.appointment ? (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 dark:border-emerald-900/50 dark:bg-emerald-900/20">
               <div className="flex items-center gap-2">
-                <CalendarDays className="h-4 w-4 text-emerald-700" />
-                <p className="font-medium text-emerald-950">Confirmed visit</p>
+                <CalendarDays
+                  className="h-4 w-4 text-emerald-700 dark:text-emerald-300"
+                  aria-hidden="true"
+                />
+                <p className="font-medium text-emerald-950 dark:text-emerald-100">
+                  Confirmed visit
+                </p>
               </div>
-              <p className="mt-2 text-sm text-emerald-950">
+              <p className="mt-2 text-sm text-emerald-950 dark:text-emerald-100">
                 {formatPortalDateTime(request.appointment.startsAt)}
               </p>
-              <p className="text-sm text-emerald-900/80">
+              <p className="text-sm text-emerald-900/80 dark:text-emerald-200/80">
                 Ends {formatPortalDateTime(request.appointment.endsAt)}
               </p>
             </div>
@@ -520,7 +525,10 @@ export function AppointmentsPortalScreen() {
                 onClick={() => void loadAppointments({ background: true })}
                 disabled={refreshing || loading}
               >
-                <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
+                <RefreshCw
+                  className={cn('h-4 w-4', refreshing && 'animate-spin motion-reduce:animate-none')}
+                  aria-hidden="true"
+                />
                 Refresh
               </Button>
             </CardContent>
@@ -592,7 +600,10 @@ export function AppointmentsPortalScreen() {
           </Card>
           <Card className="border-border/70 bg-card/95">
             <CardHeader className="space-y-3">
-              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              <CheckCircle2
+                className="h-5 w-5 text-emerald-600 dark:text-emerald-400"
+                aria-hidden="true"
+              />
               <div>
                 <CardTitle className="text-2xl">{completedCount}</CardTitle>
                 <CardDescription>Completed visits</CardDescription>
@@ -610,10 +621,18 @@ export function AppointmentsPortalScreen() {
           </Card>
         </section>
 
+        <p aria-live="polite" aria-busy={loading || refreshing} className="sr-only">
+          {loading
+            ? 'Loading your appointments.'
+            : error
+              ? 'Your appointments could not be loaded.'
+              : `${appointments.length} appointment${appointments.length === 1 ? '' : 's'} and ${requests.length} request${requests.length === 1 ? '' : 's'} loaded.`}
+        </p>
+
         {loading ? (
           <div className="grid gap-4 lg:grid-cols-2">
             {Array.from({ length: 4 }).map((_, index) => (
-              <Card key={index} className="h-40 animate-pulse border-border/70 bg-muted/30" />
+              <SectionSkeleton key={index} lines={4} className="rounded-[28px] p-6" />
             ))}
           </div>
         ) : null}

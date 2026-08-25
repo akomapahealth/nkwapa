@@ -13,10 +13,15 @@ import {
   formatPortalDateTime,
   getPortalClinicId,
   getPortalClinicName,
+  getPortalErrorMessage,
+  isPortalLinkMissingError,
   type AppointmentRequestRecord,
 } from '@/lib/patient-portal';
 import { getAppointmentRequestTypeLabel } from '@/lib/appointment-status';
+import { InlineErrorState } from '@/components/feedback/AppState';
+import { PortalLinkRequiredState } from '@/components/portal/PortalLinkRequiredState';
 import { RouteGuard } from '@/components/RouteGuard';
+import { useToast } from '@/components/ui/toast';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -70,6 +75,9 @@ export function AppointmentRequestScreen() {
   const [loadingContext, setLoadingContext] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<unknown | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
+  const { showToast } = useToast();
 
   useEffect(() => {
     let cancelled = false;
@@ -81,6 +89,7 @@ export function AppointmentRequestScreen() {
       }
 
       setLoadingContext(true);
+      setLoadError(null);
       try {
         const requests = await fetchAppointmentRequests(clinicId, getToken);
         if (!cancelled) {
@@ -88,7 +97,9 @@ export function AppointmentRequestScreen() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err));
+          // A patient who has not claimed their record needs the claim prompt, not an error
+          // string. Every other portal screen already tells them that; this one did not.
+          setLoadError(err);
         }
       } finally {
         if (!cancelled) {
@@ -102,7 +113,7 @@ export function AppointmentRequestScreen() {
     return () => {
       cancelled = true;
     };
-  }, [clinicId, getToken]);
+  }, [clinicId, getToken, reloadToken]);
 
   const nextAppointment = useMemo(() => getNextAppointment(recentRequests), [recentRequests]);
   const latestRequest = recentRequests[0] ?? null;
@@ -137,10 +148,22 @@ export function AppointmentRequestScreen() {
       });
       router.push('/portal/appointments');
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const message = getPortalErrorMessage(err);
+      setError(message);
+      showToast({ title: 'Request could not be sent', description: message, tone: 'error' });
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (isPortalLinkMissingError(loadError) && !loadingContext) {
+    return (
+      <RouteGuard requiredPermission="PATIENT.PORTAL.WRITE_SELF_REPORT">
+        <div className="space-y-6">
+          <PortalLinkRequiredState clinicName={clinicName} />
+        </div>
+      </RouteGuard>
+    );
   }
 
   return (
@@ -154,7 +177,7 @@ export function AppointmentRequestScreen() {
         </Button>
 
         <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-          <Card className="overflow-hidden border-border/70 bg-gradient-to-br from-primary/10 via-card to-card">
+          <Card className="overflow-hidden border-border/70 bg-card">
             <CardHeader className="space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="secondary" className="rounded-full px-3 py-1">
@@ -207,15 +230,20 @@ export function AppointmentRequestScreen() {
                 {loadingContext ? (
                   <div className="h-28 animate-pulse rounded-2xl border border-border/70 bg-muted/30" />
                 ) : nextAppointment ? (
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900/50 dark:bg-emerald-900/20">
                     <div className="flex items-center gap-2">
-                      <CalendarRange className="h-4 w-4 text-emerald-700" />
-                      <p className="font-medium text-emerald-900">Next confirmed visit</p>
+                      <CalendarRange
+                        className="h-4 w-4 text-emerald-700 dark:text-emerald-300"
+                        aria-hidden="true"
+                      />
+                      <p className="font-medium text-emerald-900 dark:text-emerald-100">
+                        Next confirmed visit
+                      </p>
                     </div>
-                    <p className="mt-2 text-sm text-emerald-900">
+                    <p className="mt-2 text-sm text-emerald-900 dark:text-emerald-100">
                       {formatPortalDateTime(nextAppointment.startsAt)}
                     </p>
-                    <p className="text-sm text-emerald-800/80">
+                    <p className="text-sm text-emerald-800/80 dark:text-emerald-200/80">
                       Ends {formatPortalDateTime(nextAppointment.endsAt)}
                     </p>
                   </div>
@@ -264,11 +292,24 @@ export function AppointmentRequestScreen() {
           </div>
         </section>
 
-        {error && (
-          <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+        {loadError ? (
+          <InlineErrorState
+            title="We couldn't load your appointment context"
+            description={getPortalErrorMessage(loadError)}
+            onRetry={() => setReloadToken((token) => token + 1)}
+            retryLabel="Try again"
+          />
+        ) : null}
+
+        {error ? (
+          <div
+            id="appointment-request-error"
+            role="alert"
+            className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"
+          >
             {error}
           </div>
-        )}
+        ) : null}
 
         <Card className="border-border/70 bg-card/95">
           <CardHeader>
@@ -347,7 +388,7 @@ export function AppointmentRequestScreen() {
               </div>
 
               <div className="space-y-4">
-                <div className="rounded-3xl border border-border/70 bg-gradient-to-br from-secondary/10 via-background to-background p-5">
+                <div className="rounded-3xl border border-border/70 bg-background p-5">
                   <div className="flex items-center gap-2">
                     <Clock3 className="h-4 w-4 text-secondary-foreground" />
                     <p className="font-medium">Request summary</p>
