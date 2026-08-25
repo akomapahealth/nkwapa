@@ -16,6 +16,9 @@ import {
   EncounterStatus,
   GhanaRegion,
   PatientLocationStatus,
+  AppointmentStatus,
+  AppointmentRequestStatus,
+  AppointmentRequestType,
 } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import {
@@ -134,6 +137,124 @@ async function ensureSingleRoleUser(params: {
 
   await ensureClinicRole(prisma, user.id, params.clinicId, params.role);
   return user;
+}
+
+/**
+ * A deterministic appointment fixture set for the acceptance suite.
+ *
+ * Nothing seeds appointments today, which is why the workflow had no end-to-end coverage: a
+ * confirmed appointment can only be created by confirming a request, and until this release no
+ * staff screen could do that. Rather than leave the suite unable to reach its own subject, seed one
+ * appointment in each state plus the two request shapes a patient can open.
+ *
+ * Times are relative to the run so that `complete` and `no-show`, which the API refuses before the
+ * start time, are exercisable and the confirmed visit stays in the future.
+ */
+async function seedSampleAppointments(
+  prisma: PrismaClient,
+  clinicId: string,
+  createdByUserId: string,
+) {
+  const existing = await prisma.patient.findFirst({
+    where: { primaryClinicId: clinicId, firstName: 'Appointment', lastName: 'Demo' },
+  });
+  if (existing) {
+    console.log('Sample appointments already exist; skipping.');
+    return;
+  }
+
+  const nationalIdPlain = 'GH-APPT-DEMO-1';
+  const patient = await prisma.patient.create({
+    data: {
+      patientCode: await generatePatientCode(prisma),
+      primaryClinicId: clinicId,
+      firstName: 'Appointment',
+      lastName: 'Demo',
+      dob: new Date('1985-02-11'),
+      sex: Sex.FEMALE,
+      phoneE164: '+233200000111',
+      nationalIdType: NationalIdType.NATIONAL_ID,
+      nationalIdCiphertext: encryptNationalId(nationalIdPlain),
+      nationalIdHash: hashNationalId(nationalIdPlain),
+      nationalIdLast4: nationalIdLast4(nationalIdPlain),
+      createdByUserId,
+      residentialLocationStatus: PatientLocationStatus.RECORDED,
+      residentialRegion: GhanaRegion.GREATER_ACCRA,
+      residentialDistrict: 'Accra Metropolitan',
+      residentialCommunity: 'Osu',
+    },
+  });
+
+  const hours = (offset: number) => new Date(Date.now() + offset * 60 * 60 * 1000);
+  const dateOnly = (date: Date) => new Date(`${date.toISOString().slice(0, 10)}T00:00:00.000Z`);
+
+  // Confirmed and still ahead: the row every lifecycle action is applied to.
+  const confirmed = await prisma.appointment.create({
+    data: {
+      clinicId,
+      patientId: patient.id,
+      startsAt: hours(26),
+      endsAt: hours(27),
+      status: AppointmentStatus.CONFIRMED,
+      notes: 'Blood pressure review',
+    },
+  });
+
+  // One row in each terminal state, so the schedule filters and the read-only rendering have
+  // something to show without a test having to create them first.
+  await prisma.appointment.createMany({
+    data: [
+      {
+        clinicId,
+        patientId: patient.id,
+        startsAt: hours(-48),
+        endsAt: hours(-47),
+        status: AppointmentStatus.COMPLETED,
+        notes: 'Reviewed home readings',
+      },
+      {
+        clinicId,
+        patientId: patient.id,
+        startsAt: hours(-72),
+        endsAt: hours(-71),
+        status: AppointmentStatus.CANCELLED,
+      },
+      {
+        clinicId,
+        patientId: patient.id,
+        startsAt: hours(-96),
+        endsAt: hours(-95),
+        status: AppointmentStatus.NO_SHOW,
+      },
+    ],
+  });
+
+  // Two requests awaiting triage: a new visit, and a change against the confirmed appointment.
+  await prisma.appointmentRequest.create({
+    data: {
+      clinicId,
+      patientId: patient.id,
+      requestType: AppointmentRequestType.NEW_APPOINTMENT,
+      preferredStartDate: dateOnly(hours(24 * 7)),
+      preferredEndDate: dateOnly(hours(24 * 10)),
+      reason: 'Routine follow-up',
+      status: AppointmentRequestStatus.REQUESTED,
+    },
+  });
+  await prisma.appointmentRequest.create({
+    data: {
+      clinicId,
+      patientId: patient.id,
+      requestType: AppointmentRequestType.RESCHEDULE_APPOINTMENT,
+      sourceAppointmentId: confirmed.id,
+      preferredStartDate: dateOnly(hours(24 * 14)),
+      preferredEndDate: dateOnly(hours(24 * 17)),
+      reason: 'Travelling that week',
+      status: AppointmentRequestStatus.REQUESTED,
+    },
+  });
+
+  console.log('Seeded appointment demo patient, 4 appointments, and 2 pending requests.');
 }
 
 async function main() {
@@ -355,6 +476,17 @@ async function main() {
 
   if (researchSettingsOwnerId) {
     await ensureResearchSettings(prisma, clinic.id, researchSettingsOwnerId);
+  }
+
+  const seedSampleAppointmentData = process.env.SEED_SAMPLE_APPOINTMENTS === 'true';
+  if (seedSampleAppointmentData && researchSettingsOwnerId && hasEncryptionKey()) {
+    await seedSampleAppointments(prisma, clinic.id, researchSettingsOwnerId);
+  } else if (seedSampleAppointmentData) {
+    console.warn(
+      hasEncryptionKey()
+        ? 'SEED_SAMPLE_APPOINTMENTS=true but no seeded staff user exists to own the records; skipping.'
+        : 'SEED_SAMPLE_APPOINTMENTS=true but NATIONAL_ID_ENCRYPTION_KEY not set; skipping.',
+    );
   }
 
   console.log({
