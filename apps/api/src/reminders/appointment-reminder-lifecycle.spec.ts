@@ -76,7 +76,7 @@ describe('appointment reminders across the lifecycle', () => {
     };
     removeJob = jest.fn().mockResolvedValue(undefined);
     reminderQueue = {
-      add: jest.fn().mockResolvedValue({ id: 'reminder:reminder-1' }),
+      add: jest.fn().mockResolvedValue({ id: 'reminder-reminder-1' }),
       getJob: jest.fn().mockResolvedValue({ remove: removeJob }),
     };
     service = new ReminderService(
@@ -163,6 +163,20 @@ describe('appointment reminders across the lifecycle', () => {
       );
     });
 
+    it('gives the queue an id it will accept', async () => {
+      // BullMQ builds its Redis keys around `:` and rejects a custom id containing one. The id
+      // used to be `reminder:<id>`, so every scheduled reminder threw after its row was written,
+      // surfacing as a 500 from appointment confirmation, reschedule, and follow-up scheduling.
+      await service.scheduleAppointmentReminder({
+        ...SCHEDULE_PARAMS,
+        phoneE164: '+233240000000',
+      });
+
+      const { jobId } = reminderQueue.add.mock.calls[0][2];
+      expect(jobId).not.toContain(':');
+      expect(jobId).toBe('reminder-reminder-1');
+    });
+
     it('gives the job a deterministic id so it can be found and removed later', async () => {
       await service.scheduleAppointmentReminder({
         ...SCHEDULE_PARAMS,
@@ -172,7 +186,7 @@ describe('appointment reminders across the lifecycle', () => {
       expect(reminderQueue.add).toHaveBeenCalledWith(
         'send',
         { reminderId: 'reminder-1', clinicId: FIXTURE_CLINIC_ID, userId: null },
-        expect.objectContaining({ jobId: 'reminder:reminder-1', attempts: 3 }),
+        expect.objectContaining({ jobId: 'reminder-reminder-1', attempts: 3 }),
       );
     });
   });
@@ -206,7 +220,7 @@ describe('appointment reminders across the lifecycle', () => {
             where: { id },
             data: { status: 'FAILED', failureReason: reason },
           });
-          expect(reminderQueue.getJob).toHaveBeenCalledWith(`reminder:${id}`);
+          expect(reminderQueue.getJob).toHaveBeenCalledWith(`reminder-${id}`);
         }
         expect(removeJob).toHaveBeenCalledTimes(2);
         expect(auditService.logWrite).toHaveBeenCalledWith(

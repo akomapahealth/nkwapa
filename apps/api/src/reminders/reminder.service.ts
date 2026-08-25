@@ -654,8 +654,16 @@ export class ReminderService {
     }
   }
 
+  /**
+   * The deterministic job id a reminder is queued under, so suppression can find and remove it.
+   *
+   * Separated by a hyphen, not a colon: BullMQ builds its Redis keys around `:` and rejects a
+   * custom id containing one. It threw on every scheduled reminder, which surfaced as a 500 from
+   * appointment confirmation and reschedule and from follow-up scheduling, after the reminder row
+   * had already been written.
+   */
   private getReminderJobId(reminderId: string): string {
-    return `reminder:${reminderId}`;
+    return `reminder-${reminderId}`;
   }
 
   private async auditReminderCreate(
