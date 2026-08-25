@@ -14,6 +14,7 @@ import {
   RotateCcw,
   XCircle,
 } from 'lucide-react';
+import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { PortalLinkRequiredState } from '@/components/portal/PortalLinkRequiredState';
 import { RouteGuard } from '@/components/RouteGuard';
@@ -34,7 +35,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/toast';
 import { useAuth } from '@/lib/auth-context';
@@ -656,25 +656,18 @@ export function AppointmentsPortalScreen() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Tabs
+                <SegmentedControl
+                  label="Filter appointments"
                   value={activeAppointmentTab}
-                  onValueChange={(value) => setActiveAppointmentTab(value as AppointmentTab)}
-                >
-                  <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-2xl border border-border/70 bg-background p-2 md:grid-cols-4">
-                    <TabsTrigger value="all" className="rounded-xl">
-                      All
-                    </TabsTrigger>
-                    <TabsTrigger value="upcoming" className="rounded-xl">
-                      Upcoming
-                    </TabsTrigger>
-                    <TabsTrigger value="completed" className="rounded-xl">
-                      Completed
-                    </TabsTrigger>
-                    <TabsTrigger value="closed" className="rounded-xl">
-                      Closed
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
+                  onChange={setActiveAppointmentTab}
+                  className="grid-cols-2 md:grid-cols-4"
+                  options={[
+                    { value: 'all', label: 'All' },
+                    { value: 'upcoming', label: 'Upcoming' },
+                    { value: 'completed', label: 'Completed' },
+                    { value: 'closed', label: 'Closed', description: 'Cancelled or missed.' },
+                  ]}
+                />
 
                 {visibleAppointments.length === 0 ? (
                   <EmptyPanel
@@ -707,25 +700,18 @@ export function AppointmentsPortalScreen() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Tabs
+                <SegmentedControl
+                  label="Filter requests"
                   value={activeRequestTab}
-                  onValueChange={(value) => setActiveRequestTab(value as RequestTab)}
-                >
-                  <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-2xl border border-border/70 bg-background p-2 md:grid-cols-4">
-                    <TabsTrigger value="all" className="rounded-xl">
-                      All
-                    </TabsTrigger>
-                    <TabsTrigger value="pending" className="rounded-xl">
-                      Pending
-                    </TabsTrigger>
-                    <TabsTrigger value="confirmed" className="rounded-xl">
-                      Confirmed
-                    </TabsTrigger>
-                    <TabsTrigger value="closed" className="rounded-xl">
-                      Closed
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
+                  onChange={setActiveRequestTab}
+                  className="grid-cols-2 md:grid-cols-4"
+                  options={[
+                    { value: 'all', label: 'All' },
+                    { value: 'pending', label: 'Pending' },
+                    { value: 'confirmed', label: 'Confirmed' },
+                    { value: 'closed', label: 'Closed', description: 'Declined or cancelled.' },
+                  ]}
+                />
 
                 {visibleRequests.length === 0 ? (
                   <EmptyPanel

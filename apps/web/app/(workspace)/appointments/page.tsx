@@ -19,6 +19,7 @@ import {
 import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
+import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { EmptyStateCard } from '@/components/ops/OpsShared';
 import { RouteGuard } from '@/components/RouteGuard';
@@ -50,7 +51,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/toast';
 import { useAuth } from '@/lib/auth-context';
@@ -692,16 +692,16 @@ export default function StaffAppointmentsPage() {
               </div>
             </div>
 
-            <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as ViewMode)}>
-              <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-2xl border border-border/70 bg-background p-2 sm:w-[320px]">
-                <TabsTrigger value="day" className="rounded-xl">
-                  Day
-                </TabsTrigger>
-                <TabsTrigger value="week" className="rounded-xl">
-                  Week
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <SegmentedControl
+              label="Schedule range"
+              value={viewMode}
+              onChange={setViewMode}
+              className="sm:w-[320px]"
+              options={[
+                { value: 'day', label: 'Day', description: 'Show one day of appointments.' },
+                { value: 'week', label: 'Week', description: 'Show one week of appointments.' },
+              ]}
+            />
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">

@@ -21,7 +21,7 @@ const SEED_PATIENT = 'Appointment Demo';
 async function openWeekSchedule(page) {
   await page.goto('/appointments');
   await expect(page.getByRole('heading', { name: 'Appointments', exact: true })).toBeVisible();
-  await page.getByRole('tab', { name: 'Week', exact: true }).click();
+  await page.getByRole('button', { name: 'Week', exact: true }).click();
   await expect(page.getByText(/appointments? for /i)).toBeAttached();
 }
 
@@ -50,9 +50,9 @@ test.describe('staff schedule', () => {
     await page.getByRole('button', { name: 'Previous range' }).click();
     await page.getByRole('button', { name: 'Today', exact: true }).click();
 
-    await expect(page.getByRole('tab', { name: 'Day', exact: true })).toHaveAttribute(
-      'data-state',
-      'active',
+    await expect(page.getByRole('button', { name: 'Day', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
     );
   });
 
@@ -163,10 +163,15 @@ test.describe('a volunteer', () => {
   test('reads the schedule and is offered nothing to change', async ({ page }) => {
     // A volunteer holds APPOINTMENT.READ and not APPOINTMENT.WRITE. The API refuses every write;
     // the affordance must be absent rather than present and rejected on submit.
+    // Pinned to a width where the table renders, so the label asserted on is the visible one
+    // rather than the hidden card beside it.
+    await page.setViewportSize({ width: 1440, height: 900 });
     await openWeekSchedule(page);
 
     await expect(page.getByRole('button', { name: 'Open appointment actions' })).toHaveCount(0);
-    await expect(page.getByText('Read-only').first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('table').getByText('Read-only').first()).toBeVisible({
+      timeout: 15_000,
+    });
   });
 
   test('sees patient requests but cannot triage them', async ({ page }) => {
