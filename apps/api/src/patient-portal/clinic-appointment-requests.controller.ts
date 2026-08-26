@@ -18,9 +18,16 @@ import {
 export class ClinicAppointmentRequestsController {
   constructor(private readonly patientPortalService: PatientPortalService) {}
 
+  /**
+   * Read the requests patients have sent this clinic.
+   *
+   * `APPOINTMENT.READ` rather than `CLINIC_READ`: confirming and rejecting below require
+   * `APPOINTMENT.WRITE`, which a doctor holds and `CLINIC_READ` does not grant. Gating the list
+   * on `CLINIC_READ` let a doctor act on a request they could not open.
+   */
   @Get()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
-  @RequirePermission(PERMISSIONS.CLINIC_READ)
+  @RequirePermission(PERMISSIONS.APPOINTMENT_READ)
   async listAppointmentRequests(
     @Param('clinicId') clinicId: string,
     @Query() query: ListAppointmentRequestsQueryDto,

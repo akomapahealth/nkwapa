@@ -69,7 +69,7 @@ describe('ReminderService', () => {
       send: jest.fn().mockResolvedValue({ success: true, providerMessageId: 'email-1' }),
     };
     reminderQueue = {
-      add: jest.fn().mockResolvedValue({ id: 'reminder:reminder-1' }),
+      add: jest.fn().mockResolvedValue({ id: 'reminder-reminder-1' }),
       getJob: jest.fn().mockResolvedValue({ remove: jest.fn().mockResolvedValue(undefined) }),
     };
     service = new ReminderService(
@@ -110,7 +110,7 @@ describe('ReminderService', () => {
     expect(reminderQueue.add).toHaveBeenCalledWith(
       'send',
       { reminderId: 'reminder-1', clinicId: 'clinic-1', userId: null },
-      expect.objectContaining({ jobId: 'reminder:reminder-1' }),
+      expect.objectContaining({ jobId: 'reminder-reminder-1' }),
     );
   });
 
@@ -163,8 +163,8 @@ describe('ReminderService', () => {
       where: { id: 'reminder-1' },
       data: { status: 'FAILED', failureReason: 'APPOINTMENT_RESCHEDULED' },
     });
-    expect(reminderQueue.getJob).toHaveBeenCalledWith('reminder:reminder-1');
-    expect(reminderQueue.getJob).toHaveBeenCalledWith('reminder:reminder-2');
+    expect(reminderQueue.getJob).toHaveBeenCalledWith('reminder-reminder-1');
+    expect(reminderQueue.getJob).toHaveBeenCalledWith('reminder-reminder-2');
   });
 
   it('does not send appointment reminders for cancelled appointments', async () => {

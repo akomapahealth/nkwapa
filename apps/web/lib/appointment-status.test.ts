@@ -4,7 +4,9 @@ import {
   getAppointmentStatusView,
   getNextConfirmedAppointment,
   isPatientAppointmentActionable,
-} from '@/lib/portal-appointment-status';
+  getAppointmentActionLabel,
+  getAppointmentStatusFilterLabel,
+} from '@/lib/appointment-status';
 import type { AppointmentSummary } from '@/lib/patient-portal';
 
 function appointment(overrides: Partial<AppointmentSummary>): AppointmentSummary {
@@ -25,21 +27,21 @@ function appointment(overrides: Partial<AppointmentSummary>): AppointmentSummary
   };
 }
 
-describe('portal appointment status helpers', () => {
+describe('appointment status helpers', () => {
   it('maps appointment request statuses to accessible status views', () => {
     expect(getAppointmentRequestStatusView('REQUESTED')).toMatchObject({
       label: 'Requested',
-      badgeVariant: 'secondary',
+      badgeVariant: 'outline',
       category: 'pending',
     });
     expect(getAppointmentRequestStatusView('TRIAGED')).toMatchObject({
       label: 'Under review',
-      badgeVariant: 'warning',
+      badgeVariant: 'review',
       category: 'pending',
     });
     expect(getAppointmentRequestStatusView('CONFIRMED')).toMatchObject({
       label: 'Confirmed',
-      badgeVariant: 'finalized',
+      badgeVariant: 'secondary',
       category: 'confirmed',
     });
     expect(getAppointmentRequestStatusView('REJECTED')).toMatchObject({
@@ -49,7 +51,7 @@ describe('portal appointment status helpers', () => {
     });
     expect(getAppointmentRequestStatusView('CANCELLED')).toMatchObject({
       label: 'Cancelled',
-      badgeVariant: 'outline',
+      badgeVariant: 'destructive',
       category: 'closed',
     });
     expect(getAppointmentRequestStatusView('STAFF_ESCALATED')).toMatchObject({
@@ -115,5 +117,43 @@ describe('portal appointment status helpers', () => {
     expect(isPatientAppointmentActionable(past, now)).toBe(false);
     expect(isPatientAppointmentActionable(completed, now)).toBe(false);
     expect(getNextConfirmedAppointment([completed, past, later, next], now)?.id).toBe('next-1');
+  });
+});
+
+describe('one vocabulary across staff and portal', () => {
+  it('renders a status the same way wherever it appears', () => {
+    // A request and the appointment it produced both read `CONFIRMED`, and used to render in two
+    // different colours on the same page.
+    for (const status of ['CONFIRMED', 'CANCELLED']) {
+      expect(getAppointmentRequestStatusView(status).badgeVariant).toBe(
+        getAppointmentStatusView(status).badgeVariant,
+      );
+      expect(getAppointmentRequestStatusView(status).label).toBe(
+        getAppointmentStatusView(status).label,
+      );
+    }
+  });
+
+  it('gives every status a description, not only a colour', () => {
+    for (const status of ['CONFIRMED', 'CANCELLED', 'COMPLETED', 'NO_SHOW']) {
+      expect(getAppointmentStatusView(status).description).not.toHaveLength(0);
+    }
+    for (const status of ['REQUESTED', 'TRIAGED', 'CONFIRMED', 'REJECTED', 'CANCELLED']) {
+      expect(getAppointmentRequestStatusView(status).description).not.toHaveLength(0);
+    }
+  });
+
+  it('names the staff filter and lifecycle actions the API uses', () => {
+    expect(getAppointmentStatusFilterLabel('ALL')).toBe('All statuses');
+    expect(getAppointmentStatusFilterLabel('NO_SHOW')).toBe('No-show');
+    expect(getAppointmentActionLabel('reschedule')).toBe('Reschedule');
+    expect(getAppointmentActionLabel('no-show')).toBe('Mark no-show');
+    expect(getAppointmentActionLabel('complete')).toBe('Complete');
+    expect(getAppointmentActionLabel('cancel')).toBe('Cancel');
+  });
+
+  it('falls back readably for a status this build does not know', () => {
+    expect(getAppointmentStatusView('SOME_NEW_STATE').label).toBe('Some New State');
+    expect(getAppointmentRequestStatusView('SOME_NEW_STATE').badgeVariant).toBe('outline');
   });
 });

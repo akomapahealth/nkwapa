@@ -12,38 +12,23 @@ For the delivery-ready version of this roadmap, see `docs/PRIORITIZED_IMPLEMENTA
 
 ## Priority Overview
 
-| Area                   | Current state                                                                    | Recommended next addition                                                                           |
-| ---------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Organization and zones | `Organization` and `zoneCode` exist in schema and RLS context                    | Add org-level admin/reporting and true zone-aware RBAC                                              |
-| Patient identity       | Merge flow, aliases, and portal invite claim exist                               | Add duplicate review queue, stronger match heuristics, cross-clinic consolidation                   |
-| Appointments           | Requests, confirmations, rejections, and appointment records exist               | Add staff calendar views, reschedule/cancel flows, no-show handling, reminder automation            |
-| Patient portal         | Claim, measurements, self-reports, trends, overview, appointment requests exist  | Add richer self-service history, cancellation/reschedule, better invite delivery, patient messaging |
-| Operations             | Shifts, check-ins, assignments, Today board, My Assigned are live                | Add wait-time analytics, room/resource capacity, richer staffing and queue metrics                  |
-| Offline                | Core EMR sync is implemented                                                     | Extend safe offline coverage to high-value ops and portal writes                                    |
-| Analytics              | Role-aware dashboard baseline exists                                             | Add org rollups, drilldowns, cohort views, and appointment/ops analytics                            |
-| RLS adoption           | HTTP request paths are covered                                                   | Add explicit tenant-context patterns for jobs, maintenance scripts, and one-off tools               |
-| UX resilience          | Shared boundaries, skeletons, retry states, and API error normalization are live | Finish route-by-route stale-refresh and optimistic update polish                                    |
+| Area                   | Current state                                                                    | Recommended next addition                                                                     |
+| ---------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Organization and zones | `Organization` and `zoneCode` exist in schema and RLS context                    | Add org-level admin/reporting and true zone-aware RBAC                                        |
+| Patient identity       | Merge flow, aliases, and portal invite claim exist                               | Add duplicate review queue, stronger match heuristics, cross-clinic consolidation             |
+| Appointments           | Full workflow ships: requests, staff triage, calendar, lifecycle, reminders      | Resolve the clinic/browser/UTC timezone split; paginate the week view; make TRIAGED reachable |
+| Patient portal         | Claim, measurements, self-reports, trends, overview, appointment change requests | Add richer self-service history, better invite delivery, patient messaging                    |
+| Operations             | Shifts, check-ins, assignments, Today board, My Assigned are live                | Add wait-time analytics, room/resource capacity, richer staffing and queue metrics            |
+| Offline                | Core EMR sync is implemented                                                     | Extend safe offline coverage to high-value ops and portal writes                              |
+| Analytics              | Role-aware dashboard baseline exists                                             | Add org rollups, drilldowns, cohort views, and appointment/ops analytics                      |
+| RLS adoption           | HTTP request paths are covered                                                   | Add explicit tenant-context patterns for jobs, maintenance scripts, and one-off tools         |
+| UX resilience          | Shared boundaries, skeletons, retry states, and API error normalization are live | Finish route-by-route stale-refresh and optimistic update polish                              |
 
 ---
 
 ## Recommended Sequencing
 
-### 1. Finish Appointment Operations
-
-Why next:
-
-- the schema and basic API paths are already present
-- appointment workflows are visible to both staff and patients
-- reminders and portal flows already depend on this area
-
-Suggested additions:
-
-- staff calendar/day/week list
-- confirm, reschedule, cancel, no-show actions
-- patient-visible upcoming and past appointment states
-- reminder scheduling tied to confirmed appointments
-
-### 2. Strengthen Patient Identity Operations
+### 1. Strengthen Patient Identity Operations
 
 Why next:
 
@@ -57,7 +42,7 @@ Suggested additions:
 - operator-safe merge previews
 - org-wide patient identity review tooling
 
-### 3. Promote Organization And Zone Features
+### 2. Promote Organization And Zone Features
 
 Why next:
 
@@ -71,7 +56,7 @@ Suggested additions:
 - zone-aware operational views
 - role scopes above the individual clinic
 
-### 4. Extend Offline Beyond Core EMR
+### 3. Extend Offline Beyond Core EMR
 
 Why next:
 
@@ -84,7 +69,7 @@ Suggested additions:
 - safer offline read caches for portal history views
 - clearer conflict resolution UI
 
-### 5. Standardize UX Recovery Across All Surfaces
+### 4. Standardize UX Recovery Across All Surfaces
 
 Why next:
 

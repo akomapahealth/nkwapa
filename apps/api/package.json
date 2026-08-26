@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "build": "nest build",
+    "docs:role-matrix": "ts-node --transpile-only scripts/generate-role-matrix.ts",
+    "docs:appointment-matrix": "ts-node --transpile-only scripts/generate-appointment-matrix.ts",
     "dev": "nest start --watch",
     "start": "nest start",
     "start:prod": "node dist/main",

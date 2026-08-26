@@ -12,3 +12,8 @@ apps/web/next-env.d.ts
 # `npm run docs:role-matrix --workspace=@nkwapa/api`. A test asserts it matches byte for byte,
 # so reformatting it here would put the two checks permanently at odds.
 docs/security/clinical-records-role-matrix.md
+
+# Generated from apps/api/src/testing/appointment-lifecycle.ts by
+# `npm run docs:appointment-matrix --workspace=@nkwapa/api`. A test asserts it matches byte for
+# byte, so reformatting it here would put the two checks permanently at odds.
+docs/security/appointment-lifecycle-matrix.md

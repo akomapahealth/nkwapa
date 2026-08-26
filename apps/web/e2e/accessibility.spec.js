@@ -59,8 +59,12 @@ test('the patient chart has no automatically detectable accessibility violations
   }
 });
 
-test('the dashboard and registry have no automatically detectable violations', async ({ page }) => {
-  for (const route of ['/dashboard', '/patients']) {
+test('the dashboard, registry, and schedule have no automatically detectable violations', async ({
+  page,
+}) => {
+  // `/appointments` carries a wide data table, a triage panel, and two dialogs, and was outside
+  // this sweep until the appointment release gate.
+  for (const route of ['/dashboard', '/patients', '/appointments']) {
     await page.goto(route);
     await page.waitForLoadState('networkidle');
 

@@ -40,6 +40,7 @@ Useful seed inputs:
 - `SEED_E2E_STAFF_NAME`
 - `SEED_E2E_STAFF_EMAIL`
 - `SEED_SAMPLE_PATIENT=true`
+- `SEED_SAMPLE_APPOINTMENTS=true`
 
 ---
 
@@ -197,6 +198,12 @@ Run once per environment, before enabling clinical records there. See
 - [ ] measurement logging works
 - [ ] self-report submission works
 - [ ] appointment request creation works
+- [ ] a request for a backwards date window is refused before it is sent
+- [ ] reschedule and cancellation requests can be raised against an upcoming confirmed visit
+- [ ] both actions are unavailable on a past, cancelled, completed, or no-show visit
+- [ ] a visit already carrying a pending change request offers no second request
+- [ ] an unclaimed patient opening `/portal/appointments/request` sees the claim prompt, not an
+      error string
 - [ ] trend views render usable data
 
 ---
@@ -273,11 +280,73 @@ horizontal overflow. These are the parts a person still has to judge.
 
 ---
 
-## 15. Partial Areas To Test Carefully
+## 15. Appointment Lifecycle Matrix
+
+The workflow this release gates end to end. See
+`docs/specs/12_APPOINTMENT_OPERATIONS_RELEASE_GATE.md` for what sits behind these, and seed the
+fixtures first with `SEED_SAMPLE_APPOINTMENTS=true npm run db:seed`.
+
+### Staff triage
+
+- [ ] `/appointments` lists pending patient requests above the schedule
+- [ ] a new-visit request and a reschedule request both appear, each naming what the patient asked
+      for and why
+- [ ] the confirm dialog opens on the patient's preferred window rather than an empty form
+- [ ] confirming books the visit, and it appears on the schedule below without a manual reload
+- [ ] declining without a reason is refused before anything is sent
+- [ ] a declined request shows the reason back to the patient in the portal
+
+### Staff lifecycle
+
+- [ ] day and week views both load, and the range controls move forward, back, and to today
+- [ ] status, doctor, volunteer, and patient filters each narrow the schedule
+- [ ] a filter matching nothing shows the empty state, not a blank panel
+- [ ] a confirmed appointment can be rescheduled, and an end time before the start is refused
+- [ ] cancelling requires a reason
+- [ ] completing and marking a no-show are refused until the appointment start time has passed
+- [ ] a cancelled, completed, or no-show appointment offers no further action
+- [ ] a volunteer sees the schedule and the request queue, and is offered no action on either
+- [ ] a director sees the schedule and is offered no action
+
+### Reminders
+
+- [ ] confirming a request returns without error and creates a queued reminder for 24 hours before
+      the visit
+- [ ] a patient with no phone and no email produces a visible failed reminder rather than silence
+- [ ] rescheduling suppresses the old reminder and queues a new one
+- [ ] cancelling, completing, or marking a no-show suppresses the queued reminder
+- [ ] a suppressed reminder stays visible with its reason instead of disappearing
+
+### Tenant isolation
+
+- [ ] a staff user switched to clinic A sees no appointment or request belonging to clinic B
+- [ ] opening another clinic's appointment by URL reports not found rather than forbidden
+- [ ] a portal patient reaches no staff appointment view
+- [ ] an audit entry for a lifecycle action shows the previous and new status and a request ID
+      shared with the reminder writes from the same action
+
+### Accessibility and layout
+
+Automated checks cover axe rules, focus indicators, keyboard movement, and horizontal overflow at
+the four supported widths. These are the parts a person still has to judge.
+
+- [ ] a screen reader announces the schedule changing when a filter or the day/week view changes
+- [ ] a dialog's validation message is announced when it appears, not only when navigated to
+- [ ] the schedule table is navigable by column, and its caption names the day it covers
+- [ ] status colours are legible against their backgrounds in both light and dark themes
+- [ ] the same status reads the same way on the staff schedule and in the portal
+- [ ] cards rather than a wide table are shown below 1280 pixels
+- [ ] the schedule, the request panel, and every dialog have no horizontal overflow at 375, 768,
+      1024, and 1440 pixels
+- [ ] every dialog can be completed and dismissed at 375 pixels
+
+---
+
+## 16. Partial Areas To Test Carefully
 
 These areas are implemented but still worth extra regression attention:
 
-- appointment workflows beyond basic request/confirm/reject
+- appointment times where staff, the clinic, and the browser are in different zones
 - offline behavior outside the original EMR flow
 - portal invite and claim edge cases
 - duplicate patient merge and canonical-chart redirects

@@ -185,10 +185,19 @@ export interface PatientTrendsResponse {
   followUp: FollowUpSummary;
 }
 
+export interface AppointmentRequestPatientSummary {
+  id: string;
+  patientCode: string;
+  firstName: string;
+  lastName: string;
+}
+
 export interface AppointmentRequestRecord {
   id: string;
   clinicId: string;
   patientId: string;
+  /** Present only on the staff view. The portal never names a patient back to themselves. */
+  patient?: AppointmentRequestPatientSummary;
   requestType: AppointmentRequestType;
   sourceAppointmentId: string | null;
   preferredStartDate: string;
@@ -510,6 +519,76 @@ export async function markStaffAppointmentNoShow(
     },
   );
   return parsePortalResponse<StaffAppointmentRecord>(res);
+}
+
+/**
+ * The requests patients have sent this clinic, for the staff triage panel.
+ *
+ * Gated on `APPOINTMENT.READ`, the same permission as the schedule itself, so every role that can
+ * act on a request can also open it.
+ */
+export async function fetchStaffAppointmentRequests(
+  clinicId: string,
+  getToken: GetToken,
+  params?: { status?: AppointmentRequestRecord['status']; from?: string; to?: string },
+) {
+  const search = new URLSearchParams();
+  if (params?.status) search.set('status', params.status);
+  if (params?.from) search.set('from', params.from);
+  if (params?.to) search.set('to', params.to);
+  const suffix = search.toString() ? `?${search.toString()}` : '';
+  const res = await apiFetch(
+    `/clinics/${encodeURIComponent(clinicId)}/appointment-requests${suffix}`,
+    { getToken, activeClinicId: clinicId },
+  );
+  return parsePortalResponse<AppointmentRequestRecord[]>(res);
+}
+
+export interface ConfirmAppointmentRequestResult {
+  request: AppointmentRequestRecord;
+  appointment: AppointmentSummary;
+}
+
+export async function confirmStaffAppointmentRequest(
+  clinicId: string,
+  requestId: string,
+  getToken: GetToken,
+  body: {
+    startsAt: string;
+    endsAt: string;
+    assignedDoctorId?: string;
+    assignedVolunteerId?: string;
+    notes?: string;
+  },
+) {
+  const res = await apiFetch(
+    `/clinics/${encodeURIComponent(clinicId)}/appointment-requests/${encodeURIComponent(requestId)}/confirm`,
+    {
+      method: 'POST',
+      body: JSON.stringify(body),
+      getToken,
+      activeClinicId: clinicId,
+    },
+  );
+  return parsePortalResponse<ConfirmAppointmentRequestResult>(res);
+}
+
+export async function rejectStaffAppointmentRequest(
+  clinicId: string,
+  requestId: string,
+  getToken: GetToken,
+  body: { reason: string },
+) {
+  const res = await apiFetch(
+    `/clinics/${encodeURIComponent(clinicId)}/appointment-requests/${encodeURIComponent(requestId)}/reject`,
+    {
+      method: 'POST',
+      body: JSON.stringify(body),
+      getToken,
+      activeClinicId: clinicId,
+    },
+  );
+  return parsePortalResponse<AppointmentRequestRecord>(res);
 }
 
 export async function createAppointmentRequest(

@@ -19,6 +19,7 @@ import {
 import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
+import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { EmptyStateCard } from '@/components/ops/OpsShared';
 import { RouteGuard } from '@/components/RouteGuard';
@@ -50,13 +51,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/toast';
 import { useAuth } from '@/lib/auth-context';
 import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { cn } from '@/lib/utils';
+import { AppointmentRequestsPanel } from '@/components/appointments/AppointmentRequestsPanel';
+import { AppointmentStatusBadge } from '@/components/appointments/AppointmentStatusBadge';
+import {
+  getAppointmentActionLabel as getActionLabel,
+  getAppointmentStatusFilterLabel as getStatusLabel,
+} from '@/lib/appointment-status';
 import {
   cancelStaffAppointment,
   completeStaffAppointment,
@@ -143,54 +149,6 @@ function getRangeForView(selectedDate: string, viewMode: ViewMode) {
     from,
     to: addDays(from, 6),
   };
-}
-
-function getStatusLabel(status: StaffAppointmentStatus | StatusFilter) {
-  switch (status) {
-    case 'CONFIRMED':
-      return 'Confirmed';
-    case 'COMPLETED':
-      return 'Completed';
-    case 'NO_SHOW':
-      return 'No-show';
-    case 'CANCELLED':
-      return 'Cancelled';
-    case 'ALL':
-    default:
-      return 'All statuses';
-  }
-}
-
-function getStatusVariant(
-  status: StaffAppointmentStatus,
-): 'finalized' | 'secondary' | 'warning' | 'destructive' | 'outline' {
-  switch (status) {
-    case 'CONFIRMED':
-      return 'secondary';
-    case 'COMPLETED':
-      return 'finalized';
-    case 'NO_SHOW':
-      return 'warning';
-    case 'CANCELLED':
-      return 'destructive';
-    default:
-      return 'outline';
-  }
-}
-
-function getActionLabel(action: LifecycleAction) {
-  switch (action) {
-    case 'reschedule':
-      return 'Reschedule';
-    case 'cancel':
-      return 'Cancel';
-    case 'complete':
-      return 'Complete';
-    case 'no-show':
-      return 'Mark no-show';
-    default:
-      return 'Update';
-  }
 }
 
 function toDateTimeLocalValue(value: string) {
@@ -386,9 +344,7 @@ function AppointmentMobileCard({
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">{appointment.patient.patientCode}</p>
         </div>
-        <Badge variant={getStatusVariant(appointment.status)}>
-          {getStatusLabel(appointment.status)}
-        </Badge>
+        <AppointmentStatusBadge status={appointment.status} />
       </div>
       <div className="mt-4 grid gap-3 text-sm">
         <div className="flex items-center gap-2 text-foreground">
@@ -641,13 +597,26 @@ export default function StaffAppointmentsPage() {
             <Button
               type="button"
               variant="outline"
+              className="h-11 cursor-pointer"
               onClick={() => void loadSchedule({ background: true })}
               disabled={refreshing || loading}
             >
-              <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
+              <RefreshCw
+                className={cn('h-4 w-4', refreshing && 'animate-spin motion-reduce:animate-none')}
+                aria-hidden="true"
+              />
               Refresh
             </Button>
           }
+        />
+
+        <AppointmentRequestsPanel
+          clinicId={clinicId}
+          getToken={getToken}
+          canManage={canManageAppointments}
+          staffOptions={staffOptions}
+          timezone={timezone}
+          onRequestResolved={() => loadSchedule({ background: true })}
         />
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -684,7 +653,7 @@ export default function StaffAppointmentsPage() {
           />
         </section>
 
-        <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+        <Card className="rounded-[28px] border-border/80 bg-card">
           <CardHeader className="space-y-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
@@ -692,34 +661,47 @@ export default function StaffAppointmentsPage() {
                 <CardDescription>{rangeLabel}</CardDescription>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="outline" size="icon" onClick={() => shiftRange(-1)}>
-                  <ChevronLeft className="h-4 w-4" />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-11 w-11 cursor-pointer"
+                  onClick={() => shiftRange(-1)}
+                >
+                  <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                   <span className="sr-only">Previous range</span>
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
+                  className="h-11 cursor-pointer"
                   onClick={() => setSelectedDate(getTodayInTimeZone())}
                 >
                   Today
                 </Button>
-                <Button type="button" variant="outline" size="icon" onClick={() => shiftRange(1)}>
-                  <ChevronRight className="h-4 w-4" />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-11 w-11 cursor-pointer"
+                  onClick={() => shiftRange(1)}
+                >
+                  <ChevronRight className="h-4 w-4" aria-hidden="true" />
                   <span className="sr-only">Next range</span>
                 </Button>
               </div>
             </div>
 
-            <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as ViewMode)}>
-              <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-2xl border border-border/70 bg-background p-2 sm:w-[320px]">
-                <TabsTrigger value="day" className="rounded-xl">
-                  Day
-                </TabsTrigger>
-                <TabsTrigger value="week" className="rounded-xl">
-                  Week
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <SegmentedControl
+              label="Schedule range"
+              value={viewMode}
+              onChange={setViewMode}
+              className="sm:w-[320px]"
+              options={[
+                { value: 'day', label: 'Day', description: 'Show one day of appointments.' },
+                { value: 'week', label: 'Week', description: 'Show one week of appointments.' },
+              ]}
+            />
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -837,141 +819,171 @@ export default function StaffAppointmentsPage() {
           />
         ) : null}
 
-        {loading ? (
-          <SectionSkeleton lines={viewMode === 'day' ? 3 : 5} className="rounded-[28px] p-6" />
-        ) : !error ? (
-          <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
-            <CardHeader className="space-y-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <CardTitle className="text-xl">
-                    {viewMode === 'day' ? 'Day schedule' : 'Week schedule'}
-                  </CardTitle>
-                  <CardDescription>
-                    {viewMode === 'day'
-                      ? 'A compact answer to who is scheduled today.'
-                      : 'Appointments grouped by the day they start.'}
-                  </CardDescription>
+        <div aria-live="polite" aria-busy={loading || refreshing} className="space-y-6">
+          <p className="sr-only">
+            {loading
+              ? 'Loading the appointment schedule.'
+              : error
+                ? 'The appointment schedule could not be loaded.'
+                : `${items.length} appointment${items.length === 1 ? '' : 's'} for ${rangeLabel}.`}
+          </p>
+          {loading ? (
+            <SectionSkeleton lines={viewMode === 'day' ? 3 : 5} className="rounded-[28px] p-6" />
+          ) : !error ? (
+            <Card className="rounded-[28px] border-border/80 bg-card">
+              <CardHeader className="space-y-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <CardTitle className="text-xl">
+                      {viewMode === 'day' ? 'Day schedule' : 'Week schedule'}
+                    </CardTitle>
+                    <CardDescription>
+                      {viewMode === 'day'
+                        ? 'A compact answer to who is scheduled today.'
+                        : 'Appointments grouped by the day they start.'}
+                    </CardDescription>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className="w-fit rounded-full bg-background/80 px-3 py-1"
+                  >
+                    {items.length} shown
+                  </Badge>
                 </div>
-                <Badge variant="outline" className="w-fit rounded-full bg-background/80 px-3 py-1">
-                  {items.length} shown
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              {items.length === 0 ? (
-                <EmptyStateCard
-                  title="No appointments found"
-                  description="Try a different date range or clear one of the filters to broaden the schedule."
-                />
-              ) : (
-                groupedAppointments.map(([date, appointments]) => (
-                  <section key={date} className="space-y-3">
-                    <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-background/70 px-4 py-3">
-                      <div>
-                        <h2 className="font-semibold text-foreground">
-                          {formatOpsDate(date, timezone)}
-                        </h2>
-                        <p className="text-sm text-muted-foreground">
-                          {appointments.length} appointment{appointments.length === 1 ? '' : 's'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {appointments.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
-                        Nothing scheduled for this day.
-                      </div>
-                    ) : (
-                      <>
-                        <div className="space-y-3 md:hidden">
-                          {appointments.map((appointment) => (
-                            <AppointmentMobileCard
-                              key={appointment.id}
-                              appointment={appointment}
-                              timezone={timezone}
-                              canManage={canManageAppointments}
-                              disabled={lifecycleSubmitting}
-                              onAction={openLifecycleDialog}
-                            />
-                          ))}
+              </CardHeader>
+              <CardContent className="space-y-5">
+                {items.length === 0 ? (
+                  <EmptyStateCard
+                    title="No appointments found"
+                    description="Try a different date range or clear one of the filters to broaden the schedule."
+                  />
+                ) : (
+                  groupedAppointments.map(([date, appointments]) => (
+                    <section key={date} className="space-y-3">
+                      <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-background/70 px-4 py-3">
+                        <div>
+                          <h2 className="font-semibold text-foreground">
+                            {formatOpsDate(date, timezone)}
+                          </h2>
+                          <p className="text-sm text-muted-foreground">
+                            {appointments.length} appointment{appointments.length === 1 ? '' : 's'}
+                          </p>
                         </div>
+                      </div>
 
-                        <div className="hidden overflow-x-auto rounded-2xl border border-border/80 md:block">
-                          <table className="w-full min-w-[1080px] border-collapse text-sm">
-                            <thead className="bg-muted/50 text-left text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                              <tr>
-                                <th className="px-4 py-3">Time</th>
-                                <th className="px-4 py-3">Patient</th>
-                                <th className="px-4 py-3">Status</th>
-                                <th className="px-4 py-3">Reminders</th>
-                                <th className="px-4 py-3">Doctor</th>
-                                <th className="px-4 py-3">Volunteer</th>
-                                <th className="px-4 py-3">Notes</th>
-                                <th className="px-4 py-3 text-right">Actions</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {appointments.map((appointment) => (
-                                <tr
-                                  key={appointment.id}
-                                  className="border-t border-border/70 bg-background/70 transition-colors hover:bg-muted/30"
-                                >
-                                  <td className="whitespace-nowrap px-4 py-3 font-medium text-foreground">
-                                    {formatOpsTime(appointment.startsAt, timezone)} to{' '}
-                                    {formatOpsTime(appointment.endsAt, timezone)}
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <div className="font-medium text-foreground">
-                                      {appointment.patient.displayName}
-                                    </div>
-                                    <div className="text-xs text-muted-foreground">
-                                      {appointment.patient.patientCode}
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <Badge variant={getStatusVariant(appointment.status)}>
-                                      {getStatusLabel(appointment.status)}
-                                    </Badge>
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <AppointmentReminderStatus
-                                      appointment={appointment}
-                                      timezone={timezone}
-                                    />
-                                  </td>
-                                  <td className="px-4 py-3 text-muted-foreground">
-                                    {staffName(appointment.assignedDoctor)}
-                                  </td>
-                                  <td className="px-4 py-3 text-muted-foreground">
-                                    {staffName(appointment.assignedVolunteer)}
-                                  </td>
-                                  <td className="max-w-[260px] px-4 py-3 text-muted-foreground">
-                                    <span className="line-clamp-2">
-                                      {appointment.notes || 'No notes'}
-                                    </span>
-                                  </td>
-                                  <td className="px-4 py-3 text-right">
-                                    <AppointmentActions
-                                      appointment={appointment}
-                                      canManage={canManageAppointments}
-                                      disabled={lifecycleSubmitting}
-                                      onAction={openLifecycleDialog}
-                                    />
-                                  </td>
+                      {appointments.length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
+                          Nothing scheduled for this day.
+                        </div>
+                      ) : (
+                        <>
+                          <div className="space-y-3 xl:hidden">
+                            {appointments.map((appointment) => (
+                              <AppointmentMobileCard
+                                key={appointment.id}
+                                appointment={appointment}
+                                timezone={timezone}
+                                canManage={canManageAppointments}
+                                disabled={lifecycleSubmitting}
+                                onAction={openLifecycleDialog}
+                              />
+                            ))}
+                          </div>
+
+                          <div className="hidden overflow-x-auto rounded-2xl border border-border/80 xl:block">
+                            <table className="w-full min-w-[1080px] border-collapse text-sm">
+                              <caption className="sr-only">
+                                Appointments on {formatOpsDate(date, timezone)}, with status,
+                                reminders, assigned staff, and available actions.
+                              </caption>
+                              <thead className="bg-muted/50 text-left text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                                <tr>
+                                  <th scope="col" className="px-4 py-3">
+                                    Time
+                                  </th>
+                                  <th scope="col" className="px-4 py-3">
+                                    Patient
+                                  </th>
+                                  <th scope="col" className="px-4 py-3">
+                                    Status
+                                  </th>
+                                  <th scope="col" className="px-4 py-3">
+                                    Reminders
+                                  </th>
+                                  <th scope="col" className="px-4 py-3">
+                                    Doctor
+                                  </th>
+                                  <th scope="col" className="px-4 py-3">
+                                    Volunteer
+                                  </th>
+                                  <th scope="col" className="px-4 py-3">
+                                    Notes
+                                  </th>
+                                  <th scope="col" className="px-4 py-3 text-right">
+                                    Actions
+                                  </th>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </>
-                    )}
-                  </section>
-                ))
-              )}
-            </CardContent>
-          </Card>
-        ) : null}
+                              </thead>
+                              <tbody>
+                                {appointments.map((appointment) => (
+                                  <tr
+                                    key={appointment.id}
+                                    className="border-t border-border/70 bg-background/70 transition-colors hover:bg-muted/30"
+                                  >
+                                    <td className="whitespace-nowrap px-4 py-3 font-medium text-foreground">
+                                      {formatOpsTime(appointment.startsAt, timezone)} to{' '}
+                                      {formatOpsTime(appointment.endsAt, timezone)}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <div className="font-medium text-foreground">
+                                        {appointment.patient.displayName}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">
+                                        {appointment.patient.patientCode}
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <AppointmentStatusBadge status={appointment.status} />
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <AppointmentReminderStatus
+                                        appointment={appointment}
+                                        timezone={timezone}
+                                      />
+                                    </td>
+                                    <td className="px-4 py-3 text-muted-foreground">
+                                      {staffName(appointment.assignedDoctor)}
+                                    </td>
+                                    <td className="px-4 py-3 text-muted-foreground">
+                                      {staffName(appointment.assignedVolunteer)}
+                                    </td>
+                                    <td className="max-w-[260px] px-4 py-3 text-muted-foreground">
+                                      <span className="line-clamp-2">
+                                        {appointment.notes || 'No notes'}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-3 text-right">
+                                      <AppointmentActions
+                                        appointment={appointment}
+                                        canManage={canManageAppointments}
+                                        disabled={lifecycleSubmitting}
+                                        onAction={openLifecycleDialog}
+                                      />
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </>
+                      )}
+                    </section>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          ) : null}
+        </div>
       </div>
 
       <Dialog
@@ -998,6 +1010,7 @@ export default function StaffAppointmentsPage() {
                 <Label htmlFor="reschedule-starts-at">Start time</Label>
                 <Input
                   id="reschedule-starts-at"
+                  aria-describedby={lifecycleError ? 'lifecycle-dialog-error' : undefined}
                   type="datetime-local"
                   value={rescheduleStartsAt}
                   onChange={(event) => setRescheduleStartsAt(event.target.value)}
@@ -1008,6 +1021,7 @@ export default function StaffAppointmentsPage() {
                 <Label htmlFor="reschedule-ends-at">End time</Label>
                 <Input
                   id="reschedule-ends-at"
+                  aria-describedby={lifecycleError ? 'lifecycle-dialog-error' : undefined}
                   type="datetime-local"
                   value={rescheduleEndsAt}
                   onChange={(event) => setRescheduleEndsAt(event.target.value)}
@@ -1034,6 +1048,7 @@ export default function StaffAppointmentsPage() {
               </Label>
               <Textarea
                 id="lifecycle-reason"
+                aria-describedby={lifecycleError ? 'lifecycle-dialog-error' : undefined}
                 value={lifecycleReason}
                 onChange={(event) => setLifecycleReason(event.target.value)}
                 disabled={lifecycleSubmitting}
@@ -1060,7 +1075,11 @@ export default function StaffAppointmentsPage() {
           ) : null}
 
           {lifecycleError ? (
-            <div className="rounded-2xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <div
+              id="lifecycle-dialog-error"
+              role="alert"
+              className="rounded-2xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+            >
               {lifecycleError}
             </div>
           ) : null}
@@ -1069,6 +1088,7 @@ export default function StaffAppointmentsPage() {
             <Button
               type="button"
               variant="outline"
+              className="h-11 cursor-pointer"
               onClick={closeLifecycleDialog}
               disabled={lifecycleSubmitting}
             >
@@ -1077,6 +1097,7 @@ export default function StaffAppointmentsPage() {
             <Button
               type="button"
               variant={lifecycleDialog?.action === 'cancel' ? 'destructive' : 'default'}
+              className="h-11 cursor-pointer"
               onClick={() => void submitLifecycleAction()}
               disabled={lifecycleSubmitting}
             >

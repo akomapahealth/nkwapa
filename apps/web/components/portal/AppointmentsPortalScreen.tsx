@@ -14,10 +14,15 @@ import {
   RotateCcw,
   XCircle,
 } from 'lucide-react';
-import { InlineErrorState } from '@/components/feedback/AppState';
+import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
+import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { PortalLinkRequiredState } from '@/components/portal/PortalLinkRequiredState';
 import { RouteGuard } from '@/components/RouteGuard';
 import { Badge } from '@/components/ui/badge';
+import {
+  AppointmentRequestStatusBadge,
+  AppointmentStatusBadge,
+} from '@/components/appointments/AppointmentStatusBadge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -30,7 +35,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/toast';
 import { useAuth } from '@/lib/auth-context';
@@ -55,7 +59,7 @@ import {
   getAppointmentStatusView,
   getNextConfirmedAppointment,
   isPatientAppointmentActionable,
-} from '@/lib/portal-appointment-status';
+} from '@/lib/appointment-status';
 import { cn } from '@/lib/utils';
 
 type RequestTab = 'all' | 'pending' | 'confirmed' | 'closed';
@@ -148,7 +152,6 @@ function AppointmentRow({
   pendingChangeRequest?: AppointmentRequestRecord;
   onAction: (action: ChangeAction, appointment: AppointmentSummary) => void;
 }) {
-  const statusView = getAppointmentStatusView(appointment.status);
   const actionable = isPatientAppointmentActionable(appointment) && !pendingChangeRequest;
 
   return (
@@ -156,13 +159,7 @@ function AppointmentRow({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge
-              variant={statusView.badgeVariant}
-              aria-label={`${statusView.label}: ${statusView.description}`}
-              className="rounded-full"
-            >
-              {statusView.label}
-            </Badge>
+            <AppointmentStatusBadge status={appointment.status} className="rounded-full" />
             {pendingChangeRequest ? (
               <Badge variant="warning" className="rounded-full">
                 {getAppointmentRequestTypeLabel(pendingChangeRequest.requestType)} pending
@@ -216,7 +213,6 @@ function AppointmentRow({
 }
 
 function RequestRow({ request }: { request: AppointmentRequestRecord }) {
-  const statusView = getAppointmentRequestStatusView(request.status);
   const typeLabel = getAppointmentRequestTypeLabel(request.requestType);
 
   return (
@@ -227,13 +223,7 @@ function RequestRow({ request }: { request: AppointmentRequestRecord }) {
             <Badge variant="outline" className="rounded-full bg-card">
               {typeLabel}
             </Badge>
-            <Badge
-              variant={statusView.badgeVariant}
-              aria-label={`${statusView.label}: ${statusView.description}`}
-              className="rounded-full"
-            >
-              {statusView.label}
-            </Badge>
+            <AppointmentRequestStatusBadge status={request.status} className="rounded-full" />
           </div>
           <p className="font-medium text-foreground">
             Preferred window: {getRequestWindow(request)}
@@ -281,15 +271,20 @@ function RequestRow({ request }: { request: AppointmentRequestRecord }) {
           ) : null}
 
           {request.appointment ? (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 dark:border-emerald-900/50 dark:bg-emerald-900/20">
               <div className="flex items-center gap-2">
-                <CalendarDays className="h-4 w-4 text-emerald-700" />
-                <p className="font-medium text-emerald-950">Confirmed visit</p>
+                <CalendarDays
+                  className="h-4 w-4 text-emerald-700 dark:text-emerald-300"
+                  aria-hidden="true"
+                />
+                <p className="font-medium text-emerald-950 dark:text-emerald-100">
+                  Confirmed visit
+                </p>
               </div>
-              <p className="mt-2 text-sm text-emerald-950">
+              <p className="mt-2 text-sm text-emerald-950 dark:text-emerald-100">
                 {formatPortalDateTime(request.appointment.startsAt)}
               </p>
-              <p className="text-sm text-emerald-900/80">
+              <p className="text-sm text-emerald-900/80 dark:text-emerald-200/80">
                 Ends {formatPortalDateTime(request.appointment.endsAt)}
               </p>
             </div>
@@ -530,7 +525,10 @@ export function AppointmentsPortalScreen() {
                 onClick={() => void loadAppointments({ background: true })}
                 disabled={refreshing || loading}
               >
-                <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
+                <RefreshCw
+                  className={cn('h-4 w-4', refreshing && 'animate-spin motion-reduce:animate-none')}
+                  aria-hidden="true"
+                />
                 Refresh
               </Button>
             </CardContent>
@@ -602,7 +600,10 @@ export function AppointmentsPortalScreen() {
           </Card>
           <Card className="border-border/70 bg-card/95">
             <CardHeader className="space-y-3">
-              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              <CheckCircle2
+                className="h-5 w-5 text-emerald-600 dark:text-emerald-400"
+                aria-hidden="true"
+              />
               <div>
                 <CardTitle className="text-2xl">{completedCount}</CardTitle>
                 <CardDescription>Completed visits</CardDescription>
@@ -620,10 +621,18 @@ export function AppointmentsPortalScreen() {
           </Card>
         </section>
 
+        <p aria-live="polite" aria-busy={loading || refreshing} className="sr-only">
+          {loading
+            ? 'Loading your appointments.'
+            : error
+              ? 'Your appointments could not be loaded.'
+              : `${appointments.length} appointment${appointments.length === 1 ? '' : 's'} and ${requests.length} request${requests.length === 1 ? '' : 's'} loaded.`}
+        </p>
+
         {loading ? (
           <div className="grid gap-4 lg:grid-cols-2">
             {Array.from({ length: 4 }).map((_, index) => (
-              <Card key={index} className="h-40 animate-pulse border-border/70 bg-muted/30" />
+              <SectionSkeleton key={index} lines={4} className="rounded-[28px] p-6" />
             ))}
           </div>
         ) : null}
@@ -647,25 +656,18 @@ export function AppointmentsPortalScreen() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Tabs
+                <SegmentedControl
+                  label="Filter appointments"
                   value={activeAppointmentTab}
-                  onValueChange={(value) => setActiveAppointmentTab(value as AppointmentTab)}
-                >
-                  <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-2xl border border-border/70 bg-background p-2 md:grid-cols-4">
-                    <TabsTrigger value="all" className="rounded-xl">
-                      All
-                    </TabsTrigger>
-                    <TabsTrigger value="upcoming" className="rounded-xl">
-                      Upcoming
-                    </TabsTrigger>
-                    <TabsTrigger value="completed" className="rounded-xl">
-                      Completed
-                    </TabsTrigger>
-                    <TabsTrigger value="closed" className="rounded-xl">
-                      Closed
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
+                  onChange={setActiveAppointmentTab}
+                  className="grid-cols-2 md:grid-cols-4"
+                  options={[
+                    { value: 'all', label: 'All' },
+                    { value: 'upcoming', label: 'Upcoming' },
+                    { value: 'completed', label: 'Completed' },
+                    { value: 'closed', label: 'Closed', description: 'Cancelled or missed.' },
+                  ]}
+                />
 
                 {visibleAppointments.length === 0 ? (
                   <EmptyPanel
@@ -698,25 +700,18 @@ export function AppointmentsPortalScreen() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Tabs
+                <SegmentedControl
+                  label="Filter requests"
                   value={activeRequestTab}
-                  onValueChange={(value) => setActiveRequestTab(value as RequestTab)}
-                >
-                  <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-2xl border border-border/70 bg-background p-2 md:grid-cols-4">
-                    <TabsTrigger value="all" className="rounded-xl">
-                      All
-                    </TabsTrigger>
-                    <TabsTrigger value="pending" className="rounded-xl">
-                      Pending
-                    </TabsTrigger>
-                    <TabsTrigger value="confirmed" className="rounded-xl">
-                      Confirmed
-                    </TabsTrigger>
-                    <TabsTrigger value="closed" className="rounded-xl">
-                      Closed
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
+                  onChange={setActiveRequestTab}
+                  className="grid-cols-2 md:grid-cols-4"
+                  options={[
+                    { value: 'all', label: 'All' },
+                    { value: 'pending', label: 'Pending' },
+                    { value: 'confirmed', label: 'Confirmed' },
+                    { value: 'closed', label: 'Closed', description: 'Declined or cancelled.' },
+                  ]}
+                />
 
                 {visibleRequests.length === 0 ? (
                   <EmptyPanel

@@ -157,20 +157,20 @@ nkwapa/
 | Self-reports                            | ✅     | 100% | Patient-submitted health data         |
 | Appointment requests                    | ✅     | 100% | Date range request -> clinic confirms |
 | Portal overview                         | ✅     | 100% | Summary view                          |
-| Reschedule/cancel by patient            | ❌     | 0%   | Not yet built                         |
+| Reschedule/cancel by patient            | ✅     | 100% | Change requests; staff decide         |
 | Patient-to-staff messaging              | 🚀     | 0%   | Future consideration                  |
 
 ### Appointment Scheduling
 
-| Feature                               | Status | %    | Notes                                              |
-| ------------------------------------- | ------ | ---- | -------------------------------------------------- |
-| Appointment request (patient)         | ✅     | 100% | Date range + reason                                |
-| Confirm/reject by staff               | ✅     | 100% | Creates Appointment record, schedules reminder     |
-| Appointment persistence               | ✅     | 100% | CONFIRMED, CANCELLED, COMPLETED, NO_SHOW statuses  |
-| Staff calendar view                   | ❌     | 0%   | No dedicated calendar UI                           |
-| Reschedule/cancel flows               | ❌     | 0%   | Not yet built                                      |
-| No-show handling & reporting          | ❌     | 0%   | Status exists, no workflow UI                      |
-| Reminder automation tied to lifecycle | 🚧     | 40%  | Basic reminder on confirm, no full lifecycle hooks |
+| Feature                               | Status | %    | Notes                                                |
+| ------------------------------------- | ------ | ---- | ---------------------------------------------------- |
+| Appointment request (patient)         | ✅     | 100% | Date range + reason                                  |
+| Confirm/reject by staff               | ✅     | 100% | Triage panel on `/appointments`; schedules reminder  |
+| Appointment persistence               | ✅     | 100% | CONFIRMED, CANCELLED, COMPLETED, NO_SHOW statuses    |
+| Staff calendar view                   | ✅     | 100% | `/appointments`, day and week, filters, card + table |
+| Reschedule/cancel flows               | ✅     | 100% | Staff lifecycle actions; patient change requests     |
+| No-show handling & reporting          | ✅     | 100% | Refused before the start time; counted in summary    |
+| Reminder automation tied to lifecycle | ✅     | 100% | Suppressed on every transition, re-checked at send   |
 
 ### Reminders & Notifications
 
