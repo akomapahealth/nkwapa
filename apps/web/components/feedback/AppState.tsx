@@ -1,7 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import { Activity, AlertTriangle, RefreshCw, ShieldCheck, Stethoscope } from 'lucide-react';
+import {
+  Activity,
+  AlertTriangle,
+  Inbox,
+  Lock,
+  RefreshCw,
+  ShieldCheck,
+  Stethoscope,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -20,7 +29,7 @@ export function PageSkeleton({
   return (
     <div className={cn('min-h-[60vh] bg-clinical-grid px-4 py-8 md:px-6', className)}>
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
-        <div className="overflow-hidden rounded-[32px] border border-border/70 bg-card/95 shadow-2xl shadow-black/5">
+        <div className="overflow-hidden rounded-xl border border-border/70 bg-card/95">
           <div className="h-1.5 w-full overflow-hidden bg-muted/50">
             <div className="h-full w-1/2 animate-[loading-bar_1.7s_ease-in-out_infinite] bg-primary/80" />
           </div>
@@ -43,7 +52,7 @@ export function PageSkeleton({
                   {steps.map((step, index) => (
                     <div
                       key={step}
-                      className="flex items-center gap-2 rounded-2xl border border-border/70 bg-background/75 px-3 py-2 text-xs font-medium text-muted-foreground"
+                      className="flex items-center gap-2 rounded-md border border-border/70 bg-background/75 px-3 py-2 text-xs font-medium text-muted-foreground"
                     >
                       <span
                         className="h-2 w-2 rounded-full bg-primary"
@@ -58,7 +67,7 @@ export function PageSkeleton({
                 {Array.from({ length: 3 }).map((_, index) => (
                   <div
                     key={index}
-                    className="h-24 animate-pulse rounded-2xl border border-border/70 bg-muted/40"
+                    className="h-24 animate-pulse rounded-md border border-border/70 bg-muted/40"
                   />
                 ))}
               </div>
@@ -66,8 +75,8 @@ export function PageSkeleton({
           </div>
         </div>
 
-        <SectionSkeleton lines={2} className="rounded-[28px] p-6 md:p-8" />
-        <SectionSkeleton lines={5} className="rounded-[28px] p-6 md:p-8" />
+        <SectionSkeleton lines={2} className="rounded-lg p-6 md:p-8" />
+        <SectionSkeleton lines={5} className="rounded-lg p-6 md:p-8" />
       </div>
     </div>
   );
@@ -76,14 +85,14 @@ export function PageSkeleton({
 export function DashboardLoadingState({ clinicName }: { clinicName?: string | null }) {
   return (
     <div className="space-y-5">
-      <div className="rounded-[28px] border border-border/70 bg-card/90 p-5 shadow-sm">
+      <div className="rounded-lg border border-border/70 bg-card/90 p-5 shadow-sm">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="space-y-2">
             <div className="h-4 w-36 animate-pulse rounded-full bg-primary/20" />
             <div className="h-7 w-64 max-w-full animate-pulse rounded-full bg-muted/60" />
             <div className="h-4 w-80 max-w-full animate-pulse rounded-full bg-muted/40" />
           </div>
-          <div className="inline-flex items-center gap-3 rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-medium text-primary">
+          <div className="inline-flex items-center gap-3 rounded-md border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-medium text-primary">
             <Stethoscope className="h-4 w-4 animate-pulse" />
             {clinicName ? `Loading ${clinicName}` : 'Loading clinic dashboard'}
           </div>
@@ -94,19 +103,19 @@ export function DashboardLoadingState({ clinicName }: { clinicName?: string | nu
         {Array.from({ length: 5 }).map((_, index) => (
           <div
             key={index}
-            className="h-32 animate-pulse rounded-2xl border border-border/70 bg-card/80"
+            className="h-32 animate-pulse rounded-md border border-border/70 bg-card/80"
           />
         ))}
       </div>
 
-      <SectionSkeleton lines={4} className="rounded-[28px] p-6" />
+      <SectionSkeleton lines={4} className="rounded-lg p-6" />
     </div>
   );
 }
 
 export function SectionSkeleton({ lines = 4, className }: { lines?: number; className?: string }) {
   return (
-    <Card className={cn('border-border/70 bg-card/90 shadow-lg shadow-black/5', className)}>
+    <Card className={cn('border-border/70 bg-card/90', className)}>
       <CardContent className="space-y-4 p-0">
         <div className="space-y-3">
           <div className="h-5 w-40 animate-pulse rounded-full bg-muted/50" />
@@ -116,7 +125,7 @@ export function SectionSkeleton({ lines = 4, className }: { lines?: number; clas
           {Array.from({ length: lines }).map((_, index) => (
             <div
               key={index}
-              className="h-20 animate-pulse rounded-2xl border border-border/60 bg-muted/35"
+              className="h-20 animate-pulse rounded-md border border-border/60 bg-muted/35"
             />
           ))}
         </div>
@@ -135,7 +144,7 @@ export function RetryAction({
   variant?: 'default' | 'outline';
 }) {
   return (
-    <Button onClick={onRetry} variant={variant} className="rounded-2xl">
+    <Button onClick={onRetry} variant={variant} className="rounded-md">
       <RefreshCw className="h-4 w-4" />
       {label}
     </Button>
@@ -158,7 +167,7 @@ export function InlineErrorState({
   return (
     <div
       className={cn(
-        'rounded-[28px] border border-destructive/20 bg-destructive/5 p-5 text-sm shadow-sm',
+        'rounded-lg border border-destructive/20 bg-destructive/5 p-5 text-sm shadow-sm',
         className,
       )}
     >
@@ -193,10 +202,9 @@ export function FullscreenStatus({
 }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-clinical-grid p-6">
-      <Card className="w-full max-w-3xl overflow-hidden rounded-[32px] border-border/70 bg-card/95 shadow-2xl shadow-black/5">
+      <Card className="w-full max-w-3xl overflow-hidden rounded-xl border-border/70 bg-card/95">
         <CardContent className="grid gap-0 lg:grid-cols-[1.08fr_0.92fr]">
           <section className="relative overflow-hidden px-6 py-8 md:px-8 md:py-10">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.14),transparent_35%),radial-gradient(circle_at_bottom_right,hsl(var(--secondary)/0.12),transparent_32%)]" />
             <div className="relative space-y-5">
               <p
                 className={cn(
@@ -245,15 +253,98 @@ export function NotFoundState() {
       title="This page couldn't be found"
       description="The address may be outdated, or the page may have moved after a clinic or portal update."
       primaryAction={
-        <Button asChild className="rounded-2xl">
+        <Button asChild className="rounded-md">
           <Link href="/dashboard">Open dashboard</Link>
         </Button>
       }
       secondaryAction={
-        <Button asChild variant="outline" className="rounded-2xl">
+        <Button asChild variant="outline" className="rounded-md">
           <Link href="/">Back to home</Link>
         </Button>
       }
     />
+  );
+}
+
+/**
+ * "There is nothing here yet", not "something went wrong".
+ *
+ * Kept visually distinct from InlineErrorState on purpose: an empty queue at the start of a
+ * clinic day is the normal case, and dressing it in destructive colour trains staff to read
+ * a calm system as a broken one. Neutral surface, no alarm colour, no retry.
+ */
+export function EmptyState({
+  title,
+  description,
+  icon: Icon = Inbox,
+  action,
+  className,
+}: {
+  title: string;
+  /** What the reader can do about it, in plain language. Not an apology. */
+  description: string;
+  icon?: LucideIcon;
+  action?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        'flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-muted/30 px-6 py-12 text-center',
+        className,
+      )}
+    >
+      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
+        <Icon aria-hidden="true" className="h-5 w-5" />
+      </span>
+      <div className="space-y-1">
+        <p className="font-medium text-foreground">{title}</p>
+        <p className="mx-auto max-w-prose text-sm leading-6 text-muted-foreground">{description}</p>
+      </div>
+      {action ? <div className="pt-1">{action}</div> : null}
+    </div>
+  );
+}
+
+/**
+ * Permission and tenant-scope refusals.
+ *
+ * Deliberately NOT an error state and deliberately without a retry control. Issue #22 requires
+ * that fallbacks never disguise a permission or clinic-scope problem as a transient failure:
+ * offering "Try again" on a wall the user cannot pass teaches them to hammer it, and hides the
+ * real fix, which is asking an administrator or switching clinic.
+ *
+ * Never name the record the user was denied. On a patient route, saying which patient they may
+ * not see is itself a disclosure.
+ */
+export function NoAccessState({
+  title = 'You do not have access to this',
+  description = 'Your current role and active clinic do not include this record. Switch clinic if you expected it elsewhere, or ask an administrator to review your access.',
+  action,
+  className,
+}: {
+  title?: string;
+  description?: string;
+  action?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        'rounded-lg border border-border bg-card px-6 py-8 text-sm shadow-sm',
+        className,
+      )}
+    >
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="flex gap-3">
+          <Lock aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+          <div className="space-y-1">
+            <p className="font-medium text-foreground">{title}</p>
+            <p className="max-w-prose leading-6 text-muted-foreground">{description}</p>
+          </div>
+        </div>
+        {action ? <div className="shrink-0">{action}</div> : null}
+      </div>
+    </div>
   );
 }
