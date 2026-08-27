@@ -95,7 +95,7 @@ export function OpsMetricCard({
   detail?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-border/80 bg-card/85 p-4 shadow-sm backdrop-blur-sm">
+    <div className="rounded-lg border border-border/80 bg-card/85 p-4 shadow-sm backdrop-blur-sm">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
         {label}
       </p>
@@ -118,11 +118,11 @@ export function InlineNotice({
     tone === 'error'
       ? 'border-destructive/25 bg-destructive/10 text-destructive'
       : tone === 'success'
-        ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+        ? 'border-success/25 bg-success/10 text-success-ink'
         : 'border-primary/20 bg-primary/10 text-foreground';
 
   return (
-    <div className={cn('rounded-2xl border px-4 py-3 text-sm', toneClass, className)}>
+    <div className={cn('rounded-lg border px-4 py-3 text-sm', toneClass, className)}>
       {children}
     </div>
   );
@@ -154,7 +154,7 @@ export function EmptyStateCard({
   icon?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-dashed border-border bg-background/80 p-5 text-sm text-muted-foreground">
+    <div className="rounded-lg border border-dashed border-border bg-background/80 p-5 text-sm text-muted-foreground">
       <div className="flex items-start gap-3">
         {icon ? <span className="mt-0.5 shrink-0 text-muted-foreground">{icon}</span> : null}
         <div>
@@ -194,7 +194,7 @@ export function ShiftControlCard({
   return (
     <Card
       className={cn(
-        'overflow-hidden border-primary/15 bg-gradient-to-br from-primary/10 via-card to-secondary/10 shadow-lg shadow-primary/5',
+        'overflow-hidden border-primary/15 bg-gradient-to-br from-primary/10 via-card to-secondary/10',
         className,
       )}
     >
@@ -223,7 +223,7 @@ export function ShiftControlCard({
       <CardContent className="space-y-4">
         {currentShift ? (
           <div className="space-y-4">
-            <div className="grid gap-3 rounded-2xl border border-border/80 bg-card/75 p-4 sm:grid-cols-2">
+            <div className="grid gap-3 rounded-lg border border-border/80 bg-card/75 p-4 sm:grid-cols-2">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                   Checked In As

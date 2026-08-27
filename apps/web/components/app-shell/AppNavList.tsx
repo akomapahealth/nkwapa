@@ -45,17 +45,17 @@ export function AppNavList({
                   title={collapsed && !mobile ? item.label : undefined}
                   onClick={enabled ? onNavigate : undefined}
                   className={cn(
-                    'group flex items-center gap-3 rounded-2xl border px-3 py-2.5 transition-all duration-200',
+                    'group flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-all duration-200',
                     collapsed && !mobile ? 'justify-center px-2.5' : '',
                     active
-                      ? 'border-primary/30 bg-primary text-primary-foreground shadow-lg shadow-primary/20'
+                      ? 'border-primary/30 bg-primary text-primary-foreground'
                       : 'border-transparent text-muted-foreground hover:border-border/70 hover:bg-background/80 hover:text-foreground',
                     !enabled && 'pointer-events-none opacity-45',
                   )}
                 >
                   <span
                     className={cn(
-                      'flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl transition-colors',
+                      'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors',
                       active
                         ? 'bg-primary-foreground/16 text-primary-foreground'
                         : 'bg-background/80 text-primary group-hover:bg-primary/10',

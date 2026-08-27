@@ -23,12 +23,7 @@ export function FormSectionCard({
   contentClassName,
 }: FormSectionCardProps) {
   return (
-    <Card
-      className={cn(
-        'rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5',
-        className,
-      )}
-    >
+    <Card className={cn('rounded-lg border-border/80 bg-card/90', className)}>
       <CardHeader className="space-y-2 pb-4">
         <div className="flex items-start gap-2">
           <CardTitle className="text-lg">{title}</CardTitle>

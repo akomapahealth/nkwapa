@@ -96,7 +96,7 @@ export function InfoHint({ label, className }: { label: string; className?: stri
               id={bubbleId}
               role="tooltip"
               className={cn(
-                'fixed z-[120] w-72 rounded-2xl border border-border/80 bg-popover px-4 py-3 text-left text-sm leading-6 text-popover-foreground shadow-2xl shadow-black/15 outline-none animate-in fade-in-0 zoom-in-95',
+                'fixed z-[120] w-72 rounded-lg border border-border/80 bg-popover px-4 py-3 text-left text-sm leading-6 text-popover-foreground outline-none animate-in fade-in-0 zoom-in-95',
                 position.placement === 'top'
                   ? '-translate-y-full slide-in-from-bottom-1'
                   : 'slide-in-from-top-1',

@@ -98,6 +98,23 @@ Defined in `apps/web/app/globals.css` under `:root`. Consume via Tailwind utilit
 
 Status colour is never the only signal. Pair every status fill with a label or icon.
 
+### Tinted status: use the ink tokens, never the fill token
+
+| Token           | Value         | Hex       | On its own 12% tint        |
+| --------------- | ------------- | --------- | -------------------------- |
+| `--info`        | `200 60% 40%` | `#297AA3` | workflow "awaiting review" |
+| `--success-ink` | `152 65% 26%` | `#176D45` | 5.20:1                     |
+| `--warning-ink` | `32 90% 28%`  | `#884C07` | 5.94:1                     |
+| `--info-ink`    | `200 60% 26%` | `#1B506A` | 7.52:1                     |
+
+The tinted badge pattern is `bg-<token>/12` plus `text-<token>-ink`.
+
+**Reusing the fill token as text on its own tint fails AA.** Measured: `text-success` on `bg-success/12` is **4.28:1**, and `text-warning` on `bg-warning/12` is **2.42:1**. The tint lightens the ground while the ink stays put, so contrast falls below the solid-on-white baseline. The ink tokens are the same hue and saturation, darkened until they clear with headroom.
+
+`--info` exists because the clinical note workflow has a **draft → review → finalized** progression, and "awaiting review" is neither success, warning, nor destructive. It is not a brand colour and must not be used for actions.
+
+**`draft` is deliberately neutral** (`bg-muted` + `--muted-foreground`, 4.94:1). A draft note is not a warning; colouring it amber put it in the same visual class as an out-of-range clinical value.
+
 **Migration debt: 105 raw-palette status colours already exist.** Before these tokens, status was expressed with Tailwind's raw palette: **62 uses of `emerald-*`** and **43 of `amber-*`**, plus smaller counts of `rose-`, `green-`, `red-`, and `yellow-`. `components/ui/badge.tsx` already ships `success` and `warning` variants built on `bg-emerald-100` and `bg-amber-100`.
 
 The semantic intent is already there throughout the app; it is simply bound to the wrong values. Until these call sites are swept, Nkwapa has **two parallel status colour systems**, which is exactly the mixed old/new state #65 forbids.
@@ -136,7 +153,7 @@ Do not "fix" `--border` or `--sidebar-border` to reach 3:1. They are correctly e
 
 ## 4. Colour tokens — dark
 
-Defined under `.dark`. Dark mode inverts which side carries the ink: fills stay bright and take dark text.
+Defined under `.dark`. Dark mode inverts which side carries the ink: fills stay bright and take dark text. The tinted badge inverts too, becoming a dark tint of the hue carrying light ink.
 
 | Token                        | Value         | Hex       | Contrast            |
 | ---------------------------- | ------------- | --------- | ------------------- |
@@ -148,6 +165,10 @@ Defined under `.dark`. Dark mode inverts which side carries the ink: fills stay 
 | `--success`                  | `152 55% 50%` | `#39C684` | 7.89:1 dark ink on  |
 | `--warning`                  | `35 90% 58%`  | `#F4A434` | 8.43:1 dark ink on  |
 | `--input`                    | `200 14% 50%` | `#6E8591` | 4.74:1              |
+| `--info`                     | `200 60% 58%` | `#54A9D4` | workflow state      |
+| `--success-ink`              | `152 40% 74%` | `#A2D7BE` | 6.82:1 on its tint  |
+| `--warning-ink`              | `35 75% 74%`  | `#EEC58B` | 6.74:1 on its tint  |
+| `--info-ink`                 | `200 45% 74%` | `#9FC7DB` | 6.49:1 on its tint  |
 
 All other `.dark` values are unchanged and already correct.
 

@@ -58,10 +58,17 @@ module.exports = {
         success: {
           DEFAULT: 'hsl(var(--success))',
           foreground: 'hsl(var(--success-foreground))',
+          ink: 'hsl(var(--success-ink))',
         },
         warning: {
           DEFAULT: 'hsl(var(--warning))',
           foreground: 'hsl(var(--warning-foreground))',
+          ink: 'hsl(var(--warning-ink))',
+        },
+        info: {
+          DEFAULT: 'hsl(var(--info))',
+          foreground: 'hsl(var(--info-foreground))',
+          ink: 'hsl(var(--info-ink))',
         },
         sidebar: {
           DEFAULT: 'hsl(var(--sidebar))',
