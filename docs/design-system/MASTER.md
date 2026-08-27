@@ -41,7 +41,9 @@ The logo gold requires no compromise. Dark ink on it measures **9.90:1**, so `--
 
 ### Known drift
 
-`infra/nkwapa/keycloak/themes/nkwapa/login/resources/img/nkwapa-logo.svg` is a different mark entirely (navy square, `N` monogram, `#0C4A5B` / `#22C7B9`). It does not match the product brand and needs replacing. Tracked separately; out of scope for #61.
+The Keycloak login theme carries a **parallel 14-variable token system** (`--nkwapa-bg`, `--nkwapa-primary`, and so on) whose values match nothing here, and it uses the landing-page typefaces rather than the application's. Tracked in [#83](https://github.com/akomapahealth/nkwapa/issues/83); out of scope for #61.
+
+The mark itself is fine: `template.ftl` serves `img/nkwapa-logo.png`, byte-identical to the app's. But `resources/img/nkwapa-logo.svg` in the same directory is a different mark entirely (navy square, `N` monogram, `#0C4A5B` / `#22C7B9`), unreferenced by any template or stylesheet. It is dead weight to delete, not a logo to fix.
 
 ---
 
