@@ -15,7 +15,7 @@ export function ProgressiveHelp({
   return (
     <details
       className={cn(
-        'group w-full rounded-2xl border border-border/70 bg-background/80 shadow-sm',
+        'group w-full rounded-lg border border-border/70 bg-background/80 shadow-sm',
         className,
       )}
     >

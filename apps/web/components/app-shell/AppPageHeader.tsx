@@ -30,7 +30,7 @@ export function AppPageHeader({
       className={cn(
         // Flat, per the design system: no gradient and no heavy shadow on a clinical view. The
         // header should frame the chart, not compete with the measurements in it.
-        'overflow-hidden rounded-[30px] border border-border/80 bg-card p-5 md:p-6',
+        'overflow-hidden rounded-lg border border-border/80 bg-card p-5 md:p-6',
         className,
       )}
     >

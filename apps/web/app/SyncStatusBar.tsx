@@ -31,7 +31,7 @@ export function SyncStatusBar({ clinicId }: SyncStatusBarProps) {
     <div
       className={cn(
         'flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2 text-sm',
-        isOnline ? 'border-border/70 bg-card' : 'border-amber-300/60 bg-amber-50',
+        isOnline ? 'border-border/70 bg-card' : 'border-warning/35 bg-warning/10',
       )}
       // Connection and queue state change without user action, so the change is announced.
       role="status"
@@ -40,13 +40,13 @@ export function SyncStatusBar({ clinicId }: SyncStatusBarProps) {
       <span className="flex items-center gap-1.5 font-medium">
         {isOnline ? (
           <>
-            <Wifi aria-hidden="true" className="size-4 text-emerald-600" />
-            <span className="text-emerald-700">Online</span>
+            <Wifi aria-hidden="true" className="size-4 text-success" />
+            <span className="text-success-ink">Online</span>
           </>
         ) : (
           <>
-            <CloudOff aria-hidden="true" className="size-4 text-amber-700" />
-            <span className="text-amber-800">Offline</span>
+            <CloudOff aria-hidden="true" className="size-4 text-warning" />
+            <span className="text-warning-ink">Offline</span>
           </>
         )}
       </span>
@@ -61,7 +61,7 @@ export function SyncStatusBar({ clinicId }: SyncStatusBarProps) {
         type="button"
         variant="outline"
         size="sm"
-        className="cursor-pointer rounded-2xl"
+        className="cursor-pointer rounded-lg"
         onClick={() => syncNow(clinicId)}
         disabled={!isOnline || isSyncing}
       >

@@ -43,6 +43,19 @@
     --success-foreground: 0 0% 100%;
     --warning: 32 90% 48%;
     --warning-foreground: 200 25% 15%;
+    /* Info carries the "awaiting review" workflow state, which is neither success, warning, nor
+       destructive. It is not a brand colour and must not be used for actions. */
+    --info: 200 60% 40%;
+    --info-foreground: 0 0% 100%;
+    /* Ink for tinted status badges (bg-<token>/12 + text-<token>-ink), the pattern the badge
+       component already used via bg-emerald-100 / text-emerald-800.
+       Reusing the fill token as the text colour on its own tint FAILS AA: measured 4.28:1 for
+       success and 2.42:1 for warning, because the tint lightens the ground while the ink stays
+       put. These are darkened until they clear on their own tint with headroom: success 5.20:1,
+       warning 5.94:1, info 7.52:1. */
+    --success-ink: 152 65% 26%;
+    --warning-ink: 32 90% 28%;
+    --info-ink: 200 60% 26%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
     /* --border stays soft at 1.26:1 on the canvas. WCAG 1.4.11 requires 3:1 only for boundaries
@@ -95,6 +108,13 @@
     --success-foreground: 200 25% 10%;
     --warning: 35 90% 58%;
     --warning-foreground: 200 25% 10%;
+    --info: 200 60% 58%;
+    --info-foreground: 200 25% 10%;
+    /* Dark inverts the badge: a dark tint of the hue carrying light ink. Measured on a 22% tint
+       over the dark card: success 6.82:1, warning 6.74:1, info 6.49:1. */
+    --success-ink: 152 40% 74%;
+    --warning-ink: 35 75% 74%;
+    --info-ink: 200 45% 74%;
     --destructive: 0 62% 45%;
     --destructive-foreground: 0 0% 100%;
     /* Same split as light mode: --border stays a soft decorative divider, --input carries the
