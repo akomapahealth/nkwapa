@@ -15,28 +15,56 @@
     --card-foreground: 200 25% 15%;
     --popover: 50 33% 98%;
     --popover-foreground: 200 25% 15%;
-    /* 30% rather than 36%: white on the brand teal measured 3.52:1, below the 4.5:1 WCAG AA
-       needs for normal text, so every primary button and filled badge failed. Same hue and
-       saturation, six points darker, which reads as the same colour and measures 4.85:1. */
-    --primary: 191 98% 30%;
+    /* Derived from the logo teal hsl(188 100% 32%) by the rule in docs/design-system/MASTER.md
+       section 2: keep hue and saturation exactly, move lightness only, by the minimum needed to
+       clear AA. The logo colour itself measures 3.91:1 with white and cannot be used as a fill.
+       At 27% it measures 5.22:1 with white, 5.04:1 as text on the canvas, and 4.58:1 as text on
+       --muted, which is where MUI DataGrid column headers live. 28% would fail that last case
+       at 4.31:1. Previously 191 98% 30%, which was 9.7 deltaE from the logo. */
+    --primary: 188 100% 27%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 43 84% 55%;
+    /* Exactly the logo gold. Dark ink on it measures 9.90:1, so no accessibility compromise is
+       needed. Previously 43 84% 55%, which was 6.5 deltaE from the logo. */
+    --secondary: 47 100% 55%;
     --secondary-foreground: 200 25% 15%;
     --muted: 45 30% 93%;
     /* 40% rather than 45%: secondary text measured 4.51:1 on card and 4.09:1 on the muted fill,
        either side of the 4.5:1 line depending on which surface it lands on. Five points darker
        clears it on every surface the app actually uses. */
     --muted-foreground: 200 10% 40%;
-    --accent: 43 60% 92%;
+    /* Hue moved 43 -> 47 to sit in the same family as the logo gold. */
+    --accent: 47 60% 92%;
     --accent-foreground: 200 25% 15%;
+    /* Success and warning are new. Warning is orange at hue 32 rather than amber, because
+       --secondary is gold at hue 47: sharing a hue would make a warning badge indistinguishable
+       from decorative brand furniture. Separation is 24.2 deltaE. White on success measures
+       5.05:1; dark ink on warning measures 5.39:1. */
+    --success: 152 65% 30%;
+    --success-foreground: 0 0% 100%;
+    --warning: 32 90% 48%;
+    --warning-foreground: 200 25% 15%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
+    /* --border stays soft at 1.26:1 on the canvas. WCAG 1.4.11 requires 3:1 only for boundaries
+       needed to identify a control; card edges and decorative dividers are exempt. Do not
+       "fix" this value. --input is NOT exempt, which is why it is now split away from --border:
+       previously both were 45 20% 87%, so every text input, select, and textarea in the product
+       had an effectively invisible boundary. At 200 15% 52% it measures 3.47:1. */
     --border: 45 20% 87%;
-    --input: 45 20% 87%;
-    --ring: 191 98% 30%;
+    --input: 200 15% 52%;
+    --ring: 188 100% 27%;
+    /* Pale sage nav rail. 88% is the shallowest tint that still reads as a separate panel
+       against the cream canvas (1.21:1); at 91% it drops to 1.14:1 and the surfaces merge,
+       failing issue #66. Lab hue sits 60 degrees from the logo teal, so it does not read as a
+       washed-out brand colour. At 88% the standard --muted-foreground lands at 4.49:1 and fails
+       by 0.01, so the sidebar carries its own muted ink at 6.13:1 instead of lightening the
+       panel. --sidebar-border is a decorative divider and is exempt from 1.4.11. */
+    --sidebar: 148 32% 88%;
+    --sidebar-border: 148 24% 70%;
+    --sidebar-muted-foreground: 200 14% 32%;
     --radius: 0.625rem;
-    --chart-1: 191 98% 30%;
-    --chart-2: 43 84% 55%;
+    --chart-1: 188 100% 27%;
+    --chart-2: 47 100% 55%;
     --chart-3: 191 60% 25%;
     --chart-4: 43 60% 70%;
     --chart-5: 200 25% 45%;
@@ -51,22 +79,37 @@
     --popover-foreground: 54 20% 92%;
     /* Dark mode keeps the fills bright so they read against the background, which means their
        text has to be dark rather than white: white measured 2.66:1 on primary and 2.22:1 on
-       secondary. Dark ink measures 6.52:1 and 7.79:1. */
-    --primary: 191 80% 45%;
+       secondary. Hues moved to 188 and 47 to match the logo, per MASTER.md section 2. Dark ink
+       now measures 7.77:1 on primary and 10.00:1 on secondary. */
+    --primary: 188 80% 47%;
     --primary-foreground: 200 25% 10%;
-    --secondary: 43 70% 50%;
+    --secondary: 47 85% 52%;
     --secondary-foreground: 200 25% 10%;
     --muted: 200 15% 18%;
     --muted-foreground: 200 10% 60%;
     --accent: 200 15% 18%;
     --accent-foreground: 54 20% 92%;
+    /* Dark ink measures 7.89:1 on success and 8.43:1 on warning. Warning stays clear of the
+       gold secondary in dark as well. */
+    --success: 152 55% 50%;
+    --success-foreground: 200 25% 10%;
+    --warning: 35 90% 58%;
+    --warning-foreground: 200 25% 10%;
     --destructive: 0 62% 45%;
     --destructive-foreground: 0 0% 100%;
+    /* Same split as light mode: --border stays a soft decorative divider, --input carries the
+       3:1 control boundary and measures 4.74:1 against the dark canvas. */
     --border: 200 15% 20%;
-    --input: 200 15% 20%;
-    --ring: 191 80% 45%;
-    --chart-1: 191 80% 50%;
-    --chart-2: 43 80% 60%;
+    --input: 200 14% 50%;
+    --ring: 188 80% 47%;
+    /* Dark counterpart of the sage nav rail: 1.23:1 against the dark canvas, which reads as a
+       distinct panel at these luminances. Body ink measures 12.68:1 on it and the sidebar's own
+       muted ink 6.51:1. */
+    --sidebar: 155 20% 14%;
+    --sidebar-border: 155 18% 26%;
+    --sidebar-muted-foreground: 155 8% 66%;
+    --chart-1: 188 80% 50%;
+    --chart-2: 47 80% 60%;
     --chart-3: 191 50% 35%;
     --chart-4: 43 50% 45%;
     --chart-5: 200 20% 55%;
