@@ -8,6 +8,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -23,6 +25,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { InfoHint } from '@/components/ui/info-hint';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { useTheme, type ThemePreference } from '@/lib/theme-context';
 import { AppNavList } from '@/components/app-shell/AppNavList';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { formatRoleLabel } from '@/lib/ops';
@@ -60,6 +63,7 @@ export function Header({
   const { isOnline, syncStatus, syncError, syncNow } = useSync();
   const { logout } = useKeycloak() ?? {};
   const { showToast } = useToast();
+  const { preference: themePreference, setPreference: setThemePreference } = useTheme();
   const [pendingCount, setPendingCount] = useState(0);
 
   const clinicId = contextActiveClinicId ?? null;
@@ -275,6 +279,18 @@ export function Header({
                   Dashboard
                 </Link>
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                Appearance
+              </DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                value={themePreference}
+                onValueChange={(value) => setThemePreference(value as ThemePreference)}
+              >
+                <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="system">Match system</DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
               <DropdownMenuSeparator />
               {syncError ? (
                 <>

@@ -1,6 +1,22 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import { ToastProvider } from '@/components/ui/toast';
+import { ThemeProvider, themeStorageKey } from '@/lib/theme-context';
+
+/**
+ * Runs before first paint so the correct theme is on <html> when the page renders, rather
+ * than flashing light and correcting on hydration. Deliberately duplicates the logic in
+ * lib/theme-context.tsx; keep the two in sync. Wrapped in try/catch because localStorage
+ * throws outright in some privacy modes.
+ */
+const themeBootScript = `
+(function(){try{
+var s=localStorage.getItem('${themeStorageKey}');
+var d=s==='dark'||(s!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches);
+document.documentElement.classList.toggle('dark',d);
+document.documentElement.style.colorScheme=d?'dark':'light';
+}catch(e){}})();
+`.trim();
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://app.nkwapa.app';
 
@@ -60,12 +76,16 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    // suppressHydrationWarning: themeBootScript mutates <html> before React hydrates.
+    <html lang="en" suppressHydrationWarning>
       <head>
         <link href="https://fonts.cdnfonts.com/css/circular-std" rel="stylesheet" />
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
       <body suppressHydrationWarning>
-        <ToastProvider>{children}</ToastProvider>
+        <ThemeProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
