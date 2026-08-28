@@ -6,6 +6,7 @@ import { DistributionChart } from './DistributionChart';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { Box } from '@mui/material';
 import { dataGridSx } from '@/lib/datagrid-theme';
+import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { DashboardSectionHeader } from './DashboardSectionHeader';
 import { DashboardKpiCard } from './DashboardKpiCard';
 
@@ -109,17 +110,12 @@ export function DirectorDashboard({
           type="bar"
           hint="How often hypertension and diabetes screenings are being completed."
         />
-        <Card className="lg:col-span-1">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Follow-up compliance</CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-center justify-center pt-4">
-            <div className="text-center">
-              <div className="text-4xl font-bold text-primary">{followUpComplianceRate}%</div>
-              <p className="mt-1 text-sm text-muted-foreground">Care plans with a follow-up date</p>
-            </div>
-          </CardContent>
-        </Card>
+        <AppMetricCard
+          className="lg:col-span-1"
+          title="Follow-up compliance"
+          value={`${followUpComplianceRate}%`}
+          detail="Care plans with a follow-up date"
+        />
       </div>
 
       <Card>

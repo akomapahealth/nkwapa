@@ -10,6 +10,7 @@ import {
   Tooltip,
 } from 'recharts';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { EmptyState } from '@/components/feedback/AppState';
 import { InfoHint } from '@/components/ui/info-hint';
 import { Activity } from 'lucide-react';
 import { hasRenderableTrendData, type TrendDatum } from './chart-utils';
@@ -32,7 +33,7 @@ export function TrendChart({
   const hasData = hasRenderableTrendData(data);
 
   return (
-    <Card className="border-border/80 bg-card/95">
+    <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
           <CardTitle className="text-base font-semibold">{title}</CardTitle>
@@ -40,7 +41,7 @@ export function TrendChart({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="h-[220px] sm:h-[250px]">
+        <div className="h-[240px] sm:h-[260px]">
           {hasData ? (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data}>
@@ -74,15 +75,12 @@ export function TrendChart({
               </LineChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-border/80 bg-muted/30 p-5 text-center">
-              <div className="max-w-xs space-y-2">
-                <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <Activity className="h-4 w-4" />
-                </span>
-                <p className="text-sm font-medium text-foreground">No chart activity yet</p>
-                <p className="text-sm leading-6 text-muted-foreground">{emptyMessage}</p>
-              </div>
-            </div>
+            <EmptyState
+              icon={Activity}
+              title="No chart activity yet"
+              description={emptyMessage}
+              className="h-full justify-center"
+            />
           )}
         </div>
       </CardContent>

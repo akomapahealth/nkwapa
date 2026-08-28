@@ -186,9 +186,11 @@ export default function DashboardPage() {
           eyebrow="Clinic snapshot"
           title={activeClinic?.clinicName ?? 'Dashboard'}
           description="Current clinic totals and next work."
-          hint="The dashboard always reflects the clinic selected in the header."
-          helpTitle="How the dashboard is organized"
-          helpText="Start with the clinic snapshot, then use the role sections below to clear intake work, reviews, finalizations, and oversight tasks."
+          // Was a persistent ProgressiveHelp card under the page title. It is generic orientation
+          // copy with no safety or consent significance, which is exactly what #63 says belongs in
+          // a bubble; the disclosure was costing a block of vertical space above the metrics on
+          // every visit, to every user, forever.
+          hint="The dashboard always reflects the clinic selected in the header. Start with the clinic snapshot, then use the role sections below to clear intake work, reviews, finalizations, and oversight tasks."
           badges={
             activeClinic ? (
               <Badge variant="secondary" className="rounded-full px-3 py-1">
