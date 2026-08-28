@@ -85,7 +85,7 @@ export function ImpactSection() {
                 'flex flex-col justify-center rounded-2xl px-8 py-10',
                 s.variant === 'blue'
                   ? ['bg-primary text-primary-foreground', landingPrimaryPanelHover]
-                  : ['landing-glass border-white/40 text-foreground', landingCardHover],
+                  : ['landing-glass text-foreground', landingCardHover],
               )}
               style={
                 s.variant === 'blue'

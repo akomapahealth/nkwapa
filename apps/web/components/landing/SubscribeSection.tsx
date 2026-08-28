@@ -48,10 +48,10 @@ export function SubscribeSection() {
 
           <div className="relative z-10">
             {/* Merged CTA headline */}
-            <h2 className="font-landing-heading text-2xl font-black lowercase text-white md:text-4xl">
+            <h2 className="font-landing-heading text-2xl font-black lowercase text-primary-foreground md:text-4xl">
               better chronic care starts with you.
             </h2>
-            <p className="mt-3 font-landing-body text-sm text-white/80">
+            <p className="mt-3 font-landing-body text-sm text-primary-foreground/80">
               Subscribe to stay updated on Nkwapa&apos;s progress and releases.
             </p>
 
@@ -63,10 +63,10 @@ export function SubscribeSection() {
                   animate={{ opacity: 1, scale: 1 }}
                   className="mt-8 flex flex-col items-center gap-3"
                 >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/20">
-                    <Check className="h-6 w-6 text-white" />
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-foreground/20">
+                    <Check className="h-6 w-6 text-primary-foreground" />
                   </div>
-                  <p className="font-landing-body text-base text-white/90">
+                  <p className="font-landing-body text-base text-primary-foreground/90">
                     Thank you for subscribing. We will keep you updated.
                   </p>
                 </motion.div>
@@ -85,7 +85,7 @@ export function SubscribeSection() {
                       onChange={(e) => setFirstName(e.target.value)}
                       required
                       aria-label="First Name"
-                      className="rounded-full border-2 border-white/40 bg-transparent px-5 py-3 font-landing-body text-sm text-white placeholder-white/60 focus:border-white focus-visible:ring-0"
+                      className="rounded-full border-2 border-primary-foreground/40 bg-transparent px-5 py-3 font-landing-body text-sm text-primary-foreground placeholder-primary-foreground/60 focus:border-primary-foreground focus-visible:ring-0"
                     />
                     <Input
                       type="text"
@@ -94,7 +94,7 @@ export function SubscribeSection() {
                       onChange={(e) => setLastName(e.target.value)}
                       required
                       aria-label="Last Name"
-                      className="rounded-full border-2 border-white/40 bg-transparent px-5 py-3 font-landing-body text-sm text-white placeholder-white/60 focus:border-white focus-visible:ring-0"
+                      className="rounded-full border-2 border-primary-foreground/40 bg-transparent px-5 py-3 font-landing-body text-sm text-primary-foreground placeholder-primary-foreground/60 focus:border-primary-foreground focus-visible:ring-0"
                     />
                   </div>
                   <div className="flex gap-3">
@@ -105,11 +105,11 @@ export function SubscribeSection() {
                       onChange={(e) => setEmail(e.target.value)}
                       required
                       aria-label="Email address"
-                      className="flex-1 rounded-full border-2 border-white/40 bg-transparent px-5 py-3 font-landing-body text-sm text-white placeholder-white/60 focus:border-white focus-visible:ring-0"
+                      className="flex-1 rounded-full border-2 border-primary-foreground/40 bg-transparent px-5 py-3 font-landing-body text-sm text-primary-foreground placeholder-primary-foreground/60 focus:border-primary-foreground focus-visible:ring-0"
                     />
                     <Button
                       type="submit"
-                      className="cursor-pointer rounded-full bg-white px-6 py-3 font-landing-nav text-sm font-semibold text-primary hover:bg-white/90"
+                      className="cursor-pointer rounded-full bg-primary-foreground px-6 py-3 font-landing-nav text-sm font-semibold text-primary hover:bg-primary-foreground/90"
                     >
                       Send
                     </Button>

@@ -46,7 +46,7 @@ function PatientsList() {
           <span
             className={
               r.status === 'Completed'
-                ? 'text-emerald-600'
+                ? 'text-success'
                 : r.status === 'Review'
                   ? 'text-secondary'
                   : r.status === 'In Progress'
@@ -89,7 +89,7 @@ function EncountersList() {
           <span
             className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${
               e.state === 'Finalized'
-                ? 'bg-emerald-100 text-emerald-700'
+                ? 'bg-success/12 text-success-ink'
                 : e.state === 'Under Review'
                   ? 'bg-secondary/15 text-secondary'
                   : 'bg-muted text-muted-foreground'
@@ -180,7 +180,14 @@ export function DashboardPreviewSection() {
           <div className="overflow-hidden rounded-xl border border-border shadow-2xl shadow-primary/10">
             {/* Browser title bar */}
             <div className="flex items-center gap-2 border-b border-border bg-muted/80 px-4 py-2.5">
-              <div className="flex gap-1.5">
+              {/*
+                These three keep literal traffic-light colours on purpose. They are not product
+                status: they are a drawing of a macOS window, and a viewer reads them as a browser
+                frame precisely because they are always red, amber and green. Retargeting them at
+                --destructive / --warning / --success would make the illustration track the brand
+                and stop reading as a browser.
+              */}
+              <div aria-hidden="true" className="flex gap-1.5">
                 <Circle className="h-2.5 w-2.5 fill-red-400 text-red-400" />
                 <Circle className="h-2.5 w-2.5 fill-yellow-400 text-yellow-400" />
                 <Circle className="h-2.5 w-2.5 fill-green-400 text-green-400" />

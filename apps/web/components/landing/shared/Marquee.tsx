@@ -14,11 +14,12 @@ export function Marquee({ children, speed = 30, pauseOnHover = true, className }
   const prefersReducedMotion = useReducedMotion();
 
   return (
-    <div
-      className={cn('group relative flex overflow-hidden', className)}
-      role="marquee"
-      aria-label="Scrolling content"
-    >
+    /*
+      No `role="marquee"`. It is not a real ARIA role -- assistive technology ignores it and axe
+      flags it. The content here is decorative repetition of logos already named in the page, so
+      it is hidden from the accessibility tree rather than given a role it cannot honour.
+    */
+    <div className={cn('group relative flex overflow-hidden', className)} aria-hidden="true">
       <div
         className={cn(
           'flex min-w-full shrink-0 items-center justify-around gap-8',
