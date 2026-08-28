@@ -872,7 +872,7 @@ export default function AdminUsersPage() {
         {notice ? <InlineNotice tone="success">{notice}</InlineNotice> : null}
 
         <section className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
-          <Card>
+          <Card className="min-w-0">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
                 <Layers3 className="h-5 w-5 text-primary" />
@@ -997,7 +997,14 @@ export default function AdminUsersPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          {/*
+            min-w-0 on the wide column. Below xl this is a single-column grid, and a grid item
+            defaults to min-width:auto, so it refuses to shrink under the widest thing inside it --
+            here a data grid whose columns total about 1070px. Above xl the explicit
+            minmax(0,1fr) already permits the shrink, which is why the overflow only appeared at
+            768 and 1024.
+          */}
+          <Card className="min-w-0">
             <CardHeader className="space-y-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>

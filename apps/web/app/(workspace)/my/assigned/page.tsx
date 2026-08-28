@@ -456,7 +456,7 @@ export default function MyAssignedPage() {
 
         {loading ? (
           <div className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
-            <div className="space-y-6">
+            <div className="min-w-0 space-y-6">
               <SectionSkeleton lines={2} />
               <SectionSkeleton lines={2} />
             </div>
@@ -464,7 +464,7 @@ export default function MyAssignedPage() {
           </div>
         ) : (
           <div className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
-            <div className="space-y-6">
+            <div className="min-w-0 space-y-6">
               <ShiftControlCard
                 currentShift={currentShift}
                 selectedRole={selectedShiftRole}
@@ -501,7 +501,7 @@ export default function MyAssignedPage() {
               </Card>
             </div>
 
-            <Card>
+            <Card className="min-w-0">
               <CardHeader className="space-y-4">
                 <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                   <div>

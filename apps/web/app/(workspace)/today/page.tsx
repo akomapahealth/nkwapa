@@ -462,7 +462,7 @@ export default function TodayBoardPage() {
           </div>
         ) : (
           <div className="grid gap-6 xl:grid-cols-[360px,minmax(0,1fr)]">
-            <div className="space-y-6">
+            <div className="min-w-0 space-y-6">
               <ShiftControlCard
                 currentShift={currentShift}
                 selectedRole={selectedShiftRole}
@@ -555,7 +555,7 @@ export default function TodayBoardPage() {
               </Card>
             </div>
 
-            <section className="space-y-4">
+            <section className="min-w-0 space-y-4">
               <div className="flex items-end justify-between gap-4">
                 <div>
                   <h2 className="font-heading text-2xl font-semibold tracking-tight">
