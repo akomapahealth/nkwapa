@@ -153,42 +153,19 @@
   }
 }
 
-/* MUI DataGrid global overrides */
-.MuiDataGrid-root {
-  font-family: var(--font-body), system-ui, sans-serif !important;
-  border-color: hsl(var(--border)) !important;
-  border-radius: var(--radius) !important;
-}
-.MuiDataGrid-columnHeaders {
-  background-color: hsl(var(--muted)) !important;
-  font-family: var(--font-body), system-ui, sans-serif !important;
-}
-.MuiDataGrid-columnHeaderTitle {
-  font-weight: 600 !important;
-  color: hsl(var(--foreground)) !important;
-}
-.MuiDataGrid-cell {
-  border-color: hsl(var(--border)) !important;
-  color: hsl(var(--foreground)) !important;
-  font-family: var(--font-body), system-ui, sans-serif !important;
-}
-.MuiDataGrid-row:hover {
-  background-color: hsl(var(--accent)) !important;
-}
-.MuiDataGrid-footerContainer {
-  border-color: hsl(var(--border)) !important;
-}
-.MuiTablePagination-root {
-  color: hsl(var(--muted-foreground)) !important;
-}
-.MuiDataGrid-overlay {
-  background-color: hsl(var(--background) / 0.8) !important;
-}
+/*
+  MUI DataGrid.
 
-@media (max-width: 768px) {
-  .MuiDataGrid-root {
-    --DataGrid-rowHeight: 52px;
-  }
+  All twelve grids in the product pass `dataGridSx` from lib/datagrid-theme.ts, which owns the
+  full treatment. What used to live here was a duplicate of that object written with `!important`,
+  so the two fought over every property and only agreed by luck. The single rule left is the one
+  thing `sx` cannot reach: the pagination select's popover menu renders in a portal outside the
+  grid, so it never receives the grid's own styles.
+*/
+.MuiDataGrid-menu .MuiPaper-root,
+.MuiTablePagination-menuItem {
+  font-family: var(--font-body), system-ui, sans-serif;
+  color: hsl(var(--foreground));
 }
 
 /* Utility classes */
@@ -208,7 +185,9 @@
     background-image:
       radial-gradient(ellipse 80% 60% at 70% 0%, hsl(var(--primary) / 0.12) 0%, transparent 55%),
       radial-gradient(ellipse 60% 50% at 10% 90%, hsl(var(--secondary) / 0.14) 0%, transparent 50%),
-      radial-gradient(ellipse 50% 40% at 90% 70%, hsl(191 60% 92% / 0.8) 0%, transparent 45%);
+      /* Was a literal hsl(191 60% 92%), the only hard-coded colour left in the utility layer and
+         the reason the mesh drifted from the brand when --primary moved onto the logo hue. */
+        radial-gradient(ellipse 50% 40% at 90% 70%, hsl(var(--primary) / 0.08) 0%, transparent 45%);
   }
 
   /* Landing: secondary-biased gradient mesh */
@@ -219,9 +198,12 @@
       radial-gradient(ellipse 60% 50% at 80% 80%, hsl(var(--primary) / 0.08) 0%, transparent 50%);
   }
 
-  /* Landing: glass morphism utilities */
+  /* Landing: glass morphism utilities.
+     Built on --card rather than literal white so the panel survives dark mode; the previous
+     `bg-white/70` rendered a white slab on a dark canvas. */
   .landing-glass {
-    @apply border border-white/30 bg-white/70 shadow-lg backdrop-blur-xl;
+    @apply border border-border/60 shadow-lg backdrop-blur-xl;
+    background-color: hsl(var(--card) / 0.7);
   }
   .landing-glass-dark {
     background: hsl(var(--foreground) / 0.85);

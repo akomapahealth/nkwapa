@@ -4,7 +4,12 @@ module.exports = {
   content: ['./app/**/*.{js,ts,jsx,tsx,mdx}', './components/**/*.{js,ts,jsx,tsx,mdx}'],
   theme: {
     extend: {
+      // The whole radius scale, per docs/design-system/MASTER.md section 5. `xl` is added here
+      // because Tailwind's default `xl` is 12px and the contract caps dialogs and sheets at 14px.
+      // Nothing in the product may be rounder than `xl`; `rounded-2xl`, `rounded-3xl` and the
+      // arbitrary `rounded-[24|26|28|30|32px]` values they replaced are all off-contract.
       borderRadius: {
+        xl: 'calc(var(--radius) + 4px)',
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
