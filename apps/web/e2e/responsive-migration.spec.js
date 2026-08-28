@@ -17,11 +17,16 @@ test.use({ storageState: storageStateFor('staff') });
  *
  * 640 is in the list because it is what 1280 becomes at 200% zoom, which is WCAG 1.4.4.
  *
- * This measures `#main-content`, not `documentElement`. The shell gives main `overflow-auto`, so
- * the document can never report horizontal overflow no matter how wide its content is -- a
- * document-level probe passes every route for the wrong reason. Verified by injecting a 2000px
- * element and watching the document-level number stay at zero. Main scrolling sideways is the
- * real signal: it means content escaped whatever container was supposed to hold it.
+ * Two things about how this is written are deliberate.
+ *
+ * It measures `#main-content`, not `documentElement`. The shell gives main `overflow-auto`, so the
+ * document can never report horizontal overflow however wide its content grows -- the obvious
+ * probe passes every route for the wrong reason. Verified by injecting a 2000px element and
+ * watching the document number stay at zero while the main number went to 1657.
+ *
+ * It loads each route once and resizes, rather than navigating per breakpoint. Fifty navigations
+ * tripped the API rate limiter and took six unrelated specs down with it. Ten navigations and
+ * fifty resizes measure the same thing, because a resize re-runs layout and layout is the subject.
  */
 const BREAKPOINTS = [
   { name: 'phone', width: 375, height: 812 },
@@ -45,7 +50,7 @@ const ROUTES = [
   { path: '/admin/clinics', heading: /clinics/i },
 ];
 
-async function horizontalOverflow(page) {
+function horizontalOverflow(page) {
   return page.evaluate(() => {
     const main = document.querySelector('#main-content');
     if (!main) throw new Error('#main-content is missing; the shell did not render');
@@ -54,21 +59,21 @@ async function horizontalOverflow(page) {
   });
 }
 
-for (const { name, width, height } of BREAKPOINTS) {
-  test(`migrated routes stay inside the viewport on ${name}`, async ({ page }) => {
-    await page.setViewportSize({ width, height });
+for (const route of ROUTES) {
+  test(`${route.path} stays inside the viewport at every supported width`, async ({ page }) => {
+    await page.setViewportSize(BREAKPOINTS[BREAKPOINTS.length - 1]);
+    await page.goto(route.path);
+    await expect(page.getByRole('heading', { name: route.heading }).first()).toBeVisible({
+      timeout: 15_000,
+    });
 
-    for (const route of ROUTES) {
-      await page.goto(route.path);
-
-      // Wait for the page itself, not just navigation: a skeleton has no overflow to find, so
-      // measuring too early would pass every route for the wrong reason.
-      await expect(page.getByRole('heading', { name: route.heading }).first()).toBeVisible({
-        timeout: 15_000,
-      });
-
+    for (const { name, width, height } of BREAKPOINTS) {
+      await page.setViewportSize({ width, height });
       const overflow = await horizontalOverflow(page);
-      expect(overflow, `${route.path} scrolls horizontally at ${width}px`).toBeLessThanOrEqual(1);
+      expect(
+        overflow,
+        `${route.path} scrolls horizontally on ${name} (${width}px)`,
+      ).toBeLessThanOrEqual(1);
     }
   });
 }

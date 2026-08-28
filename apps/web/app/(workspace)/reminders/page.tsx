@@ -341,7 +341,7 @@ export default function RemindersPage() {
                       className="rounded-lg border border-border bg-background p-4"
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <div>
+                        <div className="min-w-0">
                           <h3 className="text-sm font-semibold text-foreground">
                             {row.templateKey}
                           </h3>

@@ -290,13 +290,22 @@ export default function AuditPage() {
                       className="rounded-lg border border-border bg-background p-4"
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h3 className="text-sm font-semibold text-foreground">{row.action}</h3>
-                          <p className="mt-1 text-sm text-muted-foreground">
+                        {/*
+                          min-w-0 and break-words, because an audit action is an unbroken token
+                          like PATIENT_RESIDENTIAL_LOCATION_UPDATED. A flex item defaults to
+                          min-width:auto, so it refuses to shrink below that word and pushed the
+                          card 188px past a 375px screen -- the audit log was unreadable on a
+                          phone, which is where a director checks it.
+                        */}
+                        <div className="min-w-0">
+                          <h3 className="break-words text-sm font-semibold text-foreground">
+                            {row.action}
+                          </h3>
+                          <p className="mt-1 break-words text-sm text-muted-foreground">
                             {row.entityType} • {row.actorDisplayName}
                           </p>
                         </div>
-                        <span className="text-xs text-muted-foreground">
+                        <span className="shrink-0 text-xs text-muted-foreground">
                           {new Date(row.createdAt).toLocaleDateString()}
                         </span>
                       </div>

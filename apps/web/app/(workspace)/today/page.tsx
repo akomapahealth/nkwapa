@@ -540,7 +540,7 @@ export default function TodayBoardPage() {
                         className="rounded-lg border border-border bg-background p-4"
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <div>
+                          <div className="min-w-0">
                             <p className="font-medium text-foreground">{shift.displayName}</p>
                             <p className="mt-1 text-sm text-muted-foreground">
                               Checked in at {formatOpsTime(shift.checkedInAt, timezone)}
@@ -611,7 +611,7 @@ export default function TodayBoardPage() {
                               className="rounded-lg border border-border bg-background p-4"
                             >
                               <div className="flex items-start justify-between gap-3">
-                                <div>
+                                <div className="min-w-0">
                                   <p className="text-eyebrow font-mono text-primary">
                                     {checkIn.patient.patientCode}
                                   </p>
