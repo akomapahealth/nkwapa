@@ -284,6 +284,7 @@ export function HealthPortalScreen() {
                 <section className="grid gap-4 lg:grid-cols-2">
                   <div className="lg:col-span-2">
                     <MeasurementTrendChart
+                      headingLevel="h2"
                       title="Blood pressure trend"
                       description="Finalized clinic readings combined with the blood pressure logs you entered at home."
                       emptyMessage="Add a blood pressure reading to start building your trend line."
@@ -296,6 +297,7 @@ export function HealthPortalScreen() {
                     />
                   </div>
                   <MeasurementTrendChart
+                    headingLevel="h2"
                     title="Glucose trend"
                     description="Finalized clinic readings combined with the glucose logs you entered at home."
                     emptyMessage="Log a glucose reading to see your trend."
@@ -304,6 +306,7 @@ export function HealthPortalScreen() {
                     data={glucoseTrend}
                   />
                   <MeasurementTrendChart
+                    headingLevel="h2"
                     title="Weight trend"
                     description="Track steady changes in weight over time."
                     emptyMessage="Log your weight to start a trend."

@@ -73,6 +73,7 @@ export function PortalPanel({
   title,
   description,
   action,
+  headingLevel: Heading = 'h2',
   children,
   className,
   contentClassName,
@@ -81,6 +82,12 @@ export function PortalPanel({
   description?: ReactNode;
   /** A control that belongs beside the heading rather than inside the panel body. */
   action?: ReactNode;
+  /**
+   * `h2` for a panel that sits directly under the page title, `h3` for one nested inside another
+   * titled section. Only the level moves; the type stays the same, because the size of a heading
+   * is a visual decision and its level is a structural one.
+   */
+  headingLevel?: 'h2' | 'h3';
   children?: ReactNode;
   className?: string;
   contentClassName?: string;
@@ -91,9 +98,9 @@ export function PortalPanel({
         className={cn(action && 'gap-3 space-y-0 md:flex-row md:items-start md:justify-between')}
       >
         <div className="space-y-1.5">
-          <h2 className="font-heading text-lg font-semibold leading-none tracking-tight text-foreground">
+          <Heading className="font-heading text-lg font-semibold leading-none tracking-tight text-foreground">
             {title}
-          </h2>
+          </Heading>
           {description ? <CardDescription>{description}</CardDescription> : null}
         </div>
         {action ? <div className="shrink-0">{action}</div> : null}

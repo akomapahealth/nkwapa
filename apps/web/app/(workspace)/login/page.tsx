@@ -68,7 +68,7 @@ export default function LoginPage() {
             </div>
 
             <div className="max-w-md space-y-5">
-              <p className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-white/90">
+              <p className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-eyebrow text-primary-foreground/90">
                 <ShieldCheck className="h-3.5 w-3.5" />
                 Protected workspace
               </p>
@@ -89,7 +89,7 @@ export default function LoginPage() {
                 'Clinic permissions decide what you can view and update.',
                 'Offline sync keeps available tools clear when networks change.',
               ].map((item) => (
-                <div key={item} className="flex items-start gap-3 rounded-2xl bg-white/10 p-3">
+                <div key={item} className="flex items-start gap-3 rounded-lg bg-white/10 p-3">
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-secondary" />
                   <span className="leading-6">{item}</span>
                 </div>
@@ -113,7 +113,7 @@ export default function LoginPage() {
               </div>
 
               <div className="space-y-3">
-                <p className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-primary">
+                <p className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-eyebrow text-primary">
                   <ShieldCheck className="h-3.5 w-3.5" />
                   Secure sign in
                 </p>
@@ -136,7 +136,7 @@ export default function LoginPage() {
 
             {error ? (
               <div
-                className="rounded-2xl border border-destructive/25 bg-destructive/10 p-4"
+                className="rounded-lg border border-destructive/25 bg-destructive/10 p-4"
                 role="alert"
               >
                 <div className="flex gap-3">
@@ -156,7 +156,7 @@ export default function LoginPage() {
 
             <div className="grid gap-3 rounded-[26px] border border-border/70 bg-background/80 p-4 shadow-sm">
               <div className="flex items-start gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <Wifi className="h-4 w-4" />
                 </span>
                 <div>
@@ -170,11 +170,11 @@ export default function LoginPage() {
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row">
-              <Button onClick={login} className="h-12 flex-1 rounded-2xl">
+              <Button onClick={login} className="h-12 flex-1 rounded-lg">
                 {error ? 'Try secure sign in again' : 'Continue to secure sign in'}
                 <ArrowRight className="h-4 w-4" />
               </Button>
-              <Button asChild variant="outline" className="h-12 rounded-2xl">
+              <Button asChild variant="outline" className="h-12 rounded-lg">
                 <Link href="/">Back to home</Link>
               </Button>
             </div>

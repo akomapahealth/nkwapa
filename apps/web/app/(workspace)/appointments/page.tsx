@@ -285,7 +285,7 @@ function AppointmentActions({
           <span className="sr-only">Open appointment actions</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56 rounded-2xl border-border/80">
+      <DropdownMenuContent align="end" className="w-56 rounded-lg border-border/80">
         <DropdownMenuLabel>Lifecycle actions</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem
@@ -336,7 +336,7 @@ function AppointmentMobileCard({
   onAction: (action: LifecycleAction, appointment: StaffAppointmentRecord) => void;
 }) {
   return (
-    <article className="rounded-3xl border border-border/80 bg-background/80 p-4 shadow-sm">
+    <article className="rounded-lg border border-border bg-background p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="truncate text-base font-semibold text-foreground">
@@ -354,7 +354,7 @@ function AppointmentMobileCard({
             {formatOpsTime(appointment.endsAt, timezone)}
           </span>
         </div>
-        <div className="grid gap-2 rounded-2xl border border-border/70 bg-card/70 p-3">
+        <div className="grid gap-2 rounded-lg border border-border bg-card p-3">
           <p className="text-muted-foreground">Doctor: {staffName(appointment.assignedDoctor)}</p>
           <p className="text-muted-foreground">
             Volunteer: {staffName(appointment.assignedVolunteer)}
@@ -362,7 +362,7 @@ function AppointmentMobileCard({
         </div>
         <AppointmentReminderStatus appointment={appointment} timezone={timezone} />
         {appointment.notes ? (
-          <p className="rounded-2xl bg-muted/40 p-3 text-muted-foreground">{appointment.notes}</p>
+          <p className="rounded-lg bg-muted/40 p-3 text-muted-foreground">{appointment.notes}</p>
         ) : null}
         <div className="flex justify-end">
           <AppointmentActions
@@ -653,7 +653,7 @@ export default function StaffAppointmentsPage() {
           />
         </section>
 
-        <Card className="rounded-[28px] border-border/80 bg-card">
+        <Card className="rounded-lg border-border/80 bg-card">
           <CardHeader className="space-y-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
@@ -828,9 +828,9 @@ export default function StaffAppointmentsPage() {
                 : `${items.length} appointment${items.length === 1 ? '' : 's'} for ${rangeLabel}.`}
           </p>
           {loading ? (
-            <SectionSkeleton lines={viewMode === 'day' ? 3 : 5} className="rounded-[28px] p-6" />
+            <SectionSkeleton lines={viewMode === 'day' ? 3 : 5} className="rounded-lg p-6" />
           ) : !error ? (
-            <Card className="rounded-[28px] border-border/80 bg-card">
+            <Card className="rounded-lg border-border/80 bg-card">
               <CardHeader className="space-y-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
@@ -860,7 +860,7 @@ export default function StaffAppointmentsPage() {
                 ) : (
                   groupedAppointments.map(([date, appointments]) => (
                     <section key={date} className="space-y-3">
-                      <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-background/70 px-4 py-3">
+                      <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-background/70 px-4 py-3">
                         <div>
                           <h2 className="font-semibold text-foreground">
                             {formatOpsDate(date, timezone)}
@@ -872,7 +872,7 @@ export default function StaffAppointmentsPage() {
                       </div>
 
                       {appointments.length === 0 ? (
-                        <div className="rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
+                        <div className="rounded-lg border border-dashed border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
                           Nothing scheduled for this day.
                         </div>
                       ) : (
@@ -890,7 +890,7 @@ export default function StaffAppointmentsPage() {
                             ))}
                           </div>
 
-                          <div className="hidden overflow-x-auto rounded-2xl border border-border/80 xl:block">
+                          <div className="hidden overflow-x-auto rounded-lg border border-border/80 xl:block">
                             <table className="w-full min-w-[1080px] border-collapse text-sm">
                               <caption className="sr-only">
                                 Appointments on {formatOpsDate(date, timezone)}, with status,
@@ -992,7 +992,7 @@ export default function StaffAppointmentsPage() {
           if (!open) closeLifecycleDialog();
         }}
       >
-        <DialogContent className="max-w-xl rounded-[28px] border-border/80">
+        <DialogContent className="max-w-xl rounded-lg border-border/80">
           <DialogHeader>
             <DialogTitle className="font-heading text-2xl">
               {lifecycleDialog ? getActionLabel(lifecycleDialog.action) : 'Update appointment'}
@@ -1078,7 +1078,7 @@ export default function StaffAppointmentsPage() {
             <div
               id="lifecycle-dialog-error"
               role="alert"
-              className="rounded-2xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+              className="rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive"
             >
               {lifecycleError}
             </div>

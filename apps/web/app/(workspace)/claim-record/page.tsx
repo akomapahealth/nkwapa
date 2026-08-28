@@ -80,9 +80,7 @@ export default function ClaimRecordPage() {
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.14),transparent_35%),radial-gradient(circle_at_bottom_right,hsl(var(--secondary)/0.12),transparent_32%)]" />
               <div className="relative space-y-6">
                 <div className="space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">
-                    Patient onboarding
-                  </p>
+                  <p className="text-eyebrow text-primary">Patient onboarding</p>
                   <div className="space-y-2">
                     <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
                       Claim your existing patient record
@@ -96,14 +94,14 @@ export default function ClaimRecordPage() {
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-border/70 bg-background/80 p-4">
+                  <div className="rounded-lg border border-border bg-background p-4">
                     <BadgeCheck className="h-5 w-5 text-primary" />
                     <p className="mt-3 text-sm font-medium text-foreground">One chart, one code</p>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
                       Your portal links to the same patient record created in clinic.
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-border/70 bg-background/80 p-4">
+                  <div className="rounded-lg border border-border bg-background p-4">
                     <ShieldCheck className="h-5 w-5 text-primary" />
                     <p className="mt-3 text-sm font-medium text-foreground">Verified access</p>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
@@ -111,7 +109,7 @@ export default function ClaimRecordPage() {
                       linking.
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-border/70 bg-background/80 p-4">
+                  <div className="rounded-lg border border-border bg-background p-4">
                     <CircleAlert className="h-5 w-5 text-primary" />
                     <p className="mt-3 text-sm font-medium text-foreground">Need help?</p>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
@@ -146,7 +144,7 @@ export default function ClaimRecordPage() {
                           key={invite.id}
                           type="button"
                           onClick={() => setSelectedInviteId(invite.id)}
-                          className={`w-full rounded-2xl border p-4 text-left transition-all ${
+                          className={`w-full rounded-lg border p-4 text-left transition-all ${
                             selected
                               ? 'border-primary bg-primary/5 shadow-lg shadow-primary/10'
                               : 'border-border/70 bg-card hover:border-primary/40'
@@ -175,7 +173,7 @@ export default function ClaimRecordPage() {
                 )}
 
                 {selectedInvite ? (
-                  <div className="space-y-4 rounded-2xl border border-border/70 bg-card p-5">
+                  <div className="space-y-4 rounded-lg border border-border/70 bg-card p-5">
                     <div className="space-y-1">
                       <p className="text-sm font-medium text-foreground">Verify your record</p>
                       <p className="text-xs leading-5 text-muted-foreground">

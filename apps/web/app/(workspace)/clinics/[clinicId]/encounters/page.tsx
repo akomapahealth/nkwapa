@@ -49,7 +49,7 @@ export default function ClinicEncountersListPage() {
         />
       </div>
 
-      <Card className="max-w-3xl rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+      <Card className="max-w-3xl ">
         <CardHeader>
           <CardTitle className="text-xl">Encounter queue rollout</CardTitle>
           <CardDescription>
@@ -58,13 +58,13 @@ export default function ClinicEncountersListPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
-          <Button asChild className="rounded-2xl">
+          <Button asChild className="rounded-lg">
             <Link href={`/clinics/${clinicId}/patients`}>
               <FileText className="h-4 w-4" />
               Open clinic patients
             </Link>
           </Button>
-          <Button asChild variant="outline" className="rounded-2xl">
+          <Button asChild variant="outline" className="rounded-lg">
             <Link href="/today">
               <Stethoscope className="h-4 w-4" />
               Open OPS board

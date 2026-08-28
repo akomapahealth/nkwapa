@@ -203,7 +203,7 @@ export default function DashboardPage() {
               <Button
                 type="button"
                 variant="outline"
-                className="rounded-2xl border-border/70 bg-card/80"
+                className="border-border"
                 onClick={() => void fetchDashboard(true)}
                 disabled={loading}
               >

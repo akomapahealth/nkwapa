@@ -157,7 +157,7 @@ export default function AuditPage() {
           />
         </div>
 
-        <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+        <Card>
           <CardHeader className="space-y-3">
             <CardTitle className="text-xl">Filters</CardTitle>
             <CardDescription>Focus the timeline before loading results.</CardDescription>
@@ -215,13 +215,13 @@ export default function AuditPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button onClick={() => fetchAudit()} disabled={loading} className="rounded-2xl">
+              <Button onClick={() => fetchAudit()} disabled={loading} className="rounded-lg">
                 {loading ? 'Loading...' : 'Apply filters'}
               </Button>
               <Button
                 type="button"
                 variant="outline"
-                className="rounded-2xl"
+                className="rounded-lg"
                 onClick={() => {
                   setFrom('');
                   setTo('');
@@ -260,14 +260,14 @@ export default function AuditPage() {
           />
         ) : null}
 
-        <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+        <Card>
           <CardHeader className="space-y-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <CardTitle className="text-xl">Audit events</CardTitle>
                 <CardDescription>Recent activity for the active clinic.</CardDescription>
               </div>
-              <div className="rounded-2xl border border-border/70 bg-background/75 px-4 py-3 text-sm">
+              <div className="rounded-lg border border-border bg-background px-4 py-3 text-sm">
                 <p className="text-muted-foreground">Loaded rows</p>
                 <p className="mt-1 text-xl font-semibold text-foreground">{rows.length}</p>
               </div>
@@ -287,7 +287,7 @@ export default function AuditPage() {
                   {rows.map((row) => (
                     <article
                       key={row.id}
-                      className="rounded-3xl border border-border/80 bg-background/80 p-4 shadow-sm"
+                      className="rounded-lg border border-border bg-background p-4"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -332,7 +332,7 @@ export default function AuditPage() {
                   variant="outline"
                   onClick={() => fetchAudit(nextCursor, true)}
                   disabled={loadingMore}
-                  className="rounded-2xl"
+                  className="rounded-lg"
                 >
                   {loadingMore ? 'Loading...' : 'Load more'}
                 </Button>

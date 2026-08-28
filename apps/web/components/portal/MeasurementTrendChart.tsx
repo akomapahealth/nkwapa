@@ -21,6 +21,12 @@ interface TrendLine {
 
 interface MeasurementTrendChartProps {
   title: string;
+  /**
+   * Defaults to `h3`, which is right for the staff chart panel: it nests these under its own
+   * section heading. The portal's health page puts them at the top level of the page and passes
+   * `h2`.
+   */
+  headingLevel?: 'h2' | 'h3';
   description: string;
   emptyMessage: string;
   lines: TrendLine[];
@@ -35,6 +41,7 @@ const TABULAR_TICK = { fontSize: 11, fontVariantNumeric: 'tabular-nums' } as con
 
 export function MeasurementTrendChart({
   title,
+  headingLevel = 'h3',
   description,
   emptyMessage,
   lines,
@@ -42,7 +49,7 @@ export function MeasurementTrendChart({
   valueSuffix = '',
 }: MeasurementTrendChartProps) {
   return (
-    <PortalPanel title={title} description={description}>
+    <PortalPanel title={title} headingLevel={headingLevel} description={description}>
       {data.length === 0 ? (
         <EmptyState
           density="compact"

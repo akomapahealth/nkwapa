@@ -713,7 +713,7 @@ export default function TodayBoardPage() {
             }
           }}
         >
-          <DialogContent className="max-w-xl rounded-[28px] border-border/80">
+          <DialogContent className="max-w-xl">
             <DialogHeader>
               <DialogTitle className="font-heading text-2xl">
                 {assignmentDialog?.mode === 'reassign' ? 'Reassign patient' : 'Assign patient'}

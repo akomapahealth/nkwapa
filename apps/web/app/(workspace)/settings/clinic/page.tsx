@@ -138,7 +138,7 @@ export default function ClinicSettingsPage() {
 
         {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
 
-        <Card className="max-w-3xl rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+        <Card className="max-w-3xl ">
           <CardHeader>
             <CardTitle className="text-xl">Research settings</CardTitle>
             <CardDescription>
@@ -147,7 +147,7 @@ export default function ClinicSettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="rounded-2xl border border-border/70 bg-background/80 p-4">
+            <div className="rounded-lg border border-border bg-background p-4">
               <div className="flex items-center gap-3">
                 <Checkbox
                   id="researchEnabled"
@@ -163,7 +163,7 @@ export default function ClinicSettingsPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-border/70 bg-background/80 p-4">
+            <div className="rounded-lg border border-border bg-background p-4">
               <div className="flex items-center gap-3">
                 <Checkbox
                   id="requiresDirectorApproval"
@@ -182,7 +182,7 @@ export default function ClinicSettingsPage() {
               </div>
             </div>
 
-            <Button onClick={handleSave} disabled={saving} className="rounded-2xl">
+            <Button onClick={handleSave} disabled={saving} className="rounded-lg">
               {saving ? 'Saving...' : 'Save settings'}
             </Button>
           </CardContent>

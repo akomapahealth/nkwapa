@@ -72,12 +72,22 @@ interface ResearchExportItem {
 }
 
 const STATUS_STYLES: Record<ExportStatus, string> = {
-  PENDING_APPROVAL: 'border-amber-200 bg-amber-50 text-amber-900',
-  APPROVED: 'border-sky-200 bg-sky-50 text-sky-900',
-  PROCESSING: 'border-indigo-200 bg-indigo-50 text-indigo-900',
-  COMPLETED: 'border-emerald-200 bg-emerald-50 text-emerald-900',
-  FAILED: 'border-rose-200 bg-rose-50 text-rose-900',
-  REJECTED: 'border-zinc-200 bg-zinc-100 text-zinc-900',
+  /*
+    Six export states across four semantic tokens.
+
+    This was the last file in the product still running its own palette -- amber, sky, indigo,
+    emerald, rose and zinc, none of which resolve in dark mode and none of which match the status
+    colours the rest of the app uses for the same ideas. Approved and Processing deliberately
+    share --info: they are both "accepted, not finished", and inventing a sixth hue to separate
+    two adjacent waiting states is what produced a six-colour palette in the first place. The
+    words differ, and the words are what the reader acts on.
+  */
+  PENDING_APPROVAL: 'border-warning/25 bg-warning/10 text-warning-ink',
+  APPROVED: 'border-info/25 bg-info/10 text-info-ink',
+  PROCESSING: 'border-info/25 bg-info/10 text-info-ink',
+  COMPLETED: 'border-success/25 bg-success/10 text-success-ink',
+  FAILED: 'border-destructive/25 bg-destructive/10 text-destructive',
+  REJECTED: 'border-border bg-muted text-muted-foreground',
 };
 
 function hasPermission(permissions: string[], permission: string) {
@@ -374,7 +384,7 @@ export default function ResearchExportsPage() {
             description="Choose the date range, then submit the pack for approval or processing."
             hint="The exported format is a fixed v1 ZIP bundle of CSV tables plus manifest files."
           >
-            <div className="rounded-2xl border border-border/70 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+            <div className="rounded-lg border border-border/70 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
               Export format: fixed v1 ZIP pack of CSV tables plus manifest files.
             </div>
 
@@ -433,7 +443,7 @@ export default function ResearchExportsPage() {
                 </Button>
               </div>
 
-              <div className="rounded-2xl border border-border/70 bg-muted/40 p-4">
+              <div className="rounded-lg border border-border/70 bg-muted/40 p-4">
                 <p className="text-sm font-medium text-foreground">Destination preview</p>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Provider: private GitHub repo (server configured)
@@ -449,7 +459,7 @@ export default function ResearchExportsPage() {
               </ProgressiveHelp>
 
               {dateRangeInvalid && (
-                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+                <div className="rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                   The end date must be on or after the start date.
                 </div>
               )}
@@ -465,7 +475,7 @@ export default function ResearchExportsPage() {
             </div>
           </FormSectionCard>
 
-          <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+          <Card className="rounded-lg border-border/80 bg-card/90 shadow-lg shadow-black/5">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
                 <GitBranch className="h-5 w-5 text-primary" />
@@ -488,18 +498,18 @@ export default function ResearchExportsPage() {
         </div>
 
         {error && (
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+          <div className="rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             {error}
           </div>
         )}
 
         {notice && (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          <div className="rounded-lg border border-success/25 bg-success/10 px-4 py-3 text-sm text-success-ink">
             {notice}
           </div>
         )}
 
-        <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+        <Card className="rounded-lg border-border/80 bg-card/90 shadow-lg shadow-black/5">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl">
               <CheckCircle2 className="h-5 w-5 text-primary" />
@@ -511,12 +521,12 @@ export default function ResearchExportsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {loading ? (
-              <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-muted/30 px-4 py-6 text-sm text-muted-foreground">
+              <div className="flex items-center gap-3 rounded-lg border border-border/70 bg-muted/30 px-4 py-6 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Loading exports…
               </div>
             ) : exports.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-border/80 px-4 py-10 text-center text-sm text-muted-foreground">
+              <div className="rounded-lg border border-dashed border-border/80 px-4 py-10 text-center text-sm text-muted-foreground">
                 No exports yet. Request your first research pack above.
               </div>
             ) : (
@@ -551,7 +561,7 @@ export default function ResearchExportsPage() {
                       </div>
 
                       {item.status === 'PROCESSING' ? (
-                        <div className="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-900">
+                        <div className="inline-flex items-center gap-2 rounded-full bg-info/10 px-3 py-1 text-xs font-medium text-info-ink">
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           Background job running
                         </div>
@@ -578,7 +588,7 @@ export default function ResearchExportsPage() {
                         )}
 
                         {item.failureReason ? (
-                          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+                          <div className="rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                             <div className="mb-1 flex items-center gap-2 font-medium">
                               <AlertTriangle className="h-4 w-4" />
                               Processing failed
@@ -588,14 +598,14 @@ export default function ResearchExportsPage() {
                         ) : null}
 
                         {item.rejectionReason ? (
-                          <div className="rounded-2xl border border-zinc-200 bg-zinc-100 px-4 py-3 text-sm text-zinc-900">
+                          <div className="rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
                             <div className="mb-1 font-medium">Rejected reason</div>
                             {item.rejectionReason}
                           </div>
                         ) : null}
                       </div>
 
-                      <div className="space-y-3 rounded-2xl border border-border/70 bg-muted/20 p-4 text-sm">
+                      <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4 text-sm">
                         <div>
                           <p className="font-medium text-foreground">Artifact</p>
                           <p className="text-muted-foreground">
@@ -711,7 +721,7 @@ export default function ResearchExportsPage() {
             }
           }}
         >
-          <DialogContent className="max-w-lg rounded-[28px] border-border/80">
+          <DialogContent className="max-w-lg rounded-lg border-border/80">
             <DialogHeader>
               <DialogTitle className="font-heading text-2xl">Reject export request</DialogTitle>
               <DialogDescription>

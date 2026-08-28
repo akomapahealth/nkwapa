@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { ArrowLeft, CalendarRange, Clock3, Send } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
