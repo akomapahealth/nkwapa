@@ -42,7 +42,7 @@ export function MeasurementTrendChart({
       </CardHeader>
       <CardContent>
         {data.length === 0 ? (
-          <div className="flex h-[240px] items-center justify-center rounded-2xl border border-dashed border-border/70 bg-muted/20 px-6 text-center text-sm text-muted-foreground">
+          <div className="flex h-[240px] items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/20 px-6 text-center text-sm text-muted-foreground">
             {emptyMessage}
           </div>
         ) : (

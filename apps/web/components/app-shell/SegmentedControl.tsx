@@ -49,7 +49,7 @@ export function SegmentedControl<TValue extends string>({
       role="group"
       aria-label={label}
       className={cn(
-        'grid h-auto w-full gap-2 rounded-2xl border border-border/70 bg-background p-2',
+        'grid h-auto w-full gap-2 rounded-lg border border-border/70 bg-background p-2',
         className,
       )}
       style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
