@@ -131,10 +131,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 shrink-0 rounded-full text-current/65 hover:bg-current/10 hover:text-current"
+                  className="relative h-8 w-8 shrink-0 rounded-full text-current/65 before:absolute before:left-1/2 before:top-1/2 before:h-11 before:w-11 before:-translate-x-1/2 before:-translate-y-1/2 before:content-[''] hover:bg-current/10 hover:text-current"
                   onClick={() => dismissToast(toast.id)}
                 >
-                  <X className="h-4 w-4" />
+                  <X aria-hidden="true" className="h-4 w-4" />
                   <span className="sr-only">Dismiss notification</span>
                 </Button>
               </div>

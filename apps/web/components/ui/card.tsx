@@ -7,10 +7,16 @@ const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElemen
     <div
       ref={ref}
       className={cn(
-        // No hover translate: the design system forbids layout shift on hover, and a card that
-        // lifts under the cursor is actively unhelpful when someone is reading a measurement off
-        // it. Colour and border still respond, which is the affordance that was wanted.
-        'rounded-lg border border-border/80 bg-card/92 text-card-foreground shadow-sm shadow-black/5 transition-colors duration-200 hover:border-border',
+        // No hover treatment, and no translucency.
+        //
+        // The border used to lighten on hover on every card in the product, including the ones
+        // that are not clickable, which is a promise the card cannot keep. Cards that really are
+        // links carry their own hover at the call site.
+        //
+        // The surface is opaque. It was `bg-card/92`, which existed to let the shell's decorative
+        // background gradient show through; that gradient is gone, so the alpha only cost contrast
+        // on the text sitting on it.
+        'rounded-lg border border-border/80 bg-card text-card-foreground shadow-sm shadow-black/5',
         className,
       )}
       {...props}

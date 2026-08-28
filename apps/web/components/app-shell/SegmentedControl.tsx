@@ -52,7 +52,10 @@ export function SegmentedControl<TValue extends string>({
         'grid h-auto w-full gap-2 rounded-lg border border-border/70 bg-background p-2',
         className,
       )}
-      style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
+      // auto-fit rather than a fixed column per option. A four-option control on a 375px phone
+      // was dividing ~343px into four, which is not enough for a word like "Cancelled"; it now
+      // wraps onto a second row instead of crushing or truncating the labels.
+      style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(7rem, 1fr))' }}
     >
       {options.map((option) => {
         const selected = option.value === value;
@@ -66,7 +69,7 @@ export function SegmentedControl<TValue extends string>({
               aria-describedby={describedBy}
               onClick={() => onChange(option.value)}
               className={cn(
-                'min-h-9 cursor-pointer rounded-xl text-sm font-medium',
+                'cursor-pointer rounded-md text-sm font-medium',
                 !selected && 'text-muted-foreground hover:text-foreground',
               )}
             >
