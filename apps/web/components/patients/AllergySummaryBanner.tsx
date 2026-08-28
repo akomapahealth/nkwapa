@@ -10,31 +10,31 @@ const presentations = {
     title: 'Active allergies or adverse reactions',
     description: 'Review these entries before prescribing medication.',
     icon: AlertTriangle,
-    className: 'border-destructive/35 bg-destructive/10 text-destructive dark:bg-destructive/15',
+    className: 'border-destructive/35 bg-destructive/10 text-destructive',
   },
   NO_KNOWN_ALLERGIES: {
     title: 'No known allergies recorded',
     description: 'This is an intentional clinical history state.',
     icon: CheckCircle2,
-    className: 'border-emerald-500/35 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300',
+    className: 'border-success/35 bg-success/10 text-success-ink',
   },
   HISTORICAL_ONLY: {
     title: 'Historical allergies only',
     description: 'No allergy is currently marked active.',
     icon: History,
-    className: 'border-amber-500/35 bg-amber-500/10 text-amber-900 dark:text-amber-300',
+    className: 'border-warning/35 bg-warning/10 text-warning-ink',
   },
   NOT_RECORDED: {
     title: 'Allergy status not recorded',
     description: 'Confirm allergies or record no known allergies before medication decisions.',
     icon: CircleHelp,
-    className: 'border-amber-500/35 bg-amber-500/10 text-amber-900 dark:text-amber-300',
+    className: 'border-warning/35 bg-warning/10 text-warning-ink',
   },
   UNAVAILABLE: {
     title: 'Allergy status unavailable',
     description: 'The allergy summary could not be loaded.',
     icon: CircleHelp,
-    className: 'border-border bg-muted/50 text-foreground',
+    className: 'border-border bg-muted text-foreground',
   },
 } as const;
 
@@ -52,7 +52,7 @@ export function AllergySummaryBanner({
     <section
       aria-label="Allergy status"
       className={cn(
-        'rounded-3xl border p-4',
+        'rounded-lg border p-4',
         presentation.className,
         compact ? 'space-y-2' : 'space-y-3',
       )}

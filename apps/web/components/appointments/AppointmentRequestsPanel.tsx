@@ -228,7 +228,7 @@ export function AppointmentRequestsPanel({
   }
 
   return (
-    <Card className="rounded-[30px] border-border/80">
+    <Card>
       <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
           <CardTitle className="flex items-center gap-2">
@@ -282,7 +282,7 @@ export function AppointmentRequestsPanel({
               {pending.map((request) => (
                 <li
                   key={request.id}
-                  className="rounded-2xl border border-border/70 bg-background/80 p-4"
+                  className="rounded-lg border border-border/70 bg-background/80 p-4"
                 >
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0 space-y-2">
@@ -313,7 +313,7 @@ export function AppointmentRequestsPanel({
                         </p>
                       ) : null}
                       {request.reason ? (
-                        <p className="rounded-2xl bg-muted/40 p-3 text-sm text-muted-foreground">
+                        <p className="rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground">
                           {request.reason}
                         </p>
                       ) : null}
@@ -352,7 +352,7 @@ export function AppointmentRequestsPanel({
       </CardContent>
 
       <Dialog open={Boolean(dialog)} onOpenChange={(open) => (!open ? closeDialog() : undefined)}>
-        <DialogContent className="max-w-lg rounded-[28px]">
+        <DialogContent className="max-w-lg rounded-lg">
           <DialogHeader>
             <DialogTitle>
               {dialog?.action === 'confirm' ? 'Confirm request' : 'Decline request'}
@@ -366,7 +366,7 @@ export function AppointmentRequestsPanel({
 
           {dialog ? (
             <div className="space-y-4">
-              <p className="rounded-2xl bg-muted/40 p-3 text-sm text-muted-foreground">
+              <p className="rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground">
                 {requestSummary(dialog.request, timezone)}
               </p>
 
@@ -459,7 +459,7 @@ export function AppointmentRequestsPanel({
                 <p
                   id="triage-dialog-error"
                   role="alert"
-                  className="rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+                  className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
                 >
                   {dialogError}
                 </p>

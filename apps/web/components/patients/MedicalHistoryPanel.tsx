@@ -398,7 +398,7 @@ export function MedicalHistoryPanel({
   return (
     <div className="space-y-4">
       <AllergySummaryBanner summary={allergySummary} />
-      <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+      <Card>
         <CardHeader className="gap-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -408,7 +408,7 @@ export function MedicalHistoryPanel({
               </p>
             </div>
             {canWrite ? (
-              <Button onClick={openCreate} className="rounded-2xl">
+              <Button onClick={openCreate} className="rounded-lg">
                 <Plus className="h-4 w-4" />
                 Add history
               </Button>
@@ -474,10 +474,7 @@ export function MedicalHistoryPanel({
                 const presentation = statusPresentations[record.currentRevision.status];
                 const StatusIcon = presentation.icon;
                 return (
-                  <li
-                    key={record.id}
-                    className="rounded-3xl border border-border/80 bg-background/70 p-4"
-                  >
+                  <li key={record.id} className="rounded-lg border border-border bg-background p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
@@ -505,7 +502,7 @@ export function MedicalHistoryPanel({
                         <Button
                           variant="outline"
                           size="sm"
-                          className="rounded-2xl"
+                          className="rounded-lg"
                           onClick={() => void openRevisions(record)}
                         >
                           <History className="h-4 w-4" />
@@ -515,7 +512,7 @@ export function MedicalHistoryPanel({
                           <Button
                             variant="outline"
                             size="sm"
-                            className="rounded-2xl"
+                            className="rounded-lg"
                             onClick={() => openEdit(record)}
                           >
                             <Pencil className="h-4 w-4" />
@@ -635,7 +632,7 @@ export function MedicalHistoryPanel({
           ) : (
             <ol className="space-y-3">
               {revisions.map((revision) => (
-                <li key={revision.id} className="rounded-2xl border border-border p-3">
+                <li key={revision.id} className="rounded-lg border border-border p-3">
                   <div className="flex items-center justify-between gap-3">
                     <span className="font-medium">Revision {revision.revisionNumber}</span>
                     <Badge variant={statusPresentations[revision.status].variant}>

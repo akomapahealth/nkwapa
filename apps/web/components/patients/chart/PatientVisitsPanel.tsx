@@ -117,7 +117,7 @@ export function PatientVisitsPanel({
   });
 
   return (
-    <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+    <Card>
       <CardHeader>
         <div className="flex items-center gap-2">
           <CalendarClock className="h-5 w-5 text-primary" aria-hidden="true" />
