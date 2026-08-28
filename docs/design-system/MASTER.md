@@ -115,16 +115,16 @@ The tinted badge pattern is `bg-<token>/12` plus `text-<token>-ink`.
 
 **`draft` is deliberately neutral** (`bg-muted` + `--muted-foreground`, 4.94:1). A draft note is not a warning; colouring it amber put it in the same visual class as an out-of-range clinical value.
 
-**Migration debt: 105 raw-palette status colours already exist.** Before these tokens, status was expressed with Tailwind's raw palette: **62 uses of `emerald-*`** and **43 of `amber-*`**, plus smaller counts of `rose-`, `green-`, `red-`, and `yellow-`. `components/ui/badge.tsx` already ships `success` and `warning` variants built on `bg-emerald-100` and `bg-amber-100`.
+**The raw-palette migration is complete.** Before Phase 6 the product expressed status with
+Tailwind's raw palette -- 108 occurrences across 18 files -- so it ran two status colour systems at
+once. That is now zero, verified by scan across `apps/web/app` and `apps/web/components`. The
+landing page is excluded from the scan and keeps its own treatment; it is a Persuade surface, not a
+clinical one.
 
-The semantic intent is already there throughout the app; it is simply bound to the wrong values. Until these call sites are swept, Nkwapa has **two parallel status colour systems**, which is exactly the mixed old/new state #65 forbids.
-
-Sweep them in this order, because the first two propagate:
-
-1. `components/ui/badge.tsx` — retarget the existing `success` / `warning` variants at the tokens.
-2. `app/SyncStatusBar.tsx` — offline and online state, visible on every route.
-3. `components/patients/AllergySummaryBanner.tsx` — clinical safety surface.
-4. The remaining call sites, largest first: `research/exports` (9), `AppointmentsPortalScreen` (6), `AppointmentRequestScreen` (5), `landing/DashboardPreviewSection` (5), `admin/users` (4).
+Three files were worth naming while it was happening, and are worth naming now that it is done:
+`components/ui/badge.tsx` (broadest reach), `app/SyncStatusBar.tsx` (deleted -- it had no importers
+and duplicated the header's sync pill), and `components/patients/AllergySummaryBanner.tsx`, the one
+a clinician reads before prescribing.
 
 ### Lines
 
@@ -189,17 +189,23 @@ Two rules for anyone touching this:
 1. **The boot script deliberately duplicates the resolve logic in `theme-context.tsx`.** It has to, because it runs before any module loads. If you change the class name, the storage key, or the resolution order in one, change it in the other.
 2. **Every `localStorage` access is wrapped in `try`/`catch`.** It throws outright in some privacy modes, and a clinical app must not fail to render because a preference could not be read.
 
-### Known risk: 27 previously-dead `dark:` utilities are now live
+### Resolved: the previously-dead `dark:` utilities are gone
 
-Turning dark mode on activated code paths that have never rendered for a user:
+Turning dark mode on activated code paths that had never rendered for a user. Rather than audit
+them, Phase 6 deleted all of them: **every `dark:` utility in the product existed only to patch a
+raw palette colour that broke under a theme it was never tested in.** Moving the base colour onto a
+token removes the need for the patch, because tokens resolve in both modes -- which is the whole
+reason to have them.
 
-| File                                                    | Count |
-| ------------------------------------------------------- | ----- |
-| `components/portal/AppointmentsPortalScreen.tsx`        | 6     |
-| `components/portal/AppointmentRequestScreen.tsx`        | 5     |
-| `components/ui/badge.tsx`                               | 4     |
-| `components/patients/AllergySummaryBanner.tsx`          | 4     |
-| `components/patients/MedicationReconciliationPanel.tsx` | 2     |
+The count is now zero and should stay there. **Do not add a `dark:` utility.** If a colour needs
+one, the colour is wrong: reach for a token, or add one and record its measured contrast here.
+
+------------------------------------------------------- | ----- |
+| `components/portal/AppointmentsPortalScreen.tsx` | 6 |
+| `components/portal/AppointmentRequestScreen.tsx` | 5 |
+| `components/ui/badge.tsx` | 4 |
+| `components/patients/AllergySummaryBanner.tsx` | 4 |
+| `components/patients/MedicationReconciliationPanel.tsx` | 2 |
 
 Several of these are bound to raw palette values (`dark:bg-amber-900/30`, `dark:text-emerald-300`) rather than tokens, so they will not track the token system. Fold them into the status-colour sweep in section 3 rather than fixing them separately.
 
@@ -224,7 +230,7 @@ All four steps are real Tailwind classes. `xl` was added to `tailwind.config.js`
 
 Measured before the Phase 6 migration: `rounded-[28px]` in 32 files (78 occurrences), plus `[24px]`, `[26px]`, `[30px]` and `[32px]` — five arbitrary radii inside one product, three of them inside the fallback components alone.
 
-### Legacy pattern to delete
+### Resolved: the legacy hero is gone
 
 ```
 rounded-[28px]
@@ -232,9 +238,20 @@ bg-gradient-to-br from-primary/15 via-card to-secondary/15
 shadow-xl shadow-primary/5
 ```
 
-Present in exactly three files: `app/(workspace)/today/page.tsx`, `app/(workspace)/admin/users/page.tsx`, `app/(workspace)/my/assigned/page.tsx`. Replace with `AppPageHeader`. This pattern violates principle 1 above and #61's own non-goal on generic gradients.
+It lived in `today`, `admin/users` and `my/assigned`, and all three are `AppPageHeader` now, with
+their metrics as a sibling grid rather than nested inside the hero.
 
-The `landing-hero-mesh`, `landing-gradient-mesh-alt`, and `landing-glass` utilities in `globals.css` are **scoped to `app/(marketing)` only** and are exempt. They must not appear on any workspace route.
+Counted across `apps/web/app` and `apps/web/components`, excluding the landing page: arbitrary or
+oversized radii went 35 to 0, gradients on clinical surfaces 3 to 0, and uppercase tracking values
+7 to 0. `e2e/responsive-migration.spec.js` holds the line on layout; a grep holds the line on the
+rest.
+
+The `landing-hero-mesh`, `landing-gradient-mesh-alt` and `landing-glass` utilities in `globals.css`
+are **scoped to `app/(marketing)` only** and are exempt. They must not appear on a workspace route.
+
+**Shadow above `shadow-sm` is for things that genuinely float** -- a dialog, a sheet, a popover, the
+chat panel, a help bubble. That is depth doing a job, not decoration, and it is the one exception
+to the flatness rule.
 
 ---
 
