@@ -27,9 +27,7 @@ export function AppNavList({
       {sections.map((section) => (
         <div key={section.id} className="space-y-2">
           {(!collapsed || mobile) && (
-            <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">
-              {section.label}
-            </p>
+            <p className="text-eyebrow px-3 text-sidebar-muted-foreground">{section.label}</p>
           )}
           <div className="space-y-1">
             {section.items.map((item) => {

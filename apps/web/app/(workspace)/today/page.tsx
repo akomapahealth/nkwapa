@@ -26,13 +26,13 @@ import {
   readApiError,
 } from '@/lib/ops';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { RouteGuard } from '@/components/RouteGuard';
 import {
   CheckInStatusBadge,
   EmptyStateCard,
   InlineNotice,
   OnlineOnlyBanner,
-  OpsMetricCard,
   ShiftControlCard,
   ShiftRoleBadge,
 } from '@/components/ops/OpsShared';
@@ -420,23 +420,23 @@ export default function TodayBoardPage() {
           </div>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <OpsMetricCard
-              label="Patients waiting"
+            <AppMetricCard
+              title="Patients waiting"
               value={groupedCheckins.WAITING.length}
               detail="New arrivals ready for assignment"
             />
-            <OpsMetricCard
-              label="Active assignments"
+            <AppMetricCard
+              title="Active assignments"
               value={groupedCheckins.ASSIGNED.length + groupedCheckins.IN_PROGRESS.length}
               detail="Assigned or currently in intake"
             />
-            <OpsMetricCard
-              label="Staff on duty"
+            <AppMetricCard
+              title="Staff on duty"
               value={shifts.length}
               detail={`${countByRole(shifts, 'VOLUNTEER')} volunteers, ${countByRole(shifts, 'DOCTOR')} doctors`}
             />
-            <OpsMetricCard
-              label="Completed today"
+            <AppMetricCard
+              title="Completed today"
               value={groupedCheckins.COMPLETED.length}
               detail={formatOpsDate(selectedDate, timezone)}
             />

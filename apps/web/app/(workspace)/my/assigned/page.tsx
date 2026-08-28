@@ -24,6 +24,7 @@ import {
   readApiError,
 } from '@/lib/ops';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { RouteGuard } from '@/components/RouteGuard';
 import {
   AssignedRoleBadge,
@@ -31,7 +32,6 @@ import {
   EmptyStateCard,
   InlineNotice,
   OnlineOnlyBanner,
-  OpsMetricCard,
   ShiftControlCard,
 } from '@/components/ops/OpsShared';
 import { Button } from '@/components/ui/button';
@@ -412,13 +412,13 @@ export default function MyAssignedPage() {
           </div>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <OpsMetricCard
-              label="Assigned today"
+            <AppMetricCard
+              title="Assigned today"
               value={assignments.length}
               detail={formatOpsDate(selectedDate, timezone)}
             />
-            <OpsMetricCard
-              label="Ready for intake"
+            <AppMetricCard
+              title="Ready for intake"
               value={
                 assignments.filter(
                   (assignment) =>
@@ -429,8 +429,8 @@ export default function MyAssignedPage() {
               }
               detail="Volunteer-owned intake starts"
             />
-            <OpsMetricCard
-              label="In progress"
+            <AppMetricCard
+              title="In progress"
               value={
                 assignments.filter(
                   (assignment) =>
@@ -439,8 +439,8 @@ export default function MyAssignedPage() {
               }
               detail="Cases with active encounters"
             />
-            <OpsMetricCard
-              label="Completed"
+            <AppMetricCard
+              title="Completed"
               value={
                 assignments.filter((assignment) => assignment.checkInStatus === 'COMPLETED').length
               }

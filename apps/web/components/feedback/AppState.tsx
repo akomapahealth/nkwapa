@@ -4,6 +4,7 @@ import Link from 'next/link';
 import {
   Activity,
   AlertTriangle,
+  Building2,
   Inbox,
   Lock,
   RefreshCw,
@@ -36,7 +37,7 @@ export function PageSkeleton({
           <div className="p-6 md:p-8">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
               <div className="space-y-3">
-                <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.28em] text-primary">
+                <div className="text-eyebrow inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-primary">
                   <Activity className="h-3.5 w-3.5 animate-pulse" />
                   Loading
                 </div>
@@ -208,7 +209,7 @@ export function FullscreenStatus({
             <div className="relative space-y-5">
               <p
                 className={cn(
-                  'text-xs font-semibold uppercase tracking-[0.28em]',
+                  'text-eyebrow',
                   tone === 'danger' ? 'text-destructive' : 'text-primary',
                 )}
               >
@@ -276,17 +277,59 @@ export function NotFoundState() {
 export function EmptyState({
   title,
   description,
-  icon: Icon = Inbox,
+  icon = Inbox,
   action,
+  density = 'comfortable',
   className,
 }: {
   title: string;
   /** What the reader can do about it, in plain language. Not an apology. */
   description: string;
-  icon?: LucideIcon;
+  /**
+   * A Lucide component. A rendered element is also accepted so the older `EmptyStateCard`
+   * call sites can be moved across one group at a time rather than in one sweep.
+   */
+  icon?: LucideIcon | React.ReactElement;
   action?: React.ReactNode;
+  /**
+   * `comfortable` owns a whole panel: centred, generous, the only thing on screen.
+   * `compact` sits inside something else -- a board column, a card, a dialog -- where a centred
+   * 12-unit block would push the real content off the fold.
+   *
+   * Six shapes used to exist for this across the app. Two densities is the honest number,
+   * because an empty queue column and an empty page are not the same message.
+   */
+  density?: 'comfortable' | 'compact';
   className?: string;
 }) {
+  const glyph =
+    typeof icon === 'function'
+      ? (() => {
+          const Icon = icon;
+          return <Icon aria-hidden="true" className="h-5 w-5" />;
+        })()
+      : icon;
+
+  if (density === 'compact') {
+    return (
+      <div
+        className={cn(
+          'rounded-lg border border-dashed border-border bg-muted/30 p-5 text-sm text-muted-foreground',
+          className,
+        )}
+      >
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 shrink-0 text-muted-foreground">{glyph}</span>
+          <div>
+            <p className="font-medium text-foreground">{title}</p>
+            <p className="mt-1 leading-6">{description}</p>
+            {action ? <div className="pt-3">{action}</div> : null}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(
@@ -295,7 +338,7 @@ export function EmptyState({
       )}
     >
       <span className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
-        <Icon aria-hidden="true" className="h-5 w-5" />
+        {glyph}
       </span>
       <div className="space-y-1">
         <p className="font-medium text-foreground">{title}</p>
@@ -346,5 +389,36 @@ export function NoAccessState({
         {action ? <div className="shrink-0">{action}</div> : null}
       </div>
     </div>
+  );
+}
+
+/**
+ * "This page needs a clinic, and you have not picked one."
+ *
+ * Ten routes each hand-rolled this as `<div className="p-4"><p className="text-muted-foreground">
+ * Select a clinic to …</p></div>`: no heading, no icon, no way to act, and ten different
+ * sentences for one situation. It is also not an error and not a permission refusal, which is
+ * why it neither borrows destructive colour nor offers a retry.
+ *
+ * `surface` names the thing in plain language ("the Today Board", "this patient chart") and is
+ * folded into one sentence, so callers cannot drift into ten phrasings again.
+ */
+export function SelectClinicState({
+  surface,
+  action,
+  className,
+}: {
+  surface: string;
+  action?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <EmptyState
+      icon={Building2}
+      title="Select a clinic first"
+      description={`${surface} is scoped to one clinic, so it needs to know which clinic you are working in. Choose one in the header to continue.`}
+      action={action}
+      className={className}
+    />
   );
 }

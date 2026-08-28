@@ -26,12 +26,12 @@ export function AppMetricCard({
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-1.5">
-              <CardDescription className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+              <CardDescription className="text-eyebrow text-muted-foreground">
                 {title}
               </CardDescription>
               {hint ? <InfoHint label={hint} className="-mr-1 h-5 w-5" /> : null}
             </div>
-            <CardTitle className="mt-3 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+            <CardTitle className="mt-3 text-2xl font-semibold tabular-nums tracking-tight text-foreground sm:text-3xl">
               {value}
             </CardTitle>
           </div>
