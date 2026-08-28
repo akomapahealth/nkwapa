@@ -2,6 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { RouteGuard } from '@/components/RouteGuard';
 import { RegisterPatientScreen } from '@/components/patients/RegisterPatientScreen';
 
 export default function ClinicNewPatientPage() {
@@ -10,11 +11,8 @@ export default function ClinicNewPatientPage() {
   const getToken = useAuth();
 
   return (
-    <RegisterPatientScreen
-      clinicId={clinicId}
-      getToken={getToken}
-      backHref={`/clinics/${clinicId}/patients`}
-      backLabel="Back to Patient Search"
-    />
+    <RouteGuard requiredPermission="PATIENT.CREATE">
+      <RegisterPatientScreen clinicId={clinicId} getToken={getToken} />
+    </RouteGuard>
   );
 }

@@ -172,7 +172,7 @@ export function PrescriptionForm({
   const acknowledgementRequired = requiresPrescriptionAllergyAcknowledgement(allergyState);
 
   return (
-    <div className="space-y-4 rounded-3xl border border-border/80 bg-background/70 p-4 sm:p-5">
+    <div className="space-y-4 rounded-lg border border-border bg-background p-4 sm:p-5">
       <h3 className="text-base font-semibold">Add prescription</h3>
       {error && <p className="text-sm text-destructive">{error}</p>}
 
@@ -268,7 +268,7 @@ export function PrescriptionForm({
         />
       </div>
       {acknowledgementRequired ? (
-        <div className="flex items-start gap-3 rounded-2xl border border-amber-500/35 bg-amber-500/10 p-3">
+        <div className="flex items-start gap-3 rounded-lg border border-warning/35 bg-warning/10 p-3">
           <Checkbox
             id="prescription-allergy-acknowledgement"
             checked={allergyAcknowledged}

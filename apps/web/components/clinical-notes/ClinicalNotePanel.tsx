@@ -19,6 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { ChartSectionLoading } from '@/components/patients/chart/ChartSectionState';
 import { ClinicalNoteStatusBadge } from './ClinicalNoteStatusBadge';
 
 const EMPTY_DRAFT = { history: '', assessment: '', plan: '' };
@@ -215,7 +216,10 @@ export function ClinicalNotePanel({
     );
   }
 
-  if (loading) return <p className="p-4 text-sm text-muted-foreground">Loading clinical note…</p>;
+  // Every other chart panel routes its loading state through ChartSectionLoading, which announces
+  // itself to a screen reader. This one returned a bare paragraph, so a volunteer using a reader
+  // heard nothing at all while the note was fetching.
+  if (loading) return <ChartSectionLoading label="clinical note" lines={4} />;
 
   if (!note) {
     return (
@@ -229,7 +233,7 @@ export function ClinicalNotePanel({
           type="button"
           onClick={() => void saveDraft()}
           disabled={busy}
-          className="cursor-pointer rounded-2xl"
+          className="cursor-pointer"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
           Start HAP note
@@ -251,13 +255,13 @@ export function ClinicalNotePanel({
       {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
       {success ? <InlineNotice tone="success">{success}</InlineNotice> : null}
 
-      <Card className="rounded-[28px] border-border/80 bg-card/90">
+      <Card>
         <CardHeader className="space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <div className="flex items-center gap-2">
                 <FilePenLine className="h-5 w-5 text-primary" aria-hidden="true" />
-                <h2 className="text-xl font-semibold">History, Assessment, and Plan</h2>
+                <h2 className="text-lg font-semibold">History, Assessment, and Plan</h2>
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
                 Authored by {note.author.displayName} as {note.authorRole.toLowerCase()}.
@@ -266,7 +270,7 @@ export function ClinicalNotePanel({
             <ClinicalNoteStatusBadge status={note.status} />
           </div>
           {note.assignedDoctorNameSnapshot ? (
-            <div className="rounded-2xl border border-border/70 bg-background/75 p-3 text-sm">
+            <div className="rounded-lg border border-border bg-background p-3 text-sm">
               <p className="font-medium">Assigned care team at submission</p>
               <p className="mt-1 text-muted-foreground">
                 Volunteer: {note.assignedVolunteerNameSnapshot ?? 'Not assigned'} · Doctor:{' '}
@@ -297,12 +301,12 @@ export function ClinicalNotePanel({
                   }
                   maxLength={20_000}
                   rows={9}
-                  className="min-h-48 resize-y rounded-2xl text-base leading-7"
+                  className="min-h-48 resize-y text-base leading-7"
                 />
               ) : (
                 <div
                   id={`clinical-note-${section}`}
-                  className="min-h-24 whitespace-pre-wrap rounded-2xl border border-border/70 bg-background/75 p-4 text-sm leading-6"
+                  className="min-h-24 whitespace-pre-wrap rounded-lg border border-border bg-background p-4 text-sm leading-6"
                 >
                   {displayed[section] || 'Not recorded'}
                 </div>
@@ -324,7 +328,7 @@ export function ClinicalNotePanel({
                     variant="outline"
                     onClick={() => void saveDraft()}
                     disabled={busy || !dirty}
-                    className="cursor-pointer rounded-2xl"
+                    className="cursor-pointer"
                   >
                     <Save className="h-4 w-4" aria-hidden="true" />
                     Save draft
@@ -333,7 +337,7 @@ export function ClinicalNotePanel({
                     type="button"
                     onClick={() => setConfirmAction('submit')}
                     disabled={busy}
-                    className="cursor-pointer rounded-2xl"
+                    className="cursor-pointer"
                   >
                     <FileCheck2 className="h-4 w-4" aria-hidden="true" />
                     {note.authorRole === 'DOCTOR' ? 'Sign note' : 'Submit for cosign'}
@@ -345,7 +349,7 @@ export function ClinicalNotePanel({
                   type="button"
                   onClick={() => setConfirmAction('cosign')}
                   disabled={busy}
-                  className="cursor-pointer rounded-2xl"
+                  className="cursor-pointer"
                 >
                   <Stethoscope className="h-4 w-4" aria-hidden="true" />
                   Cosign note
@@ -356,7 +360,7 @@ export function ClinicalNotePanel({
                   type="button"
                   variant="outline"
                   onClick={() => setAddendumOpen(true)}
-                  className="cursor-pointer rounded-2xl"
+                  className="cursor-pointer"
                 >
                   <Plus className="h-4 w-4" aria-hidden="true" />
                   Add addendum
@@ -374,7 +378,7 @@ export function ClinicalNotePanel({
           </h2>
           <ol className="space-y-3">
             {note.addenda.map((addendum) => (
-              <li key={addendum.id} className="rounded-2xl border border-border/80 bg-card/90 p-4">
+              <li key={addendum.id} className="rounded-lg border border-border bg-card p-4">
                 <div className="flex flex-col gap-1 sm:flex-row sm:justify-between">
                   <p className="font-medium">{addendum.reason}</p>
                   <p className="text-xs text-muted-foreground">

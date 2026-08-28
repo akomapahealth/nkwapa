@@ -11,6 +11,7 @@ import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineNotice } from '@/components/ops/OpsShared';
+import { InlineErrorState } from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -278,39 +279,24 @@ export default function EncounterDetailPage() {
           }
           actions={
             <>
-              <Button asChild variant="ghost" className="rounded-2xl">
+              <Button asChild variant="ghost">
                 <Link href={`/clinics/${encounter.clinicId}/patients/${encounter.patientId}`}>
                   <ArrowLeft className="h-4 w-4" />
                   Back to Patient
                 </Link>
               </Button>
               {canSubmit ? (
-                <Button
-                  size="sm"
-                  onClick={() => doTransition('submit')}
-                  disabled={transitioning}
-                  className="rounded-2xl"
-                >
+                <Button size="sm" onClick={() => doTransition('submit')} disabled={transitioning}>
                   Submit for Review
                 </Button>
               ) : null}
               {canReview ? (
-                <Button
-                  size="sm"
-                  onClick={() => doTransition('review')}
-                  disabled={transitioning}
-                  className="rounded-2xl"
-                >
+                <Button size="sm" onClick={() => doTransition('review')} disabled={transitioning}>
                   Mark Reviewed
                 </Button>
               ) : null}
               {canFinalize ? (
-                <Button
-                  size="sm"
-                  onClick={() => doTransition('finalize')}
-                  disabled={transitioning}
-                  className="rounded-2xl"
-                >
+                <Button size="sm" onClick={() => doTransition('finalize')} disabled={transitioning}>
                   Finalize
                 </Button>
               ) : null}
@@ -339,10 +325,16 @@ export default function EncounterDetailPage() {
           />
         </div>
 
-        {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
+        {error ? (
+          <InlineErrorState
+            title="This encounter could not be loaded"
+            description={error}
+            onRetry={() => void fetchData()}
+          />
+        ) : null}
 
         {encounter.patient ? (
-          <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+          <Card>
             <CardHeader>
               <h1 className="text-xl font-semibold font-heading">
                 {encounter.patient.firstName} {encounter.patient.lastName}
@@ -379,7 +371,7 @@ export default function EncounterDetailPage() {
               className="max-w-full overflow-x-auto pb-1"
               aria-label="Encounter clinical sections"
             >
-              <TabsList className="w-max justify-start gap-2 rounded-3xl border border-border/80 bg-card/75 p-2">
+              <TabsList className="w-max justify-start gap-2 rounded-lg border border-border bg-card p-2">
                 <TabsTrigger value="vitals" disabled={savingBeforeSwitch}>
                   Vitals
                 </TabsTrigger>
@@ -469,7 +461,7 @@ export default function EncounterDetailPage() {
             <InlineNotice tone="info">
               This encounter is finalized. Every clinical tab remains available in read-only mode.
             </InlineNotice>
-            <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+            <Card>
               <CardContent className="pt-6">
                 {carePlan && (
                   <div className="mt-4 space-y-2">

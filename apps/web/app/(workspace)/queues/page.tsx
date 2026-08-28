@@ -18,7 +18,7 @@ import { Box } from '@mui/material';
 import { dataGridSx } from '@/lib/datagrid-theme';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ProgressiveHelp } from '@/components/ui/progressive-help';
-import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
+import { EmptyState, InlineErrorState } from '@/components/feedback/AppState';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 
 interface QueueRow {
@@ -196,18 +196,8 @@ export default function QueuesPage() {
     router.push(`/encounters/${String(params.id)}`);
   };
 
-  if (!clinicId) {
-    return (
-      <RouteGuard requiredPermission="ENCOUNTER.READ">
-        <div className="p-4">
-          <p className="text-muted-foreground">Select a clinic to view queues.</p>
-        </div>
-      </RouteGuard>
-    );
-  }
-
   return (
-    <RouteGuard requiredPermission="ENCOUNTER.READ">
+    <RouteGuard requiredPermission="ENCOUNTER.READ" requiresClinic clinicSurface="Encounter queues">
       <div className="space-y-6">
         <AppPageHeader
           eyebrow="Clinical workflow"
@@ -246,16 +236,22 @@ export default function QueuesPage() {
           />
         </div>
 
-        {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
+        {error ? (
+          <InlineErrorState
+            title="The queues could not be loaded"
+            description={error}
+            onRetry={() => void loadAll()}
+          />
+        ) : null}
 
-        <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+        <Card>
           <CardHeader className="space-y-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <CardTitle className="text-xl">Encounter queues</CardTitle>
                 <CardDescription>Switch lanes and open the right encounter fast.</CardDescription>
               </div>
-              <div className="rounded-2xl border border-border/70 bg-background/75 px-4 py-3 text-sm">
+              <div className="rounded-lg border border-border bg-background px-4 py-3 text-sm">
                 <p className="text-muted-foreground">Active lane</p>
                 <p className="mt-1 text-xl font-semibold text-foreground">
                   {activeTab === 'drafts'
@@ -275,7 +271,7 @@ export default function QueuesPage() {
               to finalize is waiting on doctor sign-off.
             </ProgressiveHelp>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl border border-border/70 bg-background p-2 sm:grid-cols-2 xl:grid-cols-4">
+              <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-lg border border-border bg-background p-2 sm:grid-cols-2 xl:grid-cols-4">
                 {canDrafts && <TabsTrigger value="drafts">Drafts</TabsTrigger>}
                 {canReview && <TabsTrigger value="review">Needs Review</TabsTrigger>}
                 {canFinalize && <TabsTrigger value="finalize">Ready to Finalize</TabsTrigger>}
@@ -338,7 +334,7 @@ function QueueContent({
 }) {
   if (!loading && rows.length === 0) {
     return (
-      <EmptyStateCard
+      <EmptyState
         title="Nothing in this queue"
         description="This lane is clear right now. Switch tabs or check back after the next clinical update."
       />
@@ -349,10 +345,7 @@ function QueueContent({
     <>
       <div className="space-y-3 md:hidden">
         {rows.map((row) => (
-          <article
-            key={row.id}
-            className="rounded-3xl border border-border/80 bg-background/80 p-4 shadow-sm"
-          >
+          <article key={row.id} className="rounded-lg border border-border bg-background p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-sm font-semibold text-foreground">{row.patientName}</h3>
