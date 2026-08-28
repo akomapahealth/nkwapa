@@ -32,7 +32,7 @@ export function ChatMessageBubble({
   return (
     <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} mb-1.5`}>
       <div
-        className={`max-w-[80%] rounded-2xl px-3.5 py-2 ${bubbleClassName} ${isPending ? 'opacity-80' : ''}`}
+        className={`max-w-[80%] rounded-lg px-3.5 py-2 ${bubbleClassName} ${isPending ? 'opacity-80' : ''}`}
       >
         {!isMine && (
           <p className="mb-0.5 text-[11px] font-medium opacity-70">{message.sender.displayName}</p>

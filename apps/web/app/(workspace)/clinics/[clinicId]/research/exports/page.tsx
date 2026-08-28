@@ -536,7 +536,7 @@ export default function ResearchExportsPage() {
                 return (
                   <div
                     key={item.id}
-                    className="space-y-4 rounded-[24px] border border-border/70 bg-background/60 p-5"
+                    className="space-y-4 rounded-lg border border-border/70 bg-background/60 p-5"
                   >
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div className="space-y-2">

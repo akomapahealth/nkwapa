@@ -74,10 +74,9 @@ export default function ClaimRecordPage() {
   return (
     <div className="min-h-screen bg-clinical-grid px-4 py-10 md:px-6">
       <div className="mx-auto flex max-w-5xl flex-col gap-6">
-        <Card className="overflow-hidden rounded-[32px] border-border/70 bg-card/95 shadow-2xl shadow-black/5">
+        <Card className="overflow-hidden rounded-xl border-border bg-card shadow-sm">
           <CardContent className="grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
             <section className="relative overflow-hidden px-6 py-8 md:px-10 md:py-10">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.14),transparent_35%),radial-gradient(circle_at_bottom_right,hsl(var(--secondary)/0.12),transparent_32%)]" />
               <div className="relative space-y-6">
                 <div className="space-y-3">
                   <p className="text-eyebrow text-primary">Patient onboarding</p>
@@ -146,7 +145,7 @@ export default function ClaimRecordPage() {
                           onClick={() => setSelectedInviteId(invite.id)}
                           className={`w-full rounded-lg border p-4 text-left transition-all ${
                             selected
-                              ? 'border-primary bg-primary/5 shadow-lg shadow-primary/10'
+                              ? 'border-primary bg-primary/5'
                               : 'border-border/70 bg-card hover:border-primary/40'
                           }`}
                         >

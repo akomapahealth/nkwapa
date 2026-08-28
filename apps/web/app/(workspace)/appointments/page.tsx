@@ -896,7 +896,7 @@ export default function StaffAppointmentsPage() {
                                 Appointments on {formatOpsDate(date, timezone)}, with status,
                                 reminders, assigned staff, and available actions.
                               </caption>
-                              <thead className="bg-muted/50 text-left text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                              <thead className="bg-muted/50 text-left text-eyebrow text-muted-foreground">
                                 <tr>
                                   <th scope="col" className="px-4 py-3">
                                     Time

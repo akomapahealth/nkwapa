@@ -122,7 +122,7 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
 
   return (
     <div className="space-y-4">
-      <Card className="border-border/70 bg-gradient-to-br from-card via-card to-primary/5">
+      <Card>
         <CardHeader className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary" className="rounded-full px-3 py-1">

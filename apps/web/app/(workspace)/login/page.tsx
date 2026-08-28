@@ -52,9 +52,8 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-dvh bg-clinical-grid px-4 py-5 sm:px-6 lg:flex lg:h-dvh lg:items-center lg:overflow-hidden lg:py-6">
-      <section className="mx-auto grid w-full max-w-6xl overflow-hidden rounded-[30px] border border-border/70 bg-card/95 shadow-2xl shadow-black/10 lg:max-h-[calc(100dvh-3rem)] lg:grid-cols-[0.9fr_1.1fr]">
+      <section className="mx-auto grid w-full max-w-6xl overflow-hidden rounded-xl border border-border bg-card shadow-sm lg:max-h-[calc(100dvh-3rem)] lg:grid-cols-[0.9fr_1.1fr]">
         <aside className="relative hidden overflow-hidden bg-primary text-primary-foreground lg:block">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,hsl(var(--secondary)/0.28),transparent_34%),radial-gradient(circle_at_80%_72%,hsl(var(--background)/0.18),transparent_30%)]" />
           <div className="relative flex h-full min-h-[560px] flex-col justify-between gap-8 p-8 xl:p-10">
             <div className="relative h-14 w-64">
               <Image
@@ -68,7 +67,7 @@ export default function LoginPage() {
             </div>
 
             <div className="max-w-md space-y-5">
-              <p className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-eyebrow text-primary-foreground/90">
+              <p className="inline-flex items-center gap-2 rounded-full border border-primary-foreground/25 bg-primary-foreground/10 px-3 py-1 text-eyebrow text-primary-foreground/90">
                 <ShieldCheck className="h-3.5 w-3.5" />
                 Protected workspace
               </p>
@@ -76,20 +75,23 @@ export default function LoginPage() {
                 <h1 className="font-heading text-4xl font-semibold leading-tight tracking-tight xl:text-5xl">
                   Secure access for patient-safe clinic work.
                 </h1>
-                <p className="text-base leading-7 text-white/82">
+                <p className="text-base leading-7 text-primary-foreground/85">
                   Sign in once to reach clinic-scoped records, queues, follow-up, and dashboard
                   context without exposing sensitive patient data on this page.
                 </p>
               </div>
             </div>
 
-            <div className="grid gap-3 text-sm text-white/86">
+            <div className="grid gap-3 text-sm text-primary-foreground/85">
               {[
                 'Keycloak verifies your identity before records load.',
                 'Clinic permissions decide what you can view and update.',
                 'Offline sync keeps available tools clear when networks change.',
               ].map((item) => (
-                <div key={item} className="flex items-start gap-3 rounded-lg bg-white/10 p-3">
+                <div
+                  key={item}
+                  className="flex items-start gap-3 rounded-lg bg-primary-foreground/10 p-3"
+                >
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-secondary" />
                   <span className="leading-6">{item}</span>
                 </div>
@@ -154,7 +156,7 @@ export default function LoginPage() {
               </div>
             ) : null}
 
-            <div className="grid gap-3 rounded-[26px] border border-border/70 bg-background/80 p-4 shadow-sm">
+            <div className="grid gap-3 rounded-lg border border-border bg-background p-4">
               <div className="flex items-start gap-3">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <Wifi className="h-4 w-4" />

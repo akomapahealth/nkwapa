@@ -668,7 +668,7 @@ function PatientChartWorkspace() {
           description={error}
           onRetry={() => void fetchPatient()}
         />
-        <Button asChild variant="outline" className="rounded-2xl">
+        <Button asChild variant="outline">
           <Link href={`/clinics/${clinicId}/patients`}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to search
@@ -685,7 +685,7 @@ function PatientChartWorkspace() {
           title="Patient not found"
           description="This chart does not exist in the active clinic, or it has been merged into another chart."
         />
-        <Button asChild variant="outline" className="rounded-2xl">
+        <Button asChild variant="outline">
           <Link href={`/clinics/${clinicId}/patients`}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to search
@@ -721,14 +721,14 @@ function PatientChartWorkspace() {
         }
         actions={
           <>
-            <Button asChild variant="ghost" className="rounded-2xl">
+            <Button asChild variant="ghost">
               <Link href={`/clinics/${clinicId}/patients`}>
                 <ArrowLeft className="h-4 w-4" />
                 Back to Patient Search
               </Link>
             </Button>
             {canUpdatePatient ? (
-              <Button asChild variant="outline" className="rounded-2xl">
+              <Button asChild variant="outline">
                 <Link href={`/clinics/${clinicId}/patients/${patientId}/edit`}>
                   <Pencil className="h-4 w-4" />
                   Edit
@@ -736,11 +736,7 @@ function PatientChartWorkspace() {
               </Button>
             ) : null}
             {canCreateOpsCheckIn ? (
-              <Button
-                onClick={() => void handleCheckIn()}
-                disabled={loading}
-                className="rounded-2xl"
-              >
+              <Button onClick={() => void handleCheckIn()} disabled={loading}>
                 <Stethoscope className="h-4 w-4" />
                 Check In Patient
               </Button>
@@ -813,48 +809,38 @@ function PatientChartWorkspace() {
                 >
                   <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
                     <div className="space-y-4">
-                      <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+                      <Card>
                         <CardHeader>
                           <h2 className="text-lg font-semibold">Patient details</h2>
                         </CardHeader>
                         <CardContent className="grid gap-4 sm:grid-cols-2">
-                          <div className="rounded-3xl border border-border/80 bg-background/75 p-4">
-                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                              Patient code
-                            </p>
+                          <div className="rounded-lg border border-border bg-background p-4">
+                            <p className="text-eyebrow text-muted-foreground">Patient code</p>
                             <p className="mt-2 font-mono text-lg font-semibold text-foreground">
                               {patient.patientCode}
                             </p>
                           </div>
-                          <div className="rounded-3xl border border-border/80 bg-background/75 p-4">
-                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                              Contact
-                            </p>
+                          <div className="rounded-lg border border-border bg-background p-4">
+                            <p className="text-eyebrow text-muted-foreground">Contact</p>
                             <p className="mt-2 text-sm text-foreground">
                               {patient.phoneE164 || 'No phone on file'}
                             </p>
                           </div>
-                          <div className="rounded-3xl border border-border/80 bg-background/75 p-4">
-                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                              Date of birth
-                            </p>
+                          <div className="rounded-lg border border-border bg-background p-4">
+                            <p className="text-eyebrow text-muted-foreground">Date of birth</p>
                             <p className="mt-2 text-sm text-foreground">
                               {patient.dob
                                 ? new Date(patient.dob).toLocaleDateString()
                                 : 'Not recorded'}
                             </p>
                           </div>
-                          <div className="rounded-3xl border border-border/80 bg-background/75 p-4">
-                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                              Sex
-                            </p>
+                          <div className="rounded-lg border border-border bg-background p-4">
+                            <p className="text-eyebrow text-muted-foreground">Sex</p>
                             <p className="mt-2 text-sm text-foreground">{patient.sex}</p>
                           </div>
                           {patient.nationalIdLast4 ? (
-                            <div className="rounded-3xl border border-border/80 bg-background/75 p-4 sm:col-span-2">
-                              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                                National ID
-                              </p>
+                            <div className="rounded-lg border border-border bg-background p-4 sm:col-span-2">
+                              <p className="text-eyebrow text-muted-foreground">National ID</p>
                               <p className="mt-2 text-sm text-foreground">
                                 ...{patient.nationalIdLast4}
                               </p>
@@ -868,7 +854,7 @@ function PatientChartWorkspace() {
 
                     <div className="space-y-4">
                       {canLinkPortal ? (
-                        <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+                        <Card>
                           <CardHeader>
                             <h2 className="text-lg font-semibold">Portal account</h2>
                             <p className="text-sm text-muted-foreground">
@@ -877,10 +863,10 @@ function PatientChartWorkspace() {
                             </p>
                           </CardHeader>
                           <CardContent className="space-y-4">
-                            <div className="rounded-3xl border border-border/80 bg-background/75 p-4">
+                            <div className="rounded-lg border border-border bg-background p-4">
                               <div className="flex items-center justify-between gap-3">
                                 <div>
-                                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                                  <p className="text-eyebrow text-muted-foreground">
                                     Portal status
                                   </p>
                                   <p className="mt-2 text-base font-semibold text-foreground">
@@ -933,7 +919,7 @@ function PatientChartWorkspace() {
                                 variant="outline"
                                 size="sm"
                                 onClick={handlePortalInviteOpen}
-                                className="w-full cursor-pointer rounded-2xl"
+                                className="w-full cursor-pointer rounded-lg"
                               >
                                 <UserPlus className="mr-2 h-4 w-4" />
                                 {portalAccess.status === 'INVITED'
@@ -944,7 +930,7 @@ function PatientChartWorkspace() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={handlePortalLinkOpen}
-                                className="w-full cursor-pointer rounded-2xl"
+                                className="w-full cursor-pointer rounded-lg"
                               >
                                 Link existing app account
                               </Button>
@@ -953,7 +939,7 @@ function PatientChartWorkspace() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => void handlePortalInviteCancel(latestInvite.id)}
-                                  className="w-full rounded-2xl text-destructive hover:text-destructive"
+                                  className="w-full rounded-lg text-destructive hover:text-destructive"
                                 >
                                   Cancel latest invite
                                 </Button>
@@ -964,7 +950,7 @@ function PatientChartWorkspace() {
                       ) : null}
 
                       {isSystemAdmin ? (
-                        <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+                        <Card>
                           <CardHeader>
                             <h2 className="text-lg font-semibold">Duplicate repair</h2>
                             <p className="text-sm text-muted-foreground">
@@ -973,7 +959,7 @@ function PatientChartWorkspace() {
                             </p>
                           </CardHeader>
                           <CardContent className="space-y-3">
-                            <p className="rounded-3xl border border-border/80 bg-background/75 p-4 text-sm text-muted-foreground">
+                            <p className="rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground">
                               Use this only when two patient rows represent the same real person in
                               the same clinic.
                             </p>
@@ -986,7 +972,7 @@ function PatientChartWorkspace() {
                                 setMergeQuery('');
                                 setMergeCandidateId('');
                               }}
-                              className="w-full rounded-2xl"
+                              className="w-full"
                             >
                               Merge duplicate into this chart
                             </Button>
@@ -994,7 +980,7 @@ function PatientChartWorkspace() {
                         </Card>
                       ) : null}
 
-                      <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+                      <Card>
                         <CardHeader>
                           <h2 className="text-lg font-semibold">Next steps</h2>
                         </CardHeader>
@@ -1163,13 +1149,13 @@ function PatientChartWorkspace() {
                             }
                             placeholder="Search duplicate by name, code, phone, or alias"
                           />
-                          <div className="max-h-72 space-y-2 overflow-y-auto rounded-2xl border border-border/80 bg-background/75 p-2">
+                          <div className="max-h-72 space-y-2 overflow-y-auto rounded-lg border border-border/80 bg-background/75 p-2">
                             {mergeCandidates.map((candidate) => (
                               <button
                                 key={candidate.id}
                                 type="button"
                                 onClick={() => setMergeCandidateId(candidate.id)}
-                                className={`w-full rounded-2xl border p-3 text-left transition ${
+                                className={`w-full rounded-lg border p-3 text-left transition ${
                                   mergeCandidateId === candidate.id
                                     ? 'border-primary bg-primary/5'
                                     : 'border-border/70 bg-card hover:border-primary/40'
@@ -1235,7 +1221,7 @@ function PatientChartWorkspace() {
               return <PatientClinicalNotesPanel clinicId={clinicId} patientId={patientId} />;
             case 'self-reports':
               return (
-                <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+                <Card>
                   <CardHeader>
                     <h2 className="text-lg font-semibold">Patient self-reports</h2>
                     <p className="text-sm text-muted-foreground">
@@ -1253,7 +1239,7 @@ function PatientChartWorkspace() {
                         {selfReports.map((report) => (
                           <li
                             key={report.id}
-                            className="flex flex-col gap-1 rounded-3xl border border-border/80 bg-background/75 p-4"
+                            className="flex flex-col gap-1 rounded-lg border border-border bg-background p-4"
                           >
                             <div className="flex items-center justify-between">
                               <span className="font-medium">{report.type.replace(/_/g, ' ')}</span>
@@ -1281,7 +1267,7 @@ function PatientChartWorkspace() {
               );
             case 'consent':
               return (
-                <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+                <Card>
                   <CardHeader>
                     <h2 className="text-lg font-semibold">Research consent</h2>
                   </CardHeader>
@@ -1300,12 +1286,11 @@ function PatientChartWorkspace() {
                           size="sm"
                           onClick={handleRevoke}
                           disabled={loading}
-                          className="rounded-2xl"
                         >
                           Revoke Consent
                         </Button>
                       ) : (
-                        <Button asChild size="sm" className="rounded-2xl">
+                        <Button asChild size="sm">
                           <Link href={`/clinics/${clinicId}/patients/${patientId}/consent`}>
                             <FileCheck className="mr-2 h-4 w-4" />
                             Record Consent
