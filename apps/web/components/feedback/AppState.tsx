@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   Stethoscope,
 } from 'lucide-react';
+import { isValidElement } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -302,13 +303,21 @@ export function EmptyState({
   density?: 'comfortable' | 'compact';
   className?: string;
 }) {
-  const glyph =
-    typeof icon === 'function'
-      ? (() => {
-          const Icon = icon;
-          return <Icon aria-hidden="true" className="h-5 w-5" />;
-        })()
-      : icon;
+  /*
+    `isValidElement`, not `typeof icon === 'function'`.
+
+    Lucide icons are built with React.forwardRef, so they are objects rather than functions. A
+    function check therefore falls through and tries to render the component object itself as a
+    child, which throws "Objects are not valid as a React child" and takes the whole route down.
+    Asking whether it is already an element is the question that actually distinguishes the two.
+  */
+  let glyph: React.ReactNode;
+  if (isValidElement(icon)) {
+    glyph = icon;
+  } else {
+    const IconComponent = icon as LucideIcon;
+    glyph = <IconComponent aria-hidden="true" className="h-5 w-5" />;
+  }
 
   if (density === 'compact') {
     return (
