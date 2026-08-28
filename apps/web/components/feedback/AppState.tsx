@@ -275,6 +275,13 @@ export function NotFoundState() {
  * clinic day is the normal case, and dressing it in destructive colour trains staff to read
  * a calm system as a broken one. Neutral surface, no alarm colour, no retry.
  */
+/**
+ * The title is an <h3>, not a styled paragraph.
+ *
+ * An empty region is still a region, and a screen-reader user navigating by heading needs to
+ * land on "No visits yet" the same way a sighted user's eye does. Three e2e specs assert it by
+ * role for exactly that reason.
+ */
 export function EmptyState({
   title,
   description,
@@ -330,7 +337,7 @@ export function EmptyState({
         <div className="flex items-start gap-3">
           <span className="mt-0.5 shrink-0 text-muted-foreground">{glyph}</span>
           <div>
-            <p className="font-medium text-foreground">{title}</p>
+            <h3 className="font-medium text-foreground">{title}</h3>
             <p className="mt-1 leading-6">{description}</p>
             {action ? <div className="pt-3">{action}</div> : null}
           </div>
@@ -350,7 +357,7 @@ export function EmptyState({
         {glyph}
       </span>
       <div className="space-y-1">
-        <p className="font-medium text-foreground">{title}</p>
+        <h3 className="font-medium text-foreground">{title}</h3>
         <p className="mx-auto max-w-prose text-sm leading-6 text-muted-foreground">{description}</p>
       </div>
       {action ? <div className="pt-1">{action}</div> : null}
