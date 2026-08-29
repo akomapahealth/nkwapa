@@ -26,13 +26,35 @@ export function LandingNav() {
   const prefersReducedMotion = useReducedMotion();
   const { scrollY } = useScroll();
 
-  const navBg = useTransform(scrollY, [0, 100], ['rgba(255,255,255,0)', 'rgba(255,255,255,0.92)']);
-  const navBorder = useTransform(scrollY, [0, 100], ['rgba(0,0,0,0)', 'hsl(45 20% 87% / 0.8)']);
+  /*
+    Token-derived, not literal white.
+
+    These were `rgba(255,255,255,0.92)` and `rgba(0,0,0,0.06)`, so the nav faded to a white bar
+    with a black shadow regardless of theme -- in dark mode it became a bright slab across the top
+    of a dark page. `--card` and `--foreground` resolve per theme, so the same scroll behaviour now
+    reads correctly in both.
+  */
+  const navBg = useTransform(
+    scrollY,
+    [0, 100],
+    ['hsl(var(--card) / 0)', 'hsl(var(--card) / 0.92)'],
+  );
+  const navBorder = useTransform(
+    scrollY,
+    [0, 100],
+    ['hsl(var(--border) / 0)', 'hsl(var(--border) / 0.8)'],
+  );
   const navShadow = useTransform(
     scrollY,
     [0, 100],
-    ['0 0 0 0 transparent', '0 4px 24px -4px rgba(0,0,0,0.06)'],
+    ['0 0 0 0 transparent', '0 4px 24px -4px hsl(var(--foreground) / 0.08)'],
   );
+
+  const settledNavStyle = {
+    backgroundColor: 'hsl(var(--card) / 0.92)',
+    boxShadow: '0 4px 24px -4px hsl(var(--foreground) / 0.08)',
+    border: '1px solid hsl(var(--border) / 0.8)',
+  } as const;
 
   const handleAnchor = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
     e.preventDefault();
@@ -48,12 +70,7 @@ export function LandingNav() {
         className="pointer-events-auto flex w-full max-w-5xl items-center justify-between gap-4 rounded-full px-4 py-3 backdrop-blur-md md:px-6"
         style={
           prefersReducedMotion
-            ? {
-                backgroundColor: 'rgba(255,255,255,0.92)',
-                borderColor: 'hsl(45 20% 87% / 0.8)',
-                boxShadow: '0 4px 24px -4px rgba(0,0,0,0.06)',
-                border: '1px solid hsl(45 20% 87% / 0.8)',
-              }
+            ? settledNavStyle
             : {
                 backgroundColor: navBg,
                 borderColor: navBorder,

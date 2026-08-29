@@ -136,7 +136,7 @@ export function DiabetesHistoryPanel({
     : items;
 
   const renderRecord = (item: DiabetesHistoryItem, currentRecord = false) => (
-    <li key={item.id} className="rounded-3xl border border-border/80 bg-background/75 p-4 sm:p-5">
+    <li key={item.id} className="rounded-lg border border-border bg-background p-4 sm:p-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -185,7 +185,7 @@ export function DiabetesHistoryPanel({
             </InlineNotice>
           ) : null}
         </div>
-        <Button asChild variant="outline" className="shrink-0 rounded-2xl">
+        <Button asChild variant="outline" className="shrink-0">
           <Link href={`/clinics/${clinicId}/encounters/${item.sourceEncounter.id}`}>
             Open source visit <ExternalLink className="h-4 w-4" aria-hidden="true" />
           </Link>
@@ -195,7 +195,7 @@ export function DiabetesHistoryPanel({
   );
 
   return (
-    <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+    <Card>
       <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
         <div>
           <h2 className="text-lg font-semibold">Longitudinal diabetes history</h2>
@@ -223,10 +223,7 @@ export function DiabetesHistoryPanel({
         {loading ? <ChartSectionLoading label="diabetes history" /> : null}
         {!loading && currentEncounterId ? (
           <section aria-labelledby="current-diabetes-record" className="space-y-3">
-            <h3
-              id="current-diabetes-record"
-              className="text-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground"
-            >
+            <h3 id="current-diabetes-record" className="text-eyebrow text-muted-foreground">
               Current encounter
             </h3>
             {current ? (
@@ -239,10 +236,7 @@ export function DiabetesHistoryPanel({
           </section>
         ) : null}
         <section aria-labelledby="previous-diabetes-records" className="space-y-3">
-          <h3
-            id="previous-diabetes-records"
-            className="text-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground"
-          >
+          <h3 id="previous-diabetes-records" className="text-eyebrow text-muted-foreground">
             {currentEncounterId ? 'Previous screenings' : 'Screening history'}
           </h3>
           {!loading && history.length === 0 ? (

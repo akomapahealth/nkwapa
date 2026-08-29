@@ -228,7 +228,7 @@ export default function RemindersPage() {
           />
         </div>
 
-        <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+        <Card>
           <CardHeader className="space-y-3">
             <CardTitle className="text-xl">Filters</CardTitle>
             <CardDescription>Focus the reminder history before opening results.</CardDescription>
@@ -270,14 +270,14 @@ export default function RemindersPage() {
                 <Button
                   onClick={() => fetchReminders()}
                   disabled={loading}
-                  className="flex-1 rounded-2xl"
+                  className="flex-1 rounded-lg"
                 >
                   {loading ? 'Loading...' : 'Apply filters'}
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
-                  className="rounded-2xl"
+                  className="rounded-lg"
                   onClick={() => {
                     setStatus('');
                     setFrom('');
@@ -311,14 +311,14 @@ export default function RemindersPage() {
           />
         ) : null}
 
-        <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+        <Card>
           <CardHeader className="space-y-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <CardTitle className="text-xl">Reminder history</CardTitle>
                 <CardDescription>Delivery timing, channel, and failure details.</CardDescription>
               </div>
-              <div className="rounded-2xl border border-border/70 bg-background/75 px-4 py-3 text-sm">
+              <div className="rounded-lg border border-border bg-background px-4 py-3 text-sm">
                 <p className="text-muted-foreground">Loaded rows</p>
                 <p className="mt-1 text-xl font-semibold text-foreground">{rows.length}</p>
               </div>
@@ -338,10 +338,10 @@ export default function RemindersPage() {
                   {rows.map((row) => (
                     <article
                       key={row.id}
-                      className="rounded-3xl border border-border/80 bg-background/80 p-4 shadow-sm"
+                      className="rounded-lg border border-border bg-background p-4"
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <div>
+                        <div className="min-w-0">
                           <h3 className="text-sm font-semibold text-foreground">
                             {row.templateKey}
                           </h3>
@@ -390,7 +390,7 @@ export default function RemindersPage() {
                   variant="outline"
                   onClick={() => fetchReminders(nextCursor, true)}
                   disabled={loadingMore}
-                  className="rounded-2xl"
+                  className="rounded-lg"
                 >
                   {loadingMore ? 'Loading...' : 'Load more'}
                 </Button>

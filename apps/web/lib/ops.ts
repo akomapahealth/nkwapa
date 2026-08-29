@@ -179,6 +179,24 @@ export function formatRoleLabel(role: string) {
     .join(' ');
 }
 
+/**
+ * The roles worth showing as chips beside a clinic name.
+ *
+ * Capped because a system admin who is also a director, doctor and volunteer in the active clinic
+ * produces a row of badges that pushes the clinic name itself off a narrow header. Three is what
+ * fits at the narrowest supported width.
+ *
+ * Sidebar and Header each had this same slice inline, and a change to one would have silently
+ * disagreed with the other.
+ */
+export function getVisibleRoleLabels(
+  clinicRoles: readonly string[] | undefined,
+  globalRoles: readonly string[] | undefined,
+  limit = 3,
+): string[] {
+  return [...(clinicRoles ?? []), ...(globalRoles ?? [])].slice(0, limit);
+}
+
 export function formatStatusLabel(status: string) {
   return formatRoleLabel(status);
 }

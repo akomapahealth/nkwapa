@@ -57,7 +57,7 @@ function LegacyPatientChartRedirect() {
         title="No active clinic"
         description="Select a clinic before opening a patient chart. Charts are scoped to the clinic you are working in."
       />
-      <Button asChild variant="outline" className="rounded-2xl">
+      <Button asChild variant="outline">
         <Link href="/dashboard">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to dashboard

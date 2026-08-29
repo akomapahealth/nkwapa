@@ -1,5 +1,6 @@
 'use client';
 
+import { LineChartIcon } from 'lucide-react';
 import {
   CartesianGrid,
   Line,
@@ -9,7 +10,8 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { EmptyState } from '@/components/feedback/AppState';
+import { PortalPanel } from '@/components/portal/PortalPanels';
 
 interface TrendLine {
   key: string;
@@ -19,6 +21,12 @@ interface TrendLine {
 
 interface MeasurementTrendChartProps {
   title: string;
+  /**
+   * Defaults to `h3`, which is right for the staff chart panel: it nests these under its own
+   * section heading. The portal's health page puts them at the top level of the page and passes
+   * `h2`.
+   */
+  headingLevel?: 'h2' | 'h3';
   description: string;
   emptyMessage: string;
   lines: TrendLine[];
@@ -26,8 +34,14 @@ interface MeasurementTrendChartProps {
   valueSuffix?: string;
 }
 
+// Axis labels and tooltip values are clinical numbers a patient reads down a column, so the
+// digits have to line up. Recharts renders them as SVG text, which the `tabular-nums` utility
+// cannot reach; the font feature has to be set on the tick style directly.
+const TABULAR_TICK = { fontSize: 11, fontVariantNumeric: 'tabular-nums' } as const;
+
 export function MeasurementTrendChart({
   title,
+  headingLevel = 'h3',
   description,
   emptyMessage,
   lines,
@@ -35,74 +49,74 @@ export function MeasurementTrendChart({
   valueSuffix = '',
 }: MeasurementTrendChartProps) {
   return (
-    <Card className="border-border/70 bg-card/95">
-      <CardHeader className="space-y-2">
-        <CardTitle className="text-base">{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {data.length === 0 ? (
-          <div className="flex h-[240px] items-center justify-center rounded-2xl border border-dashed border-border/70 bg-muted/20 px-6 text-center text-sm text-muted-foreground">
-            {emptyMessage}
+    <PortalPanel title={title} headingLevel={headingLevel} description={description}>
+      {data.length === 0 ? (
+        <EmptyState
+          density="compact"
+          icon={LineChartIcon}
+          title="No readings to chart yet"
+          description={emptyMessage}
+        />
+      ) : (
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+            {lines.map((line) => (
+              <div key={line.key} className="flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: line.color }}
+                />
+                <span>{line.label}</span>
+              </div>
+            ))}
           </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-              {lines.map((line) => (
-                <div key={line.key} className="flex items-center gap-2">
-                  <span
-                    className="h-2.5 w-2.5 rounded-full"
-                    style={{ backgroundColor: line.color }}
+          <div className="h-[240px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={data}>
+                <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" />
+                <XAxis dataKey="label" tick={TABULAR_TICK} stroke="hsl(var(--muted-foreground))" />
+                <YAxis
+                  tick={TABULAR_TICK}
+                  stroke="hsl(var(--muted-foreground))"
+                  domain={['auto', 'auto']}
+                />
+                <Tooltip
+                  formatter={(value, key) => {
+                    if (value == null) return ['No value', key];
+                    return [`${value}${valueSuffix}`, String(key ?? '')];
+                  }}
+                  labelFormatter={(value) => `${value}`}
+                  contentStyle={{
+                    backgroundColor: 'hsl(var(--card))',
+                    border: '1px solid hsl(var(--border))',
+                    // The radius scale caps at 14px; this was 1rem, off-scale in both directions.
+                    borderRadius: '0.625rem',
+                    color: 'hsl(var(--foreground))',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                />
+                {lines.map((line) => (
+                  <Line
+                    key={line.key}
+                    type="monotone"
+                    dataKey={line.key}
+                    stroke={line.color}
+                    strokeWidth={2.5}
+                    dot={{ r: 3 }}
+                    activeDot={{ r: 5 }}
+                    connectNulls
+                    // Recharts' default draw-in runs 1500ms and is driven from JavaScript, so the
+                    // global prefers-reduced-motion rule in globals.css cannot switch it off.
+                    // Nothing in a clinical view animates longer than 200ms anyway.
+                    isAnimationActive={false}
                   />
-                  <span>{line.label}</span>
-                </div>
-              ))}
-            </div>
-            <div className="h-[240px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={data}>
-                  <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" />
-                  <XAxis
-                    dataKey="label"
-                    tick={{ fontSize: 11 }}
-                    stroke="hsl(var(--muted-foreground))"
-                  />
-                  <YAxis
-                    tick={{ fontSize: 11 }}
-                    stroke="hsl(var(--muted-foreground))"
-                    domain={['auto', 'auto']}
-                  />
-                  <Tooltip
-                    formatter={(value, key) => {
-                      if (value == null) return ['No value', key];
-                      return [`${value}${valueSuffix}`, String(key ?? '')];
-                    }}
-                    labelFormatter={(value) => `${value}`}
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '1rem',
-                      color: 'hsl(var(--foreground))',
-                    }}
-                  />
-                  {lines.map((line) => (
-                    <Line
-                      key={line.key}
-                      type="monotone"
-                      dataKey={line.key}
-                      stroke={line.color}
-                      strokeWidth={2.5}
-                      dot={{ r: 3 }}
-                      activeDot={{ r: 5 }}
-                      connectNulls
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </div>
+      )}
+    </PortalPanel>
   );
 }

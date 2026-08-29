@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Box } from '@mui/material';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
-import { Layers3, RefreshCw, ShieldAlert, Users } from 'lucide-react';
+import { AlertTriangle, Layers3, RefreshCw, ShieldAlert, Users } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
@@ -11,8 +11,17 @@ import { apiFetch } from '@/lib/api';
 import { formatRoleLabel, readApiError } from '@/lib/ops';
 import { dataGridSx } from '@/lib/datagrid-theme';
 import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
+import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
+import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
+import {
+  EmptyState,
+  InlineErrorState,
+  SectionSkeleton,
+  SelectClinicState,
+} from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
-import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
+import { InlineNotice } from '@/components/ops/OpsShared';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -755,12 +764,10 @@ export default function AdminUsersPage() {
 
   const emptyState =
     viewMode === 'clinic' && !activeClinicId ? (
-      <EmptyStateCard
-        title="Select a clinic"
-        description="Choose an active clinic in the header to review the roster and manage clinic-scoped access."
-      />
+      <SelectClinicState surface="The clinic roster" />
     ) : (
-      <EmptyStateCard
+      <EmptyState
+        icon={Users}
         title="No staff records match these filters"
         description="Adjust the status or role filters, or wait until the user signs into Nkwapa for the first time."
       />
@@ -769,48 +776,33 @@ export default function AdminUsersPage() {
   return (
     <RouteGuard requiredPermission="CLINIC.MANAGE">
       <div className="space-y-6">
-        <section className="overflow-hidden rounded-[28px] border border-primary/15 bg-gradient-to-br from-primary/15 via-card to-secondary/15 p-6 shadow-xl shadow-primary/5">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-            <div className="max-w-2xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary">
-                Access Lifecycle
-              </p>
-              <h1 className="mt-3 font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-                Staff & Access
-              </h1>
-              <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">
-                Manage clinic access and roster status.
-              </p>
-              <div className="mt-3 max-w-2xl">
-                <ProgressiveHelp title="How access changes work">
-                  Use Active clinic for day-to-day roster changes, switch to All users when you need
-                  cross-clinic or global account checks, and remember that deactivating an account
-                  blocks access without removing audit history.
-                </ProgressiveHelp>
-              </div>
-            </div>
-
+        <AppPageHeader
+          eyebrow="Access lifecycle"
+          title="Staff & Access"
+          description="Manage clinic access and roster status."
+          helpTitle="How access changes work"
+          helpText="Use Active clinic for day-to-day roster changes, switch to All users when you need cross-clinic or global account checks, and remember that deactivating an account blocks access without removing audit history."
+          actions={
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
               {isSystemAdmin ? (
-                <div className="flex rounded-2xl border border-border/80 bg-card/85 p-1 shadow-sm">
-                  <Button
-                    type="button"
-                    variant={viewMode === 'clinic' ? 'default' : 'ghost'}
-                    className="rounded-xl"
-                    onClick={() => setViewMode('clinic')}
-                    disabled={!activeClinicId}
-                  >
-                    Active clinic
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={viewMode === 'all' ? 'default' : 'ghost'}
-                    className="rounded-xl"
-                    onClick={() => setViewMode('all')}
-                  >
-                    All users
-                  </Button>
-                </div>
+                <SegmentedControl
+                  label="Roster scope"
+                  value={viewMode}
+                  onChange={(next) => setViewMode(next)}
+                  className="sm:w-[280px]"
+                  options={[
+                    {
+                      value: 'clinic',
+                      label: 'Active clinic',
+                      description: 'Staff with access to the clinic selected in the header.',
+                    },
+                    {
+                      value: 'all',
+                      label: 'All users',
+                      description: 'Every account on the platform, for system admin review.',
+                    },
+                  ]}
+                />
               ) : null}
 
               <Button
@@ -818,87 +810,69 @@ export default function AdminUsersPage() {
                 variant="outline"
                 onClick={() => void fetchRows({ background: true })}
                 disabled={refreshing || loading}
-                className="h-11 rounded-2xl border-border/80 bg-card/85 px-4"
               >
-                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+                <RefreshCw
+                  aria-hidden="true"
+                  className={refreshing ? 'animate-spin motion-reduce:animate-none' : ''}
+                />
                 Refresh
               </Button>
             </div>
-          </div>
+          }
+        />
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-2xl border border-border/80 bg-card/85 p-4 shadow-sm backdrop-blur-sm">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                Scope
-              </p>
-              <p className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
-                {viewMode === 'clinic' ? (activeClinicName ?? 'Clinic roster') : 'All users'}
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {viewMode === 'clinic'
-                  ? 'Current clinic access and lifecycle actions'
-                  : 'System-wide visibility for system admin review'}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-border/80 bg-card/85 p-4 shadow-sm backdrop-blur-sm">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                Visible records
-              </p>
-              <p className="mt-3 text-3xl font-semibold tracking-tight text-foreground">
-                {visibleRows.length}
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {rows.length} loaded before role filtering
-              </p>
-            </div>
-            <div className="rounded-2xl border border-border/80 bg-card/85 p-4 shadow-sm backdrop-blur-sm">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                Account status
-              </p>
-              <p className="mt-3 text-3xl font-semibold tracking-tight text-foreground">
-                {activeCount} / {inactiveCount}
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Active vs deactivated in this dataset
-              </p>
-            </div>
-            <div className="rounded-2xl border border-border/80 bg-card/85 p-4 shadow-sm backdrop-blur-sm">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                Broader access
-              </p>
-              <p className="mt-3 text-3xl font-semibold tracking-tight text-foreground">
-                {sharedAccessCount}
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Users with global roles or other-clinic access
-              </p>
-            </div>
-            {showPortalFilter ? (
-              <div className="rounded-2xl border border-amber-200/80 bg-amber-50/80 p-4 shadow-sm backdrop-blur-sm">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-900/70">
-                  Portal mismatches
-                </p>
-                <p className="mt-3 text-3xl font-semibold tracking-tight text-amber-950">
-                  {portalMismatchCount}
-                </p>
-                <p className="mt-1 text-sm text-amber-900/75">
-                  {roleOnlyCount} role-only accounts need linking from the patient chart
-                </p>
-              </div>
-            ) : null}
-          </div>
-        </section>
+        {/*
+          These were five hand-rolled tiles duplicating AppMetricCard, one of them painted in raw
+          amber so a "portal mismatches" count was the only metric in the product that did not use
+          the status tokens.
+        */}
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <AppMetricCard
+            title="Scope"
+            value={viewMode === 'clinic' ? (activeClinicName ?? 'Clinic roster') : 'All users'}
+            detail={
+              viewMode === 'clinic'
+                ? 'Current clinic access and lifecycle actions'
+                : 'System-wide visibility for system admin review'
+            }
+          />
+          <AppMetricCard
+            title="Visible records"
+            value={visibleRows.length}
+            detail={`${rows.length} loaded before role filtering`}
+          />
+          <AppMetricCard
+            title="Account status"
+            value={`${activeCount} / ${inactiveCount}`}
+            detail="Active vs deactivated in this dataset"
+          />
+          <AppMetricCard
+            title="Broader access"
+            value={sharedAccessCount}
+            detail="Users with global roles or other-clinic access"
+          />
+          {showPortalFilter ? (
+            <AppMetricCard
+              title="Portal mismatches"
+              value={portalMismatchCount}
+              icon={AlertTriangle}
+              detail={`${roleOnlyCount} role-only accounts need linking from the patient chart`}
+              className="border-warning/40"
+            />
+          ) : null}
+        </div>
 
-        {(rows.length === 0 || rows.length < 3) && !loading ? (
-          <InlineNotice>
-            New staff rows appear after the person signs in to Nkwapa for the first time.
-          </InlineNotice>
+        {error ? (
+          <InlineErrorState
+            title="The staff roster could not be loaded"
+            description={error}
+            onRetry={() => void fetchRows()}
+          />
         ) : null}
-        {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
         {notice ? <InlineNotice tone="success">{notice}</InlineNotice> : null}
 
         <section className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
-          <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+          <Card className="min-w-0">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
                 <Layers3 className="h-5 w-5 text-primary" />
@@ -969,7 +943,6 @@ export default function AdminUsersPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="rounded-2xl"
                   onClick={() => {
                     setStatusFilter('active');
                     setRoleFilter('ALL');
@@ -1024,7 +997,14 @@ export default function AdminUsersPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+          {/*
+            min-w-0 on the wide column. Below xl this is a single-column grid, and a grid item
+            defaults to min-width:auto, so it refuses to shrink under the widest thing inside it --
+            here a data grid whose columns total about 1070px. Above xl the explicit
+            minmax(0,1fr) already permits the shrink, which is why the overflow only appeared at
+            768 and 1024.
+          */}
+          <Card className="min-w-0">
             <CardHeader className="space-y-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
@@ -1040,10 +1020,8 @@ export default function AdminUsersPage() {
                       : 'System-wide user visibility for platform administration.'}
                   </CardDescription>
                 </div>
-                <div className="hidden rounded-2xl border border-border bg-background/80 px-4 py-3 text-right sm:block">
-                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                    Showing
-                  </p>
+                <div className="hidden rounded-lg border border-border bg-background px-4 py-3 text-right sm:block">
+                  <p className="text-eyebrow text-muted-foreground">Showing</p>
                   <p className="mt-1 text-xl font-semibold">{visibleRows.length}</p>
                 </div>
               </div>
@@ -1074,8 +1052,7 @@ export default function AdminUsersPage() {
             <CardContent className="space-y-4">
               {loading ? (
                 <div className="space-y-4">
-                  <div className="h-28 animate-pulse rounded-3xl bg-muted" />
-                  <div className="h-[420px] animate-pulse rounded-3xl bg-muted" />
+                  <SectionSkeleton lines={5} className="border-0 bg-transparent p-0 shadow-none" />
                 </div>
               ) : visibleRows.length === 0 ? (
                 emptyState
@@ -1085,7 +1062,7 @@ export default function AdminUsersPage() {
                     {visibleRows.map((row) => (
                       <article
                         key={row.id}
-                        className="rounded-3xl border border-border/80 bg-background/80 p-4 shadow-sm"
+                        className="rounded-lg border border-border bg-background p-4"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
@@ -1117,7 +1094,7 @@ export default function AdminUsersPage() {
                           ) : null}
                         </div>
 
-                        <div className="mt-4 rounded-2xl border border-border/70 bg-card/70 p-3 text-sm text-muted-foreground">
+                        <div className="mt-4 rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground">
                           <p>{summarizeExtraAccess(row)}</p>
                         </div>
 
@@ -1179,7 +1156,7 @@ export default function AdminUsersPage() {
 
           {selectedUser ? (
             <div className="mt-8 space-y-6">
-              <Card className="rounded-[28px] border-border/80 bg-background/70">
+              <Card className="bg-background">
                 <CardHeader>
                   <CardTitle className="text-lg">Identity and cleanup</CardTitle>
                   <CardDescription>
@@ -1188,18 +1165,14 @@ export default function AdminUsersPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-2xl border border-border/80 bg-card/70 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                      Keycloak subject
-                    </p>
+                  <div className="rounded-lg border border-border bg-card p-4">
+                    <p className="text-eyebrow text-muted-foreground">Keycloak subject</p>
                     <p className="mt-2 break-all text-sm font-medium text-foreground">
                       {selectedUser.keycloakSub ?? 'Not exposed in this view'}
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-border/80 bg-card/70 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                      Account lifecycle
-                    </p>
+                  <div className="rounded-lg border border-border bg-card p-4">
+                    <p className="text-eyebrow text-muted-foreground">Account lifecycle</p>
                     <p className="mt-2 text-sm text-muted-foreground">
                       Created {formatAdminTimestamp(selectedUser.createdAt)}
                     </p>
@@ -1207,10 +1180,8 @@ export default function AdminUsersPage() {
                       Updated {formatAdminTimestamp(selectedUser.updatedAt)}
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-border/80 bg-card/70 p-4 sm:col-span-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                      Replacement workflow
-                    </p>
+                  <div className="rounded-lg border border-border bg-card p-4 sm:col-span-2">
+                    <p className="text-eyebrow text-muted-foreground">Replacement workflow</p>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">
                       If this account no longer represents a real Keycloak user, deactivate it, ask
                       the real user to sign in again, and assign roles to the newly created active
@@ -1221,7 +1192,7 @@ export default function AdminUsersPage() {
               </Card>
 
               {showPortalDetails ? (
-                <Card className="rounded-[28px] border-border/80 bg-background/70">
+                <Card className="bg-background">
                   <CardHeader>
                     <CardTitle className="text-lg">Patient portal linkage</CardTitle>
                     <CardDescription>
@@ -1230,7 +1201,7 @@ export default function AdminUsersPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border/80 bg-card/70 p-4">
+                    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-4">
                       <Badge variant={portalStatusVariant(selectedUser.patientPortal!.status)}>
                         {portalStatusLabel(selectedUser.patientPortal!.status)}
                       </Badge>
@@ -1241,7 +1212,7 @@ export default function AdminUsersPage() {
                       </p>
                     </div>
 
-                    <div className="rounded-2xl border border-border/80 bg-card/70 p-4 text-sm leading-6 text-muted-foreground">
+                    <div className="rounded-lg border border-border bg-card p-4 text-sm leading-6 text-muted-foreground">
                       {selectedUser.patientPortal!.status === 'LINKED' ? (
                         <p>
                           This account is linked correctly. If the user still cannot access the
@@ -1270,7 +1241,7 @@ export default function AdminUsersPage() {
                 </Card>
               ) : null}
 
-              <Card className="rounded-[28px] border-border/80 bg-background/70">
+              <Card className="bg-background">
                 <CardHeader>
                   <CardTitle className="text-lg">Account status</CardTitle>
                   <CardDescription>
@@ -1294,7 +1265,7 @@ export default function AdminUsersPage() {
                 </CardContent>
               </Card>
 
-              <Card className="rounded-[28px] border-border/80 bg-background/70">
+              <Card className="bg-background">
                 <CardHeader>
                   <CardTitle className="text-lg">
                     {viewMode === 'clinic' ? 'Current clinic access' : 'Active clinic access'}
@@ -1305,7 +1276,10 @@ export default function AdminUsersPage() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {detailLoading ? (
-                    <div className="h-24 animate-pulse rounded-2xl bg-muted" />
+                    <SectionSkeleton
+                      lines={2}
+                      className="border-0 bg-transparent p-0 shadow-none"
+                    />
                   ) : selectedCurrentClinicRoles.length > 0 ? (
                     selectedCurrentClinicRoles.map((role) => {
                       const canRevokeRole = Boolean(
@@ -1315,7 +1289,7 @@ export default function AdminUsersPage() {
                       return (
                         <div
                           key={role.id}
-                          className="flex flex-col gap-3 rounded-2xl border border-border/80 bg-card/70 p-4 sm:flex-row sm:items-center sm:justify-between"
+                          className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
                         >
                           <div>
                             <p className="font-medium text-foreground">
@@ -1337,7 +1311,9 @@ export default function AdminUsersPage() {
                       );
                     })
                   ) : (
-                    <EmptyStateCard
+                    <EmptyState
+                      density="compact"
+                      icon={ShieldAlert}
                       title="No roles in the active clinic"
                       description="Switch the header clinic or open the clinic roster view to manage a different clinic-scoped membership."
                     />
@@ -1345,7 +1321,7 @@ export default function AdminUsersPage() {
                 </CardContent>
               </Card>
 
-              <Card className="rounded-[28px] border-border/80 bg-background/70">
+              <Card className="bg-background">
                 <CardHeader>
                   <CardTitle className="text-lg">Broader access summary</CardTitle>
                   <CardDescription>
@@ -1355,13 +1331,13 @@ export default function AdminUsersPage() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {detailLoading ? (
-                    <div className="h-24 animate-pulse rounded-2xl bg-muted" />
+                    <SectionSkeleton
+                      lines={2}
+                      className="border-0 bg-transparent p-0 shadow-none"
+                    />
                   ) : userRoles.length > 0 ? (
                     userRoles.map((role) => (
-                      <div
-                        key={role.id}
-                        className="rounded-2xl border border-border/80 bg-card/70 p-4"
-                      >
+                      <div key={role.id} className="rounded-lg border border-border bg-card p-4">
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge variant={role.clinicId === null ? 'secondary' : 'outline'}>
                             {formatRoleLabel(role.role)}
@@ -1375,7 +1351,9 @@ export default function AdminUsersPage() {
                       </div>
                     ))
                   ) : (
-                    <EmptyStateCard
+                    <EmptyState
+                      density="compact"
+                      icon={ShieldAlert}
                       title="No role records found"
                       description="This usually means the user has not been granted any clinic or global access yet."
                     />
@@ -1384,7 +1362,7 @@ export default function AdminUsersPage() {
               </Card>
 
               {canAssignRoles ? (
-                <Card className="rounded-[28px] border-border/80 bg-background/70">
+                <Card className="bg-background">
                   <CardHeader>
                     <CardTitle className="text-lg">Assign a new role</CardTitle>
                     <CardDescription>
@@ -1456,7 +1434,7 @@ export default function AdminUsersPage() {
                 </Card>
               ) : null}
 
-              <Card className="rounded-[28px] border-destructive/20 bg-destructive/5">
+              <Card className="border-destructive/25 bg-destructive/5">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-lg text-foreground">
                     <ShieldAlert className="h-5 w-5 text-destructive" />
@@ -1496,7 +1474,7 @@ export default function AdminUsersPage() {
       </Sheet>
 
       <Dialog open={Boolean(revokingRole)} onOpenChange={(open) => !open && setRevokingRole(null)}>
-        <DialogContent className="max-w-lg rounded-[28px] border-border/80">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Remove clinic role</DialogTitle>
             <DialogDescription className="leading-6">
@@ -1504,7 +1482,7 @@ export default function AdminUsersPage() {
               and any other clinic or global access remains untouched.
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-2xl border border-border/80 bg-card/70 p-4 text-sm">
+          <div className="rounded-lg border border-border bg-card p-4 text-sm">
             <p className="font-medium text-foreground">
               {selectedUser ? nameForRow(selectedUser) : 'Selected user'}
             </p>
@@ -1533,7 +1511,7 @@ export default function AdminUsersPage() {
       </Dialog>
 
       <Dialog open={deactivateOpen} onOpenChange={setDeactivateOpen}>
-        <DialogContent className="max-w-lg rounded-[28px] border-border/80">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Deactivate account</DialogTitle>
             <DialogDescription className="leading-6">
@@ -1541,7 +1519,7 @@ export default function AdminUsersPage() {
               encounters, and clinic records are preserved.
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-4 text-sm">
+          <div className="rounded-lg border border-destructive/25 bg-destructive/5 p-4 text-sm">
             <p className="font-medium text-foreground">
               {selectedUser ? nameForRow(selectedUser) : 'Selected user'}
             </p>

@@ -71,9 +71,11 @@ function reconcileIncomingMessage(messages: ChatMessageView[], incoming: ChatMes
 function TypingDots() {
   return (
     <span className="inline-flex items-center gap-0.5" aria-hidden="true">
-      <span className="h-1 w-1 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.2s]" />
-      <span className="h-1 w-1 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.1s]" />
-      <span className="h-1 w-1 animate-bounce rounded-full bg-muted-foreground" />
+      {/* Pulse, not bounce. Bounce easing reads as dated, and it is a translate, which means three
+          dots were moving inside a message list someone is reading. Opacity says the same thing. */}
+      <span className="h-1 w-1 animate-pulse rounded-full bg-muted-foreground [animation-delay:-0.2s]" />
+      <span className="h-1 w-1 animate-pulse rounded-full bg-muted-foreground [animation-delay:-0.1s]" />
+      <span className="h-1 w-1 animate-pulse rounded-full bg-muted-foreground" />
     </span>
   );
 }
@@ -307,7 +309,7 @@ export function ChatConversation({
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-sm font-semibold">{displayName}</h3>
           {otherParticipant && chat?.onlineUserIds.has(otherParticipant.userId) && (
-            <p className="text-[11px] text-emerald-600">Online</p>
+            <p className="text-[11px] text-success">Online</p>
           )}
         </div>
       </div>

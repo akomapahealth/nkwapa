@@ -1,10 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Building2, MapPinned, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { apiFetch } from '@/lib/api';
+import { readApiError } from '@/lib/ops';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { RouteGuard } from '@/components/RouteGuard';
@@ -24,7 +26,12 @@ import { Box } from '@mui/material';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { dataGridSx } from '@/lib/datagrid-theme';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
+import {
+  EmptyState,
+  InlineErrorState,
+  NoAccessState,
+  SectionSkeleton,
+} from '@/components/feedback/AppState';
 
 interface ClinicRow {
   id: string;
@@ -60,7 +67,7 @@ export default function AdminClinicsPage() {
         getToken,
         skipClinicHeader: true,
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error(await readApiError(res));
       const data = (await res.json()) as ClinicRow[];
       setClinics(data);
     } catch (e) {
@@ -89,7 +96,7 @@ export default function AdminClinicsPage() {
         getToken,
         skipClinicHeader: true,
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error(await readApiError(res));
       setCreateOpen(false);
       setFormName('');
       setFormRegion('');
@@ -124,7 +131,7 @@ export default function AdminClinicsPage() {
         getToken,
         skipClinicHeader: true,
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error(await readApiError(res));
       setEditOpen(false);
       setEditingClinic(null);
       await fetchClinics();
@@ -160,18 +167,27 @@ export default function AdminClinicsPage() {
   const activeCount = clinics.filter((clinic) => clinic.isActive).length;
   const inactiveCount = clinics.length - activeCount;
 
+  /*
+    A second denial UI used to live here: a centred card with its own <h1>No access</h1>, rendered
+    inside RouteGuard, which already had a denial state of its own. Two components said the same
+    thing in two different shapes, and only one of them told the user what to do next.
+
+    The check itself stays -- CLINIC.MANAGE is held by Managers, and clinic administration is
+    Director and System Admin only, so this is a genuine second gate rather than a duplicate of
+    the permission above it.
+  */
   if (!canAccessClinicsAdmin) {
     return (
       <RouteGuard requiredPermission="CLINIC.MANAGE">
-        <div className="flex min-h-[50vh] items-center justify-center">
-          <div className="max-w-md rounded-[28px] border border-border/80 bg-card/95 p-8 text-center shadow-xl shadow-black/5">
-            <h1 className="font-heading text-2xl font-semibold tracking-tight">No access</h1>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              Clinic administration remains limited to Directors and System Admins, even though
-              Managers now have staff lifecycle access.
-            </p>
-          </div>
-        </div>
+        <NoAccessState
+          title="You don't have access to clinic administration"
+          description="Creating and deactivating clinics is limited to Directors and System Admins. Staff and role changes are available to you under Staff."
+          action={
+            <Button asChild variant="outline">
+              <Link href="/admin/users">Go to Staff</Link>
+            </Button>
+          }
+        />
       </RouteGuard>
     );
   }
@@ -209,18 +225,26 @@ export default function AdminClinicsPage() {
           />
         </div>
 
-        {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
+        {error ? (
+          <InlineErrorState
+            title="The clinic list could not be loaded"
+            description={error}
+            onRetry={() => void fetchClinics()}
+          />
+        ) : null}
 
-        <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+        <Card>
           <CardHeader className="space-y-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <CardTitle className="text-xl">Clinic registry</CardTitle>
                 <CardDescription>Review names, regions, and activation status.</CardDescription>
               </div>
-              <div className="rounded-2xl border border-border/70 bg-background/75 px-4 py-3 text-sm">
+              <div className="rounded-lg border border-border bg-background px-4 py-3 text-sm">
                 <p className="text-muted-foreground">Loaded rows</p>
-                <p className="mt-1 text-xl font-semibold text-foreground">{clinics.length}</p>
+                <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
+                  {clinics.length}
+                </p>
               </div>
             </div>
           </CardHeader>
@@ -230,14 +254,13 @@ export default function AdminClinicsPage() {
               live operational workspaces until you reactivate them.
             </ProgressiveHelp>
             {loading ? (
-              <div className="space-y-4">
-                <div className="h-28 animate-pulse rounded-3xl bg-muted" />
-                <div className="h-[420px] animate-pulse rounded-3xl bg-muted" />
-              </div>
+              <SectionSkeleton lines={5} className="border-0 bg-transparent p-0 shadow-none" />
             ) : clinics.length === 0 ? (
-              <EmptyStateCard
+              <EmptyState
+                icon={Building2}
                 title="No clinics yet"
                 description="Create the first clinic to start configuring staff access and local operations."
+                action={<Button onClick={() => setCreateOpen(true)}>Create clinic</Button>}
               />
             ) : (
               <>
@@ -245,10 +268,10 @@ export default function AdminClinicsPage() {
                   {clinics.map((clinic) => (
                     <article
                       key={clinic.id}
-                      className="rounded-3xl border border-border/80 bg-background/80 p-4 shadow-sm"
+                      className="rounded-lg border border-border bg-background p-4"
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <div>
+                        <div className="min-w-0">
                           <h3 className="text-base font-semibold text-foreground">{clinic.name}</h3>
                           <p className="mt-1 text-sm text-muted-foreground">
                             {clinic.region || 'No region assigned'}
@@ -257,7 +280,7 @@ export default function AdminClinicsPage() {
                         <span
                           className={`rounded-full px-3 py-1 text-xs font-semibold ${
                             clinic.isActive
-                              ? 'bg-emerald-100 text-emerald-800'
+                              ? 'bg-success/12 text-success-ink'
                               : 'bg-destructive/10 text-destructive'
                           }`}
                         >

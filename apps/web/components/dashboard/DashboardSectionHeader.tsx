@@ -1,23 +1,22 @@
 'use client';
 
 import { InfoHint } from '@/components/ui/info-hint';
-import { ProgressiveHelp } from '@/components/ui/progressive-help';
 
 interface DashboardSectionHeaderProps {
   title: string;
   subtitle?: string;
   hint?: string;
-  helpLabel?: string;
-  helpText?: React.ReactNode;
 }
 
-export function DashboardSectionHeader({
-  title,
-  subtitle,
-  hint,
-  helpLabel,
-  helpText,
-}: DashboardSectionHeaderProps) {
+/*
+  A section heading with optional contextual help.
+
+  The `helpLabel` / `helpText` props that used to hang off this rendered a ProgressiveHelp
+  disclosure, and no caller ever passed them -- six dashboards import this component and every one
+  of them passes `hint` alone. Deleting a dead branch is most of what #63 asks for on this surface;
+  the dashboards had already converged on the bubble.
+*/
+export function DashboardSectionHeader({ title, subtitle, hint }: DashboardSectionHeaderProps) {
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
@@ -27,11 +26,6 @@ export function DashboardSectionHeader({
         {hint ? <InfoHint label={hint} /> : null}
       </div>
       {subtitle && <p className="max-w-2xl text-sm text-muted-foreground">{subtitle}</p>}
-      {helpText ? (
-        <div className="max-w-2xl">
-          <ProgressiveHelp title={helpLabel ?? 'How this works'}>{helpText}</ProgressiveHelp>
-        </div>
-      ) : null}
     </div>
   );
 }

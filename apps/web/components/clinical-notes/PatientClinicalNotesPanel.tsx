@@ -84,7 +84,7 @@ export function PatientClinicalNotesPanel({
         <ol className="space-y-3">
           {notes.map((note) => (
             <li key={note.id}>
-              <Card className="rounded-2xl border-border/80 bg-card/90">
+              <Card>
                 <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -99,7 +99,7 @@ export function PatientClinicalNotesPanel({
                       {note._count.addenda ? ` · ${note._count.addenda} addenda` : ''}
                     </p>
                   </div>
-                  <Button asChild variant="outline" className="rounded-2xl">
+                  <Button asChild variant="outline">
                     <Link
                       href={`/clinics/${clinicId}/encounters/${note.encounterId}?tab=clinical-note`}
                     >

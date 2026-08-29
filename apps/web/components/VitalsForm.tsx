@@ -136,7 +136,7 @@ function SectionHeading({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <div className="rounded-2xl bg-primary/10 p-2.5 text-primary">
+      <div className="rounded-lg bg-primary/10 p-2.5 text-primary">
         <Icon className="h-5 w-5" aria-hidden="true" />
       </div>
       <div>
@@ -264,17 +264,14 @@ function ReadOnlyMeasurements({
   ];
 
   return (
-    <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+    <Card>
       <CardHeader>
         <h2 className="font-heading text-xl font-semibold">Clinical measurements</h2>
         <p className="text-sm text-muted-foreground">Recorded values are preserved as read-only.</p>
       </CardHeader>
       <CardContent className="grid gap-4 lg:grid-cols-2">
         {groups.map(({ title, icon: Icon, rows }) => (
-          <section
-            key={title}
-            className="rounded-3xl border border-border/70 bg-background/60 p-4 sm:p-5"
-          >
+          <section key={title} className="rounded-lg border border-border bg-background p-4 sm:p-5">
             <div className="mb-4 flex items-center gap-2">
               <Icon className="h-5 w-5 text-primary" aria-hidden="true" />
               <h3 className="font-semibold">{title}</h3>
@@ -293,7 +290,7 @@ function ReadOnlyMeasurements({
           </section>
         ))}
         {vitals?.notes ? (
-          <section className="rounded-3xl border border-border/70 bg-background/60 p-4 sm:p-5 lg:col-span-2">
+          <section className="rounded-lg border border-border bg-background p-4 sm:p-5 lg:col-span-2">
             <h3 className="font-semibold">Notes</h3>
             <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{vitals.notes}</p>
           </section>
@@ -461,7 +458,7 @@ export function VitalsForm({
   );
 
   return (
-    <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+    <Card>
       <CardHeader className="space-y-2">
         <h2 className="font-heading text-xl font-semibold">Vitals and tobacco screening</h2>
         <p className="max-w-3xl text-sm text-muted-foreground">
@@ -470,7 +467,7 @@ export function VitalsForm({
         </p>
       </CardHeader>
       <CardContent className="space-y-5">
-        <section className="space-y-5 rounded-3xl border border-border/70 bg-background/60 p-4 sm:p-6">
+        <section className="space-y-5 rounded-lg border border-border bg-background p-4 sm:p-6">
           <SectionHeading
             icon={HeartPulse}
             title="Blood Pressure"
@@ -548,7 +545,7 @@ export function VitalsForm({
           </div>
         </section>
 
-        <section className="space-y-5 rounded-3xl border border-border/70 bg-background/60 p-4 sm:p-6">
+        <section className="space-y-5 rounded-lg border border-border bg-background p-4 sm:p-6">
           <SectionHeading
             icon={Thermometer}
             title="Other Measurements"
@@ -619,7 +616,7 @@ export function VitalsForm({
           </div>
         </section>
 
-        <section className="space-y-5 rounded-3xl border border-border/70 bg-background/60 p-4 sm:p-6">
+        <section className="space-y-5 rounded-lg border border-border bg-background p-4 sm:p-6">
           <SectionHeading
             icon={Ruler}
             title="Anthropometrics"
@@ -640,7 +637,7 @@ export function VitalsForm({
           </div>
         </section>
 
-        <section className="space-y-5 rounded-3xl border border-border/70 bg-background/60 p-4 sm:p-6">
+        <section className="space-y-5 rounded-lg border border-border bg-background p-4 sm:p-6">
           <SectionHeading
             icon={Cigarette}
             title="Tobacco Use"
@@ -685,7 +682,7 @@ export function VitalsForm({
           </div>
           <div
             className={cn(
-              'rounded-2xl border p-4 text-sm',
+              'rounded-lg border p-4 text-sm',
               localTobacco?.reviewedAt
                 ? 'border-primary/30 bg-primary/5'
                 : 'border-border/70 bg-muted/30',
@@ -699,7 +696,7 @@ export function VitalsForm({
           </div>
         </section>
 
-        <section className="space-y-2 rounded-3xl border border-border/70 bg-background/60 p-4 sm:p-6">
+        <section className="space-y-2 rounded-lg border border-border bg-background p-4 sm:p-6">
           <div className="flex items-center gap-2">
             <Activity className="h-5 w-5 text-primary" aria-hidden="true" />
             <Label htmlFor="notes" className="text-base font-semibold">
@@ -726,7 +723,7 @@ export function VitalsForm({
           <p
             role={statusIsError ? 'alert' : 'status'}
             className={cn(
-              'rounded-2xl border p-3 text-sm',
+              'rounded-lg border p-3 text-sm',
               statusIsError
                 ? 'border-destructive/30 bg-destructive/5 text-destructive'
                 : 'border-primary/25 bg-primary/5 text-foreground',
@@ -739,18 +736,12 @@ export function VitalsForm({
           <Button
             type="button"
             variant="outline"
-            className="h-11 rounded-2xl"
             onClick={() => void handleButtonSave(true)}
             disabled={saving}
           >
             Mark tobacco reviewed
           </Button>
-          <Button
-            type="button"
-            className="h-11 rounded-2xl"
-            onClick={() => void handleButtonSave(false)}
-            disabled={saving}
-          >
+          <Button type="button" onClick={() => void handleButtonSave(false)} disabled={saving}>
             {saving ? 'Saving…' : 'Save measurements'}
           </Button>
         </div>

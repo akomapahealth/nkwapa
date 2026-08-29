@@ -98,16 +98,33 @@ Defined in `apps/web/app/globals.css` under `:root`. Consume via Tailwind utilit
 
 Status colour is never the only signal. Pair every status fill with a label or icon.
 
-**Migration debt: 105 raw-palette status colours already exist.** Before these tokens, status was expressed with Tailwind's raw palette: **62 uses of `emerald-*`** and **43 of `amber-*`**, plus smaller counts of `rose-`, `green-`, `red-`, and `yellow-`. `components/ui/badge.tsx` already ships `success` and `warning` variants built on `bg-emerald-100` and `bg-amber-100`.
+### Tinted status: use the ink tokens, never the fill token
 
-The semantic intent is already there throughout the app; it is simply bound to the wrong values. Until these call sites are swept, Nkwapa has **two parallel status colour systems**, which is exactly the mixed old/new state #65 forbids.
+| Token           | Value         | Hex       | On its own 12% tint        |
+| --------------- | ------------- | --------- | -------------------------- |
+| `--info`        | `200 60% 40%` | `#297AA3` | workflow "awaiting review" |
+| `--success-ink` | `152 65% 26%` | `#176D45` | 5.20:1                     |
+| `--warning-ink` | `32 90% 28%`  | `#884C07` | 5.94:1                     |
+| `--info-ink`    | `200 60% 26%` | `#1B506A` | 7.52:1                     |
 
-Sweep them in this order, because the first two propagate:
+The tinted badge pattern is `bg-<token>/12` plus `text-<token>-ink`.
 
-1. `components/ui/badge.tsx` — retarget the existing `success` / `warning` variants at the tokens.
-2. `app/SyncStatusBar.tsx` — offline and online state, visible on every route.
-3. `components/patients/AllergySummaryBanner.tsx` — clinical safety surface.
-4. The remaining call sites, largest first: `research/exports` (9), `AppointmentsPortalScreen` (6), `AppointmentRequestScreen` (5), `landing/DashboardPreviewSection` (5), `admin/users` (4).
+**Reusing the fill token as text on its own tint fails AA.** Measured: `text-success` on `bg-success/12` is **4.28:1**, and `text-warning` on `bg-warning/12` is **2.42:1**. The tint lightens the ground while the ink stays put, so contrast falls below the solid-on-white baseline. The ink tokens are the same hue and saturation, darkened until they clear with headroom.
+
+`--info` exists because the clinical note workflow has a **draft → review → finalized** progression, and "awaiting review" is neither success, warning, nor destructive. It is not a brand colour and must not be used for actions.
+
+**`draft` is deliberately neutral** (`bg-muted` + `--muted-foreground`, 4.94:1). A draft note is not a warning; colouring it amber put it in the same visual class as an out-of-range clinical value.
+
+**The raw-palette migration is complete.** Before Phase 6 the product expressed status with
+Tailwind's raw palette -- 108 occurrences across 18 files -- so it ran two status colour systems at
+once. That is now zero, verified by scan across `apps/web/app` and `apps/web/components`. The
+landing page is excluded from the scan and keeps its own treatment; it is a Persuade surface, not a
+clinical one.
+
+Three files were worth naming while it was happening, and are worth naming now that it is done:
+`components/ui/badge.tsx` (broadest reach), `app/SyncStatusBar.tsx` (deleted -- it had no importers
+and duplicated the header's sync pill), and `components/patients/AllergySummaryBanner.tsx`, the one
+a clinician reads before prescribing.
 
 ### Lines
 
@@ -136,7 +153,7 @@ Do not "fix" `--border` or `--sidebar-border` to reach 3:1. They are correctly e
 
 ## 4. Colour tokens — dark
 
-Defined under `.dark`. Dark mode inverts which side carries the ink: fills stay bright and take dark text.
+Defined under `.dark`. Dark mode inverts which side carries the ink: fills stay bright and take dark text. The tinted badge inverts too, becoming a dark tint of the hue carrying light ink.
 
 | Token                        | Value         | Hex       | Contrast            |
 | ---------------------------- | ------------- | --------- | ------------------- |
@@ -148,6 +165,10 @@ Defined under `.dark`. Dark mode inverts which side carries the ink: fills stay 
 | `--success`                  | `152 55% 50%` | `#39C684` | 7.89:1 dark ink on  |
 | `--warning`                  | `35 90% 58%`  | `#F4A434` | 8.43:1 dark ink on  |
 | `--input`                    | `200 14% 50%` | `#6E8591` | 4.74:1              |
+| `--info`                     | `200 60% 58%` | `#54A9D4` | workflow state      |
+| `--success-ink`              | `152 40% 74%` | `#A2D7BE` | 6.82:1 on its tint  |
+| `--warning-ink`              | `35 75% 74%`  | `#EEC58B` | 6.74:1 on its tint  |
+| `--info-ink`                 | `200 45% 74%` | `#9FC7DB` | 6.49:1 on its tint  |
 
 All other `.dark` values are unchanged and already correct.
 
@@ -168,17 +189,23 @@ Two rules for anyone touching this:
 1. **The boot script deliberately duplicates the resolve logic in `theme-context.tsx`.** It has to, because it runs before any module loads. If you change the class name, the storage key, or the resolution order in one, change it in the other.
 2. **Every `localStorage` access is wrapped in `try`/`catch`.** It throws outright in some privacy modes, and a clinical app must not fail to render because a preference could not be read.
 
-### Known risk: 27 previously-dead `dark:` utilities are now live
+### Resolved: the previously-dead `dark:` utilities are gone
 
-Turning dark mode on activated code paths that have never rendered for a user:
+Turning dark mode on activated code paths that had never rendered for a user. Rather than audit
+them, Phase 6 deleted all of them: **every `dark:` utility in the product existed only to patch a
+raw palette colour that broke under a theme it was never tested in.** Moving the base colour onto a
+token removes the need for the patch, because tokens resolve in both modes -- which is the whole
+reason to have them.
 
-| File                                                    | Count |
-| ------------------------------------------------------- | ----- |
-| `components/portal/AppointmentsPortalScreen.tsx`        | 6     |
-| `components/portal/AppointmentRequestScreen.tsx`        | 5     |
-| `components/ui/badge.tsx`                               | 4     |
-| `components/patients/AllergySummaryBanner.tsx`          | 4     |
-| `components/patients/MedicationReconciliationPanel.tsx` | 2     |
+The count is now zero and should stay there. **Do not add a `dark:` utility.** If a colour needs
+one, the colour is wrong: reach for a token, or add one and record its measured contrast here.
+
+------------------------------------------------------- | ----- |
+| `components/portal/AppointmentsPortalScreen.tsx` | 6 |
+| `components/portal/AppointmentRequestScreen.tsx` | 5 |
+| `components/ui/badge.tsx` | 4 |
+| `components/patients/AllergySummaryBanner.tsx` | 4 |
+| `components/patients/MedicationReconciliationPanel.tsx` | 2 |
 
 Several of these are bound to raw palette values (`dark:bg-amber-900/30`, `dark:text-emerald-300`) rather than tokens, so they will not track the token system. Fold them into the status-colour sweep in section 3 rather than fixing them separately.
 
@@ -197,9 +224,13 @@ Several of these are bound to raw palette values (`dark:bg-amber-900/30`, `dark:
 | `lg` | 10px  | Cards, panels            |
 | `xl` | 14px  | Dialogs, sheets          |
 
-**Nothing rounder than 14px.** `rounded-[28px]` is hard-coded in 20 files, bypassing the token entirely, and it is what carries the legacy gradient hero. 28px on a dense clinical table reads as a consumer app and costs vertical space the Today board does not have.
+All four steps are real Tailwind classes. `xl` was added to `tailwind.config.js` during the Phase 6 migration because Tailwind's stock `rounded-xl` is 12px, not the 14px this table specifies.
 
-### Legacy pattern to delete
+**Nothing rounder than 14px.** That rules out `rounded-2xl` (16px) and `rounded-3xl` (24px) as well as the arbitrary values. On a dense clinical table a 28px corner reads as a consumer app and costs vertical space the Today board does not have.
+
+Measured before the Phase 6 migration: `rounded-[28px]` in 32 files (78 occurrences), plus `[24px]`, `[26px]`, `[30px]` and `[32px]` — five arbitrary radii inside one product, three of them inside the fallback components alone.
+
+### Resolved: the legacy hero is gone
 
 ```
 rounded-[28px]
@@ -207,9 +238,20 @@ bg-gradient-to-br from-primary/15 via-card to-secondary/15
 shadow-xl shadow-primary/5
 ```
 
-Present in exactly three files: `app/(workspace)/today/page.tsx`, `app/(workspace)/admin/users/page.tsx`, `app/(workspace)/my/assigned/page.tsx`. Replace with `AppPageHeader`. This pattern violates principle 1 above and #61's own non-goal on generic gradients.
+It lived in `today`, `admin/users` and `my/assigned`, and all three are `AppPageHeader` now, with
+their metrics as a sibling grid rather than nested inside the hero.
 
-The `landing-hero-mesh`, `landing-gradient-mesh-alt`, and `landing-glass` utilities in `globals.css` are **scoped to `app/(marketing)` only** and are exempt. They must not appear on any workspace route.
+Counted across `apps/web/app` and `apps/web/components`, excluding the landing page: arbitrary or
+oversized radii went 35 to 0, gradients on clinical surfaces 3 to 0, and uppercase tracking values
+7 to 0. `e2e/responsive-migration.spec.js` holds the line on layout; a grep holds the line on the
+rest.
+
+The `landing-hero-mesh`, `landing-gradient-mesh-alt` and `landing-glass` utilities in `globals.css`
+are **scoped to `app/(marketing)` only** and are exempt. They must not appear on a workspace route.
+
+**Shadow above `shadow-sm` is for things that genuinely float** -- a dialog, a sheet, a popover, the
+chat panel, a help bubble. That is depth doing a job, not decoration, and it is the one exception
+to the flatness rule.
 
 ---
 
@@ -223,7 +265,9 @@ The `landing-hero-mesh`, `landing-gradient-mesh-alt`, and `landing-glass` utilit
 
 The serif heading is deliberate. It separates headings from data at a glance, which a single-family system does not, and it is the most distinctive element of the current identity.
 
-**Apply `font-variant-numeric: tabular-nums` on every numeric column.** Currently it is not applied anywhere, and vitals columns do not align.
+**One uppercase micro-label treatment: `.text-eyebrow`.** Eight tracking values (0.14em through 0.3em) were in use on what is visually the same element — the small caps label above a heading, a metric, or a section. Eight is noise, not hierarchy. 0.14em is the widest setting that still reads as one word at 12px; 0.3em was splitting labels into letters. Colour is left to the caller, because the same label is `--primary` above a page title and `--muted-foreground` above a metric.
+
+**`tabular-nums` on every numeric column and every clinical value.** It was applied nowhere, so vitals columns did not align. It now ships from `dataGridSx` for every grid cell and from `AppMetricCard` for every metric; individual clinical values in panels take the utility directly.
 
 **Known performance issue.** Fonts load via `@import` at the top of `globals.css`, which is render-blocking and serialized. On clinic wifi this delays first paint of any text. Migrating to `next/font` would self-host and remove the blocking request. Its own issue, not #61.
 
@@ -248,7 +292,11 @@ The serif heading is deliberate. It separates headings from data at a glance, wh
 | Minimum interactive target | 44px                    |
 | Breakpoints                | 375 / 768 / 1024 / 1440 |
 
-The 52px touch row already exists in the MUI DataGrid override. The `.touch-target` utility already exists in `globals.css`; it is simply not applied consistently.
+Both row heights are set by `dataGridSx` in `lib/datagrid-theme.ts`, which every grid in the product consumes. It also makes the numerals tabular and sticks the column headers, because a roster that runs past a viewport is unreadable once its headers scroll away.
+
+The 44px floor is enforced in the primitives rather than per call site: `Button`, `Input`, `Select` and its menu rows, `Tabs` triggers, and the two help triggers. Where the glyph must stay small — a help icon, a toast dismiss — the target is a centred pseudo-element rather than a `min-height` on the visible box. `.touch-target` set `min-height`/`min-width` on the element itself, which silently overrode every size a call site asked for and pushed metric-card headers around by 20px.
+
+Focus rings are `ring-2 ring-ring` everywhere. They were `ring-1` on form controls and `ring-2` on everything else.
 
 ---
 
@@ -256,17 +304,49 @@ The 52px touch row already exists in the MUI DataGrid override. The `.touch-targ
 
 Shared primitives live in `apps/web/components/app-shell/` and `apps/web/components/ui/`. **Do not build a second family of any of these.**
 
-| Need                                | Use                                        | Do not                            |
-| ----------------------------------- | ------------------------------------------ | --------------------------------- |
-| Page title, actions, context        | `AppPageHeader`                            | Hand-rolled `<h1>` + hero section |
-| KPI / metric                        | `AppMetricCard`                            | Bespoke stat card                 |
-| Form grouping                       | `FormSectionCard`                          | Bare `<Card>` with a heading      |
-| Loading / empty / error / no-access | `AppState` (`components/feedback/`)        | Per-page spinner or blank div     |
-| Contextual help                     | `InfoHint` (`components/ui/info-hint.tsx`) | A second tooltip system           |
-| Filter summary                      | `ActiveFilterSummary`                      | Inline filter chips               |
-| View switching                      | `SegmentedControl`                         | Bare button group                 |
+| Need                            | Use                                                 | Do not                              |
+| ------------------------------- | --------------------------------------------------- | ----------------------------------- |
+| Page title, actions, context    | `AppPageHeader`                                     | Hand-rolled `<h1>` + hero section   |
+| KPI / metric                    | `AppMetricCard`                                     | Bespoke stat card                   |
+| Form grouping                   | `FormSectionCard`                                   | Bare `<Card>` with a heading        |
+| One read's five states          | `ResourceState` + `useAsyncResource`                | A hand-rolled `useState` triple     |
+| Loading                         | `SectionSkeleton` / `PageSkeleton`                  | A spinner in the middle of content  |
+| Nothing here yet                | `EmptyState`                                        | A dashed div with a paragraph       |
+| Failed, can retry               | `InlineErrorState`                                  | A red box with no way forward       |
+| Not allowed                     | `NoAccessState`                                     | An error state wearing red          |
+| No clinic chosen                | `SelectClinicState`, or `RouteGuard requiresClinic` | "Select a clinic to …" in a `<p>`   |
+| Contextual help                 | `InfoHint`                                          | A second tooltip system             |
+| Help that must actually be read | `ProgressiveHelp`                                   | Hiding it in a bubble               |
+| Filter summary                  | `ActiveFilterSummary`                               | Inline filter chips                 |
+| View switching                  | `SegmentedControl`                                  | Bare button group                   |
+| Uppercase micro-label           | `.text-eyebrow`                                     | Another `tracking-[0.Nem]` value    |
+| Data table                      | `dataGridSx` from `lib/datagrid-theme`              | Restyling the grid at the call site |
 
-`components/ui/progressive-help.tsx` overlaps with `InfoHint`. Resolve the overlap in #63 rather than extending both.
+### The two help affordances
+
+They are not duplicates and neither replaces the other. They used to share the `CircleHelp` glyph, so two components that behave completely differently were indistinguishable until you clicked one; `ProgressiveHelp` now uses a book.
+
+|                        | `InfoHint`                                         | `ProgressiveHelp`                             |
+| ---------------------- | -------------------------------------------------- | --------------------------------------------- |
+| Shape                  | Floating bubble in a portal                        | Inline `<details>` disclosure                 |
+| Layout                 | Never moves the page                               | Pushes content down when opened               |
+| Visible before opening | A question mark only                               | Its own title                                 |
+| Carries                | One sentence that helps you read what is on screen | Content the user is expected to actually read |
+| Never carries          | Anything required                                  | —                                             |
+
+Safety rules, consent wording, what stays protected on a record, and de-identification terms belong in `ProgressiveHelp`. #63 forbids moving them into a bubble, and that rule is the reason both components exist.
+
+`InfoHint` enforces single-open across the whole page through a module-level registry: opening one closes any other. It returns focus to its trigger on Escape, and on an outside click when focus was inside the bubble. Its 44px target is a centred pseudo-element, so a call site's size override actually applies.
+
+### The five states, in order
+
+`ResourceState` renders them so no page has to remember the sequence: **offline → skeleton → error with retry → empty → content**.
+
+The case that matters is the last one. `useAsyncResource` keeps the last value that loaded successfully across a refetch _and across a failed refetch_, so a poll that times out on clinic wifi puts a banner above data that is still on screen rather than replacing a measurement someone is reading with a spinner. That is principle 4, and it is the single loudest way this product used to read as broken.
+
+`EmptyState` has two densities. `comfortable` owns a whole panel; `compact` sits inside a board column, a card, or a dialog, where a centred block would push the real content off the fold. Two is the honest number — an empty queue column and an empty page are not the same message. Six shapes existed before.
+
+An empty state's title is an `<h3>`. An empty region is still a region, and a screen-reader user navigating by heading needs to land on "No visits yet" the same way a sighted user's eye does.
 
 ### Button hierarchy
 

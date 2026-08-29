@@ -2,32 +2,22 @@
 
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
-import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { RouteGuard } from '@/components/RouteGuard';
 import { RegisterPatientScreen } from '@/components/patients/RegisterPatientScreen';
 
 export default function NewPatientPage() {
-  const bootstrapContext = useBootstrap();
-  const bootstrap = bootstrapContext?.bootstrap ?? null;
   const getToken = useAuth();
-  const clinicId = bootstrapContext?.activeClinicId ?? getBootstrapActiveClinicId(bootstrap);
-
-  if (!clinicId) {
-    return (
-      <RouteGuard requiredPermission="PATIENT.CREATE">
-        <div className="p-4">
-          <p className="text-muted-foreground">Select a clinic to create a patient.</p>
-        </div>
-      </RouteGuard>
-    );
-  }
+  const clinicId = useBootstrap()?.activeClinicId ?? null;
 
   return (
-    <RegisterPatientScreen
-      clinicId={clinicId}
-      getToken={getToken}
-      backHref={`/clinics/${clinicId}/patients`}
-      backLabel="Back to Patients"
-    />
+    // The guard used to wrap only the no-clinic branch, so the branch that actually renders the
+    // form was reached without any permission check at all.
+    <RouteGuard
+      requiredPermission="PATIENT.CREATE"
+      requiresClinic
+      clinicSurface="Patient registration"
+    >
+      {clinicId ? <RegisterPatientScreen clinicId={clinicId} getToken={getToken} /> : null}
+    </RouteGuard>
   );
 }

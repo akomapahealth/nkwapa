@@ -242,10 +242,10 @@ export function DiabetesScreeningForm({
   );
 
   return (
-    <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+    <Card>
       <CardHeader className="space-y-2">
         <div className="flex items-start gap-3">
-          <span className="rounded-2xl bg-primary/10 p-2 text-primary" aria-hidden="true">
+          <span className="rounded-lg bg-primary/10 p-2 text-primary" aria-hidden="true">
             <Droplets className="h-5 w-5" />
           </span>
           <div>
@@ -346,7 +346,7 @@ export function DiabetesScreeningForm({
                   <label
                     key={symptom}
                     htmlFor={checkboxId}
-                    className="flex cursor-pointer items-center gap-3 rounded-2xl border border-border/80 bg-background/70 px-4 py-2.5 transition-colors hover:bg-accent/60 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2"
+                    className="flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-background px-4 py-2.5 transition-colors hover:bg-accent/60 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2"
                   >
                     <Checkbox
                       id={checkboxId}
@@ -394,7 +394,7 @@ export function DiabetesScreeningForm({
               : 'This screening is read-only.'}
           </p>
           {canEdit ? (
-            <Button onClick={handleButtonSave} disabled={saving} className="rounded-2xl">
+            <Button onClick={handleButtonSave} disabled={saving}>
               {saving ? 'Saving…' : 'Save diabetes screening'}
             </Button>
           ) : null}

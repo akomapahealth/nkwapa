@@ -33,6 +33,15 @@ const navItems = [
   },
 ] as const;
 
+/**
+ * The patient shell.
+ *
+ * It stays visibly different from the clinical workspace on purpose -- a patient and a clinician
+ * must never be unsure which surface they are on -- and the difference is carried by structure,
+ * not by a private palette: no nav rail, no chat widget, a named "Patient Portal" band, a reading
+ * column at `max-w-6xl` against the workspace's `max-w-[1440px]`, and lower density throughout.
+ * The colours, radii and type are the same tokens the workspace uses.
+ */
 export function PortalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const bootstrap = useBootstrap()?.bootstrap ?? null;
@@ -42,74 +51,76 @@ export function PortalLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
+      {/*
+        First thing in the tab order, hidden until focused. Without it a keyboard or screen reader
+        user walks the whole header and the four-item pill nav on every portal page before reaching
+        their own readings. The workspace shell has had this; the portal did not.
+      */}
+      <a
+        href="#main-content"
+        className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:left-4 focus-visible:top-4 focus-visible:z-50 focus-visible:rounded-lg focus-visible:bg-background focus-visible:px-4 focus-visible:py-3 focus-visible:text-sm focus-visible:font-medium focus-visible:shadow-sm focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Skip to main content
+      </a>
       <Header />
-      <div className="border-b border-border/70 bg-card/70">
-        <div className="landing-hero-mesh">
-          <div className="mx-auto max-w-6xl px-4 py-6 md:px-6 lg:px-8">
-            <div className="overflow-hidden rounded-[28px] border border-border/70 bg-card/90 shadow-sm backdrop-blur">
-              <div className="relative overflow-hidden px-5 py-6 md:px-8">
-                <div className="absolute inset-y-0 right-0 hidden w-1/3 bg-gradient-to-l from-primary/10 via-secondary/10 to-transparent md:block" />
-                <div className="relative flex flex-col gap-6">
-                  <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-                    <div className="space-y-2">
-                      <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">
-                        Patient Portal
-                      </p>
-                      <div className="space-y-1">
-                        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
-                          Welcome back, {displayName.split(' ')[0]}
-                        </h1>
-                        <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
-                          Your care and visits in one place.
-                        </p>
-                        <div className="max-w-2xl pt-2">
-                          <ProgressiveHelp title="What you can do here">
-                            Review finalized readings, check appointment details, and send visit
-                            requests without leaving the portal.
-                          </ProgressiveHelp>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="secondary" className="rounded-full px-3 py-1">
-                        Secure patient access
-                      </Badge>
-                      {activeClinic?.clinicName && (
-                        <Badge
-                          variant="outline"
-                          className="rounded-full bg-background/70 px-3 py-1"
-                        >
-                          {activeClinic.clinicName}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  <nav className="flex flex-wrap gap-2">
-                    {navItems.map((item) => {
-                      const active = item.matches(pathname);
-                      return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          className={cn(
-                            'rounded-full border px-4 py-2 text-sm font-medium transition-all',
-                            active
-                              ? 'border-primary bg-primary text-primary-foreground shadow'
-                              : 'border-border/70 bg-background/80 text-muted-foreground hover:border-primary/40 hover:text-foreground',
-                          )}
-                        >
-                          {item.label}
-                        </Link>
-                      );
-                    })}
-                  </nav>
+      <div className="border-b border-border bg-card">
+        <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div className="space-y-2">
+              <p className="text-eyebrow text-primary">Patient Portal</p>
+              <div className="space-y-1">
+                <h1 className="font-heading text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
+                  Welcome back, {displayName.split(' ')[0]}
+                </h1>
+                <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
+                  Your care and visits in one place.
+                </p>
+                <div className="max-w-2xl pt-2">
+                  <ProgressiveHelp title="What you can do here">
+                    Review finalized readings, check appointment details, and send visit requests
+                    without leaving the portal.
+                  </ProgressiveHelp>
                 </div>
               </div>
             </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary" className="rounded-full px-3 py-1">
+                Secure patient access
+              </Badge>
+              {activeClinic?.clinicName && (
+                <Badge variant="outline" className="rounded-full border-border px-3 py-1">
+                  {activeClinic.clinicName}
+                </Badge>
+              )}
+            </div>
           </div>
+          <nav aria-label="Patient portal" className="flex flex-wrap gap-2">
+            {navItems.map((item) => {
+              const active = item.matches(pathname);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={active ? 'page' : undefined}
+                  className={cn(
+                    'inline-flex min-h-11 items-center rounded-full border px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                    active
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-border bg-background text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
         </div>
       </div>
-      <main className="flex-1 overflow-auto px-4 py-6 md:px-6 lg:px-8">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex-1 overflow-auto px-4 py-6 focus-visible:outline-none md:px-6 lg:px-8"
+      >
         <div className="mx-auto max-w-6xl">{children}</div>
       </main>
     </div>

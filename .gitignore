@@ -78,3 +78,6 @@ apps/web/pnpm-lock.yaml
 # Playwright run artifacts
 test-results/
 playwright-report/
+
+# Local presentation material
+/docs/demo/

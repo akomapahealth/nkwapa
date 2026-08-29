@@ -26,13 +26,15 @@ import {
   readApiError,
 } from '@/lib/ops';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
+import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
 import {
   CheckInStatusBadge,
   EmptyStateCard,
   InlineNotice,
   OnlineOnlyBanner,
-  OpsMetricCard,
   ShiftControlCard,
   ShiftRoleBadge,
 } from '@/components/ops/OpsShared';
@@ -48,7 +50,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import {
   Select,
   SelectContent,
@@ -361,104 +362,107 @@ export default function TodayBoardPage() {
   return (
     <RouteGuard requiredPermission="OPS.CHECKIN.READ">
       <div className="space-y-6">
-        <section className="overflow-hidden rounded-[28px] border border-primary/15 bg-gradient-to-br from-primary/15 via-card to-secondary/15 p-6 shadow-xl shadow-primary/5">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-            <div className="max-w-2xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary">
-                Clinic Ops
-              </p>
-              <h1 className="mt-3 font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-                Today Board
-              </h1>
-              <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">
-                Live clinic flow for the selected day.
-              </p>
-              <div className="mt-3 max-w-2xl">
-                <ProgressiveHelp title="How the board updates">
-                  Staff check-ins, patient arrivals, and volunteer assignments refresh here so OPS
-                  can see who is available and which patients still need a pair.
-                </ProgressiveHelp>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <div className="rounded-2xl border border-border/80 bg-card/85 px-4 py-3 shadow-sm">
-                <Label
-                  htmlFor="today-board-date"
-                  className="text-xs uppercase tracking-[0.2em] text-muted-foreground"
-                >
+        <AppPageHeader
+          eyebrow="Clinic ops"
+          title="Today Board"
+          description="Live clinic flow for the selected day."
+          helpTitle="How the board updates"
+          helpText="Staff check-ins, patient arrivals, and volunteer assignments refresh here so OPS can see who is available and which patients still need a pair."
+          actions={
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="space-y-2">
+                <Label htmlFor="today-board-date" className="text-eyebrow text-muted-foreground">
                   Clinic day
                 </Label>
-                <div className="mt-2 flex items-center gap-2">
-                  <CalendarDays className="h-4 w-4 text-primary" />
+                <div className="relative">
+                  <CalendarDays
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                  />
                   <Input
                     id="today-board-date"
                     type="date"
                     value={selectedDate}
                     onChange={(event) => setSelectedDate(event.target.value)}
-                    className="h-8 border-0 bg-transparent p-0 shadow-none focus-visible:ring-0"
+                    className="w-[180px] pl-9"
                   />
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-border/80 bg-card/85 px-4 py-3 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Timezone</p>
-                <p className="mt-2 text-sm font-medium text-foreground">{timezone}</p>
-              </div>
+              {/* The timezone is context for the date beside it, not a metric. It was a boxed
+                  tile the same size as the date picker, which made a read-only label look like
+                  a second control. */}
+              <p className="pb-3 text-sm text-muted-foreground">
+                Times shown in <span className="font-medium text-foreground">{timezone}</span>
+              </p>
 
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => void loadBoard({ background: true })}
                 disabled={!isOnline || refreshing || loading}
-                className="h-12 rounded-2xl border-border/80 bg-card/85 px-4"
               >
-                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+                <RefreshCw
+                  aria-hidden="true"
+                  className={refreshing ? 'animate-spin motion-reduce:animate-none' : ''}
+                />
                 Refresh
               </Button>
             </div>
-          </div>
+          }
+        />
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <OpsMetricCard
-              label="Patients waiting"
-              value={groupedCheckins.WAITING.length}
-              detail="New arrivals ready for assignment"
-            />
-            <OpsMetricCard
-              label="Active assignments"
-              value={groupedCheckins.ASSIGNED.length + groupedCheckins.IN_PROGRESS.length}
-              detail="Assigned or currently in intake"
-            />
-            <OpsMetricCard
-              label="Staff on duty"
-              value={shifts.length}
-              detail={`${countByRole(shifts, 'VOLUNTEER')} volunteers, ${countByRole(shifts, 'DOCTOR')} doctors`}
-            />
-            <OpsMetricCard
-              label="Completed today"
-              value={groupedCheckins.COMPLETED.length}
-              detail={formatOpsDate(selectedDate, timezone)}
-            />
-          </div>
-        </section>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <AppMetricCard
+            title="Patients waiting"
+            value={groupedCheckins.WAITING.length}
+            detail="New arrivals ready for assignment"
+          />
+          <AppMetricCard
+            title="Active assignments"
+            value={groupedCheckins.ASSIGNED.length + groupedCheckins.IN_PROGRESS.length}
+            detail="Assigned or currently in intake"
+          />
+          <AppMetricCard
+            title="Staff on duty"
+            value={shifts.length}
+            detail={`${countByRole(shifts, 'VOLUNTEER')} volunteers, ${countByRole(shifts, 'DOCTOR')} doctors`}
+          />
+          <AppMetricCard
+            title="Completed today"
+            value={groupedCheckins.COMPLETED.length}
+            detail={formatOpsDate(selectedDate, timezone)}
+          />
+        </div>
 
         {!isOnline ? <OnlineOnlyBanner /> : null}
-        {pageError ? <InlineNotice tone="error">{pageError}</InlineNotice> : null}
+        {pageError ? (
+          <InlineErrorState
+            title="The board could not be loaded"
+            description={pageError}
+            onRetry={() => void loadBoard()}
+          />
+        ) : null}
         {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
         {notice ? <InlineNotice tone="success">{notice}</InlineNotice> : null}
 
         {loading ? (
-          <div className="grid gap-6 xl:grid-cols-[360px,minmax(0,1fr)]">
+          <div
+            className="grid gap-6 xl:grid-cols-[360px,minmax(0,1fr)]"
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
+          >
+            <span className="sr-only">Loading the Today Board</span>
             <div className="space-y-6">
-              <div className="h-64 animate-pulse rounded-[28px] bg-muted" />
-              <div className="h-96 animate-pulse rounded-[28px] bg-muted" />
+              <SectionSkeleton lines={2} />
+              <SectionSkeleton lines={3} />
             </div>
-            <div className="h-[540px] animate-pulse rounded-[28px] bg-muted" />
+            <SectionSkeleton lines={6} />
           </div>
         ) : (
           <div className="grid gap-6 xl:grid-cols-[360px,minmax(0,1fr)]">
-            <div className="space-y-6">
+            <div className="min-w-0 space-y-6">
               <ShiftControlCard
                 currentShift={currentShift}
                 selectedRole={selectedShiftRole}
@@ -471,7 +475,7 @@ export default function TodayBoardPage() {
                 onCheckOut={() => void handleShiftCheckOut()}
               />
 
-              <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+              <Card>
                 <CardHeader className="space-y-4">
                   <div className="flex items-start justify-between gap-4">
                     <div>
@@ -483,33 +487,25 @@ export default function TodayBoardPage() {
                         Active shifts for {formatOpsDate(selectedDate, timezone)}.
                       </CardDescription>
                     </div>
-                    <div className="rounded-2xl border border-border bg-background/80 px-3 py-2 text-right">
-                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                        Total
-                      </p>
+                    <div className="rounded-lg border border-border bg-background px-3 py-2 text-right">
+                      <p className="text-eyebrow text-muted-foreground">Total</p>
                       <p className="text-lg font-semibold">{shifts.length}</p>
                     </div>
                   </div>
 
                   <div className="grid gap-2 sm:grid-cols-3">
-                    <div className="rounded-2xl border border-border/70 bg-background/80 p-3">
-                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                        Volunteers
-                      </p>
+                    <div className="rounded-lg border border-border bg-background p-3">
+                      <p className="text-eyebrow text-muted-foreground">Volunteers</p>
                       <p className="mt-2 text-2xl font-semibold">
                         {countByRole(shifts, 'VOLUNTEER')}
                       </p>
                     </div>
-                    <div className="rounded-2xl border border-border/70 bg-background/80 p-3">
-                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                        Doctors
-                      </p>
+                    <div className="rounded-lg border border-border bg-background p-3">
+                      <p className="text-eyebrow text-muted-foreground">Doctors</p>
                       <p className="mt-2 text-2xl font-semibold">{countByRole(shifts, 'DOCTOR')}</p>
                     </div>
-                    <div className="rounded-2xl border border-border/70 bg-background/80 p-3">
-                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                        Managers
-                      </p>
+                    <div className="rounded-lg border border-border bg-background p-3">
+                      <p className="text-eyebrow text-muted-foreground">Managers</p>
                       <p className="mt-2 text-2xl font-semibold">
                         {countByRole(shifts, 'MANAGER')}
                       </p>
@@ -541,10 +537,10 @@ export default function TodayBoardPage() {
                     filteredShifts.map((shift) => (
                       <div
                         key={shift.shiftId}
-                        className="rounded-2xl border border-border/80 bg-background/75 p-4"
+                        className="rounded-lg border border-border bg-background p-4"
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <div>
+                          <div className="min-w-0">
                             <p className="font-medium text-foreground">{shift.displayName}</p>
                             <p className="mt-1 text-sm text-muted-foreground">
                               Checked in at {formatOpsTime(shift.checkedInAt, timezone)}
@@ -559,7 +555,7 @@ export default function TodayBoardPage() {
               </Card>
             </div>
 
-            <section className="space-y-4">
+            <section className="min-w-0 space-y-4">
               <div className="flex items-end justify-between gap-4">
                 <div>
                   <h2 className="font-heading text-2xl font-semibold tracking-tight">
@@ -569,16 +565,14 @@ export default function TodayBoardPage() {
                     Arrival-to-intake movement for the clinic day.
                   </p>
                 </div>
-                <div className="rounded-2xl border border-border/80 bg-card/80 px-4 py-3 text-right shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                    Queue Total
-                  </p>
+                <div className="rounded-lg border border-border bg-card px-4 py-3 text-right">
+                  <p className="text-eyebrow text-muted-foreground">Queue Total</p>
                   <p className="mt-1 text-xl font-semibold">{checkins.length}</p>
                 </div>
               </div>
 
               {checkins.length === 0 ? (
-                <Card className="rounded-[28px] border-dashed border-border/80 bg-card/80 shadow-lg shadow-black/5">
+                <Card className="border-dashed">
                   <CardContent className="flex min-h-[260px] items-center justify-center p-10">
                     <EmptyStateCard
                       title="No patient check-ins yet"
@@ -589,11 +583,8 @@ export default function TodayBoardPage() {
               ) : (
                 <div className="grid auto-cols-[minmax(280px,1fr)] grid-flow-col gap-4 overflow-x-auto pb-2">
                   {visibleStatuses.map((status) => (
-                    <Card
-                      key={status}
-                      className="max-h-[72vh] min-h-[420px] rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5"
-                    >
-                      <CardHeader className="sticky top-0 z-10 rounded-t-[28px] bg-card/95 backdrop-blur">
+                    <Card key={status} className="max-h-[72vh] min-h-[420px]">
+                      <CardHeader className="sticky top-0 z-10 rounded-t-lg bg-card">
                         <div className="flex items-center justify-between gap-3">
                           <div>
                             <CardTitle className="text-lg">
@@ -617,11 +608,11 @@ export default function TodayBoardPage() {
                           groupedCheckins[status].map((checkIn) => (
                             <article
                               key={checkIn.id}
-                              className="rounded-2xl border border-border/80 bg-background/80 p-4 shadow-sm"
+                              className="rounded-lg border border-border bg-background p-4"
                             >
                               <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                                <div className="min-w-0">
+                                  <p className="text-eyebrow font-mono text-primary">
                                     {checkIn.patient.patientCode}
                                   </p>
                                   <h3 className="mt-2 text-base font-semibold text-foreground">
@@ -635,19 +626,15 @@ export default function TodayBoardPage() {
                               </div>
 
                               {checkIn.assignmentSummary ? (
-                                <div className="mt-4 grid gap-2 rounded-2xl border border-border/70 bg-card/70 p-3">
+                                <div className="mt-4 grid gap-2 rounded-lg border border-border bg-card p-3">
                                   <div>
-                                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                                      Volunteer
-                                    </p>
+                                    <p className="text-eyebrow text-muted-foreground">Volunteer</p>
                                     <p className="mt-1 text-sm font-medium">
                                       {checkIn.assignmentSummary.assignedVolunteer.displayName}
                                     </p>
                                   </div>
                                   <div>
-                                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                                      Doctor
-                                    </p>
+                                    <p className="text-eyebrow text-muted-foreground">Doctor</p>
                                     <p className="mt-1 text-sm font-medium">
                                       {checkIn.assignmentSummary.assignedDoctor.displayName}
                                     </p>
@@ -726,7 +713,7 @@ export default function TodayBoardPage() {
             }
           }}
         >
-          <DialogContent className="max-w-xl rounded-[28px] border-border/80">
+          <DialogContent className="max-w-xl">
             <DialogHeader>
               <DialogTitle className="font-heading text-2xl">
                 {assignmentDialog?.mode === 'reassign' ? 'Reassign patient' : 'Assign patient'}

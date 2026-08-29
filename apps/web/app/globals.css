@@ -43,6 +43,19 @@
     --success-foreground: 0 0% 100%;
     --warning: 32 90% 48%;
     --warning-foreground: 200 25% 15%;
+    /* Info carries the "awaiting review" workflow state, which is neither success, warning, nor
+       destructive. It is not a brand colour and must not be used for actions. */
+    --info: 200 60% 40%;
+    --info-foreground: 0 0% 100%;
+    /* Ink for tinted status badges (bg-<token>/12 + text-<token>-ink), the pattern the badge
+       component already used via bg-emerald-100 / text-emerald-800.
+       Reusing the fill token as the text colour on its own tint FAILS AA: measured 4.28:1 for
+       success and 2.42:1 for warning, because the tint lightens the ground while the ink stays
+       put. These are darkened until they clear on their own tint with headroom: success 5.20:1,
+       warning 5.94:1, info 7.52:1. */
+    --success-ink: 152 65% 26%;
+    --warning-ink: 32 90% 28%;
+    --info-ink: 200 60% 26%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
     /* --border stays soft at 1.26:1 on the canvas. WCAG 1.4.11 requires 3:1 only for boundaries
@@ -95,6 +108,13 @@
     --success-foreground: 200 25% 10%;
     --warning: 35 90% 58%;
     --warning-foreground: 200 25% 10%;
+    --info: 200 60% 58%;
+    --info-foreground: 200 25% 10%;
+    /* Dark inverts the badge: a dark tint of the hue carrying light ink. Measured on a 22% tint
+       over the dark card: success 6.82:1, warning 6.74:1, info 6.49:1. */
+    --success-ink: 152 40% 74%;
+    --warning-ink: 35 75% 74%;
+    --info-ink: 200 45% 74%;
     --destructive: 0 62% 45%;
     --destructive-foreground: 0 0% 100%;
     /* Same split as light mode: --border stays a soft decorative divider, --input carries the
@@ -133,42 +153,19 @@
   }
 }
 
-/* MUI DataGrid global overrides */
-.MuiDataGrid-root {
-  font-family: var(--font-body), system-ui, sans-serif !important;
-  border-color: hsl(var(--border)) !important;
-  border-radius: var(--radius) !important;
-}
-.MuiDataGrid-columnHeaders {
-  background-color: hsl(var(--muted)) !important;
-  font-family: var(--font-body), system-ui, sans-serif !important;
-}
-.MuiDataGrid-columnHeaderTitle {
-  font-weight: 600 !important;
-  color: hsl(var(--foreground)) !important;
-}
-.MuiDataGrid-cell {
-  border-color: hsl(var(--border)) !important;
-  color: hsl(var(--foreground)) !important;
-  font-family: var(--font-body), system-ui, sans-serif !important;
-}
-.MuiDataGrid-row:hover {
-  background-color: hsl(var(--accent)) !important;
-}
-.MuiDataGrid-footerContainer {
-  border-color: hsl(var(--border)) !important;
-}
-.MuiTablePagination-root {
-  color: hsl(var(--muted-foreground)) !important;
-}
-.MuiDataGrid-overlay {
-  background-color: hsl(var(--background) / 0.8) !important;
-}
+/*
+  MUI DataGrid.
 
-@media (max-width: 768px) {
-  .MuiDataGrid-root {
-    --DataGrid-rowHeight: 52px;
-  }
+  All twelve grids in the product pass `dataGridSx` from lib/datagrid-theme.ts, which owns the
+  full treatment. What used to live here was a duplicate of that object written with `!important`,
+  so the two fought over every property and only agreed by luck. The single rule left is the one
+  thing `sx` cannot reach: the pagination select's popover menu renders in a portal outside the
+  grid, so it never receives the grid's own styles.
+*/
+.MuiDataGrid-menu .MuiPaper-root,
+.MuiTablePagination-menuItem {
+  font-family: var(--font-body), system-ui, sans-serif;
+  color: hsl(var(--foreground));
 }
 
 /* Utility classes */
@@ -176,6 +173,22 @@
   .touch-target {
     min-height: 44px;
     min-width: 44px;
+  }
+
+  /*
+    One uppercase micro-label treatment.
+
+    Eight different tracking values were in use across the product (0.14em through 0.3em) on what
+    is visually the same element: the small caps label above a heading, a metric, or a section.
+    Eight values is noise, not hierarchy. 0.14em is the widest setting that still reads as one
+    word at 12px on a clinic screen; 0.3em was splitting labels into letters.
+
+    Colour is deliberately left to the caller: this label is --primary above a page title and
+    --muted-foreground above a metric, and both are correct.
+  */
+  .text-eyebrow {
+    @apply text-xs font-semibold uppercase;
+    letter-spacing: 0.14em;
   }
   .bg-clinical-grid {
     background-image: radial-gradient(circle, hsl(var(--border)) 1px, transparent 1px);
@@ -188,7 +201,9 @@
     background-image:
       radial-gradient(ellipse 80% 60% at 70% 0%, hsl(var(--primary) / 0.12) 0%, transparent 55%),
       radial-gradient(ellipse 60% 50% at 10% 90%, hsl(var(--secondary) / 0.14) 0%, transparent 50%),
-      radial-gradient(ellipse 50% 40% at 90% 70%, hsl(191 60% 92% / 0.8) 0%, transparent 45%);
+      /* Was a literal hsl(191 60% 92%), the only hard-coded colour left in the utility layer and
+         the reason the mesh drifted from the brand when --primary moved onto the logo hue. */
+        radial-gradient(ellipse 50% 40% at 90% 70%, hsl(var(--primary) / 0.08) 0%, transparent 45%);
   }
 
   /* Landing: secondary-biased gradient mesh */
@@ -199,9 +214,12 @@
       radial-gradient(ellipse 60% 50% at 80% 80%, hsl(var(--primary) / 0.08) 0%, transparent 50%);
   }
 
-  /* Landing: glass morphism utilities */
+  /* Landing: glass morphism utilities.
+     Built on --card rather than literal white so the panel survives dark mode; the previous
+     `bg-white/70` rendered a white slab on a dark canvas. */
   .landing-glass {
-    @apply border border-white/30 bg-white/70 shadow-lg backdrop-blur-xl;
+    @apply border border-border/60 shadow-lg backdrop-blur-xl;
+    background-color: hsl(var(--card) / 0.7);
   }
   .landing-glass-dark {
     background: hsl(var(--foreground) / 0.85);

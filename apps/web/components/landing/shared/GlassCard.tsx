@@ -13,7 +13,8 @@ export function GlassCard({ variant = 'light', className, children, ...props }: 
     <motion.div
       className={cn(
         'rounded-2xl border shadow-lg',
-        variant === 'light' && 'border-white/30 bg-white/70 backdrop-blur-xl',
+        // --card, not literal white: the light variant rendered a white slab on a dark canvas.
+        variant === 'light' && 'border-border/60 bg-card/70 backdrop-blur-xl',
         variant === 'dark' &&
           'border-foreground/20 bg-foreground/80 text-primary-foreground backdrop-blur-xl',
         className,

@@ -4,15 +4,15 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
-import { useBootstrap } from '@/lib/bootstrap-context';
 import { apiFetch } from '@/lib/api';
 import { db } from '@/lib/db';
 import { enqueueOutboxMutation, SYNC_OPERATION } from '@/lib/outbox';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { FormSectionCard } from '@/components/app-shell/FormSectionCard';
+import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
+import { RouteGuard } from '@/components/RouteGuard';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { InlineNotice } from '@/components/ops/OpsShared';
@@ -51,15 +51,12 @@ interface PatientData {
   residentialAddressNote?: string | null;
 }
 
-export default function EditPatientPage() {
+function EditPatientForm() {
   const params = useParams();
   const router = useRouter();
   const clinicId = params.clinicId as string;
   const patientId = params.patientId as string;
   const getToken = useAuth();
-  const bootstrap = useBootstrap()?.bootstrap ?? null;
-  const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
-  const canUpdate = perms.includes('*') || perms.includes('PATIENT.UPDATE');
 
   const [patient, setPatient] = useState<PatientData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -204,36 +201,31 @@ export default function EditPatientPage() {
     }
   };
 
-  if (!canUpdate) {
+  if (loading && !patient) {
+    return <SectionSkeleton lines={5} className="p-6" />;
+  }
+
+  if (!patient) {
     return (
       <div className="space-y-4">
-        <p className="text-destructive">You do not have permission to edit patients.</p>
+        <InlineErrorState
+          title="We couldn't open this chart for editing"
+          description={error ?? 'This patient could not be loaded.'}
+          onRetry={() => void fetchPatient()}
+          retryLabel="Try again"
+        />
         <Button asChild variant="outline">
-          <Link href={`/clinics/${clinicId}/patients/${patientId}`}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back
+          <Link href={`/clinics/${clinicId}/patients`}>
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Patients
           </Link>
         </Button>
       </div>
     );
   }
 
-  if (loading) return <div className="flex items-center justify-center p-8">Loading...</div>;
-
-  if (!patient)
-    return (
-      <div className="space-y-4">
-        <p>{error ?? 'Patient not found.'}</p>
-        <Button asChild variant="outline">
-          <Link href={`/clinics/${clinicId}/patients`}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back
-          </Link>
-        </Button>
-      </div>
-    );
-
   return (
     <div className="space-y-6">
-      <Button asChild variant="ghost" className="w-fit rounded-2xl">
+      <Button asChild variant="ghost" className="w-fit">
         <Link href={`/clinics/${clinicId}/patients/${patientId}`}>
           <ArrowLeft className="h-4 w-4" />
           Back to Patient
@@ -344,31 +336,43 @@ export default function EditPatientPage() {
 
         <ResidentialLocationFields value={location} onChange={setLocation} />
 
-        <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
-          <CardHeader className="space-y-2">
-            <h2 className="text-lg font-semibold">Protected identity fields</h2>
-            {patient.nationalIdLast4 ? (
-              <p className="text-sm text-muted-foreground">
-                National ID: ...{patient.nationalIdLast4} (immutable)
-              </p>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No national ID fragment is available in this view.
-              </p>
-            )}
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2 rounded-[28px] border border-border/70 bg-background/70 p-4">
-              <Button onClick={handleSave} disabled={saving} className="rounded-2xl">
-                {saving ? 'Saving...' : 'Save changes'}
-              </Button>
-              <Button asChild variant="outline" className="rounded-2xl">
-                <Link href={`/clinics/${clinicId}/patients/${patientId}`}>Cancel</Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <FormSectionCard
+          title="Protected identity fields"
+          description="These are shown for confirmation only and cannot be changed here."
+        >
+          {patient.nationalIdLast4 ? (
+            <p className="text-sm tabular-nums text-muted-foreground">
+              National ID: ...{patient.nationalIdLast4} (immutable)
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No national ID fragment is available in this view.
+            </p>
+          )}
+        </FormSectionCard>
+
+        <div className="flex flex-wrap gap-2 rounded-lg border border-border/70 bg-card p-4">
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? 'Saving...' : 'Save changes'}
+          </Button>
+          <Button asChild variant="outline">
+            <Link href={`/clinics/${clinicId}/patients/${patientId}`}>Cancel</Link>
+          </Button>
+        </div>
       </div>
     </div>
+  );
+}
+
+/*
+  The guard wraps the form rather than sitting inside it, so the chart is never read and the
+  fields are never rendered for someone who may not edit. The route used to answer the question
+  itself, after the fetch, with a destructive-coloured paragraph; a refusal is not an error.
+*/
+export default function EditPatientPage() {
+  return (
+    <RouteGuard requiredPermission="PATIENT.UPDATE">
+      <EditPatientForm />
+    </RouteGuard>
   );
 }

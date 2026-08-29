@@ -96,7 +96,7 @@ export function TestimonialsSection() {
           >
             {QUOTES.map((t) => (
               <div key={t.name} className="w-[85%] shrink-0 snap-start sm:w-[45%] lg:w-[32%]">
-                <div className="relative h-full rounded-2xl landing-glass border-white/40 p-6 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
+                <div className="relative h-full rounded-xl landing-glass p-6 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
                   {/* Decorative quote mark */}
                   <Quote className="absolute right-4 top-4 h-8 w-8 text-primary/10" aria-hidden />
 

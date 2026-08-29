@@ -14,6 +14,7 @@ import {
   Legend,
 } from 'recharts';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { EmptyState } from '@/components/feedback/AppState';
 import { InfoHint } from '@/components/ui/info-hint';
 import { BarChart3 } from 'lucide-react';
 import { hasRenderableDistributionData, toDistributionChartData } from './chart-utils';
@@ -45,7 +46,7 @@ export function DistributionChart({
   const hasData = hasRenderableDistributionData(chartData);
 
   return (
-    <Card className="border-border/80 bg-card/95">
+    <Card>
       <CardHeader className="pb-2">
         <div className="flex items-start gap-2">
           <CardTitle className="text-base font-semibold leading-snug">{title}</CardTitle>
@@ -53,17 +54,23 @@ export function DistributionChart({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="h-[220px] sm:h-[250px]">
+        <div className="h-[240px] sm:h-[260px]">
           {hasData ? (
             <ResponsiveContainer width="100%" height="100%">
               {type === 'pie' ? (
                 <PieChart>
+                  {/*
+                    Radii as a share of the box, not pixels. At 50/90px the ring plus its legend
+                    needed roughly 240px of height and the box is 220px on a phone, so the bottom
+                    of the pie was clipped by the legend on exactly the devices used at a clinic
+                    bedside. Percentages let recharts size it against whatever height it is given.
+                  */}
                   <Pie
                     data={chartData}
                     cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={90}
+                    cy="45%"
+                    innerRadius="45%"
+                    outerRadius="72%"
                     dataKey="value"
                     nameKey="name"
                     label={false}
@@ -97,15 +104,12 @@ export function DistributionChart({
               )}
             </ResponsiveContainer>
           ) : (
-            <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-border/80 bg-muted/30 p-5 text-center">
-              <div className="max-w-xs space-y-2">
-                <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <BarChart3 className="h-4 w-4" />
-                </span>
-                <p className="text-sm font-medium text-foreground">No chart data yet</p>
-                <p className="text-sm leading-6 text-muted-foreground">{emptyMessage}</p>
-              </div>
-            </div>
+            <EmptyState
+              icon={BarChart3}
+              title="No chart data yet"
+              description={emptyMessage}
+              className="h-full justify-center"
+            />
           )}
         </div>
       </CardContent>

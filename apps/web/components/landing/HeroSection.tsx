@@ -96,9 +96,11 @@ export function HeroSection() {
               className="font-landing-heading text-4xl font-black lowercase leading-[1.08] tracking-tight text-foreground sm:text-5xl md:text-6xl"
             >
               Clinical records that work{' '}
-              <span className="bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                when the network doesn&apos;t
-              </span>
+              {/* Solid, not `bg-clip-text` gradient. Gradient text is decoration rather than
+                  meaning, it fades the tail of the phrase to a lower contrast than the head, and
+                  it is the single most recognisable generated-page tell. The emphasis is the
+                  colour change; the weight and size already carry the rest. */}
+              <span className="text-primary">when the network doesn&apos;t</span>
             </motion.h1>
 
             <motion.p
@@ -192,7 +194,7 @@ export function HeroSection() {
                 transition={{ duration: 0.6, delay: 0.5, ease: [0.25, 0.4, 0.25, 1] }}
                 className="absolute inset-x-4 bottom-4 z-10 sm:inset-x-6 sm:bottom-6"
               >
-                <div className="w-full max-w-md rounded-2xl border border-white/60 bg-background/95 p-4 shadow-xl backdrop-blur-md sm:p-5">
+                <div className="w-full max-w-md rounded-xl border border-border/60 bg-card/95 p-4 shadow-xl backdrop-blur-md sm:p-5">
                   <p className="font-landing-nav text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                     Live workspace preview
                   </p>

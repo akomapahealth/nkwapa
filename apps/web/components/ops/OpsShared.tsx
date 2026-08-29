@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { EmptyState } from '@/components/feedback/AppState';
 import { cn } from '@/lib/utils';
 import {
   type ActiveShift,
@@ -28,7 +29,7 @@ function shiftRoleTone(role: ShiftRole) {
     case 'VOLUNTEER':
       return 'border-primary/25 bg-primary/10 text-primary';
     case 'DOCTOR':
-      return 'border-sky-200 bg-sky-50 text-sky-700';
+      return 'border-info/25 bg-info/10 text-info-ink';
     case 'MANAGER':
       return 'border-secondary/35 bg-secondary/15 text-foreground';
     default:
@@ -85,26 +86,6 @@ export function CheckInStatusBadge({
   );
 }
 
-export function OpsMetricCard({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: number | string;
-  detail?: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-border/80 bg-card/85 p-4 shadow-sm backdrop-blur-sm">
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-        {label}
-      </p>
-      <p className="mt-3 text-3xl font-semibold tracking-tight text-foreground">{value}</p>
-      {detail ? <p className="mt-1 text-sm text-muted-foreground">{detail}</p> : null}
-    </div>
-  );
-}
-
 export function InlineNotice({
   tone = 'info',
   className,
@@ -118,11 +99,11 @@ export function InlineNotice({
     tone === 'error'
       ? 'border-destructive/25 bg-destructive/10 text-destructive'
       : tone === 'success'
-        ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+        ? 'border-success/25 bg-success/10 text-success-ink'
         : 'border-primary/20 bg-primary/10 text-foreground';
 
   return (
-    <div className={cn('rounded-2xl border px-4 py-3 text-sm', toneClass, className)}>
+    <div className={cn('rounded-lg border px-4 py-3 text-sm', toneClass, className)}>
       {children}
     </div>
   );
@@ -143,6 +124,13 @@ export function OnlineOnlyBanner({ className }: { className?: string }) {
   );
 }
 
+/**
+ * Compact empty state.
+ *
+ * Kept as a name because 23 call sites use it, but it no longer has an implementation of its
+ * own: it is `EmptyState` at compact density. Prefer importing `EmptyState` directly in new
+ * code; this alias exists so the call sites can move a group at a time.
+ */
 export function EmptyStateCard({
   title,
   description,
@@ -151,19 +139,9 @@ export function EmptyStateCard({
   title: string;
   description: string;
   /** Optional leading glyph. Several panels had hand-rolled an icon variant of this card. */
-  icon?: React.ReactNode;
+  icon?: React.ReactElement;
 }) {
-  return (
-    <div className="rounded-2xl border border-dashed border-border bg-background/80 p-5 text-sm text-muted-foreground">
-      <div className="flex items-start gap-3">
-        {icon ? <span className="mt-0.5 shrink-0 text-muted-foreground">{icon}</span> : null}
-        <div>
-          <h3 className="font-medium text-foreground">{title}</h3>
-          <p className="mt-1">{description}</p>
-        </div>
-      </div>
-    </div>
-  );
+  return <EmptyState density="compact" title={title} description={description} icon={icon} />;
 }
 
 export function ShiftControlCard({
@@ -192,12 +170,7 @@ export function ShiftControlCard({
   const hasShiftRole = availableRoles.length > 0;
 
   return (
-    <Card
-      className={cn(
-        'overflow-hidden border-primary/15 bg-gradient-to-br from-primary/10 via-card to-secondary/10 shadow-lg shadow-primary/5',
-        className,
-      )}
-    >
+    <Card className={cn('overflow-hidden', className)}>
       <CardHeader className="pb-4">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -223,19 +196,15 @@ export function ShiftControlCard({
       <CardContent className="space-y-4">
         {currentShift ? (
           <div className="space-y-4">
-            <div className="grid gap-3 rounded-2xl border border-border/80 bg-card/75 p-4 sm:grid-cols-2">
+            <div className="grid gap-3 rounded-lg border border-border/80 bg-card/75 p-4 sm:grid-cols-2">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                  Checked In As
-                </p>
+                <p className="text-eyebrow text-muted-foreground">Checked In As</p>
                 <div className="mt-2">
                   <ShiftRoleBadge role={currentShift.roleAtShift} />
                 </div>
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                  Started
-                </p>
+                <p className="text-eyebrow text-muted-foreground">Started</p>
                 <p className="mt-2 flex items-center gap-2 text-sm font-medium text-foreground">
                   <Clock3 className="h-4 w-4 text-muted-foreground" />
                   {formatOpsDateTime(currentShift.checkedInAt, timezone)}

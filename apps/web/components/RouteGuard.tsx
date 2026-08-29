@@ -3,16 +3,32 @@
 import Link from 'next/link';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { resolveRouteAccess } from '@/lib/route-access';
-import { InlineErrorState, PageSkeleton } from '@/components/feedback/AppState';
+import {
+  InlineErrorState,
+  NoAccessState,
+  PageSkeleton,
+  SelectClinicState,
+} from '@/components/feedback/AppState';
 import { Button } from '@/components/ui/button';
-import { Lock } from 'lucide-react';
 
 export function RouteGuard({
   children,
   requiredPermission,
+  requiresClinic = false,
+  clinicSurface,
 }: {
   children: React.ReactNode;
   requiredPermission: string;
+  /**
+   * The route cannot render anything meaningful without an active clinic.
+   *
+   * Ten routes used to answer this themselves with a bare paragraph, in ten different wordings,
+   * after their own guard had already passed. Answering it here means the sequence is always the
+   * same: are you still loading, may you be here at all, and only then, which clinic.
+   */
+  requiresClinic?: boolean;
+  /** Plain-language name of the surface, e.g. "The Today Board". Required when requiresClinic. */
+  clinicSurface?: string;
 }) {
   const ctx = useBootstrap();
   const bootstrap = ctx?.bootstrap ?? null;
@@ -23,10 +39,6 @@ export function RouteGuard({
     errorStatus: ctx?.errorStatus ?? null,
     requiredPermission,
   });
-
-  if (state === 'allowed') {
-    return <>{children}</>;
-  }
 
   if (state === 'resolving') {
     return (
@@ -58,7 +70,7 @@ export function RouteGuard({
         />
         {isSessionIssue ? (
           <div className="flex justify-center">
-            <Button asChild variant="outline" className="rounded-2xl">
+            <Button asChild variant="outline">
               <Link href="/login">Go to secure sign in</Link>
             </Button>
           </div>
@@ -67,34 +79,42 @@ export function RouteGuard({
     );
   }
 
-  const memberships = bootstrap?.memberships ?? [];
-  const hasMultipleClinics = memberships.length > 1;
+  if (state === 'denied') {
+    const memberships = bootstrap?.memberships ?? [];
+    const hasMultipleClinics = memberships.length > 1;
 
-  return (
-    <div className="space-y-4">
-      <InlineErrorState
+    return (
+      <NoAccessState
         title="You don't have access to this page"
         description={
           hasMultipleClinics
             ? 'Try switching clinics in the header. If you still cannot open this page, ask a clinic administrator to review your role assignment.'
             : 'Contact a clinic administrator if you believe you should have access.'
         }
-      />
-      <div className="flex flex-col items-center justify-center gap-4 p-8 text-center">
-        <Lock className="h-8 w-8 text-primary" />
-        <div className="flex flex-wrap items-center justify-center gap-2">
-          {/* If an administrator has just changed this user's role, re-reading identity is
-              enough; they should not have to hard-refresh to pick it up. */}
-          {ctx?.retry ? (
-            <Button variant="outline" className="rounded-2xl" onClick={ctx.retry}>
-              Check again
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Deliberately "Check again", not "Try again". Nothing failed here, so offering the
+                retry label would teach staff to hammer a wall they cannot pass. It exists only
+                because an administrator may have just changed this user's role, and re-reading
+                identity should be enough to pick that up without a hard refresh. */}
+            {ctx?.retry ? (
+              <Button variant="outline" onClick={ctx.retry}>
+                Check again
+              </Button>
+            ) : null}
+            <Button asChild variant="outline">
+              <Link href="/queues">Back to Queues</Link>
             </Button>
-          ) : null}
-          <Button asChild variant="outline" className="rounded-2xl">
-            <Link href="/queues">Back to Queues</Link>
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
+          </div>
+        }
+      />
+    );
+  }
+
+  // Allowed, but the route is clinic-scoped and no clinic is active.
+  if (requiresClinic && !(ctx?.activeClinicId ?? null)) {
+    return <SelectClinicState surface={clinicSurface ?? 'This page'} />;
+  }
+
+  return <>{children}</>;
 }

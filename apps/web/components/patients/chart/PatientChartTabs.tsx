@@ -41,7 +41,7 @@ export function PatientChartTabs({ sections, controller, renderSection }: Patien
       <div className="max-w-full overflow-x-auto pb-1">
         <TabsList
           aria-label="Patient chart sections"
-          className="w-max justify-start gap-2 rounded-3xl border border-border/80 bg-card/75 p-2"
+          className="w-max justify-start gap-2 rounded-lg border border-border/80 bg-card/75 p-2"
         >
           {sections.map((section) => (
             <TabsTrigger

@@ -3,11 +3,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { apiFetch } from '@/lib/api';
-import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
+import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
+import { InlineNotice } from '@/components/ops/OpsShared';
+import { RouteGuard } from '@/components/RouteGuard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { VitalsForm } from '@/components/VitalsForm';
@@ -16,15 +19,18 @@ import { HypertensionForm } from '@/components/HypertensionForm';
 
 const STEPS = ['confirm', 'vitals', 'htn', 'diabetes', 'review'] as const;
 
-export default function NewEncounterPage() {
+function NewEncounterFlow({ clinicId }: { clinicId: string }) {
   const params = useParams();
   const router = useRouter();
   const patientId = params.patientId as string;
   const getToken = useAuth();
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const { syncNow } = useSync();
-  const clinicId = getBootstrapActiveClinicId(bootstrap);
   const userId = bootstrap?.userId ?? '';
+
+  // The visit is recorded against the chart in this clinic, so every link back to the patient
+  // uses the canonical clinic-scoped address rather than the legacy redirect.
+  const patientHref = `/clinics/${clinicId}/patients/${patientId}`;
 
   const [step, setStep] = useState(0);
   const [encounterId, setEncounterId] = useState<string | null>(null);
@@ -99,29 +105,19 @@ export default function NewEncounterPage() {
     }
   };
 
-  if (!clinicId) {
-    return (
-      <div className="p-4">
-        <p className="text-muted-foreground">Select a clinic to start check-in.</p>
-      </div>
-    );
-  }
-
   if (loading || !encounterId || !patient) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        {error ? (
-          <div className="space-y-2">
-            <p className="text-destructive">{error}</p>
-            <Button asChild variant="outline">
-              <Link href={`/patients/${patientId}`}>Back to Patient</Link>
-            </Button>
-          </div>
-        ) : (
-          <p className="text-muted-foreground">Loading…</p>
-        )}
-      </div>
-    );
+    if (error) {
+      return (
+        <div className="space-y-4">
+          <InlineErrorState title="We couldn't start this visit" description={error} />
+          <Button asChild variant="outline">
+            <Link href={patientHref}>Back to Patient</Link>
+          </Button>
+        </div>
+      );
+    }
+
+    return <SectionSkeleton lines={3} className="p-6" />;
   }
 
   const currentStep = STEPS[step];
@@ -131,7 +127,10 @@ export default function NewEncounterPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <Button variant="ghost" asChild>
-          <Link href={`/patients/${patientId}`}>← Back to Patient</Link>
+          <Link href={patientHref}>
+            <ArrowLeft className="h-4 w-4" />
+            Back to Patient
+          </Link>
         </Button>
         <span className="text-sm text-muted-foreground">
           Step {step + 1} of {STEPS.length}
@@ -149,20 +148,18 @@ export default function NewEncounterPage() {
         ))}
       </div>
 
-      {error && (
-        <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
-      )}
+      {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
 
       {currentStep === 'confirm' && (
         <Card>
           <CardHeader>
-            <h2 className="text-lg font-semibold">Confirm Patient</h2>
+            <h2 className="font-heading text-xl font-semibold">Confirm Patient</h2>
           </CardHeader>
           <CardContent>
             <p className="text-lg">
               {patient.firstName} {patient.lastName}
             </p>
-            <p className="text-muted-foreground font-mono">{patient.patientCode}</p>
+            <p className="font-mono text-muted-foreground">{patient.patientCode}</p>
             <Button className="mt-4" onClick={() => setStep(1)}>
               Continue to Vitals
             </Button>
@@ -199,7 +196,7 @@ export default function NewEncounterPage() {
       {currentStep === 'review' && (
         <Card>
           <CardHeader>
-            <h2 className="text-lg font-semibold">Review & Submit</h2>
+            <h2 className="font-heading text-xl font-semibold">Review &amp; Submit</h2>
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground mb-4">
@@ -224,5 +221,19 @@ export default function NewEncounterPage() {
         </Button>
       )}
     </div>
+  );
+}
+
+export default function NewEncounterPage() {
+  const clinicId = useBootstrap()?.activeClinicId ?? null;
+
+  return (
+    <RouteGuard
+      requiredPermission="ENCOUNTER.CREATE"
+      requiresClinic
+      clinicSurface="Starting a patient visit"
+    >
+      {clinicId ? <NewEncounterFlow clinicId={clinicId} /> : null}
+    </RouteGuard>
   );
 }

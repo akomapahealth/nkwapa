@@ -859,7 +859,7 @@ export function MedicationReconciliationPanel({
         />
       ) : null}
 
-      <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+      <Card>
         <CardHeader className="gap-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -872,14 +872,14 @@ export function MedicationReconciliationPanel({
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
-                  className="rounded-2xl"
+                  className="rounded-lg"
                   onClick={() => void reconcileList()}
                   disabled={saving}
                 >
                   <RefreshCw className="h-4 w-4" />
                   {current.length ? 'Reconcile list' : 'Record no known medications'}
                 </Button>
-                <Button className="rounded-2xl" onClick={() => openMedication()}>
+                <Button className="rounded-lg" onClick={() => openMedication()}>
                   <Plus className="h-4 w-4" />
                   Add medication
                 </Button>
@@ -912,7 +912,7 @@ export function MedicationReconciliationPanel({
         </CardContent>
       </Card>
 
-      <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+      <Card>
         <CardHeader>
           <h2 className="text-lg font-semibold">Past and stopped medications</h2>
           <p className="text-sm text-muted-foreground">
@@ -928,14 +928,14 @@ export function MedicationReconciliationPanel({
               onHistory={(record) => void openHistory('medication', record)}
             />
           ) : (
-            <p className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
               No past or stopped medications recorded.
             </p>
           )}
         </CardContent>
       </Card>
 
-      <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+      <Card>
         <CardHeader className="flex-row items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold">Pharmacy preference and history</h2>
@@ -944,7 +944,7 @@ export function MedicationReconciliationPanel({
             </p>
           </div>
           {canWrite ? (
-            <Button className="rounded-2xl" onClick={() => openPharmacy()}>
+            <Button className="rounded-lg" onClick={() => openPharmacy()}>
               <Plus className="h-4 w-4" />
               Add pharmacy
             </Button>
@@ -956,10 +956,7 @@ export function MedicationReconciliationPanel({
               {view.pharmacies.map((record) => {
                 const preferred = activePreference?.pharmacyRecordId === record.id;
                 return (
-                  <li
-                    key={record.id}
-                    className="rounded-3xl border border-border/80 bg-background/70 p-4"
-                  >
+                  <li key={record.id} className="rounded-lg border border-border bg-background p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
@@ -977,7 +974,7 @@ export function MedicationReconciliationPanel({
                         <Button
                           variant="outline"
                           size="sm"
-                          className="rounded-2xl"
+                          className="rounded-lg"
                           onClick={() => void openHistory('pharmacy', record)}
                         >
                           <History className="h-4 w-4" />
@@ -988,7 +985,7 @@ export function MedicationReconciliationPanel({
                             <Button
                               variant="outline"
                               size="sm"
-                              className="rounded-2xl"
+                              className="rounded-lg"
                               onClick={() => openPharmacy(record)}
                             >
                               <Pencil className="h-4 w-4" />
@@ -997,7 +994,7 @@ export function MedicationReconciliationPanel({
                             {!preferred ? (
                               <Button
                                 size="sm"
-                                className="rounded-2xl"
+                                className="rounded-lg"
                                 disabled={saving}
                                 onClick={() => void setPreferred(record)}
                               >
@@ -1007,7 +1004,7 @@ export function MedicationReconciliationPanel({
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="rounded-2xl"
+                                className="rounded-lg"
                                 disabled={saving}
                                 onClick={() => void endPreferred()}
                               >
@@ -1038,7 +1035,7 @@ export function MedicationReconciliationPanel({
               })}
             </ul>
           ) : (
-            <div className="rounded-3xl border border-dashed p-8 text-center">
+            <div className="rounded-lg border border-dashed p-8 text-center">
               <Building2 className="mx-auto h-8 w-8 text-muted-foreground" />
               <h3 className="mt-3 font-semibold">No pharmacy history recorded</h3>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -1049,7 +1046,7 @@ export function MedicationReconciliationPanel({
         </CardContent>
       </Card>
 
-      <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+      <Card>
         <CardHeader>
           <h2 className="text-lg font-semibold">Linked prescription history</h2>
           <p className="text-sm text-muted-foreground">
@@ -1058,7 +1055,7 @@ export function MedicationReconciliationPanel({
         </CardHeader>
         <CardContent>
           {!canReadPrescriptions ? (
-            <div className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
+            <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
               <ShieldCheck className="mr-2 inline h-4 w-4" />
               Prescription context requires PRESCRIPTION.READ. Reported medications above remain
               available.
@@ -1066,7 +1063,7 @@ export function MedicationReconciliationPanel({
           ) : prescriptions.length ? (
             <ul className="space-y-3">
               {prescriptions.map((item) => (
-                <li key={item.id} className="rounded-2xl border p-3">
+                <li key={item.id} className="rounded-lg border p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <p className="font-medium">{item.drug?.name ?? 'Catalog medication'}</p>
@@ -1092,7 +1089,7 @@ export function MedicationReconciliationPanel({
               ))}
             </ul>
           ) : (
-            <p className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
               No linked prescriptions found.
             </p>
           )}
@@ -1139,7 +1136,7 @@ export function MedicationReconciliationPanel({
           </DialogHeader>
           <ol className="space-y-3">
             {historyItems.map((item) => (
-              <li key={item.id} className="rounded-2xl border p-3">
+              <li key={item.id} className="rounded-lg border p-3">
                 <div className="flex items-center justify-between">
                   <span className="font-medium">Revision {item.revisionNumber}</span>
                   {'status' in item ? (
@@ -1178,7 +1175,7 @@ function MedicationList({
         const revision = record.currentRevision;
         const status = statusPresentation[revision.status];
         return (
-          <li key={record.id} className="rounded-3xl border border-border/80 bg-background/70 p-4">
+          <li key={record.id} className="rounded-lg border border-border bg-background p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -1232,7 +1229,7 @@ function MedicationList({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="rounded-2xl"
+                  className="rounded-lg"
                   onClick={() => onHistory(record)}
                 >
                   <History className="h-4 w-4" />
@@ -1242,7 +1239,7 @@ function MedicationList({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="rounded-2xl"
+                    className="rounded-lg"
                     onClick={() => onEdit(record)}
                   >
                     <Pencil className="h-4 w-4" />
@@ -1296,8 +1293,8 @@ function StatusMessage({
     <div
       className={
         tone === 'success'
-          ? 'rounded-2xl border border-emerald-500/35 bg-emerald-500/10 p-3 text-sm text-emerald-800 dark:text-emerald-300'
-          : 'rounded-2xl border border-amber-500/35 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-300'
+          ? 'rounded-lg border border-success/35 bg-success/10 p-3 text-sm text-success-ink'
+          : 'rounded-lg border border-warning/35 bg-warning/10 p-3 text-sm text-warning-ink'
       }
     >
       <Icon className="mr-2 inline h-4 w-4" />

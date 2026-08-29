@@ -24,6 +24,9 @@ import {
   readApiError,
 } from '@/lib/ops';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
+import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
 import {
   AssignedRoleBadge,
@@ -31,7 +34,6 @@ import {
   EmptyStateCard,
   InlineNotice,
   OnlineOnlyBanner,
-  OpsMetricCard,
   ShiftControlCard,
 } from '@/components/ops/OpsShared';
 import { Button } from '@/components/ui/button';
@@ -359,112 +361,110 @@ export default function MyAssignedPage() {
   return (
     <RouteGuard requiredPermission="OPS.ASSIGNMENT.READ_SELF">
       <div className="space-y-6">
-        <section className="overflow-hidden rounded-[28px] border border-primary/15 bg-gradient-to-br from-primary/15 via-card to-secondary/15 p-6 shadow-xl shadow-primary/5">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-            <div className="max-w-2xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary">
-                Clinic Ops
-              </p>
-              <h1 className="mt-3 font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-                My Assigned
-              </h1>
-              <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">
-                A focused worklist for volunteer intake and doctor follow-through.
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <div className="rounded-2xl border border-border/80 bg-card/85 px-4 py-3 shadow-sm">
-                <Label
-                  htmlFor="my-assigned-date"
-                  className="text-xs uppercase tracking-[0.2em] text-muted-foreground"
-                >
+        <AppPageHeader
+          eyebrow="Clinic ops"
+          title="My Assigned"
+          description="A focused worklist for volunteer intake and doctor follow-through."
+          actions={
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="space-y-2">
+                <Label htmlFor="my-assigned-date" className="text-eyebrow text-muted-foreground">
                   Clinic day
                 </Label>
-                <div className="mt-2 flex items-center gap-2">
-                  <CalendarDays className="h-4 w-4 text-primary" />
+                <div className="relative">
+                  <CalendarDays
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                  />
                   <Input
                     id="my-assigned-date"
                     type="date"
                     value={selectedDate}
                     onChange={(event) => setSelectedDate(event.target.value)}
-                    className="h-8 border-0 bg-transparent p-0 shadow-none focus-visible:ring-0"
+                    className="w-[180px] pl-9"
                   />
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-border/80 bg-card/85 px-4 py-3 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Timezone</p>
-                <p className="mt-2 text-sm font-medium text-foreground">{timezone}</p>
-              </div>
+              <p className="pb-3 text-sm text-muted-foreground">
+                Times shown in <span className="font-medium text-foreground">{timezone}</span>
+              </p>
 
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => void loadAssignments({ background: true })}
                 disabled={!isOnline || refreshing || loading}
-                className="h-12 rounded-2xl border-border/80 bg-card/85 px-4"
               >
-                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+                <RefreshCw
+                  aria-hidden="true"
+                  className={refreshing ? 'animate-spin motion-reduce:animate-none' : ''}
+                />
                 Refresh
               </Button>
             </div>
-          </div>
+          }
+        />
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <OpsMetricCard
-              label="Assigned today"
-              value={assignments.length}
-              detail={formatOpsDate(selectedDate, timezone)}
-            />
-            <OpsMetricCard
-              label="Ready for intake"
-              value={
-                assignments.filter(
-                  (assignment) =>
-                    assignment.assignedRole === 'VOLUNTEER' &&
-                    assignment.checkInStatus === 'ASSIGNED' &&
-                    !assignment.encounterId,
-                ).length
-              }
-              detail="Volunteer-owned intake starts"
-            />
-            <OpsMetricCard
-              label="In progress"
-              value={
-                assignments.filter(
-                  (assignment) =>
-                    assignment.checkInStatus === 'IN_PROGRESS' && Boolean(assignment.encounterId),
-                ).length
-              }
-              detail="Cases with active encounters"
-            />
-            <OpsMetricCard
-              label="Completed"
-              value={
-                assignments.filter((assignment) => assignment.checkInStatus === 'COMPLETED').length
-              }
-              detail="Finished clinic flow"
-            />
-          </div>
-        </section>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <AppMetricCard
+            title="Assigned today"
+            value={assignments.length}
+            detail={formatOpsDate(selectedDate, timezone)}
+          />
+          <AppMetricCard
+            title="Ready for intake"
+            value={
+              assignments.filter(
+                (assignment) =>
+                  assignment.assignedRole === 'VOLUNTEER' &&
+                  assignment.checkInStatus === 'ASSIGNED' &&
+                  !assignment.encounterId,
+              ).length
+            }
+            detail="Volunteer-owned intake starts"
+          />
+          <AppMetricCard
+            title="In progress"
+            value={
+              assignments.filter(
+                (assignment) =>
+                  assignment.checkInStatus === 'IN_PROGRESS' && Boolean(assignment.encounterId),
+              ).length
+            }
+            detail="Cases with active encounters"
+          />
+          <AppMetricCard
+            title="Completed"
+            value={
+              assignments.filter((assignment) => assignment.checkInStatus === 'COMPLETED').length
+            }
+            detail="Finished clinic flow"
+          />
+        </div>
 
         {!isOnline ? <OnlineOnlyBanner /> : null}
-        {pageError ? <InlineNotice tone="error">{pageError}</InlineNotice> : null}
+        {pageError ? (
+          <InlineErrorState
+            title="Your assignments could not be loaded"
+            description={pageError}
+            onRetry={() => void loadAssignments()}
+          />
+        ) : null}
         {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
         {notice ? <InlineNotice tone="success">{notice}</InlineNotice> : null}
 
         {loading ? (
           <div className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
-            <div className="space-y-6">
-              <div className="h-64 animate-pulse rounded-[28px] bg-muted" />
-              <div className="h-48 animate-pulse rounded-[28px] bg-muted" />
+            <div className="min-w-0 space-y-6">
+              <SectionSkeleton lines={2} />
+              <SectionSkeleton lines={2} />
             </div>
-            <div className="h-[460px] animate-pulse rounded-[28px] bg-muted" />
+            <SectionSkeleton lines={5} />
           </div>
         ) : (
           <div className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
-            <div className="space-y-6">
+            <div className="min-w-0 space-y-6">
               <ShiftControlCard
                 currentShift={currentShift}
                 selectedRole={selectedShiftRole}
@@ -477,7 +477,7 @@ export default function MyAssignedPage() {
                 onCheckOut={() => void handleShiftCheckOut()}
               />
 
-              <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+              <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-xl">
                     <ClipboardList className="h-5 w-5 text-primary" />
@@ -501,7 +501,7 @@ export default function MyAssignedPage() {
               </Card>
             </div>
 
-            <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+            <Card className="min-w-0">
               <CardHeader className="space-y-4">
                 <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                   <div>

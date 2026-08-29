@@ -44,13 +44,13 @@ const toneStyles: Record<
   },
   success: {
     icon: CheckCircle2,
-    className: 'border-emerald-200 bg-emerald-50 text-emerald-950',
-    iconClassName: 'text-emerald-600',
+    className: 'border-success/25 bg-success/10 text-success-ink',
+    iconClassName: 'text-success',
   },
   warning: {
     icon: AlertTriangle,
-    className: 'border-amber-200 bg-amber-50 text-amber-950',
-    iconClassName: 'text-amber-600',
+    className: 'border-warning/25 bg-warning/10 text-warning-ink',
+    iconClassName: 'text-warning',
   },
   error: {
     icon: XCircle,
@@ -117,10 +117,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           return (
             <div
               key={toast.id}
-              className={cn(
-                'rounded-2xl border p-4 shadow-2xl shadow-black/10 backdrop-blur transition-all',
-                tone.className,
-              )}
+              className={cn('rounded-lg border p-4 backdrop-blur transition-all', tone.className)}
             >
               <div className="flex items-start gap-3">
                 <Icon className={cn('mt-0.5 h-5 w-5 shrink-0', tone.iconClassName)} />
@@ -134,10 +131,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 shrink-0 rounded-full text-current/65 hover:bg-current/10 hover:text-current"
+                  className="relative h-8 w-8 shrink-0 rounded-full text-current/65 before:absolute before:left-1/2 before:top-1/2 before:h-11 before:w-11 before:-translate-x-1/2 before:-translate-y-1/2 before:content-[''] hover:bg-current/10 hover:text-current"
                   onClick={() => dismissToast(toast.id)}
                 >
-                  <X className="h-4 w-4" />
+                  <X aria-hidden="true" className="h-4 w-4" />
                   <span className="sr-only">Dismiss notification</span>
                 </Button>
               </div>

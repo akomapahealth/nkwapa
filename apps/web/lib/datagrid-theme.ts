@@ -1,15 +1,34 @@
 import type { SxProps, Theme } from '@mui/material';
 
+/**
+ * The one MUI DataGrid treatment.
+ *
+ * Twelve call sites share this object, so it is the cheapest place in the product to hold the
+ * table half of the design contract (docs/design-system/MASTER.md sections 5, 7 and 8). Three
+ * things it deliberately does NOT do, each of which it used to:
+ *
+ *  - No `borderRadius: 24px`. The scale caps at 14px; a grid is a panel, so it takes `--radius`.
+ *  - No drop shadow. Decorative elevation is off-contract on a clinical view; the border and the
+ *    card/canvas surface pair carry the separation instead.
+ *  - No `transform` in the row transition. Transform-based hover moves content under a user
+ *    mid-entry, which section 7 forbids outright. Colour alone signals the hover.
+ *
+ * Sticky column headers are new: a clinic roster or patient registry routinely runs past a
+ * viewport, and losing the header on scroll is what forces staff to count columns.
+ */
 export const dataGridSx: SxProps<Theme> = {
-  border: '1px solid hsl(var(--border) / 0.85)',
-  borderRadius: '24px',
-  backgroundColor: 'hsl(var(--card) / 0.92)',
-  boxShadow: '0 10px 30px hsl(var(--foreground) / 0.04)',
+  border: '1px solid hsl(var(--border))',
+  borderRadius: 'var(--radius)',
+  backgroundColor: 'hsl(var(--card))',
   overflow: 'hidden',
   fontFamily: 'var(--font-body), system-ui, sans-serif',
+  color: 'hsl(var(--foreground))',
   '& .MuiDataGrid-columnHeaders': {
-    backgroundColor: 'hsl(var(--muted) / 0.7)',
-    borderBottom: '1px solid hsl(var(--border) / 0.9)',
+    backgroundColor: 'hsl(var(--muted))',
+    borderBottom: '1px solid hsl(var(--border))',
+    position: 'sticky',
+    top: 0,
+    zIndex: 2,
   },
   '& .MuiDataGrid-columnHeaderTitle': {
     fontWeight: 600,
@@ -20,23 +39,44 @@ export const dataGridSx: SxProps<Theme> = {
     paddingRight: '0.5rem',
   },
   '& .MuiDataGrid-cell': {
-    borderColor: 'hsl(var(--border) / 0.7)',
+    borderColor: 'hsl(var(--border))',
     color: 'hsl(var(--foreground))',
     alignItems: 'center',
   },
+  // Clinical values have to align down a column to be comparable at a glance. Applied to the whole
+  // grid rather than per-column because proportional digits never help in a table.
+  '& .MuiDataGrid-cell, & .MuiTablePagination-root': {
+    fontVariantNumeric: 'tabular-nums',
+  },
   '& .MuiDataGrid-row': {
-    transition: 'background-color 160ms ease, transform 160ms ease',
+    transition: 'background-color 150ms ease',
   },
   '& .MuiDataGrid-row:hover': {
-    backgroundColor: 'hsl(var(--accent) / 0.6)',
+    backgroundColor: 'hsl(var(--accent))',
   },
+  // Row selection has to stay distinguishable from hover, and both from the plain row.
+  '& .MuiDataGrid-row.Mui-selected, & .MuiDataGrid-row.Mui-selected:hover': {
+    backgroundColor: 'hsl(var(--accent))',
+  },
+  '& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within, & .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within':
+    {
+      outline: '2px solid hsl(var(--ring))',
+      outlineOffset: '-2px',
+    },
   '& .MuiDataGrid-footerContainer': {
-    borderColor: 'hsl(var(--border) / 0.85)',
-    backgroundColor: 'hsl(var(--background) / 0.75)',
+    borderColor: 'hsl(var(--border))',
+    backgroundColor: 'hsl(var(--background))',
   },
   '& .MuiTablePagination-root': {
     color: 'hsl(var(--muted-foreground))',
   },
+  '& .MuiDataGrid-overlay': {
+    backgroundColor: 'hsl(var(--card))',
+    color: 'hsl(var(--muted-foreground))',
+  },
+  // 44px is the contract's desktop row height and its minimum interactive target; 52px is the
+  // touch row, because a row here is a link into a patient record.
+  '--DataGrid-rowHeight': '44px',
   '@media (max-width: 768px)': {
     '--DataGrid-rowHeight': '52px',
     '& .MuiDataGrid-columnHeaderTitle': {

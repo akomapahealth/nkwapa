@@ -87,7 +87,7 @@ export function PatientVitalsPanel({
     <div className="space-y-4">
       <PatientTrendsPanel clinicId={clinicId} patientId={patientId} />
 
-      <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+      <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
             <HeartPulse className="h-5 w-5 text-primary" aria-hidden="true" />

@@ -3,6 +3,7 @@
 import { Home, MapPin } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { EmptyState } from '@/components/feedback/AppState';
 import { describeResidentialLocation } from '@/lib/residential-location';
 import type { GhanaRegion, PatientLocationStatus } from '@/lib/residential-location';
 
@@ -16,10 +17,8 @@ interface PatientLocationFields {
 
 function Tile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-3xl border border-border/80 bg-background/75 p-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-        {label}
-      </p>
+    <div className="rounded-lg border border-border/80 bg-background/75 p-4">
+      <p className="text-eyebrow text-muted-foreground">{label}</p>
       <p className="mt-2 text-sm text-foreground">{value}</p>
     </div>
   );
@@ -34,7 +33,7 @@ export function ResidentialLocationSummary({ patient }: { patient: PatientLocati
   const location = describeResidentialLocation(patient);
 
   return (
-    <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+    <Card>
       <CardHeader>
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -52,7 +51,7 @@ export function ResidentialLocationSummary({ patient }: { patient: PatientLocati
       <CardContent className="space-y-4">
         {location.isRecorded ? (
           <>
-            <div className="flex items-start gap-2 rounded-3xl border border-border/80 bg-background/75 p-4">
+            <div className="flex items-start gap-2 rounded-lg border border-border/80 bg-background/75 p-4">
               <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
               <p className="text-sm font-medium text-foreground">{location.summary}</p>
             </div>
@@ -61,10 +60,8 @@ export function ResidentialLocationSummary({ patient }: { patient: PatientLocati
               <Tile label="District" value={location.district ?? 'Not recorded'} />
               <Tile label="Community" value={location.community ?? 'Not recorded'} />
               {location.addressNote ? (
-                <div className="rounded-3xl border border-border/80 bg-background/75 p-4 sm:col-span-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                    Address note
-                  </p>
+                <div className="rounded-lg border border-border/80 bg-background/75 p-4 sm:col-span-2">
+                  <p className="text-eyebrow text-muted-foreground">Address note</p>
                   <p className="mt-2 whitespace-pre-line text-sm text-foreground">
                     {location.addressNote}
                   </p>
@@ -73,11 +70,18 @@ export function ResidentialLocationSummary({ patient }: { patient: PatientLocati
             </div>
           </>
         ) : (
-          <div className="rounded-3xl border border-dashed border-border/80 bg-background/60 p-4 text-sm text-muted-foreground">
-            {location.status === 'UNKNOWN'
-              ? 'The patient was asked and their residential location is not known.'
-              : 'No residential location has been recorded yet. Edit the patient to add one.'}
-          </div>
+          <EmptyState
+            density="compact"
+            icon={MapPin}
+            title={
+              location.status === 'UNKNOWN' ? 'Location not known' : 'No location recorded yet'
+            }
+            description={
+              location.status === 'UNKNOWN'
+                ? 'The patient was asked and their residential location is not known.'
+                : 'No residential location has been recorded yet. Edit the patient to add one.'
+            }
+          />
         )}
       </CardContent>
     </Card>

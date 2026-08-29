@@ -103,7 +103,7 @@ export function ChartRecordCard({
   footer?: ReactNode;
 }) {
   return (
-    <article className="rounded-3xl border border-border/80 bg-background/75 p-4 transition-colors duration-150 hover:bg-accent/40">
+    <article className="rounded-lg border border-border bg-background p-4 transition-colors duration-150 hover:bg-accent/40">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold">{title}</h3>
@@ -129,7 +129,7 @@ export function ChartMeasurement({
 }) {
   const isMissing = value === null || value === undefined || value === '';
   return (
-    <div className="rounded-2xl border border-border/60 bg-card/60 px-3 py-2">
+    <div className="rounded-lg border border-border bg-card px-3 py-2">
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className={isMissing ? 'text-sm text-muted-foreground' : 'text-sm font-medium'}>
         {isMissing ? 'Not recorded' : `${value}${suffix ?? ''}`}

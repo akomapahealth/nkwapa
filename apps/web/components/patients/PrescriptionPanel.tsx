@@ -51,7 +51,7 @@ export function PrescriptionPanel({
   }, [loadAllergies]);
 
   return (
-    <Card className="rounded-[28px] border-border/80 bg-card/90 shadow-lg shadow-black/5">
+    <Card>
       <CardHeader>
         <h2 className="text-lg font-semibold">Prescriptions</h2>
         <p className="text-sm text-muted-foreground">

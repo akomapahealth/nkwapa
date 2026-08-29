@@ -122,7 +122,7 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
 
   return (
     <div className="space-y-4">
-      <Card className="border-border/70 bg-gradient-to-br from-card via-card to-primary/5">
+      <Card>
         <CardHeader className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary" className="rounded-full px-3 py-1">
@@ -158,13 +158,8 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {FOLLOW_UP_LABELS.map((item) => (
-              <div
-                key={item.key}
-                className="rounded-2xl border border-border/70 bg-background/70 p-4"
-              >
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  {item.label}
-                </p>
+              <div key={item.key} className="rounded-lg border border-border bg-background p-4">
+                <p className="text-eyebrow text-muted-foreground">{item.label}</p>
                 <p className="mt-2 text-2xl font-semibold">{followUp[item.key]}</p>
               </div>
             ))}
@@ -228,7 +223,7 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
                     key={key}
                     type="button"
                     onClick={() => setSelectedMeasurement(key)}
-                    className={`min-h-24 cursor-pointer rounded-2xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                    className={`min-h-24 cursor-pointer rounded-lg border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                       selectedMeasurement === key
                         ? 'border-primary/40 bg-primary/10'
                         : 'border-border/70 bg-card/95 hover:bg-muted/40'
@@ -236,9 +231,7 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
                     aria-pressed={selectedMeasurement === key}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                        {label}
-                      </span>
+                      <span className="text-eyebrow text-muted-foreground">{label}</span>
                       <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
                     </div>
                     <p className="mt-3 text-xl font-semibold">
@@ -289,14 +282,14 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-sm text-muted-foreground">
-                <div className="flex items-start gap-3 rounded-2xl border border-border/70 bg-background/70 p-4">
+                <div className="flex items-start gap-3 rounded-lg border border-border bg-background p-4">
                   <Activity className="mt-0.5 h-4 w-4 text-muted-foreground" />
                   <p>
                     Encounter readings appear as soon as the visit data exists in this clinic,
                     including draft and review-stage encounters.
                   </p>
                 </div>
-                <div className="flex items-start gap-3 rounded-2xl border border-border/70 bg-background/70 p-4">
+                <div className="flex items-start gap-3 rounded-lg border border-border bg-background p-4">
                   <CalendarClock className="mt-0.5 h-4 w-4 text-muted-foreground" />
                   <p>
                     Follow-up counts summarize requests and appointment outcomes for the selected
