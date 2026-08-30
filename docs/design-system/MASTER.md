@@ -123,14 +123,27 @@ Status colour is never the only signal. Pair every status fill with a label or i
 
 ### Tinted status: use the ink tokens, never the fill token
 
-| Token           | Value         | Hex       | On its own 12% tint        |
-| --------------- | ------------- | --------- | -------------------------- |
-| `--info`        | `200 60% 40%` | `#297AA3` | workflow "awaiting review" |
-| `--success-ink` | `152 65% 26%` | `#176D45` | 5.20:1                     |
-| `--warning-ink` | `32 90% 28%`  | `#884C07` | 5.94:1                     |
-| `--info-ink`    | `200 60% 26%` | `#1B506A` | 7.52:1                     |
+| Token               | Value         | Hex       | On its own 12% tint        |
+| ------------------- | ------------- | --------- | -------------------------- |
+| `--info`            | `200 60% 40%` | `#297AA3` | workflow "awaiting review" |
+| `--success-ink`     | `152 65% 26%` | `#176D45` | 5.20:1                     |
+| `--warning-ink`     | `32 90% 28%`  | `#884C07` | 5.94:1                     |
+| `--info-ink`        | `200 60% 26%` | `#1B506A` | 7.52:1                     |
+| `--destructive-ink` | `0 72% 38%`   | `#A71B1B` | 6.20:1                     |
 
 The tinted badge pattern is `bg-<token>/12` plus `text-<token>-ink`.
+
+**All four statuses have an ink token.** Destructive did not until #94, and it was the one status
+still using its fill as text on its own tint, on nine surfaces including
+`AllergySummaryBanner` -- the banner a clinician reads before prescribing. `--destructive` is fine
+as text on a neutral surface (4.64:1 on the card) and fails on every tint of itself: 4.29:1 at
+`/5`, 3.99:1 at `/10`, 3.13:1 at `/25`, 2.66:1 at `/35`. Use `text-destructive` on a plain
+surface and for icons, which need 3:1 rather than 4.5:1; use `text-destructive-ink` the moment
+there is a destructive tint underneath.
+
+That gap survived a token contract, a full migration and a dedicated dark-mode pass because
+**nothing in the suite ran axe over a page that was reporting an error**.
+`e2e/route-fallbacks.spec.js` now does, on a deliberately invalid date range.
 
 **Reusing the fill token as text on its own tint fails AA.** Measured: `text-success` on `bg-success/12` is **4.28:1**, and `text-warning` on `bg-warning/12` is **2.42:1**. The tint lightens the ground while the ink stays put, so contrast falls below the solid-on-white baseline. The ink tokens are the same hue and saturation, darkened until they clear with headroom.
 
@@ -233,6 +246,7 @@ Defined under `.dark`. Dark mode inverts which side carries the ink: fills stay 
 | `--success-ink`              | `152 40% 74%` | `#A2D7BE` | 6.82:1 on its tint     |
 | `--warning-ink`              | `35 75% 74%`  | `#EEC58B` | 6.74:1 on its tint     |
 | `--info-ink`                 | `200 45% 74%` | `#9FC7DB` | 6.49:1 on its tint     |
+| `--destructive-ink`          | `0 50% 80%`   | `#E6B3B3` | 8.06:1 on its tint     |
 | `--destructive`              | `0 62% 66%`   | `#DE7373` | 5.48:1 as text on card |
 
 All other `.dark` values are unchanged and already correct.

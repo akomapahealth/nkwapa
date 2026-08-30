@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const AxeBuilder = require('@axe-core/playwright').default;
 
 const { storageStateFor } = require('../playwright/roles');
 
@@ -127,4 +128,33 @@ test('claim-record never reports a missing invitation while identity is still lo
   // Matches the old copy ("No pending patient invitation was found for this account") as well as
   // the new, so the test measures the behaviour and not this implementation's wording.
   await expect(page.getByText(/no pending/i)).toHaveCount(0);
+});
+
+test('an error state on screen passes contrast in light mode', async ({ page }) => {
+  /*
+    Nothing in this suite used to run axe over a page that was actually reporting an error, which
+    is why `text-destructive` on a destructive tint sat below AA in light mode for as long as the
+    token contract existed -- 3.99:1 on a /10 tint, on nine surfaces including the allergy banner
+    a clinician reads before prescribing. The dark half was found by accident. This is the light
+    half's guard, on the cheapest page to drive into an error state deliberately.
+  */
+  const clinicId = await activeClinicId(page);
+  await page.goto(`/clinics/${clinicId}/research/exports`);
+  await expect(page.getByRole('heading', { name: /request export pack/i })).toBeVisible({
+    timeout: 30_000,
+  });
+
+  // End before start: renders the tinted, role="alert" range error without touching the network.
+  await page.getByLabel('From date').fill('2026-08-20');
+  await page.getByLabel('To date').fill('2026-08-10');
+  const rangeError = page.getByRole('alert').filter({ hasText: /end date must be on or after/i });
+  await expect(rangeError).toBeVisible();
+
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
+  const summary = results.violations.map(
+    (violation) => `${violation.id} (${violation.nodes.length}) — ${violation.help}`,
+  );
+  expect(summary, summary.join('\n')).toEqual([]);
 });

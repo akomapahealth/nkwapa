@@ -10,7 +10,7 @@ const presentations = {
     title: 'Active allergies or adverse reactions',
     description: 'Review these entries before prescribing medication.',
     icon: AlertTriangle,
-    className: 'border-destructive/35 bg-destructive/10 text-destructive',
+    className: 'border-destructive/35 bg-destructive/10 text-destructive-ink',
   },
   NO_KNOWN_ALLERGIES: {
     title: 'No known allergies recorded',

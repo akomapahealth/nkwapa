@@ -459,7 +459,7 @@ export function AppointmentRequestsPanel({
                 <p
                   id="triage-dialog-error"
                   role="alert"
-                  className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+                  className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive-ink"
                 >
                   {dialogError}
                 </p>
