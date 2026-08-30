@@ -403,6 +403,7 @@ Shared primitives live in `apps/web/components/app-shell/` and `apps/web/compone
 | A field's error                 | `FieldError` + `fieldErrorProps`                    | A bare `<p className="text-destructive">` |
 | A required field                | `RequiredMark` + one `RequiredLegend` per form      | An asterisk baked into the label string   |
 | A form-level message            | `InlineNotice`                                      | A `<div>` with no role                    |
+| Refresh in progress             | `ResourceState`'s own indicator                     | A control that resizes when it goes busy  |
 | One read's five states          | `ResourceState` + `useAsyncResource`                | A hand-rolled `useState` triple           |
 | Loading                         | `SectionSkeleton` / `PageSkeleton`                  | A spinner in the middle of content        |
 | Nothing here yet                | `EmptyState`                                        | A dashed div with a paragraph             |
@@ -564,19 +565,68 @@ non-goal puts outside that issue.
 
 ---
 
-## 11. Still open
+## 11. Refresh and optimistic updates
+
+The contract for what happens between asking for data again and getting it. #23 exists because
+this was implemented four different ways.
+
+### Refreshing must not take the page away
+
+`useAsyncResource` keeps the last successful result across a refetch and across a _failed_
+refetch. `ResourceState` renders that: the content stays, with a stale banner above it if the
+refresh failed. Nothing may clear a screen someone is reading because a request is in flight.
+
+**Blanking is correct in exactly one case: when the subject changes.** Refreshing today's board is
+a refresh; switching to another date is a different question, and showing yesterday's patients
+under today's heading would be worse than a skeleton. The Today board draws that line correctly —
+its explicit refreshes preserve, and a date change re-skeletons.
+
+### Indicating a refresh
+
+- One indicator, in `ResourceState`: a 2px bar, **absolutely positioned** so it is out of flow and
+  cannot move the content beneath it. It holds still under `prefers-reduced-motion`.
+- A control that triggers a refresh **keeps its label**. Swapping "Refresh" for "Refreshing" grew
+  the dashboard button by 19px, measured, and moved everything beside it in the header. Spin the
+  icon, and put the state in an `aria-live` `sr-only` span.
+- The same applies to "Apply filters" and "Load more". "Loading…" also breaks section 9's rule that
+  a control names its action.
+
+`e2e/stale-refresh.spec.js` holds all three.
+
+### Optimistic updates
+
+An optimistic update shows a result before the server has confirmed it, and must roll back visibly
+if the server disagrees.
+
+**Where it is used:** chat message send, which carries `deliveryState: 'pending' | 'failed'` and
+reconciles against the delivered message.
+
+**Where it must never be used**, per #23: patient merge, consent, encounter finalization, role
+changes, and research export approval. Anything where a wrongly-shown success could be acted on
+clinically, or where rollback would leave the reader unsure what is true, is not a candidate.
+
+**Why there is not more of it.** The surfaces that would benefit are the ones with a rendered state
+a mutation flips, and in this product those are almost exactly the forbidden list. The reversible
+ones — patient check-in, shift check-in and check-out — render no list state to flip: their result
+is a notice, not a row that changes. Adding optimism there would mean inventing UI to be optimistic
+about. That is a finding, not an omission; revisit it if a surface gains a status a mutation
+toggles.
+
+---
+
+## 12. Still open
 
 - **Wireframes as artwork.** #61 offers "approved wireframes **or** annotated patterns"; sections
   9 and 10 are the annotated patterns, and drawn wireframes were not attempted.
 - **The application's own fonts** still load through a render-blocking `@import` in `globals.css`
   plus a second CDN link in `layout.tsx`. The Keycloak theme self-hosts (section 2); the app does
   not. Moving it to `next/font` is its own issue.
-- **#23** stale-refresh and optimistic updates. Re-read it against `useAsyncResource`, which
-  already preserves last-known-good data across a failed refetch.
+- **More optimistic updates**, if a surface ever gains a status a mutation toggles. Section 11
+  records why there is only one today.
 
 ---
 
-## 12. Verification
+## 13. Verification
 
 Run after any change to this file or to `globals.css`:
 
@@ -592,6 +642,8 @@ npm run e2e
 
 `role-access.spec.js`, `workspace-smoke.spec.js`, and `accessibility.spec.js` are the specs that
 catch a visual change silently breaking a role or tenant boundary.
+`stale-refresh.spec.js` holds section 11's contract: content survives a refetch, and no refresh
+affordance resizes or moves what it sits above.
 `responsive-migration.spec.js` performs the breakpoint pass on ten routes at five widths, and
 `login-theme.spec.js` guards the Keycloak theme, which no build step in this repo can see.
 

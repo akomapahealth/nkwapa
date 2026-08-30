@@ -34,9 +34,16 @@ module.exports = {
           '0%': { transform: 'translateX(0)' },
           '100%': { transform: 'translateX(-100%)' },
         },
+        // The indeterminate refresh bar. Travels rather than pulsing, so it reads as "still
+        // working" rather than as something blinking for attention.
+        'refresh-sweep': {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(400%)' },
+        },
       },
       animation: {
         marquee: 'marquee var(--marquee-duration, 30s) linear infinite',
+        'refresh-sweep': 'refresh-sweep 1.1s ease-in-out infinite',
       },
       colors: {
         border: 'hsl(var(--border))',

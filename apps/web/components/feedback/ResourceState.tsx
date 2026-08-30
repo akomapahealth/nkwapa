@@ -93,7 +93,29 @@ export function ResourceState<T>({
   const showEmpty = empty && isEmpty?.(state.data);
 
   return (
-    <div className={cn('space-y-4', className)} aria-busy={state.isRefreshing || undefined}>
+    <div
+      className={cn('relative space-y-4', className)}
+      aria-busy={state.isRefreshing || undefined}
+    >
+      {/*
+        A refresh that shows nothing is indistinguishable from a page that has stopped working.
+
+        `aria-busy` above told assistive technology, and three call sites had each built their own
+        spinner, but the other six refreshed in complete silence for a sighted user. This is the
+        one indicator, so every surface using ResourceState gets the same one.
+
+        It is absolutely positioned and therefore cannot move the content beneath it, which is the
+        whole point: MASTER.md section 7 forbids a loading affordance that shifts what is being
+        read. Under prefers-reduced-motion it holds still as a full-width bar instead of sweeping.
+      */}
+      {state.isRefreshing ? (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 -top-2 h-0.5 overflow-hidden rounded-full bg-primary/15"
+        >
+          <span className="block h-full w-1/4 animate-refresh-sweep rounded-full bg-primary motion-reduce:w-full motion-reduce:animate-none" />
+        </span>
+      ) : null}
       {/*
         The refresh failed but the previous result is still on screen. Say so, and say how old it
         is not -- claiming a timestamp we do not have would be worse than admitting the gap.

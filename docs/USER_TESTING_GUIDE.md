@@ -375,6 +375,19 @@ authentication alone. Check instead that an authenticated user _without_ a pendi
 redirected away, and that while identity is still loading the page does **not** claim that no
 invitation was found.
 
+### Refresh behaviour
+
+The contract is in `docs/design-system/MASTER.md` section 11; these are the checks.
+
+- [ ] a refresh **never clears the screen** — trigger one on a slow connection and confirm the
+      previous result stays readable throughout
+- [ ] a refresh is **visible** — a thin bar appears above the content, and it does not push the
+      content down
+- [ ] a refresh control **does not resize**. "Refresh" must not become "Refreshing", "Apply
+      filters" must not become "Loading…". The icon spins; the word holds still
+- [ ] the one case where blanking is correct: **changing the subject**. A date change on the Today
+      board, or a clinic switch, should re-skeleton rather than relabel the previous day's data
+
 ### Spot checks worth doing by hand
 
 The automated suite covers these routes rendering and not overflowing. It does not judge whether

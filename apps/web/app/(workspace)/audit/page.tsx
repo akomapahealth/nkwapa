@@ -216,7 +216,10 @@ export default function AuditPage() {
             </div>
             <div className="flex flex-wrap gap-2">
               <Button onClick={() => fetchAudit()} disabled={loading} className="rounded-lg">
-                {loading ? 'Loading...' : 'Apply filters'}
+                Apply filters
+                <span aria-live="polite" className="sr-only">
+                  {loading ? 'Applying filters' : ''}
+                </span>
               </Button>
               <Button
                 type="button"
@@ -343,7 +346,10 @@ export default function AuditPage() {
                   disabled={loadingMore}
                   className="rounded-lg"
                 >
-                  {loadingMore ? 'Loading...' : 'Load more'}
+                  Load more
+                  <span aria-live="polite" className="sr-only">
+                    {loadingMore ? 'Loading more results' : ''}
+                  </span>
                 </Button>
               </div>
             )}
