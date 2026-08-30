@@ -10,7 +10,7 @@ to every transition. A regression and acceptance suite covers it.
 
 See `docs/specs/12_APPOINTMENT_OPERATIONS_RELEASE_GATE.md` for the release gate and what it found,
 `docs/security/appointment-lifecycle-matrix.md` for the generated transition and permission matrix,
-and `docs/USER_TESTING_GUIDE.md` section 15 for the manual acceptance checks. Use
+and `docs/USER_TESTING_GUIDE.md` section 17, the Appointment Lifecycle Matrix, for the manual acceptance checks. Use
 `docs/FEATURE_GAPS_AND_NEXT_ADDITIONS.md` for the remaining gap summary.
 
 ---
@@ -139,7 +139,7 @@ Test data
 • one appointment in each of the four states plus two pending requests, times relative to the run
 
 Manual QA
-The full checklist is docs/USER_TESTING_GUIDE.md section 15. In summary:
+The full checklist is the Appointment Lifecycle Matrix in docs/USER_TESTING_GUIDE.md (section 17). In summary:
 • Desktop: open /appointments as a staff user with APPOINTMENT.READ, switch active clinics, confirm
 the schedule and the request queue only show the active clinic, then test day/week navigation and
 filters.

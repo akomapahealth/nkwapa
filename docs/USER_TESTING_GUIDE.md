@@ -8,61 +8,133 @@ Use it when validating releases, new role setup, workflow changes, or the safety
 
 ## 1. Prerequisites
 
-Make sure these services are available:
-
-- Postgres
-- Redis
-- Keycloak
-- API
-- Web app
-
-Local infra:
+Postgres, Redis and Keycloak come up together; the API and web app run from the workspace.
 
 ```bash
-cd infra/nkwapa
-docker compose up -d
+cd infra/nkwapa && docker compose up -d
 ```
 
-Then sync and seed the database:
+Then, from the repository root:
 
 ```bash
 npm run db:migrate:dev
 npm run db:generate
-npm run db:seed
-npm run e2e:keycloak-user
+npm run e2e:keycloak-user      # creates the deterministic identities in Keycloak
+npm run db:seed                # links them, and seeds the sample clinic
 ```
 
-Useful seed inputs:
+`e2e:keycloak-user` prints the user id Keycloak actually assigned for each identity, which is **not**
+the id requested. Feed those back into the seed as `SEED_E2E_*_SUB` or the accounts will exist in
+Keycloak without matching rows in the database.
 
-- `SEED_SYSTEM_ADMIN_SUB`
-- `SEED_SYSTEM_ADMIN_NAME`
-- `SEED_E2E_STAFF_SUB`
-- `SEED_E2E_STAFF_NAME`
-- `SEED_E2E_STAFF_EMAIL`
-- `SEED_SAMPLE_PATIENT=true`
-- `SEED_SAMPLE_APPOINTMENTS=true`
+Seed inputs worth setting:
+
+| Variable                                                              | Why                                                                                                                                                                    |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SEED_SAMPLE_PATIENT=true`                                            | a demo patient with two encounters                                                                                                                                     |
+| `SEED_SAMPLE_APPOINTMENTS=true`                                       | one appointment in each state, plus two requests awaiting triage                                                                                                       |
+| `SEED_E2E_PATIENT_SUB`                                                | links the portal identity to a patient record, and stages one unclaimed patient with a pending invite. **Without it no portal or `/claim-record` check is reachable.** |
+| `SEED_E2E_STAFF_SUB`, `SEED_E2E_DOCTOR_SUB`, `SEED_E2E_VOLUNTEER_SUB` | the single-role accounts the no-access checks need                                                                                                                     |
+| `SEED_SYSTEM_ADMIN_SUB`                                               | your own account, for the system-admin matrix                                                                                                                          |
+
+### Two things that will waste your afternoon
+
+**Re-seeding cannot restore consumed appointment fixtures.** The triage checks consume the pending
+requests they act on. `seedSampleAppointments` guards on the demo _patient_, not on the
+appointments, so `npm run db:seed` reports `Sample appointments already exist; skipping` while the
+fixtures you need are gone. Delete the patient — appointments cascade — and seed again:
+
+```js
+await prisma.patient.deleteMany({ where: { firstName: 'Appointment', lastName: 'Demo' } });
+```
+
+Use the seed's own connection options (`-c app.is_system_admin=true`) or row-level security blocks
+the delete, and run the script from inside the repository so Node resolves its dependencies.
+
+**The rate limiter will fail unrelated checks.** `/auth/whoami` allows 60 requests a minute per
+user, and every page load calls it. A long manual sweep on one account exhausts the budget, after
+which pages show **"We couldn't confirm your access"** — a 429 resolves to _unavailable_, which
+looks exactly like a broken build. The E2E job raises the limit for itself; if you are clicking
+through quickly, either pause or set `RATE_LIMIT_AUTH_WHOAMI_LIMIT` for your local API.
 
 ---
 
-## 2. Suggested Accounts
+## 2. Accounts
 
-Create at least:
+`npm run e2e:keycloak-user` creates five deterministic identities. Their passwords are the
+`E2E_*_PASSWORD` defaults unless you overrode them.
 
-- one `SYSTEM_ADMIN`
-- one `DIRECTOR`
-- one `MANAGER`
-- one `DOCTOR`
-- one `VOLUNTEER`
-- one `PATIENT`
+| Username        | Holds                                 | Use it for                                                                                     |
+| --------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `e2e.staff`     | `SYSTEM_ADMIN` plus every clinic role | walking the product quickly. **Never** for proving what a role is refused — it sees everything |
+| `e2e.doctor`    | one `DOCTOR` seat                     | the review and finalization matrices, and doctor-side no-access checks                         |
+| `e2e.volunteer` | one `VOLUNTEER` seat                  | the volunteer matrix, and what a volunteer is refused                                          |
+| `e2e.patient`   | `PATIENT`, linked to a patient record | every portal check                                                                             |
+| `e2e.reset`     | password-reset flows                  | the forgot-password path                                                                       |
 
-Recommended extra accounts:
+Create by hand as needed:
 
-- one multi-role clinic staff account for permission overlap testing
-- one patient account intended for invite-and-claim testing
+- a `DIRECTOR` and a `MANAGER`, for sections 7 and 8
+- a second clinic, and a staff account holding a seat at both, for tenant-isolation and
+  clinic-switching checks
+- a patient with a pending invite but no linked record, if you did not seed one, for `/claim-record`
+
+**Single-role accounts are not optional.** Most of what this guide asks you to prove is that a role
+_cannot_ do something, and the multi-role staff account can do everything.
 
 ---
 
-## 3. Global Smoke Test
+## 3. What Already Runs On Every Push
+
+Read this before running anything below. Most of what the matrices in this guide describe is
+checked on every push, and re-running it by hand is wasted effort. What is left after this section
+is the part that genuinely needs a person.
+
+### Automated — do not re-do these by hand
+
+| Check                                                           | Where                                                            |
+| --------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Every route at 375 / 640 / 768 / 1024 / 1440, no overflow       | `e2e/responsive-migration.spec.js` (staff + portal)              |
+| Patient portal renders, per route, signed in as a patient       | `e2e/portal.spec.js`                                             |
+| A patient is refused every staff surface                        | `e2e/portal.spec.js`                                             |
+| Dark mode renders and passes axe on staff and portal routes     | `e2e/dark-mode.spec.js`                                          |
+| Dark mode survives navigation without flashing light            | `e2e/dark-mode.spec.js`                                          |
+| Automatable WCAG rules on the chart and the portal              | `accessibility.spec.js`, `portal.spec.js`                        |
+| Focus is visible on every control the keyboard reaches          | `accessibility.spec.js`, `portal.spec.js`, `login-theme.spec.js` |
+| Login theme: typeface, brand fill, radius, no third-party fonts | `e2e/login-theme.spec.js`                                        |
+| Loading / empty / error / retry on the three #22 routes         | `e2e/route-fallbacks.spec.js`                                    |
+| Chart series palette, contrast and colour-blind separation      | `npm run design:check-charts`                                    |
+
+640 is in the width list because it is what 1280 becomes at 200% zoom.
+
+### Manual — genuinely irreducible
+
+Automated rules catch a real subset of accessibility defects and nothing more. These need a
+person, and they are the ones worth an afternoon:
+
+- [ ] **Does the focus order match the reading order?** A spec can prove every control takes focus
+      and shows a ring. It cannot tell you the order felt wrong.
+- [ ] **Do the labels mean anything?** `aria-label="Show help"` passes every rule and tells a
+      clinician nothing about which help.
+- [ ] **Rendered chart contrast.** axe reads DOM colours; a chart is painted into SVG from token
+      values, so the numbers are computed by `design:check-charts` and the _result_ is not
+      inspected by anything but an eye.
+- [ ] **A real screen reader.** VoiceOver or NVDA through one encounter, start to finish. Announced
+      order, whether a save is reported, whether an error is reachable from where focus lands.
+- [ ] **Clinical language.** Whether a volunteer who has never used the product can tell what a
+      field wants without asking. No rule measures this.
+- [ ] **The offline path on a genuinely bad connection**, not a throttled one — clinic wifi that
+      resolves DNS and then stalls is a different failure from being offline.
+
+### Before trusting a local full-suite run
+
+The two `patient request triage` specs consume the pending requests they act on, so they fail on
+any second run against the same database, and re-seeding does not put them back. Reset them the way
+section 1 describes, or expect exactly those two failures and check that nothing else moved.
+
+---
+
+## 4. Global Smoke Test
 
 1. Open the web app.
 2. Confirm `/` stays on the marketing landing page and does not show a sign-in CTA.
@@ -83,7 +155,7 @@ Also verify:
 
 ---
 
-## 4. Security And Tenant Isolation Smoke
+## 5. Security And Tenant Isolation Smoke
 
 - [ ] allowed frontend origins can call the API
 - [ ] a disallowed origin is rejected by CORS
@@ -108,7 +180,7 @@ Run once per environment, before enabling clinical records there. See
 
 ---
 
-## 5. System Admin Matrix
+## 6. System Admin Matrix
 
 - [ ] `/admin/clinics` loads
 - [ ] `/admin/users` loads
@@ -121,7 +193,7 @@ Run once per environment, before enabling clinical records there. See
 
 ---
 
-## 6. Director Matrix
+## 7. Director Matrix
 
 - [ ] clinic settings page loads
 - [ ] research toggles persist
@@ -133,7 +205,7 @@ Run once per environment, before enabling clinical records there. See
 
 ---
 
-## 7. Manager Matrix
+## 8. Manager Matrix
 
 - [ ] `/today` loads
 - [ ] active shifts render
@@ -145,7 +217,7 @@ Run once per environment, before enabling clinical records there. See
 
 ---
 
-## 8. Volunteer Matrix
+## 9. Volunteer Matrix
 
 - [ ] `/patients` loads
 - [ ] patient create works
@@ -158,7 +230,7 @@ Run once per environment, before enabling clinical records there. See
 
 ---
 
-## 9. Doctor Review Matrix
+## 10. Doctor Review Matrix
 
 - [ ] queues page shows review workload
 - [ ] Pending HAP Cosign lane shows only notes assigned to the signed-in doctor
@@ -170,7 +242,7 @@ Run once per environment, before enabling clinical records there. See
 
 ---
 
-## 10. Doctor Finalization Matrix
+## 11. Doctor Finalization Matrix
 
 - [ ] queues page shows finalize-ready encounters
 - [ ] care plan save works
@@ -190,7 +262,15 @@ Run once per environment, before enabling clinical records there. See
 
 ---
 
-## 11. Patient Portal Matrix
+## 12. Patient Portal Matrix
+
+Signed in as the patient identity, not as staff. Staff have no portal, which is why none of this
+was ever covered before there was a patient account to sign in as.
+
+**Fixtures:** needs `SEED_E2E_PATIENT_SUB` set at seed time — that links the identity to a patient
+record through `Patient.portalUserId` and stages a second, unclaimed patient with a pending invite.
+Without it the portal shows the "ask your clinic to link this account" state and `/claim-record`
+cannot be reached at all.
 
 - [ ] patient with pending invite is routed to `/claim-record`
 - [ ] claim-record succeeds with valid matching details
@@ -208,17 +288,164 @@ Run once per environment, before enabling clinical records there. See
 
 ---
 
-## 12. UX Recovery Matrix
+## 13. Route State Matrix
 
-- [ ] loading skeleton appears for route-level loads
-- [ ] not-found page shows recovery actions
-- [ ] simulated page error shows retry and refresh options
-- [ ] network failure shows readable retry guidance instead of raw exceptions
-- [ ] server-side validation errors surface field-level or clear actionable messages
+The six states every route owes its user, how to force each one, and what you should see. This is
+the section to run when a release touched data fetching, guards, or the shell.
+
+### How to force each state
+
+Repeatable without fixtures or code changes. All of it is DevTools plus the clinic switcher.
+
+| State         | How to force it                                                                                                                                                                             |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Loading**   | DevTools → Network → throttle to `Slow 3G`, then hard-reload the route.                                                                                                                     |
+| **Error**     | DevTools → Network → Request blocking, add the route's API path (for example `*/dashboard`), then reload. Stopping the API container works too and covers every route at once.              |
+| **Retry**     | From the error state, press the button the page offers. Unblock the request first to see it recover, and leave it blocked once to confirm the button does not simply vanish.                |
+| **Empty**     | Switch to a clinic with no records of that kind, or apply a filter that matches nothing — a patient search for `zzz-no-such-patient` is the quickest.                                       |
+| **Stale**     | Load the route successfully, _then_ block the API, then trigger a refresh (the route's own Refresh control, or wait for a poll on the export queue). The previous data must stay on screen. |
+| **No access** | Sign in as a role that lacks the route's permission — the table below names it per route — and open the route by URL.                                                                       |
+| **Offline**   | DevTools → Network → `Offline`. Distinct from Error: the app knows it is offline and says so.                                                                                               |
+
+### What each state should look like
+
+Copy is quoted exactly so a check is unambiguous. If the wording has changed, the component
+changed — treat that as a finding, not a stale guide.
+
+| State                      | Expected                                                                                                                                                                                                                                                                                                               |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Access resolving           | Full-page skeleton, heading **"Checking your access"**                                                                                                                                                                                                                                                                 |
+| Identity unavailable       | **"We couldn't confirm your access"**, a retry, and a **"Go to secure sign in"** link                                                                                                                                                                                                                                  |
+| Session expired            | **"Your session needs to be renewed"** — and deliberately _no_ retry, because retrying cannot help                                                                                                                                                                                                                     |
+| No access                  | **"You don't have access to this page"**, neutral not red, offering **"Check again"** and **"Back to Queues"**. It must never look like an error, and must not offer "Try again". A user with seats at more than one clinic is told to try switching clinics; a single-clinic user is told to contact an administrator |
+| No clinic selected         | The select-a-clinic state naming the surface, not a bare paragraph                                                                                                                                                                                                                                                     |
+| Section loading            | A skeleton in the content area — never a spinner in the middle of the page, never a blank panel                                                                                                                                                                                                                        |
+| Section error              | A tinted panel with a heading, the reason, and a retry                                                                                                                                                                                                                                                                 |
+| Stale after failed refresh | **"Showing the last version that loaded"** above data that is **still on screen**, with a **Refresh** action                                                                                                                                                                                                           |
+| Offline                    | **"You are offline"** with an explanation                                                                                                                                                                                                                                                                              |
+| Empty                      | A heading and a sentence saying what would appear here and how to make it appear — not a dashed box with one line                                                                                                                                                                                                      |
+
+**The two that matter most, and are easiest to get wrong:**
+
+- **Stale must not blank the screen.** A failed refresh on clinic wifi that clears a measurement
+  someone is reading is the single loudest way this product reads as broken.
+- **No access must not read as an error.** It is not a failure, and offering a retry teaches people
+  to hammer a wall they cannot pass.
+
+### Per-route reference
+
+Permission is what to remove to reach the no-access state. **Stale** marks the surfaces that keep
+last-known-good data across a failed refetch; elsewhere a failed refresh is simply an error.
+
+| Route                                    | Permission                         | Needs a clinic | Stale |
+| ---------------------------------------- | ---------------------------------- | -------------- | ----- |
+| `/dashboard`                             | `DASHBOARD.READ`                   |                |       |
+| `/today`                                 | `OPS.CHECKIN.READ`                 |                |       |
+| `/queues`                                | `ENCOUNTER.READ`                   | yes            |       |
+| `/my/assigned`                           | `OPS.ASSIGNMENT.READ_SELF`         |                |       |
+| `/patients`                              | `PATIENT.SEARCH`                   | yes            | yes   |
+| `/patients/new`                          | `PATIENT.CREATE`                   | yes            |       |
+| `/patients/[id]`                         | `PATIENT.READ`                     |                |       |
+| `/patients/[id]/consent`                 | `CONSENT.RECORD`                   | yes            |       |
+| `/patients/[id]/encounters/new`          | `ENCOUNTER.CREATE`                 | yes            |       |
+| `/clinics/[clinicId]/patients`           | `PATIENT.SEARCH`                   |                | yes   |
+| `/clinics/[clinicId]/patients/[id]`      | `PATIENT.READ`                     |                |       |
+| `/clinics/[clinicId]/patients/[id]/edit` | `PATIENT.UPDATE`                   |                |       |
+| `/clinics/[clinicId]/encounters`         | `ENCOUNTER.READ`                   |                |       |
+| `/encounters/[id]`                       | `ENCOUNTER.READ`                   |                |       |
+| `/appointments`                          | `APPOINTMENT.READ`                 |                |       |
+| `/reminders`                             | `REMINDER.READ`                    |                |       |
+| `/audit`                                 | `AUDIT.READ`                       |                |       |
+| `/admin/users`                           | `CLINIC.MANAGE`                    |                |       |
+| `/admin/clinics`                         | `CLINIC.MANAGE`                    |                |       |
+| `/settings/clinic`                       | `RESEARCH.SETTINGS.UPDATE`         | yes            | yes   |
+| `/clinics/[clinicId]/research/exports`   | `RESEARCH.EXPORT.REQUEST`          |                | yes   |
+| `/portal`                                | `PATIENT.PORTAL.READ_SELF`         |                | yes   |
+| `/portal/health`                         | `PATIENT.PORTAL.READ_SELF`         |                | yes   |
+| `/portal/self-reports`                   | `PATIENT.PORTAL.READ_SELF`         |                | yes   |
+| `/portal/self-reports/new`               | `PATIENT.PORTAL.WRITE_SELF_REPORT` |                | yes   |
+| `/portal/appointments`                   | `PATIENT.PORTAL.READ_SELF`         |                | yes   |
+| `/portal/appointments/request`           | `PATIENT.PORTAL.READ_SELF`         |                | yes   |
+| `/claim-record`                          | none by design — see below         |                |       |
+
+**`/claim-record` deliberately has no permission guard.** It serves a user who holds an invitation
+but no linked patient record, so they may hold no role at all; a permission guard would refuse
+exactly the people the page exists for. The API agrees — the claim endpoint is behind
+authentication alone. Check instead that an authenticated user _without_ a pending claim is
+redirected away, and that while identity is still loading the page does **not** claim that no
+invitation was found.
+
+### Spot checks worth doing by hand
+
+The automated suite covers these routes rendering and not overflowing. It does not judge whether
+the result is sensible.
+
+- [ ] a failed read never leaves an **editable form** on screen seeded with default values
+- [ ] a mutation that fails reports _itself_, not "we couldn't load this view" — check by failing a
+      save, an approval, or a download while the list around it is healthy
+- [ ] a permission or tenant error is never flattened into a generic failure
+- [ ] every empty state names the action that would populate it
+- [ ] a search that matches nothing reads differently from a clinic that has nothing yet
+
+### Fixture assumptions
+
+- A clinic seeded with `SEED_SAMPLE_PATIENT=true` and `SEED_SAMPLE_APPOINTMENTS=true`.
+- The portal checks need the patient identity linked through `Patient.portalUserId`; seeding with
+  `SEED_E2E_PATIENT_SUB` set does this and also stages one unclaimed patient with a pending invite,
+  which is the only way to reach `/claim-record`.
+- The no-access checks need single-role accounts. The multi-role staff account holds everything and
+  cannot show what a role is refused.
 
 ---
 
-## 13. Responsive And Chat Matrix
+## 14. Dashboard And Analytics Matrix
+
+Six role dashboards compose different sections from the same chart components, so check at least a
+director, a volunteer and a doctor — they do not render the same things.
+
+### Every chart
+
+- [ ] a chart with no data shows an empty state naming what would populate it, not an empty axis
+- [ ] figures line up down a column — axis ticks and table values use tabular figures, so a count
+      going from 9 to 10 must not shift the axis
+- [ ] no chart animates on load. Recharts' draw-in cannot be reached by `prefers-reduced-motion`,
+      so it is switched off at the component; a chart that animates is a regression
+- [ ] **no pie or donut chart exists anywhere.** It is a deliberate absence: a pie is the one form
+      where any two slices can touch, which caps a colour-blind-safe palette at about three series
+
+### Blood pressure levels (doctor dashboard)
+
+The chart most likely to regress, because it used to be a donut.
+
+- [ ] bars run in clinical severity order — Normal, Elevated, Stage 1, Stage 2, Crisis, Not
+      classified — and **not** sorted by count
+- [ ] every bar is labelled on the axis in plain language. `STAGE1` or `CRISIS` reaching the screen
+      is a defect
+- [ ] every bar carries its count as text beside it, so the chart reads without the axis
+- [ ] "Not classified" is neutral grey, not a severity colour. It is a missing finding, not a
+      clinical one
+- [ ] colour is redundant: cover the bars and the chart still reads
+
+### Series colour
+
+- [ ] two lines on the same chart differ by more than colour — the blood-pressure trend uses a dash
+      pattern, and the legend swatch shows that pattern rather than a plain dot
+- [ ] the same series keeps its colour when a filter changes the number of series on screen
+
+### Portal trends
+
+- [ ] blood pressure, glucose and weight trends render for a linked patient
+- [ ] a patient with no readings sees an empty state, not an empty chart frame
+
+### Fixture assumptions
+
+Needs a clinic with recorded hypertension assessments and diabetes screenings; the sample seed
+gives you encounters but not necessarily a spread across classifications. Record two or three
+assessments by hand at different severities to check the ordering and the labels.
+
+---
+
+## 15. Responsive And Chat Matrix
 
 - [ ] landing page is readable and unclipped at `375`, `768`, `1024`, and `1440` widths
 - [ ] dashboard cards wrap cleanly without horizontal page overflow at the same widths
@@ -231,7 +458,7 @@ Run once per environment, before enabling clinical records there. See
 
 ---
 
-## 14. Clinical Workflow Matrix (Doctor And Volunteer)
+## 16. Clinical Workflow Matrix (Doctor And Volunteer)
 
 The two roles the release gate covers end to end. Run each column separately, signed in as that
 role only, not as the multi-role staff account.
@@ -280,11 +507,13 @@ horizontal overflow. These are the parts a person still has to judge.
 
 ---
 
-## 15. Appointment Lifecycle Matrix
+## 17. Appointment Lifecycle Matrix
 
 The workflow this release gates end to end. See
-`docs/specs/12_APPOINTMENT_OPERATIONS_RELEASE_GATE.md` for what sits behind these, and seed the
-fixtures first with `SEED_SAMPLE_APPOINTMENTS=true npm run db:seed`.
+`docs/specs/12_APPOINTMENT_OPERATIONS_RELEASE_GATE.md` for what sits behind these.
+
+**The triage checks consume the requests they act on**, so run this section against fixtures you
+have just reset — see section 1. Seeding alone will not put them back.
 
 ### Staff triage
 
@@ -342,7 +571,7 @@ the four supported widths. These are the parts a person still has to judge.
 
 ---
 
-## 16. Partial Areas To Test Carefully
+## 18. Partial Areas To Test Carefully
 
 These areas are implemented but still worth extra regression attention:
 
@@ -351,53 +580,3 @@ These areas are implemented but still worth extra regression attention:
 - portal invite and claim edge cases
 - duplicate patient merge and canonical-chart redirects
 - organization and zone-related assumptions in new features
-
----
-
-## 17. What The Suite Now Covers, And What Only A Person Can
-
-Most of what this guide used to ask a person to do by hand is checked on every push. Read this
-before spending an afternoon on a matrix above: if a spec covers it, the spec has already run.
-
-### Automated — do not re-do these by hand
-
-| Check                                                           | Where                                                            |
-| --------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Every route at 375 / 640 / 768 / 1024 / 1440, no overflow       | `e2e/responsive-migration.spec.js` (staff + portal)              |
-| Patient portal renders, per route, signed in as a patient       | `e2e/portal.spec.js`                                             |
-| A patient is refused every staff surface                        | `e2e/portal.spec.js`                                             |
-| Dark mode renders and passes axe on staff and portal routes     | `e2e/dark-mode.spec.js`                                          |
-| Dark mode survives navigation without flashing light            | `e2e/dark-mode.spec.js`                                          |
-| Automatable WCAG rules on the chart and the portal              | `accessibility.spec.js`, `portal.spec.js`                        |
-| Focus is visible on every control the keyboard reaches          | `accessibility.spec.js`, `portal.spec.js`, `login-theme.spec.js` |
-| Login theme: typeface, brand fill, radius, no third-party fonts | `e2e/login-theme.spec.js`                                        |
-| Loading / empty / error / retry on the three #22 routes         | `e2e/route-fallbacks.spec.js`                                    |
-| Chart series palette, contrast and colour-blind separation      | `npm run design:check-charts`                                    |
-
-640 is in the width list because it is what 1280 becomes at 200% zoom.
-
-### Manual — genuinely irreducible
-
-Automated rules catch a real subset of accessibility defects and nothing more. These need a
-person, and they are the ones worth an afternoon:
-
-- [ ] **Does the focus order match the reading order?** A spec can prove every control takes focus
-      and shows a ring. It cannot tell you the order felt wrong.
-- [ ] **Do the labels mean anything?** `aria-label="Show help"` passes every rule and tells a
-      clinician nothing about which help.
-- [ ] **Rendered chart contrast.** axe reads DOM colours; a chart is painted into SVG from token
-      values, so the numbers are computed by `design:check-charts` and the _result_ is not
-      inspected by anything but an eye.
-- [ ] **A real screen reader.** VoiceOver or NVDA through one encounter, start to finish. Announced
-      order, whether a save is reported, whether an error is reachable from where focus lands.
-- [ ] **Clinical language.** Whether a volunteer who has never used the product can tell what a
-      field wants without asking. No rule measures this.
-- [ ] **The offline path on a genuinely bad connection**, not a throttled one — clinic wifi that
-      resolves DNS and then stalls is a different failure from being offline.
-
-### Before trusting a local full-suite run
-
-The two `patient request triage` specs in `appointments.spec.js` consume the pending requests they
-act on, so they fail on any second run. `npm run db:seed` will not restore them: it guards on
-presence, not state, and reports "Sample appointments already exist; skipping". Reset Postgres, or
-expect exactly those two failures and check nothing else moved.
