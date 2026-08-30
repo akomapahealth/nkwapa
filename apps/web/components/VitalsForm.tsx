@@ -32,6 +32,7 @@ import {
 } from '@/lib/clinical-measurements';
 import { cn } from '@/lib/utils';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { FieldError, fieldErrorProps, focusFirstInvalid } from '@/components/ui/field';
 
 const NONE_VALUE = '__NONE__';
 
@@ -115,14 +116,6 @@ interface VitalsFormProps {
   canEdit?: boolean;
   onSaved?: () => void;
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>;
-}
-
-function FieldError({ id, message }: { id: string; message?: string }) {
-  return message ? (
-    <p id={id} role="alert" className="text-sm text-destructive">
-      {message}
-    </p>
-  ) : null;
 }
 
 function SectionHeading({
@@ -300,6 +293,20 @@ function ReadOnlyMeasurements({
   );
 }
 
+/** The order these appear on screen, which is not the order the validator records them in. */
+const MEASUREMENT_FIELD_ORDER = [
+  'systolicBp',
+  'diastolicBp',
+  'bloodPressureContext',
+  'pulseBpm',
+  'respiratoryRate',
+  'spo2',
+  'temperature',
+  'weightKg',
+  'heightCm',
+  'notes',
+];
+
 export function VitalsForm({
   clinicId,
   encounterId,
@@ -373,6 +380,12 @@ export function VitalsForm({
         });
         if (Object.keys(result.errors).length) {
           setErrors(result.errors);
+          /*
+            Eleven fields across four sections. Failing without moving focus left a keyboard or
+            screen-reader user at the Save button, with the reason somewhere above them and
+            nothing saying where.
+          */
+          focusFirstInvalid(result.errors, MEASUREMENT_FIELD_ORDER);
           throw new Error('Review the highlighted clinical measurement fields.');
         }
         setErrors({});
@@ -450,10 +463,9 @@ export function VitalsForm({
         value={vitals[id]}
         onChange={(event) => updateVital(id, event.target.value)}
         className="h-11"
-        aria-invalid={Boolean(errors[id])}
-        aria-describedby={errors[id] ? `${id}-error` : undefined}
+        {...fieldErrorProps(id, errors[id])}
       />
-      <FieldError id={`${id}-error`} message={errors[id]} />
+      <FieldError id={id} message={errors[id]} />
     </div>
   );
 

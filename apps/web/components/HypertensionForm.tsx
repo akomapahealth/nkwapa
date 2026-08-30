@@ -17,6 +17,7 @@ import { db } from '@/lib/db';
 import { enqueueOutboxMutation } from '@/lib/outbox';
 import { SYNC_OPERATION } from '@/lib/outbox';
 import { HYPERTENSION_CLASSIFICATIONS, HYPERTENSION_LABELS } from '@/lib/hypertension';
+import { InlineNotice } from '@/components/ops/OpsShared';
 
 function generateId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -182,7 +183,7 @@ export function HypertensionForm({
             />
           </div>
         </fieldset>
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
         {canEdit ? (
           <Button onClick={handleSave} disabled={saving}>
             {saving ? 'Saving…' : 'Save Assessment'}

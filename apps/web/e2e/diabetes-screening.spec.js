@@ -9,9 +9,9 @@ test.use({ storageState: storageStateFor('staff') });
 async function createPatient(page) {
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
   await page.goto('/patients/new');
-  await page.getByLabel('First name *').fill('Diabetes');
-  await page.getByLabel('Last name *').fill(`E2E-${suffix}`);
-  await page.getByLabel('National ID *').fill(`E2E-DIABETES-${suffix}`);
+  await page.getByLabel('First name', { exact: true }).fill('Diabetes');
+  await page.getByLabel('Last name', { exact: true }).fill(`E2E-${suffix}`);
+  await page.getByLabel('National ID', { exact: true }).fill(`E2E-DIABETES-${suffix}`);
   await page.getByRole('button', { name: 'Create patient' }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
   return page.url().split('/').at(-1);
