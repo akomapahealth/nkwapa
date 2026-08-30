@@ -75,3 +75,9 @@ export {
   type TenantFixtureUser,
   type TenantFixturePatient,
 } from './src/testing/tenant-fixture';
+export {
+  confirmedVisitStart,
+  terminalVisitStart,
+  weekStartUtc,
+  isInVisibleWeek,
+} from './src/appointment-fixture-window';
