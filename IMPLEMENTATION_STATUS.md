@@ -254,13 +254,24 @@ nkwapa/
 
 ### Design System Compliance
 
-| Feature                          | Status | %    | Notes                                          |
-| -------------------------------- | ------ | ---- | ---------------------------------------------- |
-| Flat/minimal design language     | ✅     | 100% | No shadows/gradients on clinical views         |
-| Lucide icon set (no emoji icons) | ✅     | 100% | Consistent iconography                         |
-| WCAG accessibility baseline      | 🚧     | 70%  | Contrast ratios met, keyboard nav partial      |
-| Responsive breakpoints           | 🚧     | 75%  | Mobile-friendly but not all surfaces optimized |
-| Animation/transition standards   | 🚧     | 60%  | Some hover states inconsistent                 |
+| Feature                          | Status | %    | Notes                                                                                     |
+| -------------------------------- | ------ | ---- | ----------------------------------------------------------------------------------------- |
+| Flat/minimal design language     | ✅     | 100% | Verified by scan, not by eye: 0 arbitrary radii, 0 gradients on clinical views            |
+| Lucide icon set (no emoji icons) | ✅     | 100% | Consistent iconography                                                                    |
+| Semantic token coverage          | ✅     | 100% | 0 raw-palette status colours and 0 live `dark:` utilities outside the landing page        |
+| Responsive breakpoints           | ✅     | 95%  | 15 routes at 375/640/768/1024/1440 on every push; 640 is 1280 at 200% zoom                |
+| Animation/transition standards   | ✅     | 90%  | Motion settled in MASTER.md §7; charts do not animate, `prefers-reduced-motion` is tested |
+| Dark mode                        | ✅     | 90%  | Renders on 9 routes under axe on every push; no `dark:` patches left, only tokens         |
+| WCAG accessibility baseline      | 🚧     | 85%  | axe, focus visibility and keyboard reach automated. No screen-reader pass yet             |
+
+**What "automated" means here.** These are checked by `apps/web/e2e/` on every push, not asserted
+by review: `responsive-migration.spec.js` (breakpoints, staff and portal), `dark-mode.spec.js`,
+`accessibility.spec.js`, `portal.spec.js`, `login-theme.spec.js`, `route-fallbacks.spec.js`, and
+`npm run design:check-charts` for the chart palette's contrast and colour-blind separation.
+
+The 15% still outstanding on the accessibility line is the part no rule can measure: whether focus
+order matches reading order, whether a label means anything to a clinician, and a real screen reader
+through one encounter. Those are listed in `docs/USER_TESTING_GUIDE.md` section 3.
 
 ---
 
