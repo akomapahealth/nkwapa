@@ -70,6 +70,7 @@ import {
   ChartSectionLoading,
   ChartSectionOffline,
 } from '@/components/patients/chart/ChartSectionState';
+import { FieldLabel } from '@/components/ui/field';
 
 const unavailableAllergies: AllergySummary = { state: 'UNAVAILABLE', activeAllergies: [] };
 
@@ -1345,7 +1346,8 @@ function MedicationDialog({
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
             id="medication-name"
-            label="Medication name *"
+            label="Medication name"
+            required
             value={form.medicationName}
             onChange={(value) => setForm((current) => ({ ...current, medicationName: value }))}
           />
@@ -1527,8 +1529,8 @@ function PharmacyDialog({
   error: string | null;
   onSave: () => void;
 }) {
-  const fields: Array<[keyof PharmacyForm, string]> = [
-    ['name', 'Pharmacy name *'],
+  const fields: Array<[keyof PharmacyForm, string, boolean?]> = [
+    ['name', 'Pharmacy name', true],
     ['phone', 'Phone'],
     ['addressLine1', 'Address line 1'],
     ['addressLine2', 'Address line 2'],
@@ -1547,11 +1549,12 @@ function PharmacyDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 sm:grid-cols-2">
-          {fields.map(([key, label]) => (
+          {fields.map(([key, label, required]) => (
             <Field
               key={key}
               id={`pharmacy-${key}`}
               label={label}
+              required={required}
               value={form[key]}
               onChange={(value) => setForm((current) => ({ ...current, [key]: value }))}
             />
@@ -1603,6 +1606,7 @@ function Field({
   onChange,
   type = 'text',
   disabled = false,
+  required = false,
 }: {
   id: string;
   label: string;
@@ -1610,14 +1614,18 @@ function Field({
   onChange: (value: string) => void;
   type?: string;
   disabled?: boolean;
+  required?: boolean;
 }) {
   return (
     <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
+      <FieldLabel htmlFor={id} required={required}>
+        {label}
+      </FieldLabel>
       <Input
         id={id}
         type={type}
         disabled={disabled}
+        required={required}
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />

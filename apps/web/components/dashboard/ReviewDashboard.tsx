@@ -79,7 +79,6 @@ export function ReviewDashboard({
         <DistributionChart
           title="Blood pressure levels in your reviews"
           data={bpDistribution}
-          type="bar"
           hint="How the blood pressure assessments in your reviewed visits are classified."
         />
       </div>

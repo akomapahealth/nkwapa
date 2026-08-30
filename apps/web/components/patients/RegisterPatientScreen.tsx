@@ -35,6 +35,7 @@ import {
   toResidentialLocationPayload,
   type ResidentialLocationValue,
 } from '@/lib/residential-location';
+import { FieldLabel, RequiredLegend } from '@/components/ui/field';
 
 interface CreatePatientBody {
   firstName: string;
@@ -222,6 +223,7 @@ export function RegisterPatientScreen({
         </ProgressiveHelp>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <RequiredLegend />
           <FormSectionCard
             title="Identity"
             description="Start with the patient’s core demographic details."
@@ -229,7 +231,9 @@ export function RegisterPatientScreen({
           >
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="firstName">First name *</Label>
+                <FieldLabel htmlFor="firstName" required>
+                  First name
+                </FieldLabel>
                 <Input
                   id="firstName"
                   required
@@ -240,7 +244,9 @@ export function RegisterPatientScreen({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="lastName">Last name *</Label>
+                <FieldLabel htmlFor="lastName" required>
+                  Last name
+                </FieldLabel>
                 <Input
                   id="lastName"
                   required
@@ -344,7 +350,9 @@ export function RegisterPatientScreen({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="nationalId">National ID *</Label>
+                <FieldLabel htmlFor="nationalId" required>
+                  National ID
+                </FieldLabel>
                 <Input
                   id="nationalId"
                   required

@@ -36,6 +36,9 @@ jobs:
       - name: Validate Keycloak realm
         run: npm run keycloak:validate-realm
 
+      - name: Validate chart series palette
+        run: npm run design:check-charts
+
       - name: Build @nkwapa/db
         run: npm run build --workspace=@nkwapa/db
 

@@ -86,10 +86,20 @@ export function PrescriptionList({
                 <span className="ml-1 text-muted-foreground">({p.drug.genericName})</span>
               )}
             </p>
+            {/*
+              These separators were `&middot;` inside template strings, so they reached the page
+              as the literal seven characters rather than a bullet. Only the first one, which is
+              real JSX, ever rendered.
+            */}
             <p className="text-sm">
-              {p.dosage} &middot; {p.frequency}
-              {p.duration && ` &middot; ${p.duration}`}
-              {p.quantity != null && ` &middot; Qty: ${p.quantity}`}
+              {[
+                p.dosage,
+                p.frequency,
+                p.duration || null,
+                p.quantity != null ? `Qty: ${p.quantity}` : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
             </p>
             {p.instructions && <p className="text-sm text-muted-foreground">{p.instructions}</p>}
             <p className="text-xs text-muted-foreground">

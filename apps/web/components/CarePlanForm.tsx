@@ -9,6 +9,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { db } from '@/lib/db';
 import { enqueueOutboxMutation } from '@/lib/outbox';
 import { SYNC_OPERATION } from '@/lib/outbox';
+import { Textarea } from '@/components/ui/textarea';
+import { InlineNotice } from '@/components/ops/OpsShared';
 
 function generateId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -152,16 +154,19 @@ export function CarePlanForm({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="notes">Notes</Label>
-            <Input
+            <Label htmlFor="notes">Notes (optional)</Label>
+            {/* Free clinical text, so a textarea: this was a single-line Input, alone among every
+                Notes field in the product. */}
+            <Textarea
               id="notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Optional notes"
+              rows={3}
+              placeholder="Anything the next clinician should know about this plan"
             />
           </div>
         </fieldset>
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
         {canEdit ? (
           <Button onClick={handleSave} disabled={saving}>
             {saving ? 'Saving…' : 'Save Care Plan'}

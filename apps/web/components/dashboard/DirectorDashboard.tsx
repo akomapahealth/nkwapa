@@ -92,13 +92,11 @@ export function DirectorDashboard({
         <DistributionChart
           title="Queue status"
           data={encounterStatusDistribution}
-          type="bar"
           hint="How visits are distributed across draft, review, and finalized stages."
         />
         <DistributionChart
           title="Blood pressure levels"
           data={bpDistribution}
-          type="bar"
           hint="How recent hypertension assessments are classified in this clinic."
         />
         <DistributionChart
@@ -107,7 +105,6 @@ export function DirectorDashboard({
             Hypertension: screeningRates.hypertension,
             Diabetes: screeningRates.diabetes,
           }}
-          type="bar"
           hint="How often hypertension and diabetes screenings are being completed."
         />
         <AppMetricCard

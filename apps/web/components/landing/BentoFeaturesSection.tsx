@@ -65,8 +65,8 @@ function AuditMark() {
 function MultiClinicMark() {
   return (
     <div className="relative h-5 w-5" aria-hidden>
-      <div className="absolute left-0 top-0 h-4 w-4 rounded-md border-2 border-chart-3" />
-      <div className="absolute bottom-0 right-0 h-4 w-4 rounded-md border-2 border-chart-3 bg-card" />
+      <div className="absolute left-0 top-0 h-4 w-4 rounded-md border-2 border-landing-accent" />
+      <div className="absolute bottom-0 right-0 h-4 w-4 rounded-md border-2 border-landing-accent bg-card" />
     </div>
   );
 }
@@ -151,7 +151,7 @@ const features: BentoFeature[] = [
     meta: 'Unlimited sites',
     status: 'Scale',
     tags: ['Operations', 'Reporting'],
-    accentClass: 'bg-chart-3/20 text-chart-3 ring-1 ring-chart-3/30',
+    accentClass: 'bg-landing-accent/20 text-landing-accent ring-1 ring-landing-accent/30',
     icon: <MultiClinicMark />,
   },
   {
