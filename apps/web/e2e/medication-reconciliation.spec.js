@@ -7,9 +7,9 @@ test.use({ storageState: storageStateFor('staff') });
 async function createPatient(page) {
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
   await page.goto('/patients/new');
-  await page.getByLabel('First name *').fill('Medication');
-  await page.getByLabel('Last name *').fill(`E2E-${suffix}`);
-  await page.getByLabel('National ID *').fill(`E2E-MEDICATION-${suffix}`);
+  await page.getByLabel('First name', { exact: true }).fill('Medication');
+  await page.getByLabel('Last name', { exact: true }).fill(`E2E-${suffix}`);
+  await page.getByLabel('National ID', { exact: true }).fill(`E2E-MEDICATION-${suffix}`);
   await page.getByRole('button', { name: 'Create patient' }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
 }
@@ -33,7 +33,7 @@ test('medication reconciliation covers clinical, pharmacy, validation, and respo
   let dialog = page.getByRole('dialog', { name: 'Add reported medication' });
   await dialog.getByRole('button', { name: 'Add medication' }).click();
   await expect(dialog.getByRole('alert')).toContainText('Medication name is required');
-  await dialog.getByLabel('Medication name *').fill('Metformin from home');
+  await dialog.getByLabel('Medication name', { exact: true }).fill('Metformin from home');
   await dialog.getByLabel('Strength').fill('500 mg');
   await dialog.getByLabel('Dose', { exact: true }).fill('1');
   await dialog.getByLabel('Dose unit').fill('tablet');
@@ -65,7 +65,7 @@ test('medication reconciliation covers clinical, pharmacy, validation, and respo
 
   await page.getByRole('button', { name: 'Add pharmacy' }).click();
   dialog = page.getByRole('dialog', { name: 'Add pharmacy' });
-  await dialog.getByLabel('Pharmacy name *').fill('First Community Pharmacy');
+  await dialog.getByLabel('Pharmacy name', { exact: true }).fill('First Community Pharmacy');
   await dialog.getByLabel('Address line 1').fill('1 Main Street');
   await dialog.getByLabel('City').fill('Accra');
   await dialog.getByRole('button', { name: 'Add pharmacy' }).click();
@@ -74,7 +74,7 @@ test('medication reconciliation covers clinical, pharmacy, validation, and respo
 
   await page.getByRole('button', { name: 'Add pharmacy' }).click();
   dialog = page.getByRole('dialog', { name: 'Add pharmacy' });
-  await dialog.getByLabel('Pharmacy name *').fill('Second Community Pharmacy');
+  await dialog.getByLabel('Pharmacy name', { exact: true }).fill('Second Community Pharmacy');
   await dialog.getByLabel('City').fill('Kumasi');
   await dialog.getByRole('button', { name: 'Add pharmacy' }).click();
   await page.getByRole('button', { name: 'Make preferred' }).click();

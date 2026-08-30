@@ -23,6 +23,16 @@ interface TrendChartProps {
   emptyMessage?: string;
 }
 
+/*
+  Recharts renders axis ticks as SVG <text>, so the `tabular-nums` utility cannot reach them and
+  the figures have to be asked for here. Without it a count going 9 -> 10 shifts the whole axis.
+*/
+const TICK = {
+  fontSize: 11,
+  fontVariantNumeric: 'tabular-nums' as const,
+  fill: 'hsl(var(--muted-foreground))',
+};
+
 export function TrendChart({
   title,
   hint,
@@ -48,13 +58,13 @@ export function TrendChart({
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis
                   dataKey="date"
-                  tick={{ fontSize: 11 }}
+                  tick={TICK}
                   tickFormatter={(v) => {
                     const d = new Date(v);
                     return `${d.getMonth() + 1}/${d.getDate()}`;
                   }}
                 />
-                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                <YAxis tick={TICK} allowDecimals={false} />
                 <Tooltip
                   labelFormatter={(v) => new Date(v as string).toLocaleDateString()}
                   contentStyle={{
@@ -71,6 +81,9 @@ export function TrendChart({
                   strokeWidth={2.5}
                   dot={{ r: 2.5 }}
                   activeDot={{ r: 5 }}
+                  // Recharts draws in over 1500ms in JavaScript, which the global
+                  // prefers-reduced-motion rule cannot reach.
+                  isAnimationActive={false}
                 />
               </LineChart>
             </ResponsiveContainer>

@@ -25,7 +25,7 @@ const roles = [
     icon: Heart,
     title: 'Volunteers',
     description: 'Register patients, record vitals, and initiate intake at the point of care.',
-    color: 'text-chart-3 bg-chart-3/15',
+    color: 'text-landing-accent bg-landing-accent/15',
   },
   {
     icon: Building2,

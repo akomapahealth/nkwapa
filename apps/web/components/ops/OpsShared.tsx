@@ -90,10 +90,16 @@ export function InlineNotice({
   tone = 'info',
   className,
   children,
+  live = true,
 }: {
   tone?: 'info' | 'success' | 'error';
   className?: string;
   children: React.ReactNode;
+  /**
+   * Set false for a notice that is part of the page on first paint rather than a response to
+   * something the user just did. Announcing static explanatory copy on load is noise.
+   */
+  live?: boolean;
 }) {
   const toneClass =
     tone === 'error'
@@ -102,8 +108,22 @@ export function InlineNotice({
         ? 'border-success/25 bg-success/10 text-success-ink'
         : 'border-primary/20 bg-primary/10 text-foreground';
 
+  /*
+    This is where a failed save reports itself on more than a dozen forms, and it had no role and
+    no live region, so a screen-reader user pressed Save and heard nothing at all -- the button
+    kept focus and the explanation appeared silently somewhere else on the page.
+
+    `alert` is assertive and interrupts, which is right for a failure and wrong for a
+    confirmation; `status` is polite and waits for a pause.
+  */
+  const liveProps = live
+    ? tone === 'error'
+      ? ({ role: 'alert' } as const)
+      : ({ role: 'status', 'aria-live': 'polite' } as const)
+    : {};
+
   return (
-    <div className={cn('rounded-lg border px-4 py-3 text-sm', toneClass, className)}>
+    <div {...liveProps} className={cn('rounded-lg border px-4 py-3 text-sm', toneClass, className)}>
       {children}
     </div>
   );

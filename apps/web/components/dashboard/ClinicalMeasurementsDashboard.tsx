@@ -114,7 +114,6 @@ export function ClinicalMeasurementsDashboard({
       <DistributionChart
         title="Smoking status documentation"
         data={tobaccoDistribution}
-        type="bar"
         hint="Recorded smoking status counts for the same 30-day clinic window."
         emptyMessage="No tobacco screening statuses were recorded in this timeframe."
       />

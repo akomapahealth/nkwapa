@@ -17,9 +17,9 @@ test('records a residential location, distinguishes it from the clinic, and filt
   const lastName = `Residence-${suffix}`;
 
   await page.goto('/patients/new');
-  await page.getByLabel('First name *').fill('Location');
-  await page.getByLabel('Last name *').fill(lastName);
-  await page.getByLabel('National ID *').fill(`E2E-LOC-${suffix}`);
+  await page.getByLabel('First name', { exact: true }).fill('Location');
+  await page.getByLabel('Last name', { exact: true }).fill(lastName);
+  await page.getByLabel('National ID', { exact: true }).fill(`E2E-LOC-${suffix}`);
 
   // Region/district are disabled until the location is deliberately recorded.
   await expect(page.getByLabel('Region', { exact: true })).toBeDisabled();
@@ -64,9 +64,9 @@ test('represents an unknown residential location deliberately', async ({ page })
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
 
   await page.goto('/patients/new');
-  await page.getByLabel('First name *').fill('Unknown');
-  await page.getByLabel('Last name *').fill(`Location-${suffix}`);
-  await page.getByLabel('National ID *').fill(`E2E-UNK-${suffix}`);
+  await page.getByLabel('First name', { exact: true }).fill('Unknown');
+  await page.getByLabel('Last name', { exact: true }).fill(`Location-${suffix}`);
+  await page.getByLabel('National ID', { exact: true }).fill(`E2E-UNK-${suffix}`);
   await chooseSelect(page, 'Location status', 'Unknown');
 
   await page.getByRole('button', { name: 'Create patient' }).click();

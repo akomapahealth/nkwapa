@@ -14,6 +14,8 @@ import {
   requiresPrescriptionAllergyAcknowledgement,
   type AllergySummaryState,
 } from '@/lib/medical-history';
+import { FieldError, FieldLabel, fieldErrorProps, focusFirstInvalid } from '@/components/ui/field';
+import { InlineNotice } from '@/components/ops/OpsShared';
 
 interface Drug {
   id: string;
@@ -60,6 +62,17 @@ export function PrescriptionForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [allergyAcknowledged, setAllergyAcknowledged] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  /** Screen order, so focus lands on the first problem the reader would reach, not the first the
+      validator happened to record. */
+  const FIELD_ORDER = [
+    'prescription-drug-search',
+    'prescription-dosage',
+    'prescription-frequency',
+    'prescription-quantity',
+    'prescription-allergy-acknowledgement',
+  ];
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -83,10 +96,47 @@ export function PrescriptionForm({
     }, 300);
   }, [drugQuery, clinicId, getToken]);
 
+  /*
+    Validation runs on submit and then re-runs per field as it is corrected.
+
+    Before this the form had no validation at all: the three required fields were expressed only
+    as a disabled Save button, so a prescriber facing a button that would not press had nothing
+    telling them which of four conditions was unmet. The button is enabled now and the form
+    explains itself.
+  */
+  const validate = () => {
+    const next: Record<string, string> = {};
+    if (!selectedDrug) next['prescription-drug-search'] = 'Choose a drug from the clinic catalog.';
+    if (!dosage.trim()) next['prescription-dosage'] = 'Enter a dose, including its unit.';
+    if (!frequency.trim()) next['prescription-frequency'] = 'Enter how often the patient takes it.';
+    if (quantity && !(Number.parseInt(quantity, 10) > 0)) {
+      next['prescription-quantity'] = 'Quantity must be a whole number of one or more.';
+    }
+    if (requiresPrescriptionAllergyAcknowledgement(allergyState) && !allergyAcknowledged) {
+      next['prescription-allergy-acknowledgement'] =
+        'Confirm you reviewed the allergy status before prescribing.';
+    }
+    return next;
+  };
+
+  const clearFieldError = (id: string) =>
+    setFieldErrors((current) => {
+      if (!current[id]) return current;
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+
   const handleSave = async () => {
     const acknowledgementRequired = requiresPrescriptionAllergyAcknowledgement(allergyState);
-    if (!selectedDrug || !dosage || !frequency || (acknowledgementRequired && !allergyAcknowledged))
+    const problems = validate();
+    setFieldErrors(problems);
+    if (Object.keys(problems).length) {
+      focusFirstInvalid(problems, FIELD_ORDER);
       return;
+    }
+    // validate() has already refused an empty drug; this restates it for the type system.
+    if (!selectedDrug) return;
     setSaving(true);
     setError(null);
 
@@ -167,6 +217,7 @@ export function PrescriptionForm({
     setQuantity('');
     setInstructions('');
     setAllergyAcknowledged(false);
+    setFieldErrors({});
   }
 
   const acknowledgementRequired = requiresPrescriptionAllergyAcknowledgement(allergyState);
@@ -174,10 +225,12 @@ export function PrescriptionForm({
   return (
     <div className="space-y-4 rounded-lg border border-border bg-background p-4 sm:p-5">
       <h3 className="text-base font-semibold">Add prescription</h3>
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
 
       <div className="space-y-2">
-        <Label htmlFor="prescription-drug-search">Drug</Label>
+        <FieldLabel htmlFor="prescription-drug-search" required>
+          Drug
+        </FieldLabel>
         {selectedDrug ? (
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">{selectedDrug.name}</span>
@@ -221,41 +274,64 @@ export function PrescriptionForm({
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="prescription-dosage">Dosage</Label>
+          <FieldLabel htmlFor="prescription-dosage" required>
+            Dosage (with unit, e.g. mg)
+          </FieldLabel>
           <Input
             id="prescription-dosage"
             value={dosage}
-            onChange={(e) => setDosage(e.target.value)}
-            placeholder="e.g. 10mg"
+            onChange={(e) => {
+              setDosage(e.target.value);
+              clearFieldError('prescription-dosage');
+            }}
+            placeholder="10 mg"
+            required
+            {...fieldErrorProps('prescription-dosage', fieldErrors['prescription-dosage'])}
           />
+          <FieldError id="prescription-dosage" message={fieldErrors['prescription-dosage']} />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="prescription-frequency">Frequency</Label>
+          <FieldLabel htmlFor="prescription-frequency" required>
+            Frequency (doses per day)
+          </FieldLabel>
           <Input
             id="prescription-frequency"
             value={frequency}
-            onChange={(e) => setFrequency(e.target.value)}
-            placeholder="e.g. twice daily"
+            onChange={(e) => {
+              setFrequency(e.target.value);
+              clearFieldError('prescription-frequency');
+            }}
+            placeholder="twice daily"
+            required
+            {...fieldErrorProps('prescription-frequency', fieldErrors['prescription-frequency'])}
           />
+          <FieldError id="prescription-frequency" message={fieldErrors['prescription-frequency']} />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="prescription-duration">Duration</Label>
+          <Label htmlFor="prescription-duration">Duration (days)</Label>
           <Input
             id="prescription-duration"
             value={duration}
             onChange={(e) => setDuration(e.target.value)}
-            placeholder="e.g. 30 days"
+            placeholder="30 days"
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="prescription-quantity">Quantity</Label>
+          <Label htmlFor="prescription-quantity">Quantity (units dispensed)</Label>
           <Input
             id="prescription-quantity"
             type="number"
+            inputMode="numeric"
             min="1"
             value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
+            placeholder="30"
+            onChange={(e) => {
+              setQuantity(e.target.value);
+              clearFieldError('prescription-quantity');
+            }}
+            {...fieldErrorProps('prescription-quantity', fieldErrors['prescription-quantity'])}
           />
+          <FieldError id="prescription-quantity" message={fieldErrors['prescription-quantity']} />
         </div>
       </div>
       <div className="space-y-2">
@@ -283,18 +359,14 @@ export function PrescriptionForm({
           </Label>
         </div>
       ) : null}
-      <Button
-        className="w-full sm:w-auto"
-        onClick={handleSave}
-        disabled={
-          saving ||
-          !selectedDrug ||
-          !dosage ||
-          !frequency ||
-          (acknowledgementRequired && !allergyAcknowledged)
-        }
-      >
-        {saving ? 'Saving...' : 'Add Prescription'}
+      <FieldError
+        id="prescription-allergy-acknowledgement"
+        message={fieldErrors['prescription-allergy-acknowledgement']}
+      />
+      {/* Only `saving` disables this. A control that refuses to work without saying why is
+          worse than one that explains the problem when pressed. */}
+      <Button className="w-full sm:w-auto" onClick={handleSave} disabled={saving}>
+        {saving ? 'Saving…' : 'Add prescription'}
       </Button>
     </div>
   );

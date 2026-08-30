@@ -11,7 +11,7 @@
                             <label for="username" class="nkwapa-label">
                                 <#if !realm.loginWithEmailAllowed>${msg("username")}<#elseif !realm.registrationEmailAsUsername>${msg("usernameOrEmail")}<#else>${msg("email")}</#if>
                             </label>
-                            <input tabindex="1" id="username" class="nkwapa-input" name="username" value="${(login.username!'')}" type="text" autofocus autocomplete="off"
+                            <input id="username" class="nkwapa-input" name="username" value="${(login.username!'')}" type="text" autofocus autocomplete="off"
                                    aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>"
                             />
                             <#if messagesPerField.existsError('username','password')>
@@ -24,7 +24,7 @@
                         <div class="nkwapa-form-group">
                             <label for="password" class="nkwapa-label">${msg("password")}</label>
                             <div class="nkwapa-password-wrap">
-                                <input tabindex="2" id="password" class="nkwapa-input nkwapa-input--with-toggle" name="password" type="password" autocomplete="current-password"
+                                <input id="password" class="nkwapa-input nkwapa-input--with-toggle" name="password" type="password" autocomplete="current-password"
                                        aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>"
                                 />
                                 <@layout.passwordToggle targetId="password" />
@@ -34,18 +34,18 @@
                         <div class="nkwapa-form-options">
                             <#if realm.rememberMe && !usernameEditDisabled??>
                                 <div class="nkwapa-checkbox-group">
-                                    <input tabindex="4" id="rememberMe" name="rememberMe" type="checkbox" <#if login.rememberMe??>checked</#if>>
+                                    <input id="rememberMe" name="rememberMe" type="checkbox" <#if login.rememberMe??>checked</#if>>
                                     <label for="rememberMe">${msg("rememberMe")}</label>
                                 </div>
                             </#if>
                             <#if realm.resetPasswordAllowed>
-                                <a tabindex="6" href="${url.loginResetCredentialsUrl}" class="nkwapa-forgot-link">${msg("doForgotPassword")}</a>
+                                <a href="${url.loginResetCredentialsUrl}" class="nkwapa-forgot-link">${msg("doForgotPassword")}</a>
                             </#if>
                         </div>
 
                         <div class="nkwapa-form-group nkwapa-submit-group">
                             <input type="hidden" id="id-hidden-input" name="credentialId" <#if auth.selectedCredential?has_content>value="${auth.selectedCredential}"</#if>/>
-                            <input tabindex="5" class="nkwapa-btn-primary" name="login" id="kc-login" type="submit" value="${msg("doLogIn")}"/>
+                            <input class="nkwapa-btn-primary" name="login" id="kc-login" type="submit" value="${msg("doLogIn")}"/>
                         </div>
                     </form>
                 </#if>
@@ -54,7 +54,7 @@
     <#elseif section = "info">
         <#if realm.password && realm.registrationAllowed && !registrationDisabled??>
             <div class="nkwapa-register-link">
-                ${msg("noAccount")} <a tabindex="7" href="${url.registrationUrl}">${msg("doRegister")}</a>
+                ${msg("noAccount")} <a href="${url.registrationUrl}">${msg("doRegister")}</a>
             </div>
         </#if>
     </#if>
