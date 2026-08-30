@@ -2,6 +2,7 @@
 
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { DistributionChart } from './DistributionChart';
+import { HYPERTENSION_ORDER, HYPERTENSION_TONES, toLabelledDistribution } from '@/lib/hypertension';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { Box } from '@mui/material';
 import { dataGridSx } from '@/lib/datagrid-theme';
@@ -100,9 +101,11 @@ export function DoctorDashboard({
       <div className="grid gap-4 md:grid-cols-2">
         <DistributionChart
           title="Blood pressure levels"
-          data={hypertensionDistribution}
-          type="pie"
-          hint="How recent hypertension assessments are classified in this clinic."
+          data={toLabelledDistribution(hypertensionDistribution)}
+          order={HYPERTENSION_ORDER}
+          tones={HYPERTENSION_TONES}
+          layout="horizontal"
+          hint="How recent hypertension assessments are classified in this clinic, from normal to crisis."
           emptyMessage="No hypertension assessments have been recorded for this clinic yet."
         />
         <DistributionChart
@@ -111,7 +114,6 @@ export function DoctorDashboard({
             Flagged: diabetesStats.flagged,
             Normal: Math.max(diabetesStats.total - diabetesStats.flagged, 0),
           }}
-          type="bar"
           hint="Flagged screenings compared with normal results in this clinic."
           emptyMessage="No diabetes screenings have been recorded for this clinic yet."
         />

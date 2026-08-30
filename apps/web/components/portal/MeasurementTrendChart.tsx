@@ -39,6 +39,17 @@ interface MeasurementTrendChartProps {
 // cannot reach; the font feature has to be set on the tick style directly.
 const TABULAR_TICK = { fontSize: 11, fontVariantNumeric: 'tabular-nums' } as const;
 
+/*
+  A second, non-colour channel for series identity.
+
+  Systolic and diastolic were told apart by stroke colour alone -- same width, same dot, no dash --
+  so a reader who cannot separate the two hues had nothing else to go on, and neither did anyone
+  printing the page or reading it in forced-colours mode. The dash pattern is drawn in the legend
+  swatch as well, so the swatch says which line it names rather than only what colour it is.
+*/
+const DASHES = [undefined, '7 4', '2 3', '10 3 2 3'] as const;
+const dashFor = (index: number) => DASHES[index % DASHES.length];
+
 export function MeasurementTrendChart({
   title,
   headingLevel = 'h3',
@@ -60,13 +71,19 @@ export function MeasurementTrendChart({
       ) : (
         <div className="space-y-4">
           <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-            {lines.map((line) => (
+            {lines.map((line, index) => (
               <div key={line.key} className="flex items-center gap-2">
-                <span
-                  aria-hidden="true"
-                  className="h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: line.color }}
-                />
+                <svg aria-hidden="true" width="18" height="10" viewBox="0 0 18 10">
+                  <line
+                    x1="0"
+                    y1="5"
+                    x2="18"
+                    y2="5"
+                    stroke={line.color}
+                    strokeWidth="2.5"
+                    strokeDasharray={dashFor(index)}
+                  />
+                </svg>
                 <span>{line.label}</span>
               </div>
             ))}
@@ -96,13 +113,14 @@ export function MeasurementTrendChart({
                     fontVariantNumeric: 'tabular-nums',
                   }}
                 />
-                {lines.map((line) => (
+                {lines.map((line, index) => (
                   <Line
                     key={line.key}
                     type="monotone"
                     dataKey={line.key}
                     stroke={line.color}
                     strokeWidth={2.5}
+                    strokeDasharray={dashFor(index)}
                     dot={{ r: 3 }}
                     activeDot={{ r: 5 }}
                     connectNulls

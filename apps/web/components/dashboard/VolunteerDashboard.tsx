@@ -84,13 +84,11 @@ export function VolunteerDashboard({
         <DistributionChart
           title="Visit status"
           data={statusBreakdown}
-          type="bar"
           hint="Where your visits currently sit in the workflow."
         />
         <DistributionChart
           title="Blood pressure levels in your visits"
           data={bpDistribution}
-          type="bar"
           hint="How blood pressure assessments in your visits are classified."
         />
         <DistributionChart
@@ -99,7 +97,6 @@ export function VolunteerDashboard({
             Flagged: diabetesStats.flagged,
             Normal: diabetesStats.total - diabetesStats.flagged,
           }}
-          type="bar"
           hint="Flagged diabetes screenings compared with normal results in your visits."
         />
       </div>

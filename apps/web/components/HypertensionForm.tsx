@@ -16,6 +16,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { db } from '@/lib/db';
 import { enqueueOutboxMutation } from '@/lib/outbox';
 import { SYNC_OPERATION } from '@/lib/outbox';
+import { HYPERTENSION_CLASSIFICATIONS, HYPERTENSION_LABELS } from '@/lib/hypertension';
 
 function generateId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -28,7 +29,7 @@ function generateId(): string {
   });
 }
 
-const CLASSIFICATIONS = ['NORMAL', 'ELEVATED', 'STAGE1', 'STAGE2', 'CRISIS', 'UNKNOWN'] as const;
+const CLASSIFICATIONS = HYPERTENSION_CLASSIFICATIONS;
 
 interface HypertensionFormProps {
   clinicId: string;
@@ -143,7 +144,7 @@ export function HypertensionForm({
               <SelectContent>
                 {CLASSIFICATIONS.map((c) => (
                   <SelectItem key={c} value={c}>
-                    {c}
+                    {HYPERTENSION_LABELS[c]}
                   </SelectItem>
                 ))}
               </SelectContent>
