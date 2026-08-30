@@ -1,21 +1,124 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
-@import url('https://fonts.cdnfonts.com/css/circular-std');
+/*
+  Nkwapa Keycloak login theme.
+
+  THE VALUES BELOW ARE MIRRORED FROM docs/design-system/MASTER.md AND MUST BE UPDATED WITH IT.
+
+  A Keycloak theme cannot import the application's stylesheet -- it is served from a different
+  origin by a different process -- so the tokens are duplicated here by necessity. Duplication is
+  how this file drifted in the first place: it carried fourteen independently hard-coded values,
+  none of which matched the app, including #0c4a5b, a navy left over from a retired mark that
+  appears nowhere in the Nkwapa palette. Every value now names the MASTER.md token it mirrors.
+
+  Where a value is derived rather than copied, it follows MASTER.md section 2's derivation rule:
+  keep the brand hue and saturation exactly, move lightness only, by the minimum needed to clear
+  the threshold. Contrast figures in the comments are measured, not estimated.
+
+  Deliberately NOT dark-mode aware. The application's theme choice lives in localStorage on the
+  web origin, which Keycloak cannot read from here; honouring prefers-color-scheme instead would
+  give a user with a dark OS and a light app a dark login followed by a light workspace, which is
+  worse drift than staying light. See #83.
+*/
+
+/* Self-hosted: see fonts/README.md. This screen previously blocked first paint on two serialized
+   third-party font requests, on the one page a user cannot skip. */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: swap;
+  src: url('../fonts/ibm-plex-sans-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Source Serif 4';
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url('../fonts/source-serif-4-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 
 :root {
-  --nkwapa-bg: #f4f8fa;
-  --nkwapa-surface: #ffffff;
-  --nkwapa-border: rgba(15, 23, 42, 0.1);
-  --nkwapa-border-strong: #d7e2ea;
-  --nkwapa-text: #0f172a;
-  --nkwapa-muted: #53657a;
-  --nkwapa-primary: #1698b7;
-  --nkwapa-primary-deep: #0c4a5b;
-  --nkwapa-primary-soft: #e7f7fb;
-  --nkwapa-danger: #c2410c;
-  --nkwapa-danger-soft: #fff2eb;
-  --nkwapa-success: #166534;
-  --nkwapa-success-soft: #effcf2;
-  --nkwapa-shadow: 0 36px 90px rgba(15, 23, 42, 0.15);
+  /* Light only, stated explicitly so a dark-OS browser does not paint its own dark form
+     controls and scrollbars into an otherwise light page. See the note above on why this
+     theme does not follow prefers-color-scheme. */
+  color-scheme: light;
+
+  /* Surfaces --------------------------------------------------- MASTER.md section 3 */
+  --nkwapa-bg: #fcfbf3; /* --background        hsl(54 63% 97%)  */
+  --nkwapa-surface: #fcfbf8; /* --card              hsl(50 33% 98%)  */
+  --nkwapa-muted-surface: #f3f0e8; /* --muted             hsl(45 30% 93%)  */
+
+  /* Ink -------------------------------------------------------- 14.37:1 / 5.47:1 on surface */
+  --nkwapa-text: #1d2930; /* --foreground        hsl(200 25% 15%) */
+  --nkwapa-muted: #5c6970; /* --muted-foreground  hsl(200 10% 40%) */
+
+  /* Lines. Two tokens, deliberately: WCAG 1.4.11 wants 3:1 on a control boundary and nothing on
+     a decorative divider. Collapsing them is what made every field in the app invisible. */
+  --nkwapa-border: #e4e1d7; /* --border            1.26:1, exempt   */
+  --nkwapa-border-strong: #728b97; /* --input             3.47:1 on surface */
+
+  /* Brand and action ------------------------------------------- */
+  --nkwapa-primary: #00778a; /* --primary           5.24:1 white on  */
+  --nkwapa-ring: #00778a; /* --ring                               */
+  --nkwapa-accent: #ffcd1a; /* --secondary, the logo gold exactly   */
+  /* Derived from --primary by lightness alone, hsl(188 100% 18%). The showcase panel needs a
+     ground dark enough to carry white at a comfortable margin: 9.12:1. */
+  --nkwapa-primary-deep: #00505c;
+  --nkwapa-primary-soft: #e3eeed; /* --primary at 10% over --card         */
+
+  /* Status. MASTER.md section 3 is explicit that a status fill must never be used as text on its
+     own tint -- measured here at 3.87:1 error, 4.18:1 success, 3.97:1 info, 2.36:1 warning, all
+     below AA. The -ink tokens are the same hue and saturation darkened until they clear. */
+  --nkwapa-danger: #dc2828; /* --destructive                        */
+  --nkwapa-danger-ink: #a71b1b; /* hsl(0 72% 38%)      6.01:1 on tint   */
+  --nkwapa-danger-soft: #f8e2df; /* --destructive at 12% over --card     */
+  --nkwapa-danger-line: #f4c6c4; /* --destructive at 25% over --card     */
+
+  --nkwapa-success: #1b7e50; /* --success                            */
+  --nkwapa-success-ink: #176d45; /* --success-ink       5.23:1 on tint   */
+  --nkwapa-success-soft: #e1ece4;
+  --nkwapa-success-line: #c4dcce;
+
+  --nkwapa-info: #297aa3; /* --info                               */
+  --nkwapa-info-ink: #1b506a; /* --info-ink          7.28:1 on tint   */
+  --nkwapa-info-soft: #e3ecee;
+  --nkwapa-info-line: #c7dbe3;
+
+  --nkwapa-warning-ink: #884c07; /* --warning-ink       5.87:1 on tint   */
+  --nkwapa-warning-soft: #faecdc;
+  --nkwapa-warning-line: #f7ddbd;
+
+  /* Ink for the deep showcase panel. rgba(255,255,255,.84) and friends used to stand in for
+     these; naming them is what lets the ratios be checked. */
+  --nkwapa-on-deep: #f2f7f8; /* 8.44:1 on --nkwapa-primary-deep      */
+  --nkwapa-on-deep-muted: #ccdee0; /* 6.56:1                               */
+  --nkwapa-on-deep-chip: #246973; /* white at 14% over the panel          */
+  --nkwapa-on-primary: #ffffff; /* --primary-foreground 5.24:1 on --primary */
+  /* Derived from --foreground, so the elevation reads as the same ink as the type. */
+  --nkwapa-card-shadow: 0 12px 32px rgba(29, 41, 48, 0.1);
+
+  /* Type -------------------------------------------------------- MASTER.md section 6.
+     The application's faces. This theme used Poppins and Circular Std, which are the *landing
+     page* faces, so a user saw marketing typography at login and application typography one
+     screen later. */
+  --nkwapa-font-heading: 'Source Serif 4', Georgia, serif;
+  --nkwapa-font-body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Radius ------------------------------------------------------ MASTER.md section 5.
+     "Nothing rounder than 14px." This file previously ran 30 / 20 / 18 / 16 / 12. */
+  --nkwapa-radius-sm: 6px; /* chips           */
+  --nkwapa-radius-md: 8px; /* controls        */
+  --nkwapa-radius-lg: 10px; /* panels, alerts  */
+  --nkwapa-radius-xl: 14px; /* the card itself */
+
+  /* Motion ------------------------------------------------------ MASTER.md section 7 */
+  --nkwapa-duration: 150ms;
 }
 
 * {
@@ -29,15 +132,24 @@ body {
 }
 
 body.nkwapa-auth-body {
-  font-family: 'Circular Std', 'Poppins', 'Segoe UI', sans-serif;
+  font-family: var(--nkwapa-font-body);
+  font-size: 16px;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 18% 18%, rgba(22, 152, 183, 0.12), transparent 30%),
-    radial-gradient(circle at 82% 78%, rgba(229, 166, 34, 0.14), transparent 28%),
-    linear-gradient(180deg, #f9fcfd 0%, var(--nkwapa-bg) 100%);
+  /* Flat. The two radial gradients and the linear wash here were exactly the "marketing
+     gradient" the design bar rules out, on a clinical product's front door. */
+  background: var(--nkwapa-bg);
   color: var(--nkwapa-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* One visible focus treatment for everything, matching the app's `ring-2 ring-ring`. Before this
+   only inputs and the primary button showed focus at all, so a keyboard user tabbing to "Forgot
+   password" had no idea where they were. */
+:focus-visible {
+  outline: 2px solid var(--nkwapa-ring);
+  outline-offset: 2px;
+  border-radius: var(--nkwapa-radius-sm);
 }
 
 .nkwapa-auth-shell {
@@ -53,17 +165,18 @@ body.nkwapa-auth-body {
   max-height: calc(100dvh - 40px);
   display: grid;
   grid-template-columns: minmax(0, 0.92fr) minmax(400px, 1.08fr);
-  border-radius: 30px;
+  border-radius: var(--nkwapa-radius-xl);
   overflow: hidden;
   background: var(--nkwapa-surface);
   border: 1px solid var(--nkwapa-border);
-  box-shadow: 0 28px 76px rgba(15, 23, 42, 0.14);
+  /* A real offset and a real blur, not a coloured halo. */
+  box-shadow: var(--nkwapa-card-shadow);
 }
 
 .nkwapa-auth-showcase {
   position: relative;
-  background: #0c4a5b;
-  color: #f8fafc;
+  background: var(--nkwapa-primary-deep);
+  color: var(--nkwapa-on-deep);
 }
 
 .nkwapa-auth-showcase__inner {
@@ -72,11 +185,13 @@ body.nkwapa-auth-body {
   flex-direction: column;
   justify-content: space-between;
   gap: 28px;
-  padding: 34px;
+  /* Scales continuously instead of stepping at a breakpoint, so there is one fewer media query
+     to keep in sync with the four widths the design system commits to. */
+  padding: clamp(22px, 3vw, 34px);
 }
 
 .nkwapa-auth-logo {
-  width: 244px;
+  width: clamp(160px, 22vw, 244px);
   max-width: 100%;
   height: auto;
 }
@@ -91,27 +206,29 @@ body.nkwapa-auth-body {
   gap: 8px;
   padding: 8px 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  font-size: 0.74rem;
-  font-weight: 700;
-  letter-spacing: 0;
+  background: var(--nkwapa-on-deep-chip);
+  border: 1px solid var(--nkwapa-on-deep-chip);
+  font-size: 0.75rem;
+  font-weight: 600;
+  /* MASTER.md section 6 settles on one uppercase micro-label treatment. */
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
 .nkwapa-auth-headline {
   margin: 18px 0 12px;
-  font-size: clamp(2rem, 4vw, 3rem);
-  line-height: 1.08;
-  letter-spacing: 0;
-  font-weight: 800;
+  font-family: var(--nkwapa-font-heading);
+  font-size: clamp(1.9rem, 3.6vw, 2.75rem);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  font-weight: 600;
 }
 
 .nkwapa-auth-description {
   margin: 0;
   font-size: 1rem;
   line-height: 1.7;
-  color: rgba(248, 250, 252, 0.84);
+  color: var(--nkwapa-on-deep-muted);
 }
 
 .nkwapa-auth-feature-list {
@@ -128,19 +245,18 @@ body.nkwapa-auth-body {
   padding-left: 22px;
   font-size: 0.92rem;
   line-height: 1.55;
-  color: rgba(248, 250, 252, 0.9);
+  color: var(--nkwapa-on-deep-muted);
 }
 
 .nkwapa-auth-feature-list li::before {
   content: '';
   position: absolute;
   left: 0;
-  top: 0.58rem;
-  width: 10px;
-  height: 10px;
+  top: 0.55rem;
+  width: 8px;
+  height: 8px;
   border-radius: 999px;
-  background: #7be5ea;
-  box-shadow: 0 0 0 5px rgba(123, 229, 234, 0.16);
+  background: var(--nkwapa-accent);
 }
 
 .nkwapa-auth-photo-frame {
@@ -149,9 +265,8 @@ body.nkwapa-auth-body {
   aspect-ratio: 16 / 7;
   align-self: center;
   overflow: hidden;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.2);
+  border-radius: var(--nkwapa-radius-lg);
+  border: 1px solid var(--nkwapa-on-deep-chip);
 }
 
 .nkwapa-auth-photo {
@@ -162,15 +277,8 @@ body.nkwapa-auth-body {
   object-position: 48% 44%;
 }
 
-.nkwapa-auth-illustration {
-  width: 100%;
-  max-width: 520px;
-  height: auto;
-  object-fit: contain;
-}
-
 .nkwapa-auth-panel {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 252, 253, 0.98) 100%);
+  background: var(--nkwapa-surface);
 }
 
 .nkwapa-auth-panel__inner {
@@ -181,37 +289,38 @@ body.nkwapa-auth-body {
   flex-direction: column;
   justify-content: center;
   gap: 20px;
-  padding: 38px 50px;
+  padding: clamp(26px, 3.4vw, 38px) clamp(22px, 4vw, 50px);
 }
 
 .nkwapa-auth-panel__eyebrow {
   margin: 0 0 12px;
   color: var(--nkwapa-primary);
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
 .nkwapa-auth-title {
   margin: 0;
-  font-size: clamp(2rem, 3vw, 2.75rem);
-  line-height: 1.06;
-  letter-spacing: 0;
-  font-weight: 800;
+  font-family: var(--nkwapa-font-heading);
+  font-size: clamp(1.9rem, 2.8vw, 2.5rem);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  font-weight: 600;
   color: var(--nkwapa-text);
 }
 
 .nkwapa-auth-panel__description {
   margin: 10px 0 0;
-  max-width: 520px;
+  max-width: 60ch;
   color: var(--nkwapa-muted);
-  font-size: 0.98rem;
+  font-size: 0.95rem;
   line-height: 1.6;
 }
 
 .nkwapa-alert {
-  border-radius: 18px;
+  border-radius: var(--nkwapa-radius-lg);
   padding: 14px 16px;
   font-size: 0.92rem;
   line-height: 1.55;
@@ -220,23 +329,28 @@ body.nkwapa-auth-body {
 
 .nkwapa-alert--error,
 .alert-error {
-  color: var(--nkwapa-danger);
+  color: var(--nkwapa-danger-ink);
   background: var(--nkwapa-danger-soft);
-  border-color: rgba(194, 65, 12, 0.16);
+  border-color: var(--nkwapa-danger-line);
 }
 
 .nkwapa-alert--success,
 .alert-success {
-  color: var(--nkwapa-success);
+  color: var(--nkwapa-success-ink);
   background: var(--nkwapa-success-soft);
-  border-color: rgba(22, 101, 52, 0.14);
+  border-color: var(--nkwapa-success-line);
 }
 
-.nkwapa-alert--warning,
+.nkwapa-alert--warning {
+  color: var(--nkwapa-warning-ink);
+  background: var(--nkwapa-warning-soft);
+  border-color: var(--nkwapa-warning-line);
+}
+
 .nkwapa-alert--info {
-  color: #0b4f60;
-  background: #ecfbff;
-  border-color: rgba(22, 152, 183, 0.16);
+  color: var(--nkwapa-info-ink);
+  background: var(--nkwapa-info-soft);
+  border-color: var(--nkwapa-info-line);
 }
 
 .nkwapa-required-note {
@@ -269,34 +383,38 @@ body.nkwapa-auth-body {
 
 .nkwapa-input {
   width: 100%;
-  min-height: 54px;
-  padding: 14px 16px;
-  border-radius: 16px;
+  /* Comfortably past the 44px minimum target in MASTER.md section 8. */
+  min-height: 48px;
+  padding: 12px 14px;
+  border-radius: var(--nkwapa-radius-md);
   border: 1px solid var(--nkwapa-border-strong);
-  background: #ffffff;
+  background: var(--nkwapa-surface);
   color: var(--nkwapa-text);
   font-family: inherit;
-  font-size: 0.98rem;
+  /* 16px: iOS Safari force-zooms a focused input below this, which moves the whole card. */
+  font-size: 1rem;
   line-height: 1.4;
-  outline: none;
   transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease,
-    transform 0.2s ease;
+    border-color var(--nkwapa-duration) ease,
+    box-shadow var(--nkwapa-duration) ease;
 }
 
 .nkwapa-input:hover {
-  border-color: #b8ccd8;
+  border-color: var(--nkwapa-primary);
 }
 
-.nkwapa-input:focus,
-.nkwapa-input[aria-invalid='true'] {
+.nkwapa-input:focus-visible {
   border-color: var(--nkwapa-primary);
-  box-shadow: 0 0 0 4px rgba(22, 152, 183, 0.14);
+  outline: 2px solid var(--nkwapa-ring);
+  outline-offset: 1px;
+}
+
+.nkwapa-input[aria-invalid='true'] {
+  border-color: var(--nkwapa-danger);
 }
 
 .nkwapa-input::placeholder {
-  color: #8ea0af;
+  color: var(--nkwapa-muted);
 }
 
 .nkwapa-password-wrap {
@@ -304,36 +422,38 @@ body.nkwapa-auth-body {
 }
 
 .nkwapa-input--with-toggle {
-  padding-right: 54px;
+  padding-right: 56px;
 }
 
 .nkwapa-password-toggle {
   position: absolute;
-  right: 10px;
+  right: 4px;
   top: 50%;
   transform: translateY(-50%);
-  width: 38px;
-  height: 38px;
+  /* 44px, the minimum target. It was 38px. */
+  width: 44px;
+  height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--nkwapa-radius-md);
   background: transparent;
-  color: #6b7c8f;
+  color: var(--nkwapa-muted);
   cursor: pointer;
   transition:
-    background-color 0.2s ease,
-    color 0.2s ease;
+    background-color var(--nkwapa-duration) ease,
+    color var(--nkwapa-duration) ease;
 }
 
 .nkwapa-password-toggle:hover,
 .nkwapa-password-toggle:focus-visible {
   background: var(--nkwapa-primary-soft);
   color: var(--nkwapa-primary-deep);
-  outline: none;
 }
 
+/* password-toggle.js sets the `hidden` property on these two spans to swap the icon. Without
+   this rule both eyes render at once. */
 .nkwapa-icon-eye[hidden] {
   display: none !important;
 }
@@ -353,8 +473,8 @@ body.nkwapa-auth-body {
 }
 
 .nkwapa-checkbox-group input[type='checkbox'] {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   accent-color: var(--nkwapa-primary);
 }
 
@@ -379,21 +499,17 @@ body.nkwapa-auth-body {
 
 .nkwapa-btn-primary {
   width: 100%;
-  min-height: 54px;
+  min-height: 48px;
   border: 0;
-  border-radius: 18px;
-  background: linear-gradient(135deg, #1da4c2 0%, #12728a 100%);
-  color: #ffffff;
+  border-radius: var(--nkwapa-radius-md);
+  /* A flat --primary fill. MASTER.md section 9: primary is a fill, not a gradient. */
+  background: var(--nkwapa-primary);
+  color: var(--nkwapa-on-primary);
   font-family: inherit;
   font-size: 1rem;
-  font-weight: 700;
-  letter-spacing: 0;
+  font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 18px 36px rgba(18, 114, 138, 0.22);
-  transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease,
-    filter 0.2s ease;
+  transition: background-color var(--nkwapa-duration) ease;
 }
 
 .nkwapa-btn-primary--link {
@@ -403,23 +519,17 @@ body.nkwapa-auth-body {
   text-decoration: none;
 }
 
+/* Darkens rather than lifting. MASTER.md section 7 rules out transform on hover, because a
+   control that moves under the cursor shifts what is around it. */
 .nkwapa-btn-primary:hover {
-  filter: brightness(1.03);
-  transform: translateY(-1px);
-}
-
-.nkwapa-btn-primary:focus-visible {
-  outline: none;
-  box-shadow:
-    0 18px 36px rgba(18, 114, 138, 0.22),
-    0 0 0 4px rgba(22, 152, 183, 0.16);
+  background: var(--nkwapa-primary-deep);
 }
 
 .nkwapa-error {
   display: block;
   margin-top: 8px;
-  color: var(--nkwapa-danger);
-  font-size: 0.84rem;
+  color: var(--nkwapa-danger-ink);
+  font-size: 0.85rem;
   line-height: 1.45;
 }
 
@@ -454,14 +564,14 @@ body.nkwapa-auth-body {
 .nkwapa-helper-text {
   margin: -2px 0 0;
   color: var(--nkwapa-muted);
-  font-size: 0.84rem;
+  font-size: 0.85rem;
   line-height: 1.5;
   text-align: center;
 }
 
 .nkwapa-inline-link {
   color: var(--nkwapa-primary);
-  font-weight: 700;
+  font-weight: 600;
   text-decoration: none;
 }
 
@@ -485,7 +595,7 @@ body.nkwapa-auth-body {
   justify-content: center;
   color: var(--nkwapa-primary);
   font-size: 0.92rem;
-  font-weight: 700;
+  font-weight: 600;
   text-decoration: none;
 }
 
@@ -502,6 +612,7 @@ body.nkwapa-auth-body {
   text-align: left;
 }
 
+/* Keycloak's own PatternFly chrome, which this theme replaces wholesale. */
 #kc-header,
 #kc-header-wrapper {
   display: none !important;
@@ -518,21 +629,12 @@ body.nkwapa-auth-body {
   box-shadow: none !important;
 }
 
-@media (max-width: 1080px) {
-  .nkwapa-auth-card {
-    grid-template-columns: minmax(0, 0.9fr) minmax(380px, 1fr);
-  }
-
-  .nkwapa-auth-showcase__inner {
-    padding: 30px 26px;
-  }
-
-  .nkwapa-auth-panel__inner {
-    padding: 34px 36px;
-  }
-}
-
-@media (max-width: 920px) {
+/*
+  Breakpoints are the four the design system commits to (MASTER.md section 8), not the 1080 /
+  920 / 560 this file used to pick for itself. The card stacks below 1024 because the form column
+  has a 400px minimum: at 768 a side-by-side split would leave the showcase 328px wide.
+*/
+@media (max-width: 1023px) {
   body.nkwapa-auth-body {
     overflow: auto;
   }
@@ -547,18 +649,12 @@ body.nkwapa-auth-body {
     grid-template-columns: 1fr;
   }
 
-  .nkwapa-auth-showcase__inner {
-    padding: 26px 22px 14px;
-    gap: 18px;
-  }
-
   .nkwapa-auth-copy {
     max-width: none;
   }
 
   .nkwapa-auth-headline {
     margin-top: 16px;
-    font-size: 2.1rem;
   }
 
   .nkwapa-auth-feature-list {
@@ -572,11 +668,10 @@ body.nkwapa-auth-body {
   .nkwapa-auth-panel__inner {
     max-height: none;
     overflow: visible;
-    padding: 28px 22px 26px;
   }
 }
 
-@media (max-width: 560px) {
+@media (max-width: 479px) {
   .nkwapa-auth-shell {
     padding: 0;
   }
@@ -588,36 +683,18 @@ body.nkwapa-auth-body {
     box-shadow: none;
   }
 
-  .nkwapa-auth-showcase__inner {
-    padding: 22px 18px 8px;
-  }
-
-  .nkwapa-auth-logo {
-    width: 160px;
-  }
-
-  .nkwapa-auth-headline {
-    font-size: 1.8rem;
-  }
-
-  .nkwapa-auth-description {
-    font-size: 0.94rem;
-  }
-
-  .nkwapa-auth-panel__inner {
-    padding: 24px 18px 28px;
-  }
-
-  .nkwapa-auth-title {
-    font-size: 2rem;
-  }
-
-  .nkwapa-auth-panel__description {
-    font-size: 0.92rem;
-  }
-
   .nkwapa-form-options {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }
