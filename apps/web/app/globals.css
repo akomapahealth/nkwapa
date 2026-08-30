@@ -76,11 +76,38 @@
     --sidebar-border: 148 24% 70%;
     --sidebar-muted-foreground: 200 14% 32%;
     --radius: 0.625rem;
-    --chart-1: 188 100% 27%;
-    --chart-2: 47 100% 55%;
-    --chart-3: 191 60% 25%;
-    --chart-4: 43 60% 70%;
-    --chart-5: 200 25% 45%;
+    /*
+      Five series, derived and then measured -- see scripts/check-chart-palette.mjs, which runs
+      these same checks in CI. The palette this replaced was two brand hues at two lightnesses
+      plus a desaturated neighbour of the first, which put --chart-1 and --chart-5 at deltaE 6.1
+      under *normal* vision: two series a full-colour reader could not reliably separate.
+
+      Slots 1 and 2 keep the brand hues exactly (teal 188, gold 48) and move only lightness and
+      saturation, which is the derivation rule in MASTER.md section 2. They are no longer byte
+      equal to --primary and --secondary: at 27% the teal's chroma fell below the floor where a
+      hue stops carrying identity, and the gold at 55% was too light to be a reliable mark.
+    */
+    --chart-1: 188 99% 33%; /* #0191A7 teal    3.62:1 */
+    --chart-2: 48 97% 43%; /* #D8AD03 gold    2.05:1, see below */
+    --chart-3: 321 97% 29%; /* #92025F magenta 8.47:1 */
+    --chart-4: 246 99% 75%; /* #8D80FE violet  3.05:1 */
+    --chart-5: 20 99% 36%; /* #B73E01 rust    5.48:1 */
+
+    /*
+      The landing page's fourth accent, at the value it has always rendered.
+
+      It used to reach for --chart-3, which pinned a chart series token to marketing furniture and
+      meant the series ramp could not be re-derived without repainting the landing page. The
+      landing page is a Persuade surface with its own treatment (MASTER.md section 3), so it gets
+      its own token. Do not use it on a clinical view.
+    */
+    --landing-accent: 191 60% 25%;
+
+    /*
+      --chart-2 is the one slot below 3:1 on the card, and no yellow can clear it on a near-white
+      ground while still reading as yellow. Every chart that uses it therefore names its series in
+      a legend and labels the marks directly, so colour is never the only channel.
+    */
   }
 
   .dark {
@@ -128,11 +155,14 @@
     --sidebar: 155 20% 14%;
     --sidebar-border: 155 18% 26%;
     --sidebar-muted-foreground: 155 8% 66%;
-    --chart-1: 188 80% 50%;
-    --chart-2: 47 80% 60%;
-    --chart-3: 191 50% 35%;
-    --chart-4: 43 50% 45%;
-    --chart-5: 200 20% 55%;
+    /* Re-stepped for the dark card, not flipped from light: the band is narrower here
+       (OKLCH L 0.48-0.67) and every slot clears 3:1 on this surface. */
+    --chart-1: 188 100% 37%; /* #00A4BD teal    5.67:1 */
+    --chart-2: 48 99% 35%; /* #B28E01 gold    5.44:1 */
+    --chart-3: 326 55% 46%; /* #B6357E magenta 3.06:1 */
+    --chart-4: 246 96% 74%; /* #8A7DFC violet  5.17:1 */
+    --chart-5: 20 96% 41%; /* #CD4704 rust    3.62:1 */
+    --landing-accent: 191 50% 35%;
   }
 }
 
