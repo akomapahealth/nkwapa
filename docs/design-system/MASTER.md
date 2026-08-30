@@ -219,22 +219,35 @@ use this token on a clinical view.
 
 Defined under `.dark`. Dark mode inverts which side carries the ink: fills stay bright and take dark text. The tinted badge inverts too, becoming a dark tint of the hue carrying light ink.
 
-| Token                        | Value         | Hex       | Contrast            |
-| ---------------------------- | ------------- | --------- | ------------------- |
-| `--sidebar`                  | `155 20% 14%` | `#1D2B25` | 12.68:1             |
-| `--sidebar-border`           | `155 18% 26%` | `#364E44` | decorative          |
-| `--sidebar-muted-foreground` | `155 8% 66%`  | `#A1AFA9` | 6.51:1              |
-| `--primary`                  | `188 80% 47%` | `#18BED8` | 7.77:1 dark ink on  |
-| `--secondary`                | `47 85% 52%`  | `#EDC01D` | 10.00:1 dark ink on |
-| `--success`                  | `152 55% 50%` | `#39C684` | 7.89:1 dark ink on  |
-| `--warning`                  | `35 90% 58%`  | `#F4A434` | 8.43:1 dark ink on  |
-| `--input`                    | `200 14% 50%` | `#6E8591` | 4.74:1              |
-| `--info`                     | `200 60% 58%` | `#54A9D4` | workflow state      |
-| `--success-ink`              | `152 40% 74%` | `#A2D7BE` | 6.82:1 on its tint  |
-| `--warning-ink`              | `35 75% 74%`  | `#EEC58B` | 6.74:1 on its tint  |
-| `--info-ink`                 | `200 45% 74%` | `#9FC7DB` | 6.49:1 on its tint  |
+| Token                        | Value         | Hex       | Contrast               |
+| ---------------------------- | ------------- | --------- | ---------------------- |
+| `--sidebar`                  | `155 20% 14%` | `#1D2B25` | 12.68:1                |
+| `--sidebar-border`           | `155 18% 26%` | `#364E44` | decorative             |
+| `--sidebar-muted-foreground` | `155 8% 66%`  | `#A1AFA9` | 6.51:1                 |
+| `--primary`                  | `188 80% 47%` | `#18BED8` | 7.77:1 dark ink on     |
+| `--secondary`                | `47 85% 52%`  | `#EDC01D` | 10.00:1 dark ink on    |
+| `--success`                  | `152 55% 50%` | `#39C684` | 7.89:1 dark ink on     |
+| `--warning`                  | `35 90% 58%`  | `#F4A434` | 8.43:1 dark ink on     |
+| `--input`                    | `200 14% 50%` | `#6E8591` | 4.74:1                 |
+| `--info`                     | `200 60% 58%` | `#54A9D4` | workflow state         |
+| `--success-ink`              | `152 40% 74%` | `#A2D7BE` | 6.82:1 on its tint     |
+| `--warning-ink`              | `35 75% 74%`  | `#EEC58B` | 6.74:1 on its tint     |
+| `--info-ink`                 | `200 45% 74%` | `#9FC7DB` | 6.49:1 on its tint     |
+| `--destructive`              | `0 62% 66%`   | `#DE7373` | 5.48:1 as text on card |
 
 All other `.dark` values are unchanged and already correct.
+
+**`--destructive` is lighter in dark mode than in light, and carries dark ink.** That inversion is
+forced, not stylistic. `text-destructive` is how every field error, error notice and destructive
+menu item colours itself -- 32 call sites -- and at the previous `0 62% 45%` it measured **3.02:1**
+on the dark canvas, so every destructive word in the product failed AA in dark mode. One token
+cannot serve both uses at that lightness: text on the card needs L >= 60 and white on the fill
+needs L <= 54, and those windows do not overlap. Flipping `--destructive-foreground` to dark ink
+is the usual dark-theme answer and clears all four pairings at 66% -- 5.92:1 on the canvas, 5.48:1
+on the card, 4.67:1 on its own 12% tint, and 5.60:1 for the ink on the fill.
+
+It was found by `e2e/dark-mode.spec.js`, on `/appointments`, where the "Decline" action is the
+first thing axe reaches. Nothing had looked before, which is the whole argument for that spec.
 
 ### How dark mode is wired
 
