@@ -32,7 +32,7 @@ test('a failed settings read never offers an editable form', async ({ page }) =>
     clinic that had it on, having never once seen the real value.
   */
   await page.route('**/research/settings', async (route) => {
-    if (route.request().method() !== 'GET') {
+    if (route.request().resourceType() === 'document' || route.request().method() !== 'GET') {
       await route.continue();
       return;
     }
@@ -77,7 +77,15 @@ test('a failed export queue read offers a retry and leaves the request form usab
   const clinicId = await activeClinicId(page);
 
   await page.route('**/research/exports', async (route) => {
-    if (route.request().method() !== 'GET') {
+    /*
+      Let the page document through.
+
+      The route's own URL ends `/research/exports`, so this glob matches the navigation as well as
+      the API call, and fulfilling it served the injected JSON *as the page*. That is what made
+      this test fail in a full run and pass on its own -- whether the browser reused a cached
+      document decided whether the interception ever saw it.
+    */
+    if (route.request().resourceType() === 'document' || route.request().method() !== 'GET') {
       await route.continue();
       return;
     }

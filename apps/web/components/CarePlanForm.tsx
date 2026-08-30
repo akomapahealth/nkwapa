@@ -11,6 +11,7 @@ import { enqueueOutboxMutation } from '@/lib/outbox';
 import { SYNC_OPERATION } from '@/lib/outbox';
 import { Textarea } from '@/components/ui/textarea';
 import { InlineNotice } from '@/components/ops/OpsShared';
+import { claimEncounterRecord } from '@/lib/encounter-record';
 
 function generateId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -61,8 +62,9 @@ export function CarePlanForm({
     if (!canEdit || saving) return;
     setSaving(true);
     setError(null);
-    const existing = await db.care_plans.where('encounterId').equals(encounterId).first();
-    const carePlanId = existing?.id ?? generateId();
+    // Already reused its id, which is why it never had #91's bug. Sharing the helper keeps it
+    // that way, and adds the duplicate collapse and createdAt preservation it did not have.
+    const claimed = await claimEncounterRecord(db.care_plans, encounterId, generateId);
     const now = new Date().toISOString();
 
     const payload = {
@@ -75,14 +77,14 @@ export function CarePlanForm({
     };
 
     const record = {
-      id: carePlanId,
+      id: claimed.id,
       clinicId,
       encounterId,
       counselingGiven,
       medicationPrescribed,
       followUpDate: payload.followUpDate ?? undefined,
       notes: payload.notes ?? undefined,
-      createdAt: now,
+      createdAt: claimed.createdAt ?? now,
       updatedAt: now,
     };
 
@@ -91,7 +93,7 @@ export function CarePlanForm({
       await enqueueOutboxMutation(db, {
         clinicId,
         entityType: 'care_plan',
-        entityId: carePlanId,
+        entityId: claimed.id,
         operation: SYNC_OPERATION.UPSERT,
         payloadJson: payload,
       });

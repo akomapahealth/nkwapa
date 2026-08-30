@@ -18,6 +18,7 @@ import { enqueueOutboxMutation } from '@/lib/outbox';
 import { SYNC_OPERATION } from '@/lib/outbox';
 import { HYPERTENSION_CLASSIFICATIONS, HYPERTENSION_LABELS } from '@/lib/hypertension';
 import { InlineNotice } from '@/components/ops/OpsShared';
+import { claimEncounterRecord } from '@/lib/encounter-record';
 
 function generateId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -64,11 +65,39 @@ export function HypertensionForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /*
+    Re-seed when the assessment arrives.
+
+    `useState(initialData?.…)` only reads its argument on the first render, and the encounter page
+    loads this record asynchronously -- from the API, then from the local cache. The form
+    therefore mounted before the data existed and never caught up, so reopening an encounter that
+    had a saved assessment showed "Not classified" regardless of what was stored. Same shape as
+    DiabetesScreeningForm, which already does this.
+  */
+  useEffect(() => {
+    if (!initialData) return;
+    setClassification(initialData.classification ?? 'UNKNOWN');
+    setSuspected(initialData.suspected ?? false);
+    setConfirmed(initialData.confirmed ?? false);
+    setNotes(initialData.notes ?? '');
+  }, [initialData]);
+
   const handleSave = useCallback(async () => {
     if (!canEdit || saving) return;
     setSaving(true);
     setError(null);
-    const assessmentId = generateId();
+    /*
+      Reuse the encounter's existing row rather than minting a new id on every save.
+
+      This handler used to call generateId() unconditionally, so each save inserted another row
+      for the same encounter and the encounter page -- which reads with `.first()`, ordering
+      duplicate index keys by primary key -- could hand back an older classification. See #91.
+    */
+    const claimed = await claimEncounterRecord(
+      db.hypertension_assessments,
+      encounterId,
+      generateId,
+    );
     const now = new Date().toISOString();
 
     const payload = {
@@ -83,14 +112,15 @@ export function HypertensionForm({
     };
 
     const record = {
-      id: assessmentId,
+      id: claimed.id,
       clinicId,
       encounterId,
       classification: payload.classification,
       suspected: payload.suspected,
       confirmed: payload.confirmed,
       notes: payload.notes ?? undefined,
-      createdAt: now,
+      // Preserved, not restamped: an update is not a creation.
+      createdAt: claimed.createdAt ?? now,
       updatedAt: now,
     };
 
@@ -99,7 +129,7 @@ export function HypertensionForm({
       await enqueueOutboxMutation(db, {
         clinicId,
         entityType: 'hypertension_assessment',
-        entityId: assessmentId,
+        entityId: claimed.id,
         operation: SYNC_OPERATION.UPSERT,
         payloadJson: payload,
       });
@@ -138,8 +168,22 @@ export function HypertensionForm({
           <legend className="sr-only">Hypertension assessment details</legend>
           <div className="space-y-2">
             <Label htmlFor="classification">Classification</Label>
-            <Select value={classification} onValueChange={setClassification}>
-              <SelectTrigger>
+            {/*
+              The id belongs on the trigger, and `disabled` has to be repeated here.
+
+              `htmlFor="classification"` pointed at nothing, so the one control carrying the
+              clinical finding had no accessible name at all -- a screen reader announced an
+              unlabelled combobox. And Radix's Select is not a native control, so it does not
+              inherit the surrounding `fieldset disabled`: a finalized assessment's classification
+              was still changeable. MASTER.md section 10 calls out both; DiabetesScreeningForm
+              already does it this way.
+            */}
+            <Select
+              value={classification}
+              onValueChange={setClassification}
+              disabled={!canEdit || saving}
+            >
+              <SelectTrigger id="classification">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
