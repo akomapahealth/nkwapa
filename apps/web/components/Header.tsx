@@ -48,11 +48,12 @@ import {
 
 export function Header({
   sidebarCollapsed = false,
-  onToggleSidebar = () => undefined,
+  onToggleSidebar,
   mobileOpen = false,
   onMobileOpenChange = () => undefined,
 }: {
   sidebarCollapsed?: boolean;
+  /** Omitted where there is no sidebar to toggle, as on the patient portal. */
   onToggleSidebar?: () => void;
   mobileOpen?: boolean;
   onMobileOpenChange?: (open: boolean) => void;
@@ -226,23 +227,31 @@ export function Header({
           </SheetContent>
         </Sheet>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onToggleSidebar}
-          aria-expanded={!sidebarCollapsed}
-          aria-controls="workspace-sidebar"
-          className="hidden md:inline-flex"
-        >
-          {sidebarCollapsed ? (
-            <PanelLeft aria-hidden="true" className="h-[18px] w-[18px]" />
-          ) : (
-            <PanelLeftClose aria-hidden="true" className="h-[18px] w-[18px]" />
-          )}
-          <span className="sr-only">
-            {sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-          </span>
-        </Button>
+        {/*
+          Only where there is a sidebar. PortalLayout renders this Header without one, so the
+          button shipped there pointing aria-controls at an element that does not exist -- a
+          dangling reference axe flags on every portal page, and a control a screen reader
+          announces as collapsing navigation the patient does not have.
+        */}
+        {onToggleSidebar ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggleSidebar}
+            aria-expanded={!sidebarCollapsed}
+            aria-controls="workspace-sidebar"
+            className="hidden md:inline-flex"
+          >
+            {sidebarCollapsed ? (
+              <PanelLeft aria-hidden="true" className="h-[18px] w-[18px]" />
+            ) : (
+              <PanelLeftClose aria-hidden="true" className="h-[18px] w-[18px]" />
+            )}
+            <span className="sr-only">
+              {sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+            </span>
+          </Button>
+        ) : null}
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">

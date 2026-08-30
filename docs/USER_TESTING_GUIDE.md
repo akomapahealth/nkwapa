@@ -351,3 +351,53 @@ These areas are implemented but still worth extra regression attention:
 - portal invite and claim edge cases
 - duplicate patient merge and canonical-chart redirects
 - organization and zone-related assumptions in new features
+
+---
+
+## 17. What The Suite Now Covers, And What Only A Person Can
+
+Most of what this guide used to ask a person to do by hand is checked on every push. Read this
+before spending an afternoon on a matrix above: if a spec covers it, the spec has already run.
+
+### Automated — do not re-do these by hand
+
+| Check                                                           | Where                                                            |
+| --------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Every route at 375 / 640 / 768 / 1024 / 1440, no overflow       | `e2e/responsive-migration.spec.js` (staff + portal)              |
+| Patient portal renders, per route, signed in as a patient       | `e2e/portal.spec.js`                                             |
+| A patient is refused every staff surface                        | `e2e/portal.spec.js`                                             |
+| Dark mode renders and passes axe on staff and portal routes     | `e2e/dark-mode.spec.js`                                          |
+| Dark mode survives navigation without flashing light            | `e2e/dark-mode.spec.js`                                          |
+| Automatable WCAG rules on the chart and the portal              | `accessibility.spec.js`, `portal.spec.js`                        |
+| Focus is visible on every control the keyboard reaches          | `accessibility.spec.js`, `portal.spec.js`, `login-theme.spec.js` |
+| Login theme: typeface, brand fill, radius, no third-party fonts | `e2e/login-theme.spec.js`                                        |
+| Loading / empty / error / retry on the three #22 routes         | `e2e/route-fallbacks.spec.js`                                    |
+| Chart series palette, contrast and colour-blind separation      | `npm run design:check-charts`                                    |
+
+640 is in the width list because it is what 1280 becomes at 200% zoom.
+
+### Manual — genuinely irreducible
+
+Automated rules catch a real subset of accessibility defects and nothing more. These need a
+person, and they are the ones worth an afternoon:
+
+- [ ] **Does the focus order match the reading order?** A spec can prove every control takes focus
+      and shows a ring. It cannot tell you the order felt wrong.
+- [ ] **Do the labels mean anything?** `aria-label="Show help"` passes every rule and tells a
+      clinician nothing about which help.
+- [ ] **Rendered chart contrast.** axe reads DOM colours; a chart is painted into SVG from token
+      values, so the numbers are computed by `design:check-charts` and the _result_ is not
+      inspected by anything but an eye.
+- [ ] **A real screen reader.** VoiceOver or NVDA through one encounter, start to finish. Announced
+      order, whether a save is reported, whether an error is reachable from where focus lands.
+- [ ] **Clinical language.** Whether a volunteer who has never used the product can tell what a
+      field wants without asking. No rule measures this.
+- [ ] **The offline path on a genuinely bad connection**, not a throttled one — clinic wifi that
+      resolves DNS and then stalls is a different failure from being offline.
+
+### Before trusting a local full-suite run
+
+The two `patient request triage` specs in `appointments.spec.js` consume the pending requests they
+act on, so they fail on any second run. `npm run db:seed` will not restore them: it guards on
+presence, not state, and reports "Sample appointments already exist; skipping". Reset Postgres, or
+expect exactly those two failures and check nothing else moved.

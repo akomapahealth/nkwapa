@@ -142,8 +142,25 @@
     --success-ink: 152 40% 74%;
     --warning-ink: 35 75% 74%;
     --info-ink: 200 45% 74%;
-    --destructive: 0 62% 45%;
-    --destructive-foreground: 0 0% 100%;
+    /*
+      Lighter than light mode's, and carrying dark ink rather than white.
+
+      `text-destructive` is how every field error, error notice and destructive menu item colours
+      itself -- 32 call sites -- and at `0 62% 45%` it measured 3.02:1 on the dark canvas. Every
+      destructive word in the product failed AA in dark mode. Found by e2e/dark-mode.spec.js on
+      /appointments, where the "Decline" action is the first one axe reaches.
+
+      One token cannot serve both uses at 45%: text on the card needs L >= 60 and white on the
+      fill needs L <= 54, and the windows do not overlap. Flipping the on-colour to dark ink is
+      the usual dark-theme answer and clears all four pairings at 66%:
+
+        text on --background   5.92:1
+        text on --card         5.48:1
+        text on its own 12% tint  4.67:1   (the InlineNotice error tone)
+        --destructive-foreground on the fill  5.60:1
+    */
+    --destructive: 0 62% 66%;
+    --destructive-foreground: 200 25% 10%;
     /* Same split as light mode: --border stays a soft decorative divider, --input carries the
        3:1 control boundary and measures 4.74:1 against the dark canvas. */
     --border: 200 15% 20%;
