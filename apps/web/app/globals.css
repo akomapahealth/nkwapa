@@ -58,6 +58,11 @@
     --info-ink: 200 60% 26%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
+    /* The fourth ink, and the one that was missing while the rule above already forbade its
+       absence. --destructive is fine as text on a neutral surface (4.64:1 on the card) and fails
+       on every tint of itself: 4.29:1 at /5, 3.99:1 at /10, 3.13:1 at /25, 2.66:1 at /35. Same
+       hue and saturation, lightness moved only; measures 6.20:1 on a 10% tint over the card. */
+    --destructive-ink: 0 72% 38%;
     /* --border stays soft at 1.26:1 on the canvas. WCAG 1.4.11 requires 3:1 only for boundaries
        needed to identify a control; card edges and decorative dividers are exempt. Do not
        "fix" this value. --input is NOT exempt, which is why it is now split away from --border:
@@ -142,6 +147,10 @@
     --success-ink: 152 40% 74%;
     --warning-ink: 35 75% 74%;
     --info-ink: 200 45% 74%;
+    /* 8.06:1 on a 10% tint over the dark card. --destructive itself already clears that ground
+       here (4.79:1) after this mode's retune, but the token exists in both so a call site never
+       needs a `dark:` override -- the app has none left and should keep none. */
+    --destructive-ink: 0 50% 80%;
     /*
       Lighter than light mode's, and carrying dark ink rather than white.
 

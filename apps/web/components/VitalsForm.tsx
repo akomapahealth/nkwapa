@@ -737,7 +737,7 @@ export function VitalsForm({
             className={cn(
               'rounded-lg border p-3 text-sm',
               statusIsError
-                ? 'border-destructive/30 bg-destructive/5 text-destructive'
+                ? 'border-destructive/30 bg-destructive/5 text-destructive-ink'
                 : 'border-primary/25 bg-primary/5 text-foreground',
             )}
           >

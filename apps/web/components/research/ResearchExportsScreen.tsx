@@ -90,7 +90,7 @@ const STATUS_STYLES: Record<ExportStatus, string> = {
   APPROVED: 'border-info/25 bg-info/10 text-info-ink',
   PROCESSING: 'border-info/25 bg-info/10 text-info-ink',
   COMPLETED: 'border-success/25 bg-success/10 text-success-ink',
-  FAILED: 'border-destructive/25 bg-destructive/10 text-destructive',
+  FAILED: 'border-destructive/25 bg-destructive/10 text-destructive-ink',
   REJECTED: 'border-border bg-muted text-muted-foreground',
 };
 
@@ -422,7 +422,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
               <p
                 id="date-range-error"
                 role="alert"
-                className="rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+                className="rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive-ink"
               >
                 The end date must be on or after the start date.
               </p>
@@ -558,7 +558,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                           )}
 
                           {item.failureReason ? (
-                            <div className="rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                            <div className="rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive-ink">
                               <div className="mb-1 flex items-center gap-2 font-medium">
                                 <AlertTriangle aria-hidden="true" className="h-4 w-4" />
                                 Processing failed

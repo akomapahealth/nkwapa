@@ -281,7 +281,7 @@ export default function AdminClinicsPage() {
                           className={`rounded-full px-3 py-1 text-xs font-semibold ${
                             clinic.isActive
                               ? 'bg-success/12 text-success-ink'
-                              : 'bg-destructive/10 text-destructive'
+                              : 'bg-destructive/10 text-destructive-ink'
                           }`}
                         >
                           {clinic.isActive ? 'Active' : 'Inactive'}

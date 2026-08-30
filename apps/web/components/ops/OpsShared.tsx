@@ -103,7 +103,7 @@ export function InlineNotice({
 }) {
   const toneClass =
     tone === 'error'
-      ? 'border-destructive/25 bg-destructive/10 text-destructive'
+      ? 'border-destructive/25 bg-destructive/10 text-destructive-ink'
       : tone === 'success'
         ? 'border-success/25 bg-success/10 text-success-ink'
         : 'border-primary/20 bg-primary/10 text-foreground';

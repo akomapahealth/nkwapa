@@ -1078,7 +1078,7 @@ export default function StaffAppointmentsPage() {
             <div
               id="lifecycle-dialog-error"
               role="alert"
-              className="rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+              className="rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive-ink"
             >
               {lifecycleError}
             </div>
