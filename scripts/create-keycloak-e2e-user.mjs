@@ -52,6 +52,21 @@ const volunteerUser = {
   displayName: process.env.E2E_VOLUNTEER_NAME || 'E2E Volunteer',
 };
 
+/**
+ * The patient-portal identity.
+ *
+ * The Playwright suite had no patient, so every spec ran as staff and the portal -- roughly 2,900
+ * lines migrated in #86 -- had no automated coverage at all. Its own routes were the least
+ * verified part of the product precisely because nobody could sign in as the person who uses them.
+ */
+const patientUser = {
+  id: process.env.E2E_PATIENT_SUB || '00000000-0000-4000-8000-000000000046',
+  username: process.env.E2E_PATIENT_USERNAME || 'e2e.patient',
+  password: process.env.E2E_PATIENT_PASSWORD || 'NkwapaPatient!23',
+  email: process.env.E2E_PATIENT_EMAIL || 'e2e.patient@nkwapa.local',
+  displayName: process.env.E2E_PATIENT_NAME || 'E2E Patient',
+};
+
 function splitName(displayName) {
   const [firstName, ...lastNameParts] = displayName.trim().split(/\s+/);
   return {
@@ -267,14 +282,17 @@ async function main() {
   const resetUserId = await upsertUser(accessToken, resetUser);
   const doctorUserId = await upsertUser(accessToken, doctorUser);
   const volunteerUserId = await upsertUser(accessToken, volunteerUser);
+  const patientUserId = await upsertUser(accessToken, patientUser);
   await appendGithubEnv('E2E_STAFF_SUB', staffUserId);
   await appendGithubEnv('E2E_RESET_SUB', resetUserId);
   await appendGithubEnv('E2E_DOCTOR_SUB', doctorUserId);
   await appendGithubEnv('E2E_VOLUNTEER_SUB', volunteerUserId);
+  await appendGithubEnv('E2E_PATIENT_SUB', patientUserId);
   await appendGithubOutput('staff-user-id', staffUserId);
   await appendGithubOutput('reset-user-id', resetUserId);
   await appendGithubOutput('doctor-user-id', doctorUserId);
   await appendGithubOutput('volunteer-user-id', volunteerUserId);
+  await appendGithubOutput('patient-user-id', patientUserId);
 
   console.log(
     JSON.stringify(
@@ -304,6 +322,12 @@ async function main() {
           userId: volunteerUserId,
           username: volunteerUser.username,
           email: volunteerUser.email,
+        },
+        patient: {
+          requestedUserId: patientUser.id,
+          userId: patientUserId,
+          username: patientUser.username,
+          email: patientUser.email,
         },
       },
       null,

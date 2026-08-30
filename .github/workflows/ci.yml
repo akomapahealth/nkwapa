@@ -248,6 +248,13 @@ jobs:
       E2E_VOLUNTEER_PASSWORD: NkwapaVolunteer!23
       E2E_VOLUNTEER_NAME: E2E Volunteer
       E2E_VOLUNTEER_EMAIL: e2e.volunteer@nkwapa.local
+      # The portal identity. Without it every spec runs as staff and the patient portal has no
+      # coverage at all.
+      E2E_PATIENT_SUB: 00000000-0000-4000-8000-000000000046
+      E2E_PATIENT_USERNAME: e2e.patient
+      E2E_PATIENT_PASSWORD: NkwapaPatient!23
+      E2E_PATIENT_NAME: E2E Patient
+      E2E_PATIENT_EMAIL: e2e.patient@nkwapa.local
       MAILPIT_BASE_URL: http://localhost:8025
       CORS_ALLOWED_ORIGINS: http://localhost:3000
       PLAYWRIGHT_BASE_URL: http://localhost:3000

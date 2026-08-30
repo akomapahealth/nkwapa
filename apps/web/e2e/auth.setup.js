@@ -1,8 +1,13 @@
 const { test: setup, expect } = require('@playwright/test');
 const { ROLES } = require('../playwright/roles');
 
-async function authenticate(page, { username, password, storageState }) {
-  await page.goto('/login?next=%2Fdashboard');
+async function authenticate(page, { username, password, storageState, landingUrl = '/dashboard' }) {
+  /*
+    Where an identity lands is part of the identity. A patient-only account has no workspace
+    dashboard -- `getDefaultWorkspacePath` sends it to /portal -- so waiting for /dashboard would
+    simply time out, which is what made adding a portal identity look harder than it is.
+  */
+  await page.goto(`/login?next=${encodeURIComponent(landingUrl)}`);
   await expect(
     page.getByRole('button', { name: /continue to secure sign in|try secure sign in again/i }),
   ).toBeVisible();
@@ -25,8 +30,8 @@ async function authenticate(page, { username, password, storageState }) {
   await page.locator('input[name="password"]').fill(password);
   await page.locator('#kc-login, button[type="submit"]').click();
 
-  await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
-  // The main landmark rather than a named tile: the dashboard composes different sections per
+  await page.waitForURL((url) => url.pathname.startsWith(landingUrl), { timeout: 60_000 });
+  // The main landmark rather than a named tile: these screens compose different sections per
   // role, and this setup runs for identities that see different ones.
   await expect(page.locator('#main-content')).toBeVisible({ timeout: 60_000 });
 

@@ -19,6 +19,7 @@ import {
   AppointmentStatus,
   AppointmentRequestStatus,
   AppointmentRequestType,
+  PatientPortalInviteStatus,
 } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import {
@@ -472,6 +473,91 @@ async function main() {
       role: UserRole.VOLUNTEER,
     });
     console.log('Seeded deterministic single-role E2E volunteer.');
+  }
+
+  /*
+    The portal identity, and the patient record it opens.
+
+    The Playwright suite had no patient, so every spec signed in as staff and the portal -- about
+    2,900 lines migrated in #86 -- had no automated coverage at all. A portal user is not just a
+    role: `Patient.portalUserId` is what makes the portal show a chart rather than the
+    "ask your clinic to link this account" state, so the seed has to create both and join them.
+
+    Also stages a PENDING invite for a second, unclaimed patient, which is the only way to reach
+    the /claim-record screen.
+  */
+  const e2ePatientSub = (process.env.SEED_E2E_PATIENT_SUB ?? process.env.E2E_PATIENT_SUB)?.trim();
+  if (e2ePatientSub && researchSettingsOwnerId && hasEncryptionKey()) {
+    const portalUser = await ensureSingleRoleUser({
+      sub: e2ePatientSub,
+      displayName: process.env.SEED_E2E_PATIENT_NAME ?? 'E2E Patient',
+      email: process.env.SEED_E2E_PATIENT_EMAIL ?? 'e2e.patient@nkwapa.local',
+      clinicId: clinic.id,
+      role: UserRole.PATIENT,
+    });
+
+    const linked = await prisma.patient.findFirst({ where: { portalUserId: portalUser.id } });
+    if (linked) {
+      console.log('Portal-linked E2E patient already exists; skipping.');
+    } else {
+      const nationalIdPlain = 'GH-E2E-PORTAL-1';
+      const patient = await prisma.patient.create({
+        data: {
+          patientCode: await generatePatientCode(prisma),
+          primaryClinicId: clinic.id,
+          firstName: 'E2E',
+          lastName: 'Portal',
+          dob: new Date('1988-03-11'),
+          sex: Sex.FEMALE,
+          phoneE164: '+233201234599',
+          nationalIdType: NationalIdType.NATIONAL_ID,
+          nationalIdCiphertext: encryptNationalId(nationalIdPlain),
+          nationalIdHash: hashNationalId(nationalIdPlain),
+          nationalIdLast4: nationalIdLast4(nationalIdPlain),
+          createdByUserId: researchSettingsOwnerId,
+          portalUserId: portalUser.id,
+          residentialLocationStatus: PatientLocationStatus.RECORDED,
+          residentialRegion: GhanaRegion.GREATER_ACCRA,
+          residentialDistrict: 'Accra Metropolitan',
+          residentialCommunity: 'Osu',
+        },
+      });
+      console.log(`Seeded portal-linked E2E patient ${patient.patientCode}.`);
+    }
+
+    const existingInvite = await prisma.patientPortalInvite.findFirst({
+      where: { clinicId: clinic.id, status: PatientPortalInviteStatus.PENDING },
+    });
+    if (existingInvite) {
+      console.log('Pending portal invite already exists; skipping.');
+    } else {
+      const invitePlain = 'GH-E2E-UNCLAIMED-1';
+      const unclaimed = await prisma.patient.create({
+        data: {
+          patientCode: await generatePatientCode(prisma),
+          primaryClinicId: clinic.id,
+          firstName: 'E2E',
+          lastName: 'Unclaimed',
+          dob: new Date('1975-09-02'),
+          sex: Sex.MALE,
+          nationalIdType: NationalIdType.NATIONAL_ID,
+          nationalIdCiphertext: encryptNationalId(invitePlain),
+          nationalIdHash: hashNationalId(invitePlain),
+          nationalIdLast4: nationalIdLast4(invitePlain),
+          createdByUserId: researchSettingsOwnerId,
+        },
+      });
+      await prisma.patientPortalInvite.create({
+        data: {
+          clinicId: clinic.id,
+          patientId: unclaimed.id,
+          status: PatientPortalInviteStatus.PENDING,
+          email: process.env.SEED_E2E_CLAIM_EMAIL ?? 'e2e.claim@nkwapa.local',
+          createdByUserId: researchSettingsOwnerId,
+        },
+      });
+      console.log(`Seeded a pending portal invite for ${unclaimed.patientCode}.`);
+    }
   }
 
   if (researchSettingsOwnerId) {
