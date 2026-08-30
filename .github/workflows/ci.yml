@@ -261,6 +261,16 @@ jobs:
       MAILPIT_BASE_URL: http://localhost:8025
       CORS_ALLOWED_ORIGINS: http://localhost:3000
       PLAYWRIGHT_BASE_URL: http://localhost:3000
+      # The rate limiter is a production safety control, and the E2E suite is deliberately one
+      # user hammering the app: every page load calls /auth/whoami, whose default budget is 60 a
+      # minute. A long sequential run exhausts it and then fails whichever spec happens to be
+      # running, at ~34s, with "We couldn't confirm your access" -- a 429 resolves to `unavailable`.
+      # It has bitten this suite before; see the note in responsive-migration.spec.js. Raised for
+      # the E2E job only, so the limits themselves stay under test elsewhere.
+      RATE_LIMIT_AUTH_WHOAMI_LIMIT: '100000'
+      RATE_LIMIT_AUTH_ME_LIMIT: '100000'
+      RATE_LIMIT_SYNC_PULL_LIMIT: '100000'
+      RATE_LIMIT_SYNC_PUSH_LIMIT: '100000'
     steps:
       - uses: actions/checkout@v4
 
