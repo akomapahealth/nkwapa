@@ -2,21 +2,34 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { BadgeCheck, CircleAlert, ShieldCheck } from 'lucide-react';
+import { BadgeCheck, CircleAlert, MailQuestion, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, getErrorMessage, readApiError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { EmptyState, InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { InlineNotice } from '@/components/ops/OpsShared';
 
+/*
+  There is deliberately no RouteGuard here.
+
+  This page serves a user who has an invitation but no linked patient record yet, so they may
+  hold no clinic membership and no PATIENT role at all -- a permission guard would refuse
+  precisely the people the page exists for. The API agrees: POST /patients/me/claim-record is
+  behind JwtAuthGuard only. Protection is authentication plus SyncWithAuth, which redirects any
+  authenticated user without a pending claim away from this route once bootstrap resolves.
+*/
 export default function ClaimRecordPage() {
   const router = useRouter();
   const getToken = useAuth();
   const bootstrapCtx = useBootstrap();
   const bootstrap = bootstrapCtx?.bootstrap ?? null;
+  const isLoading = bootstrapCtx?.isLoading ?? true;
+  const bootstrapError = bootstrapCtx?.error ?? null;
   const pendingInvites = useMemo(() => bootstrap?.onboarding?.pendingInvites ?? [], [bootstrap]);
   const [selectedInviteId, setSelectedInviteId] = useState<string>('');
   const [patientCode, setPatientCode] = useState('');
@@ -58,21 +71,32 @@ export default function ClaimRecordPage() {
       });
 
       if (!response.ok) {
-        throw new Error(await response.text());
+        // readApiError rather than response.text(): the raw body can be an HTML error page or a
+        // JSON envelope, and both used to land on screen verbatim.
+        throw await readApiError(response);
       }
 
       setSuccess('Patient record claimed successfully. Loading your portal…');
       await bootstrapCtx?.refetch();
       router.replace('/portal');
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : String(requestError));
+      setError(
+        getErrorMessage(
+          requestError,
+          'We could not claim this record. Check the patient code and date of birth against your clinic card.',
+        ),
+      );
     } finally {
       setSubmitting(false);
     }
   };
 
+  const refreshInvitations = () => {
+    void bootstrapCtx?.refetch();
+  };
+
   return (
-    <div className="min-h-screen bg-clinical-grid px-4 py-10 md:px-6">
+    <div className="bg-clinical-grid min-h-screen px-4 py-10 md:px-6">
       <div className="mx-auto flex max-w-5xl flex-col gap-6">
         <Card className="overflow-hidden rounded-xl border-border bg-card shadow-sm">
           <CardContent className="grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
@@ -129,26 +153,63 @@ export default function ClaimRecordPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5 px-0 pb-0">
-                {pendingInvites.length === 0 ? (
-                  <InlineNotice tone="info">
-                    No pending patient invitation was found for this account. Ask clinic staff to
-                    create or refresh your portal invite from the patient record.
-                  </InlineNotice>
+                {/*
+                  The loading branch has to come first. Without it `pendingInvites` is [] while
+                  bootstrap is still in flight, so the page told a patient who does have an
+                  invitation that no invitation exists -- the one message guaranteed to make them
+                  stop and call the clinic.
+                */}
+                {isLoading ? (
+                  <div role="status" aria-live="polite" aria-busy="true">
+                    <span className="sr-only">Looking for your clinic invitation</span>
+                    <SectionSkeleton lines={3} />
+                  </div>
+                ) : bootstrapError ? (
+                  <InlineErrorState
+                    title="We couldn't check for your invitation"
+                    description={bootstrapError}
+                    onRetry={() => bootstrapCtx?.retry()}
+                    retryLabel="Check again"
+                  />
+                ) : pendingInvites.length === 0 ? (
+                  <EmptyState
+                    icon={MailQuestion}
+                    title="No pending invitation found"
+                    description="This account has no patient invitation waiting. Ask clinic staff to create or refresh your portal invite from your patient record, then check again."
+                    action={
+                      <Button variant="outline" onClick={refreshInvitations}>
+                        Check again
+                      </Button>
+                    }
+                  />
                 ) : (
-                  <div className="space-y-3">
+                  <fieldset className="space-y-3">
+                    <legend className="sr-only">Choose the clinic invitation to claim</legend>
                     {pendingInvites.map((invite) => {
                       const selected = invite.id === selectedInviteId;
                       return (
-                        <button
+                        /*
+                          A native radio, visually hidden, rather than a styled <button>. The
+                          buttons carried the selection in colour alone, so a screen reader
+                          announced four identical unlabelled controls. This gets correct
+                          single-select semantics and arrow-key navigation for free.
+                        */
+                        <label
                           key={invite.id}
-                          type="button"
-                          onClick={() => setSelectedInviteId(invite.id)}
-                          className={`w-full rounded-lg border p-4 text-left transition-all ${
+                          className={`block w-full cursor-pointer rounded-lg border p-4 text-left transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 ${
                             selected
                               ? 'border-primary bg-primary/5'
                               : 'border-border/70 bg-card hover:border-primary/40'
                           }`}
                         >
+                          <input
+                            type="radio"
+                            name="pendingInvite"
+                            value={invite.id}
+                            checked={selected}
+                            onChange={() => setSelectedInviteId(invite.id)}
+                            className="sr-only"
+                          />
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="font-semibold text-foreground">{invite.patientName}</p>
                             <Badge variant="secondary" className="rounded-full">
@@ -165,10 +226,10 @@ export default function ClaimRecordPage() {
                             {invite.email ? <span>Email match: {invite.email}</span> : null}
                             {invite.phoneE164 ? <span>Phone match: {invite.phoneE164}</span> : null}
                           </div>
-                        </button>
+                        </label>
                       );
                     })}
-                  </div>
+                  </fieldset>
                 )}
 
                 {selectedInvite ? (
@@ -181,31 +242,57 @@ export default function ClaimRecordPage() {
                       </p>
                     </div>
                     <div className="space-y-3">
-                      <Input
-                        value={patientCode}
-                        onChange={(event) => setPatientCode(event.target.value)}
-                        placeholder="Patient code"
-                      />
-                      <Input
-                        type="date"
-                        value={dob}
-                        onChange={(event) => setDob(event.target.value)}
-                      />
+                      {/* Both fields were placeholder-only, and the date field had no
+                          accessible name at all. */}
+                      <div className="space-y-1.5">
+                        <Label htmlFor="claim-patient-code">Patient code</Label>
+                        <Input
+                          id="claim-patient-code"
+                          value={patientCode}
+                          onChange={(event) => setPatientCode(event.target.value)}
+                          placeholder={selectedInvite.patientCode}
+                          aria-describedby="claim-patient-code-hint"
+                          autoComplete="off"
+                        />
+                        <p id="claim-patient-code-hint" className="text-xs text-muted-foreground">
+                          Printed on your clinic card, above your name.
+                        </p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="claim-dob">Date of birth</Label>
+                        <Input
+                          id="claim-dob"
+                          type="date"
+                          value={dob}
+                          onChange={(event) => setDob(event.target.value)}
+                        />
+                      </div>
                     </div>
                     {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
                     {success ? <InlineNotice tone="success">{success}</InlineNotice> : null}
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                      <Button
-                        onClick={() => void handleSubmit()}
-                        disabled={!selectedInviteId || !patientCode || !dob || submitting}
-                      >
-                        {submitting ? 'Claiming…' : 'Claim patient record'}
-                      </Button>
-                      <Button variant="outline" onClick={() => window.location.reload()}>
-                        Refresh invitations
-                      </Button>
-                    </div>
+                    <Button
+                      onClick={() => void handleSubmit()}
+                      disabled={!selectedInviteId || !patientCode || !dob || submitting}
+                    >
+                      {submitting ? 'Claiming…' : 'Claim patient record'}
+                    </Button>
                   </div>
+                ) : null}
+
+                {/*
+                  Outside the invite branch on purpose. This sat inside it, so the one case that
+                  needs a refresh -- no invitations showing yet -- was the one case with no way
+                  to ask for one. It also called window.location.reload(), which threw away the
+                  session check and every warm route to re-fetch a single object.
+                */}
+                {!isLoading && pendingInvites.length > 0 ? (
+                  <Button
+                    variant="outline"
+                    onClick={refreshInvitations}
+                    disabled={bootstrapCtx?.isRefreshing}
+                  >
+                    {bootstrapCtx?.isRefreshing ? 'Refreshing…' : 'Refresh invitations'}
+                  </Button>
                 ) : null}
               </CardContent>
             </section>
