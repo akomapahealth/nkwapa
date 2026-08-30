@@ -496,11 +496,21 @@ render an addendum as though it replaced what it corrects.
 
 ### Known gap, tracked separately
 
-`HypertensionForm` calls `generateId()` on every save, so each save inserts a new assessment row
-rather than updating the existing one -- append-only behaviour by accident, with no UI
-acknowledging it. Compare `CarePlanForm`, which looks the existing record up first. Fixing it
-changes how a clinical record is written, which #82's "no domain changes" non-goal puts outside
-that issue.
+`HypertensionForm` calls `generateId()` on every save, so each save writes a new row into the local
+Dexie table rather than replacing the previous one. The encounter page reads it back with
+`.where('encounterId').equals(...).first()`, which orders duplicate index keys by primary key --
+random UUIDs -- so a second save can make the encounter redisplay the _older_ classification.
+
+The server is safe: `encounterId` is `@unique` and the sync handler upserts on it, so nothing
+duplicates or fails to sync. The damage is confined to what the clinician is shown.
+
+Compare `CarePlanForm`, which looks the existing record up first and reuses its id, and
+`DiabetesScreeningForm`, which holds the id in a ref. `HypertensionForm` is the only one of the
+four that gets this wrong.
+
+Tracked in [#91](https://github.com/akomapahealth/nkwapa/issues/91). It was left out of #61
+because fixing it changes how a clinical record is written, which #82's "no domain changes"
+non-goal puts outside that issue.
 
 ---
 
