@@ -23,9 +23,21 @@ export const dataGridSx: SxProps<Theme> = {
   overflow: 'hidden',
   fontFamily: 'var(--font-body), system-ui, sans-serif',
   color: 'hsl(var(--foreground))',
-  '& .MuiDataGrid-columnHeaders': {
+  /*
+    MUI X v8 paints the header and pinned surfaces from its own CSS variables, which default to
+    the MUI theme's paper colour -- and the MUI theme here is the default light one. Styling
+    `.MuiDataGrid-columnHeaders` alone therefore left white underneath: in dark mode the header
+    label resolved to `--foreground` (near-white) on that white, measuring 1.16:1. Every data grid
+    in the product had unreadable column headers in dark mode, which is precisely the defect a
+    per-group dark pass was meant to catch and #82 recorded as never having happened.
+  */
+  '--DataGrid-containerBackground': 'hsl(var(--muted))',
+  '--DataGrid-pinnedBackground': 'hsl(var(--card))',
+  '& .MuiDataGrid-columnHeaders, & .MuiDataGrid-columnHeader': {
     backgroundColor: 'hsl(var(--muted))',
     borderBottom: '1px solid hsl(var(--border))',
+  },
+  '& .MuiDataGrid-columnHeaders': {
     position: 'sticky',
     top: 0,
     zIndex: 2,

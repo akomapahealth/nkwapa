@@ -27,6 +27,8 @@ import {
   nationalIdLast4,
   hasEncryptionKey,
   generatePatientCode,
+  confirmedVisitStart,
+  terminalVisitStart,
 } from '../index';
 import { seedDrugs } from './seed-drugs';
 
@@ -147,8 +149,12 @@ async function ensureSingleRoleUser(params: {
  * staff screen could do that. Rather than leave the suite unable to reach its own subject, seed one
  * appointment in each state plus the two request shapes a patient can open.
  *
- * Times are relative to the run so that `complete` and `no-show`, which the API refuses before the
- * start time, are exercisable and the confirmed visit stays in the future.
+ * Times are placed against the Monday-start week the staff schedule renders, not against the
+ * clock, because the schedule only ever shows the week containing today. See
+ * `src/appointment-fixture-window.ts`.
+ *
+ * The guard below is on the demo *patient*, not on the appointments, so deleting appointments
+ * alone will not cause this to run again -- remove the patient, which cascades.
  */
 async function seedSampleAppointments(
   prisma: PrismaClient,
@@ -187,14 +193,29 @@ async function seedSampleAppointments(
 
   const hours = (offset: number) => new Date(Date.now() + offset * 60 * 60 * 1000);
   const dateOnly = (date: Date) => new Date(`${date.toISOString().slice(0, 10)}T00:00:00.000Z`);
+  const plusHours = (from: Date, offset: number) =>
+    new Date(from.getTime() + offset * 60 * 60 * 1000);
+
+  /*
+    Placed against the week the schedule actually shows, not against the clock.
+
+    The staff schedule renders exactly one Monday-start week, the one containing today. These
+    fixtures used to sit at `now + 26h` and `now - 48h`, which fall outside that week near its
+    edges -- the confirmed row crossed into next Monday on any Sunday, and the terminal rows fell
+    into the previous week on a Monday or Tuesday. See appointment-fixture-window.ts, which keeps
+    the original offsets wherever they are safe and clamps them where they are not.
+  */
+  const seededAt = new Date();
+  const confirmedStart = confirmedVisitStart(seededAt);
+  const terminalStart = terminalVisitStart(seededAt);
 
   // Confirmed and still ahead: the row every lifecycle action is applied to.
   const confirmed = await prisma.appointment.create({
     data: {
       clinicId,
       patientId: patient.id,
-      startsAt: hours(26),
-      endsAt: hours(27),
+      startsAt: confirmedStart,
+      endsAt: plusHours(confirmedStart, 1),
       status: AppointmentStatus.CONFIRMED,
       notes: 'Blood pressure review',
     },
@@ -204,26 +225,28 @@ async function seedSampleAppointments(
   // something to show without a test having to create them first.
   await prisma.appointment.createMany({
     data: [
+      // Staggered by an hour rather than by a day: a day apart put the older two outside the
+      // visible week for most of it, and nothing depends on the spacing, only on the statuses.
       {
         clinicId,
         patientId: patient.id,
-        startsAt: hours(-48),
-        endsAt: hours(-47),
+        startsAt: terminalStart,
+        endsAt: plusHours(terminalStart, 1),
         status: AppointmentStatus.COMPLETED,
         notes: 'Reviewed home readings',
       },
       {
         clinicId,
         patientId: patient.id,
-        startsAt: hours(-72),
-        endsAt: hours(-71),
+        startsAt: plusHours(terminalStart, 1),
+        endsAt: plusHours(terminalStart, 2),
         status: AppointmentStatus.CANCELLED,
       },
       {
         clinicId,
         patientId: patient.id,
-        startsAt: hours(-96),
-        endsAt: hours(-95),
+        startsAt: plusHours(terminalStart, 2),
+        endsAt: plusHours(terminalStart, 3),
         status: AppointmentStatus.NO_SHOW,
       },
     ],
