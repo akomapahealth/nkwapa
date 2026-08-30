@@ -207,8 +207,20 @@ export default function DashboardPage() {
                 onClick={() => void fetchDashboard(true)}
                 disabled={loading}
               >
-                <RefreshCw className={loading ? 'animate-spin' : ''} />
-                {loading ? 'Refreshing' : 'Refresh'}
+                <RefreshCw
+                  aria-hidden="true"
+                  className={loading ? 'animate-spin motion-reduce:animate-none' : ''}
+                />
+                {/*
+                  The label stays put. Swapping it for "Refreshing" grew the button by 19px,
+                  measured, which moved everything beside it in the header every time someone
+                  refreshed. The spinner carries the state visually and the live region carries it
+                  for assistive technology, so nothing is lost by keeping the word still.
+                */}
+                Refresh
+                <span aria-live="polite" className="sr-only">
+                  {loading ? 'Refreshing the dashboard' : ''}
+                </span>
               </Button>
             ) : null
           }

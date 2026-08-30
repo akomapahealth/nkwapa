@@ -272,7 +272,10 @@ export default function RemindersPage() {
                   disabled={loading}
                   className="flex-1 rounded-lg"
                 >
-                  {loading ? 'Loading...' : 'Apply filters'}
+                  Apply filters
+                  <span aria-live="polite" className="sr-only">
+                    {loading ? 'Applying filters' : ''}
+                  </span>
                 </Button>
                 <Button
                   type="button"
@@ -392,7 +395,10 @@ export default function RemindersPage() {
                   disabled={loadingMore}
                   className="rounded-lg"
                 >
-                  {loadingMore ? 'Loading...' : 'Load more'}
+                  Load more
+                  <span aria-live="polite" className="sr-only">
+                    {loadingMore ? 'Loading more results' : ''}
+                  </span>
                 </Button>
               </div>
             )}

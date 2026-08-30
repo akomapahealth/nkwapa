@@ -331,7 +331,10 @@ export function ChatConversation({
             disabled={loading}
             className="cursor-pointer self-center py-2 text-xs text-muted-foreground hover:underline"
           >
-            {loading ? 'Loading...' : 'Load older messages'}
+            Load older messages
+            <span aria-live="polite" className="sr-only">
+              {loading ? 'Loading older messages' : ''}
+            </span>
           </button>
         )}
       </div>
