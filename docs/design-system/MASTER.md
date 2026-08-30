@@ -39,11 +39,34 @@ This is why `--primary` is `188 100% 27%`. It is the logo teal darkened five poi
 
 The logo gold requires no compromise. Dark ink on it measures **9.90:1**, so `--secondary` is the exact logo value.
 
-### Known drift
+### Resolved: the Keycloak login theme is on these values
 
-The Keycloak login theme carries a **parallel 14-variable token system** (`--nkwapa-bg`, `--nkwapa-primary`, and so on) whose values match nothing here, and it uses the landing-page typefaces rather than the application's. Tracked in [#83](https://github.com/akomapahealth/nkwapa/issues/83); out of scope for #61.
+The login theme used to carry a **parallel 14-variable token system** (`--nkwapa-bg`,
+`--nkwapa-primary`, and so on) whose values matched nothing here, and to use the landing-page
+typefaces rather than the application's. Closed by [#83](https://github.com/akomapahealth/nkwapa/issues/83).
 
-The mark itself is fine: `template.ftl` serves `img/nkwapa-logo.png`, byte-identical to the app's. But `resources/img/nkwapa-logo.svg` in the same directory is a different mark entirely (navy square, `N` monogram, `#0C4A5B` / `#22C7B9`), unreferenced by any template or stylesheet. It is dead weight to delete, not a logo to fix.
+A Keycloak theme cannot import `globals.css` -- different origin, different process -- so
+`infra/nkwapa/keycloak/themes/nkwapa/login/resources/css/styles.css` still declares its own
+variables. They now mirror this document token for token, each one annotated with the token it
+mirrors, under a header saying the two files must move together. **Changing a value in section 3
+means changing it there too.** `apps/web/e2e/login-theme.spec.js` is what notices if they part
+company again: it asserts the typeface, the primary fill, the radius ceiling and the absence of
+any third-party font request.
+
+Two things worth carrying forward from that work:
+
+- The theme **self-hosts** IBM Plex Sans and Source Serif 4 as `latin`-subset variable woff2
+  (~91 KB together, with their OFL licences). It previously blocked first paint on two serialized
+  `@import`s to `fonts.googleapis.com` and `fonts.cdnfonts.com`. The application still loads its
+  own fonts the old way; see section 6.
+- The theme is **deliberately light-only**. The app's theme choice lives in `localStorage` on the
+  web origin, which Keycloak cannot read, so honouring `prefers-color-scheme` there would give a
+  dark-OS user a dark login followed by a light workspace -- worse drift than staying light.
+
+The mark was never the problem: `template.ftl` serves `img/nkwapa-logo.png`, byte-identical to the
+app's. The stale `nkwapa-logo.svg` beside it (navy square, `N` monogram, `#0C4A5B` / `#22C7B9`),
+`nkwapa-logo-2.png`, and `nkwapa-clinic-illustration.svg` were unreferenced by any template or
+stylesheet and are deleted -- about 820 KB.
 
 ---
 
@@ -368,7 +391,7 @@ These are the remaining half of #61 and are **not** blockers for #66, #22, or #6
 - **Clinical form rules.** Units, validation timing, required and optional markers, error recovery, locked-record and addendum display. These are interaction contracts, not tokens, and need a pass over the real encounter forms.
 - **Wireframes.** #61 asks for approved wireframes for key workflows on desktop and mobile. Not attempted, and not achievable inside demo week.
 - **Chart palette rework.** See the limitation in section 3.
-- **Keycloak brand alignment.** See section 2.
+- ~~**Keycloak brand alignment.**~~ Done; see section 2.
 
 ---
 
