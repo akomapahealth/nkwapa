@@ -77,3 +77,41 @@ for (const route of ROUTES) {
     }
   });
 }
+
+/*
+  The portal, at the same widths.
+
+  It needs its own block because it needs its own identity: a staff account has no portal, which
+  is why roughly 2,900 lines of migrated portal screens sat outside this pass entirely. The
+  breakpoint list and the load-wide-then-resize sequence are the same, for the same reasons.
+*/
+test.describe('the patient portal', () => {
+  test.use({ storageState: storageStateFor('patient') });
+
+  const PORTAL_ROUTES = [
+    { path: '/portal', heading: /your care snapshot/i },
+    { path: '/portal/health', heading: /blood pressure trend/i },
+    { path: '/portal/appointments', heading: /appointments and requests/i },
+    { path: '/portal/appointments/request', heading: /visit request details/i },
+    { path: '/portal/self-reports/new', heading: /measurement details/i },
+  ];
+
+  for (const route of PORTAL_ROUTES) {
+    test(`${route.path} stays inside the viewport at every supported width`, async ({ page }) => {
+      await page.setViewportSize(BREAKPOINTS[BREAKPOINTS.length - 1]);
+      await page.goto(route.path);
+      await expect(page.getByRole('heading', { name: route.heading }).first()).toBeVisible({
+        timeout: 15_000,
+      });
+
+      for (const { name, width, height } of BREAKPOINTS) {
+        await page.setViewportSize({ width, height });
+        const overflow = await horizontalOverflow(page);
+        expect(
+          overflow,
+          `${route.path} scrolls horizontally on ${name} (${width}px)`,
+        ).toBeLessThanOrEqual(1);
+      }
+    });
+  }
+});
