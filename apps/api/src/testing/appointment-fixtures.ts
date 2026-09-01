@@ -227,6 +227,13 @@ export function createAppointmentCollaboratorMocks() {
       scheduleAppointmentEmailReminder: jest.fn().mockResolvedValue(undefined),
       scheduleAppointmentReminderNoContact: jest.fn().mockResolvedValue(undefined),
       suppressQueuedAppointmentReminders: jest.fn().mockResolvedValue(undefined),
+      sendNotificationNow: jest.fn().mockResolvedValue({
+        id: 'delivery-1',
+        status: 'QUEUED',
+        failureReason: null,
+        sentAt: null,
+        createdAt: new Date('2026-03-21T09:00:00.000Z'),
+      }),
     },
     emailDeliverabilityService: {
       assertDomainAcceptsEmail: jest.fn().mockResolvedValue(undefined),

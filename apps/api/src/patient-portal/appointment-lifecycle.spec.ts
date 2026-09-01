@@ -679,4 +679,61 @@ describe('appointment lifecycle', () => {
       expect(prisma.appointmentRequest.create).not.toHaveBeenCalled();
     });
   });
+
+  describe('lifecycle emails', () => {
+    beforeEach(() => {
+      prisma.clinic.findUnique.mockResolvedValue({
+        name: 'Cape Coast Clinic',
+        timezone: 'Africa/Accra',
+      });
+    });
+
+    it('tells the patient when their appointment moves, not just the portal', async () => {
+      // Rescheduling suppressed the old reminder and queued a new one for 24 hours
+      // before the new time. Until that fires, a patient who does not open the portal
+      // has no idea the appointment moved.
+      prisma.appointment.findFirst.mockResolvedValue(
+        appointmentFixture({ status: AppointmentStatus.CONFIRMED }),
+      );
+
+      await invoke('reschedule');
+
+      const call = collaborators.reminderService.sendNotificationNow.mock.calls.find(
+        ([args]) => args.templateKey === 'APPOINTMENT_RESCHEDULED_V1',
+      );
+      expect(call).toBeDefined();
+      expect(call![0].payload.previousStartsAt).toBeDefined();
+      expect(call![0].appointmentId).toBe(FIXTURE_APPOINTMENT_ID);
+    });
+
+    it('tells the patient why an appointment was cancelled', async () => {
+      prisma.appointment.findFirst.mockResolvedValue(
+        appointmentFixture({ status: AppointmentStatus.CONFIRMED }),
+      );
+
+      await invoke('cancel');
+
+      const call = collaborators.reminderService.sendNotificationNow.mock.calls.find(
+        ([args]) => args.templateKey === 'APPOINTMENT_CANCELLED_V1',
+      );
+      expect(call).toBeDefined();
+      expect(call![0].payload.reason).toBe('Clinic closed');
+    });
+
+    it.each([
+      ['complete', 'APPOINTMENT_COMPLETED'],
+      ['no-show', 'APPOINTMENT_NO_SHOW'],
+    ])('sends no lifecycle email for %s', async (action) => {
+      // These are internal outcomes. Emailing a patient that they were marked a no-show
+      // is not a notification, it is an accusation.
+      prisma.appointment.findFirst.mockResolvedValue(
+        appointmentFixture({ status: AppointmentStatus.CONFIRMED, startsAt: STARTED.startsAt }),
+      );
+      collaborators.reminderService.sendNotificationNow.mockClear();
+
+      await invoke(action as AppointmentLifecycleAction).catch(() => undefined);
+
+      expect(collaborators.reminderService.sendNotificationNow).not.toHaveBeenCalled();
+    });
+  });
 });

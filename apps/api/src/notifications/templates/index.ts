@@ -2,6 +2,11 @@ import type { EmailTemplate, RenderedMessage } from './types';
 import { APPOINTMENT_REMINDER_V1 } from './appointment-reminder';
 import { FOLLOWUP_REMINDER_V1 } from './followup-reminder';
 import { PORTAL_INVITE_V1 } from './portal-invite';
+import {
+  APPOINTMENT_CANCELLED_V1,
+  APPOINTMENT_CONFIRMED_V1,
+  APPOINTMENT_RESCHEDULED_V1,
+} from './appointment-lifecycle';
 
 /**
  * Every message the app can send, keyed by the value stored in `Reminder.templateKey`.
@@ -16,6 +21,9 @@ export const EMAIL_TEMPLATES: Record<string, EmailTemplate<any>> = {
   [FOLLOWUP_REMINDER_V1.key]: FOLLOWUP_REMINDER_V1,
   [APPOINTMENT_REMINDER_V1.key]: APPOINTMENT_REMINDER_V1,
   [PORTAL_INVITE_V1.key]: PORTAL_INVITE_V1,
+  [APPOINTMENT_CONFIRMED_V1.key]: APPOINTMENT_CONFIRMED_V1,
+  [APPOINTMENT_RESCHEDULED_V1.key]: APPOINTMENT_RESCHEDULED_V1,
+  [APPOINTMENT_CANCELLED_V1.key]: APPOINTMENT_CANCELLED_V1,
 };
 
 export type TemplateKey = keyof typeof EMAIL_TEMPLATES;

@@ -635,6 +635,14 @@ export class PatientPortalService {
       requestId,
     );
     await this.scheduleAppointmentReminder(after.patient, after, actorUserId, requestId);
+    await this.sendAppointmentLifecycleEmail(
+      'APPOINTMENT_RESCHEDULED_V1',
+      after.patient,
+      after,
+      actorUserId,
+      { previousStartsAt: before.startsAt },
+      requestId,
+    );
 
     return this.serializeScheduledAppointment(after);
   }
@@ -677,6 +685,14 @@ export class PatientPortalService {
       appointmentId,
       actorUserId,
       'APPOINTMENT_CANCELLED',
+      requestId,
+    );
+    await this.sendAppointmentLifecycleEmail(
+      'APPOINTMENT_CANCELLED_V1',
+      after.patient,
+      after,
+      actorUserId,
+      { reason },
       requestId,
     );
 
@@ -850,6 +866,14 @@ export class PatientPortalService {
       updatedRequest.patient,
       appointment,
       actorUserId,
+      requestId,
+    );
+    await this.sendAppointmentLifecycleEmail(
+      'APPOINTMENT_CONFIRMED_V1',
+      updatedRequest.patient,
+      appointment,
+      actorUserId,
+      {},
       requestId,
     );
 
@@ -2440,6 +2464,56 @@ export class PatientPortalService {
         requestId,
       });
     }
+  }
+
+  /**
+   * Tell the patient their appointment changed.
+   *
+   * Distinct from the 24-hour reminder: a patient who learns of a cancellation only by
+   * opening the portal has effectively not been told. Linked to the appointment for
+   * traceability, but excluded from its reminder counts by template key.
+   */
+  private async sendAppointmentLifecycleEmail(
+    templateKey:
+      | 'APPOINTMENT_CONFIRMED_V1'
+      | 'APPOINTMENT_RESCHEDULED_V1'
+      | 'APPOINTMENT_CANCELLED_V1',
+    patient: { id: string; patientCode: string; firstName?: string | null; email: string | null },
+    appointment: { id: string; clinicId: string; startsAt: Date },
+    actorUserId: string,
+    extra: { previousStartsAt?: Date | null; reason?: string | null } = {},
+    requestId?: string,
+  ) {
+    if (!patient.email) {
+      // Not a failure worth recording: a patient with no email on file is a normal
+      // registration, and the SMS reminder path already covers them.
+      return;
+    }
+
+    const clinic = await this.prisma.clinic.findUnique({
+      where: { id: appointment.clinicId },
+      select: { name: true, timezone: true },
+    });
+
+    await this.reminderService.sendNotificationNow({
+      clinicId: appointment.clinicId,
+      recipientType: 'PATIENT',
+      patientId: patient.id,
+      appointmentId: appointment.id,
+      toAddress: patient.email,
+      templateKey,
+      payload: {
+        clinicName: clinic?.name ?? 'Your clinic',
+        timezone: clinic?.timezone ?? undefined,
+        patientCode: patient.patientCode,
+        patientFirstName: patient.firstName ?? null,
+        startsAt: appointment.startsAt.toISOString(),
+        previousStartsAt: extra.previousStartsAt?.toISOString() ?? null,
+        reason: extra.reason ?? null,
+      },
+      actorUserId,
+      requestId,
+    });
   }
 
   private async assertAppointmentAssignee(
