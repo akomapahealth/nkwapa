@@ -65,6 +65,13 @@ export interface PatientPortalAccessSummary {
     phoneE164: string | null;
     createdAt: string;
     expiresAt: string | null;
+    /** Newest invite email attempt, or null when the invite is phone-only. */
+    emailDelivery: {
+      status: string;
+      failureReason: string | null;
+      sentAt: string | null;
+      createdAt: string;
+    } | null;
   }>;
 }
 
@@ -385,6 +392,15 @@ export class PatientService {
         },
         orderBy: { createdAt: 'desc' },
         take: 5,
+        include: {
+          // Only the newest attempt. Staff want to know whether the invite reached the
+          // patient right now, not the full resend history.
+          reminders: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: { status: true, failureReason: true, sentAt: true, createdAt: true },
+          },
+        },
       }),
     ]);
 
@@ -396,14 +412,25 @@ export class PatientService {
       linkedUserId: patient.portalUserId ?? null,
       linkedKeycloakSub: accountLink?.keycloakSub ?? null,
       mergedIntoPatientId: null,
-      invites: invites.map((invite) => ({
-        id: invite.id,
-        status: invite.status,
-        email: invite.email,
-        phoneE164: invite.phoneE164,
-        createdAt: invite.createdAt.toISOString(),
-        expiresAt: invite.expiresAt?.toISOString() ?? null,
-      })),
+      invites: invites.map((invite) => {
+        const delivery = invite.reminders[0] ?? null;
+        return {
+          id: invite.id,
+          status: invite.status,
+          email: invite.email,
+          phoneE164: invite.phoneE164,
+          createdAt: invite.createdAt.toISOString(),
+          expiresAt: invite.expiresAt?.toISOString() ?? null,
+          emailDelivery: delivery
+            ? {
+                status: delivery.status,
+                failureReason: delivery.failureReason,
+                sentAt: delivery.sentAt?.toISOString() ?? null,
+                createdAt: delivery.createdAt.toISOString(),
+              }
+            : null,
+        };
+      }),
     };
   }
 }

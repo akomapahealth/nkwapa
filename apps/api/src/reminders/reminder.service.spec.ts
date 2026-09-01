@@ -81,6 +81,95 @@ describe('ReminderService', () => {
     );
   });
 
+  describe('sendNotificationNow', () => {
+    const base = {
+      clinicId: 'clinic-1',
+      recipientType: 'PATIENT' as const,
+      patientId: 'patient-1',
+      toAddress: 'ama@example.org',
+      templateKey: 'PORTAL_INVITE_V1',
+      payload: { patientCode: 'NKP-2026-000001' },
+      actorUserId: 'manager-1',
+    };
+
+    it('queues immediately rather than sending inside the request transaction', async () => {
+      // The whole request runs in one Postgres transaction, so an inline SMTP call
+      // would hold a database connection open for a network round trip.
+      await service.sendNotificationNow(base);
+
+      expect(prisma.reminder.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          channel: 'EMAIL',
+          templateKey: 'PORTAL_INVITE_V1',
+          status: 'QUEUED',
+          recipientType: 'PATIENT',
+        }),
+      });
+      expect(reminderQueue.add.mock.calls[0][2].delay).toBe(0);
+    });
+
+    it('records a visible failure when the recipient has no address', async () => {
+      // Skipping silently would leave staff believing an invite went out.
+      await service.sendNotificationNow({ ...base, toAddress: null });
+
+      expect(prisma.reminder.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          status: 'FAILED',
+          failureReason: 'NO_CONTACT_METHOD',
+        }),
+      });
+      expect(reminderQueue.add).not.toHaveBeenCalled();
+    });
+
+    it('degrades to a failed row when the queue is unreachable', async () => {
+      // Redis is now in the blast radius of invite creation and role assignment; an
+      // outage must not turn into a 500 on the workflow itself.
+      reminderQueue.add.mockRejectedValue(new Error('ECONNREFUSED'));
+
+      await expect(service.sendNotificationNow(base)).resolves.toBeDefined();
+      expect(prisma.reminder.update).toHaveBeenCalledWith({
+        where: { id: 'reminder-1' },
+        data: { status: 'FAILED', failureReason: 'QUEUE_UNAVAILABLE' },
+      });
+    });
+
+    it('marks a system-scoped notification so the worker does not discard it', async () => {
+      await service.sendNotificationNow({
+        ...base,
+        clinicId: null,
+        recipientType: 'USER',
+        patientId: null,
+        recipientUserId: 'user-9',
+        templateKey: 'PORTAL_INVITE_V1',
+      });
+
+      expect(reminderQueue.add.mock.calls[0][1]).toMatchObject({ scope: 'global' });
+      expect(reminderQueue.add.mock.calls[0][1]).not.toHaveProperty('clinicId');
+    });
+
+    it('never lets a USER recipient carry a patient id', async () => {
+      // The database check constraint enforces this too; keeping the service honest
+      // means the constraint stays a backstop rather than the first line of defence.
+      await service.sendNotificationNow({
+        ...base,
+        recipientType: 'USER',
+        patientId: 'patient-1',
+        recipientUserId: 'user-9',
+      });
+
+      expect(prisma.reminder.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ patientId: null, recipientUserId: 'user-9' }),
+      });
+    });
+
+    it('refuses a template that does not exist instead of queueing a doomed row', async () => {
+      await expect(
+        service.sendNotificationNow({ ...base, templateKey: 'NOT_A_TEMPLATE_V1' }),
+      ).rejects.toThrow('Unknown notification template');
+      expect(prisma.reminder.create).not.toHaveBeenCalled();
+    });
+  });
+
   describe('email delivery', () => {
     function queueEmailReminder(overrides: Record<string, unknown> = {}) {
       prisma.reminder.findUnique.mockResolvedValue(

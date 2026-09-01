@@ -12,7 +12,7 @@ import {
 } from '../common/keyset-cursor';
 import { EMAIL_PROVIDER } from '../notifications/email/email-provider.token';
 import type { EmailProvider } from '../notifications/email/email-provider.interface';
-import { renderMessage } from '../notifications/templates';
+import { isTemplateKey, renderMessage } from '../notifications/templates';
 import { DEFAULT_TIMEZONE } from '../notifications/templates/partials';
 
 const REMINDER_QUEUE_NAME = 'reminders';
@@ -21,6 +21,8 @@ const APPOINTMENT_TEMPLATE_KEY = 'APPOINTMENT_REMINDER_V1';
 const REMINDER_SEND_FAILED = 'SEND_FAILED';
 const EMAIL_CHANNEL_UNAVAILABLE = 'EMAIL_CHANNEL_UNAVAILABLE';
 const TEMPLATE_NOT_FOUND = 'TEMPLATE_NOT_FOUND';
+const QUEUE_UNAVAILABLE = 'QUEUE_UNAVAILABLE';
+const NO_CONTACT_METHOD = 'NO_CONTACT_METHOD';
 const APPOINTMENT_NOT_FOUND = 'APPOINTMENT_NOT_FOUND';
 const APPOINTMENT_NOT_CONFIRMED = 'APPOINTMENT_NOT_CONFIRMED';
 const APPOINTMENT_RESCHEDULED = 'APPOINTMENT_RESCHEDULED';
@@ -93,6 +95,23 @@ export interface ScheduleAppointmentNoContactParams {
   patientCode: string;
   appointmentId: string;
   startsAt: Date;
+  actorUserId: string;
+  requestId?: string;
+}
+
+export interface SendNotificationParams {
+  /** Null only for genuinely system-scoped notices, which no clinic owns. */
+  clinicId: string | null;
+  recipientType: 'PATIENT' | 'USER';
+  patientId?: string | null;
+  recipientUserId?: string | null;
+  portalInviteId?: string | null;
+  appointmentId?: string | null;
+  encounterId?: string | null;
+  /** Null when the recipient has no address on file; recorded as a visible failure. */
+  toAddress: string | null;
+  templateKey: string;
+  payload: Record<string, unknown>;
   actorUserId: string;
   requestId?: string;
 }
@@ -173,6 +192,82 @@ export class ReminderService {
     @InjectQueue(REMINDER_QUEUE_NAME) private readonly reminderQueue: Queue,
   ) {}
 
+  /**
+   * Record and queue a message to go out now.
+   *
+   * "Now" is a zero delay on the existing queue rather than an inline send. The whole
+   * request already runs inside one Postgres transaction, so an SMTP round-trip here
+   * would hold a database connection open for the length of a network call — and a slow
+   * relay would start failing invite creation and role assignment, not just the mail.
+   *
+   * Returns the ledger row so callers can report delivery state to the operator who
+   * triggered it.
+   */
+  async sendNotificationNow(params: SendNotificationParams) {
+    if (!isTemplateKey(params.templateKey)) {
+      // A caller naming a template that does not exist is a programming error, and
+      // queueing the row would only turn it into a delivery failure hours later.
+      throw new Error(`Unknown notification template: ${params.templateKey}`);
+    }
+
+    const base = {
+      clinicId: params.clinicId,
+      patientId: params.recipientType === 'PATIENT' ? (params.patientId ?? null) : null,
+      recipientType: params.recipientType,
+      recipientUserId: params.recipientType === 'USER' ? (params.recipientUserId ?? null) : null,
+      portalInviteId: params.portalInviteId ?? null,
+      appointmentId: params.appointmentId ?? null,
+      encounterId: params.encounterId ?? null,
+      channel: 'EMAIL' as const,
+      templateKey: params.templateKey,
+      payloadJson: JSON.stringify(params.payload),
+      scheduledAt: new Date(),
+    };
+
+    if (!params.toAddress) {
+      // Recorded rather than skipped. A silent no-op leaves staff believing an invite
+      // went out; a visible failed row is what "explain why email is unavailable" means.
+      const reminder = await this.prisma.reminder.create({
+        data: { ...base, toAddress: '', status: 'FAILED', failureReason: NO_CONTACT_METHOD },
+      });
+      await this.auditReminderCreate(
+        params.clinicId,
+        params.actorUserId,
+        reminder,
+        params.requestId,
+      );
+      return reminder;
+    }
+
+    const reminder = await this.prisma.reminder.create({
+      data: { ...base, toAddress: params.toAddress, status: 'QUEUED' },
+    });
+    await this.auditReminderCreate(params.clinicId, params.actorUserId, reminder, params.requestId);
+
+    try {
+      await this.queueReminder(reminder.id, base.scheduledAt, params.clinicId);
+    } catch (err) {
+      // Redis is now in the blast radius of invite creation and role assignment. A queue
+      // outage must degrade to a visible failed row, not a 500 on the workflow itself.
+      // Safe to catch: this throws from Redis, so the ambient Postgres transaction is
+      // still healthy and the update below will apply.
+      this.logger.error(
+        JSON.stringify({
+          message: 'Notification could not be queued',
+          reminderId: reminder.id,
+          templateKey: params.templateKey,
+          error: redactLogValue(err),
+        }),
+      );
+      return this.prisma.reminder.update({
+        where: { id: reminder.id },
+        data: { status: 'FAILED', failureReason: QUEUE_UNAVAILABLE },
+      });
+    }
+
+    return reminder;
+  }
+
   async scheduleFollowUpReminder(params: ScheduleFollowUpParams): Promise<void> {
     const payloadJson = JSON.stringify({
       patientCode: params.patientCode,
@@ -248,7 +343,7 @@ export class ReminderService {
         payloadJson,
         scheduledAt: params.followUpDate,
         status: 'FAILED',
-        failureReason: 'NO_CONTACT_METHOD',
+        failureReason: NO_CONTACT_METHOD,
       },
     });
 
@@ -305,7 +400,7 @@ export class ReminderService {
       channel: 'SMS',
       toAddress: 'N/A',
       status: 'FAILED',
-      failureReason: 'NO_CONTACT_METHOD',
+      failureReason: NO_CONTACT_METHOD,
     });
   }
 
@@ -729,7 +824,7 @@ export class ReminderService {
   }
 
   private async auditReminderCreate(
-    clinicId: string,
+    clinicId: string | null,
     actorUserId: string,
     reminder: Record<string, unknown>,
     requestId?: string,

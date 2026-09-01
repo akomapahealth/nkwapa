@@ -45,6 +45,7 @@ import {
   APPOINTMENT_REMINDER_TEMPLATE_KEY,
   PATIENT_REMINDER_TEMPLATE_KEYS,
 } from '../notifications/templates';
+import { resolveAppPublicUrl } from '../notifications/email/email-config';
 import type { ClaimPatientRecordDto } from './dto/claim-record.dto';
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -1325,7 +1326,101 @@ export class PatientPortalService {
       requestId,
     });
 
-    return this.serializePortalInvite(invite);
+    const delivery = await this.sendPortalInviteEmail(invite, actorUserId, false, requestId);
+
+    return this.serializePortalInvite(invite, delivery);
+  }
+
+  /**
+   * Send the invitation again, for the common case where the first one was missed.
+   *
+   * Staff previously had to cancel and recreate the invite to get another email out,
+   * which changes the invite id and reads as a second invitation in the audit trail.
+   */
+  async resendPortalInvite(
+    clinicId: string,
+    patientId: string,
+    inviteId: string,
+    actorUserId: string,
+    requestId?: string,
+  ) {
+    const invite = await this.prisma.patientPortalInvite.findFirst({
+      where: { id: inviteId, patientId, clinicId },
+    });
+    if (!invite) {
+      throw new NotFoundException('Portal invite not found');
+    }
+    if (invite.status !== 'PENDING') {
+      throw new BadRequestException('Only pending portal invites can be resent');
+    }
+    if (!invite.email) {
+      throw new BadRequestException('This invite has no email address to resend to');
+    }
+
+    await this.auditService.logWrite({
+      clinicId,
+      actorUserId,
+      action: 'PATIENT.PORTAL.INVITE.RESEND',
+      entityType: 'PatientPortalInvite',
+      entityId: invite.id,
+      afterJson: JSON.stringify({ email: invite.email }),
+      requestId,
+    });
+
+    const delivery = await this.sendPortalInviteEmail(invite, actorUserId, true, requestId);
+
+    return this.serializePortalInvite(invite, delivery);
+  }
+
+  private async sendPortalInviteEmail(
+    invite: {
+      id: string;
+      clinicId: string;
+      patientId: string;
+      email: string | null;
+      expiresAt: Date | null;
+    },
+    actorUserId: string,
+    resend: boolean,
+    requestId?: string,
+  ) {
+    if (!invite.email) {
+      // A phone-only invite is a legitimate choice, not a failure to record.
+      return null;
+    }
+
+    const [clinic, patient] = await Promise.all([
+      this.prisma.clinic.findUnique({
+        where: { id: invite.clinicId },
+        select: { name: true, timezone: true },
+      }),
+      this.prisma.patient.findUnique({
+        where: { id: invite.patientId },
+        select: { patientCode: true, firstName: true },
+      }),
+    ]);
+
+    const appPublicUrl = resolveAppPublicUrl();
+
+    return this.reminderService.sendNotificationNow({
+      clinicId: invite.clinicId,
+      recipientType: 'PATIENT',
+      patientId: invite.patientId,
+      portalInviteId: invite.id,
+      toAddress: invite.email,
+      templateKey: 'PORTAL_INVITE_V1',
+      payload: {
+        clinicName: clinic?.name ?? 'Your clinic',
+        timezone: clinic?.timezone ?? undefined,
+        patientCode: patient?.patientCode ?? null,
+        patientFirstName: patient?.firstName ?? null,
+        claimUrl: appPublicUrl ? `${appPublicUrl}/claim-record` : null,
+        expiresAt: invite.expiresAt?.toISOString() ?? null,
+        resend,
+      },
+      actorUserId,
+      requestId,
+    });
   }
 
   async cancelPortalInvite(
@@ -2465,20 +2560,28 @@ export class PatientPortalService {
     };
   }
 
-  private serializePortalInvite(invite: {
-    id: string;
-    patientId: string;
-    clinicId: string;
-    status: string;
-    email: string | null;
-    phoneE164: string | null;
-    claimedByUserId?: string | null;
-    claimedAt?: Date | null;
-    cancelledAt?: Date | null;
-    expiresAt?: Date | null;
-    createdAt: Date;
-    updatedAt?: Date;
-  }) {
+  private serializePortalInvite(
+    invite: {
+      id: string;
+      patientId: string;
+      clinicId: string;
+      status: string;
+      email: string | null;
+      phoneE164: string | null;
+      claimedByUserId?: string | null;
+      claimedAt?: Date | null;
+      cancelledAt?: Date | null;
+      expiresAt?: Date | null;
+      createdAt: Date;
+      updatedAt?: Date;
+    },
+    delivery?: {
+      status: string;
+      failureReason: string | null;
+      sentAt: Date | null;
+      createdAt: Date;
+    } | null,
+  ) {
     return {
       id: invite.id,
       patientId: invite.patientId,
@@ -2492,6 +2595,16 @@ export class PatientPortalService {
       expiresAt: invite.expiresAt?.toISOString() ?? null,
       createdAt: invite.createdAt.toISOString(),
       updatedAt: invite.updatedAt?.toISOString() ?? null,
+      // Null when nothing was sent: either the invite is phone-only, or this response
+      // predates a send. Staff need the difference between "not sent" and "failed".
+      emailDelivery: delivery
+        ? {
+            status: delivery.status,
+            failureReason: delivery.failureReason,
+            sentAt: delivery.sentAt?.toISOString() ?? null,
+            createdAt: delivery.createdAt.toISOString(),
+          }
+        : null,
     };
   }
 

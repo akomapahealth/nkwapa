@@ -115,3 +115,61 @@ describe('template partials', () => {
     );
   });
 });
+
+describe('portal invite template', () => {
+  const base = {
+    clinicName: 'Cape Coast Clinic',
+    patientCode: 'NKP-2026-000001',
+    patientFirstName: 'Ama',
+    timezone: 'Africa/Accra',
+  };
+
+  it('carries the patient code, which the claim flow requires', () => {
+    // Claiming matches on email, patient code and date of birth. Omitting the code
+    // would strand every invited patient who was not also handed it on paper.
+    const message = renderMessage('PORTAL_INVITE_V1', base);
+    expect(message.text).toContain('NKP-2026-000001');
+    expect(message.html).toContain('NKP-2026-000001');
+  });
+
+  it('renders a sign-in button only when a public origin is configured', () => {
+    const withLink = renderMessage('PORTAL_INVITE_V1', {
+      ...base,
+      claimUrl: 'https://app.nkwapa.org/claim-record',
+    });
+    expect(withLink.html).toContain('https://app.nkwapa.org/claim-record');
+
+    // The defect this guards: building the link from an unset base URL would email
+    // patients an anchor pointing at "undefined/claim-record".
+    const withoutLink = renderMessage('PORTAL_INVITE_V1', base);
+    expect(withoutLink.html).not.toContain('undefined');
+    expect(withoutLink.html).not.toContain('<a href');
+    expect(withoutLink.text).toContain('Your clinic can tell you where to sign in');
+  });
+
+  it('refuses to turn a non-http payload value into a link', () => {
+    const message = renderMessage('PORTAL_INVITE_V1', {
+      ...base,
+      claimUrl: 'javascript:alert(1)',
+    });
+    expect(message.html).not.toContain('javascript:');
+  });
+
+  it('distinguishes a resend so a patient does not read it as a second invitation', () => {
+    const first = renderMessage('PORTAL_INVITE_V1', base);
+    const again = renderMessage('PORTAL_INVITE_V1', { ...base, resend: true });
+    expect(first.subject).not.toContain('Reminder');
+    expect(again.subject).toContain('Reminder');
+  });
+
+  it('names no clinical detail beyond the code needed to claim', () => {
+    // The address is patient-supplied and unverified until the account is claimed.
+    const message = renderMessage('PORTAL_INVITE_V1', { ...base, patientLastName: 'Mensah' });
+    expect(message.html).not.toContain('Mensah');
+  });
+
+  it('states the expiry when the invite has one', () => {
+    const message = renderMessage('PORTAL_INVITE_V1', { ...base, expiresAt: '2026-07-01' });
+    expect(message.text).toContain('Jul 2026');
+  });
+});
