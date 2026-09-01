@@ -2290,13 +2290,14 @@ export class PatientPortalService {
   ) {
     const clinic = await this.prisma.clinic.findUnique({
       where: { id: appointment.clinicId },
-      select: { name: true },
+      select: { name: true, timezone: true },
     });
 
     if (patient.phoneE164) {
       await this.reminderService.scheduleAppointmentReminder({
         clinicId: appointment.clinicId,
         clinicName: clinic?.name ?? 'Clinic',
+        clinicTimezone: clinic?.timezone,
         patientId: patient.id,
         patientCode: patient.patientCode,
         phoneE164: patient.phoneE164,
@@ -2321,6 +2322,7 @@ export class PatientPortalService {
       await this.reminderService.scheduleAppointmentEmailReminder({
         clinicId: appointment.clinicId,
         clinicName: clinic?.name ?? 'Clinic',
+        clinicTimezone: clinic?.timezone,
         patientId: patient.id,
         patientCode: patient.patientCode,
         email: patient.email,

@@ -2,8 +2,6 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ReminderStatus } from '@prisma/client';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { readFileSync } from 'fs';
-import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { redactLogValue } from '../common/redaction';
@@ -14,11 +12,15 @@ import {
 } from '../common/keyset-cursor';
 import { EMAIL_PROVIDER } from '../notifications/email/email-provider.token';
 import type { EmailProvider } from '../notifications/email/email-provider.interface';
+import { renderMessage } from '../notifications/templates';
+import { DEFAULT_TIMEZONE } from '../notifications/templates/partials';
 
 const REMINDER_QUEUE_NAME = 'reminders';
 const FOLLOWUP_TEMPLATE_KEY = 'FOLLOWUP_REMINDER_V1';
 const APPOINTMENT_TEMPLATE_KEY = 'APPOINTMENT_REMINDER_V1';
 const REMINDER_SEND_FAILED = 'SEND_FAILED';
+const EMAIL_CHANNEL_UNAVAILABLE = 'EMAIL_CHANNEL_UNAVAILABLE';
+const TEMPLATE_NOT_FOUND = 'TEMPLATE_NOT_FOUND';
 const APPOINTMENT_NOT_FOUND = 'APPOINTMENT_NOT_FOUND';
 const APPOINTMENT_NOT_CONFIRMED = 'APPOINTMENT_NOT_CONFIRMED';
 const APPOINTMENT_RESCHEDULED = 'APPOINTMENT_RESCHEDULED';
@@ -26,6 +28,7 @@ const APPOINTMENT_RESCHEDULED = 'APPOINTMENT_RESCHEDULED';
 export interface ScheduleFollowUpParams {
   clinicId: string;
   clinicName: string;
+  clinicTimezone?: string;
   patientId: string;
   patientCode: string;
   phoneE164: string;
@@ -38,6 +41,7 @@ export interface ScheduleFollowUpParams {
 export interface ScheduleFollowUpEmailParams {
   clinicId: string;
   clinicName: string;
+  clinicTimezone?: string;
   patientId: string;
   patientCode: string;
   email: string;
@@ -60,6 +64,7 @@ export interface ScheduleFollowUpNoContactParams {
 export interface ScheduleAppointmentReminderParams {
   clinicId: string;
   clinicName: string;
+  clinicTimezone?: string;
   patientId: string;
   patientCode: string;
   phoneE164: string;
@@ -72,6 +77,7 @@ export interface ScheduleAppointmentReminderParams {
 export interface ScheduleAppointmentEmailReminderParams {
   clinicId: string;
   clinicName: string;
+  clinicTimezone?: string;
   patientId: string;
   patientCode: string;
   email: string;
@@ -126,6 +132,7 @@ type ReminderMessage = {
   subject: string;
   smsBody: string;
   emailHtml: string;
+  emailText: string;
 };
 
 type AppointmentReminderChannel = 'SMS' | 'EMAIL';
@@ -133,6 +140,7 @@ type AppointmentReminderChannel = 'SMS' | 'EMAIL';
 type ScheduleAppointmentReminderRecordParams = {
   clinicId: string;
   clinicName?: string;
+  clinicTimezone?: string;
   patientId: string;
   patientCode: string;
   appointmentId: string;
@@ -148,7 +156,6 @@ type ScheduleAppointmentReminderRecordParams = {
 @Injectable()
 export class ReminderService {
   private readonly logger = new Logger(ReminderService.name);
-  private readonly emailTemplates = new Map<string, string>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -170,6 +177,7 @@ export class ReminderService {
     const payloadJson = JSON.stringify({
       patientCode: params.patientCode,
       clinicName: params.clinicName,
+      timezone: params.clinicTimezone ?? DEFAULT_TIMEZONE,
       followUpDate: params.followUpDate.toISOString(),
       patientId: params.patientId,
       encounterId: params.encounterId,
@@ -197,6 +205,7 @@ export class ReminderService {
     const payloadJson = JSON.stringify({
       patientCode: params.patientCode,
       clinicName: params.clinicName,
+      timezone: params.clinicTimezone ?? DEFAULT_TIMEZONE,
       followUpDate: params.followUpDate.toISOString(),
       patientId: params.patientId,
       encounterId: params.encounterId,
@@ -250,6 +259,7 @@ export class ReminderService {
     await this.scheduleAppointmentReminderRecord({
       clinicId: params.clinicId,
       clinicName: params.clinicName,
+      clinicTimezone: params.clinicTimezone,
       patientId: params.patientId,
       patientCode: params.patientCode,
       appointmentId: params.appointmentId,
@@ -268,6 +278,7 @@ export class ReminderService {
     await this.scheduleAppointmentReminderRecord({
       clinicId: params.clinicId,
       clinicName: params.clinicName,
+      clinicTimezone: params.clinicTimezone,
       patientId: params.patientId,
       patientCode: params.patientCode,
       appointmentId: params.appointmentId,
@@ -446,19 +457,45 @@ export class ReminderService {
       return;
     }
 
-    try {
-      const message = this.buildMessage(reminder.templateKey, payload);
-      let result: { success: boolean; providerMessageId?: string; error?: string };
+    if (reminder.channel === 'EMAIL' && !this.emailProvider) {
+      // Never fall through to SMS here. This branch used to send the SMS body to an
+      // email address, which delivered a stripped message and recorded it as a success.
+      await this.failReminder(reminder, EMAIL_CHANNEL_UNAVAILABLE, 'REMINDER.SEND_FAILED');
+      return;
+    }
 
-      if (reminder.channel === 'EMAIL' && this.emailProvider) {
-        result = await this.emailProvider.send(
-          reminder.toAddress,
-          message.subject,
-          message.emailHtml,
-        );
-      } else {
-        result = await this.smsProvider.send(reminder.toAddress, message.smsBody);
-      }
+    let message: ReminderMessage;
+    try {
+      message = this.buildMessage(reminder.templateKey, payload);
+    } catch (err) {
+      // An unknown template is a deploy problem, not a transient send failure, and it
+      // must not be recorded as a generic SEND_FAILED that nobody can act on.
+      this.logger.error(
+        JSON.stringify({
+          message: 'Reminder template could not be rendered',
+          reminderId,
+          templateKey: reminder.templateKey,
+          error: redactLogValue(err),
+        }),
+      );
+      await this.failReminder(
+        reminder,
+        `${TEMPLATE_NOT_FOUND}:${reminder.templateKey}`.slice(0, 255),
+        'REMINDER.SEND_FAILED',
+      );
+      return;
+    }
+
+    try {
+      const result =
+        reminder.channel === 'EMAIL' && this.emailProvider
+          ? await this.emailProvider.send(
+              reminder.toAddress,
+              message.subject,
+              message.emailHtml,
+              message.emailText,
+            )
+          : await this.smsProvider.send(reminder.toAddress, message.smsBody);
 
       if (result.success && result.providerMessageId) {
         const sentAt = new Date();
@@ -494,7 +531,14 @@ export class ReminderService {
             }),
           );
         }
-        await this.failReminder(reminder, REMINDER_SEND_FAILED, 'REMINDER.SEND_FAILED');
+        // Keep the provider's own code when it gave one. A row that reads
+        // EMAIL_NOT_CONFIGURED tells an operator exactly what to change; SEND_FAILED
+        // sends them to the logs to find out.
+        await this.failReminder(
+          reminder,
+          this.normalizeFailureReason(result.error),
+          'REMINDER.SEND_FAILED',
+        );
       }
     } catch (err) {
       this.logger.warn(
@@ -526,6 +570,7 @@ export class ReminderService {
     const payloadJson = JSON.stringify({
       patientCode: params.patientCode,
       clinicName: params.clinicName,
+      timezone: params.clinicTimezone ?? DEFAULT_TIMEZONE,
       startsAt: params.startsAt.toISOString(),
       patientId: params.patientId,
       appointmentId: params.appointmentId,
@@ -616,6 +661,17 @@ export class ReminderService {
     });
   }
 
+  /**
+   * Reduce a provider result to a stable code safe to persist and display.
+   *
+   * `failureReason` is VarChar(255) and is rendered straight to operators, so anything
+   * unrecognised collapses to the generic code rather than leaking provider prose.
+   */
+  private normalizeFailureReason(error: string | undefined): string {
+    if (!error) return REMINDER_SEND_FAILED;
+    return /^[A-Z0-9_]{1,64}$/.test(error) ? error : REMINDER_SEND_FAILED;
+  }
+
   private getAppointmentReminderTime(startsAt: Date) {
     const target = new Date(startsAt.getTime() - 24 * 60 * 60 * 1000);
     return target > new Date() ? target : new Date();
@@ -680,79 +736,14 @@ export class ReminderService {
   }
 
   private buildMessage(templateKey: string, payload: Record<string, unknown>): ReminderMessage {
-    if (templateKey === FOLLOWUP_TEMPLATE_KEY) {
-      const clinicName = (payload.clinicName as string) ?? 'Clinic';
-      const patientCode = (payload.patientCode as string) ?? 'patient';
-      const followUpDate = this.formatIsoDate(payload.followUpDate as string | undefined);
-      return {
-        subject: `Follow-Up Reminder - ${clinicName}`,
-        smsBody: `Follow-up reminder for ${patientCode}: please return on ${followUpDate}.`,
-        emailHtml: this.renderTemplate('followup-reminder.html', {
-          patientCode,
-          clinicName,
-          followUpDate,
-        }),
-      };
-    }
-
-    if (templateKey === APPOINTMENT_TEMPLATE_KEY) {
-      const clinicName = (payload.clinicName as string) ?? 'Clinic';
-      const patientCode = (payload.patientCode as string) ?? 'patient';
-      const startsAt = this.formatIsoDateTime(payload.startsAt as string | undefined);
-      return {
-        subject: `Appointment Reminder - ${clinicName}`,
-        smsBody: `Appointment reminder for ${patientCode}: your appointment is scheduled for ${startsAt}.`,
-        emailHtml: this.renderTemplate('appointment-reminder.html', {
-          patientCode,
-          clinicName,
-          startsAt,
-        }),
-      };
-    }
-
-    throw new Error(`Unsupported reminder template: ${templateKey}`);
-  }
-
-  private renderTemplate(templateFileName: string, replacements: Record<string, string>): string {
-    const template = this.getEmailTemplate(templateFileName);
-    return Object.entries(replacements).reduce(
-      (html, [key, value]) => html.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value),
-      template,
-    );
-  }
-
-  private getEmailTemplate(templateFileName: string): string {
-    const cached = this.emailTemplates.get(templateFileName);
-    if (cached) {
-      return cached;
-    }
-
-    let template: string;
-    try {
-      template = readFileSync(join(__dirname, 'templates', templateFileName), 'utf-8');
-    } catch {
-      if (templateFileName === 'appointment-reminder.html') {
-        template =
-          '<p>Appointment reminder for {{patientCode}} at {{clinicName}} on {{startsAt}}.</p>';
-      } else {
-        template =
-          '<p>Follow-up reminder for {{patientCode}} at {{clinicName}}. Please return on {{followUpDate}}.</p>';
-      }
-    }
-
-    this.emailTemplates.set(templateFileName, template);
-    return template;
-  }
-
-  private formatIsoDate(value?: string) {
-    if (!value) return 'scheduled date';
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleDateString();
-  }
-
-  private formatIsoDateTime(value?: string) {
-    if (!value) return 'scheduled time';
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+    const rendered = renderMessage(templateKey, payload);
+    return {
+      subject: rendered.subject,
+      // Falls back to the subject only for templates that are email-only; the reminder
+      // templates both define an SMS body, and an EMAIL row never reads this.
+      smsBody: rendered.smsBody ?? rendered.text,
+      emailHtml: rendered.html,
+      emailText: rendered.text,
+    };
   }
 }

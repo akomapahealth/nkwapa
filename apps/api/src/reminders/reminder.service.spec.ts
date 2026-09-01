@@ -81,6 +81,104 @@ describe('ReminderService', () => {
     );
   });
 
+  describe('email delivery', () => {
+    function queueEmailReminder(overrides: Record<string, unknown> = {}) {
+      prisma.reminder.findUnique.mockResolvedValue(
+        createReminder({
+          channel: 'EMAIL',
+          toAddress: 'patient@example.org',
+          appointment: {
+            id: 'appointment-1',
+            status: 'CONFIRMED',
+            startsAt: new Date('2026-03-26T14:00:00.000Z'),
+          },
+          ...overrides,
+        }),
+      );
+      prisma.appointment.findFirst.mockResolvedValue({
+        id: 'appointment-1',
+        status: 'CONFIRMED',
+        startsAt: new Date('2026-03-26T14:00:00.000Z'),
+      });
+    }
+
+    it('sends the html and text bodies through the email provider', async () => {
+      queueEmailReminder();
+
+      await service.processReminder('reminder-1');
+
+      expect(emailProvider.send).toHaveBeenCalledTimes(1);
+      const [to, subject, html, text] = emailProvider.send.mock.calls[0];
+      expect(to).toBe('patient@example.org');
+      expect(subject).toContain('Clinic One');
+      expect(html).toContain('<!doctype html>');
+      expect(text).not.toContain('<td');
+      expect(smsProvider.send).not.toHaveBeenCalled();
+    });
+
+    it('fails an email reminder instead of texting the SMS body to an inbox', async () => {
+      // The defect this guards: the dispatch read `channel === 'EMAIL' && emailProvider`
+      // and fell through to the SMS branch when the provider was absent, delivering the
+      // 160-character SMS body to an email address and recording it as SENT.
+      const withoutEmail = new ReminderService(
+        prisma as never,
+        auditService as never,
+        smsProvider,
+        null,
+        reminderQueue as never,
+      );
+      queueEmailReminder();
+
+      await withoutEmail.processReminder('reminder-1');
+
+      expect(smsProvider.send).not.toHaveBeenCalled();
+      expect(prisma.reminder.update).toHaveBeenCalledWith({
+        where: { id: 'reminder-1' },
+        data: { status: 'FAILED', failureReason: 'EMAIL_CHANNEL_UNAVAILABLE' },
+      });
+    });
+
+    it('keeps the provider failure code so an operator can act on it', async () => {
+      queueEmailReminder();
+      emailProvider.send.mockResolvedValue({ success: false, error: 'EMAIL_NOT_CONFIGURED' });
+
+      await service.processReminder('reminder-1');
+
+      expect(prisma.reminder.update).toHaveBeenCalledWith({
+        where: { id: 'reminder-1' },
+        data: { status: 'FAILED', failureReason: 'EMAIL_NOT_CONFIGURED' },
+      });
+    });
+
+    it('collapses provider prose to the generic code rather than storing it', async () => {
+      // failureReason is VarChar(255) and is rendered straight to operators.
+      queueEmailReminder();
+      emailProvider.send.mockResolvedValue({
+        success: false,
+        error: '550 5.1.1 <patient@example.org> recipient rejected',
+      });
+
+      await service.processReminder('reminder-1');
+
+      expect(prisma.reminder.update).toHaveBeenCalledWith({
+        where: { id: 'reminder-1' },
+        data: { status: 'FAILED', failureReason: 'SEND_FAILED' },
+      });
+    });
+
+    it('records an unknown template distinctly from a send failure', async () => {
+      queueEmailReminder({ templateKey: 'REMOVED_TEMPLATE_V9' });
+
+      await service.processReminder('reminder-1');
+
+      expect(emailProvider.send).not.toHaveBeenCalled();
+      expect(prisma.reminder.update).toHaveBeenCalledWith({
+        where: { id: 'reminder-1' },
+        data: { status: 'FAILED', failureReason: 'TEMPLATE_NOT_FOUND:REMOVED_TEMPLATE_V9' },
+      });
+    });
+  });
+
   it('creates predictable SMS appointment reminder records and deterministic jobs', async () => {
     await service.scheduleAppointmentReminder({
       clinicId: 'clinic-1',
