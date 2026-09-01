@@ -97,6 +97,25 @@ export function resolveEmailConfig(env: NodeJS.ProcessEnv = process.env): EmailC
   };
 }
 
+/**
+ * Absolute origin for links in outbound mail.
+ *
+ * Returns null rather than a guess when unset: a template that renders
+ * `undefined/claim-record` is worse than one that renders no link at all and tells the
+ * reader to sign in from the address the clinic gave them.
+ */
+export function resolveAppPublicUrl(env: NodeJS.ProcessEnv = process.env): string | null {
+  const raw = read(env, 'APP_PUBLIC_URL');
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
 export function describeEmailUnavailability(config: EmailConfig): string | null {
   if (config.readiness !== 'unconfigured') return null;
   return config.missing.length > 0

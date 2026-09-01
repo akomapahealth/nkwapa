@@ -1,4 +1,8 @@
-import { describeEmailUnavailability, resolveEmailConfig } from './email-config';
+import {
+  describeEmailUnavailability,
+  resolveAppPublicUrl,
+  resolveEmailConfig,
+} from './email-config';
 
 type EmailEnvKey =
   | 'EMAIL_PROVIDER'
@@ -8,7 +12,8 @@ type EmailEnvKey =
   | 'SMTP_PORT'
   | 'SMTP_USER'
   | 'SMTP_PASS'
-  | 'SMTP_SECURE';
+  | 'SMTP_SECURE'
+  | 'APP_PUBLIC_URL';
 
 /** Built from a literal so a test can never accidentally read the real environment. */
 function env(overrides: Partial<Record<EmailEnvKey, string>>): NodeJS.ProcessEnv {
@@ -148,5 +153,20 @@ describe('resolveEmailConfig', () => {
       env({ EMAIL_PROVIDER: 'nodemailer', SMTP_HOST: '   ', EMAIL_FROM: 'info@akomapa.org' }),
     );
     expect(config.missing).toContain('SMTP_HOST');
+  });
+});
+
+describe('resolveAppPublicUrl', () => {
+  it.each([undefined, '', '   ', 'not a url', 'javascript:alert(1)'])(
+    'returns null for %p rather than a value that renders as undefined/claim-record',
+    (value) => {
+      expect(resolveAppPublicUrl(env({ APP_PUBLIC_URL: value } as never))).toBeNull();
+    },
+  );
+
+  it('normalises to the origin so templates can append their own path', () => {
+    expect(resolveAppPublicUrl(env({ APP_PUBLIC_URL: 'https://app.nkwapa.org/x' } as never))).toBe(
+      'https://app.nkwapa.org',
+    );
   });
 });
