@@ -183,6 +183,11 @@ enum ReminderChannel {
   EMAIL
 }
 
+enum ReminderRecipientType {
+  PATIENT
+  USER
+}
+
 enum ReminderStatus {
   QUEUED
   SENT
@@ -447,6 +452,7 @@ model User {
   assignedVolunteerNotes        ClinicalNote[]                  @relation("ClinicalNoteAssignedVolunteer")
   assignedDoctorNotes           ClinicalNote[]                  @relation("ClinicalNoteAssignedDoctor")
   authoredClinicalNoteAddenda   ClinicalNoteAddendum[]          @relation("ClinicalNoteAddendumAuthor")
+  receivedNotifications         Reminder[]                      @relation("ReminderRecipient")
 
   @@index([isActive])
 }
@@ -935,11 +941,19 @@ model Prescription {
 }
 
 model Reminder {
-  id            String  @id @default(uuid()) @db.Uuid
-  clinicId      String  @db.Uuid
-  patientId     String  @db.Uuid
-  encounterId   String? @db.Uuid
-  appointmentId String? @db.Uuid
+  id String @id @default(uuid()) @db.Uuid
+
+  // Nullable so the ledger can hold staff and system notices as well as patient
+  // outreach. A global account deactivation belongs to no clinic, and a staff notice
+  // belongs to no patient. The recipient_identity check constraint keeps the two
+  // shapes from blurring into a row that is neither.
+  clinicId        String?               @db.Uuid
+  patientId       String?               @db.Uuid
+  recipientType   ReminderRecipientType @default(PATIENT)
+  recipientUserId String?               @db.Uuid
+  portalInviteId  String?               @db.Uuid
+  encounterId     String?               @db.Uuid
+  appointmentId   String?               @db.Uuid
 
   channel     ReminderChannel
   toAddress   String          @db.VarChar(320)
@@ -955,15 +969,20 @@ model Reminder {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  clinic      Clinic       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  patient     Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  encounter   Encounter?   @relation(fields: [encounterId], references: [id], onDelete: SetNull)
-  appointment Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  clinic        Clinic?              @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient       Patient?             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  recipientUser User?                @relation("ReminderRecipient", fields: [recipientUserId], references: [id], onDelete: SetNull)
+  portalInvite  PatientPortalInvite? @relation(fields: [portalInviteId], references: [id], onDelete: SetNull)
+  encounter     Encounter?           @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+  appointment   Appointment?         @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
 
   @@index([clinicId, scheduledAt])
   @@index([status, scheduledAt])
   @@index([patientId])
   @@index([appointmentId])
+  @@index([recipientUserId])
+  @@index([portalInviteId])
+  @@index([clinicId, templateKey, createdAt])
 }
 
 model PatientAccountLink {
@@ -994,6 +1013,7 @@ model PatientPortalInvite {
   clinic    Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   createdBy User    @relation("PatientPortalInviteCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
   claimedBy User?   @relation("PatientPortalInviteClaimedBy", fields: [claimedByUserId], references: [id], onDelete: SetNull)
+  reminders Reminder[]
 
   @@index([patientId, status])
   @@index([clinicId, status, createdAt])

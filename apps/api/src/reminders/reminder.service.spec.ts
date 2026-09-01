@@ -207,7 +207,7 @@ describe('ReminderService', () => {
     });
     expect(reminderQueue.add).toHaveBeenCalledWith(
       'send',
-      { reminderId: 'reminder-1', clinicId: 'clinic-1', userId: null },
+      { reminderId: 'reminder-1', clinicId: 'clinic-1', userId: null, scope: 'clinic' },
       expect.objectContaining({ jobId: 'reminder-reminder-1' }),
     );
   });

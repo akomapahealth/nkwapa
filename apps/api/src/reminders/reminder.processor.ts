@@ -7,6 +7,18 @@ export type ReminderJobData = {
   reminderId: string;
   clinicId?: string;
   userId?: string | null;
+  /**
+   * Which tenant context the job needs.
+   *
+   * A missing clinicId used to mean one thing only: a payload queued before tenant
+   * context was carried in the job, which the runner resolves from the row and
+   * discards if it cannot. Now that a notification may legitimately have no clinic —
+   * a global account deactivation belongs to none — that ambiguity would send those
+   * jobs down the discard path and drop the mail with a single warn line. `global`
+   * says the absence is deliberate; an absent `scope` keeps the legacy behaviour for
+   * jobs already queued when this deploys.
+   */
+  scope?: 'clinic' | 'global';
 };
 
 @Processor('reminders')
@@ -19,7 +31,22 @@ export class ReminderProcessor extends WorkerHost {
   }
 
   async process(job: Job<ReminderJobData>): Promise<void> {
-    const { reminderId, clinicId, userId } = job.data;
+    const { reminderId, clinicId, userId, scope } = job.data;
+
+    if (scope === 'global') {
+      await this.tenantContext.runSystemJob(
+        {
+          queueName: 'reminders',
+          jobId: job.id,
+          resourceId: reminderId,
+          userId: userId ?? null,
+          systemReason: 'Deliver a notification that is not scoped to a single clinic',
+        },
+        () => this.reminderService.processReminder(reminderId),
+      );
+      return;
+    }
+
     await this.tenantContext.runClinicJob(
       {
         queueName: 'reminders',

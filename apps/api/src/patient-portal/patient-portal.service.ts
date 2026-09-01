@@ -41,6 +41,10 @@ import type {
   RescheduleAppointmentDto,
 } from './dto/appointment-requests.dto';
 import type { CreatePatientPortalInviteDto } from './dto/portal-invite.dto';
+import {
+  APPOINTMENT_REMINDER_TEMPLATE_KEY,
+  PATIENT_REMINDER_TEMPLATE_KEYS,
+} from '../notifications/templates';
 import type { ClaimPatientRecordDto } from './dto/claim-record.dto';
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -90,6 +94,7 @@ const appointmentScheduleInclude = {
       id: true,
       status: true,
       channel: true,
+      templateKey: true,
       scheduledAt: true,
       failureReason: true,
       createdAt: true,
@@ -217,7 +222,15 @@ export class PatientPortalService {
       : null;
 
     const reminders = await this.prisma.reminder.findMany({
-      where: { patientId: patient.id, clinicId },
+      // Explicitly the reminder templates. The ledger now also carries portal invites
+      // and appointment lifecycle mail, and a patient's own feed showing "invite sent"
+      // after they already claimed the record would be noise at best.
+      where: {
+        patientId: patient.id,
+        clinicId,
+        recipientType: 'PATIENT',
+        templateKey: { in: [...PATIENT_REMINDER_TEMPLATE_KEYS] },
+      },
       orderBy: { scheduledAt: 'asc' },
       take: 10,
       select: {
@@ -2607,14 +2620,21 @@ export class PatientPortalService {
   }
 
   private summarizeAppointmentReminders(
-    reminders: Array<{
+    allRows: Array<{
       status: string;
       channel: string;
+      templateKey: string;
       scheduledAt: Date;
       failureReason: string | null;
       updatedAt: Date;
     }>,
   ): AppointmentReminderSummary {
+    // Only the 24-hour reminder counts here. Confirmation and cancellation mail is
+    // linked to the same appointment, and counting it would tell an operator that an
+    // appointment had three delivered reminders when it had one.
+    const reminders = allRows.filter(
+      (row) => row.templateKey === APPOINTMENT_REMINDER_TEMPLATE_KEY,
+    );
     const summary: AppointmentReminderSummary = {
       total: reminders.length,
       queued: 0,

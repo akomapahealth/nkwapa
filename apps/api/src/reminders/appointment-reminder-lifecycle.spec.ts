@@ -185,7 +185,7 @@ describe('appointment reminders across the lifecycle', () => {
 
       expect(reminderQueue.add).toHaveBeenCalledWith(
         'send',
-        { reminderId: 'reminder-1', clinicId: FIXTURE_CLINIC_ID, userId: null },
+        { reminderId: 'reminder-1', clinicId: FIXTURE_CLINIC_ID, userId: null, scope: 'clinic' },
         expect.objectContaining({ jobId: 'reminder-reminder-1', attempts: 3 }),
       );
     });

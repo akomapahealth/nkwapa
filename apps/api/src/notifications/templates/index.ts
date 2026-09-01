@@ -18,6 +18,15 @@ export const EMAIL_TEMPLATES: Record<string, EmailTemplate<any>> = {
 
 export type TemplateKey = keyof typeof EMAIL_TEMPLATES;
 
+/** The scheduled reminders a patient sees in their own portal feed. */
+export const PATIENT_REMINDER_TEMPLATE_KEYS = [
+  FOLLOWUP_REMINDER_V1.key,
+  APPOINTMENT_REMINDER_V1.key,
+] as const;
+
+/** The 24-hour appointment reminder, the only template the schedule's counts summarise. */
+export const APPOINTMENT_REMINDER_TEMPLATE_KEY = APPOINTMENT_REMINDER_V1.key;
+
 export function isTemplateKey(key: string): boolean {
   return Object.prototype.hasOwnProperty.call(EMAIL_TEMPLATES, key);
 }

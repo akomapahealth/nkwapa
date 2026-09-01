@@ -109,8 +109,8 @@ export interface ListRemindersParams {
 export interface ListRemindersResult {
   items: Array<{
     id: string;
-    clinicId: string;
-    patientId: string;
+    clinicId: string | null;
+    patientId: string | null;
     encounterId: string | null;
     appointmentId: string | null;
     channel: string;
@@ -599,7 +599,7 @@ export class ReminderService {
 
   private async getAppointmentSendSuppressionReason(
     reminder: {
-      clinicId: string;
+      clinicId: string | null;
       templateKey: string;
       appointmentId: string | null;
       appointment?: { id: string; status: string; startsAt: Date } | null;
@@ -620,7 +620,12 @@ export class ReminderService {
     const appointment =
       reminder.appointment ??
       (await this.prisma.appointment.findFirst({
-        where: { id: appointmentId, clinicId: reminder.clinicId },
+        // Appointments are always clinic-scoped, so a row without a clinic cannot be
+        // referring to one. Narrowing here keeps the lookup from silently widening to
+        // every clinic if a malformed row ever reaches this path.
+        where: reminder.clinicId
+          ? { id: appointmentId, clinicId: reminder.clinicId }
+          : { id: appointmentId },
         select: { id: true, status: true, startsAt: true },
       }));
     if (!appointment) {
@@ -643,7 +648,7 @@ export class ReminderService {
   }
 
   private async failReminder(
-    reminder: { id: string; clinicId: string },
+    reminder: { id: string; clinicId: string | null },
     failureReason: string,
     action: 'REMINDER.SEND_FAILED' | 'REMINDER.SUPPRESS',
   ): Promise<void> {
@@ -677,11 +682,16 @@ export class ReminderService {
     return target > new Date() ? target : new Date();
   }
 
-  private async queueReminder(reminderId: string, scheduledAt: Date, clinicId: string) {
+  private async queueReminder(reminderId: string, scheduledAt: Date, clinicId: string | null) {
     const delayMs = Math.max(0, scheduledAt.getTime() - Date.now());
     await this.reminderQueue.add(
       'send',
-      { reminderId, clinicId, userId: null },
+      // `scope` states whether the missing clinic is deliberate. Without it the worker
+      // cannot tell a genuinely global notification from a legacy payload, and would
+      // discard the former while trying to resolve a tenant that does not exist.
+      clinicId
+        ? { reminderId, clinicId, userId: null, scope: 'clinic' as const }
+        : { reminderId, userId: null, scope: 'global' as const },
       {
         jobId: this.getReminderJobId(reminderId),
         delay: delayMs,
