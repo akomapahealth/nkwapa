@@ -12,6 +12,8 @@ import {
   decodeJsonKeysetCursor,
   encodeJsonKeysetCursor,
 } from '../common/keyset-cursor';
+import { EMAIL_PROVIDER } from '../notifications/email/email-provider.token';
+import type { EmailProvider } from '../notifications/email/email-provider.interface';
 
 const REMINDER_QUEUE_NAME = 'reminders';
 const FOLLOWUP_TEMPLATE_KEY = 'FOLLOWUP_REMINDER_V1';
@@ -159,14 +161,8 @@ export class ReminderService {
       ): Promise<{ success: boolean; providerMessageId?: string; error?: string }>;
     },
     @Optional()
-    @Inject('EmailProvider')
-    private readonly emailProvider: {
-      send(
-        to: string,
-        subject: string,
-        html: string,
-      ): Promise<{ success: boolean; providerMessageId?: string; error?: string }>;
-    } | null,
+    @Inject(EMAIL_PROVIDER)
+    private readonly emailProvider: EmailProvider | null,
     @InjectQueue(REMINDER_QUEUE_NAME) private readonly reminderQueue: Queue,
   ) {}
 

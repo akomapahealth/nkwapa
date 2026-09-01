@@ -4,6 +4,7 @@ import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuditModule } from './audit/audit.module';
+import { NotificationModule } from './notifications/notification.module';
 import { PatientModule } from './patients/patient.module';
 import { EncounterModule } from './encounters/encounter.module';
 import { ClinicModule } from './clinics/clinic.module';
@@ -40,6 +41,7 @@ const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
     HealthModule,
     AuthModule,
     AuditModule,
+    NotificationModule,
     UserModule,
     PatientModule,
     EncounterModule,
