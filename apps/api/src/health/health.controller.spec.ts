@@ -1,3 +1,18 @@
+/**
+ * ioredis is mocked because the controller opens a real connection.
+ *
+ * The CI test job runs without a Redis service, and ioredis retries a refused
+ * connection rather than failing fast, so an unmocked `ping()` hangs until the test
+ * times out. Locally Redis is usually up, so this only ever fails in CI.
+ */
+jest.mock('ioredis', () => ({
+  __esModule: true,
+  default: jest.fn().mockImplementation(() => ({
+    ping: jest.fn().mockResolvedValue('PONG'),
+    quit: jest.fn().mockResolvedValue('OK'),
+  })),
+}));
+
 import { HealthController } from './health.controller';
 import { EmailStatusService } from '../notifications/email/email-status.service';
 import { resolveEmailConfig } from '../notifications/email/email-config';
