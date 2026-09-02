@@ -354,7 +354,7 @@ last-known-good data across a failed refetch; elsewhere a failed refresh is simp
 | `/clinics/[clinicId]/encounters`         | `ENCOUNTER.READ`                   |                |       |
 | `/encounters/[id]`                       | `ENCOUNTER.READ`                   |                |       |
 | `/appointments`                          | `APPOINTMENT.READ`                 |                |       |
-| `/reminders`                             | `REMINDER.READ`                    |                |       |
+| `/notifications`                         | `REMINDER.READ`                    |                |       |
 | `/audit`                                 | `AUDIT.READ`                       |                |       |
 | `/admin/users`                           | `CLINIC.MANAGE`                    |                |       |
 | `/admin/clinics`                         | `CLINIC.MANAGE`                    |                |       |
