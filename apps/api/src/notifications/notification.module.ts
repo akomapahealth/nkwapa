@@ -1,7 +1,8 @@
 import { Global, Module } from '@nestjs/common';
-import { EMAIL_PROVIDER } from './email/email-provider.token';
+import { EMAIL_CONFIG, EMAIL_PROVIDER } from './email/email-provider.token';
 import { createEmailProvider } from './email/email-provider.factory';
 import { EmailStatusService } from './email/email-status.service';
+import { resolveEmailConfig } from './email/email-config';
 
 /**
  * Owns email delivery capability: which provider is in use, and whether it works.
@@ -13,12 +14,19 @@ import { EmailStatusService } from './email/email-status.service';
 @Global()
 @Module({
   providers: [
+    {
+      // Resolved once at startup so the status endpoint and the provider can never
+      // disagree about what the configuration is.
+      provide: EMAIL_CONFIG,
+      useFactory: () => resolveEmailConfig(),
+    },
     EmailStatusService,
     {
       provide: EMAIL_PROVIDER,
-      useFactory: () => createEmailProvider(),
+      inject: [EMAIL_CONFIG],
+      useFactory: (config: ReturnType<typeof resolveEmailConfig>) => createEmailProvider(config),
     },
   ],
-  exports: [EMAIL_PROVIDER, EmailStatusService],
+  exports: [EMAIL_PROVIDER, EMAIL_CONFIG, EmailStatusService],
 })
 export class NotificationModule {}

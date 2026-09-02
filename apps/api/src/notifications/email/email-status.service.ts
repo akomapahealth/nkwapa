@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { EMAIL_CONFIG } from './email-provider.token';
 import {
   describeEmailUnavailability,
   resolveEmailConfig,
@@ -28,8 +29,10 @@ export interface EmailStatus {
 export class EmailStatusService {
   private readonly config: EmailConfig;
 
-  constructor(config: EmailConfig = resolveEmailConfig()) {
-    this.config = config;
+  constructor(@Optional() @Inject(EMAIL_CONFIG) config?: EmailConfig) {
+    // Optional so tests can construct the service with an explicit config, while the
+    // module supplies the resolved one at runtime.
+    this.config = config ?? resolveEmailConfig();
   }
 
   getStatus(): EmailStatus {

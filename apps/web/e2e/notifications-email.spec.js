@@ -22,9 +22,16 @@ test.describe('portal invite email', () => {
 
     // The seeded chart that carries a pending, unclaimed invite.
     await page.getByPlaceholder(/search by name, patient code/i).fill('Unclaimed');
-    const row = page.locator('.MuiDataGrid-row').first();
+    // Matched by name rather than position: results are debounced, so the first row can
+    // still be the unfiltered one at the moment the fill resolves.
+    const row = page.getByRole('row', { name: /Unclaimed/i });
     await expect(row).toBeVisible({ timeout: 30_000 });
-    await row.click();
+    // The row carries an explicit View action; the row itself is not a navigation target.
+    await row.getByRole('link', { name: /view/i }).click();
+
+    await expect(page.getByRole('heading', { name: /E2E Unclaimed/i })).toBeVisible({
+      timeout: 30_000,
+    });
 
     await expect(page.getByRole('button', { name: /resend invite email/i })).toBeVisible({
       timeout: 30_000,
