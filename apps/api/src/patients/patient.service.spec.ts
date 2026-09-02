@@ -1,12 +1,22 @@
 import { ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Patient } from '@prisma/client';
-import { PatientService } from './patient.service';
+import { PORTAL_INVITE_HISTORY_LIMIT, PatientService } from './patient.service';
 import { PatientRepository } from './patient.repository';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { EncounterService } from '../encounters/encounter.service';
 import { ConsentService } from '../consents/consent.service';
+import { EmailStatusService } from '../notifications/email/email-status.service';
+
+const FAKE_EMAIL_STATUS = {
+  available: true,
+  readiness: 'smtp' as const,
+  provider: 'nodemailer',
+  fromAddress: 'info@nkwapa.health',
+  missingVars: [],
+  reason: null,
+};
 
 const mockPatient: Patient = {
   id: 'patient-1',
@@ -84,6 +94,10 @@ describe('PatientService - national_id dedup conflict', () => {
         {
           provide: ConsentService,
           useValue: { getConsentStatusForClinic: jest.fn().mockResolvedValue([]) },
+        },
+        {
+          provide: EmailStatusService,
+          useValue: { getStatus: jest.fn().mockReturnValue(FAKE_EMAIL_STATUS) },
         },
       ],
     }).compile();
@@ -197,6 +211,10 @@ describe('PatientService - update', () => {
         {
           provide: ConsentService,
           useValue: { getConsentStatusForClinic: jest.fn().mockResolvedValue([]) },
+        },
+        {
+          provide: EmailStatusService,
+          useValue: { getStatus: jest.fn().mockReturnValue(FAKE_EMAIL_STATUS) },
         },
       ],
     }).compile();
@@ -350,6 +368,10 @@ describe('PatientService - create persists resolved location', () => {
         { provide: AuditService, useValue: { logWrite: jest.fn().mockResolvedValue(undefined) } },
         { provide: EncounterService, useValue: { listByPatient: jest.fn() } },
         { provide: ConsentService, useValue: { getConsentStatusForClinic: jest.fn() } },
+        {
+          provide: EmailStatusService,
+          useValue: { getStatus: jest.fn().mockReturnValue(FAKE_EMAIL_STATUS) },
+        },
       ],
     }).compile();
     service = module.get(PatientService);
@@ -394,6 +416,7 @@ describe('PatientService - resolveResidentialLocation invariant', () => {
     {} as never,
     {} as never,
     {} as never,
+    {} as never,
   );
 
   it('infers NOT_RECORDED with null fields when nothing is supplied', () => {
@@ -424,5 +447,149 @@ describe('PatientService - resolveResidentialLocation invariant', () => {
     expect(() =>
       service.resolveResidentialLocation({ residentialLocationStatus: 'RECORDED' }),
     ).toThrow();
+  });
+});
+
+/**
+ * The portal-access block on the chart.
+ *
+ * Staff were shown only PENDING and EXPIRED invites and only the newest one, and the
+ * "invited" label was derived from `invites.length > 0`. So a chart whose only invite
+ * lapsed a month ago still read as invited, and an invite someone cancelled last week was
+ * invisible — which left "nobody ever invited them" and "someone cancelled it" looking
+ * identical.
+ */
+describe('PatientService - portal access summary', () => {
+  const NOW = new Date('2026-09-02T12:00:00.000Z');
+  const day = (n: number) => new Date(NOW.getTime() + n * 24 * 60 * 60 * 1000);
+
+  const buildInvite = (overrides: Record<string, unknown> = {}) => ({
+    id: 'invite-1',
+    status: 'PENDING',
+    email: 'ama@example.com',
+    phoneE164: null,
+    createdAt: day(-1),
+    expiresAt: day(7),
+    claimedAt: null,
+    cancelledAt: null,
+    createdBy: { displayName: 'Nurse Adjoa' },
+    reminders: [],
+    ...overrides,
+  });
+
+  let prisma: {
+    patientAccountLink: { findUnique: jest.Mock };
+    patientPortalInvite: { findMany: jest.Mock };
+  };
+  let service: PatientService;
+
+  const summarise = (patient: Partial<Patient> = {}) =>
+    (
+      service as unknown as {
+        getPortalAccessSummary: (p: Patient, clinicId?: string) => Promise<unknown>;
+      }
+    ).getPortalAccessSummary({ ...mockPatient, ...patient } as Patient, 'clinic-1');
+
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(NOW);
+    prisma = {
+      patientAccountLink: { findUnique: jest.fn().mockResolvedValue(null) },
+      patientPortalInvite: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    service = new PatientService(
+      {} as never,
+      prisma as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { getStatus: () => FAKE_EMAIL_STATUS } as unknown as EmailStatusService,
+    );
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('asks for every status, not only the ones staff could already see', async () => {
+    await summarise();
+
+    expect(prisma.patientPortalInvite.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { patientId: 'patient-1', clinicId: 'clinic-1' },
+      }),
+    );
+  });
+
+  it('reports a live invite as the current one, with who issued it', async () => {
+    prisma.patientPortalInvite.findMany.mockResolvedValue([buildInvite()]);
+
+    const summary = await summarise();
+
+    expect(summary).toMatchObject({
+      status: 'INVITED',
+      currentInvite: {
+        id: 'invite-1',
+        status: 'PENDING',
+        createdByName: 'Nurse Adjoa',
+        expiresAt: day(7).toISOString(),
+      },
+      history: [],
+    });
+  });
+
+  // A chart whose only invite lapsed is not invited. It is unlinked, and the action staff
+  // need offered is a new invite rather than a resend of a dead one.
+  it('does not call a chart invited on the strength of a lapsed invite', async () => {
+    prisma.patientPortalInvite.findMany.mockResolvedValue([buildInvite({ expiresAt: day(-1) })]);
+
+    const summary = await summarise();
+
+    expect(summary).toMatchObject({
+      status: 'UNLINKED',
+      currentInvite: null,
+      history: [expect.objectContaining({ id: 'invite-1', status: 'EXPIRED' })],
+    });
+  });
+
+  it('shows cancelled and claimed invites in history', async () => {
+    prisma.patientPortalInvite.findMany.mockResolvedValue([
+      buildInvite({ id: 'invite-2', status: 'CANCELLED', cancelledAt: day(-2) }),
+      buildInvite({ id: 'invite-3', status: 'CLAIMED', claimedAt: day(-5) }),
+    ]);
+
+    const summary = (await summarise()) as { history: Array<{ id: string; status: string }> };
+
+    expect(summary.history.map((invite) => invite.status)).toEqual(['CANCELLED', 'CLAIMED']);
+  });
+
+  it('caps history rather than turning the chart into an audit log', async () => {
+    prisma.patientPortalInvite.findMany.mockResolvedValue(
+      Array.from({ length: 8 }, (_unused, index) =>
+        buildInvite({ id: `invite-${index}`, status: 'CANCELLED', cancelledAt: day(-index - 1) }),
+      ),
+    );
+
+    const summary = (await summarise()) as { history: unknown[] };
+
+    expect(summary.history).toHaveLength(PORTAL_INVITE_HISTORY_LIMIT);
+  });
+
+  it('carries email availability so the chart need not ask a second time', async () => {
+    const summary = await summarise();
+
+    expect(summary).toMatchObject({
+      emailChannel: { available: true, readiness: 'smtp', reason: null },
+    });
+  });
+
+  it('reports a merged chart without reaching for its invites', async () => {
+    const summary = await summarise({ mergedIntoPatientId: 'patient-9' });
+
+    expect(summary).toMatchObject({
+      status: 'MERGED',
+      currentInvite: null,
+      history: [],
+    });
+    expect(prisma.patientPortalInvite.findMany).not.toHaveBeenCalled();
   });
 });
