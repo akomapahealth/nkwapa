@@ -5,6 +5,7 @@ import { ClinicService } from '../clinics/clinic.service';
 import { computeEffectivePermissions } from './constants/permissions';
 import { PrismaService } from '../prisma/prisma.service';
 import { RateLimit } from '../common/rate-limit.decorator';
+import { claimableInviteForIdentityWhere } from '../common/portal-invite-lifecycle';
 
 export interface ReqUser {
   user: { id: string; keycloakSub: string; displayName: string; email: string | null };
@@ -162,29 +163,17 @@ export class AuthController {
       return null;
     }
 
-    const orConditions = [];
-    if (user.email) {
-      orConditions.push({
-        email: {
-          equals: user.email,
-          mode: 'insensitive' as const,
-        },
-      });
-    }
-    if (user.phoneE164) {
-      orConditions.push({
-        phoneE164: user.phoneE164,
-      });
-    }
-
-    if (orConditions.length === 0) {
+    // An expired invite must not route someone into claim onboarding. They would land on
+    // /claim-record, fill in a patient code and date of birth, and be refused by the API
+    // with no way forward — the shape of dead end this lifecycle work exists to remove.
+    const claimable = claimableInviteForIdentityWhere(user, new Date());
+    if (!claimable) {
       return null;
     }
 
     const invites = await this.prisma.patientPortalInvite.findMany({
       where: {
-        status: 'PENDING',
-        OR: orConditions,
+        ...claimable,
         patient: {
           mergedIntoPatientId: null,
         },

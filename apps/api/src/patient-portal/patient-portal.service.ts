@@ -47,6 +47,10 @@ import {
 } from '../notifications/templates';
 import { resolveAppPublicUrl } from '../notifications/email/email-config';
 import type { ClaimPatientRecordDto } from './dto/claim-record.dto';
+import {
+  claimableInviteForIdentityWhere,
+  claimableInviteWhere,
+} from '../common/portal-invite-lifecycle';
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 export const PATIENT_PORTAL_LINK_MISSING = 'PATIENT_PORTAL_LINK_MISSING';
@@ -1504,29 +1508,14 @@ export class PatientPortalService {
       return [];
     }
 
-    const orConditions: Prisma.PatientPortalInviteWhereInput[] = [];
-    if (user.email) {
-      orConditions.push({
-        email: {
-          equals: user.email,
-          mode: 'insensitive',
-        },
-      });
-    }
-    if (user.phoneE164) {
-      orConditions.push({
-        phoneE164: user.phoneE164,
-      });
-    }
-
-    if (orConditions.length === 0) {
+    const claimable = claimableInviteForIdentityWhere(user, new Date());
+    if (!claimable) {
       return [];
     }
 
     const invites = await this.prisma.patientPortalInvite.findMany({
       where: {
-        status: 'PENDING',
-        OR: orConditions,
+        ...claimable,
         patient: {
           mergedIntoPatientId: null,
         },

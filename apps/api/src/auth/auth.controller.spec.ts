@@ -278,4 +278,41 @@ describe('AuthController', () => {
       ],
     });
   });
+
+  // Routing someone into /claim-record on the strength of a lapsed invite hands them a
+  // form they cannot complete: they fill in a patient code and date of birth and the
+  // claim endpoint refuses them, with nothing on screen explaining why. The query has to
+  // carry the same expiry clause the claim endpoint uses.
+  it('does not offer claim onboarding on the strength of an expired invite', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      email: 'patient@example.com',
+      phoneE164: null,
+      isActive: true,
+    });
+
+    await controller.whoami({
+      user: {
+        user: {
+          id: 'patient-user-1',
+          keycloakSub: 'patient-sub',
+          displayName: 'Prince Tuffour',
+          email: 'patient@example.com',
+        },
+        roles: [],
+      },
+      headers: {},
+    });
+
+    expect(prisma.patientPortalInvite.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: 'PENDING',
+          AND: [
+            { OR: [{ expiresAt: null }, { expiresAt: { gt: expect.any(Date) } }] },
+            { OR: [{ email: { equals: 'patient@example.com', mode: 'insensitive' } }] },
+          ],
+        }),
+      }),
+    );
+  });
 });
