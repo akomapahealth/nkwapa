@@ -1019,6 +1019,9 @@ model PatientPortalInvite {
   @@index([clinicId, status, createdAt])
   @@index([email, status])
   @@index([phoneE164, status])
+  // The expiry sweep's only query: overdue pending rows, oldest first. Without this it
+  // is a sequential scan over every invite the deployment has ever issued.
+  @@index([status, expiresAt])
 }
 
 model PatientCodeAlias {
