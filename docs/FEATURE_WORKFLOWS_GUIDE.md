@@ -299,6 +299,32 @@ Application email is configured with `EMAIL_PROVIDER`, `SMTP_HOST`, `SMTP_PORT`,
 - Locally, point the app at the Mailpit in `infra/nkwapa/docker-compose.yml`
   (`SMTP_HOST=localhost`, `SMTP_PORT=1025`) and read the inbox at http://localhost:8025.
 
+### Authenticating the sending domain
+
+Configuring SMTP makes the app able to send. It does not make receiving providers trust
+what arrives. Since 2024 Gmail and Yahoo reject or spam-folder unauthenticated mail, so the
+domain in `EMAIL_FROM` needs three DNS records before patient mail is reliable:
+
+- **SPF** — one TXT record at the apex naming every service allowed to send. For Google
+  Workspace that is `v=spf1 include:_spf.google.com ~all`. Exactly one SPF record per
+  domain; adding a second is a permanent error that fails worse than having none.
+- **DKIM** — generated in the Google Admin console under Apps → Google Workspace → Gmail →
+  Authenticate email, then published as a `google._domainkey` TXT record. Publish the
+  record first and start authentication only once it resolves.
+- **DMARC** — a `_dmarc` TXT record saying what to do when the first two fail.
+
+**Publish DKIM before tightening DMARC.** A policy of `p=quarantine` or `p=reject` with no
+DKIM record leaves SPF alignment as the only thing standing between a patient invite and
+the spam folder. Start at `p=none` with a `rua=` reporting address, confirm from the
+reports that mail authenticates, and only then tighten.
+
+This failure is invisible from inside the product, which is what makes it worth stating
+here. The delivery ledger records `SENT` when the relay accepts a message, and SMTP offers
+no delivery receipt, so an invite that was quarantined looks exactly like one that arrived.
+Staff will chase the patient rather than the DNS. Verify with an external mailbox and read
+the raw headers for `spf=pass` and `dkim=pass`; mail between two addresses inside the same
+Workspace tenant can pass internally while failing for everyone else.
+
 **Keycloak email is configured separately.** Verify-email and password-reset messages are
 sent by Keycloak using the `KC_SMTP_*` settings on the Keycloak service. Those are a
 different service, a different mailbox configuration, and are not affected by any of the
