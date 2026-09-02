@@ -43,6 +43,16 @@ module.exports = defineConfig({
         KEYCLOAK_JWKS_URI:
           process.env.KEYCLOAK_JWKS_URI ||
           'http://localhost:8080/realms/nkwapa/protocol/openid-connect/certs',
+        // Defaulted here as well as in CI so a bare local `npx playwright test` behaves
+        // the same way. Without these the API falls back to the fake provider and the
+        // mail specs time out waiting for an inbox that will never fill.
+        EMAIL_PROVIDER: process.env.EMAIL_PROVIDER || 'nodemailer',
+        SMTP_HOST: process.env.SMTP_HOST || 'localhost',
+        SMTP_PORT: process.env.SMTP_PORT || '1025',
+        EMAIL_FROM: process.env.EMAIL_FROM || 'info@akomapa.org',
+        APP_PUBLIC_URL: process.env.APP_PUBLIC_URL || 'http://localhost:3000',
+        EMAIL_DELIVERABILITY_ALLOWED_DOMAINS:
+          process.env.EMAIL_DELIVERABILITY_ALLOWED_DOMAINS || 'nkwapa.local',
       },
     },
     {
