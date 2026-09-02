@@ -1,4 +1,5 @@
 import { ReminderService } from './reminder.service';
+import { SYSTEM_ACTOR_USER_ID } from '../common/system-actor';
 
 function createReminder(overrides: Record<string, unknown> = {}) {
   return {
@@ -414,6 +415,22 @@ describe('ReminderService', () => {
     });
     expect(auditService.logWrite).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'REMINDER.DELIVERY_UPDATE' }),
+    );
+  });
+
+  // AuditEvent.actorUserId is a UUID with a foreign key to User. This used to pass the
+  // literal string 'system', which Postgres rejects outright, so every delivery receipt
+  // recorded nothing. Nothing noticed because the audit service is mocked here.
+  it('attributes machine-written delivery audit to the system actor row', async () => {
+    prisma.reminder.findFirst.mockResolvedValue(createReminder({ providerMessageId: 'sms-1' }));
+
+    await service.updateDeliveryStatus('sms-1', 'DELIVERED');
+
+    expect(auditService.logWrite).toHaveBeenCalledWith(
+      expect.objectContaining({ actorUserId: SYSTEM_ACTOR_USER_ID }),
+    );
+    expect(SYSTEM_ACTOR_USER_ID).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     );
   });
 });
