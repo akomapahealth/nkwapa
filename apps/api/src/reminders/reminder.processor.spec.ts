@@ -7,6 +7,7 @@ describe('ReminderProcessor tenant context', () => {
   };
   const tenantContext = {
     runClinicJob: jest.fn(async (_context, callback) => callback()),
+    runSystemJob: jest.fn(async (_context, callback) => callback()),
   };
 
   beforeEach(() => {
@@ -37,6 +38,44 @@ describe('ReminderProcessor tenant context', () => {
     );
     expect(reminderService.findReminderClinicId).not.toHaveBeenCalled();
     expect(reminderService.processReminder).toHaveBeenCalledWith('reminder-1');
+  });
+
+  it('runs a deliberately global notification as system work instead of discarding it', async () => {
+    // The defect this guards: runClinicJob applies `unresolvedTenant: 'discard'`, so a
+    // notification with no clinic — a global account deactivation — would be dropped
+    // with only a warn line once clinicId became nullable.
+    const processor = new ReminderProcessor(reminderService as never, tenantContext as never);
+
+    await processor.process({
+      id: 'job-global',
+      data: { reminderId: 'reminder-global', userId: null, scope: 'global' },
+    } as never);
+
+    expect(tenantContext.runClinicJob).not.toHaveBeenCalled();
+    expect(tenantContext.runSystemJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queueName: 'reminders',
+        resourceId: 'reminder-global',
+        systemReason: expect.stringContaining('not scoped to a single clinic'),
+      }),
+      expect.any(Function),
+    );
+    expect(reminderService.processReminder).toHaveBeenCalledWith('reminder-global');
+  });
+
+  it('still resolves a legacy payload rather than treating it as global', async () => {
+    // An absent `scope` predates this field and must keep the old behaviour, or every
+    // job queued before the deploy would be misrouted.
+    reminderService.findReminderClinicId.mockResolvedValue('clinic-legacy');
+    const processor = new ReminderProcessor(reminderService as never, tenantContext as never);
+
+    await processor.process({
+      id: 'job-legacy',
+      data: { reminderId: 'reminder-legacy' },
+    } as never);
+
+    expect(tenantContext.runSystemJob).not.toHaveBeenCalled();
+    expect(tenantContext.runClinicJob).toHaveBeenCalled();
   });
 
   it('declares safe discard and resolves legacy reminder tenants as system work', async () => {

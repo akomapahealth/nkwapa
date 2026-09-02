@@ -27,6 +27,7 @@ import { LinkPortalDto } from '../patient-portal/dto/link-portal.dto';
 import { CreatePatientPortalInviteDto } from '../patient-portal/dto/portal-invite.dto';
 import { UpdatePatientBodyDto } from '../patients/dto/update-patient-body.dto';
 import { PERMISSIONS } from '../auth/constants/permissions';
+import { RateLimit } from '../common/rate-limit.decorator';
 import {
   ClinicAndPatientParamsDto,
   ClinicPatientInviteParamsDto,
@@ -173,6 +174,23 @@ export class ClinicsPatientsController {
       params.clinicId,
       params.patientId,
       dto,
+      req.user.user.id,
+      req.headers?.['x-request-id'] ?? randomUUID(),
+    );
+  }
+
+  @Post(':patientId/portal-invite/:inviteId/resend')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.PATIENT_PORTAL_LINK)
+  @RateLimit({ key: 'portal_invite_resend', limit: 5, windowSeconds: 600, scope: 'user' })
+  async resendPortalInvite(
+    @Param() params: ClinicPatientInviteParamsDto,
+    @Request() req: { user: { user: { id: string } }; headers?: { 'x-request-id'?: string } },
+  ) {
+    return this.patientPortalService.resendPortalInvite(
+      params.clinicId,
+      params.patientId,
+      params.inviteId,
       req.user.user.id,
       req.headers?.['x-request-id'] ?? randomUUID(),
     );

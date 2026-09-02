@@ -259,6 +259,17 @@ jobs:
       E2E_PATIENT_NAME: E2E Patient
       E2E_PATIENT_EMAIL: e2e.patient@nkwapa.local
       MAILPIT_BASE_URL: http://localhost:8025
+      # The API sends through Mailpit rather than the fake provider, so this job is the
+      # only place the real nodemailer path is exercised before staging. No SMTP_USER or
+      # SMTP_PASS: proving the unauthenticated relay case is the point.
+      EMAIL_PROVIDER: nodemailer
+      SMTP_HOST: localhost
+      SMTP_PORT: '1025'
+      EMAIL_FROM: info@akomapa.org
+      APP_PUBLIC_URL: http://localhost:3000
+      # Seeded addresses use .local, which has no MX record, and portal invites verify
+      # MX before accepting an address.
+      EMAIL_DELIVERABILITY_ALLOWED_DOMAINS: nkwapa.local
       CORS_ALLOWED_ORIGINS: http://localhost:3000
       PLAYWRIGHT_BASE_URL: http://localhost:3000
       # The rate limiter is a production safety control, and the E2E suite is deliberately one

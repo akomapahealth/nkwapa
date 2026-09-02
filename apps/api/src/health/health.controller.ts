@@ -1,11 +1,15 @@
 import { Controller, Get } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailStatusService } from '../notifications/email/email-status.service';
 
 @Controller('health')
 export class HealthController {
   private readonly startedAt = Date.now();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emailStatus: EmailStatusService,
+  ) {}
 
   @Get()
   async check() {
@@ -31,7 +35,15 @@ export class HealthController {
       checks.redis = 'disconnected';
     }
 
-    const allHealthy = Object.values(checks).every((v) => v === 'connected');
+    // Reported but deliberately not part of the verdict. This endpoint gates the
+    // Playwright web server and the deploy probe, and the fake provider is the correct
+    // configuration for local and CI runs; letting it read as degraded would make
+    // readiness a function of a mail setting.
+    checks.email = this.emailStatus.getHealthCheck();
+
+    const allHealthy = Object.entries(checks)
+      .filter(([name]) => name !== 'email')
+      .every(([, value]) => value === 'connected');
 
     return {
       status: allHealthy ? 'ok' : 'degraded',

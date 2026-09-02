@@ -12,7 +12,7 @@ It focuses on real workflow behavior, not internal code structure.
 | ------------ | -------------------------------------------------------------------- |
 | Volunteer    | patients, encounters, queues, my assigned                            |
 | Doctor       | queues, encounters, dashboard                                        |
-| Doctor       | queues, encounters, dashboard, reminders, my assigned                |
+| Doctor       | queues, encounters, dashboard, notifications, my assigned            |
 | Manager      | today board, patients, audit, admin users, dashboard                 |
 | Director     | clinic settings, research exports, admin users, audit, dashboard     |
 | System admin | all clinics, all users, clinic lifecycle, merge and global oversight |
@@ -135,16 +135,36 @@ Use when you want the patient to claim access later.
 
 1. Open the patient chart.
 2. Create a portal invite with email and/or phone.
-3. The invite remains pending for claim.
-4. When the patient logs in, `/auth/whoami` can return `PATIENT_CLAIM_REQUIRED`.
-5. The user completes `/claim-record`.
-6. The patient record becomes linked to that portal account.
+3. If an email address was given, an invitation email is sent to it.
+4. The invite remains pending for claim.
+5. When the patient logs in, `/auth/whoami` can return `PATIENT_CLAIM_REQUIRED`.
+6. The user completes `/claim-record`.
+7. The patient record becomes linked to that portal account.
+
+What the invitation email contains:
+
+- the clinic name and the patient's first name
+- the patient code, which the claim step requires
+- a link to sign in, when a public web address is configured
+- the invite expiry, when one was set
+
+It deliberately contains no other identifying detail. The address is supplied by staff
+and is unverified until the account is claimed.
+
+Delivery status:
+
+- the invite card on the chart shows whether the email was queued, sent, or failed
+- a failed invite explains the reason and what to do about it
+- "Resend invite email" sends the same invite again without changing its identity
+- a phone-only invite sends nothing and says so, rather than reporting a failure
 
 Important safety rules:
 
 - merged charts cannot be claimed
 - charts missing required identity details can block claim completion
 - clinic staff should always link or invite from the correct chart
+- an invite email alone never grants access; the claim step still matches email, patient
+  code, and date of birth
 
 ---
 
@@ -201,7 +221,11 @@ Gate checks:
 
 ---
 
-## 10. Reminder Workflow
+## 10. Notification Workflow
+
+Every message the clinic sends is recorded in one place and reviewed from the
+notifications surface. Reminders, portal invites, appointment updates, and staff access
+notices all appear there.
 
 ### Follow-up reminders
 
@@ -219,9 +243,66 @@ Gate checks:
 5. If a patient has no usable contact method, a failed reminder record is kept with `NO_CONTACT_METHOD`.
 6. Workers re-check appointment state before sending, so cancelled, completed, no-show, or stale rescheduled reminders are not delivered.
 
+### Appointment updates
+
+1. Confirming, rescheduling, or cancelling an appointment emails the patient, when an
+   address is on file.
+2. A reschedule email names both the previous and the new time.
+3. A cancellation email carries the reason staff entered.
+4. Completion and no-show send nothing. They are internal outcomes.
+
+### Staff access notices
+
+1. Granting or removing a clinic role emails the staff member.
+2. Deactivating an account emails them, saying whether it applies to one clinic or to
+   the whole account.
+3. Re-granting a role somebody already holds sends nothing, because nothing changed.
+4. A staff member with no email address on file still has their access changed; the
+   ledger records that no message could be sent.
+
 ### Status review
 
-Staff can inspect queued, sent, delivered, or failed reminders from the reminder list. Appointment rows also summarize reminder state with queued, delivered, and failed counts so operators can spot delivery issues without leaving the schedule.
+Staff review queued, sent, delivered, or failed messages from the notifications surface,
+filtered by status, channel, type, or date. Appointment rows also summarize reminder
+state with queued, delivered, and failed counts, so operators can spot delivery issues
+without leaving the schedule. Those counts include only the 24-hour reminder, not the
+appointment update emails.
+
+Two things worth knowing when reading a status:
+
+- **Only SMS reports Delivered.** The SMS provider sends a delivery receipt; SMTP has no
+  equivalent, so an email that was accepted stops at Sent. That is success, not a stall.
+- **A failed row explains itself.** Each failure names what went wrong and what to do,
+  and says nothing about retrying where retrying cannot help, such as a reminder
+  suppressed because its appointment was cancelled.
+
+### When email is unavailable
+
+If the server is set to send real email but the SMTP settings are incomplete, the
+notifications surface shows a banner naming the missing settings, and affected messages
+are recorded as failed with `EMAIL_NOT_CONFIGURED` rather than disappearing. The API
+still starts and every other workflow continues to work.
+
+Outside production the fake provider is normal: messages are recorded and logged but not
+delivered, and the banner says so rather than reporting a fault.
+
+### Email configuration
+
+Application email is configured with `EMAIL_PROVIDER`, `SMTP_HOST`, `SMTP_PORT`,
+`SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE`, `EMAIL_FROM`, `EMAIL_REPLY_TO`, and
+`APP_PUBLIC_URL`. See `.env.example` for the full annotated list.
+
+- `SMTP_USER` and `SMTP_PASS` are optional, but only as a pair. Leave both blank for an
+  unauthenticated relay; setting one without the other is reported as a misconfiguration.
+- `APP_PUBLIC_URL` is what links in outbound mail are built from. When it is unset, mail
+  is sent without a link rather than with a broken one.
+- Locally, point the app at the Mailpit in `infra/nkwapa/docker-compose.yml`
+  (`SMTP_HOST=localhost`, `SMTP_PORT=1025`) and read the inbox at http://localhost:8025.
+
+**Keycloak email is configured separately.** Verify-email and password-reset messages are
+sent by Keycloak using the `KC_SMTP_*` settings on the Keycloak service. Those are a
+different service, a different mailbox configuration, and are not affected by any of the
+variables above.
 
 ---
 

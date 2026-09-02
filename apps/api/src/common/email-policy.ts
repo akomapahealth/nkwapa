@@ -100,6 +100,24 @@ export function IsAllowedEmailDomain(validationOptions?: ValidationOptions) {
   };
 }
 
+/**
+ * Domains whose MX lookup is skipped, from EMAIL_DELIVERABILITY_ALLOWED_DOMAINS.
+ *
+ * Test and staging fixtures use domains that deliberately do not resolve, and an
+ * end-to-end run that creates a portal invite would otherwise fail on a DNS query
+ * rather than on anything it means to test. This never widens the policy: the
+ * classification below still runs first, so reserved and disposable domains stay
+ * refused even if someone lists them here.
+ */
+export function getMxExemptDomains(env: NodeJS.ProcessEnv = process.env): Set<string> {
+  return new Set(
+    (env.EMAIL_DELIVERABILITY_ALLOWED_DOMAINS ?? '')
+      .split(',')
+      .map((entry) => entry.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
+
 @Injectable()
 export class EmailDeliverabilityService {
   protected resolveMxRecords(domain: string) {
@@ -110,6 +128,12 @@ export class EmailDeliverabilityService {
     const policy = classifyEmailDomain(email);
     if (!policy.allowed || !policy.domain) {
       throw this.validationError(field, `${field} uses an email domain that is not allowed`);
+    }
+
+    // Checked only after classification, so the allowlist can never readmit a domain
+    // the policy above rejected.
+    if (getMxExemptDomains().has(policy.domain)) {
+      return;
     }
 
     try {

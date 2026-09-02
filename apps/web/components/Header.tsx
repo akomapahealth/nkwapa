@@ -258,7 +258,7 @@ export function Header({
             <p className="text-eyebrow text-primary">Active clinic</p>
             {/* The help was `hidden lg:inline-flex`, so the one explanation of what switching
                 clinic actually changes was invisible on exactly the devices used in a clinic. */}
-            <InfoHint label="Use the clinic picker to switch the records, queues, reminders, and dashboard data shown across this workspace." />
+            <InfoHint label="Use the clinic picker to switch the records, queues, notifications, and dashboard data shown across this workspace." />
           </div>
           <p className="truncate text-sm font-medium text-foreground">
             {activeClinic?.clinicName ?? 'Choose an active clinic'}

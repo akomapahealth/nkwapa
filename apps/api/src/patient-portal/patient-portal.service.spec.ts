@@ -22,6 +22,7 @@ describe('PatientPortalService', () => {
     scheduleAppointmentEmailReminder: jest.Mock;
     scheduleAppointmentReminderNoContact: jest.Mock;
     suppressQueuedAppointmentReminders: jest.Mock;
+    sendNotificationNow: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -35,6 +36,13 @@ describe('PatientPortalService', () => {
       scheduleAppointmentEmailReminder: jest.fn().mockResolvedValue(undefined),
       scheduleAppointmentReminderNoContact: jest.fn().mockResolvedValue(undefined),
       suppressQueuedAppointmentReminders: jest.fn().mockResolvedValue(undefined),
+      sendNotificationNow: jest.fn().mockResolvedValue({
+        id: 'delivery-1',
+        status: 'QUEUED',
+        failureReason: null,
+        sentAt: null,
+        createdAt: new Date('2026-03-21T09:00:00.000Z'),
+      }),
     };
 
     prisma.user.findUnique.mockResolvedValue({
@@ -770,6 +778,7 @@ describe('PatientPortalService', () => {
             id: 'reminder-1',
             status: 'QUEUED',
             channel: 'SMS',
+            templateKey: 'APPOINTMENT_REMINDER_V1',
             scheduledAt: new Date('2026-03-25T14:00:00.000Z'),
             failureReason: null,
             createdAt: new Date('2026-03-21T09:00:00.000Z'),
@@ -779,10 +788,23 @@ describe('PatientPortalService', () => {
             id: 'reminder-2',
             status: 'FAILED',
             channel: 'EMAIL',
+            templateKey: 'APPOINTMENT_REMINDER_V1',
             scheduledAt: new Date('2026-03-25T14:00:00.000Z'),
             failureReason: 'NO_CONTACT_METHOD',
             createdAt: new Date('2026-03-21T09:01:00.000Z'),
             updatedAt: new Date('2026-03-21T09:02:00.000Z'),
+          },
+          {
+            // Lifecycle mail hangs off the same appointment but is not a reminder, so it
+            // must not appear in the counts the schedule shows an operator.
+            id: 'reminder-3',
+            status: 'SENT',
+            channel: 'EMAIL',
+            templateKey: 'APPOINTMENT_CONFIRMED_V1',
+            scheduledAt: new Date('2026-03-21T09:00:00.000Z'),
+            failureReason: null,
+            createdAt: new Date('2026-03-21T09:03:00.000Z'),
+            updatedAt: new Date('2026-03-21T09:03:00.000Z'),
           },
         ],
       },
@@ -911,6 +933,131 @@ describe('PatientPortalService', () => {
     expect(result).toEqual({
       doctors: [{ id: 'doctor-1', displayName: 'Dr One' }],
       volunteers: [{ id: 'volunteer-1', displayName: 'Volunteer One' }],
+    });
+  });
+
+  describe('portal invite email', () => {
+    beforeEach(() => {
+      prisma.patient.findFirst.mockResolvedValue({ id: 'patient-1', portalUserId: null });
+      prisma.patientAccountLink.findUnique.mockResolvedValue(null);
+      prisma.clinic.findUnique.mockResolvedValue({
+        name: 'Cape Coast Clinic',
+        timezone: 'Africa/Accra',
+      });
+      prisma.patient.findUnique.mockResolvedValue({
+        patientCode: 'NKP-2026-000001',
+        firstName: 'Ama',
+      });
+    });
+
+    it('sends the invitation it previously only recorded', async () => {
+      // The defect this closes: staff typed an email address, the row was written, and
+      // the patient was never told anything at all.
+      const result = await service.createPortalInvite(
+        'clinic-1',
+        'patient-1',
+        { email: 'ama@example.com' },
+        'manager-1',
+        'req-1',
+      );
+
+      expect(reminderService.sendNotificationNow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          clinicId: 'clinic-1',
+          recipientType: 'PATIENT',
+          patientId: 'patient-1',
+          toAddress: 'ama@example.com',
+          templateKey: 'PORTAL_INVITE_V1',
+          payload: expect.objectContaining({
+            patientCode: 'NKP-2026-000001',
+            clinicName: 'Cape Coast Clinic',
+            resend: false,
+          }),
+        }),
+      );
+      expect(result.emailDelivery).toMatchObject({ status: 'QUEUED' });
+    });
+
+    it('links the delivery to the invite so status is a join, not a payload scan', async () => {
+      await service.createPortalInvite(
+        'clinic-1',
+        'patient-1',
+        { email: 'ama@example.com' },
+        'manager-1',
+      );
+
+      const call = reminderService.sendNotificationNow.mock.calls[0][0];
+      expect(call.portalInviteId).toBeDefined();
+    });
+
+    it('sends nothing for a phone-only invite and says so rather than failing', async () => {
+      const result = await service.createPortalInvite(
+        'clinic-1',
+        'patient-1',
+        { phoneE164: '+233240000000' },
+        'manager-1',
+      );
+
+      expect(reminderService.sendNotificationNow).not.toHaveBeenCalled();
+      expect(result.emailDelivery).toBeNull();
+    });
+
+    it('resends a pending invite without changing its identity', async () => {
+      // Staff previously had to cancel and recreate, which changes the invite id and
+      // reads as a second invitation in the audit trail.
+      prisma.patientPortalInvite.findFirst.mockResolvedValue({
+        id: 'invite-1',
+        clinicId: 'clinic-1',
+        patientId: 'patient-1',
+        status: 'PENDING',
+        email: 'ama@example.com',
+        phoneE164: null,
+        expiresAt: null,
+        createdAt: new Date('2026-03-21T09:00:00.000Z'),
+      });
+
+      const result = await service.resendPortalInvite(
+        'clinic-1',
+        'patient-1',
+        'invite-1',
+        'manager-1',
+      );
+
+      expect(result.id).toBe('invite-1');
+      expect(reminderService.sendNotificationNow).toHaveBeenCalledWith(
+        expect.objectContaining({ payload: expect.objectContaining({ resend: true }) }),
+      );
+      expect(auditService.logWrite).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PATIENT.PORTAL.INVITE.RESEND' }),
+      );
+    });
+
+    it.each([
+      ['a claimed invite', { status: 'CLAIMED', email: 'ama@example.com' }],
+      ['an invite with no email', { status: 'PENDING', email: null }],
+    ])('refuses to resend %s', async (_label, overrides) => {
+      prisma.patientPortalInvite.findFirst.mockResolvedValue({
+        id: 'invite-1',
+        clinicId: 'clinic-1',
+        patientId: 'patient-1',
+        phoneE164: null,
+        expiresAt: null,
+        createdAt: new Date('2026-03-21T09:00:00.000Z'),
+        ...overrides,
+      });
+
+      await expect(
+        service.resendPortalInvite('clinic-1', 'patient-1', 'invite-1', 'manager-1'),
+      ).rejects.toThrow();
+      expect(reminderService.sendNotificationNow).not.toHaveBeenCalled();
+    });
+
+    it('refuses to resend an invite belonging to another patient', async () => {
+      prisma.patientPortalInvite.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.resendPortalInvite('clinic-1', 'patient-1', 'invite-other', 'manager-1'),
+      ).rejects.toThrow('Portal invite not found');
     });
   });
 

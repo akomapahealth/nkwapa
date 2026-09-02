@@ -213,6 +213,7 @@ export class EncounterService {
       await this.reminderService.scheduleFollowUpReminder({
         clinicId: encounter.clinicId,
         clinicName: clinic?.name ?? 'Clinic',
+        clinicTimezone: clinic?.timezone,
         patientId: encounter.patientId,
         patientCode: patient.patientCode,
         phoneE164: patient.phoneE164,
@@ -237,6 +238,7 @@ export class EncounterService {
       await this.reminderService.scheduleFollowUpEmailReminder({
         clinicId: encounter.clinicId,
         clinicName: clinic?.name ?? 'Clinic',
+        clinicTimezone: clinic?.timezone,
         patientId: encounter.patientId,
         patientCode: patient.patientCode,
         email: patient.email,

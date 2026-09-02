@@ -41,6 +41,11 @@ import type {
   RescheduleAppointmentDto,
 } from './dto/appointment-requests.dto';
 import type { CreatePatientPortalInviteDto } from './dto/portal-invite.dto';
+import {
+  APPOINTMENT_REMINDER_TEMPLATE_KEY,
+  PATIENT_REMINDER_TEMPLATE_KEYS,
+} from '../notifications/templates';
+import { resolveAppPublicUrl } from '../notifications/email/email-config';
 import type { ClaimPatientRecordDto } from './dto/claim-record.dto';
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -90,6 +95,7 @@ const appointmentScheduleInclude = {
       id: true,
       status: true,
       channel: true,
+      templateKey: true,
       scheduledAt: true,
       failureReason: true,
       createdAt: true,
@@ -217,7 +223,15 @@ export class PatientPortalService {
       : null;
 
     const reminders = await this.prisma.reminder.findMany({
-      where: { patientId: patient.id, clinicId },
+      // Explicitly the reminder templates. The ledger now also carries portal invites
+      // and appointment lifecycle mail, and a patient's own feed showing "invite sent"
+      // after they already claimed the record would be noise at best.
+      where: {
+        patientId: patient.id,
+        clinicId,
+        recipientType: 'PATIENT',
+        templateKey: { in: [...PATIENT_REMINDER_TEMPLATE_KEYS] },
+      },
       orderBy: { scheduledAt: 'asc' },
       take: 10,
       select: {
@@ -621,6 +635,14 @@ export class PatientPortalService {
       requestId,
     );
     await this.scheduleAppointmentReminder(after.patient, after, actorUserId, requestId);
+    await this.sendAppointmentLifecycleEmail(
+      'APPOINTMENT_RESCHEDULED_V1',
+      after.patient,
+      after,
+      actorUserId,
+      { previousStartsAt: before.startsAt },
+      requestId,
+    );
 
     return this.serializeScheduledAppointment(after);
   }
@@ -663,6 +685,14 @@ export class PatientPortalService {
       appointmentId,
       actorUserId,
       'APPOINTMENT_CANCELLED',
+      requestId,
+    );
+    await this.sendAppointmentLifecycleEmail(
+      'APPOINTMENT_CANCELLED_V1',
+      after.patient,
+      after,
+      actorUserId,
+      { reason },
       requestId,
     );
 
@@ -836,6 +866,14 @@ export class PatientPortalService {
       updatedRequest.patient,
       appointment,
       actorUserId,
+      requestId,
+    );
+    await this.sendAppointmentLifecycleEmail(
+      'APPOINTMENT_CONFIRMED_V1',
+      updatedRequest.patient,
+      appointment,
+      actorUserId,
+      {},
       requestId,
     );
 
@@ -1312,7 +1350,101 @@ export class PatientPortalService {
       requestId,
     });
 
-    return this.serializePortalInvite(invite);
+    const delivery = await this.sendPortalInviteEmail(invite, actorUserId, false, requestId);
+
+    return this.serializePortalInvite(invite, delivery);
+  }
+
+  /**
+   * Send the invitation again, for the common case where the first one was missed.
+   *
+   * Staff previously had to cancel and recreate the invite to get another email out,
+   * which changes the invite id and reads as a second invitation in the audit trail.
+   */
+  async resendPortalInvite(
+    clinicId: string,
+    patientId: string,
+    inviteId: string,
+    actorUserId: string,
+    requestId?: string,
+  ) {
+    const invite = await this.prisma.patientPortalInvite.findFirst({
+      where: { id: inviteId, patientId, clinicId },
+    });
+    if (!invite) {
+      throw new NotFoundException('Portal invite not found');
+    }
+    if (invite.status !== 'PENDING') {
+      throw new BadRequestException('Only pending portal invites can be resent');
+    }
+    if (!invite.email) {
+      throw new BadRequestException('This invite has no email address to resend to');
+    }
+
+    await this.auditService.logWrite({
+      clinicId,
+      actorUserId,
+      action: 'PATIENT.PORTAL.INVITE.RESEND',
+      entityType: 'PatientPortalInvite',
+      entityId: invite.id,
+      afterJson: JSON.stringify({ email: invite.email }),
+      requestId,
+    });
+
+    const delivery = await this.sendPortalInviteEmail(invite, actorUserId, true, requestId);
+
+    return this.serializePortalInvite(invite, delivery);
+  }
+
+  private async sendPortalInviteEmail(
+    invite: {
+      id: string;
+      clinicId: string;
+      patientId: string;
+      email: string | null;
+      expiresAt: Date | null;
+    },
+    actorUserId: string,
+    resend: boolean,
+    requestId?: string,
+  ) {
+    if (!invite.email) {
+      // A phone-only invite is a legitimate choice, not a failure to record.
+      return null;
+    }
+
+    const [clinic, patient] = await Promise.all([
+      this.prisma.clinic.findUnique({
+        where: { id: invite.clinicId },
+        select: { name: true, timezone: true },
+      }),
+      this.prisma.patient.findUnique({
+        where: { id: invite.patientId },
+        select: { patientCode: true, firstName: true },
+      }),
+    ]);
+
+    const appPublicUrl = resolveAppPublicUrl();
+
+    return this.reminderService.sendNotificationNow({
+      clinicId: invite.clinicId,
+      recipientType: 'PATIENT',
+      patientId: invite.patientId,
+      portalInviteId: invite.id,
+      toAddress: invite.email,
+      templateKey: 'PORTAL_INVITE_V1',
+      payload: {
+        clinicName: clinic?.name ?? 'Your clinic',
+        timezone: clinic?.timezone ?? undefined,
+        patientCode: patient?.patientCode ?? null,
+        patientFirstName: patient?.firstName ?? null,
+        claimUrl: appPublicUrl ? `${appPublicUrl}/claim-record` : null,
+        expiresAt: invite.expiresAt?.toISOString() ?? null,
+        resend,
+      },
+      actorUserId,
+      requestId,
+    });
   }
 
   async cancelPortalInvite(
@@ -2290,13 +2422,14 @@ export class PatientPortalService {
   ) {
     const clinic = await this.prisma.clinic.findUnique({
       where: { id: appointment.clinicId },
-      select: { name: true },
+      select: { name: true, timezone: true },
     });
 
     if (patient.phoneE164) {
       await this.reminderService.scheduleAppointmentReminder({
         clinicId: appointment.clinicId,
         clinicName: clinic?.name ?? 'Clinic',
+        clinicTimezone: clinic?.timezone,
         patientId: patient.id,
         patientCode: patient.patientCode,
         phoneE164: patient.phoneE164,
@@ -2321,6 +2454,7 @@ export class PatientPortalService {
       await this.reminderService.scheduleAppointmentEmailReminder({
         clinicId: appointment.clinicId,
         clinicName: clinic?.name ?? 'Clinic',
+        clinicTimezone: clinic?.timezone,
         patientId: patient.id,
         patientCode: patient.patientCode,
         email: patient.email,
@@ -2330,6 +2464,56 @@ export class PatientPortalService {
         requestId,
       });
     }
+  }
+
+  /**
+   * Tell the patient their appointment changed.
+   *
+   * Distinct from the 24-hour reminder: a patient who learns of a cancellation only by
+   * opening the portal has effectively not been told. Linked to the appointment for
+   * traceability, but excluded from its reminder counts by template key.
+   */
+  private async sendAppointmentLifecycleEmail(
+    templateKey:
+      | 'APPOINTMENT_CONFIRMED_V1'
+      | 'APPOINTMENT_RESCHEDULED_V1'
+      | 'APPOINTMENT_CANCELLED_V1',
+    patient: { id: string; patientCode: string; firstName?: string | null; email: string | null },
+    appointment: { id: string; clinicId: string; startsAt: Date },
+    actorUserId: string,
+    extra: { previousStartsAt?: Date | null; reason?: string | null } = {},
+    requestId?: string,
+  ) {
+    if (!patient.email) {
+      // Not a failure worth recording: a patient with no email on file is a normal
+      // registration, and the SMS reminder path already covers them.
+      return;
+    }
+
+    const clinic = await this.prisma.clinic.findUnique({
+      where: { id: appointment.clinicId },
+      select: { name: true, timezone: true },
+    });
+
+    await this.reminderService.sendNotificationNow({
+      clinicId: appointment.clinicId,
+      recipientType: 'PATIENT',
+      patientId: patient.id,
+      appointmentId: appointment.id,
+      toAddress: patient.email,
+      templateKey,
+      payload: {
+        clinicName: clinic?.name ?? 'Your clinic',
+        timezone: clinic?.timezone ?? undefined,
+        patientCode: patient.patientCode,
+        patientFirstName: patient.firstName ?? null,
+        startsAt: appointment.startsAt.toISOString(),
+        previousStartsAt: extra.previousStartsAt?.toISOString() ?? null,
+        reason: extra.reason ?? null,
+      },
+      actorUserId,
+      requestId,
+    });
   }
 
   private async assertAppointmentAssignee(
@@ -2450,20 +2634,28 @@ export class PatientPortalService {
     };
   }
 
-  private serializePortalInvite(invite: {
-    id: string;
-    patientId: string;
-    clinicId: string;
-    status: string;
-    email: string | null;
-    phoneE164: string | null;
-    claimedByUserId?: string | null;
-    claimedAt?: Date | null;
-    cancelledAt?: Date | null;
-    expiresAt?: Date | null;
-    createdAt: Date;
-    updatedAt?: Date;
-  }) {
+  private serializePortalInvite(
+    invite: {
+      id: string;
+      patientId: string;
+      clinicId: string;
+      status: string;
+      email: string | null;
+      phoneE164: string | null;
+      claimedByUserId?: string | null;
+      claimedAt?: Date | null;
+      cancelledAt?: Date | null;
+      expiresAt?: Date | null;
+      createdAt: Date;
+      updatedAt?: Date;
+    },
+    delivery?: {
+      status: string;
+      failureReason: string | null;
+      sentAt: Date | null;
+      createdAt: Date;
+    } | null,
+  ) {
     return {
       id: invite.id,
       patientId: invite.patientId,
@@ -2477,6 +2669,16 @@ export class PatientPortalService {
       expiresAt: invite.expiresAt?.toISOString() ?? null,
       createdAt: invite.createdAt.toISOString(),
       updatedAt: invite.updatedAt?.toISOString() ?? null,
+      // Null when nothing was sent: either the invite is phone-only, or this response
+      // predates a send. Staff need the difference between "not sent" and "failed".
+      emailDelivery: delivery
+        ? {
+            status: delivery.status,
+            failureReason: delivery.failureReason,
+            sentAt: delivery.sentAt?.toISOString() ?? null,
+            createdAt: delivery.createdAt.toISOString(),
+          }
+        : null,
     };
   }
 
@@ -2605,14 +2807,21 @@ export class PatientPortalService {
   }
 
   private summarizeAppointmentReminders(
-    reminders: Array<{
+    allRows: Array<{
       status: string;
       channel: string;
+      templateKey: string;
       scheduledAt: Date;
       failureReason: string | null;
       updatedAt: Date;
     }>,
   ): AppointmentReminderSummary {
+    // Only the 24-hour reminder counts here. Confirmation and cancellation mail is
+    // linked to the same appointment, and counting it would tell an operator that an
+    // appointment had three delivered reminders when it had one.
+    const reminders = allRows.filter(
+      (row) => row.templateKey === APPOINTMENT_REMINDER_TEMPLATE_KEY,
+    );
     const summary: AppointmentReminderSummary = {
       total: reminders.length,
       queued: 0,

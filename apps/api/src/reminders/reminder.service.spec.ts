@@ -81,6 +81,193 @@ describe('ReminderService', () => {
     );
   });
 
+  describe('sendNotificationNow', () => {
+    const base = {
+      clinicId: 'clinic-1',
+      recipientType: 'PATIENT' as const,
+      patientId: 'patient-1',
+      toAddress: 'ama@example.org',
+      templateKey: 'PORTAL_INVITE_V1',
+      payload: { patientCode: 'NKP-2026-000001' },
+      actorUserId: 'manager-1',
+    };
+
+    it('queues immediately rather than sending inside the request transaction', async () => {
+      // The whole request runs in one Postgres transaction, so an inline SMTP call
+      // would hold a database connection open for a network round trip.
+      await service.sendNotificationNow(base);
+
+      expect(prisma.reminder.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          channel: 'EMAIL',
+          templateKey: 'PORTAL_INVITE_V1',
+          status: 'QUEUED',
+          recipientType: 'PATIENT',
+        }),
+      });
+      expect(reminderQueue.add.mock.calls[0][2].delay).toBe(0);
+    });
+
+    it('records a visible failure when the recipient has no address', async () => {
+      // Skipping silently would leave staff believing an invite went out.
+      await service.sendNotificationNow({ ...base, toAddress: null });
+
+      expect(prisma.reminder.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          status: 'FAILED',
+          failureReason: 'NO_CONTACT_METHOD',
+        }),
+      });
+      expect(reminderQueue.add).not.toHaveBeenCalled();
+    });
+
+    it('degrades to a failed row when the queue is unreachable', async () => {
+      // Redis is now in the blast radius of invite creation and role assignment; an
+      // outage must not turn into a 500 on the workflow itself.
+      reminderQueue.add.mockRejectedValue(new Error('ECONNREFUSED'));
+
+      await expect(service.sendNotificationNow(base)).resolves.toBeDefined();
+      expect(prisma.reminder.update).toHaveBeenCalledWith({
+        where: { id: 'reminder-1' },
+        data: { status: 'FAILED', failureReason: 'QUEUE_UNAVAILABLE' },
+      });
+    });
+
+    it('marks a system-scoped notification so the worker does not discard it', async () => {
+      await service.sendNotificationNow({
+        ...base,
+        clinicId: null,
+        recipientType: 'USER',
+        patientId: null,
+        recipientUserId: 'user-9',
+        templateKey: 'PORTAL_INVITE_V1',
+      });
+
+      expect(reminderQueue.add.mock.calls[0][1]).toMatchObject({ scope: 'global' });
+      expect(reminderQueue.add.mock.calls[0][1]).not.toHaveProperty('clinicId');
+    });
+
+    it('never lets a USER recipient carry a patient id', async () => {
+      // The database check constraint enforces this too; keeping the service honest
+      // means the constraint stays a backstop rather than the first line of defence.
+      await service.sendNotificationNow({
+        ...base,
+        recipientType: 'USER',
+        patientId: 'patient-1',
+        recipientUserId: 'user-9',
+      });
+
+      expect(prisma.reminder.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ patientId: null, recipientUserId: 'user-9' }),
+      });
+    });
+
+    it('refuses a template that does not exist instead of queueing a doomed row', async () => {
+      await expect(
+        service.sendNotificationNow({ ...base, templateKey: 'NOT_A_TEMPLATE_V1' }),
+      ).rejects.toThrow('Unknown notification template');
+      expect(prisma.reminder.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('email delivery', () => {
+    function queueEmailReminder(overrides: Record<string, unknown> = {}) {
+      prisma.reminder.findUnique.mockResolvedValue(
+        createReminder({
+          channel: 'EMAIL',
+          toAddress: 'patient@example.org',
+          appointment: {
+            id: 'appointment-1',
+            status: 'CONFIRMED',
+            startsAt: new Date('2026-03-26T14:00:00.000Z'),
+          },
+          ...overrides,
+        }),
+      );
+      prisma.appointment.findFirst.mockResolvedValue({
+        id: 'appointment-1',
+        status: 'CONFIRMED',
+        startsAt: new Date('2026-03-26T14:00:00.000Z'),
+      });
+    }
+
+    it('sends the html and text bodies through the email provider', async () => {
+      queueEmailReminder();
+
+      await service.processReminder('reminder-1');
+
+      expect(emailProvider.send).toHaveBeenCalledTimes(1);
+      const [to, subject, html, text] = emailProvider.send.mock.calls[0];
+      expect(to).toBe('patient@example.org');
+      expect(subject).toContain('Clinic One');
+      expect(html).toContain('<!doctype html>');
+      expect(text).not.toContain('<td');
+      expect(smsProvider.send).not.toHaveBeenCalled();
+    });
+
+    it('fails an email reminder instead of texting the SMS body to an inbox', async () => {
+      // The defect this guards: the dispatch read `channel === 'EMAIL' && emailProvider`
+      // and fell through to the SMS branch when the provider was absent, delivering the
+      // 160-character SMS body to an email address and recording it as SENT.
+      const withoutEmail = new ReminderService(
+        prisma as never,
+        auditService as never,
+        smsProvider,
+        null,
+        reminderQueue as never,
+      );
+      queueEmailReminder();
+
+      await withoutEmail.processReminder('reminder-1');
+
+      expect(smsProvider.send).not.toHaveBeenCalled();
+      expect(prisma.reminder.update).toHaveBeenCalledWith({
+        where: { id: 'reminder-1' },
+        data: { status: 'FAILED', failureReason: 'EMAIL_CHANNEL_UNAVAILABLE' },
+      });
+    });
+
+    it('keeps the provider failure code so an operator can act on it', async () => {
+      queueEmailReminder();
+      emailProvider.send.mockResolvedValue({ success: false, error: 'EMAIL_NOT_CONFIGURED' });
+
+      await service.processReminder('reminder-1');
+
+      expect(prisma.reminder.update).toHaveBeenCalledWith({
+        where: { id: 'reminder-1' },
+        data: { status: 'FAILED', failureReason: 'EMAIL_NOT_CONFIGURED' },
+      });
+    });
+
+    it('collapses provider prose to the generic code rather than storing it', async () => {
+      // failureReason is VarChar(255) and is rendered straight to operators.
+      queueEmailReminder();
+      emailProvider.send.mockResolvedValue({
+        success: false,
+        error: '550 5.1.1 <patient@example.org> recipient rejected',
+      });
+
+      await service.processReminder('reminder-1');
+
+      expect(prisma.reminder.update).toHaveBeenCalledWith({
+        where: { id: 'reminder-1' },
+        data: { status: 'FAILED', failureReason: 'SEND_FAILED' },
+      });
+    });
+
+    it('records an unknown template distinctly from a send failure', async () => {
+      queueEmailReminder({ templateKey: 'REMOVED_TEMPLATE_V9' });
+
+      await service.processReminder('reminder-1');
+
+      expect(emailProvider.send).not.toHaveBeenCalled();
+      expect(prisma.reminder.update).toHaveBeenCalledWith({
+        where: { id: 'reminder-1' },
+        data: { status: 'FAILED', failureReason: 'TEMPLATE_NOT_FOUND:REMOVED_TEMPLATE_V9' },
+      });
+    });
+  });
+
   it('creates predictable SMS appointment reminder records and deterministic jobs', async () => {
     await service.scheduleAppointmentReminder({
       clinicId: 'clinic-1',
@@ -109,7 +296,7 @@ describe('ReminderService', () => {
     });
     expect(reminderQueue.add).toHaveBeenCalledWith(
       'send',
-      { reminderId: 'reminder-1', clinicId: 'clinic-1', userId: null },
+      { reminderId: 'reminder-1', clinicId: 'clinic-1', userId: null, scope: 'clinic' },
       expect.objectContaining({ jobId: 'reminder-reminder-1' }),
     );
   });

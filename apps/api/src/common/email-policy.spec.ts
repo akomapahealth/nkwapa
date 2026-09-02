@@ -5,6 +5,7 @@ import { ToNormalizedEmail, normalizeEmailInput } from './validation';
 import {
   classifyEmailDomain,
   EmailDeliverabilityService,
+  getMxExemptDomains,
   IsAllowedEmailDomain,
 } from './email-policy';
 
@@ -102,5 +103,26 @@ describe('EmailDeliverabilityService', () => {
         fieldErrors: [{ field: 'email', message: 'email domain could not be verified' }],
       }),
     });
+  });
+});
+
+describe('getMxExemptDomains', () => {
+  it('is empty unless configured, so production never skips the MX check by default', () => {
+    expect(getMxExemptDomains({} as NodeJS.ProcessEnv).size).toBe(0);
+  });
+
+  it('parses a comma separated list, ignoring case and stray whitespace', () => {
+    const domains = getMxExemptDomains({
+      EMAIL_DELIVERABILITY_ALLOWED_DOMAINS: ' NKWAPA.local , ,example.test ',
+    } as NodeJS.ProcessEnv);
+    expect([...domains]).toEqual(['nkwapa.local', 'example.test']);
+  });
+
+  it('cannot readmit a domain the policy already refuses', () => {
+    // The allowlist is consulted after classifyEmailDomain, so listing a disposable or
+    // reserved domain here must not make it usable.
+    for (const email of ['a@mailinator.com', 'a@example.com', 'a@thing.invalid']) {
+      expect(classifyEmailDomain(email).allowed).toBe(false);
+    }
   });
 });

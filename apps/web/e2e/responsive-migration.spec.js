@@ -44,7 +44,7 @@ const ROUTES = [
   { path: '/queues', heading: /queues/i },
   { path: '/patients', heading: /patients/i },
   { path: '/appointments', heading: /appointments/i },
-  { path: '/reminders', heading: /reminders/i },
+  { path: '/notifications', heading: /notifications/i },
   { path: '/audit', heading: /audit/i },
   { path: '/admin/users', heading: /staff/i },
   { path: '/admin/clinics', heading: /clinics/i },

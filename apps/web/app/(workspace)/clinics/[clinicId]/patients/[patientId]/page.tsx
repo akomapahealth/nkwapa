@@ -22,12 +22,14 @@ import {
   ArrowLeft,
   CalendarClock,
   FileCheck,
+  Mail,
   Pencil,
   ShieldCheck,
   Stethoscope,
   UserPlus,
 } from 'lucide-react';
 import { MedicalHistoryPanel } from '@/components/patients/MedicalHistoryPanel';
+import { explainFailure, getStatusVariant } from '@/lib/notification-delivery';
 import { MedicationReconciliationPanel } from '@/components/patients/MedicationReconciliationPanel';
 import { DiabetesHistoryPanel } from '@/components/patients/DiabetesHistoryPanel';
 import { ResidentialLocationSummary } from '@/components/patients/ResidentialLocationSummary';
@@ -97,6 +99,12 @@ interface PatientWithEncounters {
       phoneE164: string | null;
       createdAt: string;
       expiresAt: string | null;
+      emailDelivery: {
+        status: string;
+        failureReason: string | null;
+        sentAt: string | null;
+        createdAt: string;
+      } | null;
     }>;
   };
   resolvedFromPatientId?: string | null;
@@ -150,6 +158,7 @@ function PatientChartWorkspace() {
   const [portalInviteEmail, setPortalInviteEmail] = useState('');
   const [portalInvitePhone, setPortalInvitePhone] = useState('');
   const [portalInviteSaving, setPortalInviteSaving] = useState(false);
+  const [portalInviteResending, setPortalInviteResending] = useState(false);
   const [portalInviteError, setPortalInviteError] = useState<string | null>(null);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [mergeQuery, setMergeQuery] = useState('');
@@ -366,6 +375,35 @@ function PatientChartWorkspace() {
       );
     } finally {
       setPortalInviteSaving(false);
+    }
+  };
+
+  const handlePortalInviteResend = async (inviteId: string) => {
+    if (!getToken) return;
+    setPortalInviteResending(true);
+    setError(null);
+
+    try {
+      const response = await apiFetch(
+        `/clinics/${encodeURIComponent(clinicId)}/patients/${encodeURIComponent(patientId)}/portal-invite/${encodeURIComponent(inviteId)}/resend`,
+        {
+          method: 'POST',
+          getToken,
+          activeClinicId: clinicId,
+        },
+      );
+      if (!response.ok) {
+        throw new Error(await readApiError(response));
+      }
+
+      // Deliberately does not claim the email arrived. The send is queued, so the
+      // honest report is that it is on its way; the delivery badge says the rest.
+      setSuccess('Invite email queued for resend.');
+      fetchPatient();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : String(requestError));
+    } finally {
+      setPortalInviteResending(false);
     }
   };
 
@@ -906,6 +944,32 @@ function PatientChartWorkspace() {
                                       </Badge>
                                     ) : null}
                                   </div>
+                                  {/*
+                                    Whether the invite actually reached the patient. Staff
+                                    previously had no way to tell a delivered invite from one
+                                    that silently failed, and would chase the patient instead
+                                    of the configuration.
+                                  */}
+                                  {latestInvite.email ? (
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <Badge
+                                        variant={getStatusVariant(
+                                          latestInvite.emailDelivery?.status ?? 'QUEUED',
+                                        )}
+                                        className="rounded-full"
+                                      >
+                                        {latestInvite.emailDelivery
+                                          ? `Invite email ${latestInvite.emailDelivery.status.toLowerCase()}`
+                                          : 'Invite email not sent'}
+                                      </Badge>
+                                      {latestInvite.emailDelivery?.failureReason ? (
+                                        <span className="text-xs text-destructive">
+                                          {explainFailure(latestInvite.emailDelivery.failureReason)
+                                            ?.detail ?? ''}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
                                 </div>
                               ) : (
                                 <p className="mt-3 text-sm text-muted-foreground">
@@ -934,6 +998,18 @@ function PatientChartWorkspace() {
                               >
                                 Link existing app account
                               </Button>
+                              {latestInvite?.email && latestInvite.status === 'PENDING' ? (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={portalInviteResending}
+                                  onClick={() => void handlePortalInviteResend(latestInvite.id)}
+                                  className="w-full cursor-pointer rounded-lg"
+                                >
+                                  <Mail className="mr-2 h-4 w-4" />
+                                  {portalInviteResending ? 'Resending...' : 'Resend invite email'}
+                                </Button>
+                              ) : null}
                               {latestInvite ? (
                                 <Button
                                   variant="ghost"
@@ -1089,6 +1165,16 @@ function PatientChartWorkspace() {
                           {portalInviteError ? (
                             <InlineNotice tone="error">{portalInviteError}</InlineNotice>
                           ) : null}
+                          {/*
+                            Said at the point of action rather than in documentation: staff
+                            are deciding what to type into this box, and whether the patient
+                            gets told anything is exactly what they cannot otherwise see.
+                          */}
+                          <p className="text-sm text-muted-foreground">
+                            An invitation email is sent to the address you enter, containing the
+                            patient code and a link to sign in. A phone number alone stages the
+                            invite without sending anything.
+                          </p>
                           <div className="space-y-2">
                             <Label htmlFor="portal-invite-email">Email</Label>
                             <Input
