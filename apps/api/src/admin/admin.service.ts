@@ -8,6 +8,7 @@ import {
 import { Prisma, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { ReminderService } from '../reminders/reminder.service';
 
 export interface AdminActor {
   userId: string;
@@ -60,6 +61,7 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    private readonly reminderService: ReminderService,
   ) {}
 
   async listUsers(actor: AdminActor, status?: string) {
@@ -148,13 +150,35 @@ export class AdminService {
       return existing;
     }
 
-    return this.prisma.userClinicRole.create({
+    const created = await this.prisma.userClinicRole.create({
       data: {
         userId: targetUserId,
         clinicId,
         role,
       },
     });
+
+    // Deliberately after the duplicate guard above: re-assigning a role someone already
+    // holds returns early, and emailing them about a no-op would be noise. A
+    // SYSTEM_ADMIN grant has no clinic by construction and is not a clinic access
+    // change, so it is not announced either.
+    if (clinicId) {
+      const clinic = await this.prisma.clinic.findUnique({
+        where: { id: clinicId },
+        select: { name: true },
+      });
+      await this.notifyStaffLifecycle({
+        templateKey: 'STAFF_ROLE_GRANTED_V1',
+        clinicId,
+        recipient: targetExists,
+        clinicName: clinic?.name ?? null,
+        role,
+        scope: 'CLINIC',
+        actorUserId: actor.userId,
+      });
+    }
+
+    return created;
   }
 
   async removeRole(
@@ -198,6 +222,25 @@ export class AdminService {
       beforeJson: JSON.stringify(existing),
       requestId,
     });
+
+    if (clinicId) {
+      const recipient = await this.prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { id: true, email: true, displayName: true },
+      });
+      if (recipient) {
+        await this.notifyStaffLifecycle({
+          templateKey: 'STAFF_ROLE_REVOKED_V1',
+          clinicId,
+          recipient,
+          clinicName: existing.clinic?.name ?? null,
+          role,
+          scope: 'CLINIC',
+          actorUserId: actor.userId,
+          requestId,
+        });
+      }
+    }
 
     return { deleted: true };
   }
@@ -508,6 +551,25 @@ export class AdminService {
       requestId,
     });
 
+    if (clinicId) {
+      const recipient = await this.prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { id: true, email: true, displayName: true },
+      });
+      if (recipient) {
+        await this.notifyStaffLifecycle({
+          templateKey: 'STAFF_ROLE_REVOKED_V1',
+          clinicId,
+          recipient,
+          clinicName: existing.clinic?.name ?? null,
+          role,
+          scope: 'CLINIC',
+          actorUserId: actor.userId,
+          requestId,
+        });
+      }
+    }
+
     return { deleted: true };
   }
 
@@ -551,6 +613,18 @@ export class AdminService {
       requestId,
     });
 
+    await this.notifyStaffLifecycle({
+      templateKey: 'STAFF_ACCOUNT_DEACTIVATED_V1',
+      clinicId,
+      recipient: updated,
+      clinicName:
+        target.clinicRoles.find((entry) => entry.clinicId === clinicId)?.clinic?.name ?? null,
+      role: null,
+      scope: 'CLINIC',
+      actorUserId: actor.userId,
+      requestId,
+    });
+
     return this.toLifecycleUserSummary(updated);
   }
 
@@ -583,7 +657,78 @@ export class AdminService {
       requestId,
     });
 
+    // Recorded with a null clinic, matching the audit event immediately above. Naming
+    // one of the user's clinics would misreport a system-wide action as belonging to a
+    // single clinic; the name is used only to address the message.
+    const { clinicId: notificationClinicId, clinicName } = this.resolveNotificationClinic(
+      target.clinicRoles,
+    );
+    await this.notifyStaffLifecycle({
+      templateKey: 'STAFF_ACCOUNT_DEACTIVATED_V1',
+      clinicId: notificationClinicId,
+      recipient: updated,
+      clinicName,
+      role: null,
+      scope: 'GLOBAL',
+      actorUserId: actor.userId,
+      requestId,
+    });
+
     return this.toLifecycleUserSummary(updated);
+  }
+
+  /**
+   * Tell a staff member their access changed.
+   *
+   * Everything needed is resolved before the write, never recovered after it. The whole
+   * request runs inside one Postgres transaction, so a statement that errors aborts the
+   * transaction regardless of any catch around it — a try/catch here would look like
+   * resilience against a jest mock and fail against a real database.
+   *
+   * A user with no email on file records a visible NO_CONTACT_METHOD row rather than
+   * failing the role change itself; access management must not depend on a mailbox.
+   */
+  private async notifyStaffLifecycle(params: {
+    templateKey: 'STAFF_ROLE_GRANTED_V1' | 'STAFF_ROLE_REVOKED_V1' | 'STAFF_ACCOUNT_DEACTIVATED_V1';
+    clinicId: string | null;
+    recipient: { id: string; email: string | null; displayName: string | null };
+    clinicName: string | null;
+    role: UserRole | null;
+    scope: 'CLINIC' | 'GLOBAL';
+    actorUserId: string;
+    requestId?: string;
+  }) {
+    await this.reminderService.sendNotificationNow({
+      clinicId: params.clinicId,
+      recipientType: 'USER',
+      recipientUserId: params.recipient.id,
+      toAddress: params.recipient.email,
+      templateKey: params.templateKey,
+      payload: {
+        displayName: params.recipient.displayName,
+        clinicName: params.clinicName,
+        role: params.role,
+        scope: params.scope,
+      },
+      actorUserId: params.actorUserId,
+      requestId: params.requestId,
+    });
+  }
+
+  /**
+   * The clinic a global account change is recorded against.
+   *
+   * A global deactivation belongs to no clinic, and the ledger stores that as a null
+   * clinicId visible only to system admins. Sorting by id as well as creation time keeps
+   * the choice deterministic when two memberships share a timestamp.
+   */
+  private resolveNotificationClinic(
+    clinicRoles: Array<{ clinicId: string | null; clinic?: { name: string } | null }>,
+  ): { clinicId: string | null; clinicName: string | null } {
+    const scoped = clinicRoles
+      .filter((entry): entry is typeof entry & { clinicId: string } => entry.clinicId !== null)
+      .sort((a, b) => a.clinicId.localeCompare(b.clinicId));
+    return { clinicId: null, clinicName: scoped[0]?.clinic?.name ?? null };
   }
 
   private readonly userInclude = {

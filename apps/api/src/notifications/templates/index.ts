@@ -7,6 +7,11 @@ import {
   APPOINTMENT_CONFIRMED_V1,
   APPOINTMENT_RESCHEDULED_V1,
 } from './appointment-lifecycle';
+import {
+  STAFF_ACCOUNT_DEACTIVATED_V1,
+  STAFF_ROLE_GRANTED_V1,
+  STAFF_ROLE_REVOKED_V1,
+} from './staff-lifecycle';
 
 /**
  * Every message the app can send, keyed by the value stored in `Reminder.templateKey`.
@@ -24,6 +29,9 @@ export const EMAIL_TEMPLATES: Record<string, EmailTemplate<any>> = {
   [APPOINTMENT_CONFIRMED_V1.key]: APPOINTMENT_CONFIRMED_V1,
   [APPOINTMENT_RESCHEDULED_V1.key]: APPOINTMENT_RESCHEDULED_V1,
   [APPOINTMENT_CANCELLED_V1.key]: APPOINTMENT_CANCELLED_V1,
+  [STAFF_ROLE_GRANTED_V1.key]: STAFF_ROLE_GRANTED_V1,
+  [STAFF_ROLE_REVOKED_V1.key]: STAFF_ROLE_REVOKED_V1,
+  [STAFF_ACCOUNT_DEACTIVATED_V1.key]: STAFF_ACCOUNT_DEACTIVATED_V1,
 };
 
 export type TemplateKey = keyof typeof EMAIL_TEMPLATES;

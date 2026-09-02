@@ -66,6 +66,7 @@ describe('AdminService', () => {
     const prisma = {
       clinic: {
         findFirst: jest.fn().mockResolvedValue({ id: 'clinic-1' }),
+        findUnique: jest.fn().mockResolvedValue({ name: 'Clinic One' }),
       },
       encounter: {
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
@@ -138,10 +139,21 @@ describe('AdminService', () => {
       logWrite: jest.fn().mockResolvedValue(undefined),
     };
 
+    const reminderService = {
+      sendNotificationNow: jest.fn().mockResolvedValue({
+        id: 'delivery-1',
+        status: 'QUEUED',
+        failureReason: null,
+        sentAt: null,
+        createdAt: new Date('2026-03-21T09:00:00.000Z'),
+      }),
+    };
+
     return {
       prisma,
       auditService,
-      service: new AdminService(prisma as never, auditService as never),
+      reminderService,
+      service: new AdminService(prisma as never, auditService as never, reminderService as never),
     };
   }
 
@@ -351,6 +363,98 @@ describe('AdminService', () => {
         action: 'USER.DEACTIVATE',
       }),
     );
+  });
+
+  describe('staff lifecycle notifications', () => {
+    it('emails a staff member when they are granted clinic access', async () => {
+      const { prisma, reminderService, service } = createService();
+      prisma.user.findUnique.mockResolvedValue(buildUser({ id: 'user-9' }));
+      prisma.userClinicRole.findFirst.mockResolvedValue(null);
+      prisma.userClinicRole.create.mockResolvedValue(
+        buildRoleEntry({ id: 'r-9', clinicId: 'clinic-1', role: UserRole.DOCTOR }),
+      );
+      prisma.clinic.findUnique.mockResolvedValue({ name: 'Cape Coast Clinic' });
+
+      await service.assignRole(systemAdminActor, 'user-9', 'clinic-1', UserRole.DOCTOR);
+
+      expect(reminderService.sendNotificationNow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          templateKey: 'STAFF_ROLE_GRANTED_V1',
+          recipientType: 'USER',
+          recipientUserId: 'user-9',
+          clinicId: 'clinic-1',
+          payload: expect.objectContaining({ role: UserRole.DOCTOR, scope: 'CLINIC' }),
+        }),
+      );
+    });
+
+    it('sends nothing when the role was already held', async () => {
+      // assignRole returns the existing grant early. Emailing on a no-op would train
+      // staff to ignore these messages.
+      const { prisma, reminderService, service } = createService();
+      prisma.user.findUnique.mockResolvedValue(buildUser({ id: 'user-9' }));
+      prisma.userClinicRole.findFirst.mockResolvedValue(
+        buildRoleEntry({ id: 'r-9', clinicId: 'clinic-1', role: UserRole.DOCTOR }),
+      );
+
+      await service.assignRole(systemAdminActor, 'user-9', 'clinic-1', UserRole.DOCTOR);
+
+      expect(prisma.userClinicRole.create).not.toHaveBeenCalled();
+      expect(reminderService.sendNotificationNow).not.toHaveBeenCalled();
+    });
+
+    it('sends nothing for a SYSTEM_ADMIN grant, which has no clinic', async () => {
+      const { prisma, reminderService, service } = createService();
+      prisma.user.findUnique.mockResolvedValue(buildUser({ id: 'user-9' }));
+      prisma.userClinicRole.findFirst.mockResolvedValue(null);
+      prisma.userClinicRole.create.mockResolvedValue(
+        buildRoleEntry({ id: 'r-9', clinicId: null, role: UserRole.SYSTEM_ADMIN }),
+      );
+
+      await service.assignRole(systemAdminActor, 'user-9', null, UserRole.SYSTEM_ADMIN);
+
+      expect(reminderService.sendNotificationNow).not.toHaveBeenCalled();
+    });
+
+    it('records a global deactivation against no clinic, matching its audit event', async () => {
+      // Attributing a system-wide action to one of the user's clinics would misreport
+      // its scope. The clinic name is used only to address the message.
+      const { prisma, reminderService, service } = createService();
+      const target = buildUser({
+        id: 'shared-1',
+        clinicRoles: [buildRoleEntry({ id: 'r-1', clinicId: 'clinic-1', role: UserRole.MANAGER })],
+      });
+      prisma.user.findUnique.mockResolvedValue(target);
+      prisma.user.update.mockResolvedValue({ ...target, isActive: false });
+
+      await service.deactivateUserGlobally(systemAdminActor, 'shared-1', 'req-9');
+
+      expect(reminderService.sendNotificationNow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          templateKey: 'STAFF_ACCOUNT_DEACTIVATED_V1',
+          clinicId: null,
+          payload: expect.objectContaining({ scope: 'GLOBAL' }),
+        }),
+      );
+    });
+
+    it('still deactivates a user who has no email on file', async () => {
+      // Access management must never depend on a mailbox; the ledger records the
+      // missing address instead.
+      const { prisma, reminderService, service } = createService();
+      // buildUser coalesces a null email back to its default, so it is set explicitly.
+      const target = { ...buildUser({ id: 'no-mail' }), email: null };
+      prisma.user.findUnique.mockResolvedValue(target);
+      prisma.user.update.mockResolvedValue({ ...target, isActive: false });
+
+      await expect(
+        service.deactivateUserGlobally(systemAdminActor, 'no-mail', 'req-10'),
+      ).resolves.toMatchObject({ isActive: false });
+
+      expect(reminderService.sendNotificationNow).toHaveBeenCalledWith(
+        expect.objectContaining({ toAddress: null }),
+      );
+    });
   });
 
   it('revokes a clinic role and emits a ROLE.REVOKE audit event', async () => {
