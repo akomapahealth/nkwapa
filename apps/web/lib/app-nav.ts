@@ -112,9 +112,9 @@ const NAV_SECTIONS: AppNavSection[] = [
         requiresClinic: true,
       },
       {
-        href: '/reminders',
-        label: 'Reminders',
-        description: 'Follow-up outreach.',
+        href: '/notifications',
+        label: 'Notifications',
+        description: 'Outbound message delivery.',
         icon: Bell,
         permission: 'REMINDER.READ',
         requiresClinic: true,

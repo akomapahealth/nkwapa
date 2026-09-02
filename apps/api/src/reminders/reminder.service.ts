@@ -12,7 +12,12 @@ import {
 } from '../common/keyset-cursor';
 import { EMAIL_PROVIDER } from '../notifications/email/email-provider.token';
 import type { EmailProvider } from '../notifications/email/email-provider.interface';
-import { isTemplateKey, renderMessage } from '../notifications/templates';
+import {
+  isTemplateKey,
+  renderMessage,
+  NOTIFICATION_TYPE_GROUPS,
+  type NotificationTypeGroup,
+} from '../notifications/templates';
 import { DEFAULT_TIMEZONE } from '../notifications/templates/partials';
 
 const REMINDER_QUEUE_NAME = 'reminders';
@@ -119,6 +124,9 @@ export interface SendNotificationParams {
 export interface ListRemindersParams {
   clinicId: string;
   status?: ReminderStatus;
+  channel?: 'SMS' | 'EMAIL';
+  /** A message-kind group rather than a raw template key; see NOTIFICATION_TYPE_GROUPS. */
+  type?: NotificationTypeGroup;
   from?: Date;
   to?: Date;
   cursor?: string;
@@ -459,6 +467,10 @@ export class ReminderService {
       where: {
         clinicId: params.clinicId,
         ...(params.status && { status: params.status }),
+        ...(params.channel && { channel: params.channel }),
+        ...(params.type && {
+          templateKey: { in: [...NOTIFICATION_TYPE_GROUPS[params.type]] },
+        }),
         ...(params.from || params.to
           ? {
               scheduledAt: {

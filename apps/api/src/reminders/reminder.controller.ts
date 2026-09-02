@@ -8,6 +8,7 @@ import { ReminderService } from './reminder.service';
 import { EmailStatusService } from '../notifications/email/email-status.service';
 import { PERMISSIONS } from '../auth/constants/permissions';
 import { ReminderStatus } from '@prisma/client';
+import { isNotificationTypeGroup } from '../notifications/templates';
 
 @Controller('clinics/:clinicId/reminders')
 @UseGuards(JwtAuthGuard, ClinicScopeGuard, RbacGuard)
@@ -37,6 +38,8 @@ export class RemindersController {
   async list(
     @Param('clinicId') clinicId: string,
     @Query('status') status?: ReminderStatus,
+    @Query('channel') channel?: string,
+    @Query('type') type?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('cursor') cursor?: string,
@@ -45,6 +48,10 @@ export class RemindersController {
     return this.reminderService.list({
       clinicId,
       status,
+      // Unrecognised values are dropped rather than rejected: a stale bookmark should
+      // show the unfiltered ledger, not an error page.
+      channel: channel === 'SMS' || channel === 'EMAIL' ? channel : undefined,
+      type: type && isNotificationTypeGroup(type) ? type : undefined,
       from: from ? new Date(from) : undefined,
       to: to ? new Date(to) : undefined,
       cursor,

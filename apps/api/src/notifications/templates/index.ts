@@ -42,6 +42,29 @@ export const PATIENT_REMINDER_TEMPLATE_KEYS = [
   APPOINTMENT_REMINDER_V1.key,
 ] as const;
 
+/**
+ * Template keys grouped by the kind of message they are, for filtering the ledger.
+ *
+ * Grouped rather than exposed as raw keys so the operator view can offer "invites" or
+ * "appointment updates" without the UI having to know which template versions exist.
+ */
+export const NOTIFICATION_TYPE_GROUPS = {
+  REMINDER: [FOLLOWUP_REMINDER_V1.key, APPOINTMENT_REMINDER_V1.key],
+  INVITE: [PORTAL_INVITE_V1.key],
+  APPOINTMENT_UPDATE: [
+    APPOINTMENT_CONFIRMED_V1.key,
+    APPOINTMENT_RESCHEDULED_V1.key,
+    APPOINTMENT_CANCELLED_V1.key,
+  ],
+  STAFF: [STAFF_ROLE_GRANTED_V1.key, STAFF_ROLE_REVOKED_V1.key, STAFF_ACCOUNT_DEACTIVATED_V1.key],
+} as const;
+
+export type NotificationTypeGroup = keyof typeof NOTIFICATION_TYPE_GROUPS;
+
+export function isNotificationTypeGroup(value: string): value is NotificationTypeGroup {
+  return Object.prototype.hasOwnProperty.call(NOTIFICATION_TYPE_GROUPS, value);
+}
+
 /** The 24-hour appointment reminder, the only template the schedule's counts summarise. */
 export const APPOINTMENT_REMINDER_TEMPLATE_KEY = APPOINTMENT_REMINDER_V1.key;
 
