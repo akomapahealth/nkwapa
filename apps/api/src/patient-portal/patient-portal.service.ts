@@ -50,7 +50,15 @@ import type { ClaimPatientRecordDto } from './dto/claim-record.dto';
 import {
   claimableInviteForIdentityWhere,
   claimableInviteWhere,
+  isPortalInviteExpired,
+  resolvePortalInviteExpiry,
 } from '../common/portal-invite-lifecycle';
+import { SYSTEM_ACTOR_USER_ID } from '../common/system-actor';
+import {
+  PORTAL_INVITE_EXPIRE_ACTION,
+  describeInviteStateForStaff,
+  formatInviteExpiryDate,
+} from './portal-invite-presentation';
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 export const PATIENT_PORTAL_LINK_MISSING = 'PATIENT_PORTAL_LINK_MISSING';
@@ -1317,7 +1325,16 @@ export class PatientPortalService {
       throw new ConflictException('This patient already has a linked portal account');
     }
 
-    const expiresAt = dto.expiresAt ? this.parseDateTime(dto.expiresAt, 'expiresAt') : null;
+    // Every invite issued from here has a lifetime. `expiresAt` used to be passed
+    // through as null whenever staff did not type a date, which is how invites became
+    // open-ended in the first place; the resolver holds the precedence rule instead.
+    const expiresAt = resolvePortalInviteExpiry(
+      {
+        expiresAt: dto.expiresAt ? this.parseDateTime(dto.expiresAt, 'expiresAt') : null,
+        ttlDays: dto.ttlDays ?? null,
+      },
+      new Date(),
+    );
 
     const invite = await this.prisma.$transaction(async (tx) => {
       await tx.patientPortalInvite.updateMany({
@@ -1379,7 +1396,17 @@ export class PatientPortalService {
       throw new NotFoundException('Portal invite not found');
     }
     if (invite.status !== 'PENDING') {
-      throw new BadRequestException('Only pending portal invites can be resent');
+      throw new BadRequestException(
+        `This invite is ${describeInviteStateForStaff(invite.status)}. Issue a new invite instead.`,
+      );
+    }
+    // Resending an invite that can no longer be claimed would put a live-looking email in
+    // front of a patient who is about to be refused. Settle the row and say so.
+    if (isPortalInviteExpired(invite, new Date())) {
+      await this.expireInvite(invite, requestId);
+      throw new BadRequestException(
+        'This invite has expired and can no longer be claimed. Issue a new invite instead.',
+      );
     }
     if (!invite.email) {
       throw new BadRequestException('This invite has no email address to resend to');
@@ -1468,8 +1495,15 @@ export class PatientPortalService {
     if (!invite) {
       throw new NotFoundException('Portal invite not found');
     }
-    if (invite.status !== 'PENDING') {
-      throw new BadRequestException('Only pending portal invites can be cancelled');
+    // An expired invite is already inert: cancelling it would change nothing a patient
+    // can observe, and the honest recovery is a new invite.
+    if (invite.status !== 'PENDING' || isPortalInviteExpired(invite, new Date())) {
+      const state = isPortalInviteExpired(invite, new Date())
+        ? 'expired'
+        : describeInviteStateForStaff(invite.status);
+      throw new BadRequestException(
+        `This invite is ${state} and no longer grants access. There is nothing to cancel.`,
+      );
     }
 
     const updated = await this.prisma.patientPortalInvite.update({
@@ -1492,6 +1526,38 @@ export class PatientPortalService {
     });
 
     return this.serializePortalInvite(updated);
+  }
+
+  /**
+   * Settle a lapsed invite the sweep has not reached yet.
+   *
+   * Called from the paths that discover the lapse first — a claim attempt and a resend —
+   * so the stored status stops disagreeing with what the API will do, and the transition
+   * is audited under the same action the hourly sweep writes. `updateMany` guarded on
+   * PENDING makes this idempotent: two requests racing to expire the same row produce one
+   * transition, not two audit events claiming to have made it.
+   */
+  private async expireInvite(
+    invite: { id: string; clinicId: string; expiresAt: Date | null },
+    requestId?: string,
+  ): Promise<void> {
+    const settled = await this.prisma.patientPortalInvite.updateMany({
+      where: { id: invite.id, status: 'PENDING' },
+      data: { status: 'EXPIRED' },
+    });
+    if (settled.count === 0) {
+      return;
+    }
+    await this.auditService.logWrite({
+      clinicId: invite.clinicId,
+      actorUserId: SYSTEM_ACTOR_USER_ID,
+      action: PORTAL_INVITE_EXPIRE_ACTION,
+      entityType: 'PatientPortalInvite',
+      entityId: invite.id,
+      beforeJson: JSON.stringify({ status: 'PENDING', expiresAt: invite.expiresAt }),
+      afterJson: JSON.stringify({ status: 'EXPIRED', trigger: 'on-access' }),
+      requestId,
+    });
   }
 
   async listPendingInvitesForUser(userId: string) {
@@ -1569,10 +1635,11 @@ export class PatientPortalService {
       throw new NotFoundException('User not found');
     }
 
+    const now = new Date();
     const invite = await this.prisma.patientPortalInvite.findFirst({
       where: {
         id: dto.inviteId,
-        status: 'PENDING',
+        ...claimableInviteWhere(now),
       },
       include: {
         patient: {
@@ -1587,6 +1654,32 @@ export class PatientPortalService {
       },
     });
     if (!invite) {
+      // A flat "not found" here would be a dead end: the patient is holding a real
+      // invitation email and has no way to learn that the reason it will not work is
+      // that it lapsed. Re-read by id so the refusal can name the date and the recovery.
+      const lapsed = await this.prisma.patientPortalInvite.findUnique({
+        where: { id: dto.inviteId },
+        select: { id: true, clinicId: true, status: true, expiresAt: true },
+      });
+      if (lapsed && isPortalInviteExpired(lapsed, now)) {
+        await this.expireInvite(lapsed, requestId);
+        throw new BadRequestException(
+          `This invitation expired on ${formatInviteExpiryDate(lapsed.expiresAt)}. Ask the clinic to send a new one.`,
+        );
+      }
+      if (lapsed?.status === 'EXPIRED') {
+        throw new BadRequestException(
+          'This invitation has expired. Ask the clinic to send a new one.',
+        );
+      }
+      if (lapsed?.status === 'CANCELLED') {
+        throw new BadRequestException(
+          'This invitation was cancelled by the clinic. Ask them to send a new one.',
+        );
+      }
+      if (lapsed?.status === 'CLAIMED') {
+        throw new ConflictException('This invitation has already been used.');
+      }
       throw new NotFoundException('Pending portal invite not found');
     }
     if (invite.patient.mergedIntoPatientId) {
