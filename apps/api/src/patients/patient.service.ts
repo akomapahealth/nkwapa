@@ -107,7 +107,8 @@ export interface PatientPortalAccessSummary {
    * last week was invisible and staff had no way to tell "nobody ever invited them" from
    * "someone cancelled it". Both are answers; only one of them was reachable.
    */
-  history: PatientPortalInviteSummary[];
+  previousInvites: PatientPortalInviteSummary[];
+
   /**
    * Whether an invitation email can currently reach an inbox.
    *
@@ -440,7 +441,7 @@ export class PatientService {
         linkedKeycloakSub: null,
         mergedIntoPatientId: patient.mergedIntoPatientId,
         currentInvite: null,
-        history: [],
+        previousInvites: [],
         emailChannel,
         claimUrl,
       };
@@ -478,7 +479,7 @@ export class PatientService {
     // At most one invite is live at a time: creating one cancels any predecessor, and so
     // does a claim. Anything else is history.
     const currentInvite = summaries.find((invite) => invite.status === 'PENDING') ?? null;
-    const history = summaries
+    const previousInvites = summaries
       .filter((invite) => invite.id !== currentInvite?.id)
       .slice(0, PORTAL_INVITE_HISTORY_LIMIT);
 
@@ -494,7 +495,7 @@ export class PatientService {
       linkedKeycloakSub: accountLink?.keycloakSub ?? null,
       mergedIntoPatientId: null,
       currentInvite,
-      history,
+      previousInvites,
       emailChannel,
       claimUrl,
     };

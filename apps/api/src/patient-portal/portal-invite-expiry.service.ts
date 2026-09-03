@@ -23,10 +23,10 @@ export interface PortalInviteExpiryResult {
 /**
  * Bring the stored status of lapsed invites in line with the rule the API enforces.
  *
- * Nothing depends on this having run. It exists so the operator view, the invite history
- * on a chart, and the audit trail all say EXPIRED rather than PENDING once an invite is
- * over — a row that reads PENDING for an hour after it stopped working is the sort of
- * quiet disagreement between the data and the behaviour that this whole change is about.
+ * Nothing depends on this having run. It exists so the operator view, the list of previous
+ * invites on a chart, and the audit trail all say EXPIRED rather than PENDING once an
+ * invite is over — a row that reads PENDING for an hour after it stopped working is the
+ * sort of quiet disagreement between data and behaviour that this whole change is about.
  */
 @Injectable()
 export class PortalInviteExpiryService {

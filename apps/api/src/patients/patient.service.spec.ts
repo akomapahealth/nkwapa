@@ -533,7 +533,7 @@ describe('PatientService - portal access summary', () => {
         createdByName: 'Nurse Adjoa',
         expiresAt: day(7).toISOString(),
       },
-      history: [],
+      previousInvites: [],
     });
   });
 
@@ -547,7 +547,7 @@ describe('PatientService - portal access summary', () => {
     expect(summary).toMatchObject({
       status: 'UNLINKED',
       currentInvite: null,
-      history: [expect.objectContaining({ id: 'invite-1', status: 'EXPIRED' })],
+      previousInvites: [expect.objectContaining({ id: 'invite-1', status: 'EXPIRED' })],
     });
   });
 
@@ -557,9 +557,14 @@ describe('PatientService - portal access summary', () => {
       buildInvite({ id: 'invite-3', status: 'CLAIMED', claimedAt: day(-5) }),
     ]);
 
-    const summary = (await summarise()) as { history: Array<{ id: string; status: string }> };
+    const summary = (await summarise()) as {
+      previousInvites: Array<{ id: string; status: string }>;
+    };
 
-    expect(summary.history.map((invite) => invite.status)).toEqual(['CANCELLED', 'CLAIMED']);
+    expect(summary.previousInvites.map((invite) => invite.status)).toEqual([
+      'CANCELLED',
+      'CLAIMED',
+    ]);
   });
 
   it('caps history rather than turning the chart into an audit log', async () => {
@@ -569,9 +574,9 @@ describe('PatientService - portal access summary', () => {
       ),
     );
 
-    const summary = (await summarise()) as { history: unknown[] };
+    const summary = (await summarise()) as { previousInvites: unknown[] };
 
-    expect(summary.history).toHaveLength(PORTAL_INVITE_HISTORY_LIMIT);
+    expect(summary.previousInvites).toHaveLength(PORTAL_INVITE_HISTORY_LIMIT);
   });
 
   it('carries email availability so the chart need not ask a second time', async () => {
@@ -588,7 +593,7 @@ describe('PatientService - portal access summary', () => {
     expect(summary).toMatchObject({
       status: 'MERGED',
       currentInvite: null,
-      history: [],
+      previousInvites: [],
     });
     expect(prisma.patientPortalInvite.findMany).not.toHaveBeenCalled();
   });
