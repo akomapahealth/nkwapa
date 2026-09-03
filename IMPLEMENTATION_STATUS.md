@@ -121,7 +121,7 @@ nkwapa/
 | ------------------------------------------------- | ------ | ---- | ---------------------------------------------------------------------------------------- |
 | Patient registry (create, update, search, detail) | ✅     | 100% | Code generation, encrypted national ID                                                   |
 | Patient merge & code alias                        | ✅     | 100% | SYSTEM_ADMIN-only merge with alias preservation                                          |
-| Portal link/invite                                | ✅     | 95%  | Link, invite, claim flows; invite automation lighter                                     |
+| Portal link/invite                                | ✅     | 100% | Link, invite, claim; enforced expiry, resend/cancel, audited lifecycle                   |
 | Duplicate review queue                            | ❌     | 0%   | Hashed ID collision detected, no dedicated queue UI                                      |
 | Cross-clinic chart consolidation                  | ❌     | 0%   | Merge is clinic-local only                                                               |
 | Encounter workflow (draft -> review -> finalize)  | ✅     | 100% | Full state machine with role-based transitions                                           |

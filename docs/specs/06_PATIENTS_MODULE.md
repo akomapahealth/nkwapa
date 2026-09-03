@@ -30,7 +30,13 @@ Registry reads support the older `page` and `pageSize` contract and the newer `c
 - `POST /clinics/:clinicId/patients/:patientId/portal-link`
 - `GET /clinics/:clinicId/patients/:patientId/portal-link-candidates`
 - `POST /clinics/:clinicId/patients/:patientId/portal-invite`
+- `POST /clinics/:clinicId/patients/:patientId/portal-invite/:inviteId/resend`
 - `DELETE /clinics/:clinicId/patients/:patientId/portal-invite/:inviteId`
+
+Creating an invite supersedes any invite already waiting on that chart. The body takes an
+optional `ttlDays` (7, 14, or 30) or an exact `expiresAt`; with neither, the invite takes
+the deployment default from `PORTAL_INVITE_TTL_DAYS`, which is 14 days. There is no way to
+create an invite with no expiry.
 
 ### Duplicate resolution
 
@@ -90,8 +96,14 @@ rather than blanked, so clinical note content never reaches a role without
 ### Portal access
 
 - staff can directly link an existing local user
-- staff can create a pending portal invite
-- patients can later claim the record through the claim flow
+- staff can create a portal invite, resend its email, cancel it, or replace it
+- every invite has an expiry, and an expired invite cannot be claimed, cannot put its
+  holder into claim onboarding, and grants no clinic scope
+- the chart carries the live invite plus recently settled ones, so a cancelled or expired
+  invitation is visible rather than absent
+- create, resend, cancel, claim, and expiry are all written to the audit trail
+- patients can later claim the record through the claim flow, which still matches the
+  staged email or phone, the patient code, and the date of birth
 
 ### Merge
 
@@ -146,4 +158,5 @@ and Consent.
 
 - no dedicated duplicate review queue yet
 - no full cross-clinic patient consolidation workflow yet
-- portal invite delivery automation is still lighter than the rest of the access model
+- portal invites reach patients by email only; SMS delivery of an invitation is not wired,
+  so a phone-only invite is passed on by hand from the copyable instructions on the chart

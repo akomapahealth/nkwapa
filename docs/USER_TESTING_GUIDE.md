@@ -273,6 +273,7 @@ Without it the portal shows the "ask your clinic to link this account" state and
 cannot be reached at all.
 
 - [ ] patient with pending invite is routed to `/claim-record`
+- [ ] each listed invitation shows how long it has left
 - [ ] claim-record succeeds with valid matching details
 - [ ] `/portal` loads after successful claim
 - [ ] measurement logging works
@@ -285,6 +286,65 @@ cannot be reached at all.
 - [ ] an unclaimed patient opening `/portal/appointments/request` sees the claim prompt, not an
       error string
 - [ ] trend views render usable data
+
+---
+
+## 12b. Portal Invite Lifecycle Matrix
+
+Signed in as staff, on a patient chart. Run this when a release touched portal invites,
+notification delivery, or the chart's right-hand column.
+
+**Fixtures:** `SEED_E2E_PATIENT_SUB` at seed time stages two unclaimed charts — "E2E
+Unclaimed" with a live invite, and "E2E Lifecycle" with a cancelled and an expired one, so
+the previous-invitations list has something in it.
+
+### Reading the card
+
+- [ ] the portal status reads in plain language, never `LINKED` / `INVITED` / `UNLINKED`
+- [ ] a chart whose only invites have lapsed reads "No portal access", not "Invitation
+      waiting", and offers a new invitation rather than a resend
+- [ ] the live invitation shows a countdown ("Expires in 6 days"), the address or number it
+      was staged against, and who issued it
+- [ ] "Previous invitations" is collapsed by default, expands on click and by keyboard, and
+      lists cancelled, expired, and claimed invitations
+- [ ] a chart that has never been invited shows no previous-invitations control at all
+
+### Acting on it
+
+- [ ] creating an invitation offers 7, 14, and 30 days and shows the resulting date
+- [ ] creating an invitation on a chart that already has one warns that the old one stops
+      working
+- [ ] "Resend invite email" keeps its label while sending; nothing on the card resizes or
+      moves
+- [ ] resend is not offered on an expired invitation
+- [ ] "Cancel invitation" asks first, names the address, and backing out changes nothing
+- [ ] after cancelling, the chart does not blank; the invitation appears under previous
+      invitations
+- [ ] every one of these appears in the audit log under `PATIENT.PORTAL.INVITE*`
+
+### When email cannot carry it
+
+Force by staging a phone-only invitation, or by starting the API with `EMAIL_PROVIDER`
+unset.
+
+- [ ] a phone-only invitation says nothing was sent, and does not read as a failure
+- [ ] an unconfigured mail server reads as a configuration problem, not a failed send
+- [ ] the copyable instructions carry the patient code, the sign-in address, and the expiry
+      date, and no patient name or date of birth
+- [ ] "Copy instructions" confirms without changing width; on a plain-HTTP address, where
+      the browser refuses, it says so instead of doing nothing
+
+### Expiry
+
+- [ ] an expired invitation cannot be claimed: `/claim-record` refuses it, names the date it
+      expired, and says to ask the clinic for a new one
+- [ ] an expired invitation no longer routes its holder to `/claim-record` at sign-in
+
+### Widths and keyboard
+
+- [ ] 375 / 768 / 1024 / 1440 and 200% zoom: the card never scrolls sideways and the
+      previous-invitations rows wrap
+- [ ] the whole card is reachable and operable by keyboard, including both dialogs
 
 ---
 

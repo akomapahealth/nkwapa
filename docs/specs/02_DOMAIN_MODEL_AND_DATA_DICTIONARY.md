@@ -137,6 +137,14 @@ Key fields:
 - `claimedAt`
 - `expiresAt`
 
+Lifecycle:
+
+- `PENDING` while claimable; `CLAIMED`, `CANCELLED`, or `EXPIRED` once settled
+- `expiresAt` is always set on creation, and an invite at or past it is treated as expired
+  wherever it is used, whether or not the hourly sweep has settled the row yet
+- creating an invite cancels any other pending invite on the same chart, and so does a
+  successful claim
+
 Use:
 
 - staged patient access before a chart is claimed into a portal account
