@@ -13,24 +13,17 @@
 export const PORTAL_INVITE_EXPIRE_ACTION = 'PATIENT.PORTAL.INVITE.EXPIRE';
 
 /**
- * Which path noticed the lapse first.
+ * The audit event for an expiry transition.
  *
- * Recorded because the two mean different things operationally: `on-access` says a person
- * was in the middle of trying to use the invite, `scheduled-sweep` says nobody was.
- */
-export type PortalInviteExpiryTrigger = 'on-access' | 'scheduled-sweep';
-
-/**
- * The audit event for an expiry transition, built once so both callers write the same row.
- *
- * They record the same transition from different places, and an audit trail where the same
- * event has two shapes depending on which code path reached it is one nobody can query.
+ * Only the scheduled sweep writes this. The request paths that notice a lapse first — a
+ * claim attempt and a resend — deliberately record nothing: the RLS interceptor wraps a
+ * request in one interactive transaction, so a write made on the way to throwing is rolled
+ * back by that same exception. An audit row claiming a transition that never survived is
+ * worse than no row, and the sweep settles it within the hour regardless.
  */
 export function buildInviteExpiryAudit(
   invite: { id: string; clinicId: string; expiresAt: Date | null },
-  trigger: PortalInviteExpiryTrigger,
   actorUserId: string,
-  requestId?: string,
 ) {
   return {
     clinicId: invite.clinicId,
@@ -39,8 +32,7 @@ export function buildInviteExpiryAudit(
     entityType: 'PatientPortalInvite',
     entityId: invite.id,
     beforeJson: JSON.stringify({ status: 'PENDING', expiresAt: invite.expiresAt }),
-    afterJson: JSON.stringify({ status: 'EXPIRED', trigger }),
-    ...(requestId ? { requestId } : {}),
+    afterJson: JSON.stringify({ status: 'EXPIRED', trigger: 'scheduled-sweep' }),
   };
 }
 

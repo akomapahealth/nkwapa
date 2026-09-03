@@ -1340,7 +1340,7 @@ describe('PatientPortalService', () => {
 
     // Resending would put a live-looking invitation in front of a patient the claim
     // endpoint is already refusing.
-    it('refuses to resend an invite that has lapsed, and settles the row', async () => {
+    it('refuses to resend an invite that has lapsed', async () => {
       prisma.patientPortalInvite.findFirst.mockResolvedValueOnce(
         buildInvite({ expiresAt: day(-1) }),
       );
@@ -1350,13 +1350,6 @@ describe('PatientPortalService', () => {
       ).rejects.toThrow(/expired/i);
 
       expect(reminderService.sendNotificationNow).not.toHaveBeenCalled();
-      expect(prisma.patientPortalInvite.updateMany).toHaveBeenCalledWith({
-        where: { id: 'invite-1', status: 'PENDING' },
-        data: { status: 'EXPIRED' },
-      });
-      expect(auditService.logWrite).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'PATIENT.PORTAL.INVITE.EXPIRE' }),
-      );
     });
 
     it('still resends an invite with time left on it', async () => {
@@ -1447,6 +1440,38 @@ describe('PatientPortalService', () => {
         );
 
         expect(prisma.patientAccountLink.upsert).not.toHaveBeenCalled();
+      });
+
+      /*
+        The refusal paths must not try to settle the row on their way out.
+
+        The RLS interceptor runs a whole request inside one interactive transaction, so a
+        write made here is rolled back by the very exception it accompanies. An earlier
+        version of this code did exactly that: it looked right, passed a mocked test that
+        asserted the update and the audit event, and persisted neither. It was only caught
+        by driving the real endpoint and finding the row still PENDING.
+
+        Asserting the absence is the only way a mock can catch the regression, because a
+        mock cannot roll anything back.
+      */
+      it('writes nothing while refusing, because the request transaction would undo it', async () => {
+        prisma.patientPortalInvite.findFirst.mockResolvedValueOnce(null);
+        prisma.patientPortalInvite.findUnique.mockResolvedValueOnce({
+          id: 'invite-1',
+          clinicId: 'clinic-1',
+          status: 'PENDING',
+          expiresAt: day(-1),
+        });
+
+        await expect(service.claimPatientRecord('user-1', claimDto, 'req-1')).rejects.toThrow(
+          /expired/i,
+        );
+
+        expect(prisma.patientPortalInvite.updateMany).not.toHaveBeenCalled();
+        expect(prisma.patientPortalInvite.update).not.toHaveBeenCalled();
+        expect(auditService.logWrite).not.toHaveBeenCalledWith(
+          expect.objectContaining({ action: 'PATIENT.PORTAL.INVITE.EXPIRE' }),
+        );
       });
 
       it.each([

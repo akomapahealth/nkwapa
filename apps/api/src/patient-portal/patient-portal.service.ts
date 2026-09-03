@@ -53,12 +53,7 @@ import {
   isPortalInviteExpired,
   resolvePortalInviteExpiry,
 } from '../common/portal-invite-lifecycle';
-import { SYSTEM_ACTOR_USER_ID } from '../common/system-actor';
-import {
-  buildInviteExpiryAudit,
-  describeInviteStateForStaff,
-  formatInviteExpiryDate,
-} from './portal-invite-presentation';
+import { describeInviteStateForStaff, formatInviteExpiryDate } from './portal-invite-presentation';
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 export const PATIENT_PORTAL_LINK_MISSING = 'PATIENT_PORTAL_LINK_MISSING';
@@ -1401,9 +1396,14 @@ export class PatientPortalService {
       );
     }
     // Resending an invite that can no longer be claimed would put a live-looking email in
-    // front of a patient who is about to be refused. Settle the row and say so.
+    // front of a patient who is about to be refused.
+    //
+    // Deliberately does not settle the row on the way out. The RLS interceptor wraps the
+    // whole request in one interactive transaction, so any write made here is rolled back
+    // by the very exception it accompanies — it would look correct in review, pass a mocked
+    // unit test, and persist nothing. The hourly sweep owns the stored status; this path
+    // owns the refusal.
     if (isPortalInviteExpired(invite, new Date())) {
-      await this.expireInvite(invite, requestId);
       throw new BadRequestException(
         'This invite has expired and can no longer be claimed. Issue a new invite instead.',
       );
@@ -1527,31 +1527,6 @@ export class PatientPortalService {
     return this.serializePortalInvite(updated);
   }
 
-  /**
-   * Settle a lapsed invite the sweep has not reached yet.
-   *
-   * Called from the paths that discover the lapse first — a claim attempt and a resend —
-   * so the stored status stops disagreeing with what the API will do, and the transition
-   * is audited under the same action the hourly sweep writes. `updateMany` guarded on
-   * PENDING makes this idempotent: two requests racing to expire the same row produce one
-   * transition, not two audit events claiming to have made it.
-   */
-  private async expireInvite(
-    invite: { id: string; clinicId: string; expiresAt: Date | null },
-    requestId?: string,
-  ): Promise<void> {
-    const settled = await this.prisma.patientPortalInvite.updateMany({
-      where: { id: invite.id, status: 'PENDING' },
-      data: { status: 'EXPIRED' },
-    });
-    if (settled.count === 0) {
-      return;
-    }
-    await this.auditService.logWrite(
-      buildInviteExpiryAudit(invite, 'on-access', SYSTEM_ACTOR_USER_ID, requestId),
-    );
-  }
-
   async listPendingInvitesForUser(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -1653,8 +1628,9 @@ export class PatientPortalService {
         where: { id: dto.inviteId },
         select: { id: true, clinicId: true, status: true, expiresAt: true },
       });
+      // As in resendPortalInvite: no write on the way out, because the request's
+      // transaction rolls it back along with everything else when this throws.
       if (lapsed && isPortalInviteExpired(lapsed, now)) {
-        await this.expireInvite(lapsed, requestId);
         throw new BadRequestException(
           `This invitation expired on ${formatInviteExpiryDate(lapsed.expiresAt)}. Ask the clinic to send a new one.`,
         );

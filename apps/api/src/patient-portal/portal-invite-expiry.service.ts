@@ -69,9 +69,7 @@ export class PortalInviteExpiryService {
         continue;
       }
       expired += 1;
-      await this.auditService.logWrite(
-        buildInviteExpiryAudit(invite, 'scheduled-sweep', SYSTEM_ACTOR_USER_ID),
-      );
+      await this.auditService.logWrite(buildInviteExpiryAudit(invite, SYSTEM_ACTOR_USER_ID));
     }
 
     if (expired > 0) {
