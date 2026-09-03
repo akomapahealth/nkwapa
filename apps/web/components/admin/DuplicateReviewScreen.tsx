@@ -92,6 +92,40 @@ const CONFIDENCE_OPTIONS: { value: ConfidenceFilter; label: string }[] = [
   { value: 'LOW', label: DUPLICATE_CONFIDENCE_LABELS.LOW },
 ];
 
+/**
+ * What each decision says, in one place.
+ *
+ * Every string names what will change and, just as importantly, what will not. A confirmation
+ * that does not say "neither chart changes" leaves an operator guessing whether they have just
+ * merged two people's records.
+ */
+const DECISION_COPY: Record<
+  DuplicateReviewStatus,
+  { title: string; description: string; confirm: string; notice: string }
+> = {
+  DISMISSED: {
+    title: 'Mark as not a duplicate',
+    description:
+      'This records your decision and takes the pair out of the review list. Neither chart changes.',
+    confirm: 'Not a duplicate',
+    notice: 'Marked as not a duplicate. It will stay out of the review list.',
+  },
+  CONFIRMED: {
+    title: 'Confirm these are the same person',
+    description:
+      'This records your decision so the pair is queued for a merge. Neither chart changes until a system administrator merges them.',
+    confirm: 'Confirm duplicate',
+    notice: 'Marked as a confirmed duplicate, ready for a merge.',
+  },
+  OPEN: {
+    title: 'Move this pair back to review',
+    description:
+      'This clears the earlier decision and puts the pair back in the review list. Neither chart changes.',
+    confirm: 'Move back to review',
+    notice: 'Moved back to the review list.',
+  },
+};
+
 const DEFAULT_FILTERS = {
   status: 'OPEN' as StatusFilter,
   confidence: 'ALL' as ConfidenceFilter,
@@ -196,11 +230,7 @@ export function DuplicateReviewScreen() {
       if (!response.ok) {
         throw new Error(await readApiError(response));
       }
-      setNotice(
-        pendingDecision === 'DISMISSED'
-          ? 'Marked as not a duplicate. It will stay out of the review list.'
-          : 'Marked as a confirmed duplicate, ready for a merge.',
-      );
+      setNotice(DECISION_COPY[pendingDecision].notice);
       closeSheet();
       queue.refresh();
     } catch (error) {
@@ -721,15 +751,9 @@ export function DuplicateReviewScreen() {
       >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>
-              {pendingDecision === 'DISMISSED'
-                ? 'Mark as not a duplicate'
-                : 'Confirm these are the same person'}
-            </DialogTitle>
+            <DialogTitle>{DECISION_COPY[pendingDecision ?? 'DISMISSED'].title}</DialogTitle>
             <DialogDescription>
-              {pendingDecision === 'DISMISSED'
-                ? 'This records your decision and takes the pair out of the review list. Neither chart changes.'
-                : 'This records your decision so the pair is queued for a merge. Neither chart changes until a system administrator merges them.'}
+              {DECISION_COPY[pendingDecision ?? 'DISMISSED'].description}
             </DialogDescription>
           </DialogHeader>
 
@@ -758,7 +782,7 @@ export function DuplicateReviewScreen() {
               Cancel
             </Button>
             <Button onClick={() => void submitDecision()} disabled={saving}>
-              {pendingDecision === 'DISMISSED' ? 'Not a duplicate' : 'Confirm duplicate'}
+              {DECISION_COPY[pendingDecision ?? 'DISMISSED'].confirm}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -893,6 +917,15 @@ function DuplicateComparisonSheet({
               </Button>
               <Button onClick={() => onDecide('CONFIRMED')}>Confirm duplicate</Button>
             </div>
+            {/*
+              A decision has to be reversible. Without this, one mis-click hides a genuine
+              duplicate from the queue permanently and the only way back is the database.
+            */}
+            {status !== 'OPEN' ? (
+              <Button variant="ghost" className="w-full" onClick={() => onDecide('OPEN')}>
+                Move back to review
+              </Button>
+            ) : null}
             {candidate.mergeEligible ? (
               <Button asChild variant="destructive" className="w-full">
                 <Link href={patientChartHref(left)}>Open the merge flow on this chart</Link>

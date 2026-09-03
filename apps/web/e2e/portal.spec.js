@@ -27,7 +27,15 @@ const PORTAL_ROUTES = [
 ];
 
 /** Staff surfaces a patient must never be shown the contents of. */
-const STAFF_ROUTES = ['/dashboard', '/patients', '/today', '/queues', '/admin/users', '/audit'];
+const STAFF_ROUTES = [
+  '/dashboard',
+  '/patients',
+  '/today',
+  '/queues',
+  '/admin/users',
+  '/admin/duplicates',
+  '/audit',
+];
 
 for (const route of PORTAL_ROUTES) {
   test(`the portal renders ${route.path} for a patient`, async ({ page }) => {
