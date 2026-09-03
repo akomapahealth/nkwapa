@@ -169,6 +169,12 @@ enum PatientPortalInviteStatus {
   EXPIRED
 }
 
+enum PatientDuplicateReviewStatus {
+  OPEN
+  DISMISSED
+  CONFIRMED
+}
+
 enum HypertensionClassification {
   NORMAL
   ELEVATED
@@ -385,6 +391,7 @@ model Clinic {
   pharmacyPreferences       PatientPharmacyPreference[]
   clinicalNotes             ClinicalNote[]
   clinicalNoteAddenda       ClinicalNoteAddendum[]
+  duplicateReviews          PatientDuplicateReview[]
 
   @@unique([organizationId, locationCode])
   @@index([organizationId])
@@ -433,6 +440,7 @@ model User {
   createdPatientPortalInvites   PatientPortalInvite[]           @relation("PatientPortalInviteCreatedBy")
   claimedPatientPortalInvites   PatientPortalInvite[]           @relation("PatientPortalInviteClaimedBy")
   mergedPatients                Patient[]                       @relation("PatientMergedBy")
+  duplicateReviews              PatientDuplicateReview[]        @relation("PatientDuplicateReviewedBy")
   conversationParticipants      ConversationParticipant[]
   sentMessages                  Message[]                       @relation("MessageSender")
   authoredHistoryRevisions      MedicalHistoryRevision[]        @relation("MedicalHistoryRevisionAuthor")
@@ -533,6 +541,8 @@ model Patient {
   pharmacyRecords           PatientPharmacyRecord[]
   pharmacyPreferences       PatientPharmacyPreference[]
   clinicalNotes             ClinicalNote[]
+  duplicateReviewsAsA       PatientDuplicateReview[]        @relation("PatientDuplicateReviewA")
+  duplicateReviewsAsB       PatientDuplicateReview[]        @relation("PatientDuplicateReviewB")
 
   @@index([primaryClinicId])
   @@index([portalUserId])
@@ -1033,6 +1043,39 @@ model PatientCodeAlias {
   patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
   @@index([patientId])
+}
+
+model PatientDuplicateReview {
+  id String @id @default(uuid()) @db.Uuid
+
+  // Null means the pair spans two clinics and belongs to neither. The row level security policy
+  // reads that as "system admins only", the same shape AuditEvent and Reminder already use for
+  // records with no single tenant.
+  clinicId String? @db.Uuid
+
+  // "<lower uuid>:<higher uuid>", from duplicatePairKey(). Sorted so the same two charts always
+  // produce the same key whichever way round the candidate query emitted them.
+  pairKey    String @unique @db.VarChar(80)
+  patientAId String @db.Uuid
+  patientBId String @db.Uuid
+
+  status PatientDuplicateReviewStatus @default(OPEN)
+  note   String?                      @db.VarChar(280)
+
+  reviewedByUserId String   @db.Uuid
+  reviewedAt       DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clinic     Clinic? @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patientA   Patient @relation("PatientDuplicateReviewA", fields: [patientAId], references: [id], onDelete: Cascade)
+  patientB   Patient @relation("PatientDuplicateReviewB", fields: [patientBId], references: [id], onDelete: Cascade)
+  reviewedBy User    @relation("PatientDuplicateReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId, status])
+  @@index([patientAId])
+  @@index([patientBId])
 }
 
 model PatientMeasurement {
