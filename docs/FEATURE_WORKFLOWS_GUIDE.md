@@ -134,9 +134,9 @@ Use when the patient already has a local Nkwapa user account.
 Use when you want the patient to claim access later.
 
 1. Open the patient chart.
-2. Create a portal invite with email and/or phone.
+2. Create a portal invite with email and/or phone, and choose how long it stays valid.
 3. If an email address was given, an invitation email is sent to it.
-4. The invite remains pending for claim.
+4. The invite remains claimable until it is claimed, cancelled, or reaches its expiry.
 5. When the patient logs in, `/auth/whoami` can return `PATIENT_CLAIM_REQUIRED`.
 6. The user completes `/claim-record`.
 7. The patient record becomes linked to that portal account.
@@ -146,17 +146,52 @@ What the invitation email contains:
 - the clinic name and the patient's first name
 - the patient code, which the claim step requires
 - a link to sign in, when a public web address is configured
-- the invite expiry, when one was set
+- the invite expiry
 
 It deliberately contains no other identifying detail. The address is supplied by staff
 and is unverified until the account is claimed.
 
-Delivery status:
+### Invite lifetime
 
-- the invite card on the chart shows whether the email was queued, sent, or failed
-- a failed invite explains the reason and what to do about it
-- "Resend invite email" sends the same invite again without changing its identity
-- a phone-only invite sends nothing and says so, rather than reporting a failure
+Every invite has an expiry. Staff choose 7, 14, or 30 days when creating one; the default
+is 14 and comes from `PORTAL_INVITE_TTL_DAYS`.
+
+Once an invite passes its expiry it stops working everywhere at once. It cannot be
+claimed, it stops putting the patient into claim onboarding at sign-in, it stops granting
+that clinic's records to the account holding the address, and it cannot be resent. The
+recovery is a new invite, which the chart offers.
+
+A background sweep marks lapsed invites `EXPIRED` every hour. Nothing depends on it having
+run — the rules above are enforced when an invite is used, not when it is swept — so a
+Redis outage delays the label and never the rule.
+
+### What the chart shows
+
+The portal card carries the state of access and the invitation in one place:
+
+- whether the patient is linked, has an invitation waiting, or has no access at all
+- for the live invitation: how long it has left, which address or number it was staged
+  against, who issued it, and whether the email was queued, sent, or failed
+- previous invitations, behind a disclosure — claimed, cancelled, and expired ones, with
+  who issued them
+
+Staff can resend the invitation email, cancel the invitation, or replace it with a new
+one. Cancelling asks for confirmation first and names what stops working. Every one of
+these actions is written to the audit trail, as is the expiry transition itself.
+
+### When email cannot carry the invitation
+
+The invitation is valid whether or not an email carried it. Three situations produce no
+email, and the card distinguishes them because only one is worth chasing an administrator
+about:
+
+- the invite was staged against a phone number only, so nothing was sent by design
+- the server has no working SMTP configuration
+- the mail server refused the message
+
+In each case the card offers the claim details as copyable text — the clinic name, the
+patient code, the sign-in address, and the expiry date — for staff to read out or send by
+another channel. It carries no patient name or date of birth.
 
 Important safety rules:
 
@@ -165,6 +200,8 @@ Important safety rules:
 - clinic staff should always link or invite from the correct chart
 - an invite email alone never grants access; the claim step still matches email, patient
   code, and date of birth
+- an expired invitation is refused with the date it expired and what to do next, rather
+  than a bare "not found"
 
 ---
 

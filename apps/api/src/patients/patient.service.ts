@@ -10,6 +10,9 @@ import {
 } from '@nkwapa/db';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { EmailStatusService } from '../notifications/email/email-status.service';
+import { resolveAppPublicUrl } from '../notifications/email/email-config';
+import { effectivePortalInviteStatus } from '../common/portal-invite-lifecycle';
 import { PatientRepository, PatientFindManyFilters } from './patient.repository';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientBodyDto } from './dto/update-patient-body.dto';
@@ -53,26 +56,73 @@ export interface PatientRegistryPage {
   nextCursor: string | null;
 }
 
+/** Newest invite email attempt, or null when the invite is phone-only or predates a send. */
+export interface PatientPortalInviteDelivery {
+  status: string;
+  failureReason: string | null;
+  sentAt: string | null;
+  createdAt: string;
+}
+
+export interface PatientPortalInviteSummary {
+  id: string;
+  /**
+   * What the invite actually is right now, not what the column says.
+   *
+   * The expiry sweep runs hourly, so a lapsed row still reads PENDING for up to an hour.
+   * Showing that would promise staff a live invite the claim endpoint already refuses.
+   */
+  status: string;
+  email: string | null;
+  phoneE164: string | null;
+  createdAt: string;
+  expiresAt: string | null;
+  claimedAt: string | null;
+  cancelledAt: string | null;
+  /** Who issued it. Staff chasing a wrong-chart invite need to know who to ask. */
+  createdByName: string | null;
+  emailDelivery: PatientPortalInviteDelivery | null;
+}
+
+/**
+ * How many settled invites the chart carries.
+ *
+ * Five is enough to show a pattern — a mistyped address corrected twice, an invite
+ * cancelled and reissued — without turning a chart response into an audit log. The full
+ * record is in AuditEvent for anyone who needs it.
+ */
+export const PORTAL_INVITE_HISTORY_LIMIT = 5;
+
 export interface PatientPortalAccessSummary {
   status: 'LINKED' | 'INVITED' | 'UNLINKED' | 'MERGED';
   linkedUserId: string | null;
   linkedKeycloakSub: string | null;
   mergedIntoPatientId: string | null;
-  invites: Array<{
-    id: string;
-    status: string;
-    email: string | null;
-    phoneE164: string | null;
-    createdAt: string;
-    expiresAt: string | null;
-    /** Newest invite email attempt, or null when the invite is phone-only. */
-    emailDelivery: {
-      status: string;
-      failureReason: string | null;
-      sentAt: string | null;
-      createdAt: string;
-    } | null;
-  }>;
+  /** The one invite staff can act on, or null when there is none. */
+  currentInvite: PatientPortalInviteSummary | null;
+  /**
+   * Recently settled invites — claimed, cancelled, expired.
+   *
+   * The chart used to be shown only pending and expired rows, so an invite cancelled
+   * last week was invisible and staff had no way to tell "nobody ever invited them" from
+   * "someone cancelled it". Both are answers; only one of them was reachable.
+   */
+  previousInvites: PatientPortalInviteSummary[];
+
+  /**
+   * Whether an invitation email can currently reach an inbox.
+   *
+   * Carried here so the chart can tell staff which of two true things is happening —
+   * the email is on its way, or nothing was sent and here is what to read out instead —
+   * without a second request that can fail on its own.
+   */
+  emailChannel: {
+    available: boolean;
+    readiness: string;
+    reason: string | null;
+  };
+  /** Where a patient goes to claim, when a public origin is configured. */
+  claimUrl: string | null;
 }
 
 /** Ghana phone patterns: 024..., 24..., +233..., 00233... */
@@ -89,6 +139,10 @@ export class PatientService {
     private readonly auditService: AuditService,
     private readonly encounterService: EncounterService,
     private readonly consentService: ConsentService,
+    // From the global NotificationModule. The chart needs it so it can tell staff which
+    // of two true things is happening — the invitation email is on its way, or nothing
+    // was sent and here is what to read out instead.
+    private readonly emailStatus: EmailStatusService,
   ) {}
 
   async create(dto: CreatePatientDto, auditContext?: AuditContext): Promise<Patient> {
@@ -364,17 +418,32 @@ export class PatientService {
     };
   }
 
+  private buildEmailChannelSummary(): PatientPortalAccessSummary['emailChannel'] {
+    const status = this.emailStatus.getStatus();
+    return {
+      available: status.available,
+      readiness: status.readiness,
+      reason: status.reason,
+    };
+  }
+
   private async getPortalAccessSummary(
     patient: Patient,
     clinicId?: string,
   ): Promise<PatientPortalAccessSummary> {
+    const emailChannel = this.buildEmailChannelSummary();
+    const claimUrl = resolveAppPublicUrl();
+
     if (patient.mergedIntoPatientId) {
       return {
         status: 'MERGED',
         linkedUserId: patient.portalUserId ?? null,
         linkedKeycloakSub: null,
         mergedIntoPatientId: patient.mergedIntoPatientId,
-        invites: [],
+        currentInvite: null,
+        previousInvites: [],
+        emailChannel,
+        claimUrl,
       };
     }
 
@@ -382,17 +451,18 @@ export class PatientService {
       this.prisma.patientAccountLink.findUnique({
         where: { patientId: patient.id },
       }),
+      // Every status, not just PENDING and EXPIRED. Filtering cancelled and claimed rows
+      // out is what left staff unable to tell "nobody ever invited them" from "someone
+      // cancelled it", which are different answers to the question they are asking.
       this.prisma.patientPortalInvite.findMany({
         where: {
           patientId: patient.id,
           ...(clinicId ? { clinicId } : {}),
-          status: {
-            in: ['PENDING', 'EXPIRED'],
-          },
         },
         orderBy: { createdAt: 'desc' },
-        take: 5,
+        take: PORTAL_INVITE_HISTORY_LIMIT + 1,
         include: {
+          createdBy: { select: { displayName: true } },
           // Only the newest attempt. Staff want to know whether the invite reached the
           // patient right now, not the full resend history.
           reminders: {
@@ -404,33 +474,72 @@ export class PatientService {
       }),
     ]);
 
+    const now = new Date();
+    const summaries = invites.map((invite) => this.toPortalInviteSummary(invite, now));
+    // At most one invite is live at a time: creating one cancels any predecessor, and so
+    // does a claim. Anything else is history.
+    const currentInvite = summaries.find((invite) => invite.status === 'PENDING') ?? null;
+    const previousInvites = summaries
+      .filter((invite) => invite.id !== currentInvite?.id)
+      .slice(0, PORTAL_INVITE_HISTORY_LIMIT);
+
+    // Derived from a claimable invite rather than from "any invite exists". A chart whose
+    // only invite expired last month is not invited; it is unlinked, and the action staff
+    // need offered is a new invite.
     const status =
-      accountLink || patient.portalUserId ? 'LINKED' : invites.length > 0 ? 'INVITED' : 'UNLINKED';
+      accountLink || patient.portalUserId ? 'LINKED' : currentInvite ? 'INVITED' : 'UNLINKED';
 
     return {
       status,
       linkedUserId: patient.portalUserId ?? null,
       linkedKeycloakSub: accountLink?.keycloakSub ?? null,
       mergedIntoPatientId: null,
-      invites: invites.map((invite) => {
-        const delivery = invite.reminders[0] ?? null;
-        return {
-          id: invite.id,
-          status: invite.status,
-          email: invite.email,
-          phoneE164: invite.phoneE164,
-          createdAt: invite.createdAt.toISOString(),
-          expiresAt: invite.expiresAt?.toISOString() ?? null,
-          emailDelivery: delivery
-            ? {
-                status: delivery.status,
-                failureReason: delivery.failureReason,
-                sentAt: delivery.sentAt?.toISOString() ?? null,
-                createdAt: delivery.createdAt.toISOString(),
-              }
-            : null,
-        };
-      }),
+      currentInvite,
+      previousInvites,
+      emailChannel,
+      claimUrl,
+    };
+  }
+
+  private toPortalInviteSummary(
+    invite: {
+      id: string;
+      status: string;
+      email: string | null;
+      phoneE164: string | null;
+      createdAt: Date;
+      expiresAt: Date | null;
+      claimedAt: Date | null;
+      cancelledAt: Date | null;
+      createdBy?: { displayName: string } | null;
+      reminders: Array<{
+        status: string;
+        failureReason: string | null;
+        sentAt: Date | null;
+        createdAt: Date;
+      }>;
+    },
+    now: Date,
+  ): PatientPortalInviteSummary {
+    const delivery = invite.reminders[0] ?? null;
+    return {
+      id: invite.id,
+      status: effectivePortalInviteStatus(invite, now),
+      email: invite.email,
+      phoneE164: invite.phoneE164,
+      createdAt: invite.createdAt.toISOString(),
+      expiresAt: invite.expiresAt?.toISOString() ?? null,
+      claimedAt: invite.claimedAt?.toISOString() ?? null,
+      cancelledAt: invite.cancelledAt?.toISOString() ?? null,
+      createdByName: invite.createdBy?.displayName ?? null,
+      emailDelivery: delivery
+        ? {
+            status: delivery.status,
+            failureReason: delivery.failureReason,
+            sentAt: delivery.sentAt?.toISOString() ?? null,
+            createdAt: delivery.createdAt.toISOString(),
+          }
+        : null,
     };
   }
 }

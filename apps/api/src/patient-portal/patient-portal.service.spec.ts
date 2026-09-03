@@ -1254,6 +1254,296 @@ describe('PatientPortalService', () => {
     });
   });
 
+  describe('portal invite lifecycle', () => {
+    const NOW = new Date('2026-09-02T12:00:00.000Z');
+    const day = (n: number) => new Date(NOW.getTime() + n * 24 * 60 * 60 * 1000);
+
+    const buildInvite = (overrides: Record<string, unknown> = {}) => ({
+      id: 'invite-1',
+      patientId: 'patient-1',
+      clinicId: 'clinic-1',
+      status: 'PENDING',
+      email: 'ama@example.com',
+      phoneE164: null,
+      claimedByUserId: null,
+      claimedAt: null,
+      cancelledAt: null,
+      expiresAt: day(7),
+      createdAt: day(-1),
+      updatedAt: day(-1),
+      ...overrides,
+    });
+
+    beforeEach(() => {
+      jest.useFakeTimers().setSystemTime(NOW);
+      prisma.patient.findFirst.mockResolvedValue({ id: 'patient-1', portalUserId: null });
+      prisma.patientAccountLink.findUnique.mockResolvedValue(null);
+      prisma.patientPortalInvite.updateMany.mockResolvedValue({ count: 1 });
+      prisma.patientPortalInvite.create.mockImplementation(
+        async ({ data }: { data: Record<string, unknown> }) => ({ ...buildInvite(), ...data }),
+      );
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    // Passing expiresAt straight through as null whenever staff did not type a date is
+    // how invites became open-ended in the first place.
+    it('gives a new invite the deployment default lifetime when none is asked for', async () => {
+      await service.createPortalInvite(
+        'clinic-1',
+        'patient-1',
+        { email: 'ama@example.com' },
+        'manager-1',
+        'req-1',
+      );
+
+      expect(prisma.patientPortalInvite.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ expiresAt: day(14) }),
+        }),
+      );
+    });
+
+    it('honours a staff-selected lifetime', async () => {
+      await service.createPortalInvite(
+        'clinic-1',
+        'patient-1',
+        { email: 'ama@example.com', ttlDays: 7 },
+        'manager-1',
+        'req-1',
+      );
+
+      expect(prisma.patientPortalInvite.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ expiresAt: day(7) }),
+        }),
+      );
+    });
+
+    it('prefers an explicit instant over a lifetime', async () => {
+      await service.createPortalInvite(
+        'clinic-1',
+        'patient-1',
+        { email: 'ama@example.com', ttlDays: 30, expiresAt: day(2).toISOString() },
+        'manager-1',
+        'req-1',
+      );
+
+      expect(prisma.patientPortalInvite.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ expiresAt: day(2) }),
+        }),
+      );
+    });
+
+    // Resending would put a live-looking invitation in front of a patient the claim
+    // endpoint is already refusing.
+    it('refuses to resend an invite that has lapsed', async () => {
+      prisma.patientPortalInvite.findFirst.mockResolvedValueOnce(
+        buildInvite({ expiresAt: day(-1) }),
+      );
+
+      await expect(
+        service.resendPortalInvite('clinic-1', 'patient-1', 'invite-1', 'manager-1', 'req-1'),
+      ).rejects.toThrow(/expired/i);
+
+      expect(reminderService.sendNotificationNow).not.toHaveBeenCalled();
+    });
+
+    it('still resends an invite with time left on it', async () => {
+      prisma.patientPortalInvite.findFirst.mockResolvedValueOnce(buildInvite());
+
+      await service.resendPortalInvite('clinic-1', 'patient-1', 'invite-1', 'manager-1', 'req-1');
+
+      expect(reminderService.sendNotificationNow).toHaveBeenCalledWith(
+        expect.objectContaining({ templateKey: 'PORTAL_INVITE_V1' }),
+      );
+    });
+
+    it.each([
+      ['CLAIMED', /already claimed/i],
+      ['CANCELLED', /cancelled/i],
+    ])('refuses to cancel a %s invite', async (status, message) => {
+      prisma.patientPortalInvite.findFirst.mockResolvedValueOnce(buildInvite({ status }));
+
+      await expect(
+        service.cancelPortalInvite('clinic-1', 'patient-1', 'invite-1', 'manager-1', 'req-1'),
+      ).rejects.toThrow(message);
+    });
+
+    it('cancels a live invite and audits both sides of the transition', async () => {
+      prisma.patientPortalInvite.findFirst.mockResolvedValueOnce(buildInvite());
+      prisma.patientPortalInvite.update.mockResolvedValueOnce(
+        buildInvite({ status: 'CANCELLED', cancelledAt: NOW }),
+      );
+
+      const result = await service.cancelPortalInvite(
+        'clinic-1',
+        'patient-1',
+        'invite-1',
+        'manager-1',
+        'req-1',
+      );
+
+      expect(result).toMatchObject({ status: 'CANCELLED' });
+      expect(auditService.logWrite).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PATIENT.PORTAL.INVITE.CANCEL',
+          beforeJson: expect.any(String),
+          afterJson: expect.any(String),
+        }),
+      );
+    });
+
+    describe('claim', () => {
+      const claimUser = {
+        id: 'user-1',
+        keycloakSub: 'kc-sub-1',
+        isActive: true,
+        email: 'ama@example.com',
+        phoneE164: null,
+      };
+
+      const claimablePatient = {
+        ...portalPatient,
+        dob: new Date('1998-07-22T00:00:00.000Z'),
+        mergedIntoPatientId: null,
+        codeAliases: [],
+      };
+
+      const claimDto = {
+        inviteId: 'invite-1',
+        patientCode: 'NKP-2026-000001',
+        dob: '1998-07-22',
+      };
+
+      beforeEach(() => {
+        prisma.user.findUnique.mockResolvedValue(claimUser);
+        prisma.patientAccountLink.findUnique.mockResolvedValue(null);
+      });
+
+      // The whole point of the expiry column. Before this the claim query matched on
+      // status alone, so an invite dated for last March was still claimable today.
+      it('refuses a lapsed invite by name and date rather than a bare not-found', async () => {
+        prisma.patientPortalInvite.findFirst.mockResolvedValueOnce(null);
+        prisma.patientPortalInvite.findUnique.mockResolvedValueOnce({
+          id: 'invite-1',
+          clinicId: 'clinic-1',
+          status: 'PENDING',
+          expiresAt: new Date('2026-03-03T00:00:00.000Z'),
+        });
+
+        await expect(service.claimPatientRecord('user-1', claimDto, 'req-1')).rejects.toThrow(
+          /expired on 3 March 2026/,
+        );
+
+        expect(prisma.patientAccountLink.upsert).not.toHaveBeenCalled();
+      });
+
+      /*
+        The refusal paths must not try to settle the row on their way out.
+
+        The RLS interceptor runs a whole request inside one interactive transaction, so a
+        write made here is rolled back by the very exception it accompanies. An earlier
+        version of this code did exactly that: it looked right, passed a mocked test that
+        asserted the update and the audit event, and persisted neither. It was only caught
+        by driving the real endpoint and finding the row still PENDING.
+
+        Asserting the absence is the only way a mock can catch the regression, because a
+        mock cannot roll anything back.
+      */
+      it('writes nothing while refusing, because the request transaction would undo it', async () => {
+        prisma.patientPortalInvite.findFirst.mockResolvedValueOnce(null);
+        prisma.patientPortalInvite.findUnique.mockResolvedValueOnce({
+          id: 'invite-1',
+          clinicId: 'clinic-1',
+          status: 'PENDING',
+          expiresAt: day(-1),
+        });
+
+        await expect(service.claimPatientRecord('user-1', claimDto, 'req-1')).rejects.toThrow(
+          /expired/i,
+        );
+
+        expect(prisma.patientPortalInvite.updateMany).not.toHaveBeenCalled();
+        expect(prisma.patientPortalInvite.update).not.toHaveBeenCalled();
+        expect(auditService.logWrite).not.toHaveBeenCalledWith(
+          expect.objectContaining({ action: 'PATIENT.PORTAL.INVITE.EXPIRE' }),
+        );
+      });
+
+      it.each([
+        ['EXPIRED', /expired/i],
+        ['CANCELLED', /cancelled by the clinic/i],
+        ['CLAIMED', /already been used/i],
+      ])('explains a %s invite instead of hiding it', async (status, message) => {
+        prisma.patientPortalInvite.findFirst.mockResolvedValueOnce(null);
+        prisma.patientPortalInvite.findUnique.mockResolvedValueOnce({
+          id: 'invite-1',
+          clinicId: 'clinic-1',
+          status,
+          expiresAt: null,
+        });
+
+        await expect(service.claimPatientRecord('user-1', claimDto, 'req-1')).rejects.toThrow(
+          message,
+        );
+      });
+
+      it('scopes the claim lookup to invites that are still claimable', async () => {
+        prisma.patientPortalInvite.findFirst.mockResolvedValueOnce({
+          ...buildInvite(),
+          patient: claimablePatient,
+        });
+
+        await service.claimPatientRecord('user-1', claimDto, 'req-1');
+
+        expect(prisma.patientPortalInvite.findFirst).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({
+              id: 'invite-1',
+              status: 'PENDING',
+              OR: [{ expiresAt: null }, { expiresAt: { gt: NOW } }],
+            }),
+          }),
+        );
+      });
+
+      // The non-goal in the issue body: nothing here may make an invite easier to claim.
+      // These three refusals are the identity check, and they have to survive the change.
+      it.each([
+        [
+          'a mismatched patient code',
+          { ...claimDto, patientCode: 'NKP-2026-999999' },
+          /Patient code does not match/i,
+        ],
+        ['a mismatched date of birth', { ...claimDto, dob: '1990-01-01' }, /Date of birth/i],
+      ])('still refuses %s', async (_label, dto, message) => {
+        prisma.patientPortalInvite.findFirst.mockResolvedValueOnce({
+          ...buildInvite(),
+          patient: claimablePatient,
+        });
+
+        await expect(service.claimPatientRecord('user-1', dto, 'req-1')).rejects.toThrow(message);
+        expect(prisma.patientAccountLink.upsert).not.toHaveBeenCalled();
+      });
+
+      it('still refuses an account whose contact details were never staged', async () => {
+        prisma.user.findUnique.mockResolvedValue({ ...claimUser, email: 'someone@else.test' });
+        prisma.patientPortalInvite.findFirst.mockResolvedValueOnce({
+          ...buildInvite(),
+          patient: claimablePatient,
+        });
+
+        await expect(service.claimPatientRecord('user-1', claimDto, 'req-1')).rejects.toThrow(
+          /does not match the email or phone number staged/i,
+        );
+      });
+    });
+  });
+
   it('confirms appointment requests, creates appointments, and schedules reminders', async () => {
     const existingRequest = {
       id: 'appt-req-2',

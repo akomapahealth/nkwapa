@@ -3,6 +3,7 @@ import { Prisma, UserRole } from '@prisma/client';
 import { lastValueFrom, defer, from, mergeMap } from 'rxjs';
 import { getRequestId } from '../common/request-context';
 import { PrismaRlsContext, PrismaService } from './prisma.service';
+import { claimableInviteForIdentityWhere } from '../common/portal-invite-lifecycle';
 
 type RequestWithAuth = {
   clinicId?: string;
@@ -147,30 +148,16 @@ export class PrismaRlsInterceptor implements NestInterceptor {
       clinicIds.add(user.portalPatient.primaryClinicId);
     }
 
-    const inviteMatchConditions = [];
-    if (user?.email) {
-      inviteMatchConditions.push({
-        email: {
-          equals: user.email,
-          mode: 'insensitive' as const,
-        },
-      });
-    }
-    if (user?.phoneE164) {
-      inviteMatchConditions.push({
-        phoneE164: user.phoneE164,
-      });
-    }
-
-    if (inviteMatchConditions.length === 0) {
+    // An expired invite must widen nothing. This matched on status alone, so an invite
+    // staged a year ago still handed its clinic to whoever held the address it was sent
+    // to — a tenant boundary decided by a column nothing read.
+    const claimable = claimableInviteForIdentityWhere(user ?? {}, new Date());
+    if (!claimable) {
       return [...clinicIds];
     }
 
     const invites = await tx.patientPortalInvite.findMany({
-      where: {
-        status: 'PENDING',
-        OR: inviteMatchConditions,
-      },
+      where: claimable,
       select: {
         clinicId: true,
       },

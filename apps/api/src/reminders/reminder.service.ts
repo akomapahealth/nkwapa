@@ -19,6 +19,7 @@ import {
   type NotificationTypeGroup,
 } from '../notifications/templates';
 import { DEFAULT_TIMEZONE } from '../notifications/templates/partials';
+import { SYSTEM_ACTOR_USER_ID } from '../common/system-actor';
 
 const REMINDER_QUEUE_NAME = 'reminders';
 const FOLLOWUP_TEMPLATE_KEY = 'FOLLOWUP_REMINDER_V1';
@@ -537,7 +538,7 @@ export class ReminderService {
 
     await this.auditService.logWrite({
       clinicId: reminder.clinicId,
-      actorUserId: 'system',
+      actorUserId: SYSTEM_ACTOR_USER_ID,
       action: 'REMINDER.DELIVERY_UPDATE',
       entityType: 'Reminder',
       entityId: reminder.id,
@@ -616,7 +617,7 @@ export class ReminderService {
         });
         await this.auditService.logWrite({
           clinicId: reminder.clinicId,
-          actorUserId: 'system',
+          actorUserId: SYSTEM_ACTOR_USER_ID,
           action: 'REMINDER.SENT',
           entityType: 'Reminder',
           entityId: reminderId,
@@ -765,7 +766,7 @@ export class ReminderService {
     });
     await this.auditService.logWrite({
       clinicId: reminder.clinicId,
-      actorUserId: 'system',
+      actorUserId: SYSTEM_ACTOR_USER_ID,
       action,
       entityType: 'Reminder',
       entityId: reminder.id,

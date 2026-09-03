@@ -57,6 +57,9 @@ export function createAppointmentPrismaMock() {
     patientPortalInvite: {
       create: jest.fn(),
       findFirst: jest.fn(),
+      // The claim path re-reads by id after a claimable-invite miss, so it can tell a
+      // patient their invitation lapsed rather than that it never existed.
+      findUnique: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
       updateMany: jest.fn(),

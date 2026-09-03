@@ -13,6 +13,14 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState, InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { InlineNotice } from '@/components/ops/OpsShared';
+import { describeInviteExpiry } from '@/lib/portal-invite';
+
+/** Null when there is no expiry to report, so the caller renders nothing at all. */
+function inviteExpiry(expiresAt: string | null) {
+  if (!expiresAt) return null;
+  const described = describeInviteExpiry(expiresAt);
+  return described.label === 'No expiry set' ? null : described;
+}
 
 /*
   There is deliberately no RouteGuard here.
@@ -222,10 +230,27 @@ export default function ClaimRecordPage() {
                               {invite.patientCode}
                             </span>
                           </p>
-                          <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                          <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
                             {invite.email ? <span>Email match: {invite.email}</span> : null}
                             {invite.phoneE164 ? <span>Phone match: {invite.phoneE164}</span> : null}
                           </div>
+                          {/*
+                            An invitation stops working on its expiry date, and until now
+                            the only place that said so was the email — which the patient
+                            may no longer have open. Expired invitations never reach this
+                            list, so every countdown shown here is still claimable.
+                          */}
+                          {inviteExpiry(invite.expiresAt) ? (
+                            <p
+                              className={`mt-2 text-xs ${
+                                inviteExpiry(invite.expiresAt)?.tone === 'neutral'
+                                  ? 'text-muted-foreground'
+                                  : 'font-medium text-warning-ink'
+                              }`}
+                            >
+                              {inviteExpiry(invite.expiresAt)?.label}
+                            </p>
+                          ) : null}
                         </label>
                       );
                     })}

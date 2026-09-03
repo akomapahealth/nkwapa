@@ -22,14 +22,13 @@ import {
   ArrowLeft,
   CalendarClock,
   FileCheck,
-  Mail,
   Pencil,
   ShieldCheck,
   Stethoscope,
-  UserPlus,
 } from 'lucide-react';
 import { MedicalHistoryPanel } from '@/components/patients/MedicalHistoryPanel';
-import { explainFailure, getStatusVariant } from '@/lib/notification-delivery';
+import { PortalAccessCard } from '@/components/patients/PortalAccessCard';
+import type { PortalAccess } from '@/lib/portal-invite';
 import { MedicationReconciliationPanel } from '@/components/patients/MedicationReconciliationPanel';
 import { DiabetesHistoryPanel } from '@/components/patients/DiabetesHistoryPanel';
 import { ResidentialLocationSummary } from '@/components/patients/ResidentialLocationSummary';
@@ -87,26 +86,7 @@ interface PatientWithEncounters {
     residentialCommunity?: string | null;
     residentialAddressNote?: string | null;
   };
-  portalAccess?: {
-    status: 'LINKED' | 'INVITED' | 'UNLINKED' | 'MERGED';
-    linkedUserId: string | null;
-    linkedKeycloakSub: string | null;
-    mergedIntoPatientId: string | null;
-    invites: Array<{
-      id: string;
-      status: string;
-      email: string | null;
-      phoneE164: string | null;
-      createdAt: string;
-      expiresAt: string | null;
-      emailDelivery: {
-        status: string;
-        failureReason: string | null;
-        sentAt: string | null;
-        createdAt: string;
-      } | null;
-    }>;
-  };
+  portalAccess?: PortalAccess;
   resolvedFromPatientId?: string | null;
   recentEncounters: Array<{
     id: string;
@@ -137,6 +117,15 @@ function PatientChartWorkspace() {
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const perms = useMemo(() => bootstrap?.effectivePermissionsForActiveClinic ?? [], [bootstrap]);
   const isSystemAdmin = bootstrap?.globalRoles?.includes('SYSTEM_ADMIN') ?? false;
+  // Named in the copyable instructions a patient reads, so a placeholder would be worse
+  // than a generic word: "Your clinic has invited you" is at least true.
+  const clinicName = useMemo(
+    () =>
+      bootstrap?.memberships?.find((membership) => membership.clinicId === clinicId)?.clinicName ??
+      bootstrap?.availableClinics?.find((clinic) => clinic.clinicId === clinicId)?.clinicName ??
+      'Your clinic',
+    [bootstrap, clinicId],
+  );
   const canUpdatePatient = hasPermission(perms, 'PATIENT.UPDATE');
   const canViewSelfReports = hasPermission(perms, 'PATIENT.SELF_REPORT.READ');
   const canLinkPortal = hasPermission(perms, 'PATIENT.PORTAL.LINK');
@@ -154,12 +143,6 @@ function PatientChartWorkspace() {
   const [portalLinkLoading, setPortalLinkLoading] = useState(false);
   const [portalLinkSaving, setPortalLinkSaving] = useState(false);
   const [portalLinkError, setPortalLinkError] = useState<string | null>(null);
-  const [portalInviteOpen, setPortalInviteOpen] = useState(false);
-  const [portalInviteEmail, setPortalInviteEmail] = useState('');
-  const [portalInvitePhone, setPortalInvitePhone] = useState('');
-  const [portalInviteSaving, setPortalInviteSaving] = useState(false);
-  const [portalInviteResending, setPortalInviteResending] = useState(false);
-  const [portalInviteError, setPortalInviteError] = useState<string | null>(null);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [mergeQuery, setMergeQuery] = useState('');
   const [mergeCandidates, setMergeCandidates] = useState<PatientRegistryCandidate[]>([]);
@@ -298,13 +281,6 @@ function PatientChartWorkspace() {
     setPortalLinkSearch(defaultSearch);
   };
 
-  const handlePortalInviteOpen = () => {
-    setPortalInviteOpen(true);
-    setPortalInviteEmail(data?.patient.email ?? '');
-    setPortalInvitePhone(data?.patient.phoneE164 ?? '');
-    setPortalInviteError(null);
-  };
-
   const handlePortalLinkSubmit = async () => {
     if (!portalLinkUserId || !getToken) return;
     setPortalLinkSaving(true);
@@ -343,96 +319,6 @@ function PatientChartWorkspace() {
 
     return () => window.clearTimeout(timeoutId);
   }, [fetchUsersForPortalLink, portalLinkOpen, portalLinkSearch]);
-
-  const handlePortalInviteSubmit = async () => {
-    if (!getToken) return;
-    setPortalInviteSaving(true);
-    setPortalInviteError(null);
-
-    try {
-      const response = await apiFetch(
-        `/clinics/${encodeURIComponent(clinicId)}/patients/${encodeURIComponent(patientId)}/portal-invite`,
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            email: portalInviteEmail || undefined,
-            phoneE164: portalInvitePhone || undefined,
-          }),
-          getToken,
-          activeClinicId: clinicId,
-        },
-      );
-      if (!response.ok) {
-        throw new Error(await readApiError(response));
-      }
-
-      setPortalInviteOpen(false);
-      setSuccess('Portal invite created successfully.');
-      fetchPatient();
-    } catch (requestError) {
-      setPortalInviteError(
-        requestError instanceof Error ? requestError.message : String(requestError),
-      );
-    } finally {
-      setPortalInviteSaving(false);
-    }
-  };
-
-  const handlePortalInviteResend = async (inviteId: string) => {
-    if (!getToken) return;
-    setPortalInviteResending(true);
-    setError(null);
-
-    try {
-      const response = await apiFetch(
-        `/clinics/${encodeURIComponent(clinicId)}/patients/${encodeURIComponent(patientId)}/portal-invite/${encodeURIComponent(inviteId)}/resend`,
-        {
-          method: 'POST',
-          getToken,
-          activeClinicId: clinicId,
-        },
-      );
-      if (!response.ok) {
-        throw new Error(await readApiError(response));
-      }
-
-      // Deliberately does not claim the email arrived. The send is queued, so the
-      // honest report is that it is on its way; the delivery badge says the rest.
-      setSuccess('Invite email queued for resend.');
-      fetchPatient();
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : String(requestError));
-    } finally {
-      setPortalInviteResending(false);
-    }
-  };
-
-  const handlePortalInviteCancel = async (inviteId: string) => {
-    if (!getToken) return;
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await apiFetch(
-        `/clinics/${encodeURIComponent(clinicId)}/patients/${encodeURIComponent(patientId)}/portal-invite/${encodeURIComponent(inviteId)}`,
-        {
-          method: 'DELETE',
-          getToken,
-          activeClinicId: clinicId,
-        },
-      );
-      if (!response.ok) {
-        throw new Error(await readApiError(response));
-      }
-
-      setSuccess('Portal invite cancelled.');
-      fetchPatient();
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : String(requestError));
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const fetchPatient = useCallback(async () => {
     setLoading(true);
@@ -734,14 +620,18 @@ function PatientChartWorkspace() {
   }
 
   const { patient, recentEncounters } = data;
-  const portalAccess = data.portalAccess ?? {
-    status: 'UNLINKED' as const,
+  // The offline fallback rebuilds the chart from IndexedDB and carries no portal state,
+  // so the card is told there is none rather than being handed a partial object.
+  const portalAccess: PortalAccess = data.portalAccess ?? {
+    status: 'UNLINKED',
     linkedUserId: null,
     linkedKeycloakSub: null,
     mergedIntoPatientId: null,
-    invites: [],
+    currentInvite: null,
+    previousInvites: [],
+    emailChannel: { available: true, readiness: 'unknown', reason: null },
+    claimUrl: null,
   };
-  const latestInvite = portalAccess.invites[0] ?? null;
 
   return (
     <div className="space-y-6">
@@ -892,137 +782,19 @@ function PatientChartWorkspace() {
 
                     <div className="space-y-4">
                       {canLinkPortal ? (
-                        <Card>
-                          <CardHeader>
-                            <h2 className="text-lg font-semibold">Portal account</h2>
-                            <p className="text-sm text-muted-foreground">
-                              Link the patient to an existing app account or stage a portal invite
-                              before their first login.
-                            </p>
-                          </CardHeader>
-                          <CardContent className="space-y-4">
-                            <div className="rounded-lg border border-border bg-background p-4">
-                              <div className="flex items-center justify-between gap-3">
-                                <div>
-                                  <p className="text-eyebrow text-muted-foreground">
-                                    Portal status
-                                  </p>
-                                  <p className="mt-2 text-base font-semibold text-foreground">
-                                    {portalAccess.status}
-                                  </p>
-                                </div>
-                                <Badge
-                                  variant={portalAccess.status === 'LINKED' ? 'default' : 'outline'}
-                                >
-                                  {portalAccess.status}
-                                </Badge>
-                              </div>
-                              {portalAccess.status === 'LINKED' ? (
-                                <div className="mt-3 space-y-1 text-sm text-muted-foreground">
-                                  <p>Portal access is already linked to this patient chart.</p>
-                                  {portalAccess.linkedKeycloakSub ? (
-                                    <p className="font-mono text-xs text-foreground/80">
-                                      {portalAccess.linkedKeycloakSub}
-                                    </p>
-                                  ) : null}
-                                </div>
-                              ) : portalAccess.status === 'INVITED' && latestInvite ? (
-                                <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-                                  <p>
-                                    A pending invite is staged for this patient and will be
-                                    claimable on first sign-in.
-                                  </p>
-                                  <div className="flex flex-wrap gap-2">
-                                    {latestInvite.email ? (
-                                      <Badge variant="secondary" className="rounded-full">
-                                        {latestInvite.email}
-                                      </Badge>
-                                    ) : null}
-                                    {latestInvite.phoneE164 ? (
-                                      <Badge variant="secondary" className="rounded-full">
-                                        {latestInvite.phoneE164}
-                                      </Badge>
-                                    ) : null}
-                                  </div>
-                                  {/*
-                                    Whether the invite actually reached the patient. Staff
-                                    previously had no way to tell a delivered invite from one
-                                    that silently failed, and would chase the patient instead
-                                    of the configuration.
-                                  */}
-                                  {latestInvite.email ? (
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <Badge
-                                        variant={getStatusVariant(
-                                          latestInvite.emailDelivery?.status ?? 'QUEUED',
-                                        )}
-                                        className="rounded-full"
-                                      >
-                                        {latestInvite.emailDelivery
-                                          ? `Invite email ${latestInvite.emailDelivery.status.toLowerCase()}`
-                                          : 'Invite email not sent'}
-                                      </Badge>
-                                      {latestInvite.emailDelivery?.failureReason ? (
-                                        <span className="text-xs text-destructive">
-                                          {explainFailure(latestInvite.emailDelivery.failureReason)
-                                            ?.detail ?? ''}
-                                        </span>
-                                      ) : null}
-                                    </div>
-                                  ) : null}
-                                </div>
-                              ) : (
-                                <p className="mt-3 text-sm text-muted-foreground">
-                                  No portal account is linked yet. You can stage an invite now or
-                                  use the manual link flow once the patient has signed in.
-                                </p>
-                              )}
-                            </div>
-                            <div className="grid gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handlePortalInviteOpen}
-                                className="w-full cursor-pointer rounded-lg"
-                              >
-                                <UserPlus className="mr-2 h-4 w-4" />
-                                {portalAccess.status === 'INVITED'
-                                  ? 'Reissue portal invite'
-                                  : 'Create portal invite'}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={handlePortalLinkOpen}
-                                className="w-full cursor-pointer rounded-lg"
-                              >
-                                Link existing app account
-                              </Button>
-                              {latestInvite?.email && latestInvite.status === 'PENDING' ? (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  disabled={portalInviteResending}
-                                  onClick={() => void handlePortalInviteResend(latestInvite.id)}
-                                  className="w-full cursor-pointer rounded-lg"
-                                >
-                                  <Mail className="mr-2 h-4 w-4" />
-                                  {portalInviteResending ? 'Resending...' : 'Resend invite email'}
-                                </Button>
-                              ) : null}
-                              {latestInvite ? (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => void handlePortalInviteCancel(latestInvite.id)}
-                                  className="w-full rounded-lg text-destructive hover:text-destructive"
-                                >
-                                  Cancel latest invite
-                                </Button>
-                              ) : null}
-                            </div>
-                          </CardContent>
-                        </Card>
+                        <PortalAccessCard
+                          clinicId={clinicId}
+                          patientId={patient.id}
+                          patientCode={patient.patientCode}
+                          clinicName={clinicName}
+                          patient={patient}
+                          portalAccess={portalAccess}
+                          getToken={getToken}
+                          onChanged={fetchPatient}
+                          onNotify={setSuccess}
+                          onError={setError}
+                          onLinkExistingAccount={handlePortalLinkOpen}
+                        />
                       ) : null}
 
                       {isSystemAdmin ? (
@@ -1151,65 +923,6 @@ function PatientChartWorkspace() {
                             className="cursor-pointer"
                           >
                             {portalLinkSaving ? 'Linking...' : 'Link'}
-                          </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-
-                    <Dialog open={portalInviteOpen} onOpenChange={setPortalInviteOpen}>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Create portal invite</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4 py-4">
-                          {portalInviteError ? (
-                            <InlineNotice tone="error">{portalInviteError}</InlineNotice>
-                          ) : null}
-                          {/*
-                            Said at the point of action rather than in documentation: staff
-                            are deciding what to type into this box, and whether the patient
-                            gets told anything is exactly what they cannot otherwise see.
-                          */}
-                          <p className="text-sm text-muted-foreground">
-                            An invitation email is sent to the address you enter, containing the
-                            patient code and a link to sign in. A phone number alone stages the
-                            invite without sending anything.
-                          </p>
-                          <div className="space-y-2">
-                            <Label htmlFor="portal-invite-email">Email</Label>
-                            <Input
-                              id="portal-invite-email"
-                              type="email"
-                              value={portalInviteEmail}
-                              onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                                setPortalInviteEmail(event.target.value)
-                              }
-                              placeholder="patient@example.com"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="portal-invite-phone">Phone</Label>
-                            <Input
-                              id="portal-invite-phone"
-                              type="tel"
-                              value={portalInvitePhone}
-                              onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                                setPortalInvitePhone(event.target.value)
-                              }
-                              placeholder="+233..."
-                            />
-                          </div>
-                        </div>
-                        <DialogFooter>
-                          <Button variant="outline" onClick={() => setPortalInviteOpen(false)}>
-                            Cancel
-                          </Button>
-                          <Button
-                            onClick={handlePortalInviteSubmit}
-                            disabled={portalInviteSaving}
-                            className="cursor-pointer"
-                          >
-                            {portalInviteSaving ? 'Saving...' : 'Create invite'}
                           </Button>
                         </DialogFooter>
                       </DialogContent>
