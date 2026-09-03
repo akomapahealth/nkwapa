@@ -252,12 +252,17 @@ export function DuplicateReviewScreen() {
     queue,
   ]);
 
+  /*
+    Column widths are chosen to fit, not to be generous. The grid gets roughly 880px inside the
+    two-column layout at 1440, and an earlier set summing to 928 pushed the Actions cell -- the
+    only way into the comparison -- off the right edge behind a scrollbar nobody scrolls.
+  */
   const columns: GridColDef<DuplicateCandidate>[] = useMemo(
     () => [
       {
         field: 'confidence',
         headerName: 'Strength',
-        width: 130,
+        width: 104,
         sortable: false,
         renderCell: (params) => (
           <Badge variant={confidenceBadgeVariant(params.row.confidence)}>
@@ -268,52 +273,58 @@ export function DuplicateReviewScreen() {
       {
         field: 'patients',
         headerName: 'Charts',
-        flex: 1.4,
-        minWidth: 240,
+        flex: 1.9,
+        minWidth: 236,
         sortable: false,
         renderCell: (params) => (
-          <div className="py-2 leading-5">
-            <p className="font-medium text-foreground">
-              {patientDisplayName(params.row.patients[0])}
-              <span className="text-muted-foreground"> · {params.row.patients[0].patientCode}</span>
-            </p>
-            <p className="text-muted-foreground">
-              {patientDisplayName(params.row.patients[1])} · {params.row.patients[1].patientCode}
-            </p>
+          <div className="py-2 text-sm leading-5">
+            {params.row.patients.map((patient, index) => (
+              <p key={patient.id} className={index === 0 ? 'text-foreground' : 'text-foreground'}>
+                <span className="font-medium">{patientDisplayName(patient)}</span>
+                <span className="text-muted-foreground"> · {patient.patientCode}</span>
+              </p>
+            ))}
           </div>
         ),
       },
       {
         field: 'reasons',
         headerName: 'Why it matched',
-        flex: 1.3,
-        minWidth: 220,
+        flex: 1,
+        minWidth: 180,
         sortable: false,
+        // The strongest reason in full, with a count for the rest. The joined list ran to three
+        // wrapped lines in a 64px row and clipped; the comparison sheet spells all of them out.
         renderCell: (params) => (
-          <span className="whitespace-normal py-2 leading-5 text-muted-foreground">
-            {formatReasons(params.row.reasons)}
-          </span>
+          <div className="py-2 text-sm leading-5">
+            <p className="whitespace-normal text-foreground">
+              {DUPLICATE_MATCH_REASON_LABELS[params.row.reasons[0]]}
+            </p>
+            {params.row.reasons.length > 1 ? (
+              <p className="text-muted-foreground">and {params.row.reasons.length - 1} more</p>
+            ) : null}
+          </div>
         ),
       },
       {
         field: 'clinic',
-        headerName: 'Clinic',
-        flex: 1,
-        minWidth: 180,
+        headerName: 'Scope',
+        width: 112,
         sortable: false,
+        // Which clinic a same-clinic pair sits in is always the clinic already named in the
+        // header, so the column earns its width only by calling out the pairs that span two.
+        // The clinic and organisation names for both charts are in the comparison sheet.
         renderCell: (params) =>
           params.row.crossClinic ? (
             <Badge variant="warning">Across clinics</Badge>
           ) : (
-            <span className="truncate text-muted-foreground">
-              {params.row.patients[0].clinic.name}
-            </span>
+            <span className="text-muted-foreground">This clinic</span>
           ),
       },
       {
         field: 'lastUpdatedAt',
-        headerName: 'Last updated',
-        width: 140,
+        headerName: 'Updated',
+        width: 100,
         sortable: false,
         renderCell: (params) => (
           <span className="tabular-nums text-muted-foreground">
@@ -324,7 +335,7 @@ export function DuplicateReviewScreen() {
       {
         field: 'actions',
         headerName: 'Actions',
-        width: 120,
+        width: 100,
         sortable: false,
         filterable: false,
         renderCell: (params) => (
@@ -630,7 +641,15 @@ export function DuplicateReviewScreen() {
                       </InlineNotice>
                     ) : null}
 
-                    <div className="space-y-3 md:hidden">
+                    {/*
+                      Cards until lg, not md. Every other grid in the product switches at md
+                      because its row is one record; a row here is a pair, and the columns need
+                      roughly 830px to keep both chart codes and the Compare action on screen. At
+                      768 that leaves the only way into the comparison behind a horizontal
+                      scrollbar, which is the same failure the column widths above were rebalanced
+                      to fix.
+                    */}
+                    <div className="space-y-3 lg:hidden">
                       {data.items.map((candidate) => (
                         <article
                           key={candidate.pairKey}
@@ -678,13 +697,21 @@ export function DuplicateReviewScreen() {
                       dataGridSx only stick against the grid's own scroll container.
                     */}
                     <Box
-                      sx={{ height: 520, width: '100%' }}
-                      className="hidden overflow-x-auto md:block"
+                      sx={{ height: 460, width: '100%' }}
+                      className="hidden overflow-x-auto lg:block"
                     >
                       <DataGrid
                         rows={data.items}
                         columns={columns}
                         getRowId={(row) => row.pairKey}
+                        /*
+                          The one deviation from the 44px row height in dataGridSx, and a
+                          deliberate one: every other grid in the product puts a single record
+                          on a row, while a row here is a pair of them. At 44px both chart
+                          codes and the match reason clip, which is exactly what an operator
+                          opens this screen to read.
+                        */
+                        rowHeight={64}
                         loading={queue.isRefreshing}
                         disableColumnMenu
                         disableRowSelectionOnClick
@@ -700,7 +727,7 @@ export function DuplicateReviewScreen() {
                       />
                     </Box>
 
-                    <div className="flex items-center justify-between rounded-lg border border-border/70 bg-background/70 px-4 py-3 text-sm md:hidden">
+                    <div className="flex items-center justify-between rounded-lg border border-border/70 bg-background/70 px-4 py-3 text-sm lg:hidden">
                       <p className="tabular-nums text-muted-foreground">
                         Showing {data.items.length} of {data.total}
                       </p>
@@ -926,9 +953,17 @@ function DuplicateComparisonSheet({
                 Move back to review
               </Button>
             ) : null}
+            {/*
+              Deliberately not the destructive treatment. This link navigates to the patient
+              chart; it does not merge anything. Dressing it in the same red as the control that
+              irreversibly consolidates two records would teach an operator to expect a
+              confirmation step this button does not have.
+            */}
             {candidate.mergeEligible ? (
-              <Button asChild variant="destructive" className="w-full">
-                <Link href={patientChartHref(left)}>Open the merge flow on this chart</Link>
+              <Button asChild variant="outline" className="w-full">
+                <Link href={patientChartHref(left)}>
+                  Go to the merge flow on {left.patientCode}
+                </Link>
               </Button>
             ) : null}
           </div>

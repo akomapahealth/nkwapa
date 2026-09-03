@@ -6,9 +6,11 @@ import {
   DUPLICATE_REVIEW_STATUS_LABELS,
   formatDateOfBirth,
   formatReasons,
+  nationalIdTypeLabel,
   patientChartHref,
   patientDisplayName,
   reviewStatusBadgeVariant,
+  sexLabel,
   type DuplicateCandidate,
   type DuplicateCandidatePatient,
 } from './patient-duplicates';
@@ -107,6 +109,24 @@ describe('patient display helpers', () => {
   });
 });
 
+describe('enum labels', () => {
+  it('never shows a raw enum value on screen', () => {
+    expect(nationalIdTypeLabel('NATIONAL_ID')).toBe('National ID');
+    expect(nationalIdTypeLabel('VOTER_ID')).toBe('Voter ID');
+    expect(nationalIdTypeLabel('PASSPORT')).toBe('Passport');
+    expect(sexLabel('FEMALE')).toBe('Female');
+    expect(sexLabel('MALE')).toBe('Male');
+    expect(sexLabel('UNKNOWN')).toBe('Not recorded');
+  });
+
+  it('passes an unrecognised value through rather than hiding it', () => {
+    // A value the labels do not know about is still information about the chart. Blanking it
+    // would be worse than showing it unformatted.
+    expect(nationalIdTypeLabel('SOMETHING_NEW')).toBe('SOMETHING_NEW');
+    expect(sexLabel(null)).toBeNull();
+  });
+});
+
 describe('buildComparisonRows', () => {
   it('marks the fields that agree', () => {
     const rows = buildComparisonRows(patient(), patient({ id: 'patient-2' }));
@@ -174,10 +194,24 @@ describe('buildComparisonRows', () => {
     expect(byLabel.get('Organisation')?.matches).toBe(true);
   });
 
+  it('renders the plain-language label for an enum column', () => {
+    const rows = buildComparisonRows(patient(), patient({ id: 'patient-2', sex: 'MALE' }));
+    const byLabel = new Map(rows.map((row) => [row.label, row]));
+
+    expect(byLabel.get('ID type')?.valueA).toBe('National ID');
+    expect(byLabel.get('Sex')?.valueA).toBe('Female');
+    expect(byLabel.get('Sex')?.valueB).toBe('Male');
+    expect(byLabel.get('Sex')?.matches).toBe(false);
+  });
+
+  it('does not repeat the chart codes the table header already carries', () => {
+    const rows = buildComparisonRows(patient(), patient({ id: 'patient-2' }));
+    expect(rows.map((row) => row.label)).not.toContain('Chart code');
+  });
+
   it('always compares the same fields in the same order', () => {
     const rows = buildComparisonRows(patient(), patient({ id: 'patient-2' }));
     expect(rows.map((row) => row.label)).toEqual([
-      'Chart code',
       'First name',
       'Last name',
       'Date of birth',

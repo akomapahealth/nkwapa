@@ -452,6 +452,9 @@ async function main() {
     */
     const seedSampleDuplicates = process.env.SEED_SAMPLE_DUPLICATES === 'true';
     if (seedSampleDuplicates && hasEncryptionKey()) {
+      // The identifiers end in digits on purpose: nationalIdLast4 takes the last four
+      // characters, so a placeholder like "GH-DUP-AKUA-1" renders as "UA-1" in the comparison
+      // panel and reads as corrupt data rather than a partial ID.
       const duplicateCharts = [
         {
           firstName: 'Akua',
@@ -460,7 +463,7 @@ async function main() {
           sex: Sex.FEMALE,
           phoneE164: '+233209876543',
           email: null,
-          nationalId: 'GH-DUP-AKUA-1',
+          nationalId: 'GH-DUP-AKUA-004471',
         },
         {
           firstName: 'Akua',
@@ -469,7 +472,7 @@ async function main() {
           sex: Sex.FEMALE,
           phoneE164: '+233209876543',
           email: null,
-          nationalId: 'GH-DUP-AKUA-2',
+          nationalId: 'GH-DUP-AKUA-004472',
         },
         {
           firstName: 'Kwabena',
@@ -478,7 +481,7 @@ async function main() {
           sex: Sex.MALE,
           phoneE164: null,
           email: 'k.owusu@nkwapa.local',
-          nationalId: 'GH-DUP-KWABENA-1',
+          nationalId: 'GH-DUP-OWUSU-118835',
         },
         {
           firstName: 'Kwabina',
@@ -487,7 +490,7 @@ async function main() {
           sex: Sex.MALE,
           phoneE164: null,
           email: 'K.Owusu@nkwapa.local',
-          nationalId: 'GH-DUP-KWABENA-2',
+          nationalId: 'GH-DUP-OWUSU-118836',
         },
       ];
 

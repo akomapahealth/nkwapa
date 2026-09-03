@@ -121,6 +121,38 @@ export function formatDateOfBirth(value: string | null): string {
   return date.toISOString().slice(0, 10);
 }
 
+/**
+ * Enum values never reach the screen.
+ *
+ * The comparison table reads back raw columns, so without these an operator is shown
+ * "NATIONAL_ID" and "FEMALE" -- system vocabulary the design system rules out, and, worse, two
+ * values that look like codes in a panel whose whole job is helping someone judge whether two
+ * codes describe one person. Unknown values fall through unchanged rather than being hidden.
+ */
+const NATIONAL_ID_TYPE_LABELS: Record<string, string> = {
+  NATIONAL_ID: 'National ID',
+  VOTER_ID: 'Voter ID',
+  PASSPORT: 'Passport',
+  OTHER: 'Other',
+};
+
+const SEX_LABELS: Record<string, string> = {
+  MALE: 'Male',
+  FEMALE: 'Female',
+  OTHER: 'Other',
+  UNKNOWN: 'Not recorded',
+};
+
+export function nationalIdTypeLabel(value: string | null): string | null {
+  if (!value) return null;
+  return NATIONAL_ID_TYPE_LABELS[value] ?? value;
+}
+
+export function sexLabel(value: string | null): string | null {
+  if (!value) return null;
+  return SEX_LABELS[value] ?? value;
+}
+
 export interface ComparisonRow {
   label: string;
   valueA: string;
@@ -147,15 +179,20 @@ export function buildComparisonRows(
   left: DuplicateCandidatePatient,
   right: DuplicateCandidatePatient,
 ): ComparisonRow[] {
+  // No chart-code row: the table header is the two codes, and repeating them as the first row
+  // costs a line of a dense panel to say nothing new.
   const rows: Array<{ label: string; a: string; b: string }> = [
-    { label: 'Chart code', a: left.patientCode, b: right.patientCode },
     { label: 'First name', a: present(left.firstName), b: present(right.firstName) },
     { label: 'Last name', a: present(left.lastName), b: present(right.lastName) },
     { label: 'Date of birth', a: formatDateOfBirth(left.dob), b: formatDateOfBirth(right.dob) },
-    { label: 'Sex', a: present(left.sex), b: present(right.sex) },
+    { label: 'Sex', a: present(sexLabel(left.sex)), b: present(sexLabel(right.sex)) },
     { label: 'Phone', a: present(left.phoneE164), b: present(right.phoneE164) },
     { label: 'Email', a: present(left.email), b: present(right.email) },
-    { label: 'ID type', a: present(left.nationalIdType), b: present(right.nationalIdType) },
+    {
+      label: 'ID type',
+      a: present(nationalIdTypeLabel(left.nationalIdType)),
+      b: present(nationalIdTypeLabel(right.nationalIdType)),
+    },
     {
       label: 'ID last 4',
       a: present(left.nationalIdLast4),
