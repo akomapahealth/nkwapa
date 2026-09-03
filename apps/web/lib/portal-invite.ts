@@ -146,8 +146,7 @@ export interface ExpiryDescription {
  *
  * Relative rather than absolute because the question staff are asking is "do I need to
  * reissue this", and "expires in 2 days" answers it where "expires 4 September" makes
- * them work out today's date first. Rounds toward the coarser unit so a countdown never
- * claims more precision than the reader can use.
+ * them work out today's date first.
  *
  * Anything inside a day is a warning: an invite the patient is unlikely to reach in time
  * should look different from one with a week left, before it becomes a problem.
@@ -177,17 +176,29 @@ export function describeInviteExpiry(
   };
 }
 
+/**
+ * The largest unit that still describes the gap, rounded rather than truncated.
+ *
+ * Truncating looks right and reads wrong at exactly the moment staff are watching: an
+ * invite created seconds ago with a seven-day lifetime has 6 days 23:59:58 left, and
+ * `Math.floor` renders that as "Expires in 6 days" directly underneath the 7 they just
+ * chose. The unit is still picked by the whole-unit threshold, so a gap under a day says
+ * hours rather than being rounded up into one.
+ */
 function formatElapsed(ms: number): string {
-  const days = Math.floor(ms / MS_PER_DAY);
+  const days = ms / MS_PER_DAY;
   if (days >= 1) {
-    return days === 1 ? '1 day' : `${days} days`;
+    return plural(Math.round(days), 'day');
   }
-  const hours = Math.floor(ms / MS_PER_HOUR);
+  const hours = ms / MS_PER_HOUR;
   if (hours >= 1) {
-    return hours === 1 ? '1 hour' : `${hours} hours`;
+    return plural(Math.round(hours), 'hour');
   }
-  const minutes = Math.max(1, Math.floor(ms / MS_PER_MINUTE));
-  return minutes === 1 ? '1 minute' : `${minutes} minutes`;
+  return plural(Math.max(1, Math.round(ms / MS_PER_MINUTE)), 'minute');
+}
+
+function plural(count: number, unit: string): string {
+  return count === 1 ? `1 ${unit}` : `${count} ${unit}s`;
 }
 
 /** The exact date, for the places a countdown is not specific enough. */

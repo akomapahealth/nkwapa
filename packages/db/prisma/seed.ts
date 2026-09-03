@@ -46,6 +46,11 @@ const adapter = new PrismaPg({
 });
 const prisma = new PrismaClient({ adapter });
 
+/** Seed fixtures are dated relative to the run, so they never drift into the past on a re-seed. */
+function daysFromNow(days: number): Date {
+  return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+}
+
 function toLocationCode(value: string) {
   const normalized = value
     .trim()
@@ -577,9 +582,69 @@ async function main() {
           status: PatientPortalInviteStatus.PENDING,
           email: process.env.SEED_E2E_CLAIM_EMAIL ?? 'e2e.claim@nkwapa.local',
           createdByUserId: researchSettingsOwnerId,
+          // Explicit rather than left null. Every invite the application issues now carries
+          // an expiry, and a fixture that does not would be testing a shape production no
+          // longer produces.
+          expiresAt: daysFromNow(14),
         },
       });
       console.log(`Seeded a pending portal invite for ${unclaimed.patientCode}.`);
+    }
+
+    /*
+      A second unclaimed chart, carrying a settled invite of every kind.
+
+      The lifecycle specs need a chart whose previous-invitations list is deterministic, and
+      they need one they can mutate freely: the chart above must keep a claimable invite for
+      the Mailpit resend spec, and Playwright runs these files in series against one database.
+    */
+    const lifecyclePatient = await prisma.patient.findFirst({
+      where: { primaryClinicId: clinic.id, firstName: 'E2E', lastName: 'Lifecycle' },
+    });
+    if (lifecyclePatient) {
+      console.log('Portal invite lifecycle E2E patient already exists; skipping.');
+    } else {
+      const lifecyclePlain = 'GH-E2E-LIFECYCLE-1';
+      const patient = await prisma.patient.create({
+        data: {
+          patientCode: await generatePatientCode(prisma),
+          primaryClinicId: clinic.id,
+          firstName: 'E2E',
+          lastName: 'Lifecycle',
+          dob: new Date('1969-04-17'),
+          sex: Sex.FEMALE,
+          email: 'e2e.lifecycle@nkwapa.local',
+          phoneE164: '+233201234588',
+          nationalIdType: NationalIdType.NATIONAL_ID,
+          nationalIdCiphertext: encryptNationalId(lifecyclePlain),
+          nationalIdHash: hashNationalId(lifecyclePlain),
+          nationalIdLast4: nationalIdLast4(lifecyclePlain),
+          createdByUserId: researchSettingsOwnerId,
+        },
+      });
+
+      await prisma.patientPortalInvite.createMany({
+        data: [
+          {
+            clinicId: clinic.id,
+            patientId: patient.id,
+            status: PatientPortalInviteStatus.CANCELLED,
+            email: 'wrong.address@nkwapa.local',
+            createdByUserId: researchSettingsOwnerId,
+            cancelledAt: daysFromNow(-9),
+            expiresAt: daysFromNow(4),
+          },
+          {
+            clinicId: clinic.id,
+            patientId: patient.id,
+            status: PatientPortalInviteStatus.EXPIRED,
+            email: 'e2e.lifecycle@nkwapa.local',
+            createdByUserId: researchSettingsOwnerId,
+            expiresAt: daysFromNow(-3),
+          },
+        ],
+      });
+      console.log(`Seeded portal invite lifecycle E2E patient ${patient.patientCode}.`);
     }
   }
 

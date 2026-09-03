@@ -102,19 +102,22 @@ export function PortalAccessCard({
 
   const { state: copyState, copy } = useCopyToClipboard();
 
-  const currentInvite = portalAccess.currentInvite;
+  const currentInvite = portalAccess.currentInvite ?? null;
   const accessState = describePortalAccessStatus(portalAccess.status);
   const expiry = useMemo(
     () => describeInviteExpiry(currentInvite?.expiresAt ?? null),
     [currentInvite?.expiresAt],
   );
-  const deliveryGap = describeInviteDeliveryGap(currentInvite, portalAccess.emailChannel);
+  const deliveryGap = describeInviteDeliveryGap(
+    currentInvite,
+    portalAccess.emailChannel ?? { available: true, readiness: 'unknown', reason: null },
+  );
   const manualInstructions = useMemo(
     () =>
       buildManualInviteInstructions({
         clinicName,
         patientCode,
-        claimUrl: portalAccess.claimUrl,
+        claimUrl: portalAccess.claimUrl ?? null,
         expiresAt: currentInvite?.expiresAt ?? null,
       }),
     [clinicName, patientCode, portalAccess.claimUrl, currentInvite?.expiresAt],
@@ -187,7 +190,13 @@ export function PortalAccessCard({
     if (ok) setCancelTarget(null);
   };
 
-  const previousInvites = portalAccess.previousInvites;
+  /*
+    Defaulted rather than trusted. The web app deploys to Vercel and the API to Render from
+    the same commit but not in the same step, so there is a window where a browser holding
+    the new bundle is talking to the old API. A chart that throws its error boundary during
+    that window is a worse failure than a card that renders without a list it cannot get.
+  */
+  const previousInvites = portalAccess.previousInvites ?? [];
   const canResend = Boolean(currentInvite?.email) && !expiry.isExpired;
 
   return (
@@ -202,15 +211,18 @@ export function PortalAccessCard({
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="rounded-lg border border-border bg-background p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-eyebrow text-muted-foreground">Portal status</p>
-                <p className="mt-2 text-base font-semibold text-foreground">{accessState.label}</p>
-              </div>
-              <Badge variant={accessState.variant} className="shrink-0 rounded-full">
+            {/*
+              The status is said once. The old card printed the raw enum as both a heading
+              and a badge beside it, so the same word appeared twice and the second carried
+              nothing the first had not. The badge is the token; the sentence under it is
+              what the reader actually needs.
+            */}
+            <p className="text-eyebrow text-muted-foreground">Portal status</p>
+            <p className="mt-2">
+              <Badge variant={accessState.variant} className="rounded-full text-sm">
                 {accessState.label}
               </Badge>
-            </div>
+            </p>
             <p className="mt-2 text-sm text-muted-foreground">{accessState.detail}</p>
 
             {portalAccess.status === 'LINKED' && portalAccess.linkedKeycloakSub ? (
@@ -221,26 +233,21 @@ export function PortalAccessCard({
 
             {currentInvite ? (
               <dl className="mt-4 space-y-3 border-t border-border pt-4 text-sm">
-                <div className="flex flex-wrap items-center gap-2">
-                  <dt className="sr-only">Invitation state</dt>
-                  <dd>
-                    <Badge
-                      variant={describeInviteStatus(currentInvite.status).variant}
-                      className="rounded-full"
-                    >
-                      {describeInviteStatus(currentInvite.status).label}
-                    </Badge>
-                  </dd>
-                  {/*
-                    A countdown rather than a date: the question staff are asking is whether
-                    they need to reissue, and "expires in 2 days" answers it where a date
-                    makes them work out today's first.
-                  */}
+                {/*
+                  No status badge here. The live invite is pending by construction — it is
+                  the one the API picked as current — so a badge reading "Waiting to be
+                  claimed" under a status already reading "Invitation waiting" is the same
+                  sentence twice. The countdown is the part that varies, and it is what
+                  staff are actually checking: a date would make them work out today's
+                  first.
+                */}
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <dt className="text-eyebrow text-muted-foreground">Expiry</dt>
                   <dd
                     className={
                       expiry.tone === 'neutral'
-                        ? 'text-xs text-muted-foreground'
-                        : 'text-xs font-medium text-warning-ink'
+                        ? 'text-sm text-foreground'
+                        : 'text-sm font-semibold text-warning-ink'
                     }
                     title={formatInviteDate(currentInvite.expiresAt)}
                   >

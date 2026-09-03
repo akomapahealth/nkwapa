@@ -74,7 +74,7 @@ describe('describeInviteExpiry', () => {
     [DAY, 'Expires in 1 day'],
     [3 * HOUR, 'Expires in 3 hours'],
     [HOUR, 'Expires in 1 hour'],
-    [90 * 1000, 'Expires in 1 minute'],
+    [60 * 1000, 'Expires in 1 minute'],
   ])('counts down %i ms as "%s"', (offset, label) => {
     expect(describeInviteExpiry(at(offset), NOW).label).toBe(label);
   });
@@ -89,6 +89,19 @@ describe('describeInviteExpiry', () => {
       tone: 'expired',
       isExpired: true,
     });
+  });
+
+  // Truncating renders a seven-day invite as "6 days" the second it is created, directly
+  // under the 7 the person just chose. This is the case that motivated rounding.
+  it('does not lose a day the moment an invite is created', () => {
+    const created = new Date(NOW.getTime() + 7 * DAY - 2000).toISOString();
+    expect(describeInviteExpiry(created, NOW).label).toBe('Expires in 7 days');
+  });
+
+  // The unit is still chosen by the whole-unit threshold, so a gap under a day is not
+  // rounded up into one.
+  it('keeps hours as hours rather than rounding up to a day', () => {
+    expect(describeInviteExpiry(at(23 * HOUR), NOW).label).toBe('Expires in 23 hours');
   });
 
   // The boundary the API uses is gt, so the expiry instant itself is over.
