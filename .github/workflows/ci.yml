@@ -229,6 +229,9 @@ jobs:
       # The appointment acceptance suite needs a confirmed visit and a pending request to act on,
       # and neither can be created through the UI without one already existing.
       SEED_SAMPLE_APPOINTMENTS: 'true'
+      # The duplicate review queue has no populated state without these. Patient.nationalIdHash
+      # is globally unique, so no other seeded chart can ever collide with another.
+      SEED_SAMPLE_DUPLICATES: 'true'
       E2E_STAFF_SUB: 00000000-0000-4000-8000-000000000042
       E2E_STAFF_USERNAME: e2e.staff
       E2E_STAFF_PASSWORD: NkwapaE2E!23
@@ -329,6 +332,7 @@ jobs:
         run: npm run db:seed
         env:
           SEED_SAMPLE_APPOINTMENTS: ${{ env.SEED_SAMPLE_APPOINTMENTS }}
+          SEED_SAMPLE_DUPLICATES: ${{ env.SEED_SAMPLE_DUPLICATES }}
           SEED_E2E_STAFF_NAME: ${{ env.E2E_STAFF_NAME }}
           SEED_E2E_STAFF_EMAIL: ${{ env.E2E_STAFF_EMAIL }}
           SEED_E2E_DOCTOR_NAME: ${{ env.E2E_DOCTOR_NAME }}

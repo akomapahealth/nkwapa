@@ -434,6 +434,102 @@ async function main() {
         'SEED_SAMPLE_PATIENT=true but NATIONAL_ID_ENCRYPTION_KEY not set; skipping sample patient.',
       );
     }
+
+    /*
+      Two plausible duplicate pairs, for the duplicate review queue.
+
+      Nothing else in the repo can produce one. Patient.nationalIdHash is globally unique, so the
+      seed physically cannot write two charts that share a national ID, and every other seeded
+      patient differs on name, birthday and phone. Without these the populated state of
+      /admin/duplicates is untestable and the empty state is the only one anyone ever sees.
+
+      The pairs are chosen to exercise different rules and different strengths:
+        - Akua Boateng, twice, same birthday and phone -> name + dob and phone, "very likely"
+        - Kwabena / Kwabina Owusu, same birthday and email -> similar name and email, "possible"
+
+      The second pair is deliberately the ambiguous kind. A queue that only ever shows obvious
+      duplicates teaches an operator to trust it, which is the wrong lesson.
+    */
+    const seedSampleDuplicates = process.env.SEED_SAMPLE_DUPLICATES === 'true';
+    if (seedSampleDuplicates && hasEncryptionKey()) {
+      const duplicateCharts = [
+        {
+          firstName: 'Akua',
+          lastName: 'Boateng',
+          dob: new Date('1988-07-04'),
+          sex: Sex.FEMALE,
+          phoneE164: '+233209876543',
+          email: null,
+          nationalId: 'GH-DUP-AKUA-1',
+        },
+        {
+          firstName: 'Akua',
+          lastName: 'Boateng',
+          dob: new Date('1988-07-04'),
+          sex: Sex.FEMALE,
+          phoneE164: '+233209876543',
+          email: null,
+          nationalId: 'GH-DUP-AKUA-2',
+        },
+        {
+          firstName: 'Kwabena',
+          lastName: 'Owusu',
+          dob: new Date('1972-11-19'),
+          sex: Sex.MALE,
+          phoneE164: null,
+          email: 'k.owusu@nkwapa.local',
+          nationalId: 'GH-DUP-KWABENA-1',
+        },
+        {
+          firstName: 'Kwabina',
+          lastName: 'Owusu',
+          dob: new Date('1972-11-19'),
+          sex: Sex.MALE,
+          phoneE164: null,
+          email: 'K.Owusu@nkwapa.local',
+          nationalId: 'GH-DUP-KWABENA-2',
+        },
+      ];
+
+      let seededDuplicates = 0;
+      for (const chart of duplicateCharts) {
+        // Guarded on the national ID hash rather than the name, because the whole point of these
+        // fixtures is that two of them share a name.
+        const existing = await prisma.patient.findUnique({
+          where: { nationalIdHash: hashNationalId(chart.nationalId) },
+        });
+        if (existing) continue;
+
+        await prisma.patient.create({
+          data: {
+            patientCode: await generatePatientCode(prisma),
+            primaryClinicId: clinic.id,
+            firstName: chart.firstName,
+            lastName: chart.lastName,
+            dob: chart.dob,
+            sex: chart.sex,
+            phoneE164: chart.phoneE164,
+            email: chart.email,
+            nationalIdType: NationalIdType.NATIONAL_ID,
+            nationalIdCiphertext: encryptNationalId(chart.nationalId),
+            nationalIdHash: hashNationalId(chart.nationalId),
+            nationalIdLast4: nationalIdLast4(chart.nationalId),
+            createdByUserId: user.id,
+          },
+        });
+        seededDuplicates += 1;
+      }
+
+      console.log(
+        seededDuplicates === 0
+          ? 'Sample duplicate charts already exist; skipping.'
+          : `Seeded ${seededDuplicates} sample duplicate chart(s).`,
+      );
+    } else if (seedSampleDuplicates && !hasEncryptionKey()) {
+      console.warn(
+        'SEED_SAMPLE_DUPLICATES=true but NATIONAL_ID_ENCRYPTION_KEY not set; skipping duplicates.',
+      );
+    }
   } else {
     // Create disabled research settings without updatedBy (needs a user), so skip.
     console.log(
