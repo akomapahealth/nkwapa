@@ -85,7 +85,10 @@ describeRehearsal('clinical records migration rehearsal', () => {
     // Scoped to the snapshot's own organization: an early migration seeds a default one.
     expect(await count('Organization', `"slug" = 'legacy-org'`)).toBe(1);
     expect(await count('Clinic')).toBe(2);
-    expect(await count('User')).toBe(4);
+    // The four legacy people, counted without the system actor the portal invite expiry
+    // migration adds. Kept as an exclusion rather than a bumped total so this still fails
+    // if a migration invents or drops a real user.
+    expect(await count('User', `"keycloakSub" <> 'system:nkwapa'`)).toBe(4);
     expect(await count('Patient')).toBe(4);
     expect(await count('Encounter')).toBe(4);
     expect(await count('Vitals')).toBe(3);
@@ -95,6 +98,25 @@ describeRehearsal('clinical records migration rehearsal', () => {
     expect(await count('PatientConsent')).toBe(2);
     expect(await count('AuditEvent')).toBe(1);
     expect(await count('SyncMutation')).toBe(1);
+  });
+
+  /**
+   * The one row the migration set is allowed to invent.
+   *
+   * Background jobs write audit events, and `AuditEvent.actorUserId` is a UUID with a
+   * foreign key to `User`, so there has to be a real row to point at. It must never become
+   * something a person can sign in as or be assigned work through, and a deployment that
+   * rehearses these migrations is exactly where that would go unnoticed.
+   */
+  it('adds exactly one system actor, and it can do nothing', async () => {
+    expect(await count('User', `"keycloakSub" = 'system:nkwapa'`)).toBe(1);
+    expect(await count('User', `"keycloakSub" = 'system:nkwapa' AND "isActive" = false`)).toBe(1);
+    expect(
+      await count(
+        'UserClinicRole',
+        `"userId" IN (SELECT "id" FROM "User" WHERE "keycloakSub" = 'system:nkwapa')`,
+      ),
+    ).toBe(0);
   });
 
   it('carries a legacy heart rate over to pulseBpm', async () => {
