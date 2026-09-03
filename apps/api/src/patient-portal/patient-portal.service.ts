@@ -55,7 +55,7 @@ import {
 } from '../common/portal-invite-lifecycle';
 import { SYSTEM_ACTOR_USER_ID } from '../common/system-actor';
 import {
-  PORTAL_INVITE_EXPIRE_ACTION,
+  buildInviteExpiryAudit,
   describeInviteStateForStaff,
   formatInviteExpiryDate,
 } from './portal-invite-presentation';
@@ -1497,10 +1497,9 @@ export class PatientPortalService {
     }
     // An expired invite is already inert: cancelling it would change nothing a patient
     // can observe, and the honest recovery is a new invite.
-    if (invite.status !== 'PENDING' || isPortalInviteExpired(invite, new Date())) {
-      const state = isPortalInviteExpired(invite, new Date())
-        ? 'expired'
-        : describeInviteStateForStaff(invite.status);
+    const lapsed = isPortalInviteExpired(invite, new Date());
+    if (invite.status !== 'PENDING' || lapsed) {
+      const state = lapsed ? 'expired' : describeInviteStateForStaff(invite.status);
       throw new BadRequestException(
         `This invite is ${state} and no longer grants access. There is nothing to cancel.`,
       );
@@ -1548,16 +1547,9 @@ export class PatientPortalService {
     if (settled.count === 0) {
       return;
     }
-    await this.auditService.logWrite({
-      clinicId: invite.clinicId,
-      actorUserId: SYSTEM_ACTOR_USER_ID,
-      action: PORTAL_INVITE_EXPIRE_ACTION,
-      entityType: 'PatientPortalInvite',
-      entityId: invite.id,
-      beforeJson: JSON.stringify({ status: 'PENDING', expiresAt: invite.expiresAt }),
-      afterJson: JSON.stringify({ status: 'EXPIRED', trigger: 'on-access' }),
-      requestId,
-    });
+    await this.auditService.logWrite(
+      buildInviteExpiryAudit(invite, 'on-access', SYSTEM_ACTOR_USER_ID, requestId),
+    );
   }
 
   async listPendingInvitesForUser(userId: string) {

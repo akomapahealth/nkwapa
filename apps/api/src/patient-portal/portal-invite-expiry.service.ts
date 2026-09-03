@@ -3,7 +3,7 @@ import type { Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SYSTEM_ACTOR_USER_ID } from '../common/system-actor';
-import { PORTAL_INVITE_EXPIRE_ACTION } from './portal-invite-presentation';
+import { buildInviteExpiryAudit } from './portal-invite-presentation';
 
 /**
  * How many rows one sweep settles.
@@ -69,15 +69,9 @@ export class PortalInviteExpiryService {
         continue;
       }
       expired += 1;
-      await this.auditService.logWrite({
-        clinicId: invite.clinicId,
-        actorUserId: SYSTEM_ACTOR_USER_ID,
-        action: PORTAL_INVITE_EXPIRE_ACTION,
-        entityType: 'PatientPortalInvite',
-        entityId: invite.id,
-        beforeJson: JSON.stringify({ status: 'PENDING', expiresAt: invite.expiresAt }),
-        afterJson: JSON.stringify({ status: 'EXPIRED', trigger: 'scheduled-sweep' }),
-      });
+      await this.auditService.logWrite(
+        buildInviteExpiryAudit(invite, 'scheduled-sweep', SYSTEM_ACTOR_USER_ID),
+      );
     }
 
     if (expired > 0) {

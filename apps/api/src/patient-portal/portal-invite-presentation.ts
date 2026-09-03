@@ -12,6 +12,38 @@
 /** Written by both the on-access expiry and the hourly sweep, so the trail reads as one thing. */
 export const PORTAL_INVITE_EXPIRE_ACTION = 'PATIENT.PORTAL.INVITE.EXPIRE';
 
+/**
+ * Which path noticed the lapse first.
+ *
+ * Recorded because the two mean different things operationally: `on-access` says a person
+ * was in the middle of trying to use the invite, `scheduled-sweep` says nobody was.
+ */
+export type PortalInviteExpiryTrigger = 'on-access' | 'scheduled-sweep';
+
+/**
+ * The audit event for an expiry transition, built once so both callers write the same row.
+ *
+ * They record the same transition from different places, and an audit trail where the same
+ * event has two shapes depending on which code path reached it is one nobody can query.
+ */
+export function buildInviteExpiryAudit(
+  invite: { id: string; clinicId: string; expiresAt: Date | null },
+  trigger: PortalInviteExpiryTrigger,
+  actorUserId: string,
+  requestId?: string,
+) {
+  return {
+    clinicId: invite.clinicId,
+    actorUserId,
+    action: PORTAL_INVITE_EXPIRE_ACTION,
+    entityType: 'PatientPortalInvite',
+    entityId: invite.id,
+    beforeJson: JSON.stringify({ status: 'PENDING', expiresAt: invite.expiresAt }),
+    afterJson: JSON.stringify({ status: 'EXPIRED', trigger }),
+    ...(requestId ? { requestId } : {}),
+  };
+}
+
 const STAFF_STATE_LABELS: Record<string, string> = {
   PENDING: 'pending',
   CLAIMED: 'already claimed',
