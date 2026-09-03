@@ -20,9 +20,12 @@ import { ClinicScoped } from '../auth/decorators/clinic-scoped.decorator';
 import { RbacGuard } from '../auth/guards/rbac.guard';
 import { ClinicScopeGuard } from '../auth/guards/clinic-scope.guard';
 import { PatientService } from '../patients/patient.service';
+import { PatientDuplicateService } from '../patients/patient-duplicate.service';
 import { PatientPortalService } from '../patient-portal/patient-portal.service';
 import { CreatePatientBodyDto } from '../patients/dto/create-patient-body.dto';
 import { ListPatientRegistryQueryDto } from '../patients/dto/list-patient-registry.query.dto';
+import { ListDuplicateCandidatesQueryDto } from '../patients/dto/list-duplicate-candidates.query.dto';
+import { ReviewDuplicatePairDto } from '../patients/dto/review-duplicate-pair.dto';
 import { LinkPortalDto } from '../patient-portal/dto/link-portal.dto';
 import { CreatePatientPortalInviteDto } from '../patient-portal/dto/portal-invite.dto';
 import { UpdatePatientBodyDto } from '../patients/dto/update-patient-body.dto';
@@ -34,6 +37,7 @@ import {
   ClinicIdParamDto,
 } from '../common/request-dto';
 import { ToOptionalNumber, ToSanitizedString } from '../common/validation';
+import type { ReqUserWithRoles } from '../auth/guards/rbac.guard';
 
 class SearchPatientsQueryDto {
   @IsOptional()
@@ -54,6 +58,7 @@ export class ClinicsPatientsController {
   constructor(
     private readonly patientService: PatientService,
     private readonly patientPortalService: PatientPortalService,
+    private readonly patientDuplicateService: PatientDuplicateService,
   ) {}
 
   @Post()
@@ -98,6 +103,49 @@ export class ClinicsPatientsController {
           residentialLocationStatus: query.residentialLocationStatus,
         },
       },
+    );
+  }
+
+  /**
+   * This clinic's suspected duplicate charts.
+   *
+   * Read-only. Candidates are computed from columns that already exist and nothing is written,
+   * so this route can be opened as often as an operator likes without consequence.
+   */
+  @Get('duplicates')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.PATIENT_DUPLICATE_REVIEW)
+  async listDuplicates(
+    @Param() params: ClinicIdParamDto,
+    @Query() query: ListDuplicateCandidatesQueryDto,
+    @Request() req: { user: ReqUserWithRoles },
+  ) {
+    return this.patientDuplicateService.listCandidates(
+      { userId: req.user.user.id, roles: req.user.roles },
+      { clinicId: params.clinicId },
+      query,
+    );
+  }
+
+  /**
+   * Record a decision about one pair.
+   *
+   * The only write on this surface, and it writes to PatientDuplicateReview alone. Merging two
+   * charts remains POST /admin/patients/merge, which stays system-admin only.
+   */
+  @Post('duplicates/review')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.PATIENT_DUPLICATE_REVIEW)
+  async reviewDuplicate(
+    @Param() params: ClinicIdParamDto,
+    @Body() body: ReviewDuplicatePairDto,
+    @Request() req: { user: ReqUserWithRoles; headers?: { 'x-request-id'?: string } },
+  ) {
+    return this.patientDuplicateService.recordReview(
+      { userId: req.user.user.id, roles: req.user.roles },
+      { clinicId: params.clinicId },
+      body,
+      req.headers?.['x-request-id'] ?? randomUUID(),
     );
   }
 
