@@ -3,12 +3,15 @@ node_modules
 .pnpm-store
 
 # Environment (never commit secrets)
+#
+# The wildcard matters as much as the exact names. The list used to enumerate .env.local,
+# .env.development, .env.production and .env.test, which left an editor swap file, a .env.old, or
+# a timestamped .env.bak sitting in the working tree fully committable -- and this repo has already
+# lost a scratch file to a wide "git add -A" once.
 .env
-.env.local
-.env.*.local
-.env.development
-.env.production
-.env.test
+.env.*
+!.env.example
+!.env.*.example
 .envrc
 *.secret
 *.secrets.*

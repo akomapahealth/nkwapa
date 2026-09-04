@@ -32,6 +32,20 @@ describe('OPS permissions', () => {
     );
   });
 
+  it('lets clinic administrators review suspected duplicates but not clinical roles', () => {
+    // Merging two charts stays SYSTEM_ADMIN only. Reviewing candidates is a separate, read-only
+    // permission so the people who actually recognise the patients can triage and escalate.
+    for (const role of [UserRole.DIRECTOR, UserRole.MANAGER]) {
+      expect(computeEffectivePermissions([role])).toContain(PERMISSIONS.PATIENT_DUPLICATE_REVIEW);
+    }
+    for (const role of [UserRole.DOCTOR, UserRole.VOLUNTEER, UserRole.PATIENT]) {
+      expect(computeEffectivePermissions([role])).not.toContain(
+        PERMISSIONS.PATIENT_DUPLICATE_REVIEW,
+      );
+    }
+    expect(computeEffectivePermissions([UserRole.SYSTEM_ADMIN])).toEqual(['*']);
+  });
+
   it('grants managers clinic scope but not org-wide research export approval', () => {
     const permissions = computeEffectivePermissions([UserRole.MANAGER]);
 

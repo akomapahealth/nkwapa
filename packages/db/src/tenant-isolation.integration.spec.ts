@@ -1,7 +1,12 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Client } from 'pg';
-import { TENANT_CLINICS, TENANT_PATIENTS, tenantFixtureSql } from './testing/tenant-fixture';
+import {
+  TENANT_CLINICS,
+  TENANT_PATIENTS,
+  TENANT_SYSTEM_ADMIN,
+  tenantFixtureSql,
+} from './testing/tenant-fixture';
 
 /**
  * Proof that clinic and organization isolation is enforced by PostgreSQL, not only by application
@@ -71,6 +76,15 @@ describeIsolation('tenant isolation', () => {
       VALUES
         ('99000000-0000-4000-8000-0000000000a2', '${TENANT_CLINICS.a1.id}', '99000000-0000-4000-8000-0000000000a1', CURRENT_TIMESTAMP),
         ('99000000-0000-4000-8000-0000000000b2', '${TENANT_CLINICS.b1.id}', '99000000-0000-4000-8000-0000000000b1', CURRENT_TIMESTAMP);
+      INSERT INTO "PatientDuplicateReview"
+        ("id", "clinicId", "pairKey", "patientAId", "patientBId", "status", "reviewedByUserId", "updatedAt")
+      VALUES
+        ('99000000-0000-4000-8000-0000000000d1', '${TENANT_CLINICS.a1.id}', 'a1-local-pair',
+         '${TENANT_PATIENTS.a1Primary.id}', '${TENANT_PATIENTS.a1Secondary.id}', 'DISMISSED',
+         '${TENANT_SYSTEM_ADMIN.id}', CURRENT_TIMESTAMP),
+        ('99000000-0000-4000-8000-0000000000d2', NULL, 'cross-clinic-pair',
+         '${TENANT_PATIENTS.a1Primary.id}', '${TENANT_PATIENTS.b1Primary.id}', 'OPEN',
+         '${TENANT_SYSTEM_ADMIN.id}', CURRENT_TIMESTAMP);
     `);
 
     app = new Client({ connectionString: databaseUrl(appUrl, database) });
@@ -91,6 +105,17 @@ describeIsolation('tenant isolation', () => {
     await app.query('BEGIN');
     await app.query(`SELECT set_config('app.current_clinic_ids', $1, true)`, [clinicIds.join(',')]);
     await app.query(`SELECT set_config('app.is_system_admin', 'false', true)`);
+    try {
+      return await run();
+    } finally {
+      await app.query('ROLLBACK');
+    }
+  }
+
+  async function asSystemAdmin<T>(run: () => Promise<T>): Promise<T> {
+    await app.query('BEGIN');
+    await app.query(`SELECT set_config('app.current_clinic_ids', '', true)`);
+    await app.query(`SELECT set_config('app.is_system_admin', 'true', true)`);
     try {
       return await run();
     } finally {
@@ -164,6 +189,68 @@ describeIsolation('tenant isolation', () => {
   it('grants exactly the clinics named in the context and no more', async () => {
     await asClinic([TENANT_CLINICS.a1.id, TENANT_CLINICS.a2.id], async () => {
       expect(await countIn('Patient')).toBe(3);
+    });
+  });
+
+  /*
+    Duplicate review decisions carry a nullable clinic, which is a boundary the other tables in
+    this suite do not exercise. A pair whose two charts sit in different clinics belongs to
+    neither, so its decision is stored unowned and must be readable only by a system admin --
+    the same people who can see both charts in the first place.
+  */
+  describe('duplicate review decisions', () => {
+    it('shows a clinic only its own decisions, never an unowned one', async () => {
+      await asClinic([TENANT_CLINICS.a1.id], async () => {
+        const { rows } = await app.query('SELECT "pairKey" FROM "PatientDuplicateReview"');
+        expect(rows.map((row) => row.pairKey)).toEqual(['a1-local-pair']);
+      });
+    });
+
+    it("hides another clinic's decisions entirely", async () => {
+      await asClinic([TENANT_CLINICS.a2.id], async () => {
+        expect(await countIn('PatientDuplicateReview')).toBe(0);
+      });
+    });
+
+    it('returns nothing without a clinic context', async () => {
+      await asClinic([], async () => {
+        expect(await countIn('PatientDuplicateReview')).toBe(0);
+      });
+    });
+
+    it('lets a system admin see the cross-clinic decision', async () => {
+      await asSystemAdmin(async () => {
+        const { rows } = await app.query(
+          'SELECT "pairKey" FROM "PatientDuplicateReview" ORDER BY "pairKey"',
+        );
+        expect(rows.map((row) => row.pairKey)).toEqual(['a1-local-pair', 'cross-clinic-pair']);
+      });
+    });
+
+    it('refuses to record a decision for a clinic outside the context', async () => {
+      await expect(
+        asClinic([TENANT_CLINICS.a1.id], async () =>
+          app.query(
+            `INSERT INTO "PatientDuplicateReview"
+               ("id", "clinicId", "pairKey", "patientAId", "patientBId", "reviewedByUserId", "updatedAt")
+             VALUES ('99000000-0000-4000-8000-0000000000d3', $1, 'b1-pair', $2, $2, $3, CURRENT_TIMESTAMP)`,
+            [TENANT_CLINICS.b1.id, TENANT_PATIENTS.b1Primary.id, TENANT_SYSTEM_ADMIN.id],
+          ),
+        ),
+      ).rejects.toThrow(/row-level security/i);
+    });
+
+    it('refuses to record an unowned decision without system admin', async () => {
+      await expect(
+        asClinic([TENANT_CLINICS.a1.id], async () =>
+          app.query(
+            `INSERT INTO "PatientDuplicateReview"
+               ("id", "clinicId", "pairKey", "patientAId", "patientBId", "reviewedByUserId", "updatedAt")
+             VALUES ('99000000-0000-4000-8000-0000000000d4', NULL, 'sneaky-pair', $1, $1, $2, CURRENT_TIMESTAMP)`,
+            [TENANT_PATIENTS.a1Primary.id, TENANT_SYSTEM_ADMIN.id],
+          ),
+        ),
+      ).rejects.toThrow(/row-level security/i);
     });
   });
 });

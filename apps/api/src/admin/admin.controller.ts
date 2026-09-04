@@ -19,13 +19,19 @@ import { PERMISSIONS } from '../auth/constants/permissions';
 import { UserRole } from '@prisma/client';
 import { AssignRoleDto } from './dto/assign-role.dto';
 import { MergePatientsDto } from './dto/merge-patients.dto';
+import { PatientDuplicateService } from '../patients/patient-duplicate.service';
+import { ListDuplicateCandidatesQueryDto } from '../patients/dto/list-duplicate-candidates.query.dto';
+import { ReviewDuplicatePairDto } from '../patients/dto/review-duplicate-pair.dto';
 import type { ReqUserWithRoles } from '../auth/guards/rbac.guard';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RbacGuard)
 @RequirePermission(PERMISSIONS.CLINIC_MANAGE)
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly patientDuplicateService: PatientDuplicateService,
+  ) {}
 
   @Get('users')
   async listUsers(
@@ -87,6 +93,40 @@ export class AdminController {
       userId,
       clinicId,
       role,
+      req.headers?.['x-request-id'] ?? randomUUID(),
+    );
+  }
+
+  /**
+   * Suspected duplicates across every clinic the caller can see.
+   *
+   * Read-only, and system-admin only: the service refuses an unscoped read from anyone else, and
+   * row level security independently limits a clinic user's context to their own clinics. This
+   * is where a pair spanning two clinics becomes visible at all, which is the case the
+   * clinic-scoped route by definition cannot show.
+   */
+  @Get('patients/duplicates')
+  async listDuplicates(
+    @Query() query: ListDuplicateCandidatesQueryDto,
+    @Request() req: { user: ReqUserWithRoles },
+  ) {
+    return this.patientDuplicateService.listCandidates(
+      { userId: req.user.user.id, roles: req.user.roles },
+      { clinicId: null },
+      query,
+    );
+  }
+
+  /** Record a decision about a pair, including one that spans two clinics. */
+  @Post('patients/duplicates/review')
+  async reviewDuplicate(
+    @Body() body: ReviewDuplicatePairDto,
+    @Request() req: { user: ReqUserWithRoles; headers?: { 'x-request-id'?: string } },
+  ) {
+    return this.patientDuplicateService.recordReview(
+      { userId: req.user.user.id, roles: req.user.roles },
+      { clinicId: null },
+      body,
       req.headers?.['x-request-id'] ?? randomUUID(),
     );
   }

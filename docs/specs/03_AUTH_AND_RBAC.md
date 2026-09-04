@@ -66,6 +66,7 @@ Current permission families include:
 - sync push/pull
 - dashboard reads
 - patient portal self and staff-linked reads/actions
+- suspected duplicate review
 
 Realm roles in Keycloak are descriptive, not the authoritative enforcement layer.
 
@@ -86,6 +87,23 @@ Screening reads follow the same read-back principle:
 A volunteer previously held `SCREENING.WRITE` without `SCREENING.READ`, so they could record a
 diabetes screening and then not see it. Any role allowed to record a clinical value is allowed to
 read that value back.
+
+Duplicate review separates looking from acting:
+
+- `PATIENT.DUPLICATE.REVIEW`: system administrator, director, and manager
+- merging two charts stays system administrator only, via `POST /admin/patients/merge`
+
+The split is deliberate. Clinic administrators are the people who recognise the patients, so they
+triage the queue and record what they found; consolidating two records is irreversible and stays
+with the narrower role. Doctors and volunteers hold neither permission: the queue compares two
+charts side by side, which is a wider identity view than a clinical seat needs.
+
+Scope follows the same rule as the staff roster. `GET /clinics/:clinicId/patients/duplicates` is
+clinic-scoped through `ClinicScopeGuard`; `GET /admin/patients/duplicates` covers every visible
+clinic and is refused to anyone who is not a system administrator, both by the service and,
+independently, by row level security. A review decision about a pair spanning two clinics is stored
+with a null `clinicId`, which the `PatientDuplicateReview` policy reads as system administrators
+only.
 
 ---
 

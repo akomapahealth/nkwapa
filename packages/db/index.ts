@@ -46,6 +46,26 @@ export {
   normalizeDistrict,
 } from './src/ghana-locations';
 export {
+  DUPLICATE_CONFIDENCE_LEVELS,
+  DUPLICATE_CONFIDENCE_THRESHOLDS,
+  DUPLICATE_MATCH_REASONS,
+  DUPLICATE_MATCH_REASON_LABELS,
+  DUPLICATE_MATCH_WEIGHTS,
+  DUPLICATE_NAME_EDIT_DISTANCE,
+  duplicatePairKey,
+  editDistanceWithin,
+  evaluateDuplicatePair,
+  normalizeEmailForMatch,
+  normalizeNameForMatch,
+  parseDuplicatePairKey,
+  sameCalendarDay,
+  scoreToConfidence,
+  type DuplicateCandidateInput,
+  type DuplicateConfidence,
+  type DuplicateMatchReason,
+  type DuplicatePairEvaluation,
+} from './src/patient-duplicates';
+export {
   PATIENT_CHART_SECTION_IDS,
   PATIENT_CHART_SECTIONS,
   canAccessPatientChartSection,

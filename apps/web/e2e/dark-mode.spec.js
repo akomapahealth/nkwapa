@@ -44,7 +44,15 @@ async function assertDarkAndAccessible(page, path) {
 test.describe('staff surfaces in dark mode', () => {
   test.use({ storageState: storageStateFor('staff') });
 
-  const ROUTES = ['/dashboard', '/today', '/queues', '/patients', '/appointments', '/admin/users'];
+  const ROUTES = [
+    '/dashboard',
+    '/today',
+    '/queues',
+    '/patients',
+    '/appointments',
+    '/admin/users',
+    '/admin/duplicates',
+  ];
 
   for (const path of ROUTES) {
     test(`${path} renders dark with no contrast or ARIA violations`, async ({ page }) => {
