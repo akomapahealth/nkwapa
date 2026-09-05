@@ -6,6 +6,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { Prisma, UserRole } from '@prisma/client';
+import { isSystemAdmin } from '../auth/clinic-roles';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ReminderService } from '../reminders/reminder.service';
@@ -243,267 +244,6 @@ export class AdminService {
     }
 
     return { deleted: true };
-  }
-
-  async mergePatients(
-    actor: AdminActor,
-    canonicalPatientId: string,
-    sourcePatientId: string,
-    options?: {
-      portalLinkStrategy?: 'CANONICAL' | 'SOURCE';
-      inviteStrategy?: 'CANONICAL' | 'SOURCE' | 'MERGE';
-    },
-    requestId?: string,
-  ) {
-    this.assertSystemAdmin(actor, 'Only System Admin can merge patient records');
-
-    if (canonicalPatientId === sourcePatientId) {
-      throw new BadRequestException('Canonical and source patient must be different records');
-    }
-
-    const [
-      canonicalPatient,
-      sourcePatient,
-      canonicalLink,
-      sourceLink,
-      canonicalInvites,
-      sourceInvites,
-    ] = await Promise.all([
-      this.prisma.patient.findUnique({
-        where: { id: canonicalPatientId },
-        include: {
-          codeAliases: true,
-        },
-      }),
-      this.prisma.patient.findUnique({
-        where: { id: sourcePatientId },
-        include: {
-          codeAliases: true,
-        },
-      }),
-      this.prisma.patientAccountLink.findUnique({
-        where: { patientId: canonicalPatientId },
-      }),
-      this.prisma.patientAccountLink.findUnique({
-        where: { patientId: sourcePatientId },
-      }),
-      this.prisma.patientPortalInvite.findMany({
-        where: { patientId: canonicalPatientId },
-      }),
-      this.prisma.patientPortalInvite.findMany({
-        where: { patientId: sourcePatientId },
-      }),
-    ]);
-
-    if (!canonicalPatient || !sourcePatient) {
-      throw new NotFoundException('Patient not found');
-    }
-    if (canonicalPatient.mergedIntoPatientId) {
-      throw new ConflictException('Canonical patient has already been merged into another chart');
-    }
-    if (sourcePatient.mergedIntoPatientId) {
-      throw new ConflictException('Source patient has already been merged into another chart');
-    }
-    if (canonicalPatient.primaryClinicId !== sourcePatient.primaryClinicId) {
-      throw new BadRequestException('Patient merge is limited to records in the same clinic');
-    }
-
-    const retainedPortalLink =
-      options?.portalLinkStrategy === 'SOURCE' && sourceLink
-        ? sourceLink
-        : (canonicalLink ?? sourceLink ?? null);
-    const retainedPortalUser =
-      retainedPortalLink != null
-        ? await this.prisma.user.findUnique({
-            where: { keycloakSub: retainedPortalLink.keycloakSub },
-            select: { id: true },
-          })
-        : null;
-    const retainedPortalUserId =
-      options?.portalLinkStrategy === 'SOURCE' && sourcePatient.portalUserId
-        ? sourcePatient.portalUserId
-        : (canonicalPatient.portalUserId ??
-          sourcePatient.portalUserId ??
-          retainedPortalUser?.id ??
-          null);
-    const inviteStrategy = options?.inviteStrategy ?? 'MERGE';
-    const mergedAt = new Date();
-    const sourceLegacyCode = sourcePatient.patientCode;
-    const tombstonePatientCode = this.buildMergedPatientCode(sourceLegacyCode, sourcePatient.id);
-
-    await this.prisma.$transaction(async (tx) => {
-      await tx.encounter.updateMany({
-        where: { patientId: sourcePatientId },
-        data: { patientId: canonicalPatientId },
-      });
-      await tx.patientConsent.updateMany({
-        where: { patientId: sourcePatientId },
-        data: { patientId: canonicalPatientId },
-      });
-      await tx.reminder.updateMany({
-        where: { patientId: sourcePatientId },
-        data: { patientId: canonicalPatientId },
-      });
-      await tx.patientSelfReport.updateMany({
-        where: { patientId: sourcePatientId },
-        data: { patientId: canonicalPatientId },
-      });
-      await tx.patientMeasurement.updateMany({
-        where: { patientId: sourcePatientId },
-        data: { patientId: canonicalPatientId },
-      });
-      await tx.patientCheckIn.updateMany({
-        where: { patientId: sourcePatientId },
-        data: { patientId: canonicalPatientId },
-      });
-      await tx.appointmentRequest.updateMany({
-        where: { patientId: sourcePatientId },
-        data: { patientId: canonicalPatientId },
-      });
-      await tx.appointment.updateMany({
-        where: { patientId: sourcePatientId },
-        data: { patientId: canonicalPatientId },
-      });
-
-      await tx.patientAccountLink.deleteMany({
-        where: {
-          patientId: {
-            in: [canonicalPatientId, sourcePatientId],
-          },
-        },
-      });
-
-      if (retainedPortalLink) {
-        await tx.patientAccountLink.create({
-          data: {
-            patientId: canonicalPatientId,
-            keycloakSub: retainedPortalLink.keycloakSub,
-          },
-        });
-      }
-
-      const sourcePendingInviteIds = sourceInvites
-        .filter((invite) => invite.status === 'PENDING')
-        .map((invite) => invite.id);
-      const canonicalPendingInviteIds = canonicalInvites
-        .filter((invite) => invite.status === 'PENDING')
-        .map((invite) => invite.id);
-
-      if (inviteStrategy === 'CANONICAL' && sourcePendingInviteIds.length > 0) {
-        await tx.patientPortalInvite.updateMany({
-          where: { id: { in: sourcePendingInviteIds } },
-          data: {
-            patientId: canonicalPatientId,
-            status: 'CANCELLED',
-            cancelledAt: mergedAt,
-          },
-        });
-      } else if (inviteStrategy === 'SOURCE') {
-        if (canonicalPendingInviteIds.length > 0) {
-          await tx.patientPortalInvite.updateMany({
-            where: { id: { in: canonicalPendingInviteIds } },
-            data: {
-              status: 'CANCELLED',
-              cancelledAt: mergedAt,
-            },
-          });
-        }
-        await tx.patientPortalInvite.updateMany({
-          where: { patientId: sourcePatientId },
-          data: { patientId: canonicalPatientId },
-        });
-      } else {
-        await tx.patientPortalInvite.updateMany({
-          where: { patientId: sourcePatientId },
-          data: { patientId: canonicalPatientId },
-        });
-      }
-
-      if (sourcePatient.codeAliases.length > 0) {
-        await tx.patientCodeAlias.createMany({
-          data: sourcePatient.codeAliases.map((alias) => ({
-            patientId: canonicalPatientId,
-            code: alias.code,
-          })),
-          skipDuplicates: true,
-        });
-        await tx.patientCodeAlias.deleteMany({
-          where: { patientId: sourcePatientId },
-        });
-      }
-
-      await tx.patient.update({
-        where: { id: canonicalPatientId },
-        data: {
-          portalUserId: retainedPortalUserId,
-        },
-      });
-
-      await tx.patient.update({
-        where: { id: sourcePatientId },
-        data: {
-          patientCode: tombstonePatientCode,
-          portalUserId: null,
-          mergedIntoPatientId: canonicalPatientId,
-          mergedAt,
-          mergedByUserId: actor.userId,
-        },
-      });
-
-      await tx.patientCodeAlias.create({
-        data: {
-          patientId: canonicalPatientId,
-          code: sourceLegacyCode,
-        },
-      });
-
-      if (retainedPortalUserId) {
-        await tx.userClinicRole.upsert({
-          where: {
-            userId_clinicId_role: {
-              userId: retainedPortalUserId,
-              clinicId: canonicalPatient.primaryClinicId,
-              role: UserRole.PATIENT,
-            },
-          },
-          create: {
-            userId: retainedPortalUserId,
-            clinicId: canonicalPatient.primaryClinicId,
-            role: UserRole.PATIENT,
-          },
-          update: {},
-        });
-      }
-    });
-
-    await this.auditService.logWrite({
-      clinicId: canonicalPatient.primaryClinicId,
-      actorUserId: actor.userId,
-      action: 'PATIENT.MERGE',
-      entityType: 'Patient',
-      entityId: canonicalPatientId,
-      beforeJson: JSON.stringify({
-        canonicalPatientId,
-        sourcePatientId,
-        sourcePatientCode: sourceLegacyCode,
-      }),
-      afterJson: JSON.stringify({
-        canonicalPatientId,
-        sourcePatientId,
-        sourcePatientCode: sourceLegacyCode,
-        retainedPortalLinkKeycloakSub: retainedPortalLink?.keycloakSub ?? null,
-        retainedPortalUserId,
-      }),
-      requestId,
-    });
-
-    return {
-      success: true,
-      canonicalPatientId,
-      canonicalPatientCode: canonicalPatient.patientCode,
-      mergedPatientId: sourcePatientId,
-      mergedPatientCodeAlias: sourceLegacyCode,
-    };
   }
 
   async revokeClinicRole(
@@ -901,7 +641,7 @@ export class AdminService {
   }
 
   private isSystemAdmin(actor: AdminActor) {
-    return actor.roles.some((r) => r.role === UserRole.SYSTEM_ADMIN && r.clinicId === null);
+    return isSystemAdmin(actor.roles);
   }
 
   private async toAdminUserSummaries(users: UserWithRolesAndClinics[]) {
@@ -1117,10 +857,7 @@ export class AdminService {
       );
     }
 
-    const isSystemAdmin = actor.roles.some(
-      (r) => r.role === UserRole.SYSTEM_ADMIN && r.clinicId === null,
-    );
-    if (isSystemAdmin) return;
+    if (isSystemAdmin(actor.roles)) return;
 
     if (role === UserRole.SYSTEM_ADMIN || role === UserRole.DIRECTOR) {
       throw new ForbiddenException('Only System Admin can assign SYSTEM_ADMIN or DIRECTOR roles');
@@ -1136,10 +873,7 @@ export class AdminService {
   }
 
   private validateRemoveRole(actor: AdminActor, clinicId: string | null, role: UserRole) {
-    const isSystemAdmin = actor.roles.some(
-      (r) => r.role === UserRole.SYSTEM_ADMIN && r.clinicId === null,
-    );
-    if (isSystemAdmin) return;
+    if (isSystemAdmin(actor.roles)) return;
 
     if (role === UserRole.SYSTEM_ADMIN || role === UserRole.DIRECTOR) {
       throw new ForbiddenException('Only System Admin can remove SYSTEM_ADMIN or DIRECTOR roles');
@@ -1152,11 +886,5 @@ export class AdminService {
     if (!isDirectorOfClinic) {
       throw new ForbiddenException('You can only remove roles for clinics you direct');
     }
-  }
-
-  private buildMergedPatientCode(sourceCode: string, patientId: string) {
-    const suffix = patientId.replace(/-/g, '').slice(0, 8).toUpperCase();
-    const candidate = `${sourceCode}-M-${suffix}`;
-    return candidate.slice(0, 32);
   }
 }

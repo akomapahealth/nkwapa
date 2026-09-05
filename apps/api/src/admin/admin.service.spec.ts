@@ -68,39 +68,6 @@ describe('AdminService', () => {
         findFirst: jest.fn().mockResolvedValue({ id: 'clinic-1' }),
         findUnique: jest.fn().mockResolvedValue({ name: 'Clinic One' }),
       },
-      encounter: {
-        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
-      },
-      patientConsent: {
-        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
-      },
-      reminder: {
-        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
-      },
-      patientSelfReport: {
-        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
-      },
-      patientMeasurement: {
-        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
-      },
-      patientCheckIn: {
-        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
-      },
-      appointmentRequest: {
-        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
-      },
-      appointment: {
-        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
-      },
-      patientPortalInvite: {
-        findMany: jest.fn().mockResolvedValue([]),
-        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
-      },
-      patientCodeAlias: {
-        createMany: jest.fn().mockResolvedValue({ count: 0 }),
-        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-        create: jest.fn().mockResolvedValue({ id: 'alias-1' }),
-      },
       patientAccountLink: {
         findMany: jest.fn().mockResolvedValue([]),
         findUnique: jest.fn().mockResolvedValue(null),
@@ -541,82 +508,5 @@ describe('AdminService', () => {
 
     expect(prisma.user.findUnique).not.toHaveBeenCalled();
     expect(prisma.userClinicRole.create).not.toHaveBeenCalled();
-  });
-
-  it('merges a duplicate patient into the canonical chart and records the legacy code as an alias', async () => {
-    const { prisma, auditService, service } = createService();
-    prisma.patient.findUnique
-      .mockResolvedValueOnce({
-        id: 'patient-1',
-        patientCode: 'NKP-2026-000001',
-        primaryClinicId: 'clinic-1',
-        portalUserId: 'user-1',
-        mergedIntoPatientId: null,
-        codeAliases: [],
-      })
-      .mockResolvedValueOnce({
-        id: 'patient-2',
-        patientCode: 'NKP-2026-000099',
-        primaryClinicId: 'clinic-1',
-        portalUserId: null,
-        mergedIntoPatientId: null,
-        codeAliases: [],
-      });
-    prisma.patientAccountLink.findUnique
-      .mockResolvedValueOnce({
-        id: 'link-1',
-        patientId: 'patient-1',
-        keycloakSub: 'kc-1',
-        createdAt: new Date('2026-04-04T12:00:00.000Z'),
-      })
-      .mockResolvedValueOnce(null);
-
-    const result = await service.mergePatients(
-      systemAdminActor,
-      'patient-1',
-      'patient-2',
-      {
-        portalLinkStrategy: 'CANONICAL',
-        inviteStrategy: 'MERGE',
-      },
-      'req-merge-1',
-    );
-
-    expect(prisma.encounter.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { patientId: 'patient-2' },
-        data: { patientId: 'patient-1' },
-      }),
-    );
-    expect(prisma.patient.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'patient-2' },
-        data: expect.objectContaining({
-          mergedIntoPatientId: 'patient-1',
-          mergedByUserId: 'sysadmin-1',
-        }),
-      }),
-    );
-    expect(prisma.patientCodeAlias.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: {
-          patientId: 'patient-1',
-          code: 'NKP-2026-000099',
-        },
-      }),
-    );
-    expect(auditService.logWrite).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'PATIENT.MERGE',
-        entityId: 'patient-1',
-      }),
-    );
-    expect(result).toEqual({
-      success: true,
-      canonicalPatientId: 'patient-1',
-      canonicalPatientCode: 'NKP-2026-000001',
-      mergedPatientId: 'patient-2',
-      mergedPatientCodeAlias: 'NKP-2026-000099',
-    });
   });
 });

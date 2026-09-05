@@ -6,6 +6,7 @@ import {
   type DuplicateConfidence,
   type DuplicateMatchReason,
 } from '@nkwapa/db';
+import { isSystemAdmin } from '../auth/clinic-roles';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -317,10 +318,7 @@ export class PatientDuplicateService {
    */
   private assertScopeAllowed(actor: DuplicateReviewActor, scope: DuplicateScope) {
     if (scope.clinicId) return;
-    const isSystemAdmin = actor.roles.some(
-      (role) => role.role === UserRole.SYSTEM_ADMIN && role.clinicId === null,
-    );
-    if (!isSystemAdmin) {
+    if (!isSystemAdmin(actor.roles)) {
       throw new ForbiddenException(
         'Only System Admin can review suspected duplicates across clinics',
       );

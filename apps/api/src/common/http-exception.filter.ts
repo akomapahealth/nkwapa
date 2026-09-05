@@ -78,6 +78,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
     let code = fallbackCode(status);
     let fieldErrors: ApiFieldError[] | undefined;
     let recoveryAction: string | undefined;
+    let details: Record<string, unknown> | undefined;
 
     if (typeof exceptionResponse === 'string') {
       message = exceptionResponse;
@@ -98,6 +99,16 @@ export class ApiExceptionFilter implements ExceptionFilter {
 
       if (typeof payload.recoveryAction === 'string' && payload.recoveryAction.trim()) {
         recoveryAction = payload.recoveryAction;
+      }
+
+      // Deliberately the only extra key that survives. Anything else a thrower attached to the
+      // payload is dropped, so an exception cannot widen a response body by accident.
+      if (
+        payload.details &&
+        typeof payload.details === 'object' &&
+        !Array.isArray(payload.details)
+      ) {
+        details = payload.details as Record<string, unknown>;
       }
     } else if (exception instanceof Error && status < 500) {
       message = exception.message;
@@ -123,6 +134,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
       retryable: status === HttpStatus.TOO_MANY_REQUESTS || status >= 500,
       ...(fieldErrors ? { fieldErrors } : {}),
       ...(recoveryAction ? { recoveryAction } : {}),
+      ...(details ? { details } : {}),
     };
 
     if (status >= 500) {
