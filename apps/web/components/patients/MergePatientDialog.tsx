@@ -660,8 +660,14 @@ function ConfirmStep({
         <span className="flex gap-2">
           <ShieldAlert aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
-            <span className="block font-medium">This cannot be undone.</span>
-            {preview.source.patientCode} stops being a chart anyone can open.{' '}
+            {/*
+              The dialog description above already says the merge cannot be undone. Repeating it
+              here word for word teaches the reader to skim the notice; what belongs here is the
+              consequence for these two charts specifically.
+            */}
+            <span className="block font-medium">
+              {preview.source.patientCode} stops being a chart anyone can open.
+            </span>
             {totalMoving === 0
               ? 'It holds no records to move.'
               : `Its ${totalMoving} record${totalMoving === 1 ? '' : 's'} move to ${canonicalPatientCode}.`}{' '}
