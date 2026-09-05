@@ -5,6 +5,7 @@ import { ConsentModule } from '../consents/consent.module';
 import { EncounterModule } from '../encounters/encounter.module';
 import { PatientDuplicateRepository } from './patient-duplicate.repository';
 import { PatientDuplicateService } from './patient-duplicate.service';
+import { PatientMergeService } from './patient-merge.service';
 import { PatientRepository } from './patient.repository';
 import { PatientService } from './patient.service';
 import { PatientsController } from './patients.controller';
@@ -21,8 +22,9 @@ import { PatientsController } from './patients.controller';
     PatientService,
     PatientDuplicateRepository,
     PatientDuplicateService,
+    PatientMergeService,
   ],
   controllers: [PatientsController],
-  exports: [PatientService, PatientRepository, PatientDuplicateService],
+  exports: [PatientService, PatientRepository, PatientDuplicateService, PatientMergeService],
 })
 export class PatientModule {}

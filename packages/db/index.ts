@@ -66,6 +66,24 @@ export {
   type DuplicatePairEvaluation,
 } from './src/patient-duplicates';
 export {
+  MERGE_BLOCKER_CODES,
+  MERGE_FINDING_LABELS,
+  MERGE_FINDING_RECOVERY,
+  MERGE_RELATIONS,
+  MERGE_SPECIAL_CASE_MODELS,
+  MERGE_WARNING_CODES,
+  isMergeBlocked,
+  isMergeBlockerCode,
+  mergeFinding,
+  mergePreviewFingerprint,
+  type MergeBlockerCode,
+  type MergeFinding,
+  type MergeFindingCode,
+  type MergeFingerprintInput,
+  type MergeRelationKey,
+  type MergeWarningCode,
+} from './src/patient-merge';
+export {
   PATIENT_CHART_SECTION_IDS,
   PATIENT_CHART_SECTIONS,
   canAccessPatientChartSection,

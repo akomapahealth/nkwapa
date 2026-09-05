@@ -33,6 +33,21 @@ export function rolesForClinic(
     .map((entry) => ({ role: entry.role }));
 }
 
+/**
+ * Whether a user is a system administrator.
+ *
+ * The seat is global by definition, so the role must be held with no clinic attached: a
+ * SYSTEM_ADMIN row carrying a clinicId is a clinic-scoped grant and does not confer the global
+ * seat. That predicate was being re-implemented inline at every call site, and a boundary
+ * restated in many places is a boundary that will eventually disagree with itself. The admin and
+ * duplicate-review services now share this one; the remaining copies in clinic.service,
+ * clinics-admin.controller, auth.controller and prisma-rls.interceptor are the same expression
+ * and should fold into it, but they are on no path this change touches.
+ */
+export function isSystemAdmin(roles: readonly ScopedRole[]): boolean {
+  return roles.some((entry) => entry.role === UserRole.SYSTEM_ADMIN && entry.clinicId === null);
+}
+
 /** Effective permission strings for a user at one clinic. `'*'` means system admin. */
 export function permissionsForClinic(
   roles: readonly ScopedRole[],

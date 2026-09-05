@@ -21,11 +21,13 @@ import { RbacGuard } from '../auth/guards/rbac.guard';
 import { ClinicScopeGuard } from '../auth/guards/clinic-scope.guard';
 import { PatientService } from '../patients/patient.service';
 import { PatientDuplicateService } from '../patients/patient-duplicate.service';
+import { PatientMergeService } from '../patients/patient-merge.service';
 import { PatientPortalService } from '../patient-portal/patient-portal.service';
 import { CreatePatientBodyDto } from '../patients/dto/create-patient-body.dto';
 import { ListPatientRegistryQueryDto } from '../patients/dto/list-patient-registry.query.dto';
 import { ListDuplicateCandidatesQueryDto } from '../patients/dto/list-duplicate-candidates.query.dto';
 import { ReviewDuplicatePairDto } from '../patients/dto/review-duplicate-pair.dto';
+import { MergePreviewQueryDto } from '../patients/dto/merge-preview.query.dto';
 import { LinkPortalDto } from '../patient-portal/dto/link-portal.dto';
 import { CreatePatientPortalInviteDto } from '../patient-portal/dto/portal-invite.dto';
 import { UpdatePatientBodyDto } from '../patients/dto/update-patient-body.dto';
@@ -59,6 +61,7 @@ export class ClinicsPatientsController {
     private readonly patientService: PatientService,
     private readonly patientPortalService: PatientPortalService,
     private readonly patientDuplicateService: PatientDuplicateService,
+    private readonly patientMergeService: PatientMergeService,
   ) {}
 
   @Post()
@@ -146,6 +149,33 @@ export class ClinicsPatientsController {
       { clinicId: params.clinicId },
       body,
       req.headers?.['x-request-id'] ?? randomUUID(),
+    );
+  }
+
+  /**
+   * What merging `sourcePatientId` into this chart would do.
+   *
+   * Read-only, and system-admin only: PATIENT.MERGE is held by no role except through
+   * SYSTEM_ADMIN's wildcard, and `PatientMergeService` asserts the seat again below the guard.
+   * It lives here rather than only under /admin because this is the chart the operator is
+   * looking at, so the request carries the clinic and `ClinicScopeGuard` can narrow it.
+   */
+  @Get(':patientId/merge-preview')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.PATIENT_MERGE)
+  async previewMerge(
+    @Param() params: ClinicAndPatientParamsDto,
+    @Query() query: MergePreviewQueryDto,
+    @Request() req: { user: ReqUserWithRoles },
+  ) {
+    return this.patientMergeService.preview(
+      { userId: req.user.user.id, roles: req.user.roles },
+      params.patientId,
+      query.sourcePatientId,
+      {
+        portalLinkStrategy: query.portalLinkStrategy,
+        inviteStrategy: query.inviteStrategy,
+      },
     );
   }
 

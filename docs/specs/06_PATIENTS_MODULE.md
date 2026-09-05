@@ -111,6 +111,40 @@ rather than blanked, so clinical note content never reaches a role without
 - the source chart points to the canonical chart instead of being deleted
 - the legacy patient code is stored as an alias for later lookup
 
+A read-only preview answers what the merge would do before anyone commits to it, at
+`GET /clinics/:clinicId/patients/:patientId/merge-preview`, with an all-clinics twin at
+`GET /admin/patients/merge/preview`. It reports both charts field by field, how many records of
+each kind move and how many the surviving chart already holds, what happens to the app account and
+any unclaimed invitation, which codes will still find the record afterwards, and everything that
+would stop or complicate the merge. It stores nothing and is recomputed on every call.
+
+Findings come in two severities, defined once in `packages/db/src/patient-merge.ts` and consumed by
+the API that raises them and the screen that renders them:
+
+- **blocked**: the same chart on both sides, a chart that has already been merged, two clinics, a
+  deactivated clinic, a chart code already recorded against a third record, both charts holding an
+  open preferred pharmacy, and two different app accounts with no choice made between them
+- **warned**: an app account that loses access, an invitation that gets cancelled, two charts that
+  do not look much alike, a duplicate holding more history than the chart being kept, and a pair
+  someone has already ruled out in the review queue
+
+Every finding carries plain-language wording and a next step, so a refusal can be acted on without
+support. A refused merge returns the same list under `details.blockers` with the code
+`PATIENT_MERGE_BLOCKED`.
+
+The merge moves every relation listed in `MERGE_RELATIONS`, and a test parses `schema.prisma` and
+fails if a model gains a `patientId` without either joining that list or being written into
+`MERGE_SPECIAL_CASE_MODELS` with a reason. Charts previously merged into the duplicate follow it,
+so no alias chain terminates at a retired record.
+
+The preview returns a fingerprint of the state it described. The merge accepts it and refuses a
+stale one with `PATIENT_MERGE_PREVIEW_STALE`, so an operator cannot commit against a panel that a
+concurrent edit has made untrue. The guards re-run inside the transaction as well.
+
+Every executed merge writes a `PatientMergeRecord` alongside its audit event, carrying the codes
+involved, the strategies chosen, and how many rows of each kind moved -- so a consolidated chart
+can be explained afterwards without database access.
+
 ### Longitudinal history
 
 - keeps stable records with append-only, auditable revisions
@@ -156,7 +190,7 @@ and Consent.
 
 ## Current Gaps
 
-- no dedicated duplicate review queue yet
-- no full cross-clinic patient consolidation workflow yet
+- no full cross-clinic patient consolidation workflow yet; the preview reports a cross-clinic
+  pair as blocked and points at the review queue instead
 - portal invites reach patients by email only; SMS delivery of an invitation is not wired,
   so a phone-only invite is passed on by hand from the copyable instructions on the chart

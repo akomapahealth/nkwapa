@@ -19,7 +19,9 @@ import { PERMISSIONS } from '../auth/constants/permissions';
 import { UserRole } from '@prisma/client';
 import { AssignRoleDto } from './dto/assign-role.dto';
 import { MergePatientsDto } from './dto/merge-patients.dto';
+import { AdminMergePreviewQueryDto } from '../patients/dto/merge-preview.query.dto';
 import { PatientDuplicateService } from '../patients/patient-duplicate.service';
+import { PatientMergeService } from '../patients/patient-merge.service';
 import { ListDuplicateCandidatesQueryDto } from '../patients/dto/list-duplicate-candidates.query.dto';
 import { ReviewDuplicatePairDto } from '../patients/dto/review-duplicate-pair.dto';
 import type { ReqUserWithRoles } from '../auth/guards/rbac.guard';
@@ -31,6 +33,7 @@ export class AdminController {
   constructor(
     private readonly adminService: AdminService,
     private readonly patientDuplicateService: PatientDuplicateService,
+    private readonly patientMergeService: PatientMergeService,
   ) {}
 
   @Get('users')
@@ -131,22 +134,50 @@ export class AdminController {
     );
   }
 
+  /**
+   * The all-clinics twin of the chart-scoped preview.
+   *
+   * Mirrors how the duplicate queue is exposed on both controllers: the clinic-scoped route is
+   * where an operator working a chart reaches it, and this one is reachable without first
+   * knowing which clinic owns the pair.
+   */
+  @Get('patients/merge/preview')
+  @RequirePermission(PERMISSIONS.PATIENT_MERGE)
+  async previewMerge(
+    @Query() query: AdminMergePreviewQueryDto,
+    @Request() req: { user: ReqUserWithRoles },
+  ) {
+    return this.patientMergeService.preview(
+      { userId: req.user.user.id, roles: req.user.roles },
+      query.canonicalPatientId,
+      query.sourcePatientId,
+      {
+        portalLinkStrategy: query.portalLinkStrategy,
+        inviteStrategy: query.inviteStrategy,
+      },
+    );
+  }
+
+  /**
+   * Consolidate two charts. Irreversible, and system-admin only.
+   *
+   * `PatientMergeService` re-runs the same evaluation the preview showed and refuses on any
+   * blocker, so a client that skips the preview is held to exactly the same safety checks.
+   */
   @Post('patients/merge')
+  @RequirePermission(PERMISSIONS.PATIENT_MERGE)
   async mergePatients(
     @Body() dto: MergePatientsDto,
     @Request() req: { user: ReqUserWithRoles; headers?: { 'x-request-id'?: string } },
   ) {
-    const actor = {
-      userId: req.user.user.id,
-      roles: req.user.roles,
-    };
-    return this.adminService.mergePatients(
-      actor,
+    return this.patientMergeService.merge(
+      { userId: req.user.user.id, roles: req.user.roles },
       dto.canonicalPatientId,
       dto.sourcePatientId,
       {
         portalLinkStrategy: dto.portalLinkStrategy,
         inviteStrategy: dto.inviteStrategy,
+        expectedFingerprint: dto.previewFingerprint,
       },
       req.headers?.['x-request-id'] ?? randomUUID(),
     );

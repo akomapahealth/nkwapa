@@ -77,6 +77,17 @@ export const PERMISSIONS = {
   PATIENT_PORTAL_LINK: 'PATIENT.PORTAL.LINK',
   // Admin: review suspected duplicate charts. Read-only; merging stays SYSTEM_ADMIN only.
   PATIENT_DUPLICATE_REVIEW: 'PATIENT.DUPLICATE.REVIEW',
+  /*
+    Admin: preview and execute a chart merge.
+
+    Granted to no role in ROLE_PERMISSIONS below. SYSTEM_ADMIN holds it through its '*' wildcard
+    and nobody else can, which is the point: merge previously sat behind the class-level
+    CLINIC_MANAGE on AdminController, so a director reached the service and was turned away there.
+    Naming the permission moves that refusal up to the guard, and PatientMergeService still
+    asserts the seat itself -- a boundary that depends on one layer is one refactor from not
+    being a boundary.
+  */
+  PATIENT_MERGE: 'PATIENT.MERGE',
   // Chat
   CHAT_SEND: 'CHAT.SEND',
   CHAT_READ: 'CHAT.READ',
