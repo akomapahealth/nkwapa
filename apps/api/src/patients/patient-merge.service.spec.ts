@@ -724,6 +724,70 @@ describe('PatientMergeService.merge', () => {
     });
   });
 
+  it('moves every invitation, whatever state it is in', async () => {
+    const { service, prisma } = createService();
+    stubCharts(prisma);
+    prisma.patientPortalInvite.findMany.mockImplementation(
+      async (args: { where: { patientId: string } }) =>
+        args.where.patientId === 'patient-2'
+          ? [
+              { id: 'invite-pending', status: 'PENDING' },
+              { id: 'invite-claimed', status: 'CLAIMED' },
+            ]
+          : [],
+    );
+    prisma.patientPortalInvite.updateMany.mockResolvedValue({ count: 2 });
+
+    await service.merge(systemAdmin, 'patient-1', 'patient-2', {
+      inviteStrategy: 'CANONICAL',
+    });
+
+    // The unclaimed one is cancelled by name...
+    expect(prisma.patientPortalInvite.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['invite-pending'] } },
+      data: { status: 'CANCELLED', cancelledAt: expect.any(Date) },
+    });
+    /*
+      ...and then everything the retired chart held is repointed, claimed rows included. The
+      CANONICAL branch used to move only the PENDING ones, leaving a claimed invitation -- a
+      record of a real exchange with this patient -- on a chart nobody can open.
+    */
+    expect(prisma.patientPortalInvite.updateMany).toHaveBeenCalledWith({
+      where: { patientId: 'patient-2' },
+      data: { patientId: 'patient-1' },
+    });
+  });
+
+  it('counts the invitations it moved, not the ones the survivor already had', async () => {
+    const { service, prisma } = createService();
+    stubCharts(prisma);
+    prisma.patientPortalInvite.updateMany.mockResolvedValue({ count: 2 });
+    // Would be the total on the surviving chart if this were read back with a count().
+    prisma.patientPortalInvite.count.mockResolvedValue(9);
+
+    await service.merge(systemAdmin, 'patient-1', 'patient-2');
+
+    const record = prisma.patientMergeRecord.create.mock.calls[0][0].data;
+    expect(JSON.parse(record.movedCountsJson).patientPortalInvite).toBe(2);
+  });
+
+  it('counts the aliases actually carried across, not the ones offered', async () => {
+    const { service, prisma } = createService();
+    stubCharts(
+      prisma,
+      canonicalChart(),
+      chart({ ...sourceChart(), codeAliases: [{ code: 'OLD-1' }, { code: 'OLD-2' }] }),
+    );
+    // skipDuplicates: the surviving chart already answered to one of them.
+    prisma.patientCodeAlias.createMany.mockResolvedValue({ count: 1 });
+
+    await service.merge(systemAdmin, 'patient-1', 'patient-2');
+
+    const record = prisma.patientMergeRecord.create.mock.calls[0][0].data;
+    // One carried across, plus the code the retired chart gives up.
+    expect(JSON.parse(record.movedCountsJson).patientCodeAlias).toBe(2);
+  });
+
   it('records what it moved, so the merge can be explained later', async () => {
     const { service, prisma } = createService({ relationCounts: { encounter: [0, 5] } });
     stubCharts(prisma);

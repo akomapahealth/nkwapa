@@ -365,44 +365,45 @@ export class PatientMergeService {
         });
       }
 
-      if (
-        strategies.inviteStrategy === 'CANONICAL' &&
-        portalRows.sourcePendingInviteIds.length > 0
-      ) {
+      // Cancel whichever side's unclaimed invitation the strategy gives up. Only PENDING rows are
+      // touched: a claimed or already-expired invitation is history, not a live offer.
+      const cancelledInviteIds =
+        strategies.inviteStrategy === 'CANONICAL'
+          ? portalRows.sourcePendingInviteIds
+          : strategies.inviteStrategy === 'SOURCE'
+            ? portalRows.canonicalPendingInviteIds
+            : [];
+      if (cancelledInviteIds.length > 0) {
         await tx.patientPortalInvite.updateMany({
-          where: { id: { in: portalRows.sourcePendingInviteIds } },
-          data: { patientId: canonical.id, status: 'CANCELLED', cancelledAt: mergedAt },
-        });
-      } else if (strategies.inviteStrategy === 'SOURCE') {
-        if (portalRows.canonicalPendingInviteIds.length > 0) {
-          await tx.patientPortalInvite.updateMany({
-            where: { id: { in: portalRows.canonicalPendingInviteIds } },
-            data: { status: 'CANCELLED', cancelledAt: mergedAt },
-          });
-        }
-        await tx.patientPortalInvite.updateMany({
-          where: { patientId: source.id },
-          data: { patientId: canonical.id },
-        });
-      } else {
-        await tx.patientPortalInvite.updateMany({
-          where: { patientId: source.id },
-          data: { patientId: canonical.id },
+          where: { id: { in: cancelledInviteIds } },
+          data: { status: 'CANCELLED', cancelledAt: mergedAt },
         });
       }
-      const movedInvites = await tx.patientPortalInvite.count({
-        where: { patientId: canonical.id },
-      });
-      counts.patientPortalInvite = movedInvites;
 
+      /*
+        Every invitation moves, whatever state it is in.
+
+        The CANONICAL branch used to repoint only the duplicate's PENDING invitations, so a
+        claimed or expired one stayed on the retired chart -- a record of a real exchange with
+        this patient that the surviving chart would then never show. Same defect as the seven
+        stranded relations above, in a table the original loop did touch.
+      */
+      const movedInvites = await tx.patientPortalInvite.updateMany({
+        where: { patientId: source.id },
+        data: { patientId: canonical.id },
+      });
+      counts.patientPortalInvite = movedInvites.count;
+
+      let carriedAliases = 0;
       if (source.codeAliases.length > 0) {
-        await tx.patientCodeAlias.createMany({
+        const created = await tx.patientCodeAlias.createMany({
           data: source.codeAliases.map((alias) => ({
             patientId: canonical.id,
             code: alias.code,
           })),
           skipDuplicates: true,
         });
+        carriedAliases = created.count;
         await tx.patientCodeAlias.deleteMany({ where: { patientId: source.id } });
       }
 
@@ -430,7 +431,9 @@ export class PatientMergeService {
         create: { patientId: canonical.id, code: sourceLegacyCode },
         update: { patientId: canonical.id },
       });
-      counts.patientCodeAlias = source.codeAliases.length + 1;
+      // Measured, not assumed: skipDuplicates means an alias the surviving chart already answered
+      // to is not inserted again, and a count that over-reports is worse than none.
+      counts.patientCodeAlias = carriedAliases + 1;
 
       if (retainedPortalUserId) {
         await tx.userClinicRole.upsert({
