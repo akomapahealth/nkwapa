@@ -54,6 +54,16 @@ export class PatientRepository {
     return current;
   }
 
+  /**
+   * A chart by any code it has ever answered to, resolved to the record that survived.
+   *
+   * Two ways in: the code a chart still holds, and the alias a merge left behind for a code it
+   * gave up. Both have to end at a live chart. The alias branch used to hand back whatever the
+   * join found, so a code merged twice -- A into B, then B into C -- answered with B: a
+   * tombstone carrying no history, indistinguishable to the caller from a live chart. Staff
+   * searching an old card would land on an empty record and conclude the visit was never
+   * written down.
+   */
   async findByPatientCode(patientCode: string): Promise<Patient | null> {
     const direct = await this.prisma.patient.findUnique({
       where: { patientCode },
@@ -72,7 +82,13 @@ export class PatientRepository {
       },
     });
 
-    return alias?.patient ?? null;
+    if (!alias) {
+      return null;
+    }
+
+    return alias.patient.mergedIntoPatientId
+      ? this.findById(alias.patient.mergedIntoPatientId, { resolveMerged: true })
+      : alias.patient;
   }
 
   async findByNationalIdHash(hash: string): Promise<Patient | null> {

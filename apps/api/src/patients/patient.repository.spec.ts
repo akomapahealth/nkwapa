@@ -229,6 +229,24 @@ describe('PatientRepository - canonical chart redirects', () => {
       expect(found?.id).toBe('patient-live');
     });
 
+    /*
+      The asymmetry this pins down. A chart reached by its own code is resolved through
+      `mergedIntoPatientId`; a chart reached through an alias was handed back exactly as the
+      join found it. So a code merged twice -- A into B, then B into C -- answered with B, a
+      tombstone carrying nothing, and the caller had no way to tell that from a live chart.
+    */
+    it('resolves an alias that lands on a chart which was itself merged on', async () => {
+      const middle = identityChartFixture({ id: 'patient-b', mergedIntoPatientId: 'patient-live' });
+      aliasFindUnique.mockResolvedValue({ code: FIXTURE_SOURCE_PATIENT_CODE, patient: middle });
+      findUnique.mockImplementation(async ({ where }: { where: { id?: string } }) =>
+        where.id === 'patient-live' ? live() : null,
+      );
+
+      const found = await repository.findByPatientCode(FIXTURE_SOURCE_PATIENT_CODE);
+
+      expect(found?.id).toBe('patient-live');
+    });
+
     it('returns null when neither a chart nor an alias answers to the code', async () => {
       await expect(repository.findByPatientCode('NKP-2026-999999')).resolves.toBeNull();
     });
