@@ -392,6 +392,7 @@ model Clinic {
   clinicalNotes             ClinicalNote[]
   clinicalNoteAddenda       ClinicalNoteAddendum[]
   duplicateReviews          PatientDuplicateReview[]
+  patientMergeRecords       PatientMergeRecord[]
 
   @@unique([organizationId, locationCode])
   @@index([organizationId])
@@ -441,6 +442,7 @@ model User {
   claimedPatientPortalInvites   PatientPortalInvite[]           @relation("PatientPortalInviteClaimedBy")
   mergedPatients                Patient[]                       @relation("PatientMergedBy")
   duplicateReviews              PatientDuplicateReview[]        @relation("PatientDuplicateReviewedBy")
+  patientMergeRecords           PatientMergeRecord[]            @relation("PatientMergeRecordMergedBy")
   conversationParticipants      ConversationParticipant[]
   sentMessages                  Message[]                       @relation("MessageSender")
   authoredHistoryRevisions      MedicalHistoryRevision[]        @relation("MedicalHistoryRevisionAuthor")
@@ -543,6 +545,8 @@ model Patient {
   clinicalNotes             ClinicalNote[]
   duplicateReviewsAsA       PatientDuplicateReview[]        @relation("PatientDuplicateReviewA")
   duplicateReviewsAsB       PatientDuplicateReview[]        @relation("PatientDuplicateReviewB")
+  mergeRecordsAsCanonical   PatientMergeRecord[]            @relation("PatientMergeRecordCanonical")
+  mergeRecordAsSource       PatientMergeRecord?             @relation("PatientMergeRecordSource")
 
   @@index([primaryClinicId])
   @@index([portalUserId])
@@ -840,7 +844,7 @@ model DiabetesScreening {
 
   notes String? @db.Text
 
-  collectedAt     DateTime @default(now())
+  collectedAt      DateTime @default(now())
   authoredByUserId String   @db.Uuid
 
   createdAt DateTime @default(now())
@@ -1019,10 +1023,10 @@ model PatientPortalInvite {
   createdAt       DateTime                  @default(now())
   updatedAt       DateTime                  @updatedAt
 
-  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  clinic    Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  createdBy User    @relation("PatientPortalInviteCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
-  claimedBy User?   @relation("PatientPortalInviteClaimedBy", fields: [claimedByUserId], references: [id], onDelete: SetNull)
+  patient   Patient    @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  clinic    Clinic     @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  createdBy User       @relation("PatientPortalInviteCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  claimedBy User?      @relation("PatientPortalInviteClaimedBy", fields: [claimedByUserId], references: [id], onDelete: SetNull)
   reminders Reminder[]
 
   @@index([patientId, status])
@@ -1076,6 +1080,47 @@ model PatientDuplicateReview {
   @@index([clinicId, status])
   @@index([patientAId])
   @@index([patientBId])
+}
+
+/// What an executed merge moved, so a consolidated chart can be explained afterwards.
+///
+/// Written inside the same transaction as the merge. `clinicId` is NOT NULL because a merge is
+/// same-clinic by definition, which is what makes its row level security policy the ordinary
+/// clinic one rather than the nullable-owner shape `PatientDuplicateReview` needs.
+model PatientMergeRecord {
+  id       String @id @default(uuid()) @db.Uuid
+  clinicId String @db.Uuid
+
+  canonicalPatientId String @db.Uuid
+  sourcePatientId    String @unique @db.Uuid
+
+  /// The code the retired chart answered to, now an alias on the surviving one.
+  sourcePatientCode    String @db.VarChar(32)
+  /// What the retired chart's own code was rewritten to, so it stops colliding.
+  tombstonePatientCode String @db.VarChar(32)
+
+  portalLinkStrategy String @db.VarChar(16)
+  inviteStrategy     String @db.VarChar(16)
+
+  /// Rows moved per relation, keyed by MERGE_RELATIONS. Displayed, never filtered on.
+  movedCountsJson  String  @db.Text
+  /// The warning codes the operator was shown and committed anyway.
+  warningCodesJson String? @db.Text
+
+  mergedByUserId String   @db.Uuid
+  mergedAt       DateTime @default(now())
+  requestId      String?  @db.VarChar(64)
+
+  createdAt DateTime @default(now())
+
+  clinic           Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  canonicalPatient Patient @relation("PatientMergeRecordCanonical", fields: [canonicalPatientId], references: [id], onDelete: Cascade)
+  sourcePatient    Patient @relation("PatientMergeRecordSource", fields: [sourcePatientId], references: [id], onDelete: Cascade)
+  mergedBy         User    @relation("PatientMergeRecordMergedBy", fields: [mergedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId, mergedAt])
+  @@index([canonicalPatientId])
+  @@index([mergedByUserId])
 }
 
 model PatientMeasurement {
