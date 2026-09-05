@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import { MERGE_RELATIONS } from '@nkwapa/db';
 import { PatientMergeService, type MergeActor } from './patient-merge.service';
 
@@ -157,6 +157,35 @@ function stubCharts(prisma: PrismaMock, canonical = canonicalChart(), source = s
 async function findingCodes(promise: Promise<{ findings: { code: string }[] }>) {
   return (await promise).findings.map((finding) => finding.code);
 }
+
+describe('the relation keys the merge loop indexes by', () => {
+  /*
+    MERGE_RELATIONS lives in @nkwapa/db, which cannot import the generated Prisma client, so its
+    keys are plain strings and the loop reaches the delegates through a cast. A typo there would
+    not fail to compile -- it would throw at runtime, part-way through an irreversible merge.
+    Prisma.ModelName is generated, so checking against it costs nothing and closes that gap.
+  */
+  const modelNames = new Set<string>(Object.values(Prisma.ModelName));
+
+  it.each(MERGE_RELATIONS.map((relation) => relation.key))(
+    '%s names a real Prisma model',
+    (key) => {
+      expect(modelNames).toContain(key.charAt(0).toUpperCase() + key.slice(1));
+    },
+  );
+
+  it('covers the models the merge reaches for by hand as well', () => {
+    for (const model of [
+      'PatientMergeRecord',
+      'PatientDuplicateReview',
+      'PatientCodeAlias',
+      'PatientAccountLink',
+      'PatientPortalInvite',
+    ]) {
+      expect(modelNames).toContain(model);
+    }
+  });
+});
 
 describe('PatientMergeService.evaluate', () => {
   it('refuses anyone who is not a system administrator', async () => {
