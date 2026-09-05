@@ -162,6 +162,32 @@ describe('PatientRepository - canonical chart redirects', () => {
         repository.findById('patient-missing', { resolveMerged: true }),
       ).resolves.toBeNull();
     });
+
+    /*
+      A chart pointing at itself, or two pointing at each other, is not something the merge
+      service can currently produce -- but this recursion reads its next step out of a column,
+      and a restored backup, a hand-run SQL fix or a future merge path can put a loop in that
+      column. Unguarded, the lookup recurses until the process dies, which takes the whole API
+      down rather than failing one request.
+    */
+    it('gives up on a chart that points at itself instead of recursing forever', async () => {
+      stubCharts(identityChartFixture({ id: 'patient-loop', mergedIntoPatientId: 'patient-loop' }));
+
+      const found = await repository.findById('patient-loop', { resolveMerged: true });
+
+      expect(found?.id).toBe('patient-loop');
+    });
+
+    it('gives up on a cycle between two charts', async () => {
+      stubCharts(
+        identityChartFixture({ id: 'patient-a', mergedIntoPatientId: 'patient-b' }),
+        identityChartFixture({ id: 'patient-b', mergedIntoPatientId: 'patient-a' }),
+      );
+
+      const found = await repository.findById('patient-a', { resolveMerged: true });
+
+      expect(['patient-a', 'patient-b']).toContain(found?.id);
+    });
   });
 
   describe('findByPatientCode', () => {

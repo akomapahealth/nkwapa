@@ -26,20 +26,32 @@ export class PatientRepository {
     return this.prisma.patient.create({ data });
   }
 
+  /**
+   * A chart by id, optionally following a merge to the record that survived it.
+   *
+   * Iterative, and it remembers where it has been. `mergedIntoPatientId` is a pointer read out
+   * of a column rather than a value this process computed, and a restored backup, a hand-run
+   * correction or a future merge path can leave a loop in it. Recursing a loop exhausts the heap
+   * and takes the whole API process down with it, so a chart already seen ends the walk and is
+   * returned as itself: one bad row then costs one odd answer instead of every request in flight.
+   *
+   * A pointer into a chart that no longer exists still resolves to null, as it always did.
+   */
   async findById(id: string, options?: { resolveMerged?: boolean }): Promise<Patient | null> {
-    const patient = await this.prisma.patient.findUnique({
-      where: { id },
-    });
+    const seen = new Set<string>();
+    let current = await this.prisma.patient.findUnique({ where: { id } });
 
-    if (!patient) {
-      return null;
+    while (current !== null && options?.resolveMerged === true && current.mergedIntoPatientId) {
+      if (seen.has(current.id)) {
+        return current;
+      }
+      seen.add(current.id);
+      current = await this.prisma.patient.findUnique({
+        where: { id: current.mergedIntoPatientId },
+      });
     }
 
-    if (options?.resolveMerged && patient.mergedIntoPatientId) {
-      return this.findById(patient.mergedIntoPatientId, options);
-    }
-
-    return patient;
+    return current;
   }
 
   async findByPatientCode(patientCode: string): Promise<Patient | null> {
