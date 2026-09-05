@@ -91,12 +91,26 @@ read that value back.
 Duplicate review separates looking from acting:
 
 - `PATIENT.DUPLICATE.REVIEW`: system administrator, director, and manager
-- merging two charts stays system administrator only, via `POST /admin/patients/merge`
+- `PATIENT.MERGE`: system administrator only, and only through the wildcard
 
 The split is deliberate. Clinic administrators are the people who recognise the patients, so they
 triage the queue and record what they found; consolidating two records is irreversible and stays
 with the narrower role. Doctors and volunteers hold neither permission: the queue compares two
 charts side by side, which is a wider identity view than a clinical seat needs.
+
+`PATIENT.MERGE` is granted to no role in `ROLE_PERMISSIONS`. `SYSTEM_ADMIN` holds it through its
+`*` wildcard and nobody else can be given it, so adding it to a role's list would read as the
+policy change it is rather than as a refactor. It covers both the read-only preview and the merge
+itself. Before it existed, both sat behind `AdminController`'s class-level `CLINIC_MANAGE`, which a
+director and a manager both hold: they reached the service and were refused there. The refusal is
+now at the guard, and `PatientMergeService` still asserts the seat independently, because a
+boundary that depends on one layer is one refactor from not being a boundary.
+
+The chart-scoped preview at `GET /clinics/:clinicId/patients/:patientId/merge-preview` is scoped
+through `ClinicScopeGuard` as well. `PatientMergeRecord`, written by every executed merge, carries a
+non-null `clinicId` -- unlike `PatientDuplicateReview`, because merging cannot span two clinics --
+and its row level security policy is the ordinary `app.can_access_clinic` one, so clinic staff can
+read what was done to their own charts while only a system administrator can cause it.
 
 Scope follows the same rule as the staff roster. `GET /clinics/:clinicId/patients/duplicates` is
 clinic-scoped through `ClinicScopeGuard`; `GET /admin/patients/duplicates` covers every visible

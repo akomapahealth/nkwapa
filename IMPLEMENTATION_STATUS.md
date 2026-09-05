@@ -117,23 +117,23 @@ nkwapa/
 
 ### Clinical Workflows
 
-| Feature                                           | Status | %    | Notes                                                                                    |
-| ------------------------------------------------- | ------ | ---- | ---------------------------------------------------------------------------------------- |
-| Patient registry (create, update, search, detail) | ✅     | 100% | Code generation, encrypted national ID                                                   |
-| Patient merge & code alias                        | ✅     | 100% | SYSTEM_ADMIN-only merge with alias preservation                                          |
-| Portal link/invite                                | ✅     | 100% | Link, invite, claim; enforced expiry, resend/cancel, audited lifecycle                   |
-| Duplicate review queue                            | ❌     | 0%   | Hashed ID collision detected, no dedicated queue UI                                      |
-| Cross-clinic chart consolidation                  | ❌     | 0%   | Merge is clinic-local only                                                               |
-| Encounter workflow (draft -> review -> finalize)  | ✅     | 100% | Full state machine with role-based transitions                                           |
-| Role-aware patient chart and longitudinal history | ✅     | 100% | Deep-linked lazy tabs, server-enforced sections, cursor-paginated vitals and visits      |
-| HAP clinical notes, cosign, and addenda           | ✅     | 100% | Flagged online-only HAP lifecycle with immutable signing and assigned-doctor cosign      |
-| Vitals recording                                  | ✅     | 100% | Contextual BP, pulse, temperature, respiration, SpO2, anthropometrics, tobacco screening |
-| Diabetes screening                                | ✅     | 100% | Glucose, HbA1c, symptoms, DM suspicion                                                   |
-| Hypertension assessment                           | ✅     | 100% | BP classification per thresholds                                                         |
-| Care plan creation                                | ✅     | 100% | Counseling, medication, follow-up date                                                   |
-| Prescription & drug catalog                       | ✅     | 100% | Clinic-scoped drug catalog, encounter prescriptions                                      |
-| Medication reconciliation & pharmacy history      | ✅     | 100% | Patient-level revisions, reconciliation, preference periods, offline sync                |
-| Consent grant/revoke                              | ✅     | 100% | Witness fields, snapshot text, offline supported                                         |
+| Feature                                           | Status | %    | Notes                                                                                      |
+| ------------------------------------------------- | ------ | ---- | ------------------------------------------------------------------------------------------ |
+| Patient registry (create, update, search, detail) | ✅     | 100% | Code generation, encrypted national ID                                                     |
+| Patient merge & code alias                        | ✅     | 100% | SYSTEM_ADMIN-only, previewed before commit, blocked conditions, alias and record preserved |
+| Portal link/invite                                | ✅     | 100% | Link, invite, claim; enforced expiry, resend/cancel, audited lifecycle                     |
+| Duplicate review queue                            | ✅     | 100% | Scored candidates, reviewable decisions, links into the merge preview                      |
+| Cross-clinic chart consolidation                  | ❌     | 0%   | Merge is clinic-local only                                                                 |
+| Encounter workflow (draft -> review -> finalize)  | ✅     | 100% | Full state machine with role-based transitions                                             |
+| Role-aware patient chart and longitudinal history | ✅     | 100% | Deep-linked lazy tabs, server-enforced sections, cursor-paginated vitals and visits        |
+| HAP clinical notes, cosign, and addenda           | ✅     | 100% | Flagged online-only HAP lifecycle with immutable signing and assigned-doctor cosign        |
+| Vitals recording                                  | ✅     | 100% | Contextual BP, pulse, temperature, respiration, SpO2, anthropometrics, tobacco screening   |
+| Diabetes screening                                | ✅     | 100% | Glucose, HbA1c, symptoms, DM suspicion                                                     |
+| Hypertension assessment                           | ✅     | 100% | BP classification per thresholds                                                           |
+| Care plan creation                                | ✅     | 100% | Counseling, medication, follow-up date                                                     |
+| Prescription & drug catalog                       | ✅     | 100% | Clinic-scoped drug catalog, encounter prescriptions                                        |
+| Medication reconciliation & pharmacy history      | ✅     | 100% | Patient-level revisions, reconciliation, preference periods, offline sync                  |
+| Consent grant/revoke                              | ✅     | 100% | Witness fields, snapshot text, offline supported                                           |
 
 ### Clinic Operations
 
