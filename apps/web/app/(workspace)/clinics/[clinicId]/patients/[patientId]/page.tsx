@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
@@ -32,6 +32,7 @@ import type { PortalAccess } from '@/lib/portal-invite';
 import { MedicationReconciliationPanel } from '@/components/patients/MedicationReconciliationPanel';
 import { DiabetesHistoryPanel } from '@/components/patients/DiabetesHistoryPanel';
 import { ResidentialLocationSummary } from '@/components/patients/ResidentialLocationSummary';
+import { MergePatientDialog } from '@/components/patients/MergePatientDialog';
 import { PatientClinicalNotesPanel } from '@/components/clinical-notes/PatientClinicalNotesPanel';
 import { PatientChartTabs } from '@/components/patients/chart/PatientChartTabs';
 import { PatientChartOverview } from '@/components/patients/chart/PatientChartOverview';
@@ -98,19 +99,10 @@ interface PatientWithEncounters {
   consentStatus?: ConsentStatusItem[];
 }
 
-interface PatientRegistryCandidate {
-  id: string;
-  patientCode: string;
-  firstName: string;
-  lastName: string;
-  phoneE164?: string | null;
-  email?: string | null;
-  nationalIdLast4?: string | null;
-}
-
 function PatientChartWorkspace() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const clinicId = params.clinicId as string;
   const patientId = params.patientId as string;
   const getToken = useAuth();
@@ -144,11 +136,9 @@ function PatientChartWorkspace() {
   const [portalLinkSaving, setPortalLinkSaving] = useState(false);
   const [portalLinkError, setPortalLinkError] = useState<string | null>(null);
   const [mergeOpen, setMergeOpen] = useState(false);
-  const [mergeQuery, setMergeQuery] = useState('');
-  const [mergeCandidates, setMergeCandidates] = useState<PatientRegistryCandidate[]>([]);
-  const [mergeCandidateId, setMergeCandidateId] = useState('');
-  const [mergeSaving, setMergeSaving] = useState(false);
-  const [mergeError, setMergeError] = useState<string | null>(null);
+  // Set from ?merge=, so the duplicate review queue can hand a decided pair straight to the
+  // preview instead of making an operator search for a chart they were just looking at.
+  const [mergeSourceId, setMergeSourceId] = useState<string | null>(null);
   const [allUsers, setAllUsers] = useState<
     Array<{
       id: string;
@@ -407,46 +397,26 @@ function PatientChartWorkspace() {
   }, [fetchPatient]);
 
   useEffect(() => {
+    const requested = searchParams.get('merge');
+    if (!requested || requested === patientId) return;
+    setMergeSourceId(requested);
+    setMergeOpen(true);
+    // Strip it straight away. A reload should not silently reopen an irreversible flow, and the
+    // address bar should describe the chart rather than a half-made decision about it.
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete('merge');
+    router.replace(
+      `/clinics/${clinicId}/patients/${patientId}${next.size > 0 ? `?${next.toString()}` : ''}`,
+      { scroll: false },
+    );
+  }, [clinicId, patientId, router, searchParams]);
+
+  useEffect(() => {
     if (data?.patient.id && data.patient.id !== patientId) {
       setSuccess('This patient record was merged. Opening the canonical chart.');
       router.replace(`/clinics/${clinicId}/patients/${data.patient.id}`);
     }
   }, [clinicId, data?.patient.id, patientId, router]);
-
-  useEffect(() => {
-    if (!mergeOpen || !getToken) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(
-      async () => {
-        try {
-          const response = await apiFetch(
-            `/clinics/${encodeURIComponent(clinicId)}/patients?page=1&pageSize=8&q=${encodeURIComponent(mergeQuery)}`,
-            {
-              getToken,
-              activeClinicId: clinicId,
-            },
-          );
-          if (!response.ok) {
-            throw new Error(await readApiError(response));
-          }
-
-          const payload = (await response.json()) as {
-            items: PatientRegistryCandidate[];
-          };
-          setMergeCandidates(payload.items.filter((candidate) => candidate.id !== patientId));
-        } catch (requestError) {
-          setMergeError(
-            requestError instanceof Error ? requestError.message : String(requestError),
-          );
-        }
-      },
-      mergeQuery.trim() ? 250 : 0,
-    );
-
-    return () => window.clearTimeout(timeoutId);
-  }, [clinicId, getToken, mergeOpen, mergeQuery, patientId]);
 
   const researchConsent = data?.consentStatus?.find(
     (c) => c.consentType === 'RESEARCH_DEIDENTIFIED',
@@ -538,40 +508,6 @@ function PatientChartWorkspace() {
       setError(checkInErr instanceof Error ? checkInErr.message : 'Failed to check in patient');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleMergeSubmit = async () => {
-    if (!getToken || !mergeCandidateId) {
-      return;
-    }
-
-    setMergeSaving(true);
-    setMergeError(null);
-
-    try {
-      const response = await apiFetch('/admin/patients/merge', {
-        method: 'POST',
-        body: JSON.stringify({
-          canonicalPatientId: patientId,
-          sourcePatientId: mergeCandidateId,
-          portalLinkStrategy: 'CANONICAL',
-          inviteStrategy: 'MERGE',
-        }),
-        getToken,
-        skipClinicHeader: true,
-      });
-      if (!response.ok) {
-        throw new Error(await readApiError(response));
-      }
-
-      setMergeOpen(false);
-      setSuccess('Duplicate patient record merged into this chart successfully.');
-      fetchPatient();
-    } catch (requestError) {
-      setMergeError(requestError instanceof Error ? requestError.message : String(requestError));
-    } finally {
-      setMergeSaving(false);
     }
   };
 
@@ -802,27 +738,23 @@ function PatientChartWorkspace() {
                           <CardHeader>
                             <h2 className="text-lg font-semibold">Duplicate repair</h2>
                             <p className="text-sm text-muted-foreground">
-                              Merge a duplicate patient record into this canonical chart while
-                              preserving clinical history.
+                              Fold a duplicate record into this chart, keeping every visit, note and
+                              consent.
                             </p>
                           </CardHeader>
                           <CardContent className="space-y-3">
                             <p className="rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground">
                               Use this only when two patient rows represent the same real person in
-                              the same clinic.
+                              the same clinic. You will see exactly what moves before anything
+                              changes.
                             </p>
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => {
-                                setMergeOpen(true);
-                                setMergeError(null);
-                                setMergeQuery('');
-                                setMergeCandidateId('');
-                              }}
+                              onClick={() => setMergeOpen(true)}
                               className="w-full"
                             >
-                              Merge duplicate into this chart
+                              Preview a merge into this chart
                             </Button>
                           </CardContent>
                         </Card>
@@ -928,66 +860,23 @@ function PatientChartWorkspace() {
                       </DialogContent>
                     </Dialog>
 
-                    <Dialog open={mergeOpen} onOpenChange={setMergeOpen}>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Merge duplicate patient</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4 py-4">
-                          {mergeError ? (
-                            <InlineNotice tone="error">{mergeError}</InlineNotice>
-                          ) : null}
-                          <p className="text-sm text-muted-foreground">
-                            The current chart stays canonical. Search for the duplicate patient
-                            record you want to merge into {patient.patientCode}.
-                          </p>
-                          <Input
-                            value={mergeQuery}
-                            onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                              setMergeQuery(event.target.value)
-                            }
-                            placeholder="Search duplicate by name, code, phone, or alias"
-                          />
-                          <div className="max-h-72 space-y-2 overflow-y-auto rounded-lg border border-border/80 bg-background/75 p-2">
-                            {mergeCandidates.map((candidate) => (
-                              <button
-                                key={candidate.id}
-                                type="button"
-                                onClick={() => setMergeCandidateId(candidate.id)}
-                                className={`w-full rounded-lg border p-3 text-left transition ${
-                                  mergeCandidateId === candidate.id
-                                    ? 'border-primary bg-primary/5'
-                                    : 'border-border/70 bg-card hover:border-primary/40'
-                                }`}
-                              >
-                                <p className="font-medium text-foreground">
-                                  {candidate.firstName} {candidate.lastName}
-                                </p>
-                                <p className="mt-1 text-sm text-muted-foreground">
-                                  {candidate.patientCode}
-                                </p>
-                              </button>
-                            ))}
-                            {mergeCandidates.length === 0 ? (
-                              <p className="p-3 text-sm text-muted-foreground">
-                                Search to find another patient record in this clinic.
-                              </p>
-                            ) : null}
-                          </div>
-                        </div>
-                        <DialogFooter>
-                          <Button variant="outline" onClick={() => setMergeOpen(false)}>
-                            Cancel
-                          </Button>
-                          <Button
-                            onClick={() => void handleMergeSubmit()}
-                            disabled={!mergeCandidateId || mergeSaving}
-                          >
-                            {mergeSaving ? 'Merging...' : 'Merge duplicate'}
-                          </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
+                    <MergePatientDialog
+                      open={mergeOpen}
+                      onOpenChange={(next) => {
+                        setMergeOpen(next);
+                        if (!next) setMergeSourceId(null);
+                      }}
+                      clinicId={clinicId}
+                      canonical={patient}
+                      initialSourcePatientId={mergeSourceId}
+                      getToken={getToken}
+                      onMerged={(message) => {
+                        setSuccess(message);
+                        setError(null);
+                        void fetchPatient();
+                      }}
+                      onError={setError}
+                    />
                   </div>
                 </PatientChartOverview>
               );

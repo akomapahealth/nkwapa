@@ -919,8 +919,13 @@ function DuplicateComparisonSheet({
             */}
             {candidate.mergeEligible ? (
               <Button asChild variant="outline" className="w-full">
-                <Link href={patientChartHref(left)}>
-                  Go to the merge flow on {left.patientCode}
+                {/*
+                  Carries the pair, so the chart opens straight into the merge preview rather
+                  than asking an operator to search again for the chart they were just reading.
+                  The preview is read-only; the merge still has its own confirmation there.
+                */}
+                <Link href={`${patientChartHref(left)}?merge=${encodeURIComponent(right.id)}`}>
+                  Preview merging {right.patientCode} into {left.patientCode}
                 </Link>
               </Button>
             ) : null}
