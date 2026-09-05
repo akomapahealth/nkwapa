@@ -49,12 +49,21 @@ async function createDuplicatePair(page) {
 async function openMergeDialog(page, chart) {
   await page.goto(`/clinics/${chart.clinicId}/patients/${chart.patientId}`);
   await page.getByRole('button', { name: 'Preview a merge into this chart' }).click();
-  return page.getByRole('dialog');
+  const dialog = page.getByRole('dialog');
+  // Wait for the step, not just the dialog: typing into a panel that has not settled is how a
+  // real operator loses their first keystrokes, and the suite should not paper over that.
+  await expect(dialog.getByRole('heading', { name: 'Find the duplicate chart' })).toBeVisible({
+    timeout: 20_000,
+  });
+  return dialog;
 }
 
 /** Walks step one, landing on the preview. */
 async function selectDuplicate(dialog, run, duplicateCode) {
   await dialog.getByLabel(/Search this clinic/).fill(`Merge E2E-${run}`);
+  await expect(dialog.getByRole('button', { name: new RegExp(duplicateCode) })).toBeVisible({
+    timeout: 20_000,
+  });
   await dialog.getByRole('button', { name: new RegExp(duplicateCode) }).click();
   await dialog.getByRole('button', { name: 'Preview the merge' }).click();
 }

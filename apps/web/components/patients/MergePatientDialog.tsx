@@ -122,11 +122,17 @@ export function MergePatientDialog({
   const confirmFieldId = useId();
   const confirmInputRef = useRef<HTMLInputElement>(null);
 
-  // Reopening must not resume a half-finished decision about a different chart.
+  /*
+    Clearing happens on close, not on open.
+
+    Reopening must not resume a half-finished decision about a different chart, but doing the
+    reset when `open` becomes true races the user: the dialog body mounts and is typeable a frame
+    before an effect runs, so a fast typist -- or a test -- could get their first keystrokes wiped
+    by the reset that was meant to prepare the panel for them. Nothing is being typed while it is
+    closed, so that is where the clearing belongs.
+  */
   useEffect(() => {
-    if (!open) return;
-    setStep(initialSourcePatientId ? 'review' : 'choose');
-    setSourcePatientId(initialSourcePatientId ?? '');
+    if (open) return;
     setQuery('');
     setCandidates([]);
     setSearchError(null);
@@ -135,6 +141,13 @@ export function MergePatientDialog({
     setConfirmation('');
     setConfirmationError(null);
     setSubmitError(null);
+  }, [open]);
+
+  // Where to start. Neither field is one the operator can be mid-way through typing into.
+  useEffect(() => {
+    if (!open) return;
+    setStep(initialSourcePatientId ? 'review' : 'choose');
+    setSourcePatientId(initialSourcePatientId ?? '');
   }, [open, initialSourcePatientId]);
 
   useEffect(() => {
