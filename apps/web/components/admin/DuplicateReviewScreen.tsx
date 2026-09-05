@@ -22,7 +22,6 @@ import { dataGridSx } from '@/lib/datagrid-theme';
 import { readApiError } from '@/lib/ops';
 import { useAsyncResource } from '@/lib/use-async-resource';
 import {
-  buildComparisonRows,
   candidateStatus,
   confidenceBadgeVariant,
   DUPLICATE_CONFIDENCE_LABELS,
@@ -36,6 +35,7 @@ import {
   type DuplicateCandidatePage,
   type DuplicateReviewStatus,
 } from '@/lib/patient-duplicates';
+import { PatientComparisonTable } from '@/components/patients/PatientComparisonTable';
 import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
@@ -832,7 +832,6 @@ function DuplicateComparisonSheet({
   if (!candidate) return null;
 
   const [left, right] = candidate.patients;
-  const rows = buildComparisonRows(left, right);
   const status = candidateStatus(candidate);
 
   return (
@@ -870,52 +869,11 @@ function DuplicateComparisonSheet({
             </InlineNotice>
           ) : null}
 
-          <div className="overflow-x-auto rounded-lg border border-border/70">
-            <table className="w-full min-w-[32rem] text-sm">
-              <caption className="sr-only">
-                Field by field comparison of the two patient charts
-              </caption>
-              <thead className="bg-muted">
-                <tr>
-                  <th scope="col" className="px-4 py-3 text-left font-medium text-foreground">
-                    Field
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-left font-medium text-foreground">
-                    {left.patientCode}
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-left font-medium text-foreground">
-                    {right.patientCode}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row.label} className="border-t border-border/70">
-                    <th
-                      scope="row"
-                      className="px-4 py-2.5 text-left font-normal text-muted-foreground"
-                    >
-                      {row.label}
-                    </th>
-                    {/*
-                      "Same" is a word, not only a colour. A matching row is the signal an
-                      operator acts on, and colour alone would not reach a screen reader or
-                      survive a monochrome print of the queue.
-                    */}
-                    <td className="px-4 py-2.5 text-foreground">{row.valueA}</td>
-                    <td className="px-4 py-2.5 text-foreground">
-                      <span className={row.matches ? 'font-medium' : undefined}>{row.valueB}</span>
-                      {row.matches ? (
-                        <span className="ml-2 text-xs uppercase tracking-wide text-success-ink">
-                          Same
-                        </span>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <PatientComparisonTable
+            left={left}
+            right={right}
+            caption="Field by field comparison of the two patient charts"
+          />
 
           <div className="grid gap-2 sm:grid-cols-2">
             <Button asChild variant="outline">
