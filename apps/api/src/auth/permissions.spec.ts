@@ -46,6 +46,20 @@ describe('OPS permissions', () => {
     expect(computeEffectivePermissions([UserRole.SYSTEM_ADMIN])).toEqual(['*']);
   });
 
+  it('gives merge to nobody but the wildcard', () => {
+    // Consolidating two records is irreversible, so the seat is deliberately unreachable by
+    // grant: only SYSTEM_ADMIN's '*' satisfies it, and adding the permission to any role's list
+    // would be a policy change rather than a refactor.
+    for (const role of Object.values(UserRole)) {
+      const permissions = computeEffectivePermissions([role]);
+      if (role === UserRole.SYSTEM_ADMIN) {
+        expect(permissions).toEqual(['*']);
+      } else {
+        expect(permissions).not.toContain(PERMISSIONS.PATIENT_MERGE);
+      }
+    }
+  });
+
   it('grants managers clinic scope but not org-wide research export approval', () => {
     const permissions = computeEffectivePermissions([UserRole.MANAGER]);
 

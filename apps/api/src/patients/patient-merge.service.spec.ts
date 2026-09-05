@@ -36,6 +36,8 @@ type ChartOverrides = Partial<{
   nationalIdHash: string | null;
   nationalIdType: string | null;
   nationalIdLast4: string | null;
+  sex: string;
+  createdAt: Date;
   updatedAt: Date;
   codeAliases: { code: string }[];
 }>;
@@ -61,6 +63,8 @@ function chart(overrides: ChartOverrides = {}) {
     nationalIdHash: overrides.nationalIdHash ?? 'hash-a',
     nationalIdType: overrides.nationalIdType ?? 'NATIONAL_ID',
     nationalIdLast4: overrides.nationalIdLast4 ?? '4471',
+    sex: overrides.sex ?? 'FEMALE',
+    createdAt: overrides.createdAt ?? new Date('2026-01-05T08:00:00.000Z'),
     updatedAt: overrides.updatedAt ?? new Date('2026-09-04T09:00:00.000Z'),
     codeAliases: overrides.codeAliases ?? [],
   };
@@ -457,6 +461,150 @@ describe('PatientMergeService.evaluate', () => {
     const after = await service.evaluate(systemAdmin, 'patient-1', 'patient-2');
 
     expect(after.fingerprint).not.toBe(before.fingerprint);
+  });
+});
+
+describe('PatientMergeService.preview', () => {
+  it('publishes both charts in the shape the duplicate queue already uses', async () => {
+    const { service, prisma } = createService();
+    stubCharts(prisma);
+
+    const preview = await service.preview(systemAdmin, 'patient-1', 'patient-2');
+
+    // Same field set as DuplicateCandidatePatient, so one comparison table serves both screens.
+    for (const side of [preview.canonical, preview.source]) {
+      expect(Object.keys(side).sort()).toEqual(
+        [
+          'clinic',
+          'createdAt',
+          'dob',
+          'email',
+          'firstName',
+          'id',
+          'lastName',
+          'nationalIdLast4',
+          'nationalIdType',
+          'patientCode',
+          'phoneE164',
+          'portalLinked',
+          'sex',
+          'updatedAt',
+        ].sort(),
+      );
+      expect(side.clinic).toEqual({
+        id: 'clinic-1',
+        name: 'Clinic One',
+        organizationId: 'org-1',
+        organizationName: 'Akomapa',
+      });
+    }
+    expect(preview.canonical.dob).toBe('1988-07-04T00:00:00.000Z');
+  });
+
+  it('never carries the national ID itself, only its last four digits', async () => {
+    const { service, prisma } = createService();
+    stubCharts(prisma);
+
+    const preview = await service.preview(systemAdmin, 'patient-1', 'patient-2');
+    const serialized = JSON.stringify(preview);
+
+    expect(serialized).not.toContain('nationalIdCiphertext');
+    expect(serialized).not.toContain('hash-a');
+    expect(preview.source.nationalIdLast4).toBe('4472');
+  });
+
+  it('splits findings into what stops the merge and what merely warns about it', async () => {
+    const { service, prisma } = createService({ relationCounts: { encounter: [0, 3] } });
+    prisma.patient.findUnique.mockImplementation(async (args: { where: { id: string } }) =>
+      args.where.id === 'patient-1'
+        ? canonicalChart()
+        : chart({
+            ...sourceChart(),
+            primaryClinicId: 'clinic-2',
+            primaryClinic: { ...CLINIC, id: 'clinic-2', name: 'Clinic Two' },
+          }),
+    );
+
+    const preview = await service.preview(systemAdmin, 'patient-1', 'patient-2');
+
+    expect(preview.blockers.map((f) => f.code)).toEqual(['CROSS_CLINIC']);
+    expect(preview.warnings.map((f) => f.code)).toContain('SOURCE_HAS_MORE_HISTORY');
+    expect(preview.blockers.every((f) => f.severity === 'BLOCK')).toBe(true);
+    expect(preview.warnings.every((f) => f.severity === 'WARN')).toBe(true);
+    expect(preview.canMerge).toBe(false);
+  });
+
+  it('says what each finding means and what to do about it', async () => {
+    const { service, prisma } = createService();
+    stubCharts(prisma);
+    prisma.patientCodeAlias.findMany.mockResolvedValue([{ code: 'NKP-2026-000099' }]);
+
+    const preview = await service.preview(systemAdmin, 'patient-1', 'patient-2');
+
+    const blocker = preview.blockers[0];
+    expect(blocker.label).not.toMatch(/^[A-Z_]+$/);
+    expect(blocker.recovery.length).toBeGreaterThan(20);
+  });
+
+  it('reports the whole relation list, including the ones with nothing to move', async () => {
+    const { service, prisma } = createService({ relationCounts: { encounter: [2, 1] } });
+    stubCharts(prisma);
+
+    const preview = await service.preview(systemAdmin, 'patient-1', 'patient-2');
+
+    // An empty row is information: it says the duplicate holds no notes, rather than leaving an
+    // operator to wonder whether notes were checked at all.
+    expect(preview.relations).toHaveLength(MERGE_RELATIONS.length);
+    expect(preview.relations.every((row) => typeof row.label === 'string')).toBe(true);
+  });
+
+  it('states the strategies it answered under, including the defaults', async () => {
+    const { service, prisma } = createService();
+    stubCharts(prisma);
+
+    expect((await service.preview(systemAdmin, 'patient-1', 'patient-2')).strategies).toEqual({
+      portalLinkStrategy: 'CANONICAL',
+      inviteStrategy: 'MERGE',
+    });
+    expect(
+      (
+        await service.preview(systemAdmin, 'patient-1', 'patient-2', {
+          portalLinkStrategy: 'SOURCE',
+        })
+      ).strategies.portalLinkStrategy,
+    ).toBe('SOURCE');
+  });
+
+  it('carries a fingerprint the merge will accept', async () => {
+    const { service, prisma } = createService();
+    stubCharts(prisma);
+
+    const preview = await service.preview(systemAdmin, 'patient-1', 'patient-2');
+
+    expect(preview.fingerprint).toMatch(/^[0-9a-f]{16}$/);
+    await expect(
+      service.merge(systemAdmin, 'patient-1', 'patient-2', {
+        expectedFingerprint: preview.fingerprint,
+      }),
+    ).resolves.toMatchObject({ success: true });
+  });
+
+  it('does not leak the rows the transaction needs into the payload', async () => {
+    const { service, prisma } = createService();
+    stubCharts(prisma);
+
+    const preview = await service.preview(systemAdmin, 'patient-1', 'patient-2');
+
+    expect(preview).not.toHaveProperty('portalRows');
+    expect(preview).not.toHaveProperty('findings');
+  });
+
+  it('is refused to anyone who is not a system administrator', async () => {
+    const { service, prisma } = createService();
+    stubCharts(prisma);
+    await expect(service.preview(director, 'patient-1', 'patient-2')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
   });
 });
 

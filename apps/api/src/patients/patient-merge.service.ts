@@ -94,6 +94,52 @@ export interface PatientMergeEvaluation {
   };
 }
 
+/**
+ * One chart, in the shape the duplicate review queue already publishes.
+ *
+ * Deliberately identical to `DuplicateCandidatePatient` so the web app's `buildComparisonRows`
+ * renders a merge preview and a duplicate candidate with the same code. Two field-by-field
+ * comparisons of two patient charts that disagree about how to show a date of birth would be a
+ * worse outcome than either one alone.
+ */
+export interface MergePreviewPatient {
+  id: string;
+  patientCode: string;
+  firstName: string;
+  lastName: string;
+  dob: string | null;
+  sex: string;
+  phoneE164: string | null;
+  email: string | null;
+  nationalIdType: string | null;
+  nationalIdLast4: string | null;
+  portalLinked: boolean;
+  createdAt: string;
+  updatedAt: string;
+  clinic: { id: string; name: string; organizationId: string; organizationName: string };
+}
+
+export interface PatientMergePreview {
+  generatedAt: string;
+  canonical: MergePreviewPatient;
+  source: MergePreviewPatient;
+  duplicateSignal: {
+    score: number;
+    confidence: DuplicateConfidence;
+    reasons: DuplicateMatchReason[];
+  };
+  relations: MergeRelationCount[];
+  portal: MergePortalOutlook;
+  aliases: { carriedOver: string[]; added: string };
+  tombstonePatientCode: string;
+  blockers: MergeFinding[];
+  warnings: MergeFinding[];
+  canMerge: boolean;
+  /** Echo this back on the merge so a stale panel cannot be acted on. */
+  fingerprint: string;
+  strategies: Required<MergeStrategies>;
+}
+
 export interface PatientMergeResult {
   success: true;
   canonicalPatientId: string;
@@ -186,6 +232,39 @@ export class PatientMergeService {
     }
 
     return this.evaluateCharts(canonical, source, options);
+  }
+
+  /**
+   * The read-only panel an operator reads before committing.
+   *
+   * A projection of `evaluate`, with the raw rows the transaction needs left behind. Recomputed
+   * on every call rather than stored: a preview that could go stale without saying so is the
+   * thing this endpoint exists to prevent, and `fingerprint` is how a client proves it acted on
+   * what it was shown.
+   */
+  async preview(
+    actor: MergeActor,
+    canonicalPatientId: string,
+    sourcePatientId: string,
+    options?: MergeStrategies,
+  ): Promise<PatientMergePreview> {
+    const evaluation = await this.evaluate(actor, canonicalPatientId, sourcePatientId, options);
+
+    return {
+      generatedAt: new Date().toISOString(),
+      canonical: toPreviewPatient(evaluation.canonical),
+      source: toPreviewPatient(evaluation.source),
+      duplicateSignal: evaluation.duplicateSignal,
+      relations: evaluation.relations,
+      portal: evaluation.portal,
+      aliases: evaluation.aliases,
+      tombstonePatientCode: evaluation.tombstonePatientCode,
+      blockers: evaluation.findings.filter((finding) => finding.severity === 'BLOCK'),
+      warnings: evaluation.findings.filter((finding) => finding.severity === 'WARN'),
+      canMerge: evaluation.canMerge,
+      fingerprint: evaluation.fingerprint,
+      strategies: evaluation.strategies,
+    };
   }
 
   /**
@@ -677,6 +756,30 @@ export class PatientMergeService {
       details: { blockers: findings.filter((entry) => entry.severity === 'BLOCK') },
     };
   }
+}
+
+function toPreviewPatient(chart: MergeChart): MergePreviewPatient {
+  return {
+    id: chart.id,
+    patientCode: chart.patientCode,
+    firstName: chart.firstName,
+    lastName: chart.lastName,
+    dob: chart.dob ? chart.dob.toISOString() : null,
+    sex: chart.sex,
+    phoneE164: chart.phoneE164,
+    email: chart.email,
+    nationalIdType: chart.nationalIdType,
+    nationalIdLast4: chart.nationalIdLast4,
+    portalLinked: chart.portalUserId !== null,
+    createdAt: chart.createdAt.toISOString(),
+    updatedAt: chart.updatedAt.toISOString(),
+    clinic: {
+      id: chart.primaryClinic.id,
+      name: chart.primaryClinic.name,
+      organizationId: chart.primaryClinic.organizationId,
+      organizationName: chart.primaryClinic.organization.name,
+    },
+  };
 }
 
 function toDuplicateInput(chart: MergeChart) {
