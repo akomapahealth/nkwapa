@@ -2,6 +2,14 @@ import { BadRequestException, ConflictException, ForbiddenException } from '@nes
 import { Prisma, UserRole } from '@prisma/client';
 import { MERGE_RELATIONS } from '@nkwapa/db';
 import { PatientMergeService, type MergeActor } from './patient-merge.service';
+import {
+  FIXTURE_CLINIC as CLINIC,
+  type IdentityPrismaMock as PrismaMock,
+  canonicalChartFixture as canonicalChart,
+  createIdentityPrismaMock,
+  identityChartFixture as chart,
+  sourceChartFixture as sourceChart,
+} from '../testing/patient-identity-fixtures';
 
 const systemAdmin: MergeActor = {
   userId: 'sysadmin-1',
@@ -13,130 +21,8 @@ const director: MergeActor = {
   roles: [{ clinicId: 'clinic-1', role: UserRole.DIRECTOR }],
 };
 
-const CLINIC = {
-  id: 'clinic-1',
-  name: 'Clinic One',
-  isActive: true,
-  organizationId: 'org-1',
-  organization: { name: 'Akomapa' },
-};
-
-type ChartOverrides = Partial<{
-  id: string;
-  patientCode: string;
-  primaryClinicId: string;
-  primaryClinic: typeof CLINIC;
-  portalUserId: string | null;
-  mergedIntoPatientId: string | null;
-  firstName: string;
-  lastName: string;
-  dob: Date | null;
-  phoneE164: string | null;
-  email: string | null;
-  nationalIdHash: string | null;
-  nationalIdType: string | null;
-  nationalIdLast4: string | null;
-  sex: string;
-  createdAt: Date;
-  updatedAt: Date;
-  codeAliases: { code: string }[];
-}>;
-
-/*
-  Both fixtures share a name, a birthday and a phone number by default, so the duplicate
-  heuristics score them HIGH. That matters: at LOW the evaluation raises WEAK_DUPLICATE_SIGNAL,
-  and every unrelated assertion would then be reading a findings list with an extra entry in it.
-*/
-function chart(overrides: ChartOverrides = {}) {
-  return {
-    id: overrides.id ?? 'patient-1',
-    patientCode: overrides.patientCode ?? 'NKP-2026-000001',
-    primaryClinicId: overrides.primaryClinicId ?? 'clinic-1',
-    primaryClinic: overrides.primaryClinic ?? CLINIC,
-    portalUserId: overrides.portalUserId ?? null,
-    mergedIntoPatientId: overrides.mergedIntoPatientId ?? null,
-    firstName: overrides.firstName ?? 'Akua',
-    lastName: overrides.lastName ?? 'Boateng',
-    dob: overrides.dob === undefined ? new Date('1988-07-04') : overrides.dob,
-    phoneE164: overrides.phoneE164 === undefined ? '+233209876543' : overrides.phoneE164,
-    email: overrides.email ?? null,
-    nationalIdHash: overrides.nationalIdHash ?? 'hash-a',
-    nationalIdType: overrides.nationalIdType ?? 'NATIONAL_ID',
-    nationalIdLast4: overrides.nationalIdLast4 ?? '4471',
-    sex: overrides.sex ?? 'FEMALE',
-    createdAt: overrides.createdAt ?? new Date('2026-01-05T08:00:00.000Z'),
-    updatedAt: overrides.updatedAt ?? new Date('2026-09-04T09:00:00.000Z'),
-    codeAliases: overrides.codeAliases ?? [],
-  };
-}
-
-const canonicalChart = () => chart();
-const sourceChart = () =>
-  chart({
-    id: 'patient-2',
-    patientCode: 'NKP-2026-000099',
-    nationalIdHash: 'hash-b',
-    nationalIdLast4: '4472',
-    updatedAt: new Date('2026-09-04T09:30:00.000Z'),
-  });
-
-/** A bag of jest mocks indexable by model name, which is how the relation loop reaches them. */
-type PrismaMock = Record<string, Record<string, jest.Mock>> & { $transaction: jest.Mock };
-
 function createService(options: { relationCounts?: Record<string, [number, number]> } = {}) {
-  const prisma: PrismaMock = {
-    patient: {
-      findUnique: jest.fn(),
-      update: jest.fn().mockResolvedValue({ id: 'patient-1' }),
-      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
-    },
-    patientAccountLink: {
-      findUnique: jest.fn().mockResolvedValue(null),
-      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-      create: jest.fn().mockResolvedValue({ id: 'link-1' }),
-    },
-    patientCodeAlias: {
-      findMany: jest.fn().mockResolvedValue([]),
-      createMany: jest.fn().mockResolvedValue({ count: 0 }),
-      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-      upsert: jest.fn().mockResolvedValue({ id: 'alias-1' }),
-    },
-    patientDuplicateReview: {
-      findUnique: jest.fn().mockResolvedValue(null),
-      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-    },
-    patientMergeRecord: { create: jest.fn().mockResolvedValue({ id: 'merge-1' }) },
-    user: { findUnique: jest.fn().mockResolvedValue(null) },
-    userClinicRole: { upsert: jest.fn().mockResolvedValue({ id: 'role-1' }) },
-    $transaction: jest.fn(),
-  } as never;
-
-  // Every relation the merge moves gets the same two mocks, so a relation added to the shared
-  // list is exercised here without this file having to name it.
-  for (const relation of MERGE_RELATIONS) {
-    const [canonicalCount, sourceCount] = options.relationCounts?.[relation.key] ?? [0, 0];
-    prisma[relation.key] = {
-      ...(prisma[relation.key] ?? {}),
-      count: jest.fn(async (args: { where: { patientId: string; effectiveTo?: null } }) => {
-        // patientPharmacyPreference is counted twice for different questions: how many rows move,
-        // and how many are still open.
-        if (args.where.effectiveTo === null) return 0;
-        return args.where.patientId === 'patient-1' ? canonicalCount : sourceCount;
-      }),
-      updateMany: jest.fn().mockResolvedValue({ count: sourceCount }),
-    };
-  }
-  prisma.patientPortalInvite = {
-    ...prisma.patientPortalInvite,
-    findMany: jest.fn().mockResolvedValue([]),
-    updateMany: jest.fn().mockResolvedValue({ count: 0 }),
-    count: jest.fn().mockResolvedValue(0),
-  };
-
-  prisma.$transaction.mockImplementation(async (callback: (tx: typeof prisma) => unknown) =>
-    callback(prisma),
-  );
-
+  const prisma = createIdentityPrismaMock(options);
   const auditService = { logWrite: jest.fn().mockResolvedValue(undefined) };
 
   return {

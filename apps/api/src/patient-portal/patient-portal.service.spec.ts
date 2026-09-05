@@ -11,6 +11,11 @@ import {
   createAppointmentPrismaMock,
   portalPatientFixture as portalPatient,
 } from '../testing/appointment-fixtures';
+import {
+  IDENTITY_NOW as NOW,
+  identityDay as day,
+  portalInviteFixture as buildInvite,
+} from '../testing/patient-identity-fixtures';
 
 describe('PatientPortalService', () => {
   let service: PatientPortalService;
@@ -1255,25 +1260,6 @@ describe('PatientPortalService', () => {
   });
 
   describe('portal invite lifecycle', () => {
-    const NOW = new Date('2026-09-02T12:00:00.000Z');
-    const day = (n: number) => new Date(NOW.getTime() + n * 24 * 60 * 60 * 1000);
-
-    const buildInvite = (overrides: Record<string, unknown> = {}) => ({
-      id: 'invite-1',
-      patientId: 'patient-1',
-      clinicId: 'clinic-1',
-      status: 'PENDING',
-      email: 'ama@example.com',
-      phoneE164: null,
-      claimedByUserId: null,
-      claimedAt: null,
-      cancelledAt: null,
-      expiresAt: day(7),
-      createdAt: day(-1),
-      updatedAt: day(-1),
-      ...overrides,
-    });
-
     beforeEach(() => {
       jest.useFakeTimers().setSystemTime(NOW);
       prisma.patient.findFirst.mockResolvedValue({ id: 'patient-1', portalUserId: null });
