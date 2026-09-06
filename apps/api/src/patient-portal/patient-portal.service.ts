@@ -1,4 +1,4 @@
-import { normalizePhoneToE164 } from '@nkwapa/db';
+import { claimRefusal, normalizePhoneToE164 } from '@nkwapa/db';
 import {
   BadRequestException,
   ConflictException,
@@ -1690,6 +1690,28 @@ export class PatientPortalService {
     });
     if (existingLink && existingLink.patientId !== invite.patientId) {
       throw new ConflictException('This account is already linked to another patient record');
+    }
+
+    /*
+      The mirror of the check above, and the one that was missing.
+
+      `PatientAccountLink` is unique on both `patientId` and `keycloakSub`, and the upsert below
+      keys on `patientId`. So a chart already linked to somebody else did not collide: it was
+      quietly updated to point at whoever presented an invitation for it, `portalUserId` was
+      overwritten in the same transaction, and the previous owner kept a `PATIENT` role granting
+      them nothing. One person's record moved to another person's sign-in, with an audit event
+      recording it as an ordinary claim.
+
+      `createPortalInvite` refuses to issue an invitation for a linked chart, which is why this
+      was hard to reach -- but an invitation issued before the link, or carried onto a linked
+      chart by a merge, reaches it, and those are exactly the situations where two people are
+      already confused about who owns the record.
+    */
+    const chartLink = await this.prisma.patientAccountLink.findUnique({
+      where: { patientId: invite.patientId },
+    });
+    if (chartLink && chartLink.keycloakSub !== user.keycloakSub) {
+      throw new ConflictException(claimRefusal('RECORD_ALREADY_LINKED'));
     }
 
     const link = await this.prisma.$transaction(async (tx) => {

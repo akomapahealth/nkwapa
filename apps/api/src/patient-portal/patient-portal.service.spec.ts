@@ -1516,6 +1516,50 @@ describe('PatientPortalService', () => {
         expect(prisma.patientAccountLink.upsert).not.toHaveBeenCalled();
       });
 
+      /*
+        The record-takeover guard.
+
+        `PatientAccountLink` is unique on both columns and the claim upserts on `patientId`, so a
+        chart already linked to somebody else did not collide -- it was quietly repointed at
+        whoever presented an invitation for it, and `portalUserId` was overwritten alongside. One
+        person's record moved to another person's sign-in, audited as an ordinary claim.
+      */
+      it('refuses to take over a record already linked to a different sign-in', async () => {
+        prisma.patientPortalInvite.findFirst.mockResolvedValueOnce({
+          ...buildInvite(),
+          patient: claimablePatient,
+        });
+        prisma.patientAccountLink.findUnique.mockImplementation(
+          async ({ where }: { where: { keycloakSub?: string; patientId?: string } }) =>
+            where.patientId === 'patient-1'
+              ? { id: 'link-existing', patientId: 'patient-1', keycloakSub: 'kc-sub-someone-else' }
+              : null,
+        );
+
+        await expect(service.claimPatientRecord('user-1', claimDto, 'req-1')).rejects.toMatchObject(
+          { response: expect.objectContaining({ code: 'RECORD_ALREADY_LINKED' }) },
+        );
+
+        expect(prisma.patientAccountLink.upsert).not.toHaveBeenCalled();
+        expect(prisma.patient.update).not.toHaveBeenCalled();
+      });
+
+      it('still lets the account that already holds a record re-claim it', async () => {
+        prisma.patientPortalInvite.findFirst.mockResolvedValueOnce({
+          ...buildInvite(),
+          patient: claimablePatient,
+        });
+        prisma.patientAccountLink.findUnique.mockResolvedValue({
+          id: 'link-existing',
+          patientId: 'patient-1',
+          keycloakSub: 'kc-sub-1',
+        });
+
+        await expect(
+          service.claimPatientRecord('user-1', claimDto, 'req-1'),
+        ).resolves.toMatchObject({ success: true });
+      });
+
       it('still refuses an account whose contact details were never staged', async () => {
         prisma.user.findUnique.mockResolvedValue({ ...claimUser, email: 'someone@else.test' });
         prisma.patientPortalInvite.findFirst.mockResolvedValueOnce({
