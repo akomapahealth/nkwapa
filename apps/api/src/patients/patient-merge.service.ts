@@ -187,8 +187,8 @@ export function buildMergedPatientCode(sourceCode: string, patientId: string): s
  *
  * Lifted out of `AdminService`, which had grown past a thousand lines of unrelated staff
  * lifecycle work, so that the evaluation an operator is shown and the transaction that acts on it
- * sit beside each other and cannot drift apart. `AdminService.mergePatients` still exists and
- * delegates here, so `POST /admin/patients/merge` and its callers are unchanged.
+ * sit beside each other and cannot drift apart. `AdminController.mergePatients` calls straight
+ * into this service, so `POST /admin/patients/merge` and its callers are unchanged.
  *
  * Every refusal is raised through `@nkwapa/db`'s finding vocabulary rather than as a bare string,
  * so an operator reads the same wording whether they meet it in the preview or on submit.

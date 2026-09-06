@@ -80,7 +80,7 @@ export interface DuplicateCandidate {
   /**
    * Whether the existing merge endpoint would accept this pair today.
    *
-   * `AdminService.mergePatients` refuses two charts in different clinics, so a cross-clinic pair
+   * `PatientMergeService` refuses two charts in different clinics, so a cross-clinic pair
    * is investigable but not actionable. Saying so here keeps the UI from offering a button that
    * can only fail.
    */
