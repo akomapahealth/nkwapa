@@ -13,6 +13,10 @@ const path = require('path');
  * spec used to run as staff, so roughly 2,900 lines of migrated portal screens were never once
  * loaded by the suite. The seed links it to a real patient record through `Patient.portalUserId`,
  * which is what makes the portal show a chart rather than "ask your clinic to link this account".
+ *
+ * `claimant` is that same patient one step earlier: invited, not yet linked. The two cannot be one
+ * identity, because the link is what decides where the account is allowed to be -- a claimed
+ * account is redirected off /claim-record, so the claim page had no identity that could reach it.
  */
 const AUTH_DIR = path.join(__dirname, '.auth');
 
@@ -38,6 +42,17 @@ const ROLES = {
     password: process.env.E2E_PATIENT_PASSWORD || 'NkwapaPatient!23',
     // A patient-only account has no workspace dashboard; sign-in lands on the portal.
     landingUrl: '/portal',
+  },
+  claimant: {
+    storageState: path.join(AUTH_DIR, 'claimant.json'),
+    username: process.env.E2E_CLAIMANT_USERNAME || 'e2e.claimant',
+    password: process.env.E2E_CLAIMANT_PASSWORD || 'NkwapaClaimant!23',
+    /*
+      Holds an invitation and nothing else -- no record link, no roles. `SyncWithAuth` sends any
+      account in that state to /claim-record and holds it there, so this identity cannot land
+      anywhere else, and `patient` cannot land here: a claimed record is redirected away.
+    */
+    landingUrl: '/claim-record',
   },
 };
 

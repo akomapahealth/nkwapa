@@ -500,6 +500,89 @@ async function seedIdentityFixtures(
     });
     console.log(`Seeded a claim edge-case invitation for ${chart.patient.patientCode}.`);
   }
+
+  /*
+    The account that can actually reach /claim-record.
+
+    Deliberately roleless: `whoami` computes claim onboarding only when a user holds no roles at
+    all, and `SyncWithAuth` routes on that answer. Give this user a clinic role and it stops being
+    a claimant -- it lands on a dashboard instead, and the page under test becomes unreachable
+    again. There is no `PatientAccountLink` and no `portalUserId` for the same reason.
+  */
+  const claimantSub = process.env.SEED_E2E_CLAIMANT_SUB ?? process.env.E2E_CLAIMANT_SUB;
+  const claimantEmail =
+    process.env.SEED_E2E_CLAIMANT_EMAIL ??
+    process.env.E2E_CLAIMANT_EMAIL ??
+    'e2e.claimant@nkwapa.local';
+
+  if (claimantSub) {
+    const claimantName = process.env.SEED_E2E_CLAIMANT_NAME ?? 'E2E Claimant';
+    const [firstName, ...lastNameParts] = claimantName.trim().split(/\s+/);
+    await prisma.user.upsert({
+      where: { keycloakSub: claimantSub },
+      update: { email: claimantEmail, isActive: true },
+      create: {
+        keycloakSub: claimantSub,
+        displayName: claimantName,
+        firstName: firstName || 'E2E',
+        lastName: lastNameParts.join(' ') || 'Claimant',
+        email: claimantEmail,
+        isActive: true,
+      },
+    });
+
+    const unclaimed = await ensureChart({
+      firstName: 'E2E',
+      lastName: 'Claimable',
+      dob: new Date('1993-08-19'),
+      sex: Sex.FEMALE,
+      phoneE164: '+233201234555',
+      email: claimantEmail,
+      nationalId: 'GH-E2E-CLAIMABLE-770024',
+    });
+
+    /*
+      Put the claimant back to unclaimed, every time.
+
+      A successful claim is not reversible from the product: it links the account, stamps
+      `portalUserId`, grants a PATIENT role and settles the invitation. Leave any of that in place
+      and the fixture is single-use -- the second run signs in, gets redirected off /claim-record
+      because the account already holds a record, and every assertion in the spec fails for a
+      reason that has nothing to do with the code under test.
+
+      That is the trap the appointment fixtures already fall into, and it is written up in the
+      testing guide as something to work around. Worth not repeating: a fixture re-seeding cannot
+      restore is a fixture that silently expires.
+    */
+    await prisma.patientAccountLink.deleteMany({ where: { patientId: unclaimed.patient.id } });
+    await prisma.patient.updateMany({
+      where: { id: unclaimed.patient.id },
+      data: { portalUserId: null },
+    });
+    await prisma.userClinicRole.deleteMany({
+      where: { user: { keycloakSub: claimantSub }, role: UserRole.PATIENT },
+    });
+
+    const live = await prisma.patientPortalInvite.findFirst({
+      where: { patientId: unclaimed.patient.id, status: PatientPortalInviteStatus.PENDING },
+    });
+    if (!live) {
+      await prisma.patientPortalInvite.create({
+        data: {
+          patientId: unclaimed.patient.id,
+          clinicId,
+          status: PatientPortalInviteStatus.PENDING,
+          email: claimantEmail,
+          phoneE164: null,
+          createdByUserId: ownerUserId,
+          expiresAt: daysFromNow(14),
+        },
+      });
+      console.log(
+        `Seeded a claimable invitation for ${unclaimed.patient.patientCode} against ${claimantEmail}.`,
+      );
+    }
+  }
 }
 
 async function main() {
