@@ -138,6 +138,15 @@ The two `patient request triage` specs consume the pending requests they act on,
 any second run against the same database, and re-seeding does not put them back. Reset them the way
 section 1 describes, or expect exactly those two failures and check that nothing else moved.
 
+`e2e/patient-claim.spec.js` consumes its fixture too, for a reason no reset can avoid: a claim
+links the account permanently, and after one the identity is redirected off `/claim-record` and
+every test in the file fails at the first assertion. Unlike the triage specs, `npm run db:seed`
+**does** put this one back — `SEED_SAMPLE_IDENTITY` clears the link, the role, the `portalUserId`
+and the settled invitation on every run. So: re-seed between local runs of that file, and if you
+see all seven of its tests fail together, re-seed before reading any of them as a real failure.
+
+CI is unaffected either way, since it seeds once into a fresh database and runs once.
+
 ---
 
 ## 4. Global Smoke Test
