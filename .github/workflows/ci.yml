@@ -232,6 +232,9 @@ jobs:
       # The duplicate review queue has no populated state without these. Patient.nationalIdHash
       # is globally unique, so no other seeded chart can ever collide with another.
       SEED_SAMPLE_DUPLICATES: 'true'
+      # A merge cannot be undone, so canonical-redirect coverage needs a chart that arrives
+      # already merged rather than one the suite merges and destroys.
+      SEED_SAMPLE_IDENTITY: 'true'
       E2E_STAFF_SUB: 00000000-0000-4000-8000-000000000042
       E2E_STAFF_USERNAME: e2e.staff
       E2E_STAFF_PASSWORD: NkwapaE2E!23
@@ -333,6 +336,7 @@ jobs:
         env:
           SEED_SAMPLE_APPOINTMENTS: ${{ env.SEED_SAMPLE_APPOINTMENTS }}
           SEED_SAMPLE_DUPLICATES: ${{ env.SEED_SAMPLE_DUPLICATES }}
+          SEED_SAMPLE_IDENTITY: ${{ env.SEED_SAMPLE_IDENTITY }}
           SEED_E2E_STAFF_NAME: ${{ env.E2E_STAFF_NAME }}
           SEED_E2E_STAFF_EMAIL: ${{ env.E2E_STAFF_EMAIL }}
           SEED_E2E_DOCTOR_NAME: ${{ env.E2E_DOCTOR_NAME }}
