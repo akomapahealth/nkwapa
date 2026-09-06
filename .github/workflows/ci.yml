@@ -385,10 +385,3 @@ jobs:
 
       - name: Build all workspaces
         run: npm run build --workspaces --if-present
-
-      - name: Upload API build
-        uses: actions/upload-artifact@v4
-        with:
-          name: api-build
-          path: apps/api/dist/
-          retention-days: 7
