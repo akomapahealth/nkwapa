@@ -411,8 +411,10 @@ async function seedIdentityFixtures(
     ALIAS_CODE_COLLISION and offers no way forward. Without this, the only refusal an operator
     can reach from a seeded database is "same chart on both sides".
   */
+  // The two names differ so a test, or a person, can say which chart they meant. They still
+  // share a surname, a birthday and a phone number, so the pair still scores as a duplicate.
   const blockedSurvivor = await ensureChart({
-    firstName: 'E2E',
+    firstName: 'E2E Keep',
     lastName: 'Blocked',
     dob: new Date('1994-06-30'),
     sex: Sex.MALE,
@@ -421,7 +423,7 @@ async function seedIdentityFixtures(
     nationalId: 'GH-E2E-BLOCKED-330019',
   });
   const blockedDuplicate = await ensureChart({
-    firstName: 'E2E',
+    firstName: 'E2E Duplicate',
     lastName: 'Blocked',
     dob: new Date('1994-06-30'),
     sex: Sex.MALE,

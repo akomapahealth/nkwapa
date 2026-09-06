@@ -129,8 +129,6 @@ function PatientChartWorkspace() {
   const opsDestination = getOpsDestination(perms);
 
   const [data, setData] = useState<PatientWithEncounters | null>(null);
-  /** Set when this chart was reached by the id of one a merge retired. */
-  const [mergedFrom, setMergedFrom] = useState<string | null>(null);
   const [portalLinkOpen, setPortalLinkOpen] = useState(false);
   const [portalLinkUserId, setPortalLinkUserId] = useState('');
   const [portalLinkSearch, setPortalLinkSearch] = useState('');
@@ -427,10 +425,21 @@ function PatientChartWorkspace() {
   */
   useEffect(() => {
     if (data?.patient.id && data.patient.id !== patientId) {
-      setMergedFrom(data.resolvedFromPatientId ?? patientId);
-      router.replace(`/clinics/${clinicId}/patients/${data.patient.id}`);
+      const from = data.resolvedFromPatientId ?? patientId;
+      router.replace(`/clinics/${clinicId}/patients/${data.patient.id}?mergedFrom=${from}`);
     }
   }, [clinicId, data?.patient.id, data?.resolvedFromPatientId, patientId, router]);
+
+  /*
+    Reached by the id of a chart a merge retired.
+
+    Carried in the address rather than in component state: replacing the route changes the
+    `patientId` param, which remounts this page and threw the notice away -- leaving the reader
+    on a different patient code than the one they clicked with nothing accounting for it. In the
+    address it also survives a reload and travels in a shared link, which is the point of
+    explaining a redirect at all.
+  */
+  const mergedFrom = searchParams.get('mergedFrom');
 
   const researchConsent = data?.consentStatus?.find(
     (c) => c.consentType === 'RESEARCH_DEIDENTIFIED',
