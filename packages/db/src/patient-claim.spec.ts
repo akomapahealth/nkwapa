@@ -63,9 +63,10 @@ describe('portal claim refusals', () => {
     );
   });
 
-  // Legacy rows carry no expiry instant, so the undated wording has to exist.
-  it('falls back to the undated wording when no expiry instant was recorded', () => {
-    expect(expiredInviteRefusal(null).message).toBe(CLAIM_REFUSAL_LABELS.INVITE_EXPIRED);
+  // An invitation with no expiry instant is not expired at all; the undated refusal is for a row
+  // the scheduled sweep has already settled to EXPIRED.
+  it('keeps an undated wording for an invitation a sweep already settled', () => {
+    expect(claimRefusal('INVITE_EXPIRED').message).toBe(CLAIM_REFUSAL_LABELS.INVITE_EXPIRED);
   });
 
   /*

@@ -105,19 +105,18 @@ export function claimRefusal(code: ClaimRefusalCode, detail?: string): ClaimRefu
 }
 
 /**
- * A lapsed invitation, named by the date it lapsed where that is known.
+ * A lapsed invitation, named by the date it lapsed.
  *
  * "It expired" and "it expired three months ago" lead a patient to different conclusions about
  * whether the clinic already knows, so the date replaces the generic wording rather than being
- * appended to it. Legacy rows carry no expiry instant at all, which is why the undated form has
- * to exist.
+ * appended to it. An invitation whose expiry instant was never recorded is not expired at all,
+ * which is why this takes a date rather than an optional one -- the undated refusal is
+ * `claimRefusal('INVITE_EXPIRED')`, for a row a sweep has already settled.
  */
-export function expiredInviteRefusal(formattedExpiryDate: string | null): ClaimRefusal {
+export function expiredInviteRefusal(formattedExpiryDate: string): ClaimRefusal {
   return {
     code: 'INVITE_EXPIRED',
-    message: formattedExpiryDate
-      ? `This invitation expired on ${formattedExpiryDate}.`
-      : CLAIM_REFUSAL_LABELS.INVITE_EXPIRED,
+    message: `This invitation expired on ${formattedExpiryDate}.`,
     recoveryAction: CLAIM_REFUSAL_RECOVERY.INVITE_EXPIRED,
   };
 }

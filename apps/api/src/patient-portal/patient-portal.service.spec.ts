@@ -1568,7 +1568,7 @@ describe('PatientPortalService', () => {
         });
 
         await expect(service.claimPatientRecord('user-1', claimDto, 'req-1')).rejects.toThrow(
-          /does not match the email or phone number staged/i,
+          /sent to a different email address or phone number/i,
         );
       });
     });
