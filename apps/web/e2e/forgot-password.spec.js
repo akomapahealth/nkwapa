@@ -7,7 +7,8 @@ const { clearMailpitInbox, findMessageTo, messageContent } = require('../playwri
 const resetEmail = process.env.E2E_RESET_EMAIL || 'e2e.reset@nkwapa.local';
 
 test('forgot password sends a Keycloak reset email to Mailpit', async ({ page }) => {
-  await clearMailpitInbox();
+  // Scoped to this suite's own address: the inbox is shared with the other mail spec.
+  await clearMailpitInbox(resetEmail);
 
   await page.goto('/login?next=%2Fdashboard');
   await page

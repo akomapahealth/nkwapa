@@ -15,7 +15,8 @@ const inviteEmail = process.env.SEED_E2E_CLAIM_EMAIL || 'e2e.claim@nkwapa.local'
  */
 test.describe('portal invite email', () => {
   test('reaches a real SMTP inbox and is recorded in the ledger', async ({ page }) => {
-    await clearMailpitInbox();
+    // Scoped to this suite's own address: the inbox is shared with the other mail spec.
+    await clearMailpitInbox(inviteEmail);
 
     await page.goto('/patients');
     await expect(page.locator('#main-content')).toBeVisible({ timeout: 30_000 });
