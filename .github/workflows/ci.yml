@@ -392,10 +392,3 @@ jobs:
           name: api-build
           path: apps/api/dist/
           retention-days: 7
-
-      - name: Upload Web build
-        uses: actions/upload-artifact@v4
-        with:
-          name: web-build
-          path: apps/web/.next/
-          retention-days: 7
