@@ -1,6 +1,6 @@
 import { ForbiddenException } from '@nestjs/common';
 import { PatientDuplicateReviewStatus, UserRole } from '@prisma/client';
-import { duplicatePairKey } from '@nkwapa/db';
+import { DUPLICATE_MATCH_WEIGHTS, duplicatePairKey } from '@nkwapa/db';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -8,6 +8,8 @@ import {
   type DuplicatePatientRecord,
 } from './patient-duplicate.repository';
 import { PatientDuplicateService, type DuplicateReviewActor } from './patient-duplicate.service';
+import { DUPLICATE_PAIR_SCAN_LIMIT } from './patient-duplicate.repository';
+import { DUPLICATE_COMBINED_CASE, DUPLICATE_RULE_CASES } from '../testing/patient-identity-matrix';
 
 const CLINIC_A = '11111111-1111-4111-8111-111111111111';
 const CLINIC_B = '22222222-2222-4222-8222-222222222222';
@@ -68,9 +70,10 @@ function createService(
   } as unknown as PatientDuplicateRepository;
 
   const upsert = jest.fn();
+  const reviewFindUnique = jest.fn().mockResolvedValue(null);
   const prisma = {
     patientDuplicateReview: {
-      findUnique: jest.fn().mockResolvedValue(null),
+      findUnique: reviewFindUnique,
       upsert,
     },
   } as unknown as PrismaService;
@@ -83,6 +86,7 @@ function createService(
     findCandidatePairs,
     findPatientsByIds,
     upsert,
+    reviewFindUnique,
     logWrite,
   };
 }
@@ -496,5 +500,265 @@ describe('PatientDuplicateService.recordReview', () => {
     );
 
     expect(upsert.mock.calls[0][0].create.note).toBeNull();
+  });
+});
+
+/*
+  Every duplicate rule, driven through the queue rather than through the scorer.
+
+  `packages/db` already proves the heuristics compute what they should. What was untested is the
+  seam: blocking hands the service a pair of ids, the service hydrates them and scores them, and
+  only then does it decide whether an operator ever sees the pair. A rule can be perfectly
+  implemented and still never reach the screen -- the service drops any pair the rules do not
+  endorse, so a scoring change that quietly returns no reasons empties the queue silently.
+
+  The fuzzy rule matters most here. It is the only one that tolerates a difference, and it is
+  the one a conservative change to the scorer would drop first.
+*/
+describe('PatientDuplicateService - candidate rules reach the queue', () => {
+  /** Lay one matrix case out as two charts in the same clinic, so nothing else blocks it. */
+  function chartsFor(rule: (typeof DUPLICATE_RULE_CASES)[number]) {
+    const asChart = (side: typeof rule.left) =>
+      chart({
+        id: side.id,
+        firstName: side.firstName,
+        lastName: side.lastName,
+        dob: side.dob === null ? null : new Date(side.dob as string),
+        phoneE164: side.phoneE164,
+        email: side.email,
+        nationalIdHash: side.nationalIdHash,
+        nationalIdType: side.nationalIdType,
+        nationalIdLast4: side.nationalIdLast4,
+      } as Partial<DuplicatePatientRecord>);
+    return [asChart(rule.left), asChart(rule.right)];
+  }
+
+  async function queueFor(rule: (typeof DUPLICATE_RULE_CASES)[number]) {
+    const patients = chartsFor(rule);
+    const { service } = createService({
+      pairs: [{ patientAId: rule.left.id, patientBId: rule.right.id }],
+      patients,
+    });
+    return service.listCandidates(systemAdmin, { clinicId: CLINIC_A });
+  }
+
+  it.each(DUPLICATE_RULE_CASES.map((rule) => [rule.reason, rule] as const))(
+    'surfaces a %s pair with the reason and confidence the table publishes',
+    async (_reason, rule) => {
+      const page = await queueFor(rule);
+
+      expect(page.items).toHaveLength(1);
+      expect(page.items[0].reasons).toEqual(rule.expectedReasons);
+      expect(page.items[0].score).toBe(rule.expectedScore);
+      expect(page.items[0].confidence).toBe(rule.expectedConfidence);
+      // Same clinic on both sides, so nothing stops an operator merging them.
+      expect(page.items[0].crossClinic).toBe(false);
+      expect(page.items[0].mergeEligible).toBe(true);
+    },
+  );
+
+  it('surfaces the one fuzzy rule as readily as the exact ones', async () => {
+    const fuzzy = DUPLICATE_RULE_CASES.find((rule) => rule.kind === 'fuzzy');
+    expect(fuzzy).toBeDefined();
+
+    const page = await queueFor(fuzzy!);
+
+    expect(page.items[0].reasons).toContain('NAME_SIMILAR_AND_DOB');
+    expect(page.total).toBe(1);
+  });
+
+  it('sums two weak signals into one MEDIUM candidate rather than two rows', async () => {
+    const page = await queueFor(DUPLICATE_COMBINED_CASE);
+
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0].reasons).toEqual(DUPLICATE_COMBINED_CASE.expectedReasons);
+    expect(page.items[0].confidence).toBe('MEDIUM');
+    for (const reason of DUPLICATE_COMBINED_CASE.expectedReasons) {
+      expect(DUPLICATE_MATCH_WEIGHTS[reason]).toBeLessThan(page.items[0].score);
+    }
+  });
+});
+
+describe('PatientDuplicateService - queue summary and paging', () => {
+  /** n distinct same-name-and-dob pairs, each scoring MEDIUM on its own. */
+  function pairsOfSize(count: number) {
+    const pairs: { patientAId: string; patientBId: string }[] = [];
+    const patients: ReturnType<typeof chart>[] = [];
+    for (let i = 0; i < count; i += 1) {
+      const a = `00000000-0000-4000-8000-${String(i * 2 + 100).padStart(12, '0')}`;
+      const b = `00000000-0000-4000-8000-${String(i * 2 + 101).padStart(12, '0')}`;
+      pairs.push({ patientAId: a, patientBId: b });
+      patients.push(
+        chart({ id: a, firstName: `First${i}`, lastName: `Last${i}` }),
+        chart({ id: b, firstName: `First${i}`, lastName: `Last${i}` }),
+      );
+    }
+    return { pairs, patients };
+  }
+
+  it('reports the queue summary alongside the page', async () => {
+    const highPair = DUPLICATE_RULE_CASES.find((r) => r.expectedConfidence === 'HIGH')!;
+    const { service } = createService({
+      pairs: [
+        { patientAId: highPair.left.id, patientBId: highPair.right.id },
+        { patientAId: 'cross-a', patientBId: 'cross-b' },
+      ],
+      patients: [
+        chart({ id: highPair.left.id, nationalIdHash: 'shared-hash' }),
+        chart({ id: highPair.right.id, nationalIdHash: 'shared-hash' }),
+        chart({ id: 'cross-a', nationalIdHash: 'other-hash' }),
+        chart({ id: 'cross-b', nationalIdHash: 'other-hash', primaryClinicId: CLINIC_B }),
+      ],
+    });
+
+    const page = await service.listCandidates(systemAdmin, { clinicId: null });
+
+    expect(page.summary.open).toBe(2);
+    expect(page.summary.high).toBe(2);
+    expect(page.summary.crossClinic).toBe(1);
+    expect(page.summary.dismissed).toBe(0);
+  });
+
+  /*
+    Blocking stops at a fixed ceiling, because the alternative on a large clinic is a scan that
+    does not finish. An operator who is shown 500 pairs and not told there were more will believe
+    they have cleared the queue when they have not.
+  */
+  it('says so when blocking hit its ceiling', async () => {
+    const { pairs, patients } = pairsOfSize(DUPLICATE_PAIR_SCAN_LIMIT);
+    const { service } = createService({ pairs, patients });
+
+    const page = await service.listCandidates(systemAdmin, { clinicId: CLINIC_A });
+
+    expect(page.truncated).toBe(true);
+  });
+
+  it('does not claim truncation when blocking came back under the ceiling', async () => {
+    const { pairs, patients } = pairsOfSize(3);
+    const { service } = createService({ pairs, patients });
+
+    const page = await service.listCandidates(systemAdmin, { clinicId: CLINIC_A });
+
+    expect(page.truncated).toBe(false);
+    expect(page.total).toBe(3);
+  });
+
+  it.each([
+    ['a page size below one', { pageSize: 0 }, 1],
+    ['a negative page size', { pageSize: -10 }, 1],
+    ['a page size past the ceiling', { pageSize: 5000 }, 100],
+  ])('clamps %s', async (_label, filters, expected) => {
+    const { pairs, patients } = pairsOfSize(2);
+    const { service } = createService({ pairs, patients });
+
+    const page = await service.listCandidates(systemAdmin, { clinicId: CLINIC_A }, filters);
+
+    expect(page.pageSize).toBe(expected);
+  });
+
+  it('clamps a page number below one rather than reading backwards off the array', async () => {
+    const { pairs, patients } = pairsOfSize(2);
+    const { service } = createService({ pairs, patients });
+
+    const page = await service.listCandidates(systemAdmin, { clinicId: CLINIC_A }, { page: 0 });
+
+    expect(page.page).toBe(1);
+    expect(page.items).toHaveLength(2);
+  });
+
+  it('keeps the unfiltered total while returning one page of it', async () => {
+    const { pairs, patients } = pairsOfSize(4);
+    const { service } = createService({ pairs, patients });
+
+    const page = await service.listCandidates(
+      systemAdmin,
+      { clinicId: CLINIC_A },
+      { page: 2, pageSize: 3 },
+    );
+
+    expect(page.total).toBe(4);
+    expect(page.items).toHaveLength(1);
+  });
+});
+
+describe('PatientDuplicateService.recordReview - revisiting a decision', () => {
+  const pairKey = duplicatePairKey(
+    '00000000-0000-4000-8000-000000000001',
+    '00000000-0000-4000-8000-000000000002',
+  );
+
+  /*
+    A decision can be revisited: the queue offers an undo, and an operator who dismissed a pair in
+    error has to be able to say so. The audit event is what makes that reversible-but-accountable,
+    and it needs the previous state -- which is only present on the update path.
+  */
+  it('carries the previous decision into the audit event when one is overwritten', async () => {
+    const { service, logWrite, upsert, reviewFindUnique } = createService({
+      patients: [
+        chart({ id: '00000000-0000-4000-8000-000000000001' }),
+        chart({ id: '00000000-0000-4000-8000-000000000002' }),
+      ],
+    });
+    reviewFindUnique.mockResolvedValue({
+      status: PatientDuplicateReviewStatus.DISMISSED,
+      note: 'Twin sisters, checked with the family',
+    });
+    upsert.mockResolvedValue({
+      id: 'review-1',
+      pairKey,
+      status: PatientDuplicateReviewStatus.CONFIRMED,
+      note: 'Reversed: same person after all',
+      reviewedAt: new Date('2026-09-02T12:00:00.000Z'),
+      reviewedBy: { id: 'user-admin', displayName: 'Admin' },
+    });
+
+    await service.recordReview(
+      systemAdmin,
+      { clinicId: CLINIC_A },
+      {
+        patientAId: '00000000-0000-4000-8000-000000000001',
+        patientBId: '00000000-0000-4000-8000-000000000002',
+        status: PatientDuplicateReviewStatus.CONFIRMED,
+        note: 'Reversed: same person after all',
+      },
+      'req-1',
+    );
+
+    const event = logWrite.mock.calls[0][0];
+    expect(JSON.parse(event.beforeJson)).toEqual({
+      status: 'DISMISSED',
+      note: 'Twin sisters, checked with the family',
+    });
+    expect(JSON.parse(event.afterJson)).toMatchObject({ status: 'CONFIRMED' });
+  });
+
+  it('records no previous state the first time a pair is decided', async () => {
+    const { service, logWrite, upsert } = createService({
+      patients: [
+        chart({ id: '00000000-0000-4000-8000-000000000001' }),
+        chart({ id: '00000000-0000-4000-8000-000000000002' }),
+      ],
+    });
+    upsert.mockResolvedValue({
+      id: 'review-1',
+      pairKey,
+      status: PatientDuplicateReviewStatus.DISMISSED,
+      note: null,
+      reviewedAt: new Date('2026-09-02T12:00:00.000Z'),
+      reviewedBy: null,
+    });
+
+    await service.recordReview(
+      systemAdmin,
+      { clinicId: CLINIC_A },
+      {
+        patientAId: '00000000-0000-4000-8000-000000000001',
+        patientBId: '00000000-0000-4000-8000-000000000002',
+        status: PatientDuplicateReviewStatus.DISMISSED,
+      },
+      'req-1',
+    );
+
+    expect(logWrite.mock.calls[0][0].beforeJson).toBeNull();
   });
 });
