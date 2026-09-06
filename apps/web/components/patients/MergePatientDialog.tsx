@@ -17,6 +17,7 @@ import {
 import {
   DUPLICATE_CONFIDENCE_LABELS,
   confidenceBadgeVariant,
+  describeMatchPrecision,
   formatReasons,
 } from '@/lib/patient-duplicates';
 import { useAsyncResource } from '@/lib/use-async-resource';
@@ -475,27 +476,50 @@ function ChooseStep({
   );
 }
 
+/*
+  Two lists that mean opposite things: one stops the merge, the other does not.
+
+  They were told apart by colour alone, with the same icon on both, which fails for anyone who
+  cannot distinguish the two tones and reads as one long list of problems for everyone else.
+  Neither carried a heading, so nothing on screen actually said that a blocker blocks -- an
+  operator had to infer it from the disabled button further down.
+*/
 function FindingList({ findings, tone }: { findings: MergeFinding[]; tone: 'error' | 'warning' }) {
   if (findings.length === 0) return null;
 
+  const blocking = tone === 'error';
+  const Icon = blocking ? ShieldAlert : AlertTriangle;
+  const heading = blocking
+    ? findings.length === 1
+      ? 'This merge cannot go ahead'
+      : `This merge cannot go ahead — ${findings.length} reasons`
+    : 'Worth reading before you continue';
+
   return (
-    <ul className="space-y-2">
-      {findings.map((finding) => (
-        <li key={finding.code}>
-          <InlineNotice tone={tone}>
-            <span className="flex gap-2">
-              <AlertTriangle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>
-                <span className="font-medium">{finding.label}</span>
-                {finding.detail ? <span className="opacity-90"> — {finding.detail}</span> : null}
-                {/* Every refusal names a next step; a blocker nobody can act on is a support call. */}
-                <span className="mt-1 block opacity-90">{finding.recovery}</span>
+    <section className="space-y-2">
+      <h3
+        className={`text-sm font-semibold ${blocking ? 'text-destructive-ink' : 'text-warning-ink'}`}
+      >
+        {heading}
+      </h3>
+      <ul className="space-y-2">
+        {findings.map((finding) => (
+          <li key={finding.code}>
+            <InlineNotice tone={tone}>
+              <span className="flex gap-2">
+                <Icon aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  <span className="font-medium">{finding.label}</span>
+                  {finding.detail ? <span className="opacity-90"> — {finding.detail}</span> : null}
+                  {/* Every refusal names a next step; a blocker nobody can act on is a support call. */}
+                  <span className="mt-1 block opacity-90">{finding.recovery}</span>
+                </span>
               </span>
-            </span>
-          </InlineNotice>
-        </li>
-      ))}
-    </ul>
+            </InlineNotice>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -536,6 +560,13 @@ function ReviewStep({
           </span>
         )}
       </div>
+
+      {/* Said plainly, because a resemblance and an exact match look identical in the list above. */}
+      {describeMatchPrecision(preview.duplicateSignal.reasons) ? (
+        <p className="text-sm text-warning-ink">
+          {describeMatchPrecision(preview.duplicateSignal.reasons)}
+        </p>
+      ) : null}
 
       <FindingList findings={preview.blockers} tone="error" />
       <FindingList findings={preview.warnings} tone="warning" />

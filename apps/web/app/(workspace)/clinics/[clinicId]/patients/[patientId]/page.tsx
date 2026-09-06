@@ -129,6 +129,8 @@ function PatientChartWorkspace() {
   const opsDestination = getOpsDestination(perms);
 
   const [data, setData] = useState<PatientWithEncounters | null>(null);
+  /** Set when this chart was reached by the id of one a merge retired. */
+  const [mergedFrom, setMergedFrom] = useState<string | null>(null);
   const [portalLinkOpen, setPortalLinkOpen] = useState(false);
   const [portalLinkUserId, setPortalLinkUserId] = useState('');
   const [portalLinkSearch, setPortalLinkSearch] = useState('');
@@ -411,12 +413,24 @@ function PatientChartWorkspace() {
     );
   }, [clinicId, patientId, router, searchParams]);
 
+  /*
+    Arriving at a chart by the id of one a merge retired.
+
+    Everything the clinic already printed -- an appointment card, a referral letter, a link in an
+    old message -- still names the retired chart, so this is an ordinary way to arrive, not an
+    error. It was announced as a success in the product's own vocabulary ("the canonical chart"),
+    and the notice was then lost on the redirect it announced, so a reader saw a different patient
+    code than the one they clicked with no explanation still on screen.
+
+    The notice is held in its own state because `resolvedFromPatientId` is gone from the next
+    fetch: once the address bar names the surviving chart, nothing was resolved.
+  */
   useEffect(() => {
     if (data?.patient.id && data.patient.id !== patientId) {
-      setSuccess('This patient record was merged. Opening the canonical chart.');
+      setMergedFrom(data.resolvedFromPatientId ?? patientId);
       router.replace(`/clinics/${clinicId}/patients/${data.patient.id}`);
     }
-  }, [clinicId, data?.patient.id, patientId, router]);
+  }, [clinicId, data?.patient.id, data?.resolvedFromPatientId, patientId, router]);
 
   const researchConsent = data?.consentStatus?.find(
     (c) => c.consentType === 'RESEARCH_DEIDENTIFIED',
@@ -641,6 +655,15 @@ function PatientChartWorkspace() {
       </div>
 
       {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
+      {mergedFrom ? (
+        <InlineNotice tone="info">
+          <span className="block font-medium">The record you opened was merged into this one.</span>
+          <span className="mt-1 block text-xs leading-5">
+            Visits, measurements and messages filed under the old record are all here. The old
+            patient code still finds this chart.
+          </span>
+        </InlineNotice>
+      ) : null}
       {success ? (
         <InlineNotice tone="success">
           <span>{success}</span>
