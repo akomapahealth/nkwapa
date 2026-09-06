@@ -124,8 +124,25 @@ export default function ClaimRecordPage() {
   };
 
   return (
+    /*
+      This route renders outside both shells on purpose -- a claimant holds no clinic and no roles,
+      so neither AppLayout nor PortalLayout applies to it. The landmark and the skip link came with
+      those shells, which left the one page a patient works through alone as the only route in the
+      product with no `main` element and nothing to skip the header with. Both are restored here
+      rather than by wrapping the page in a shell it does not belong in.
+    */
     <div className="bg-clinical-grid min-h-screen px-4 py-10 md:px-6">
-      <div className="mx-auto flex max-w-5xl flex-col gap-6">
+      <a
+        href="#main-content"
+        className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:left-4 focus-visible:top-4 focus-visible:z-50 focus-visible:rounded-lg focus-visible:bg-background focus-visible:px-4 focus-visible:py-3 focus-visible:text-sm focus-visible:font-medium focus-visible:shadow-sm focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Skip to main content
+      </a>
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="mx-auto flex max-w-5xl flex-col gap-6 focus-visible:outline-none"
+      >
         <Card className="overflow-hidden rounded-xl border-border bg-card shadow-sm">
           <CardContent className="grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
             <section className="relative overflow-hidden px-6 py-8 md:px-10 md:py-10">
@@ -356,7 +373,7 @@ export default function ClaimRecordPage() {
             </section>
           </CardContent>
         </Card>
-      </div>
+      </main>
     </div>
   );
 }
