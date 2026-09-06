@@ -109,6 +109,7 @@ is the part that genuinely needs a person.
 | Every way a claim is refused, and the four ways it is accepted  | `patient-portal/patient-claim.spec.ts`                              |
 | Canonical chart redirects, including a merge chain and a cycle  | `patients/patient.repository.spec.ts`                               |
 | A refused merge, and the redirect banner, in a browser          | `e2e/patient-identity.spec.js`, `e2e/patient-merge-preview.spec.js` |
+| Claiming a record, refused and accepted, as the patient         | `e2e/patient-claim.spec.js`                                         |
 
 640 is in the width list because it is what 1280 becomes at 200% zoom.
 
@@ -255,12 +256,14 @@ reach is naming the same chart twice.
 Run as the patient, not as staff. Every refusal must say what to do next; a refusal a patient
 cannot act on ends with them phoning a clinic that cannot see what they saw.
 
-- [ ] a valid claim links the account and lands on `/portal`
+`e2e/patient-claim.spec.js` now signs in as an invited, unclaimed account and covers the routing,
+both detail mismatches, the skip link and keyboard order, four widths, axe, and a real claim. What
+is left below is what that spec cannot reach: states needing a second account, a lapsed
+invitation, or a chart the claim form cannot be pointed at.
+
 - [ ] "E2E By Phone" can be claimed from an account whose number matches and whose email does not
 - [ ] "E2E No Birthday" is refused, and says to ask clinic staff to add the date of birth — not to
       try again
-- [ ] a wrong patient code and a wrong date of birth are each refused separately, and neither
-      refusal reveals whether the other was right
 - [ ] an account that was never invited is refused on identity before the code is even considered
 - [ ] an expired invitation names the date it expired
 - [ ] a cancelled invitation says the clinic cancelled it
@@ -268,10 +271,14 @@ cannot act on ends with them phoning a clinic that cannot see what they saw.
 - [ ] a record already connected to another sign-in is refused rather than taken over
 - [ ] the old patient code from a merged chart still claims the surviving record
 
+**Fixture note:** a successful claim links the account for good. `SEED_SAMPLE_IDENTITY` clears the
+link, the role, the `portalUserId` and the settled invitation on every seed, so re-running
+`npm run db:seed` puts the claimant back rather than leaving it spent.
+
 ### Widths and keyboard
 
-- [ ] 375 / 768 / 1024 / 1440 and 200% zoom: the duplicate queue, the merge panel and the claim
-      form never scroll sideways
+- [ ] 375 / 768 / 1024 / 1440 and 200% zoom: the duplicate queue and the merge panel never scroll
+      sideways (the claim form is covered by `e2e/patient-claim.spec.js`)
 - [ ] the merge panel is fully operable by keyboard, including both steps and the confirmation
 - [ ] a refusal on the claim form is announced, not only shown
 

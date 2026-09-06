@@ -89,6 +89,7 @@ operator inferred it from a disabled button further down.
 | Claim onboarding in `whoami`                                               | `apps/api/src/auth/auth.controller.spec.ts`                                           |
 | The table against the code and the published matrix                        | `apps/api/src/patients/patient-identity-matrix.spec.ts`                               |
 | A refused merge and the redirect banner, in a browser                      | `apps/web/e2e/patient-identity.spec.js`, `apps/web/e2e/patient-merge-preview.spec.js` |
+| Claiming a record in a browser, refused and accepted                       | `apps/web/e2e/patient-claim.spec.js`                                                  |
 
 ## Test data requirements
 
@@ -96,22 +97,24 @@ operator inferred it from a disabled button further down.
 
 `SEED_SAMPLE_IDENTITY=true` stages what using the product cannot produce:
 
-| Fixture                                                                         | Why it cannot be made by hand                                                       |
-| ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| "E2E Retired" already merged into "E2E Merged", with the alias and merge record | A merge is irreversible, so producing this state destroys whatever it was made from |
-| "E2E Keep Blocked" / "E2E Duplicate Blocked", colliding with "E2E Collision"    | An alias collision takes SQL to arrange                                             |
-| "E2E No Birthday", live invitation, no date of birth                            | The registry will not create a chart in this state                                  |
-| "E2E By Phone", phone-only invitation                                           | Nothing else seeds one, and it is the ordinary case for a patient with no email     |
+| Fixture                                                                         | Why it cannot be made by hand                                                              |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| "E2E Retired" already merged into "E2E Merged", with the alias and merge record | A merge is irreversible, so producing this state destroys whatever it was made from        |
+| "E2E Keep Blocked" / "E2E Duplicate Blocked", colliding with "E2E Collision"    | An alias collision takes SQL to arrange                                                    |
+| "E2E No Birthday", live invitation, no date of birth                            | The registry will not create a chart in this state                                         |
+| "E2E By Phone", phone-only invitation                                           | Nothing else seeds one, and it is the ordinary case for a patient with no email            |
+| "E2E Claimable", plus a roleless `e2e.claimant` account holding its invitation  | The only state that can reach `/claim-record`; a linked account is redirected away from it |
 
 Both flags are set on the CI e2e job. Each chart is guarded on its globally unique national ID
 hash, so re-seeding is a no-op.
 
 ## Residual risks
 
-- **The claim flow has no browser coverage.** The seeded portal identity is already claimed, so it
-  is redirected away from `/claim-record`, and covering the flow end to end needs a second
-  unclaimed Keycloak identity that the e2e setup does not have. Every branch is covered at the
-  service and controller level, and section 6b of the user testing guide covers it by hand.
+- **The claim flow's browser coverage is partial.** `e2e/patient-claim.spec.js` signs in as an
+  invited, unclaimed identity and covers routing, both detail mismatches, the skip link, keyboard
+  order, four widths, axe, and a real claim. The states one account cannot reach -- a phone-only
+  match, a lapsed or cancelled invitation, a record already linked elsewhere -- stay in section 6b
+  as manual checks and are covered at the service level.
 - **Cross-clinic consolidation is still refused outright**, and the queue marks such pairs as not
   mergeable. That is the next ticket, not a gap here.
 - **`listPendingInvitesForUser` has no route and no test.** It duplicates the onboarding query with
