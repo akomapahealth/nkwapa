@@ -8,6 +8,8 @@
  */
 
 import {
+  CLAIM_REFUSAL_LABELS,
+  CLAIM_REFUSAL_RECOVERY,
   DUPLICATE_CONFIDENCE_THRESHOLDS,
   DUPLICATE_MATCH_REASON_LABELS,
   DUPLICATE_MATCH_WEIGHTS,
@@ -18,6 +20,8 @@ import {
 } from '@nkwapa/db';
 
 import {
+  CLAIM_ACCEPTED_CASES,
+  CLAIM_REFUSAL_CASES,
   DUPLICATE_COMBINED_CASE,
   DUPLICATE_RULE_CASES,
   MERGE_FINDING_CASES,
@@ -111,6 +115,39 @@ export function renderPatientIdentityMatrix(): string {
         MERGE_FINDING_RECOVERY[finding.code]
       } | ${finding.staging} |`,
     );
+  }
+  lines.push('');
+
+  lines.push('## Claiming a record');
+  lines.push('');
+  lines.push(
+    'The one identity workflow a patient drives alone. Every refusal names what happened and what',
+  );
+  lines.push(
+    'to do next, because there is no staff member beside them to interpret it and the clinic cannot',
+  );
+  lines.push('see what they saw.');
+  lines.push('');
+  lines.push('| Refusal | Status | What the patient reads | What to do | How to reproduce |');
+  lines.push('| --- | --- | --- | --- | --- |');
+  for (const outcome of CLAIM_REFUSAL_CASES) {
+    lines.push(
+      `| \`${outcome.code}\` | ${outcome.status} | ${CLAIM_REFUSAL_LABELS[outcome.code]} | ${
+        CLAIM_REFUSAL_RECOVERY[outcome.code]
+      } | ${outcome.staging} |`,
+    );
+  }
+  lines.push('');
+  lines.push(
+    'Identity is checked before the patient code and the date of birth, so an account that was',
+  );
+  lines.push(
+    'never invited learns nothing about whether the code it guessed was right. A claim is accepted',
+  );
+  lines.push('by four routes:');
+  lines.push('');
+  for (const accepted of CLAIM_ACCEPTED_CASES) {
+    lines.push(`- **${accepted.id}** -- ${accepted.staging}`);
   }
   lines.push('');
 

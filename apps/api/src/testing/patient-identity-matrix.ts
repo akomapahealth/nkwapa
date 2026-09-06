@@ -12,9 +12,11 @@
  */
 
 import {
+  CLAIM_REFUSAL_CODES,
   DUPLICATE_MATCH_REASONS,
   MERGE_BLOCKER_CODES,
   MERGE_WARNING_CODES,
+  type ClaimRefusalCode,
   type DuplicateCandidateInput,
   type DuplicateConfidence,
   type DuplicateMatchReason,
@@ -299,9 +301,118 @@ export const MERGE_FINDING_CASES: readonly MergeFindingCase[] = [
   },
 ] as const;
 
+/**
+ * One way a claim ends, and the state that produces it.
+ *
+ * The status matters as much as the wording. A patient who is told "not found" when the answer
+ * is "that invitation lapsed" has been sent to a dead end, and the whole reason the claim path
+ * re-reads a missed invitation by id is to tell those two apart.
+ */
+export interface ClaimOutcomeCase {
+  code: ClaimRefusalCode;
+  /** The HTTP status the refusal is raised with. */
+  status: 400 | 403 | 404 | 409;
+  /** How to reproduce it against a seeded environment. */
+  staging: string;
+}
+
+export const CLAIM_REFUSAL_CASES: readonly ClaimOutcomeCase[] = [
+  {
+    code: 'ACCOUNT_INACTIVE',
+    status: 404,
+    staging: 'Deactivate the signed-in account in the admin screens, then attempt the claim.',
+  },
+  {
+    code: 'INVITE_NOT_FOUND',
+    status: 404,
+    staging: 'Claim with an invitation id that names no invitation at all.',
+  },
+  {
+    code: 'INVITE_EXPIRED',
+    status: 400,
+    staging:
+      'Claim the seeded "E2E Lifecycle" chart\'s expired invitation, before the hourly sweep ' +
+      'settles it. The refusal names the date it lapsed.',
+  },
+  {
+    code: 'INVITE_CANCELLED',
+    status: 400,
+    staging: 'Cancel a live invitation from the patient chart, then claim it.',
+  },
+  {
+    code: 'INVITE_ALREADY_USED',
+    status: 409,
+    staging: 'Claim an invitation a second time, from any account.',
+  },
+  {
+    code: 'RECORD_MERGED',
+    status: 409,
+    staging:
+      'Claim an invitation still pointing at a chart a merge has retired. A merge repoints every ' +
+      'invitation, so this is reachable only from a seeded fixture or a restored backup.',
+  },
+  {
+    code: 'CONTACT_MISMATCH',
+    status: 403,
+    staging: 'Sign in as an account whose email and phone are neither of the staged contacts.',
+  },
+  {
+    code: 'PATIENT_CODE_MISMATCH',
+    status: 400,
+    staging: 'Enter a patient code belonging to a different chart.',
+  },
+  {
+    code: 'DATE_OF_BIRTH_MISSING',
+    status: 400,
+    staging: 'Claim a chart whose date of birth was never recorded.',
+  },
+  {
+    code: 'DATE_OF_BIRTH_MISMATCH',
+    status: 400,
+    staging: 'Enter any date of birth other than the one on the chart.',
+  },
+  {
+    code: 'ACCOUNT_ALREADY_LINKED',
+    status: 409,
+    staging: 'Claim a second chart from an account that already holds one.',
+  },
+  {
+    code: 'RECORD_ALREADY_LINKED',
+    status: 409,
+    staging:
+      'Link a chart to one account, then claim it from another. Reachable through an invitation ' +
+      'issued before the link, or carried onto a linked chart by a merge.',
+  },
+] as const;
+
+/** The ways a claim succeeds. Each is a distinct route through the identity checks. */
+export const CLAIM_ACCEPTED_CASES: readonly { id: string; staging: string }[] = [
+  {
+    id: 'matching email',
+    staging: 'Sign in with the address the invitation was staged against. Case is ignored.',
+  },
+  {
+    id: 'matching phone',
+    staging:
+      'Sign in with the number a phone-only invitation was staged against, from an account whose ' +
+      'email matches nothing.',
+  },
+  {
+    id: 'a retired patient code',
+    staging:
+      'Enter the code the chart answered to before a merge. The alias the merge left behind is ' +
+      'accepted alongside the current code.',
+  },
+  {
+    id: 're-claiming an already held record',
+    staging: 'Claim again from the account that already holds the record.',
+  },
+] as const;
+
 /** Rules and findings the table must account for, so a new one cannot be added unnoticed. */
 export const IDENTITY_MATRIX_COVERAGE = {
   duplicateReasons: DUPLICATE_MATCH_REASONS,
   mergeBlockers: MERGE_BLOCKER_CODES,
   mergeWarnings: MERGE_WARNING_CODES,
+  claimRefusals: CLAIM_REFUSAL_CODES,
 } as const;

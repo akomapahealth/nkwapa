@@ -58,3 +58,33 @@ action with no way back.
 | `SOURCE_HAS_MORE_HISTORY` | The duplicate chart holds more history than the one you are keeping | Consider merging the other way round, so the fuller chart is the one that survives. | Choose the chart holding fewer visits and measurements as the survivor. |
 | `DUPLICATE_PAIR_PREVIOUSLY_DISMISSED` | Someone already decided these are two different people | Check the note left on that decision in the duplicate review queue before overriding it. | Dismiss the pair in the duplicate review queue, then preview a merge of it anyway. |
 
+## Claiming a record
+
+The one identity workflow a patient drives alone. Every refusal names what happened and what
+to do next, because there is no staff member beside them to interpret it and the clinic cannot
+see what they saw.
+
+| Refusal | Status | What the patient reads | What to do | How to reproduce |
+| --- | --- | --- | --- | --- |
+| `ACCOUNT_INACTIVE` | 404 | We could not find an active account for this sign-in. | Ask the clinic to reactivate your account, then sign in again. | Deactivate the signed-in account in the admin screens, then attempt the claim. |
+| `INVITE_NOT_FOUND` | 404 | This invitation link does not match an invitation we hold. | Open the link from the clinic’s message again, or ask them to send a new invitation. | Claim with an invitation id that names no invitation at all. |
+| `INVITE_EXPIRED` | 400 | This invitation has expired. | Ask the clinic to send you a new invitation. | Claim the seeded "E2E Lifecycle" chart's expired invitation, before the hourly sweep settles it. The refusal names the date it lapsed. |
+| `INVITE_CANCELLED` | 400 | This invitation was cancelled by the clinic. | Ask the clinic to send you a new invitation. | Cancel a live invitation from the patient chart, then claim it. |
+| `INVITE_ALREADY_USED` | 409 | This invitation has already been used. | If you have not used it yourself, tell the clinic before you sign in again. | Claim an invitation a second time, from any account. |
+| `RECORD_MERGED` | 409 | This record has been combined into another one. | Ask the clinic for a new invitation to the record they are using now. | Claim an invitation still pointing at a chart a merge has retired. A merge repoints every invitation, so this is reachable only from a seeded fixture or a restored backup. |
+| `CONTACT_MISMATCH` | 403 | This invitation was sent to a different email address or phone number. | Sign in with the account the clinic sent it to, or ask them to send it to this one instead. | Sign in as an account whose email and phone are neither of the staged contacts. |
+| `PATIENT_CODE_MISMATCH` | 400 | Patient code does not match this invitation. | Check the code on your patient card or in the clinic’s message, then enter it again. | Enter a patient code belonging to a different chart. |
+| `DATE_OF_BIRTH_MISSING` | 400 | This record has no date of birth on file, so it cannot be claimed yet. | Ask clinic staff to add your date of birth to your record first. | Claim a chart whose date of birth was never recorded. |
+| `DATE_OF_BIRTH_MISMATCH` | 400 | Date of birth does not match this invitation. | Enter your date of birth as the clinic recorded it, or ask them to correct it. | Enter any date of birth other than the one on the chart. |
+| `ACCOUNT_ALREADY_LINKED` | 409 | This sign-in is already connected to a different patient record. | Sign out and use the account the clinic invited, or ask them to move the invitation. | Claim a second chart from an account that already holds one. |
+| `RECORD_ALREADY_LINKED` | 409 | This record is already connected to a different sign-in. | Ask the clinic to confirm which sign-in should reach this record before trying again. | Link a chart to one account, then claim it from another. Reachable through an invitation issued before the link, or carried onto a linked chart by a merge. |
+
+Identity is checked before the patient code and the date of birth, so an account that was
+never invited learns nothing about whether the code it guessed was right. A claim is accepted
+by four routes:
+
+- **matching email** -- Sign in with the address the invitation was staged against. Case is ignored.
+- **matching phone** -- Sign in with the number a phone-only invitation was staged against, from an account whose email matches nothing.
+- **a retired patient code** -- Enter the code the chart answered to before a merge. The alias the merge left behind is accepted alongside the current code.
+- **re-claiming an already held record** -- Claim again from the account that already holds the record.
+

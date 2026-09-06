@@ -1,6 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
+  CLAIM_REFUSAL_CODES,
+  CLAIM_REFUSAL_LABELS,
+  CLAIM_REFUSAL_RECOVERY,
   DUPLICATE_MATCH_REASONS,
   DUPLICATE_MATCH_REASON_LABELS,
   DUPLICATE_MATCH_WEIGHTS,
@@ -11,6 +14,8 @@ import {
   evaluateDuplicatePair,
 } from '@nkwapa/db';
 import {
+  CLAIM_ACCEPTED_CASES,
+  CLAIM_REFUSAL_CASES,
   DUPLICATE_COMBINED_CASE,
   DUPLICATE_RULE_CASES,
   MERGE_FINDING_CASES,
@@ -115,6 +120,42 @@ describe('patient identity matrix', () => {
         expect(MERGE_FINDING_LABELS[finding.code]).not.toContain('_');
         expect(MERGE_FINDING_RECOVERY[finding.code]).toBeTruthy();
         expect(finding.staging.length).toBeGreaterThan(20);
+      }
+    });
+  });
+
+  describe('claim outcomes', () => {
+    it('accounts for every way a claim can be refused', () => {
+      expect(CLAIM_REFUSAL_CASES.map((entry) => entry.code).sort()).toEqual(
+        [...CLAIM_REFUSAL_CODES].sort(),
+      );
+    });
+
+    /*
+      The status is part of the answer, not decoration. A patient told "not found" when the truth
+      is "that invitation lapsed" has been sent to a dead end -- and telling those two apart is
+      the entire reason the claim path re-reads a missed invitation by id before refusing.
+    */
+    it('separates a lapsed invitation from one that never existed', () => {
+      const byCode = new Map(CLAIM_REFUSAL_CASES.map((entry) => [entry.code, entry]));
+
+      expect(byCode.get('INVITE_EXPIRED')?.status).toBe(400);
+      expect(byCode.get('INVITE_NOT_FOUND')?.status).toBe(404);
+      expect(byCode.get('INVITE_ALREADY_USED')?.status).toBe(409);
+    });
+
+    it('says what each refusal means and what to do about it', () => {
+      for (const outcome of CLAIM_REFUSAL_CASES) {
+        expect(CLAIM_REFUSAL_LABELS[outcome.code]).toBeTruthy();
+        expect(CLAIM_REFUSAL_RECOVERY[outcome.code]).toBeTruthy();
+        expect(outcome.staging.length).toBeGreaterThan(20);
+      }
+    });
+
+    it('describes how a claim is accepted, not only how it is refused', () => {
+      expect(CLAIM_ACCEPTED_CASES.length).toBeGreaterThanOrEqual(4);
+      for (const accepted of CLAIM_ACCEPTED_CASES) {
+        expect(accepted.staging.length).toBeGreaterThan(20);
       }
     });
   });
