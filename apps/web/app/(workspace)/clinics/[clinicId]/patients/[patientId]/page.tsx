@@ -411,12 +411,35 @@ function PatientChartWorkspace() {
     );
   }, [clinicId, patientId, router, searchParams]);
 
+  /*
+    Arriving at a chart by the id of one a merge retired.
+
+    Everything the clinic already printed -- an appointment card, a referral letter, a link in an
+    old message -- still names the retired chart, so this is an ordinary way to arrive, not an
+    error. It was announced as a success in the product's own vocabulary ("the canonical chart"),
+    and the notice was then lost on the redirect it announced, so a reader saw a different patient
+    code than the one they clicked with no explanation still on screen.
+
+    The notice is held in its own state because `resolvedFromPatientId` is gone from the next
+    fetch: once the address bar names the surviving chart, nothing was resolved.
+  */
   useEffect(() => {
     if (data?.patient.id && data.patient.id !== patientId) {
-      setSuccess('This patient record was merged. Opening the canonical chart.');
-      router.replace(`/clinics/${clinicId}/patients/${data.patient.id}`);
+      const from = data.resolvedFromPatientId ?? patientId;
+      router.replace(`/clinics/${clinicId}/patients/${data.patient.id}?mergedFrom=${from}`);
     }
-  }, [clinicId, data?.patient.id, patientId, router]);
+  }, [clinicId, data?.patient.id, data?.resolvedFromPatientId, patientId, router]);
+
+  /*
+    Reached by the id of a chart a merge retired.
+
+    Carried in the address rather than in component state: replacing the route changes the
+    `patientId` param, which remounts this page and threw the notice away -- leaving the reader
+    on a different patient code than the one they clicked with nothing accounting for it. In the
+    address it also survives a reload and travels in a shared link, which is the point of
+    explaining a redirect at all.
+  */
+  const mergedFrom = searchParams.get('mergedFrom');
 
   const researchConsent = data?.consentStatus?.find(
     (c) => c.consentType === 'RESEARCH_DEIDENTIFIED',
@@ -641,6 +664,15 @@ function PatientChartWorkspace() {
       </div>
 
       {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
+      {mergedFrom ? (
+        <InlineNotice tone="info">
+          <span className="block font-medium">The record you opened was merged into this one.</span>
+          <span className="mt-1 block text-xs leading-5">
+            Visits, measurements and messages filed under the old record are all here. The old
+            patient code still finds this chart.
+          </span>
+        </InlineNotice>
+      ) : null}
       {success ? (
         <InlineNotice tone="success">
           <span>{success}</span>

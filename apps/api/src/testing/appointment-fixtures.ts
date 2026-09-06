@@ -10,12 +10,23 @@
  * fixture derived from it.
  */
 
-export const FIXTURE_CLINIC_ID = 'clinic-1';
-export const FIXTURE_OTHER_CLINIC_ID = 'clinic-2';
-export const FIXTURE_PATIENT_ID = 'patient-1';
-export const FIXTURE_APPOINTMENT_ID = 'appointment-1';
-export const FIXTURE_REQUEST_ID = 'appt-req-1';
-export const FIXTURE_ACTOR_ID = 'manager-1';
+import {
+  FIXTURE_APPOINTMENT_ID,
+  FIXTURE_CLINIC_ID,
+  FIXTURE_PATIENT_ID,
+  FIXTURE_REQUEST_ID,
+} from './fixture-ids';
+
+// Re-exported so the appointment suites keep importing their identifiers from one place, while
+// the identity fixtures can reach the same values without importing an appointment module.
+export {
+  FIXTURE_ACTOR_ID,
+  FIXTURE_APPOINTMENT_ID,
+  FIXTURE_CLINIC_ID,
+  FIXTURE_OTHER_CLINIC_ID,
+  FIXTURE_PATIENT_ID,
+  FIXTURE_REQUEST_ID,
+} from './fixture-ids';
 
 /** Fixed so `requiresStarted` assertions do not depend on when the suite runs. */
 export const FIXTURE_FUTURE_START = new Date('2099-03-26T14:00:00.000Z');

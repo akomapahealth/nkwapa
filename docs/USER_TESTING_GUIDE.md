@@ -92,18 +92,23 @@ is the part that genuinely needs a person.
 
 ### Automated — do not re-do these by hand
 
-| Check                                                           | Where                                                            |
-| --------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Every route at 375 / 640 / 768 / 1024 / 1440, no overflow       | `e2e/responsive-migration.spec.js` (staff + portal)              |
-| Patient portal renders, per route, signed in as a patient       | `e2e/portal.spec.js`                                             |
-| A patient is refused every staff surface                        | `e2e/portal.spec.js`                                             |
-| Dark mode renders and passes axe on staff and portal routes     | `e2e/dark-mode.spec.js`                                          |
-| Dark mode survives navigation without flashing light            | `e2e/dark-mode.spec.js`                                          |
-| Automatable WCAG rules on the chart and the portal              | `accessibility.spec.js`, `portal.spec.js`                        |
-| Focus is visible on every control the keyboard reaches          | `accessibility.spec.js`, `portal.spec.js`, `login-theme.spec.js` |
-| Login theme: typeface, brand fill, radius, no third-party fonts | `e2e/login-theme.spec.js`                                        |
-| Loading / empty / error / retry on the three #22 routes         | `e2e/route-fallbacks.spec.js`                                    |
-| Chart series palette, contrast and colour-blind separation      | `npm run design:check-charts`                                    |
+| Check                                                           | Where                                                               |
+| --------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Every route at 375 / 640 / 768 / 1024 / 1440, no overflow       | `e2e/responsive-migration.spec.js` (staff + portal)                 |
+| Patient portal renders, per route, signed in as a patient       | `e2e/portal.spec.js`                                                |
+| A patient is refused every staff surface                        | `e2e/portal.spec.js`                                                |
+| Dark mode renders and passes axe on staff and portal routes     | `e2e/dark-mode.spec.js`                                             |
+| Dark mode survives navigation without flashing light            | `e2e/dark-mode.spec.js`                                             |
+| Automatable WCAG rules on the chart and the portal              | `accessibility.spec.js`, `portal.spec.js`                           |
+| Focus is visible on every control the keyboard reaches          | `accessibility.spec.js`, `portal.spec.js`, `login-theme.spec.js`    |
+| Login theme: typeface, brand fill, radius, no third-party fonts | `e2e/login-theme.spec.js`                                           |
+| Loading / empty / error / retry on the three #22 routes         | `e2e/route-fallbacks.spec.js`                                       |
+| Chart series palette, contrast and colour-blind separation      | `npm run design:check-charts`                                       |
+| Every duplicate rule, exact and fuzzy, reaching the queue       | `patients/patient-duplicate.service.spec.ts`                        |
+| Every merge refusal and warning, and both merge strategies      | `patients/patient-merge.service.spec.ts`                            |
+| Every way a claim is refused, and the four ways it is accepted  | `patient-portal/patient-claim.spec.ts`                              |
+| Canonical chart redirects, including a merge chain and a cycle  | `patients/patient.repository.spec.ts`                               |
+| A refused merge, and the redirect banner, in a browser          | `e2e/patient-identity.spec.js`, `e2e/patient-merge-preview.spec.js` |
 
 640 is in the width list because it is what 1280 becomes at 200% zoom.
 
@@ -189,7 +194,86 @@ Run once per environment, before enabling clinical records there. See
 - [ ] global `SYSTEM_ADMIN` assignment works
 - [ ] user deactivation works
 - [ ] self-deactivation is blocked
-- [ ] duplicate patient merge succeeds for same-clinic charts
+- [ ] duplicate patient merge succeeds for same-clinic charts (section 6b covers the rest)
+
+---
+
+## 6b. Patient Identity Matrix
+
+Signed in as a system administrator. Run this when a release touched duplicate detection, patient
+merge, the portal claim, or anything that resolves a chart by id or by code.
+
+Identity is the one workflow here where a mistake is a safety incident rather than a bug: a merge
+cannot be undone from the product, and a mis-scoped claim hands one patient another patient's
+record. See `docs/security/patient-identity-matrix.md` for the rules behind these checks — it is
+generated from the table the API suite asserts against, so it cannot drift from the code.
+
+**Fixtures:** `SEED_SAMPLE_DUPLICATES` stages two duplicate pairs, and `SEED_SAMPLE_IDENTITY`
+stages four charts the product cannot produce: "E2E Merged" with "E2E Retired" already merged into
+it, "E2E Keep Blocked" and "E2E Duplicate Blocked" whose merge is refused because "E2E Collision"
+already answers to the duplicate's code, "E2E No Birthday" with a live invitation and no date of
+birth, and "E2E By Phone" with a phone-only invitation. Without them the only merge refusal you can
+reach is naming the same chart twice.
+
+### The duplicate review queue
+
+- [ ] `/admin/duplicates` lists both seeded pairs, strongest first
+- [ ] each row reads in plain language — "Very likely", "Same name and date of birth" — and never
+      shows an enum value
+- [ ] the Kwabena / Kwabina pair says the names are not spelt the same, because it matched on a
+      resemblance rather than an exact value
+- [ ] a clinic manager sees only their own clinic's pairs; a cross-clinic pair is marked as not
+      mergeable rather than offering a button that can only fail
+- [ ] dismissing a pair hides it, the filter brings it back, and undoing it is possible
+- [ ] the queue never changes a chart: after any decision, both patient records are untouched
+
+### Previewing a merge
+
+- [ ] the preview names, for both charts, what moves and what is left behind
+- [ ] a national ID appears only as its last four digits, never in full
+- [ ] "E2E Keep Blocked" against "E2E Duplicate Blocked" is refused, says the duplicate's code is
+      already recorded against another chart, and tells you to ask a system administrator
+- [ ] a refused merge offers no way to commit it — not a disabled button further down, no step at
+      all
+- [ ] a warning is visibly different from a refusal by more than its colour, and each list says
+      whether it stops the merge
+- [ ] the confirmation asks for the retiring chart's code typed back, and backing out changes
+      nothing
+- [ ] a preview left open while the chart changes elsewhere is refused on submit, and says to
+      preview again
+
+### Canonical chart redirects
+
+- [ ] opening "E2E Retired" by its own address lands on "E2E Merged"
+- [ ] the page says the record you opened was merged into this one, and the notice is still there
+      after the address changes
+- [ ] the retired chart does not appear in the patient list or in search
+- [ ] the merged chart's visits, measurements and invitations are all present on the survivor
+
+### Claiming a record
+
+Run as the patient, not as staff. Every refusal must say what to do next; a refusal a patient
+cannot act on ends with them phoning a clinic that cannot see what they saw.
+
+- [ ] a valid claim links the account and lands on `/portal`
+- [ ] "E2E By Phone" can be claimed from an account whose number matches and whose email does not
+- [ ] "E2E No Birthday" is refused, and says to ask clinic staff to add the date of birth — not to
+      try again
+- [ ] a wrong patient code and a wrong date of birth are each refused separately, and neither
+      refusal reveals whether the other was right
+- [ ] an account that was never invited is refused on identity before the code is even considered
+- [ ] an expired invitation names the date it expired
+- [ ] a cancelled invitation says the clinic cancelled it
+- [ ] claiming the same invitation twice is refused the second time
+- [ ] a record already connected to another sign-in is refused rather than taken over
+- [ ] the old patient code from a merged chart still claims the surviving record
+
+### Widths and keyboard
+
+- [ ] 375 / 768 / 1024 / 1440 and 200% zoom: the duplicate queue, the merge panel and the claim
+      form never scroll sideways
+- [ ] the merge panel is fully operable by keyboard, including both steps and the confirmation
+- [ ] a refusal on the claim form is announced, not only shown
 
 ---
 
@@ -650,6 +734,4 @@ These areas are implemented but still worth extra regression attention:
 
 - appointment times where staff, the clinic, and the browser are in different zones
 - offline behavior outside the original EMR flow
-- portal invite and claim edge cases
-- duplicate patient merge and canonical-chart redirects
 - organization and zone-related assumptions in new features

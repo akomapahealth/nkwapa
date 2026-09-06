@@ -286,6 +286,222 @@ async function seedSampleAppointments(
   console.log('Seeded appointment demo patient, 4 appointments, and 2 pending requests.');
 }
 
+/**
+ * Fixtures for the identity workflows that cannot be produced by using the product.
+ *
+ * A merge is irreversible, so manual QA of canonical redirects has only two options: perform one
+ * and destroy the duplicate review fixtures with it, or be handed a chart that was already
+ * merged. This seeds the second. The same reasoning applies to the blocked merge: an operator
+ * needs to meet a refusal at least once to know what one looks like, and manufacturing an alias
+ * collision by hand means writing SQL.
+ *
+ * Every chart here is guarded on its own national ID hash, which is globally unique, so re-seeding
+ * is a no-op rather than a duplicate.
+ */
+async function seedIdentityFixtures(
+  prisma: PrismaClient,
+  clinicId: string,
+  ownerUserId: string,
+): Promise<void> {
+  /** Create a chart, or return the one already seeded under this national ID. */
+  async function ensureChart(input: {
+    firstName: string;
+    lastName: string;
+    dob: Date | null;
+    sex: Sex;
+    phoneE164: string | null;
+    email: string | null;
+    nationalId: string;
+  }) {
+    const nationalIdHash = hashNationalId(input.nationalId);
+    const existing = await prisma.patient.findUnique({ where: { nationalIdHash } });
+    if (existing) return { patient: existing, created: false };
+
+    const patient = await prisma.patient.create({
+      data: {
+        patientCode: await generatePatientCode(prisma),
+        primaryClinicId: clinicId,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        dob: input.dob,
+        sex: input.sex,
+        phoneE164: input.phoneE164,
+        email: input.email,
+        nationalIdType: NationalIdType.NATIONAL_ID,
+        nationalIdCiphertext: encryptNationalId(input.nationalId),
+        nationalIdHash,
+        nationalIdLast4: nationalIdLast4(input.nationalId),
+      },
+    });
+    return { patient, created: true };
+  }
+
+  /*
+    An already-merged pair.
+
+    "E2E Merged" is the survivor; "E2E Retired" is the tombstone, renamed the way the merge
+    renames one and carrying a pointer at the survivor. The survivor holds an alias for the code
+    the retired chart gave up, which is what makes both the canonical redirect and the
+    claim-by-old-code path reachable without performing a merge.
+  */
+  const survivor = await ensureChart({
+    firstName: 'E2E',
+    lastName: 'Merged',
+    dob: new Date('1981-02-14'),
+    sex: Sex.FEMALE,
+    phoneE164: '+233201234599',
+    email: 'e2e.merged@nkwapa.local',
+    nationalId: 'GH-E2E-MERGED-220017',
+  });
+  const retired = await ensureChart({
+    firstName: 'E2E',
+    lastName: 'Retired',
+    dob: new Date('1981-02-14'),
+    sex: Sex.FEMALE,
+    phoneE164: '+233201234599',
+    email: null,
+    nationalId: 'GH-E2E-RETIRED-220018',
+  });
+
+  if (retired.created) {
+    const retiredCode = retired.patient.patientCode;
+    const mergedAt = daysFromNow(-5);
+
+    await prisma.patient.update({
+      where: { id: retired.patient.id },
+      data: {
+        patientCode: `${retiredCode}-M-SEEDED01`.slice(0, 32),
+        mergedIntoPatientId: survivor.patient.id,
+        mergedAt,
+        mergedByUserId: ownerUserId,
+        portalUserId: null,
+      },
+    });
+    await prisma.patientCodeAlias.upsert({
+      where: { code: retiredCode },
+      create: { patientId: survivor.patient.id, code: retiredCode },
+      update: { patientId: survivor.patient.id },
+    });
+    await prisma.patientMergeRecord.upsert({
+      where: { sourcePatientId: retired.patient.id },
+      create: {
+        clinicId,
+        canonicalPatientId: survivor.patient.id,
+        sourcePatientId: retired.patient.id,
+        sourcePatientCode: retiredCode,
+        tombstonePatientCode: `${retiredCode}-M-SEEDED01`.slice(0, 32),
+        portalLinkStrategy: 'CANONICAL',
+        inviteStrategy: 'MERGE',
+        movedCountsJson: JSON.stringify({ encounter: 0, patientCodeAlias: 1 }),
+        warningCodesJson: JSON.stringify(['WEAK_DUPLICATE_SIGNAL']),
+        mergedByUserId: ownerUserId,
+        mergedAt,
+      },
+      update: {},
+    });
+    console.log(
+      `Seeded a merged identity pair: ${retiredCode} now resolves to ${survivor.patient.patientCode}.`,
+    );
+  }
+
+  /*
+    A pair whose merge is refused.
+
+    A third chart already answers to the duplicate's code, so previewing the merge reports
+    ALIAS_CODE_COLLISION and offers no way forward. Without this, the only refusal an operator
+    can reach from a seeded database is "same chart on both sides".
+  */
+  // The two names differ so a test, or a person, can say which chart they meant. They still
+  // share a surname, a birthday and a phone number, so the pair still scores as a duplicate.
+  const blockedSurvivor = await ensureChart({
+    firstName: 'E2E Keep',
+    lastName: 'Blocked',
+    dob: new Date('1994-06-30'),
+    sex: Sex.MALE,
+    phoneE164: '+233201234577',
+    email: null,
+    nationalId: 'GH-E2E-BLOCKED-330019',
+  });
+  const blockedDuplicate = await ensureChart({
+    firstName: 'E2E Duplicate',
+    lastName: 'Blocked',
+    dob: new Date('1994-06-30'),
+    sex: Sex.MALE,
+    phoneE164: '+233201234577',
+    email: null,
+    nationalId: 'GH-E2E-BLOCKED-330020',
+  });
+  const collisionHolder = await ensureChart({
+    firstName: 'E2E',
+    lastName: 'Collision',
+    dob: new Date('1966-10-02'),
+    sex: Sex.FEMALE,
+    phoneE164: null,
+    email: null,
+    nationalId: 'GH-E2E-COLLISION-440021',
+  });
+
+  if (blockedDuplicate.created) {
+    await prisma.patientCodeAlias.upsert({
+      where: { code: blockedDuplicate.patient.patientCode },
+      create: {
+        patientId: collisionHolder.patient.id,
+        code: blockedDuplicate.patient.patientCode,
+      },
+      update: {},
+    });
+    console.log(
+      `Seeded a blocked merge: ${blockedSurvivor.patient.patientCode} <- ${blockedDuplicate.patient.patientCode} collides on a third chart's alias.`,
+    );
+  }
+
+  /*
+    Two charts that refuse a claim for reasons the invitation itself cannot show.
+
+    "E2E No Birthday" has a live invitation and no date of birth, so the claim form accepts the
+    code and then refuses -- the one claim refusal a patient can do nothing about alone. "E2E By
+    Phone" carries a phone-only invitation, which is the ordinary case for a patient with no email
+    address and had no fixture at all.
+  */
+  const noBirthday = await ensureChart({
+    firstName: 'E2E',
+    lastName: 'No Birthday',
+    dob: null,
+    sex: Sex.UNKNOWN,
+    phoneE164: null,
+    email: 'e2e.nobirthday@nkwapa.local',
+    nationalId: 'GH-E2E-NODOB-550022',
+  });
+  const byPhone = await ensureChart({
+    firstName: 'E2E',
+    lastName: 'By Phone',
+    dob: new Date('1977-12-01'),
+    sex: Sex.MALE,
+    phoneE164: '+233201234566',
+    email: null,
+    nationalId: 'GH-E2E-BYPHONE-660023',
+  });
+
+  for (const [chart, contact] of [
+    [noBirthday, { email: 'e2e.nobirthday@nkwapa.local', phoneE164: null }],
+    [byPhone, { email: null, phoneE164: '+233201234566' }],
+  ] as const) {
+    if (!chart.created) continue;
+    await prisma.patientPortalInvite.create({
+      data: {
+        patientId: chart.patient.id,
+        clinicId,
+        status: PatientPortalInviteStatus.PENDING,
+        email: contact.email,
+        phoneE164: contact.phoneE164,
+        createdByUserId: ownerUserId,
+        expiresAt: daysFromNow(14),
+      },
+    });
+    console.log(`Seeded a claim edge-case invitation for ${chart.patient.patientCode}.`);
+  }
+}
+
 async function main() {
   const organizationName = process.env.SEED_ORGANIZATION_NAME ?? 'Nkwapa Health';
   const organizationSlug = process.env.SEED_ORGANIZATION_SLUG ?? 'default';
@@ -748,6 +964,17 @@ async function main() {
 
   if (researchSettingsOwnerId) {
     await ensureResearchSettings(prisma, clinic.id, researchSettingsOwnerId);
+  }
+
+  const seedSampleIdentity = process.env.SEED_SAMPLE_IDENTITY === 'true';
+  if (seedSampleIdentity && researchSettingsOwnerId && hasEncryptionKey()) {
+    await seedIdentityFixtures(prisma, clinic.id, researchSettingsOwnerId);
+  } else if (seedSampleIdentity) {
+    console.warn(
+      hasEncryptionKey()
+        ? 'SEED_SAMPLE_IDENTITY=true but no seeded staff user exists to own the records; skipping.'
+        : 'SEED_SAMPLE_IDENTITY=true but NATIONAL_ID_ENCRYPTION_KEY not set; skipping.',
+    );
   }
 
   const seedSampleAppointmentData = process.env.SEED_SAMPLE_APPOINTMENTS === 'true';

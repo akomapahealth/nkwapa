@@ -8,6 +8,11 @@ import { AuditService } from '../audit/audit.service';
 import { EncounterService } from '../encounters/encounter.service';
 import { ConsentService } from '../consents/consent.service';
 import { EmailStatusService } from '../notifications/email/email-status.service';
+import {
+  IDENTITY_NOW as NOW,
+  identityDay as day,
+  portalInviteFixture as buildInvite,
+} from '../testing/patient-identity-fixtures';
 
 const FAKE_EMAIL_STATUS = {
   available: true,
@@ -460,23 +465,6 @@ describe('PatientService - resolveResidentialLocation invariant', () => {
  * identical.
  */
 describe('PatientService - portal access summary', () => {
-  const NOW = new Date('2026-09-02T12:00:00.000Z');
-  const day = (n: number) => new Date(NOW.getTime() + n * 24 * 60 * 60 * 1000);
-
-  const buildInvite = (overrides: Record<string, unknown> = {}) => ({
-    id: 'invite-1',
-    status: 'PENDING',
-    email: 'ama@example.com',
-    phoneE164: null,
-    createdAt: day(-1),
-    expiresAt: day(7),
-    claimedAt: null,
-    cancelledAt: null,
-    createdBy: { displayName: 'Nurse Adjoa' },
-    reminders: [],
-    ...overrides,
-  });
-
   let prisma: {
     patientAccountLink: { findUnique: jest.Mock };
     patientPortalInvite: { findMany: jest.Mock };

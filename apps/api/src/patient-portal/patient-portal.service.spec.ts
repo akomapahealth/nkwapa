@@ -11,6 +11,11 @@ import {
   createAppointmentPrismaMock,
   portalPatientFixture as portalPatient,
 } from '../testing/appointment-fixtures';
+import {
+  IDENTITY_NOW as NOW,
+  identityDay as day,
+  portalInviteFixture as buildInvite,
+} from '../testing/patient-identity-fixtures';
 
 describe('PatientPortalService', () => {
   let service: PatientPortalService;
@@ -1255,25 +1260,6 @@ describe('PatientPortalService', () => {
   });
 
   describe('portal invite lifecycle', () => {
-    const NOW = new Date('2026-09-02T12:00:00.000Z');
-    const day = (n: number) => new Date(NOW.getTime() + n * 24 * 60 * 60 * 1000);
-
-    const buildInvite = (overrides: Record<string, unknown> = {}) => ({
-      id: 'invite-1',
-      patientId: 'patient-1',
-      clinicId: 'clinic-1',
-      status: 'PENDING',
-      email: 'ama@example.com',
-      phoneE164: null,
-      claimedByUserId: null,
-      claimedAt: null,
-      cancelledAt: null,
-      expiresAt: day(7),
-      createdAt: day(-1),
-      updatedAt: day(-1),
-      ...overrides,
-    });
-
     beforeEach(() => {
       jest.useFakeTimers().setSystemTime(NOW);
       prisma.patient.findFirst.mockResolvedValue({ id: 'patient-1', portalUserId: null });
@@ -1530,6 +1516,50 @@ describe('PatientPortalService', () => {
         expect(prisma.patientAccountLink.upsert).not.toHaveBeenCalled();
       });
 
+      /*
+        The record-takeover guard.
+
+        `PatientAccountLink` is unique on both columns and the claim upserts on `patientId`, so a
+        chart already linked to somebody else did not collide -- it was quietly repointed at
+        whoever presented an invitation for it, and `portalUserId` was overwritten alongside. One
+        person's record moved to another person's sign-in, audited as an ordinary claim.
+      */
+      it('refuses to take over a record already linked to a different sign-in', async () => {
+        prisma.patientPortalInvite.findFirst.mockResolvedValueOnce({
+          ...buildInvite(),
+          patient: claimablePatient,
+        });
+        prisma.patientAccountLink.findUnique.mockImplementation(
+          async ({ where }: { where: { keycloakSub?: string; patientId?: string } }) =>
+            where.patientId === 'patient-1'
+              ? { id: 'link-existing', patientId: 'patient-1', keycloakSub: 'kc-sub-someone-else' }
+              : null,
+        );
+
+        await expect(service.claimPatientRecord('user-1', claimDto, 'req-1')).rejects.toMatchObject(
+          { response: expect.objectContaining({ code: 'RECORD_ALREADY_LINKED' }) },
+        );
+
+        expect(prisma.patientAccountLink.upsert).not.toHaveBeenCalled();
+        expect(prisma.patient.update).not.toHaveBeenCalled();
+      });
+
+      it('still lets the account that already holds a record re-claim it', async () => {
+        prisma.patientPortalInvite.findFirst.mockResolvedValueOnce({
+          ...buildInvite(),
+          patient: claimablePatient,
+        });
+        prisma.patientAccountLink.findUnique.mockResolvedValue({
+          id: 'link-existing',
+          patientId: 'patient-1',
+          keycloakSub: 'kc-sub-1',
+        });
+
+        await expect(
+          service.claimPatientRecord('user-1', claimDto, 'req-1'),
+        ).resolves.toMatchObject({ success: true });
+      });
+
       it('still refuses an account whose contact details were never staged', async () => {
         prisma.user.findUnique.mockResolvedValue({ ...claimUser, email: 'someone@else.test' });
         prisma.patientPortalInvite.findFirst.mockResolvedValueOnce({
@@ -1538,7 +1568,7 @@ describe('PatientPortalService', () => {
         });
 
         await expect(service.claimPatientRecord('user-1', claimDto, 'req-1')).rejects.toThrow(
-          /does not match the email or phone number staged/i,
+          /sent to a different email address or phone number/i,
         );
       });
     });

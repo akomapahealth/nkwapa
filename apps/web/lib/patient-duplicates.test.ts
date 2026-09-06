@@ -2,6 +2,7 @@ import {
   buildComparisonRows,
   candidateStatus,
   confidenceBadgeVariant,
+  describeMatchPrecision,
   DUPLICATE_CONFIDENCE_LABELS,
   DUPLICATE_REVIEW_STATUS_LABELS,
   formatDateOfBirth,
@@ -224,5 +225,28 @@ describe('buildComparisonRows', () => {
       'Organisation',
       'Portal access',
     ]);
+  });
+});
+
+/*
+  An approximate match and an exact one look identical in the reason list, and this screen exists
+  to decide whether two records are one person. The names being spelt differently is precisely
+  what an operator should go and look at before merging anything.
+*/
+describe('describeMatchPrecision', () => {
+  it('warns when a pair was matched partly on a resemblance', () => {
+    expect(describeMatchPrecision(['NAME_SIMILAR_AND_DOB'])).toMatch(/not spelt the same/i);
+  });
+
+  it('says nothing when every rule matched an exact value', () => {
+    expect(describeMatchPrecision(['NATIONAL_ID_HASH', 'PHONE', 'EMAIL'])).toBeNull();
+  });
+
+  it('warns even when an exact rule matched alongside the approximate one', () => {
+    expect(describeMatchPrecision(['PHONE', 'NAME_SIMILAR_AND_DOB'])).not.toBeNull();
+  });
+
+  it('says nothing about a pair with no reasons at all', () => {
+    expect(describeMatchPrecision([])).toBeNull();
   });
 });

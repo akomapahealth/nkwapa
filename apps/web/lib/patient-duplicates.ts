@@ -104,6 +104,28 @@ export function formatReasons(reasons: DuplicateMatchReason[]): string {
   return reasons.map((reason) => DUPLICATE_MATCH_REASON_LABELS[reason]).join(' · ');
 }
 
+/**
+ * The rules that tolerate a difference rather than requiring an exact value.
+ *
+ * Exactly one, today. It is kept as a set because the distinction matters more than the count:
+ * every other rule means "these two values are identical", and this one means "close enough".
+ */
+const APPROXIMATE_MATCH_REASONS = new Set<DuplicateMatchReason>(['NAME_SIMILAR_AND_DOB']);
+
+/**
+ * A note for a pair matched partly on a resemblance, or null when everything matched exactly.
+ *
+ * Worth saying out loud on a screen whose whole job is deciding whether two records are one
+ * person. "Similar name, same date of birth" reads to a hurried operator as a match like any
+ * other, and the names being spelt differently is precisely the thing they should go and look
+ * at before merging anything.
+ */
+export function describeMatchPrecision(reasons: DuplicateMatchReason[]): string | null {
+  return reasons.some((reason) => APPROXIMATE_MATCH_REASONS.has(reason))
+    ? 'The names are not spelt the same. Compare them before merging.'
+    : null;
+}
+
 /** Full name, for a heading or a table cell. */
 export function patientDisplayName(patient: DuplicateCandidatePatient): string {
   return `${patient.firstName} ${patient.lastName}`.trim();

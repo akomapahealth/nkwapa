@@ -1,7 +1,19 @@
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { Prisma, UserRole } from '@prisma/client';
 import { MERGE_RELATIONS } from '@nkwapa/db';
-import { PatientMergeService, type MergeActor } from './patient-merge.service';
+import {
+  PatientMergeService,
+  buildMergedPatientCode,
+  type MergeActor,
+} from './patient-merge.service';
+import {
+  FIXTURE_CLINIC as CLINIC,
+  type IdentityPrismaMock as PrismaMock,
+  canonicalChartFixture as canonicalChart,
+  createIdentityPrismaMock,
+  identityChartFixture as chart,
+  sourceChartFixture as sourceChart,
+} from '../testing/patient-identity-fixtures';
 
 const systemAdmin: MergeActor = {
   userId: 'sysadmin-1',
@@ -13,130 +25,8 @@ const director: MergeActor = {
   roles: [{ clinicId: 'clinic-1', role: UserRole.DIRECTOR }],
 };
 
-const CLINIC = {
-  id: 'clinic-1',
-  name: 'Clinic One',
-  isActive: true,
-  organizationId: 'org-1',
-  organization: { name: 'Akomapa' },
-};
-
-type ChartOverrides = Partial<{
-  id: string;
-  patientCode: string;
-  primaryClinicId: string;
-  primaryClinic: typeof CLINIC;
-  portalUserId: string | null;
-  mergedIntoPatientId: string | null;
-  firstName: string;
-  lastName: string;
-  dob: Date | null;
-  phoneE164: string | null;
-  email: string | null;
-  nationalIdHash: string | null;
-  nationalIdType: string | null;
-  nationalIdLast4: string | null;
-  sex: string;
-  createdAt: Date;
-  updatedAt: Date;
-  codeAliases: { code: string }[];
-}>;
-
-/*
-  Both fixtures share a name, a birthday and a phone number by default, so the duplicate
-  heuristics score them HIGH. That matters: at LOW the evaluation raises WEAK_DUPLICATE_SIGNAL,
-  and every unrelated assertion would then be reading a findings list with an extra entry in it.
-*/
-function chart(overrides: ChartOverrides = {}) {
-  return {
-    id: overrides.id ?? 'patient-1',
-    patientCode: overrides.patientCode ?? 'NKP-2026-000001',
-    primaryClinicId: overrides.primaryClinicId ?? 'clinic-1',
-    primaryClinic: overrides.primaryClinic ?? CLINIC,
-    portalUserId: overrides.portalUserId ?? null,
-    mergedIntoPatientId: overrides.mergedIntoPatientId ?? null,
-    firstName: overrides.firstName ?? 'Akua',
-    lastName: overrides.lastName ?? 'Boateng',
-    dob: overrides.dob === undefined ? new Date('1988-07-04') : overrides.dob,
-    phoneE164: overrides.phoneE164 === undefined ? '+233209876543' : overrides.phoneE164,
-    email: overrides.email ?? null,
-    nationalIdHash: overrides.nationalIdHash ?? 'hash-a',
-    nationalIdType: overrides.nationalIdType ?? 'NATIONAL_ID',
-    nationalIdLast4: overrides.nationalIdLast4 ?? '4471',
-    sex: overrides.sex ?? 'FEMALE',
-    createdAt: overrides.createdAt ?? new Date('2026-01-05T08:00:00.000Z'),
-    updatedAt: overrides.updatedAt ?? new Date('2026-09-04T09:00:00.000Z'),
-    codeAliases: overrides.codeAliases ?? [],
-  };
-}
-
-const canonicalChart = () => chart();
-const sourceChart = () =>
-  chart({
-    id: 'patient-2',
-    patientCode: 'NKP-2026-000099',
-    nationalIdHash: 'hash-b',
-    nationalIdLast4: '4472',
-    updatedAt: new Date('2026-09-04T09:30:00.000Z'),
-  });
-
-/** A bag of jest mocks indexable by model name, which is how the relation loop reaches them. */
-type PrismaMock = Record<string, Record<string, jest.Mock>> & { $transaction: jest.Mock };
-
 function createService(options: { relationCounts?: Record<string, [number, number]> } = {}) {
-  const prisma: PrismaMock = {
-    patient: {
-      findUnique: jest.fn(),
-      update: jest.fn().mockResolvedValue({ id: 'patient-1' }),
-      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
-    },
-    patientAccountLink: {
-      findUnique: jest.fn().mockResolvedValue(null),
-      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-      create: jest.fn().mockResolvedValue({ id: 'link-1' }),
-    },
-    patientCodeAlias: {
-      findMany: jest.fn().mockResolvedValue([]),
-      createMany: jest.fn().mockResolvedValue({ count: 0 }),
-      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-      upsert: jest.fn().mockResolvedValue({ id: 'alias-1' }),
-    },
-    patientDuplicateReview: {
-      findUnique: jest.fn().mockResolvedValue(null),
-      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-    },
-    patientMergeRecord: { create: jest.fn().mockResolvedValue({ id: 'merge-1' }) },
-    user: { findUnique: jest.fn().mockResolvedValue(null) },
-    userClinicRole: { upsert: jest.fn().mockResolvedValue({ id: 'role-1' }) },
-    $transaction: jest.fn(),
-  } as never;
-
-  // Every relation the merge moves gets the same two mocks, so a relation added to the shared
-  // list is exercised here without this file having to name it.
-  for (const relation of MERGE_RELATIONS) {
-    const [canonicalCount, sourceCount] = options.relationCounts?.[relation.key] ?? [0, 0];
-    prisma[relation.key] = {
-      ...(prisma[relation.key] ?? {}),
-      count: jest.fn(async (args: { where: { patientId: string; effectiveTo?: null } }) => {
-        // patientPharmacyPreference is counted twice for different questions: how many rows move,
-        // and how many are still open.
-        if (args.where.effectiveTo === null) return 0;
-        return args.where.patientId === 'patient-1' ? canonicalCount : sourceCount;
-      }),
-      updateMany: jest.fn().mockResolvedValue({ count: sourceCount }),
-    };
-  }
-  prisma.patientPortalInvite = {
-    ...prisma.patientPortalInvite,
-    findMany: jest.fn().mockResolvedValue([]),
-    updateMany: jest.fn().mockResolvedValue({ count: 0 }),
-    count: jest.fn().mockResolvedValue(0),
-  };
-
-  prisma.$transaction.mockImplementation(async (callback: (tx: typeof prisma) => unknown) =>
-    callback(prisma),
-  );
-
+  const prisma = createIdentityPrismaMock(options);
   const auditService = { logWrite: jest.fn().mockResolvedValue(undefined) };
 
   return {
@@ -907,5 +797,226 @@ describe('PatientMergeService.merge', () => {
     await expect(service.merge(director, 'patient-1', 'patient-2')).rejects.toBeInstanceOf(
       ForbiddenException,
     );
+  });
+});
+
+/*
+  The half of the merge an operator chooses, and the half that runs at commit time.
+
+  Two strategies decide what happens to portal access and to unclaimed invitations, and only the
+  defaults were exercised. `SOURCE` is the branch an operator picks when the duplicate chart holds
+  the sign-in the patient actually uses -- getting it wrong locks a patient out of their own
+  record, which is exactly the failure this workflow exists to prevent.
+
+  The in-transaction re-check is the other gap. It re-reads both charts after the preview a person
+  spent time reading, and only one of its four refusals was covered.
+*/
+describe('PatientMergeService.merge - strategies and the commit-time re-check', () => {
+  const SOURCE_SUB = 'kc-sub-source';
+  const CANONICAL_SUB = 'kc-sub-canonical';
+
+  /** Both charts linked to a different app account, which is what makes a strategy meaningful. */
+  function stubTwoPortalAccounts(prisma: PrismaMock) {
+    prisma.patientAccountLink.findUnique.mockImplementation(
+      async (args: { where: { patientId: string } }) =>
+        args.where.patientId === 'patient-1'
+          ? { id: 'link-canonical', patientId: 'patient-1', keycloakSub: CANONICAL_SUB }
+          : { id: 'link-source', patientId: 'patient-2', keycloakSub: SOURCE_SUB },
+    );
+  }
+
+  it("keeps the duplicate chart's sign-in when the operator chooses it", async () => {
+    const { service, prisma } = createService();
+    stubCharts(prisma);
+    stubTwoPortalAccounts(prisma);
+    prisma.user.findUnique.mockResolvedValue({ id: 'user-source' });
+
+    await service.merge(systemAdmin, 'patient-1', 'patient-2', {
+      portalLinkStrategy: 'SOURCE',
+    });
+
+    // The old rows go, and exactly one is recreated against the surviving chart.
+    expect(prisma.patientAccountLink.deleteMany).toHaveBeenCalledWith({
+      where: { patientId: { in: ['patient-1', 'patient-2'] } },
+    });
+    expect(prisma.patientAccountLink.create).toHaveBeenCalledWith({
+      data: { patientId: 'patient-1', keycloakSub: SOURCE_SUB },
+    });
+  });
+
+  it("keeps the surviving chart's sign-in by default", async () => {
+    const { service, prisma } = createService();
+    stubCharts(prisma);
+    stubTwoPortalAccounts(prisma);
+    prisma.user.findUnique.mockResolvedValue({ id: 'user-canonical' });
+
+    await service.merge(systemAdmin, 'patient-1', 'patient-2', {
+      portalLinkStrategy: 'CANONICAL',
+    });
+
+    expect(prisma.patientAccountLink.create).toHaveBeenCalledWith({
+      data: { patientId: 'patient-1', keycloakSub: CANONICAL_SUB },
+    });
+  });
+
+  /*
+    Without this the patient keeps a link row and loses the role that admits them to the clinic,
+    so every portal route answers "no clinic selected" and the chart looks empty to them.
+  */
+  it("grants the retained account the patient role at the surviving chart's clinic", async () => {
+    const { service, prisma } = createService();
+    stubCharts(prisma, chart({ portalUserId: 'user-canonical' }), sourceChart());
+    // Only the surviving chart is linked. Two different accounts with no strategy named is a
+    // PORTAL_LINK_CONFLICT, which blocks the merge before any role is granted.
+    prisma.patientAccountLink.findUnique.mockImplementation(
+      async (args: { where: { patientId: string } }) =>
+        args.where.patientId === 'patient-1'
+          ? { id: 'link-canonical', patientId: 'patient-1', keycloakSub: CANONICAL_SUB }
+          : null,
+    );
+
+    await service.merge(systemAdmin, 'patient-1', 'patient-2');
+
+    expect(prisma.userClinicRole.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId_clinicId_role: {
+            userId: 'user-canonical',
+            clinicId: 'clinic-1',
+            role: UserRole.PATIENT,
+          },
+        },
+      }),
+    );
+  });
+
+  it('grants no role at all when neither chart had portal access', async () => {
+    const { service, prisma } = createService();
+    stubCharts(prisma);
+
+    await service.merge(systemAdmin, 'patient-1', 'patient-2');
+
+    expect(prisma.userClinicRole.upsert).not.toHaveBeenCalled();
+  });
+
+  it("cancels the surviving chart's unclaimed invitation when the operator keeps the duplicate's", async () => {
+    const { service, prisma } = createService();
+    stubCharts(prisma);
+    prisma.patientPortalInvite.findMany.mockImplementation(
+      async (args: { where: { patientId: string } }) =>
+        args.where.patientId === 'patient-1'
+          ? [{ id: 'invite-canonical', status: 'PENDING' }]
+          : [{ id: 'invite-source', status: 'PENDING' }],
+    );
+
+    await service.merge(systemAdmin, 'patient-1', 'patient-2', {
+      inviteStrategy: 'SOURCE',
+    });
+
+    expect(prisma.patientPortalInvite.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: ['invite-canonical'] } },
+        data: expect.objectContaining({ status: 'CANCELLED' }),
+      }),
+    );
+  });
+
+  it('records the warnings it merged under, so the decision can be read back', async () => {
+    const { service, prisma } = createService();
+    // A LOW-scoring pair: nothing in common but a phone number.
+    stubCharts(
+      prisma,
+      chart({ firstName: 'Ama', lastName: 'Mensah', dob: new Date('1990-01-01') }),
+      chart({
+        id: 'patient-2',
+        patientCode: 'NKP-2026-000099',
+        firstName: 'Kofi',
+        lastName: 'Owusu',
+        dob: new Date('1985-05-05'),
+        nationalIdHash: 'hash-b',
+        nationalIdLast4: '4472',
+      }),
+    );
+
+    await service.merge(systemAdmin, 'patient-1', 'patient-2');
+
+    const record = prisma.patientMergeRecord.create.mock.calls[0][0].data;
+    expect(JSON.parse(record.warningCodesJson)).toContain('WEAK_DUPLICATE_SIGNAL');
+    // Warnings only. A blocker would have stopped the merge before this row was written.
+    expect(JSON.parse(record.warningCodesJson)).not.toContain('CROSS_CLINIC');
+  });
+
+  it('counts the charts it re-chained and the review decisions it cleared', async () => {
+    const { service, prisma } = createService();
+    stubCharts(prisma);
+    prisma.patient.updateMany.mockResolvedValue({ count: 2 });
+    prisma.patientDuplicateReview.deleteMany.mockResolvedValue({ count: 3 });
+
+    const result = await service.merge(systemAdmin, 'patient-1', 'patient-2');
+
+    expect(result.movedCounts.mergedSourcePatients).toBe(2);
+    expect(result.movedCounts.patientDuplicateReview).toBe(3);
+  });
+
+  it.each([
+    ['a chart deleted between the preview and the commit', () => null, 'PATIENT_NOT_FOUND'],
+    [
+      'a chart transferred to another clinic between the preview and the commit',
+      () => ({ mergedIntoPatientId: null, primaryClinicId: 'clinic-2' }),
+      'CROSS_CLINIC',
+    ],
+  ])('refuses at commit time on %s', async (_label, freshSource, code) => {
+    const { service, prisma } = createService();
+    const canonical = canonicalChart();
+    const source = sourceChart();
+    let reads = 0;
+    prisma.patient.findUnique.mockImplementation(async (args: { where: { id: string } }) => {
+      reads += 1;
+      // The first two reads are the evaluation's, and must succeed or the merge never reaches
+      // the transaction that this test is about.
+      if (reads <= 2) return args.where.id === canonical.id ? canonical : source;
+      if (args.where.id === canonical.id) {
+        return { mergedIntoPatientId: null, primaryClinicId: 'clinic-1' };
+      }
+      return freshSource();
+    });
+
+    await expect(service.merge(systemAdmin, 'patient-1', 'patient-2')).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'PATIENT_MERGE_BLOCKED',
+        details: { blockers: [expect.objectContaining({ code })] },
+      }),
+    });
+    // Nothing was recorded, so the retired chart is not half-merged.
+    expect(prisma.patientMergeRecord.create).not.toHaveBeenCalled();
+  });
+
+  // The DTO makes the fingerprint optional, so a caller that never took a preview -- a script, or
+  // the admin route used directly -- must still be able to merge.
+  it('merges without a fingerprint, because the preview is optional', async () => {
+    const { service, prisma } = createService();
+    stubCharts(prisma);
+
+    await expect(service.merge(systemAdmin, 'patient-1', 'patient-2')).resolves.toMatchObject({
+      success: true,
+    });
+  });
+});
+
+describe('buildMergedPatientCode', () => {
+  it('renames the retired chart deterministically from its id', () => {
+    expect(buildMergedPatientCode('NKP-2026-000099', 'abcdef01-2345-4678-8abc-def012345678')).toBe(
+      'NKP-2026-000099-M-ABCDEF01',
+    );
+  });
+
+  // `Patient.patientCode` is a VarChar(32). A rename that overflowed it would fail the whole
+  // transaction at commit, after every relation had already moved.
+  it('keeps the rename inside the column it has to fit', () => {
+    const long = 'NKP-2026-000099-ALREADY-VERY-LONG-CODE';
+
+    const renamed = buildMergedPatientCode(long, 'abcdef01-2345-4678-8abc-def012345678');
+
+    expect(renamed.length).toBeLessThanOrEqual(32);
   });
 });

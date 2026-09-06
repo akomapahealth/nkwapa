@@ -27,6 +27,7 @@ import {
   DUPLICATE_CONFIDENCE_LABELS,
   DUPLICATE_MATCH_REASON_LABELS,
   DUPLICATE_REVIEW_STATUS_LABELS,
+  describeMatchPrecision,
   formatReasons,
   patientChartHref,
   patientDisplayName,
@@ -678,6 +679,12 @@ export function DuplicateReviewScreen() {
                           <p className="mt-3 text-sm leading-5 text-muted-foreground">
                             {formatReasons(candidate.reasons)}
                           </p>
+                          {/* An approximate name match reads like any other reason in that list. */}
+                          {describeMatchPrecision(candidate.reasons) ? (
+                            <p className="mt-1 text-sm leading-5 text-warning-ink">
+                              {describeMatchPrecision(candidate.reasons)}
+                            </p>
+                          ) : null}
                           <p className="mt-2 text-sm tabular-nums text-muted-foreground">
                             Last updated {candidate.lastUpdatedAt.slice(0, 10)}
                           </p>

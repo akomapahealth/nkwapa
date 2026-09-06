@@ -1,4 +1,4 @@
-import { normalizePhoneToE164 } from '@nkwapa/db';
+import { claimRefusal, expiredInviteRefusal, normalizePhoneToE164 } from '@nkwapa/db';
 import {
   BadRequestException,
   ConflictException,
@@ -1599,7 +1599,7 @@ export class PatientPortalService {
       },
     });
     if (!user?.isActive) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException(claimRefusal('ACCOUNT_INACTIVE'));
     }
 
     const now = new Date();
@@ -1632,26 +1632,22 @@ export class PatientPortalService {
       // transaction rolls it back along with everything else when this throws.
       if (lapsed && isPortalInviteExpired(lapsed, now)) {
         throw new BadRequestException(
-          `This invitation expired on ${formatInviteExpiryDate(lapsed.expiresAt)}. Ask the clinic to send a new one.`,
+          expiredInviteRefusal(formatInviteExpiryDate(lapsed.expiresAt)),
         );
       }
       if (lapsed?.status === 'EXPIRED') {
-        throw new BadRequestException(
-          'This invitation has expired. Ask the clinic to send a new one.',
-        );
+        throw new BadRequestException(claimRefusal('INVITE_EXPIRED'));
       }
       if (lapsed?.status === 'CANCELLED') {
-        throw new BadRequestException(
-          'This invitation was cancelled by the clinic. Ask them to send a new one.',
-        );
+        throw new BadRequestException(claimRefusal('INVITE_CANCELLED'));
       }
       if (lapsed?.status === 'CLAIMED') {
-        throw new ConflictException('This invitation has already been used.');
+        throw new ConflictException(claimRefusal('INVITE_ALREADY_USED'));
       }
-      throw new NotFoundException('Pending portal invite not found');
+      throw new NotFoundException(claimRefusal('INVITE_NOT_FOUND'));
     }
     if (invite.patient.mergedIntoPatientId) {
-      throw new ConflictException('This patient record has been merged into another chart');
+      throw new ConflictException(claimRefusal('RECORD_MERGED'));
     }
 
     const matchesEmail =
@@ -1662,9 +1658,7 @@ export class PatientPortalService {
       Boolean(invite.phoneE164) && Boolean(user.phoneE164) && invite.phoneE164 === user.phoneE164;
 
     if (!matchesEmail && !matchesPhone) {
-      throw new ForbiddenException(
-        'This account does not match the email or phone number staged for the patient portal invite',
-      );
+      throw new ForbiddenException(claimRefusal('CONTACT_MISMATCH'));
     }
 
     const acceptedCodes = new Set([
@@ -1672,24 +1666,44 @@ export class PatientPortalService {
       ...invite.patient.codeAliases.map((alias) => alias.code.toUpperCase()),
     ]);
     if (!acceptedCodes.has(dto.patientCode.trim().toUpperCase())) {
-      throw new BadRequestException('Patient code does not match this invited record');
+      throw new BadRequestException(claimRefusal('PATIENT_CODE_MISMATCH'));
     }
 
     const expectedDob = invite.patient.dob?.toISOString().slice(0, 10) ?? null;
     if (!expectedDob) {
-      throw new BadRequestException(
-        'This patient record is missing a date of birth. Ask clinic staff to update the chart before portal claim.',
-      );
+      throw new BadRequestException(claimRefusal('DATE_OF_BIRTH_MISSING'));
     }
     if (dto.dob !== expectedDob) {
-      throw new BadRequestException('Date of birth does not match this invited record');
+      throw new BadRequestException(claimRefusal('DATE_OF_BIRTH_MISMATCH'));
     }
 
     const existingLink = await this.prisma.patientAccountLink.findUnique({
       where: { keycloakSub: user.keycloakSub },
     });
     if (existingLink && existingLink.patientId !== invite.patientId) {
-      throw new ConflictException('This account is already linked to another patient record');
+      throw new ConflictException(claimRefusal('ACCOUNT_ALREADY_LINKED'));
+    }
+
+    /*
+      The mirror of the check above, and the one that was missing.
+
+      `PatientAccountLink` is unique on both `patientId` and `keycloakSub`, and the upsert below
+      keys on `patientId`. So a chart already linked to somebody else did not collide: it was
+      quietly updated to point at whoever presented an invitation for it, `portalUserId` was
+      overwritten in the same transaction, and the previous owner kept a `PATIENT` role granting
+      them nothing. One person's record moved to another person's sign-in, with an audit event
+      recording it as an ordinary claim.
+
+      `createPortalInvite` refuses to issue an invitation for a linked chart, which is why this
+      was hard to reach -- but an invitation issued before the link, or carried onto a linked
+      chart by a merge, reaches it, and those are exactly the situations where two people are
+      already confused about who owns the record.
+    */
+    const chartLink = await this.prisma.patientAccountLink.findUnique({
+      where: { patientId: invite.patientId },
+    });
+    if (chartLink && chartLink.keycloakSub !== user.keycloakSub) {
+      throw new ConflictException(claimRefusal('RECORD_ALREADY_LINKED'));
     }
 
     const link = await this.prisma.$transaction(async (tx) => {

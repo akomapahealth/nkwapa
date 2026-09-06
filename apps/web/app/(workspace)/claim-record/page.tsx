@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { BadgeCheck, CircleAlert, MailQuestion, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
-import { apiFetch, getErrorMessage, readApiError } from '@/lib/api';
+import { ApiError, apiFetch, getErrorMessage, readApiError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,31 @@ import { Badge } from '@/components/ui/badge';
 import { EmptyState, InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { describeInviteExpiry } from '@/lib/portal-invite';
+
+/**
+ * A refusal split into what happened and what to do about it.
+ *
+ * The API now sends both. Concatenating them into one sentence, which is what `getErrorMessage`
+ * does, buries the only part the patient can act on at the end of a line they have already
+ * decided is bad news.
+ */
+interface ClaimFailure {
+  message: string;
+  recoveryAction: string | null;
+}
+
+function toClaimFailure(error: unknown): ClaimFailure {
+  if (error instanceof ApiError) {
+    return { message: error.message, recoveryAction: error.recoveryAction };
+  }
+  return {
+    message: getErrorMessage(
+      error,
+      'We could not claim this record. Check the patient code and date of birth against your clinic card.',
+    ),
+    recoveryAction: null,
+  };
+}
 
 /** Null when there is no expiry to report, so the caller renders nothing at all. */
 function inviteExpiry(expiresAt: string | null) {
@@ -43,7 +68,7 @@ export default function ClaimRecordPage() {
   const [patientCode, setPatientCode] = useState('');
   const [dob, setDob] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ClaimFailure | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
@@ -88,12 +113,7 @@ export default function ClaimRecordPage() {
       await bootstrapCtx?.refetch();
       router.replace('/portal');
     } catch (requestError) {
-      setError(
-        getErrorMessage(
-          requestError,
-          'We could not claim this record. Check the patient code and date of birth against your clinic card.',
-        ),
-      );
+      setError(toClaimFailure(requestError));
     } finally {
       setSubmitting(false);
     }
@@ -293,7 +313,20 @@ export default function ClaimRecordPage() {
                         />
                       </div>
                     </div>
-                    {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
+                    {error ? (
+                      <InlineNotice tone="error">
+                        <span className="block font-medium">{error.message}</span>
+                        {/*
+                          The next step, on its own line. Every refusal the API raises names one,
+                          and it is the only part of a refusal a patient can act on.
+                        */}
+                        {error.recoveryAction ? (
+                          <span className="mt-1 block text-xs leading-5">
+                            {error.recoveryAction}
+                          </span>
+                        ) : null}
+                      </InlineNotice>
+                    ) : null}
                     {success ? <InlineNotice tone="success">{success}</InlineNotice> : null}
                     <Button
                       onClick={() => void handleSubmit()}

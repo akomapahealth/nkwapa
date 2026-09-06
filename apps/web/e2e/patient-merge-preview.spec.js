@@ -149,9 +149,23 @@ test.describe('a system admin merging two charts', () => {
     // The retired chart's own address now resolves to the surviving one, which is the promise
     // the preview made about chart codes.
     await page.goto(`/clinics/${duplicate.clinicId}/patients/${duplicate.patientId}`);
-    await page.waitForURL(`**/clinics/${canonical.clinicId}/patients/${canonical.patientId}`, {
-      timeout: 30_000,
-    });
+    // A regex rather than a glob: the redirect carries `?mergedFrom=` so the chart can explain
+    // itself after the route change, and a glob would stop matching at the query string.
+    await page.waitForURL(
+      new RegExp(`/clinics/${canonical.clinicId}/patients/${canonical.patientId}`),
+      { timeout: 30_000 },
+    );
+
+    /*
+      And the redirect explains itself, on the page it redirected to.
+
+      Staff arrive here from an appointment card or a referral letter naming the retired chart,
+      so this is an ordinary way to arrive rather than an error. The notice used to be posted as
+      a success and then lost on the redirect it was announcing, which left a reader looking at a
+      different patient code than the one they clicked with nothing accounting for it.
+    */
+    await expect(page.getByText(/was merged into this one/i)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/filed under the old record are all here/i)).toBeVisible();
 
     // And previewing the same pair again refuses, with a reason and a next step.
     const reopened = await openMergeDialog(page, canonical);

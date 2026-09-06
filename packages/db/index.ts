@@ -66,6 +66,15 @@ export {
   type DuplicatePairEvaluation,
 } from './src/patient-duplicates';
 export {
+  CLAIM_REFUSAL_CODES,
+  CLAIM_REFUSAL_LABELS,
+  CLAIM_REFUSAL_RECOVERY,
+  claimRefusal,
+  expiredInviteRefusal,
+  type ClaimRefusal,
+  type ClaimRefusalCode,
+} from './src/patient-claim';
+export {
   MERGE_BLOCKER_CODES,
   MERGE_FINDING_LABELS,
   MERGE_FINDING_RECOVERY,

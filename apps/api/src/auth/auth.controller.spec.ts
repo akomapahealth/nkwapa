@@ -315,4 +315,104 @@ describe('AuthController', () => {
       }),
     );
   });
+
+  /*
+    Claim onboarding is what routes a brand-new patient to /claim-record instead of a dashboard
+    they have no roles for. Getting it wrong in either direction is bad: withhold it and a
+    patient holding a real invitation is stranded on an empty screen, offer it wrongly and
+    someone is sent to a form that can only refuse them.
+  */
+  describe('claim onboarding', () => {
+    const rolelessUser: ReqUser = {
+      user: {
+        id: 'user-2',
+        keycloakSub: 'patient-sub',
+        displayName: 'New Patient',
+        email: 'patient@example.com',
+      },
+      roles: [],
+    };
+
+    it('is not computed at all for a user who already holds a role', async () => {
+      const result = await controller.whoami({ user: reqUser });
+
+      expect(result.onboarding).toBeNull();
+      // Not merely null: the query is never made, so a staff sign-in costs nothing extra.
+      expect(prisma.patientPortalInvite.findMany).not.toHaveBeenCalled();
+    });
+
+    it('is withheld from a deactivated account', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        email: 'patient@example.com',
+        phoneE164: null,
+        isActive: false,
+      });
+
+      const result = await controller.whoami({ user: rolelessUser });
+
+      expect(result.onboarding).toBeNull();
+      expect(prisma.patientPortalInvite.findMany).not.toHaveBeenCalled();
+    });
+
+    /*
+      An account with neither an email address nor a phone number matches no invitation by
+      identity. Building the query anyway would leave an empty OR, which matches every row --
+      so this early return is a tenant boundary, not an optimisation.
+    */
+    it('is withheld, without querying, from an account with no contact details at all', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        email: null,
+        phoneE164: null,
+        isActive: true,
+      });
+
+      const result = await controller.whoami({ user: rolelessUser });
+
+      expect(result.onboarding).toBeNull();
+      expect(prisma.patientPortalInvite.findMany).not.toHaveBeenCalled();
+    });
+
+    it('is null rather than an empty list when nothing is waiting', async () => {
+      prisma.patientPortalInvite.findMany.mockResolvedValue([]);
+
+      const result = await controller.whoami({ user: rolelessUser });
+
+      expect(result.onboarding).toBeNull();
+    });
+
+    it('matches an invitation staged against a phone number alone', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        email: null,
+        phoneE164: '+233240000000',
+        isActive: true,
+      });
+      prisma.patientPortalInvite.findMany.mockResolvedValue([]);
+
+      await controller.whoami({ user: rolelessUser });
+
+      expect(prisma.patientPortalInvite.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            AND: expect.arrayContaining([{ OR: [{ phoneE164: '+233240000000' }] }]),
+          }),
+        }),
+      );
+    });
+
+    // A retired chart's invitation must not route anyone anywhere: the claim would refuse it,
+    // and the patient has no way to discover that the clinic moved their record.
+    it('ignores an invitation still pointing at a merged record', async () => {
+      prisma.patientPortalInvite.findMany.mockResolvedValue([]);
+
+      await controller.whoami({ user: rolelessUser });
+
+      expect(prisma.patientPortalInvite.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            patient: { mergedIntoPatientId: null },
+          }),
+        }),
+      );
+    });
+  });
 });
