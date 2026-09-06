@@ -145,6 +145,25 @@ Every executed merge writes a `PatientMergeRecord` alongside its audit event, ca
 involved, the strategies chosen, and how many rows of each kind moved -- so a consolidated chart
 can be explained afterwards without database access.
 
+### Canonical chart redirects
+
+A merge retires a chart rather than deleting it, so both the retired id and the code it gave up
+have to keep resolving. `PatientRepository.findById(id, { resolveMerged: true })` walks
+`mergedIntoPatientId` to the record that survived, and `findByPatientCode` resolves both the code a
+chart still holds and any alias a merge left on the survivor.
+
+The walk is iterative and remembers where it has been. The pointer is read out of a column rather
+than computed, so a restored backup or a hand-run correction can put a loop in it, and recursing a
+loop exhausts the heap rather than returning a wrong answer.
+
+`GET /patients/:patientId` reports `resolvedFromPatientId` when the id asked for is not the id
+returned, and the clinic check runs against the surviving chart -- a record merged into another
+clinic's is no longer this clinic's to read. Retired charts are excluded from every listing unless
+a caller passes `includeMerged`.
+
+The rules behind duplicate scoring, merge refusals and claim outcomes are published as
+`docs/security/patient-identity-matrix.md`, generated from the table the API suite asserts against.
+
 ### Longitudinal history
 
 - keeps stable records with append-only, auditable revisions

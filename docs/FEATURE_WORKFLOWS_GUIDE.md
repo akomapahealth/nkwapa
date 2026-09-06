@@ -141,6 +141,13 @@ Use when you want the patient to claim access later.
 6. The user completes `/claim-record`.
 7. The patient record becomes linked to that portal account.
 
+A claim is accepted on a matching email address or a matching phone number -- either alone is
+enough, and email is compared without regard to case. The patient code may be the one the record
+holds now or any code it answered to before a merge. Every refusal says what happened and what to
+do next: an expired invitation names the date it lapsed, a record with no date of birth on file
+tells the patient to ask staff to add one, and a record already connected to a different sign-in is
+refused rather than taken over.
+
 What the invitation email contains:
 
 - the clinic name and the patient's first name
@@ -219,6 +226,29 @@ Duplicate chart merge is currently a system-admin action.
 Current constraint:
 
 - merges are limited to records in the same clinic
+
+### When a merge is refused
+
+The preview reports everything that would stop the merge before anything changes, and each refusal
+names what to do instead. The ones staff meet in practice: the two charts belong to different
+clinics, one of them has already been merged, both hold an open preferred pharmacy period, each is
+linked to a different app account with no choice made between them, or the duplicate's code is
+already recorded against a third chart.
+
+A refusal is not a disabled button. The step that commits is not offered at all.
+
+### After a merge
+
+The retired chart is not deleted, so both its address and the code it gave up keep working:
+
+- opening the retired chart's link lands on the surviving record, and says so
+- the old patient code still finds the surviving record, and a patient can still claim with it
+- the retired chart no longer appears in the patient list or in search
+- everything filed under it -- visits, measurements, invitations, appointments -- is on the
+  survivor
+
+`docs/security/patient-identity-matrix.md` lists every duplicate rule, every merge refusal and
+every claim outcome, and is generated from the table the API tests assert against.
 
 ---
 

@@ -37,6 +37,7 @@ Use this file first when you need to answer one of these questions:
 | `docs/specs/03_AUTH_AND_RBAC.md`                            | Current                     | Auth, RBAC, permissions, and onboarding model                                                                   |
 | `docs/specs/04_OFFLINE_FIRST_AND_SYNC.md`                   | Current with follow-on work | Current offline scope, sync model, and limitations                                                              |
 | `docs/specs/06_PATIENTS_MODULE.md`                          | Current with follow-on work | Current patient registry, portal link/invite, and merge behavior                                                |
+| `docs/specs/13_PATIENT_IDENTITY_RELEASE_GATE.md`            | Current                     | Duplicate review, merge, claim, and canonical-redirect release gate                                             |
 | `docs/specs/07_MEDICAL_HISTORY_AND_ALLERGIES.md`            | Current                     | Longitudinal history, allergy safety, rollout, and release-gate contract                                        |
 | `docs/specs/08_MEDICATION_RECONCILIATION_AND_PHARMACIES.md` | Current                     | Reported medications, pharmacy history, offline conflicts, and rollout                                          |
 | `docs/specs/09_DIABETES_SCREENING.md`                       | Current                     | Diabetes record, compatibility, access, downstream, and release-gate contract                                   |
