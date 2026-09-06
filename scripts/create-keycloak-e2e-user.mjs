@@ -67,6 +67,38 @@ const patientUser = {
   displayName: process.env.E2E_PATIENT_NAME || 'E2E Patient',
 };
 
+/**
+ * A patient who has been invited and has not claimed yet.
+ *
+ * Distinct from `patientUser`, which the seed links to a record through `Patient.portalUserId`.
+ * That link is exactly what makes it useless here: an account with a claimed record is redirected
+ * away from /claim-record, so the page could not be reached by any identity the suite had. This
+ * one holds no link and no roles, which is the state `whoami` answers with PATIENT_CLAIM_REQUIRED.
+ */
+const claimantUser = {
+  id: process.env.E2E_CLAIMANT_SUB || '00000000-0000-4000-8000-000000000047',
+  username: process.env.E2E_CLAIMANT_USERNAME || 'e2e.claimant',
+  password: process.env.E2E_CLAIMANT_PASSWORD || 'NkwapaClaimant!23',
+  email: process.env.E2E_CLAIMANT_EMAIL || 'e2e.claimant@nkwapa.local',
+  displayName: process.env.E2E_CLAIMANT_NAME || 'E2E Claimant',
+};
+
+/**
+ * Every identity the suite signs in as, keyed by the name the rest of the tooling uses.
+ *
+ * A table rather than five parallel sequences of upsert / env / output / summary lines, which is
+ * what this was: adding an identity meant remembering four places, and forgetting one of them
+ * failed somewhere other than where the mistake was.
+ */
+const identities = {
+  staff: staffUser,
+  reset: resetUser,
+  doctor: doctorUser,
+  volunteer: volunteerUser,
+  patient: patientUser,
+  claimant: claimantUser,
+};
+
 function splitName(displayName) {
   const [firstName, ...lastNameParts] = displayName.trim().split(/\s+/);
   return {
@@ -278,62 +310,21 @@ async function appendGithubOutput(name, value) {
 
 async function main() {
   const accessToken = await getAdminAccessToken();
-  const staffUserId = await upsertUser(accessToken, staffUser);
-  const resetUserId = await upsertUser(accessToken, resetUser);
-  const doctorUserId = await upsertUser(accessToken, doctorUser);
-  const volunteerUserId = await upsertUser(accessToken, volunteerUser);
-  const patientUserId = await upsertUser(accessToken, patientUser);
-  await appendGithubEnv('E2E_STAFF_SUB', staffUserId);
-  await appendGithubEnv('E2E_RESET_SUB', resetUserId);
-  await appendGithubEnv('E2E_DOCTOR_SUB', doctorUserId);
-  await appendGithubEnv('E2E_VOLUNTEER_SUB', volunteerUserId);
-  await appendGithubEnv('E2E_PATIENT_SUB', patientUserId);
-  await appendGithubOutput('staff-user-id', staffUserId);
-  await appendGithubOutput('reset-user-id', resetUserId);
-  await appendGithubOutput('doctor-user-id', doctorUserId);
-  await appendGithubOutput('volunteer-user-id', volunteerUserId);
-  await appendGithubOutput('patient-user-id', patientUserId);
+  const summary = { realm, keycloakBaseUrl };
 
-  console.log(
-    JSON.stringify(
-      {
-        realm,
-        keycloakBaseUrl,
-        staff: {
-          requestedUserId: staffUser.id,
-          userId: staffUserId,
-          username: staffUser.username,
-          email: staffUser.email,
-        },
-        reset: {
-          requestedUserId: resetUser.id,
-          userId: resetUserId,
-          username: resetUser.username,
-          email: resetUser.email,
-        },
-        doctor: {
-          requestedUserId: doctorUser.id,
-          userId: doctorUserId,
-          username: doctorUser.username,
-          email: doctorUser.email,
-        },
-        volunteer: {
-          requestedUserId: volunteerUser.id,
-          userId: volunteerUserId,
-          username: volunteerUser.username,
-          email: volunteerUser.email,
-        },
-        patient: {
-          requestedUserId: patientUser.id,
-          userId: patientUserId,
-          username: patientUser.username,
-          email: patientUser.email,
-        },
-      },
-      null,
-      2,
-    ),
-  );
+  for (const [role, user] of Object.entries(identities)) {
+    const userId = await upsertUser(accessToken, user);
+    await appendGithubEnv(`E2E_${role.toUpperCase()}_SUB`, userId);
+    await appendGithubOutput(`${role}-user-id`, userId);
+    summary[role] = {
+      requestedUserId: user.id,
+      userId,
+      username: user.username,
+      email: user.email,
+    };
+  }
+
+  console.log(JSON.stringify(summary, null, 2));
 }
 
 main().catch((error) => {

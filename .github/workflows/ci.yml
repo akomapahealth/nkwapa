@@ -264,6 +264,13 @@ jobs:
       E2E_PATIENT_PASSWORD: NkwapaPatient!23
       E2E_PATIENT_NAME: E2E Patient
       E2E_PATIENT_EMAIL: e2e.patient@nkwapa.local
+      # The same patient one step earlier: invited, not yet linked. A claimed account is
+      # redirected off /claim-record, so the claim page had no identity that could reach it.
+      E2E_CLAIMANT_SUB: 00000000-0000-4000-8000-000000000047
+      E2E_CLAIMANT_USERNAME: e2e.claimant
+      E2E_CLAIMANT_PASSWORD: NkwapaClaimant!23
+      E2E_CLAIMANT_NAME: E2E Claimant
+      E2E_CLAIMANT_EMAIL: e2e.claimant@nkwapa.local
       MAILPIT_BASE_URL: http://localhost:8025
       # The API sends through Mailpit rather than the fake provider, so this job is the
       # only place the real nodemailer path is exercised before staging. No SMTP_USER or
@@ -337,6 +344,12 @@ jobs:
           SEED_SAMPLE_APPOINTMENTS: ${{ env.SEED_SAMPLE_APPOINTMENTS }}
           SEED_SAMPLE_DUPLICATES: ${{ env.SEED_SAMPLE_DUPLICATES }}
           SEED_SAMPLE_IDENTITY: ${{ env.SEED_SAMPLE_IDENTITY }}
+          # No SEED_E2E_CLAIMANT_SUB on purpose. Keycloak does not always honour the requested
+          # user id, so the provisioning step writes the real one back over E2E_CLAIMANT_SUB
+          # through GITHUB_ENV, and the seed falls back to it -- the same path the other four
+          # identities take. Passing the requested id here would pin the stale value.
+          SEED_E2E_CLAIMANT_EMAIL: ${{ env.E2E_CLAIMANT_EMAIL }}
+          SEED_E2E_CLAIMANT_NAME: ${{ env.E2E_CLAIMANT_NAME }}
           SEED_E2E_STAFF_NAME: ${{ env.E2E_STAFF_NAME }}
           SEED_E2E_STAFF_EMAIL: ${{ env.E2E_STAFF_EMAIL }}
           SEED_E2E_DOCTOR_NAME: ${{ env.E2E_DOCTOR_NAME }}
