@@ -17,3 +17,8 @@ docs/security/clinical-records-role-matrix.md
 # `npm run docs:appointment-matrix --workspace=@nkwapa/api`. A test asserts it matches byte for
 # byte, so reformatting it here would put the two checks permanently at odds.
 docs/security/appointment-lifecycle-matrix.md
+
+# Generated from apps/api/src/testing/patient-identity-matrix.ts by
+# `npm run docs:identity-matrix --workspace=@nkwapa/api`. A test asserts it matches byte for
+# byte, so reformatting it here would put the two checks permanently at odds.
+docs/security/patient-identity-matrix.md
