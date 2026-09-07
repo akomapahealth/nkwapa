@@ -316,3 +316,33 @@ describe('country code repair', () => {
     ).not.toContain('COUNTRY_CODE_MALFORMED');
   });
 });
+
+describe('time zone aliases and the picker', () => {
+  it('never offers a zone its own validator would then flag as an old name', () => {
+    // The failure this rules out: pick a zone from our list, save, and immediately get a
+    // "stored under an older name" warning about the value we just offered.
+    const flagged = listTimeZones().filter((zone) => {
+      const resolved = resolveTimeZone(zone);
+      return !resolved.ok || resolved.canonical !== zone;
+    });
+    expect(flagged).toEqual([]);
+  });
+
+  it('accepts an alias and reports whichever spelling this runtime considers canonical', () => {
+    // Asia/Kolkata and Asia/Calcutta swap places between ICU builds, so this asserts the
+    // relationship rather than a spelling: the alias resolves, and it resolves to the same
+    // instant-for-instant zone as its partner.
+    const kolkata = resolveTimeZone('Asia/Kolkata');
+    const calcutta = resolveTimeZone('Asia/Calcutta');
+    expect(kolkata.ok).toBe(true);
+    expect(calcutta.ok).toBe(true);
+    expect(kolkata.ok && calcutta.ok && kolkata.canonical).toBe(
+      calcutta.ok ? calcutta.canonical : null,
+    );
+  });
+
+  it('treats an alias as a warning, never as something that blocks a save', () => {
+    const issues = evaluateClinicMetadata({ ...healthyClinic, timezone: 'US/Eastern' });
+    expect(summarizeClinicMetadata(issues).errorCount).toBe(0);
+  });
+});

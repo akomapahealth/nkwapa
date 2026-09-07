@@ -212,6 +212,9 @@ export const CLINIC_METADATA_ISSUE_SEVERITY: Record<
   LOCATION_CODE_TOO_LONG: 'error',
   TIMEZONE_MISSING: 'error',
   TIMEZONE_UNKNOWN: 'error',
+  // Warning, not error, partly because which spelling counts as canonical is an ICU-build
+  // detail: `Asia/Kolkata` and `Asia/Calcutta` swap places between runtimes. Both resolve to
+  // the same offsets, so the stored name is cosmetic and must never block a save.
   TIMEZONE_NOT_CANONICAL: 'warning',
   TIMEZONE_DIFFERS_FROM_ORGANIZATION: 'warning',
   COUNTRY_CODE_MALFORMED: 'error',

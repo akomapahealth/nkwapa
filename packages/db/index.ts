@@ -82,6 +82,12 @@ export {
   type TimeZoneResolution,
 } from './src/clinic-metadata';
 export {
+  clinicDayWindow,
+  startOfDayInTimeZone,
+  todayInTimeZone,
+  type ClinicDayWindow,
+} from './src/clinic-day';
+export {
   DUPLICATE_CONFIDENCE_LEVELS,
   DUPLICATE_CONFIDENCE_THRESHOLDS,
   DUPLICATE_MATCH_REASONS,
