@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
-import { Building2, MapPinned, ShieldAlert } from 'lucide-react';
+import { Building2, MapPinned, Map, ShieldAlert } from 'lucide-react';
 import { Box } from '@mui/material';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
@@ -13,11 +13,30 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ProgressiveHelp } from '@/components/ui/progressive-help';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { SectionSkeleton } from '@/components/feedback/AppState';
 import { ApiError, apiFetch, readApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useAsyncResource } from '@/lib/use-async-resource';
 import { dataGridSx } from '@/lib/datagrid-theme';
+import {
+  zoneFilterFromSelect,
+  zoneFilterLabel,
+  zoneFilterOptions,
+  zoneFilterToSelect,
+  zoneLabel,
+  zoneQueryString,
+  zoneResourceKey,
+  type ZoneFilter,
+  type ZoneSummary,
+} from '@/lib/clinic-zones';
 import {
   CLINIC_METADATA_ISSUE_LABELS,
   CLINIC_METADATA_SEVERITY_VARIANT,
@@ -92,6 +111,7 @@ function MetadataBadges({ clinic }: { clinic: ClinicRow }) {
 export function ClinicRegistryScreen() {
   const getToken = useAuth();
   const [filter, setFilter] = useState<ClinicListFilter>('all');
+  const [zoneFilter, setZoneFilter] = useState<ZoneFilter>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<ClinicDialogMode>('create');
   const [dialogValues, setDialogValues] = useState<ClinicFormValues>(emptyClinicForm(null));
@@ -100,17 +120,37 @@ export function ClinicRegistryScreen() {
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<ApiError | Error | null>(null);
 
+  // Filtered server-side. The registry is unpaginated today, so narrowing here rather than in
+  // the browser is not about payload size: it is so one implementation decides which clinics
+  // are in a zone. The key carries the filter because `useAsyncResource` refetches on the key
+  // alone, and both come from the same helper so the URL and the key cannot disagree.
   const clinics = useAsyncResource<ClinicRow[]>({
-    resourceKey: 'admin-clinics',
+    resourceKey: zoneResourceKey('admin-clinics', zoneFilter),
     errorMessage: 'The clinic list could not be loaded.',
     fetcher: async (token, signal) => {
-      const response = await apiFetch('/admin/clinics', {
+      const response = await apiFetch(`/admin/clinics${zoneQueryString(zoneFilter)}`, {
         getToken: token,
         skipClinicHeader: true,
         signal,
       });
       if (!response.ok) throw await readApiError(response);
       return ((await response.json()) as ClinicRow[]).map(normalizeClinicRow);
+    },
+  });
+
+  // Read unfiltered on purpose, so choosing a zone never removes the other zones from the
+  // picker and strands the reader inside their own filter.
+  const zones = useAsyncResource<ZoneSummary[]>({
+    resourceKey: 'admin-clinic-zones',
+    errorMessage: 'The zone list could not be loaded.',
+    fetcher: async (token, signal) => {
+      const response = await apiFetch('/admin/clinics/zones', {
+        getToken: token,
+        skipClinicHeader: true,
+        signal,
+      });
+      if (!response.ok) throw await readApiError(response);
+      return (await response.json()) as ZoneSummary[];
     },
   });
 
@@ -130,10 +170,30 @@ export function ClinicRegistryScreen() {
 
   const rows = useMemo(() => clinics.data ?? [], [clinics.data]);
   const organizationList = organizations.data ?? [];
+  // The rows already arrive zone-filtered; the client pass only applies the view. Passing the
+  // zone again would be harmless but would imply the server had not been trusted to apply it.
   const visibleRows = useMemo(() => filterClinics(rows, filter), [rows, filter]);
+
+  const zoneList = useMemo(() => zones.data ?? [], [zones.data]);
+  const zoneOptions = useMemo(() => zoneFilterOptions(zoneList), [zoneList]);
+  const zonedClinicCount = zoneList.filter((zone) => zone.zoneCode !== null).length;
 
   const activeCount = rows.filter((clinic) => clinic.isActive).length;
   const attentionCount = rows.filter(clinicNeedsAttention).length;
+
+  // Says which of the two filters emptied the list, because "no clinic matches this view" sends
+  // an operator looking at the wrong control when it was the zone that did it.
+  const emptyResultMessage = (() => {
+    const zoneName = zoneFilterLabel(zoneFilter);
+    if (zoneName !== null && filter === 'needs-attention') {
+      return `No clinic in ${zoneName} has a metadata problem.`;
+    }
+    if (zoneName !== null) return `No clinic is in ${zoneName}.`;
+    if (filter === 'needs-attention') {
+      return 'No clinic has a metadata problem. Organization reporting can rely on every record here.';
+    }
+    return 'No clinic matches this view.';
+  })();
 
   const openCreate = () => {
     setDialogMode('create');
@@ -202,7 +262,7 @@ export function ClinicRegistryScreen() {
           params.row.zoneCode ? (
             <span className="font-mono text-xs">{params.row.zoneCode}</span>
           ) : (
-            <span className="text-muted-foreground">None</span>
+            <span className="text-muted-foreground">{zoneLabel(null)}</span>
           ),
       },
       {
@@ -252,7 +312,7 @@ export function ClinicRegistryScreen() {
         actions={<Button onClick={openCreate}>Create clinic</Button>}
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <AppMetricCard
           title="Total clinics"
           value={rows.length}
@@ -264,6 +324,12 @@ export function ClinicRegistryScreen() {
           value={activeCount}
           icon={MapPinned}
           detail="Clinics currently available for staff and patient workflows."
+        />
+        <AppMetricCard
+          title="Zones"
+          value={zonedClinicCount}
+          icon={Map}
+          detail="Reporting zones in use across the clinics you administer."
         />
         <AppMetricCard
           title="Needs attention"
@@ -294,20 +360,45 @@ export function ClinicRegistryScreen() {
           <ProgressiveHelp title="How clinic metadata is used">
             A clinic&apos;s time zone decides how appointment times, reminders, and daily reporting
             are read. Its location code identifies it in organization reporting and must be unique
-            within its organization. Zone codes are optional until zone-aware reporting is switched
-            on. Inactive clinics stay in the system for history and audit, but stop acting like live
-            operational workspaces until you reactivate them.
+            within its organization. A zone code groups clinics for reporting and filtering; it is
+            still optional, and it never changes who can open a clinic. Inactive clinics stay in the
+            system for history and audit, but stop acting like live operational workspaces until you
+            reactivate them.
           </ProgressiveHelp>
 
           <div className="space-y-3">
-            <SegmentedControl
-              label="Clinic filter"
-              value={filter}
-              options={FILTER_OPTIONS}
-              onChange={setFilter}
-            />
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <SegmentedControl
+                label="Clinic filter"
+                value={filter}
+                options={FILTER_OPTIONS}
+                onChange={setFilter}
+              />
+              <div className="space-y-2 lg:w-64">
+                <Label htmlFor="clinic-zone-filter">Zone</Label>
+                <Select
+                  value={zoneFilterToSelect(zoneFilter)}
+                  onValueChange={(value) => setZoneFilter(zoneFilterFromSelect(value))}
+                >
+                  <SelectTrigger id="clinic-zone-filter">
+                    <SelectValue placeholder="All zones" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {zoneOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                        {option.clinicCount === null ? '' : ` (${option.clinicCount})`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             <ActiveFilterSummary
-              items={[{ label: 'View', value: FILTER_LABELS[filter] }]}
+              items={[
+                { label: 'View', value: FILTER_LABELS[filter] },
+                { label: 'Zone', value: zoneFilterLabel(zoneFilter) },
+              ]}
               emptyLabel="All clinics"
             />
           </div>
@@ -318,7 +409,10 @@ export function ClinicRegistryScreen() {
               <SectionSkeleton lines={5} className="border-0 bg-transparent p-0 shadow-none" />
             }
             errorTitle="The clinic list could not be loaded"
-            isEmpty={(data) => data.length === 0}
+            // Only the unfiltered read can mean "there are no clinics". Once a zone is applied
+            // an empty response means the filter found nothing, and offering "Create the first
+            // clinic" there would be both wrong and the wrong thing to reach for.
+            isEmpty={(data) => data.length === 0 && zoneFilter === null}
             empty={{
               icon: Building2,
               title: 'No clinics yet',
@@ -329,11 +423,14 @@ export function ClinicRegistryScreen() {
           >
             {() =>
               visibleRows.length === 0 ? (
-                <p className="rounded-lg border border-border bg-muted/40 px-4 py-6 text-center text-sm text-muted-foreground">
-                  {filter === 'needs-attention'
-                    ? 'No clinic has a metadata problem. Organization reporting can rely on every record here.'
-                    : 'No clinic matches this view.'}
-                </p>
+                <div className="rounded-lg border border-border bg-muted/40 px-4 py-6 text-center text-sm text-muted-foreground">
+                  <p>{emptyResultMessage}</p>
+                  {zoneFilter !== null ? (
+                    <Button variant="outline" className="mt-3" onClick={() => setZoneFilter(null)}>
+                      Show all zones
+                    </Button>
+                  ) : null}
+                </div>
               ) : (
                 <>
                   <div className="space-y-3 md:hidden">
@@ -369,8 +466,14 @@ export function ClinicRegistryScreen() {
                           </div>
                           <div className="min-w-0">
                             <dt className="text-muted-foreground">Zone</dt>
-                            <dd className="truncate font-mono text-xs text-foreground">
-                              {clinic.zoneCode || 'None'}
+                            <dd
+                              className={
+                                clinic.zoneCode
+                                  ? 'truncate font-mono text-xs text-foreground'
+                                  : 'truncate text-xs text-muted-foreground'
+                              }
+                            >
+                              {zoneLabel(clinic.zoneCode)}
                             </dd>
                           </div>
                           <div className="min-w-0">
