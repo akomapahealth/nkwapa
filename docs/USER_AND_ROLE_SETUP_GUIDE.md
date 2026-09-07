@@ -31,7 +31,8 @@ Important notes:
 
 - `SYSTEM_ADMIN` is global and uses `clinicId = null`
 - most other roles are assigned per clinic
-- `zoneCode` exists on clinics for future scale-up, but zone RBAC is not yet active
+- `zoneCode` exists on clinics for future scale-up, but zone RBAC is not yet active. It is
+  editable and audited in `/admin/clinics` so the data is trustworthy before behavior lands.
 
 ---
 
@@ -185,9 +186,43 @@ Primary UI:
 
 Current behavior:
 
-- system admins can create clinics
+- system admins and directors can create clinics
+- a director who creates a clinic is granted the directorship of it
 - clinics belong to an organization and carry location metadata
 - role assignments still need to be created separately after the clinic exists
+
+### Location metadata
+
+The create and edit dialogs collect the metadata organization reporting depends on. These are
+validated on both sides from one shared rule set, so the form and the API can never disagree.
+
+| Field         | Required | Notes                                                                                      |
+| ------------- | -------- | ------------------------------------------------------------------------------------------ |
+| Name          | Yes      | Not unique. Two clinics may share a name; their location codes still may not.              |
+| Region        | No       | Free text, for display.                                                                    |
+| Organization  | Yes      | Read-only once the clinic exists. Selectable on create only when more than one exists.     |
+| Location code | Yes      | Prefilled from the name, editable. **Unique within the organization.** Lowercase, hyphens. |
+| Time zone     | Yes      | A named IANA zone. Drives appointment times, reminders, and daily reporting.               |
+| Zone code     | No       | Reserved for zone-aware reporting. Leave empty until a clinic actually belongs to a zone.  |
+| Country code  | Yes      | ISO-3166 alpha-2. Defaults to `GH`.                                                        |
+
+Creating an organization is not part of this flow. Clinics are filed under organizations that
+already exist.
+
+### Spotting and fixing bad metadata
+
+The registry marks any clinic whose metadata is unusable, and the **Needs attention** filter
+narrows the list to those. Editing from a flagged row opens the dialog on the offending field.
+
+For an existing environment, or to check every organization at once, run the audit:
+
+```bash
+npm run db:audit-clinics            # report only
+npm run db:audit-clinics -- --apply # fix what can be derived unambiguously
+```
+
+Repair steps, including the two cases that deliberately need a person, are in
+`docs/DATABASE_SETUP.md` under "Clinic Metadata Quality".
 
 Common seed fields for new environments:
 
