@@ -98,6 +98,120 @@ The seed now creates or updates:
 
 ---
 
+## Clinic Metadata Quality
+
+Organization reporting, and the zone behavior built on top of it, read a handful of fields on
+every clinic. Bad values there do not fail loudly -- they produce confusing reports and reminders sent
+in the wrong zone -- so they are validated on write and auditable after the fact.
+
+### The rules
+
+| Field            | Required | Rule                                                                                                                    |
+| ---------------- | -------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `organizationId` | Yes      | Must reference an existing organization. Defaults to the only one when a caller does not name one.                      |
+| `locationCode`   | Yes      | Lowercase letters, digits and single hyphens, at most 64 characters. **Unique per organization.**                       |
+| `timezone`       | Yes      | A named IANA zone such as `Africa/Accra`. A fixed offset like `+05:00` is refused: it carries no daylight-saving rules. |
+| `zoneCode`       | No       | Same shape as a location code when present. Empty until zone-aware reporting is switched on.                            |
+| `countryCode`    | Yes      | ISO-3166 alpha-2, stored uppercase. Defaults to `GH`.                                                                   |
+
+All of these live in `packages/db/src/clinic-metadata.ts`, which the API, the admin UI, the seed
+and the audit CLI all read. Change a rule there and every surface follows.
+
+### Auditing an existing database
+
+```bash
+npm run db:audit-clinics
+```
+
+Reports every clinic grouped by organization, marking each issue as an error, a warning, or
+information. It exits non-zero only when errors remain, so it is safe in a pipeline: a clinic
+with no zone code is listed and does not fail the run.
+
+```text
+Nkwapa Health (default)
+  ℹ AUDIT Closed Site        info    This clinic is inactive and is excluded from daily operations.
+  ✗ AUDIT Ridge Clinic       error   This clinic has no location code, so it cannot be identified in organization reporting. [fix: audit-ridge-clinic]
+  ✗ AUDIT Tema Annex         error   "Africa/Akra" is not a known IANA time zone. [fix: Africa/Accra]
+  ⚠ Nkwapa Clinic - Demo     warning No zone code is set. Zone reporting will skip this clinic.
+
+2 errors, 1 warning across 4 clinics.
+Re-run with --apply to fix the 2 auto-fixable issues.
+```
+
+### Repairing an existing database
+
+```bash
+npm run db:audit-clinics -- --apply
+```
+
+Writes only the values marked `[fix: ...]`, which are the ones that can be derived
+unambiguously: slugging a malformed location code, canonicalising an older time zone name,
+normalising a zone code. Then re-run without `--apply` to confirm what is left.
+
+Two cases are never repaired automatically, and both are deliberate:
+
+- **A location code whose fix is already taken.** Applying it would trade a missing code for a
+  unique-constraint failure. The audit says so and skips it.
+- **A country code that is not two letters.** Case is already normalised before checking, so a
+  value that fails is wrong or truncated rather than mis-cased, and only a person knows which
+  country was meant.
+
+Fix both in `/admin/clinics`, where the clinic's row shows what is wrong and the edit dialog
+opens on the offending field.
+
+### Repairing by hand
+
+Only if the CLI is unavailable. `locationCode` is half of a unique key, so check before writing:
+
+```sql
+-- Clinics whose metadata needs attention.
+SELECT c.id, c.name, c."locationCode", c.timezone, c."zoneCode", c."countryCode"
+FROM "Clinic" c
+ORDER BY c.name;
+
+-- Confirm the code is free in this organization before taking it.
+SELECT id, name FROM "Clinic"
+WHERE "organizationId" = '<organization-id>' AND "locationCode" = '<new-code>';
+
+UPDATE "Clinic" SET "locationCode" = '<new-code>', "updatedAt" = now() WHERE id = '<clinic-id>';
+```
+
+`Clinic` is protected by RLS, so a psql session needs `SELECT set_config('app.is_system_admin',
+'true', false);` first. Re-run `npm run db:audit-clinics` afterwards to confirm.
+
+### What a clinic's time zone actually drives
+
+It is not cosmetic. A clinic's operational day is a _local_ day, so `timezone` decides:
+
+- which check-ins, assignments and shifts count as "today" in `/today`, `/queues` and
+  `/my/assigned`, through the day window the ops endpoints resolve per clinic
+- what time an appointment reminder says
+- which date the web app asks for when it sends `?date=`
+
+Both layers resolve the day from the same shared helper (`packages/db/src/clinic-day.ts`), so a
+clinic on a non-UTC zone gets a window that runs local midnight to local midnight, including on
+the days a daylight-saving change makes 23 or 25 hours long.
+
+A clinic whose stored zone is unusable still answers, falling back to `Africa/Accra` rather than
+failing the request. The audit above is what gets it corrected.
+
+### Seeding
+
+The seed validates the metadata it resolved before writing anything, and refuses to run with a
+message naming the `SEED_*` variable to correct:
+
+```text
+Seed clinic metadata is not valid:
+
+  SEED_CLINIC_TIMEZONE (or SEED_ORGANIZATION_TIMEZONE): "Africa/Akra" is not a known IANA time zone. Try Africa/Accra.
+
+Fix the environment variables above and run npm run db:seed again.
+```
+
+Warnings do not stop it, so an environment without `SEED_CLINIC_ZONE_CODE` seeds normally.
+
+---
+
 ## Schema And Client Sync
 
 Use these commands from the repo root:
@@ -178,16 +292,17 @@ reviewed validation and failure behavior.
 
 Current standalone utility audit:
 
-| Path                                        | Database access | Tenant-safety decision                                                                                                                         |
-| ------------------------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scripts/check-secrets.mjs`                 | No              | Repository scanner; no tenant decision required                                                                                                |
-| `scripts/create-keycloak-e2e-user.mjs`      | No              | Keycloak E2E setup; no clinic data                                                                                                             |
-| `scripts/validate-keycloak-realm.mjs`       | No              | Static realm validation; no tenant data                                                                                                        |
-| `packages/db/prisma/seed.ts`                | Yes             | Privileged system bootstrap; creates the organization, clinic, initial identities, roles, and seed records before normal tenant context exists |
-| `packages/db/prisma/assign-system-admin.ts` | Yes             | Privileged system maintenance; grants a global role and is intentionally not clinic-scoped                                                     |
-| `packages/db/prisma/seed-drugs.ts`          | Indirect        | Not standalone; receives an explicit clinic from the privileged bootstrap seed                                                                 |
+| Path                                          | Database access | Tenant-safety decision                                                                                                                         |
+| --------------------------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/check-secrets.mjs`                   | No              | Repository scanner; no tenant decision required                                                                                                |
+| `scripts/create-keycloak-e2e-user.mjs`        | No              | Keycloak E2E setup; no clinic data                                                                                                             |
+| `scripts/validate-keycloak-realm.mjs`         | No              | Static realm validation; no tenant data                                                                                                        |
+| `packages/db/prisma/seed.ts`                  | Yes             | Privileged system bootstrap; creates the organization, clinic, initial identities, roles, and seed records before normal tenant context exists |
+| `packages/db/prisma/assign-system-admin.ts`   | Yes             | Privileged system maintenance; grants a global role and is intentionally not clinic-scoped                                                     |
+| `packages/db/prisma/audit-clinic-metadata.ts` | Yes             | Privileged system maintenance; reports and repairs clinic location metadata across every organization, so it is deliberately not clinic-scoped |
+| `packages/db/prisma/seed-drugs.ts`            | Indirect        | Not standalone; receives an explicit clinic from the privileged bootstrap seed                                                                 |
 
-The two privileged direct-client scripts are exceptions, not templates for future clinic-scoped
+These privileged direct-client scripts are exceptions, not templates for future clinic-scoped
 scripts. Adding another exception requires a documented system reason and security review.
 
 ---

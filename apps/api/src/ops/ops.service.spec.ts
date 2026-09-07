@@ -8,6 +8,7 @@ function createPrismaMock() {
   const prisma = {
     clinic: {
       findFirst: jest.fn().mockResolvedValue({ id: 'clinic-1' }),
+      findUnique: jest.fn().mockResolvedValue({ timezone: 'Africa/Accra' }),
     },
     userClinicRole: {
       findFirst: jest.fn().mockResolvedValue({ id: 'role-1' }),
@@ -423,5 +424,82 @@ describe('OpsService', () => {
     expect(auditService.logWrite).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'CHECKIN.START_INTAKE', entityId: 'checkin-1' }),
     );
+  });
+
+  describe('the operational day window', () => {
+    /** The `checkedInAt` filter the check-in listing was built with. */
+    const checkInWindow = () => prisma.patientCheckIn.findMany.mock.calls[0][0].where.checkedInAt;
+
+    it('spans the clinic’s local day, not the UTC day', async () => {
+      prisma.clinic.findUnique.mockResolvedValue({ timezone: 'America/New_York' });
+
+      const result = await service.listCheckIns('clinic-1', { date: '2026-03-21' } as never);
+
+      // Local midnight in New York is 04:00Z, so a UTC-midnight window would have started four
+      // hours early and ended four hours early -- losing the clinic's whole evening.
+      expect(checkInWindow().gte.toISOString()).toBe('2026-03-21T04:00:00.000Z');
+      expect(checkInWindow().lte.toISOString()).toBe('2026-03-22T03:59:59.999Z');
+      expect(result.timezone).toBe('America/New_York');
+      expect(result.date).toBe('2026-03-21');
+    });
+
+    it('reports the zone it actually used rather than a constant', async () => {
+      // India is +05:30, which also proves the window is not rounded to whole hours. The zone is
+      // named by the alias on purpose: ICU canonicalises it, and which spelling wins depends on
+      // the ICU build, so the assertion is against the runtime's own answer rather than a
+      // hard-coded name.
+      const canonical = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Kolkata',
+      }).resolvedOptions().timeZone;
+      prisma.clinic.findUnique.mockResolvedValue({ timezone: 'Asia/Kolkata' });
+
+      const result = await service.listAssignments('clinic-1', { date: '2026-06-15' } as never);
+
+      // The old code reported Africa/Accra for every clinic, whatever its real zone.
+      expect(result.timezone).toBe(canonical);
+      const window = prisma.patientAssignment.findMany.mock.calls[0][0].where.assignedAt;
+      expect(window.gte.toISOString()).toBe('2026-06-14T18:30:00.000Z');
+    });
+
+    it('is still plain UTC for a clinic on UTC, so Ghana is unchanged', async () => {
+      await service.listCheckIns('clinic-1', { date: '2026-03-21' } as never);
+
+      expect(checkInWindow().gte.toISOString()).toBe('2026-03-21T00:00:00.000Z');
+      expect(checkInWindow().lte.toISOString()).toBe('2026-03-21T23:59:59.999Z');
+    });
+
+    it('falls back to the default zone for a clinic whose timezone is unusable', async () => {
+      prisma.clinic.findUnique.mockResolvedValue({ timezone: 'Africa/Akra' });
+
+      const result = await service.listCheckIns('clinic-1', { date: '2026-03-21' } as never);
+
+      // A drifted clinic still answers; the audit CLI is what gets it corrected.
+      expect(result.timezone).toBe('Africa/Accra');
+      expect(checkInWindow().gte.toISOString()).toBe('2026-03-21T00:00:00.000Z');
+    });
+
+    it('resolves “today” in the clinic zone when no date is given', async () => {
+      prisma.clinic.findUnique.mockResolvedValue({ timezone: 'Pacific/Auckland' });
+
+      const result = await service.listCheckIns('clinic-1', {} as never);
+
+      const todayInAuckland = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Pacific/Auckland',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date());
+      // Auckland is far enough ahead that its date differs from UTC's for part of every day.
+      expect(result.date).toBe(todayInAuckland);
+    });
+
+    it('asks for the clinic’s zone, rather than assuming one', async () => {
+      await service.listCheckIns('clinic-1', { date: '2026-03-21' } as never);
+
+      expect(prisma.clinic.findUnique).toHaveBeenCalledWith({
+        where: { id: 'clinic-1' },
+        select: { timezone: true },
+      });
+    });
   });
 });

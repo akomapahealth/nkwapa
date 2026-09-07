@@ -1,5 +1,22 @@
-import { Injectable } from '@nestjs/common';
-import { Clinic, UserRole } from '@prisma/client';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
+import { Clinic, Prisma, UserRole } from '@prisma/client';
+import {
+  CLINIC_DEFAULT_COUNTRY_CODE,
+  CLINIC_DEFAULT_ORGANIZATION_NAME,
+  CLINIC_DEFAULT_ORGANIZATION_SLUG,
+  CLINIC_DEFAULT_TIMEZONE,
+  evaluateClinicMetadata,
+  normalizeCountryCode,
+  normalizeLocationCode,
+  normalizeZoneCode,
+  toLocationCode,
+  type ClinicMetadataIssue,
+} from '@nkwapa/db';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface ResearchSettingsDto {
@@ -27,23 +44,23 @@ export interface UpdateClinicDto {
   isActive?: boolean;
 }
 
+/** A clinic as the admin surface sees it: the row, its organization, and what is wrong with it. */
+export interface AdminClinicView extends Clinic {
+  organization: OrganizationSummary | null;
+  metadataIssues: ClinicMetadataIssue[];
+}
+
+export interface OrganizationSummary {
+  id: string;
+  name: string;
+  slug: string;
+  timezone: string;
+  clinicCount: number;
+}
+
 export interface AdminActor {
   userId: string;
   roles: { clinicId: string | null; role: UserRole }[];
-}
-
-const DEFAULT_ORGANIZATION_NAME = 'Nkwapa Health';
-const DEFAULT_ORGANIZATION_SLUG = 'default';
-const DEFAULT_TIMEZONE = 'Africa/Accra';
-
-function toLocationCode(value: string) {
-  const normalized = value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
-
-  return normalized || 'clinic';
 }
 
 @Injectable()
@@ -126,52 +143,311 @@ export class ClinicService {
     });
   }
 
-  async listAllForAdmin(actor: AdminActor): Promise<Clinic[]> {
+  /**
+   * The admin clinic list, with each row's organization and its metadata problems attached.
+   *
+   * The issues are computed by the same `evaluateClinicMetadata` the repair CLI runs, so a
+   * badge in the UI and a line of CLI output can never describe a clinic differently.
+   */
+  async listAllForAdmin(actor: AdminActor): Promise<AdminClinicView[]> {
     const isSystemAdmin = actor.roles.some(
       (r) => r.role === UserRole.SYSTEM_ADMIN && r.clinicId === null,
     );
+
+    let clinics;
     if (isSystemAdmin) {
-      return this.prisma.clinic.findMany({
+      clinics = await this.prisma.clinic.findMany({
         orderBy: { name: 'asc' },
+        include: { organization: true },
+      });
+    } else {
+      const directorClinicIds = actor.roles
+        .filter((r) => r.role === UserRole.DIRECTOR && r.clinicId != null)
+        .map((r) => r.clinicId as string);
+      if (directorClinicIds.length === 0) return [];
+      clinics = await this.prisma.clinic.findMany({
+        where: { id: { in: directorClinicIds } },
+        orderBy: { name: 'asc' },
+        include: { organization: true },
       });
     }
+
+    return clinics.map(({ organization, ...clinic }) => ({
+      ...clinic,
+      organization: organization
+        ? {
+            id: organization.id,
+            name: organization.name,
+            slug: organization.slug,
+            timezone: organization.timezone,
+            clinicCount: 0,
+          }
+        : null,
+      metadataIssues: evaluateClinicMetadata({
+        name: clinic.name,
+        organizationId: clinic.organizationId,
+        organizationTimezone: organization?.timezone ?? null,
+        timezone: clinic.timezone,
+        locationCode: clinic.locationCode,
+        zoneCode: clinic.zoneCode,
+        countryCode: clinic.countryCode,
+        isActive: clinic.isActive,
+      }),
+    }));
+  }
+
+  async create(dto: CreateClinicDto): Promise<Clinic> {
+    const organizationId = dto.organizationId
+      ? await this.requireOrganizationId(dto.organizationId)
+      : await this.resolveDefaultOrganizationId();
+
+    const locationCode = normalizeLocationCode(dto.locationCode) || toLocationCode(dto.name);
+
+    await this.assertLocationCodeIsFree(organizationId, locationCode);
+
+    return this.writeMappingConflicts(locationCode, () =>
+      this.prisma.clinic.create({
+        data: {
+          organizationId,
+          name: dto.name,
+          region: dto.region ?? null,
+          countryCode: normalizeCountryCode(dto.countryCode) || CLINIC_DEFAULT_COUNTRY_CODE,
+          timezone: dto.timezone ?? CLINIC_DEFAULT_TIMEZONE,
+          locationCode,
+          zoneCode: normalizeZoneCode(dto.zoneCode),
+        },
+      }),
+    );
+  }
+
+  async update(id: string, dto: UpdateClinicDto): Promise<Clinic> {
+    const existing = await this.prisma.clinic.findUnique({
+      where: { id },
+      select: { organizationId: true, locationCode: true },
+    });
+    if (!existing) {
+      throw new BadRequestException({
+        code: 'CLINIC_NOT_FOUND',
+        message: 'That clinic no longer exists.',
+        recoveryAction: 'Refresh the clinic list and try again.',
+      });
+    }
+
+    /*
+      `!= null` was the old guard on locationCode, so an empty string trimmed to '' and was
+      written -- leaving a clinic that organization reporting could not identify. An omitted
+      code still means "leave it alone"; a blank one is now a validation failure.
+    */
+    let locationCode: string | undefined;
+    if (dto.locationCode !== undefined) {
+      locationCode = normalizeLocationCode(dto.locationCode);
+      if (!locationCode) {
+        throw new BadRequestException({
+          code: 'VALIDATION_ERROR',
+          message: 'Request validation failed.',
+          fieldErrors: [{ field: 'locationCode', message: 'A clinic must keep a location code.' }],
+          recoveryAction: 'Give the clinic a location code, or leave the field unchanged.',
+        });
+      }
+      if (locationCode !== existing.locationCode) {
+        await this.assertLocationCodeIsFree(existing.organizationId, locationCode, id);
+      }
+    }
+
+    return this.writeMappingConflicts(locationCode ?? existing.locationCode, () =>
+      this.prisma.clinic.update({
+        where: { id },
+        data: {
+          ...(dto.name != null && { name: dto.name }),
+          ...(dto.region !== undefined && { region: dto.region }),
+          ...(dto.countryCode != null && { countryCode: normalizeCountryCode(dto.countryCode) }),
+          ...(dto.timezone != null && { timezone: dto.timezone }),
+          ...(locationCode !== undefined && { locationCode }),
+          ...(dto.zoneCode !== undefined && { zoneCode: normalizeZoneCode(dto.zoneCode) }),
+          ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+        },
+      }),
+    );
+  }
+
+  /**
+   * Organizations this actor may file a clinic under. Read-only: this never creates one.
+   *
+   * Scoped the same way `listAllForAdmin` is. A director sees only the organizations they
+   * already direct a clinic in; returning the whole list would hand every director the
+   * platform's tenant roster.
+   */
+  async listOrganizations(actor: AdminActor): Promise<OrganizationSummary[]> {
+    const allowedIds = await this.allowedOrganizationIds(actor);
+    if (allowedIds !== 'all' && allowedIds.length === 0) return [];
+
+    const organizations = await this.prisma.organization.findMany({
+      where: allowedIds === 'all' ? undefined : { id: { in: allowedIds } },
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        timezone: true,
+        _count: { select: { clinics: true } },
+      },
+    });
+
+    return organizations.map(({ _count, ...organization }) => ({
+      ...organization,
+      clinicCount: _count.clinics,
+    }));
+  }
+
+  /** `'all'` for a system admin; otherwise the organizations the actor directs a clinic in. */
+  private async allowedOrganizationIds(actor: AdminActor): Promise<'all' | string[]> {
+    const isSystemAdmin = actor.roles.some(
+      (r) => r.role === UserRole.SYSTEM_ADMIN && r.clinicId === null,
+    );
+    if (isSystemAdmin) return 'all';
+
     const directorClinicIds = actor.roles
       .filter((r) => r.role === UserRole.DIRECTOR && r.clinicId != null)
       .map((r) => r.clinicId as string);
     if (directorClinicIds.length === 0) return [];
-    return this.prisma.clinic.findMany({
+
+    const clinics = await this.prisma.clinic.findMany({
       where: { id: { in: directorClinicIds } },
-      orderBy: { name: 'asc' },
+      select: { organizationId: true },
+    });
+    return [...new Set(clinics.map((clinic) => clinic.organizationId))];
+  }
+
+  /**
+   * Decides which organization a new clinic belongs to, for this actor.
+   *
+   * A director may only create inside an organization they already direct a clinic in.
+   * Without this a director could name any organization's id and, because creating grants
+   * them the directorship of what they created, walk into another tenant.
+   */
+  async resolveOrganizationIdForActor(
+    actor: AdminActor,
+    requestedOrganizationId?: string,
+  ): Promise<string> {
+    const allowedIds = await this.allowedOrganizationIds(actor);
+
+    if (allowedIds === 'all') {
+      return requestedOrganizationId
+        ? this.requireOrganizationId(requestedOrganizationId)
+        : this.resolveDefaultOrganizationId();
+    }
+
+    if (allowedIds.length === 0) {
+      // A director with no clinics yet has no organization of their own to reason about, so
+      // they land in the default one, exactly as they did before organizationId was accepted.
+      if (requestedOrganizationId) {
+        throw this.organizationNotAllowed();
+      }
+      return this.resolveDefaultOrganizationId();
+    }
+
+    if (!requestedOrganizationId) {
+      if (allowedIds.length === 1) return allowedIds[0];
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Request validation failed.',
+        fieldErrors: [
+          {
+            field: 'organizationId',
+            message: 'Choose which organization this clinic belongs to.',
+          },
+        ],
+        recoveryAction: 'Pick an organization and try again.',
+      });
+    }
+
+    if (!allowedIds.includes(requestedOrganizationId)) {
+      throw this.organizationNotAllowed();
+    }
+    return requestedOrganizationId;
+  }
+
+  private organizationNotAllowed() {
+    // Deliberately the same answer whether the organization does not exist or is simply not
+    // theirs, so this cannot be used to enumerate other tenants.
+    return new ForbiddenException({
+      code: 'CLINIC_ORGANIZATION_FORBIDDEN',
+      message: 'You can only create clinics in an organization you already direct.',
+      fieldErrors: [{ field: 'organizationId', message: 'Not an organization you can use.' }],
+      recoveryAction: 'Choose one of the organizations offered, or ask a system admin.',
     });
   }
 
-  async create(dto: CreateClinicDto): Promise<Clinic> {
-    const organizationId = dto.organizationId ?? (await this.resolveDefaultOrganizationId());
-    return this.prisma.clinic.create({
-      data: {
+  private async requireOrganizationId(organizationId: string): Promise<string> {
+    const organization = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { id: true },
+    });
+    if (!organization) {
+      // Without this the unknown id reaches Postgres and comes back as an unmapped foreign
+      // key error, which tells the operator nothing about which field was wrong.
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Request validation failed.',
+        fieldErrors: [{ field: 'organizationId', message: 'That organization does not exist.' }],
+        recoveryAction: 'Choose an organization from the list and try again.',
+      });
+    }
+    return organization.id;
+  }
+
+  private async assertLocationCodeIsFree(
+    organizationId: string,
+    locationCode: string,
+    exceptClinicId?: string,
+  ) {
+    const clash = await this.prisma.clinic.findFirst({
+      where: {
         organizationId,
-        name: dto.name,
-        region: dto.region ?? null,
-        countryCode: dto.countryCode ?? 'GH',
-        timezone: dto.timezone ?? DEFAULT_TIMEZONE,
-        locationCode: dto.locationCode?.trim() || toLocationCode(dto.name),
-        zoneCode: dto.zoneCode?.trim() || null,
+        locationCode,
+        ...(exceptClinicId ? { id: { not: exceptClinicId } } : {}),
       },
+      select: { id: true, name: true },
     });
+    if (clash) {
+      throw this.locationCodeConflict(locationCode, clash.name);
+    }
   }
 
-  async update(id: string, dto: UpdateClinicDto): Promise<Clinic> {
-    return this.prisma.clinic.update({
-      where: { id },
-      data: {
-        ...(dto.name != null && { name: dto.name }),
-        ...(dto.region !== undefined && { region: dto.region }),
-        ...(dto.countryCode != null && { countryCode: dto.countryCode }),
-        ...(dto.timezone != null && { timezone: dto.timezone }),
-        ...(dto.locationCode != null && { locationCode: dto.locationCode.trim() }),
-        ...(dto.zoneCode !== undefined && { zoneCode: dto.zoneCode?.trim() || null }),
-        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
-      },
+  /**
+   * Turns the unique-key violation into the same conflict the pre-check raises.
+   *
+   * The pre-check above is for the message, not for correctness -- two concurrent creates can
+   * both pass it. `@@unique([organizationId, locationCode])` is what actually holds the line,
+   * and this makes losing that race a 409 naming the field rather than an unmapped 500.
+   */
+  private async writeMappingConflicts<T>(locationCode: string, write: () => Promise<T>) {
+    try {
+      return await write();
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw this.locationCodeConflict(locationCode);
+      }
+      throw error;
+    }
+  }
+
+  private locationCodeConflict(locationCode: string, clashingClinicName?: string) {
+    /*
+      The specific sentence goes on the field, not only in `message`. A client that renders
+      field errors next to their input shows the field error and suppresses the banner, so
+      putting the generic rule there and the name of the clashing clinic in `message` meant
+      the one useful detail was the one nobody saw.
+    */
+    const message = clashingClinicName
+      ? `"${clashingClinicName}" already uses the location code "${locationCode}" in this organization.`
+      : `The location code "${locationCode}" is already used in this organization.`;
+
+    return new ConflictException({
+      code: 'CLINIC_LOCATION_CODE_CONFLICT',
+      message,
+      fieldErrors: [{ field: 'locationCode', message }],
+      recoveryAction: 'Choose a different location code.',
     });
   }
 
@@ -183,6 +459,13 @@ export class ClinicService {
     return actor.roles.some((r) => r.clinicId === clinicId && r.role === UserRole.DIRECTOR);
   }
 
+  /**
+   * The organization a clinic lands in when the caller did not name one.
+   *
+   * The create is an upsert on the unique slug rather than a read-then-create. The old shape
+   * could mint a second "default" organization under concurrency, and two organizations that
+   * both claim to be the default is exactly the metadata problem this work exists to stop.
+   */
   private async resolveDefaultOrganizationId() {
     const existing = await this.prisma.organization.findFirst({
       orderBy: { createdAt: 'asc' },
@@ -192,11 +475,13 @@ export class ClinicService {
       return existing.id;
     }
 
-    const organization = await this.prisma.organization.create({
-      data: {
-        name: DEFAULT_ORGANIZATION_NAME,
-        slug: DEFAULT_ORGANIZATION_SLUG,
-        timezone: DEFAULT_TIMEZONE,
+    const organization = await this.prisma.organization.upsert({
+      where: { slug: CLINIC_DEFAULT_ORGANIZATION_SLUG },
+      update: {},
+      create: {
+        name: CLINIC_DEFAULT_ORGANIZATION_NAME,
+        slug: CLINIC_DEFAULT_ORGANIZATION_SLUG,
+        timezone: CLINIC_DEFAULT_TIMEZONE,
       },
       select: { id: true },
     });

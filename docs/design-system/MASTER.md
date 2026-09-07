@@ -416,6 +416,27 @@ Shared primitives live in `apps/web/components/app-shell/` and `apps/web/compone
 | View switching                  | `SegmentedControl`                                  | Bare button group                         |
 | Uppercase micro-label           | `.text-eyebrow`                                     | Another `tracking-[0.Nem]` value          |
 | Data table                      | `dataGridSx` from `lib/datagrid-theme`              | Restyling the grid at the call site       |
+| Choosing from a very long list  | `Combobox`                                          | A `Select` with hundreds of options       |
+
+### The combobox, and when it is not the answer
+
+`Select` is still the default. `Combobox` exists for one case: a list long enough that scrolling
+it is not a real option, where the value is a known token rather than free text. Time zones are
+the first -- roughly 420 entries, and a Radix `Select` cannot carry a filter because its own
+typeahead consumes the keystrokes.
+
+It follows the ARIA combobox-with-listbox pattern: the input owns `role="combobox"` and
+`aria-activedescendant`, so the active option is announced without focus ever leaving the text
+field. The popup is named "Suggestions" rather than repeating the field's label, which would
+give one accessible name to two elements.
+
+Typing filters; it never commits. A value that matches nothing leaves the previous selection
+intact, so a control backed by a fixed vocabulary cannot emit a value outside it. That is why
+the clinic dialog cannot submit an invalid time zone at all, and why the API's timezone
+validator is a backstop for API clients rather than for this form.
+
+Matches are capped at 50 with a "keep typing to narrow" line instead of virtualising. A list
+nobody can see the end of is a prompt, not a scrolling problem.
 
 ### The two help affordances
 

@@ -64,6 +64,10 @@ test('the dashboard, registry, and schedule have no automatically detectable vio
 }) => {
   // `/appointments` carries a wide data table, a triage panel, and two dialogs, and was outside
   // this sweep until the appointment release gate.
+  //
+  // `/admin/clinics` is swept in its own test below rather than here. This one waits for
+  // `networkidle` on every route, the app shell polls in the background, and a fourth route
+  // took the whole test over its 60s budget under full-suite load.
   for (const route of ['/dashboard', '/patients', '/appointments']) {
     await page.goto(route);
     await page.waitForLoadState('networkidle');
@@ -197,3 +201,31 @@ for (const breakpoint of BREAKPOINTS) {
     expect(overflow, `horizontal overflow at ${breakpoint.width}px`).toBeLessThanOrEqual(1);
   });
 }
+
+test('the clinic registry, its dialog, and its combobox survive an axe sweep', async ({ page }) => {
+  // Three states, because the interesting one is not in the DOM until it is opened: the registry
+  // itself, the dialog, and the dialog with the listbox up. The combobox is the first control of
+  // its kind in the product, and a hand-built listbox popup is exactly the kind of thing that
+  // passes review by eye and fails an automated rule.
+  //
+  // Waits on a real element rather than `networkidle`, which the shell's background polling
+  // makes expensive on this route.
+  await page.goto('/admin/clinics');
+  await expect(
+    page.locator('#main-content').getByRole('heading', { name: /^clinics$/i }),
+  ).toBeVisible({ timeout: 30_000 });
+
+  expect(describeViolations((await analyze(page)).violations), 'registry').toBe('');
+
+  await page.getByRole('button', { name: 'Create clinic', exact: true }).first().click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+
+  expect(describeViolations((await analyze(page)).violations), 'dialog closed combobox').toBe('');
+
+  // Again with the listbox open, which is the state the ARIA pattern is actually about.
+  await dialog.getByLabel('Time zone').click();
+  await expect(dialog.getByRole('listbox')).toBeVisible();
+
+  expect(describeViolations((await analyze(page)).violations), 'dialog open combobox').toBe('');
+});

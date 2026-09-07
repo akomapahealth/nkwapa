@@ -9,6 +9,14 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./clinic-metadata": {
+      "types": "./dist/src/clinic-metadata.d.ts",
+      "default": "./dist/src/clinic-metadata.js"
+    },
+    "./clinic-day": {
+      "types": "./dist/src/clinic-day.d.ts",
+      "default": "./dist/src/clinic-day.js"
+    },
     "./clinical-measurements": {
       "types": "./dist/src/clinical-measurements.d.ts",
       "default": "./dist/src/clinical-measurements.js"

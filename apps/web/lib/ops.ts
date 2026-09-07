@@ -1,3 +1,5 @@
+import { todayInTimeZone } from '@nkwapa/db/clinic-day';
+
 export const OPS_DEFAULT_TIMEZONE = 'Africa/Accra';
 
 export const SHIFT_ROLES = ['VOLUNTEER', 'DOCTOR', 'MANAGER'] as const;
@@ -131,19 +133,15 @@ function formatInTimeZone(
   }).format(new Date(value));
 }
 
+/**
+ * Today's date at a clinic, which is not always today's UTC date.
+ *
+ * Delegates to the shared helper the API's day windows are built from, so the date this sends
+ * as `?date=` and the window the API resolves for it can never disagree about which day the
+ * clinic is having.
+ */
 export function getTodayInTimeZone(timeZone = OPS_DEFAULT_TIMEZONE) {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date());
-
-  const values = Object.fromEntries(
-    parts.filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]),
-  ) as Record<'year' | 'month' | 'day', string>;
-
-  return `${values.year}-${values.month}-${values.day}`;
+  return todayInTimeZone(timeZone);
 }
 
 export function formatOpsDate(date: string, timeZone = OPS_DEFAULT_TIMEZONE) {

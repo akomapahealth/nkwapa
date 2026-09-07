@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { AssignmentStatus, CheckInStatus, Prisma, ShiftRole, UserRole } from '@prisma/client';
+import { CLINIC_DEFAULT_TIMEZONE, clinicDayWindow, type ClinicDayWindow } from '@nkwapa/db';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import {
@@ -17,16 +18,7 @@ import {
   ShiftCheckInDto,
 } from './dto/ops.dto';
 
-const DEFAULT_CLINIC_TIMEZONE = 'Africa/Accra';
-
 type TxClient = Prisma.TransactionClient;
-
-interface DayRange {
-  date: string;
-  timezone: string;
-  start: Date;
-  end: Date;
-}
 
 type PatientAssignmentSummaryPayload = Prisma.PatientAssignmentGetPayload<{
   include: {
@@ -150,7 +142,7 @@ export class OpsService {
   }
 
   async getActiveShifts(clinicId: string, date?: string) {
-    const dayRange = this.getDayRange(date);
+    const dayRange = await this.getDayRange(clinicId, date);
     const shifts = await this.prisma.staffShift.findMany({
       where: {
         clinicId,
@@ -225,7 +217,7 @@ export class OpsService {
   }
 
   async listCheckIns(clinicId: string, query: ListCheckInsQueryDto) {
-    const dayRange = this.getDayRange(query.date);
+    const dayRange = await this.getDayRange(clinicId, query.date);
     const items = await this.prisma.patientCheckIn.findMany({
       where: {
         clinicId,
@@ -398,7 +390,7 @@ export class OpsService {
   }
 
   async listAssignments(clinicId: string, query: ListAssignmentsQueryDto) {
-    const dayRange = this.getDayRange(query.date);
+    const dayRange = await this.getDayRange(clinicId, query.date);
     const items = await this.prisma.patientAssignment.findMany({
       where: {
         clinicId,
@@ -420,7 +412,7 @@ export class OpsService {
   }
 
   async listMyAssignments(clinicId: string, actorUserId: string, date?: string) {
-    const dayRange = this.getDayRange(date);
+    const dayRange = await this.getDayRange(clinicId, date);
     const items = await this.prisma.patientAssignment.findMany({
       where: {
         clinicId,
@@ -720,16 +712,24 @@ export class OpsService {
     });
   }
 
-  private getDayRange(date?: string): DayRange {
-    const resolvedDate = date ?? new Date().toISOString().slice(0, 10);
-    const start = new Date(`${resolvedDate}T00:00:00.000Z`);
-    const end = new Date(`${resolvedDate}T23:59:59.999Z`);
-    return {
-      date: resolvedDate,
-      timezone: DEFAULT_CLINIC_TIMEZONE,
-      start,
-      end,
-    };
+  /**
+   * The UTC window covering one operational day at a clinic.
+   *
+   * This used to build the window from UTC midnight to UTC midnight while telling the client
+   * the day was in `Africa/Accra`. Ghana is on UTC year round, so the two agreed by accident
+   * and the bug never showed; any clinic in another zone got a window shifted by its offset,
+   * and "today" with no date was UTC's today rather than the clinic's. Clinics can now carry
+   * a real time zone, so the accident no longer holds.
+   *
+   * The web already asks for `?date=` computed in the clinic's zone, so this is also what makes
+   * the two layers agree about which day they are talking about.
+   */
+  private async getDayRange(clinicId: string, date?: string): Promise<ClinicDayWindow> {
+    const clinic = await this.prisma.clinic.findUnique({
+      where: { id: clinicId },
+      select: { timezone: true },
+    });
+    return clinicDayWindow(date, clinic?.timezone ?? CLINIC_DEFAULT_TIMEZONE);
   }
 
   private toUserRole(roleAtShift: ShiftRole): UserRole {
