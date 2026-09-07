@@ -19,6 +19,7 @@ import { UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateClinicAdminDto } from './dto/create-clinic-admin.dto';
 import { UpdateClinicAdminDto } from './dto/update-clinic-admin.dto';
+import { IdParamDto } from '../common/request-dto';
 import type { ReqUserWithRoles } from '../auth/guards/rbac.guard';
 
 @Controller('admin/clinics')
@@ -36,14 +37,20 @@ export class ClinicsAdminController {
       userId: req.user.user.id,
       roles: req.user.roles,
     };
-    const isSystemAdmin = actor.roles.some(
-      (r) => r.role === UserRole.SYSTEM_ADMIN && r.clinicId === null,
-    );
-    const isDirector = actor.roles.some((r) => r.role === UserRole.DIRECTOR);
-    if (!isSystemAdmin && !isDirector) {
-      throw new ForbiddenException('Insufficient permissions to list clinics');
-    }
+    this.assertCanAdministerClinics(actor.roles, 'list clinics');
     return this.clinicService.listAllForAdmin(actor);
+  }
+
+  /**
+   * The organizations a clinic can be filed under.
+   *
+   * Read-only on purpose. Organization onboarding is out of scope here, so this exists only
+   * so the create form can name an existing organization rather than guessing one.
+   */
+  @Get('organizations')
+  async listOrganizations(@Request() req: { user: ReqUserWithRoles }) {
+    this.assertCanAdministerClinics(req.user.roles, 'list organizations');
+    return this.clinicService.listOrganizations();
   }
 
   @Post()
@@ -52,17 +59,18 @@ export class ClinicsAdminController {
       userId: req.user.user.id,
       roles: req.user.roles,
     };
-    const isSystemAdmin = actor.roles.some(
-      (r) => r.role === UserRole.SYSTEM_ADMIN && r.clinicId === null,
+    const { isSystemAdmin, isDirector } = this.assertCanAdministerClinics(
+      actor.roles,
+      'create clinic',
     );
-    const isDirector = actor.roles.some((r) => r.role === UserRole.DIRECTOR);
-    if (!isSystemAdmin && !isDirector) {
-      throw new ForbiddenException('Insufficient permissions to create clinic');
-    }
     const clinic = await this.clinicService.create({
       name: dto.name,
       region: dto.region,
       countryCode: dto.countryCode,
+      organizationId: dto.organizationId,
+      timezone: dto.timezone,
+      locationCode: dto.locationCode,
+      zoneCode: dto.zoneCode,
     });
     if (isDirector && !isSystemAdmin) {
       await this.prisma.userClinicRole.create({
@@ -78,10 +86,11 @@ export class ClinicsAdminController {
 
   @Put(':id')
   async update(
-    @Param('id') id: string,
+    @Param() params: IdParamDto,
     @Body() dto: UpdateClinicAdminDto,
     @Request() req: { user: ReqUserWithRoles },
   ) {
+    const { id } = params;
     const actor = {
       userId: req.user.user.id,
       roles: req.user.roles,
@@ -98,7 +107,26 @@ export class ClinicsAdminController {
       name: dto.name,
       region: dto.region,
       countryCode: dto.countryCode,
+      timezone: dto.timezone,
+      locationCode: dto.locationCode,
+      zoneCode: dto.zoneCode,
       isActive: dto.isActive,
     });
+  }
+
+  /**
+   * CLINIC.MANAGE is also held by Managers, so the guard alone would let one through.
+   * Clinic administration is Director and System Admin only, and this is the gate that
+   * enforces it -- the two existing specs pin that behaviour.
+   */
+  private assertCanAdministerClinics(roles: ReqUserWithRoles['roles'], action: string) {
+    const isSystemAdmin = roles.some(
+      (r) => r.role === UserRole.SYSTEM_ADMIN && r.clinicId === null,
+    );
+    const isDirector = roles.some((r) => r.role === UserRole.DIRECTOR);
+    if (!isSystemAdmin && !isDirector) {
+      throw new ForbiddenException(`Insufficient permissions to ${action}`);
+    }
+    return { isSystemAdmin, isDirector };
   }
 }

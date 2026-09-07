@@ -69,6 +69,7 @@ export {
   listTimeZones,
   normalizeCountryCode,
   normalizeLocationCode,
+  normalizeZoneCode,
   resolveTimeZone,
   summarizeClinicMetadata,
   toLocationCode,

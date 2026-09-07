@@ -18,7 +18,7 @@ import {
 /** A clinic whose metadata is entirely valid, so each test can spoil exactly one field. */
 const healthyClinic = {
   name: 'Nkwapa Clinic - Demo',
-  organizationId: '11111111-1111-1111-1111-111111111111',
+  organizationId: '11111111-1111-4111-8111-111111111111',
   organizationTimezone: CLINIC_DEFAULT_TIMEZONE,
   timezone: CLINIC_DEFAULT_TIMEZONE,
   locationCode: 'nkwapa-clinic-demo',
