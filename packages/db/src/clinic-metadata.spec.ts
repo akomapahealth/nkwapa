@@ -296,3 +296,23 @@ describe('summarizeClinicMetadata', () => {
     ).toBe('warning');
   });
 });
+
+describe('country code repair', () => {
+  it('never suggests a country code, because the right one cannot be guessed', () => {
+    // `isCountryCode` already normalizes case, so a failing value is wrong or truncated
+    // rather than mis-cased, and a repair pass must not invent one.
+    for (const countryCode of ['G', 'G1', '', '12']) {
+      const issue = evaluateClinicMetadata({ ...healthyClinic, countryCode }).find(
+        (entry) => entry.code === 'COUNTRY_CODE_MALFORMED',
+      );
+      expect(issue).toBeDefined();
+      expect(issue?.suggestion).toBeUndefined();
+    }
+  });
+
+  it('accepts a mis-cased code rather than reporting it', () => {
+    expect(
+      evaluateClinicMetadata({ ...healthyClinic, countryCode: 'gh' }).map((i) => i.code),
+    ).not.toContain('COUNTRY_CODE_MALFORMED');
+  });
+});

@@ -362,14 +362,14 @@ export function evaluateClinicMetadata(input: ClinicMetadataInput): ClinicMetada
 
   const rawCountryCode = typeof input.countryCode === 'string' ? input.countryCode.trim() : '';
   if (!isCountryCode(rawCountryCode)) {
+    // No suggestion on purpose. `isCountryCode` already normalizes case, so a value that fails
+    // it is not a casing problem -- it is a wrong or truncated code, and only a human knows
+    // which country was meant.
     issues.push(
       issue(
         'COUNTRY_CODE_MALFORMED',
         'countryCode',
         'The country code must be a two-letter ISO-3166 code, such as GH.',
-        isCountryCode(normalizeCountryCode(rawCountryCode))
-          ? normalizeCountryCode(rawCountryCode)
-          : undefined,
       ),
     );
   }
