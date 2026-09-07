@@ -14,8 +14,12 @@ import {
   normalizeCountryCode,
   normalizeLocationCode,
   normalizeZoneCode,
+  parseZoneFilter,
+  summarizeZones,
   toLocationCode,
+  zoneFilterWhere,
   type ClinicMetadataIssue,
+  type ZoneSummary,
 } from '@nkwapa/db';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -144,33 +148,70 @@ export class ClinicService {
   }
 
   /**
+   * Which clinics this actor may administer, as a `where` clause.
+   *
+   * `null` means "no clinics at all", which is not the same as an empty clause: an empty clause
+   * matches everything. Callers must return early on it rather than spreading it.
+   *
+   * This is the single authorization decision behind both the admin list and the zone list.
+   * It used to be written out twice, and two copies of a tenant boundary is one copy too many.
+   */
+  private clinicScopeForAdmin(actor: AdminActor): Prisma.ClinicWhereInput | null {
+    const isSystemAdmin = actor.roles.some(
+      (r) => r.role === UserRole.SYSTEM_ADMIN && r.clinicId === null,
+    );
+    if (isSystemAdmin) return {};
+
+    const directorClinicIds = actor.roles
+      .filter((r) => r.role === UserRole.DIRECTOR && r.clinicId != null)
+      .map((r) => r.clinicId as string);
+    if (directorClinicIds.length === 0) return null;
+    return { id: { in: directorClinicIds } };
+  }
+
+  /**
+   * The zones in use across the clinics this actor administers, with clinic counts.
+   *
+   * Backs the zone picker, and is deliberately derived from the actor's own scope rather than
+   * from every zone on the platform. A director offered a zone they cannot see would get an
+   * empty list and no explanation, and the list of zone names is itself a weak disclosure of
+   * how other organizations are structured.
+   */
+  async listZonesForActor(actor: AdminActor): Promise<ZoneSummary[]> {
+    const scope = this.clinicScopeForAdmin(actor);
+    if (scope === null) return [];
+
+    const clinics = await this.prisma.clinic.findMany({
+      where: scope,
+      select: { zoneCode: true, isActive: true },
+    });
+    return summarizeZones(clinics);
+  }
+
+  /**
    * The admin clinic list, with each row's organization and its metadata problems attached.
    *
    * The issues are computed by the same `evaluateClinicMetadata` the repair CLI runs, so a
    * badge in the UI and a line of CLI output can never describe a clinic differently.
+   *
+   * The zone filter narrows and can do nothing else. The actor's scope is resolved first and
+   * the zone clause is ANDed onto it, so filtering by a zone that another organization also
+   * uses returns this actor's clinics in that zone and nothing more. That ordering is the
+   * boundary; `zoneFilterWhere` cannot express anything but a `zoneCode` constraint, and
+   * `docs/specs/03_AUTH_AND_RBAC.md` says why.
    */
-  async listAllForAdmin(actor: AdminActor): Promise<AdminClinicView[]> {
-    const isSystemAdmin = actor.roles.some(
-      (r) => r.role === UserRole.SYSTEM_ADMIN && r.clinicId === null,
-    );
+  async listAllForAdmin(
+    actor: AdminActor,
+    filters?: { zoneCode?: string | null },
+  ): Promise<AdminClinicView[]> {
+    const scope = this.clinicScopeForAdmin(actor);
+    if (scope === null) return [];
 
-    let clinics;
-    if (isSystemAdmin) {
-      clinics = await this.prisma.clinic.findMany({
-        orderBy: { name: 'asc' },
-        include: { organization: true },
-      });
-    } else {
-      const directorClinicIds = actor.roles
-        .filter((r) => r.role === UserRole.DIRECTOR && r.clinicId != null)
-        .map((r) => r.clinicId as string);
-      if (directorClinicIds.length === 0) return [];
-      clinics = await this.prisma.clinic.findMany({
-        where: { id: { in: directorClinicIds } },
-        orderBy: { name: 'asc' },
-        include: { organization: true },
-      });
-    }
+    const clinics = await this.prisma.clinic.findMany({
+      where: { ...scope, ...zoneFilterWhere(parseZoneFilter(filters?.zoneCode)) },
+      orderBy: { name: 'asc' },
+      include: { organization: true },
+    });
 
     return clinics.map(({ organization, ...clinic }) => ({
       ...clinic,
@@ -301,18 +342,14 @@ export class ClinicService {
 
   /** `'all'` for a system admin; otherwise the organizations the actor directs a clinic in. */
   private async allowedOrganizationIds(actor: AdminActor): Promise<'all' | string[]> {
-    const isSystemAdmin = actor.roles.some(
-      (r) => r.role === UserRole.SYSTEM_ADMIN && r.clinicId === null,
-    );
-    if (isSystemAdmin) return 'all';
-
-    const directorClinicIds = actor.roles
-      .filter((r) => r.role === UserRole.DIRECTOR && r.clinicId != null)
-      .map((r) => r.clinicId as string);
-    if (directorClinicIds.length === 0) return [];
+    const scope = this.clinicScopeForAdmin(actor);
+    if (scope === null) return [];
+    // An empty clause is the system admin's "every clinic", which is why it cannot be spread
+    // onto a query without meaning it.
+    if (Object.keys(scope).length === 0) return 'all';
 
     const clinics = await this.prisma.clinic.findMany({
-      where: { id: { in: directorClinicIds } },
+      where: scope,
       select: { organizationId: true },
     });
     return [...new Set(clinics.map((clinic) => clinic.organizationId))];

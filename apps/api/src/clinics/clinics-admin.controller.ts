@@ -5,6 +5,7 @@ import {
   Put,
   Body,
   Param,
+  Query,
   UseGuards,
   Request,
   ForbiddenException,
@@ -19,6 +20,7 @@ import { UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateClinicAdminDto } from './dto/create-clinic-admin.dto';
 import { UpdateClinicAdminDto } from './dto/update-clinic-admin.dto';
+import { ListClinicsAdminQueryDto } from './dto/list-clinics-admin.query.dto';
 import { IdParamDto } from '../common/request-dto';
 import type { ReqUserWithRoles } from '../auth/guards/rbac.guard';
 
@@ -32,13 +34,33 @@ export class ClinicsAdminController {
   ) {}
 
   @Get()
-  async listAll(@Request() req: { user: ReqUserWithRoles }) {
+  async listAll(
+    @Request() req: { user: ReqUserWithRoles },
+    @Query() query: ListClinicsAdminQueryDto,
+  ) {
     const actor = {
       userId: req.user.user.id,
       roles: req.user.roles,
     };
     this.assertCanAdministerClinics(actor.roles, 'list clinics');
-    return this.clinicService.listAllForAdmin(actor);
+    return this.clinicService.listAllForAdmin(actor, { zoneCode: query.zoneCode });
+  }
+
+  /**
+   * The zones in use across the clinics this actor administers.
+   *
+   * Zones are tenant-defined free text rather than an enum, so the filter's vocabulary has to
+   * come from the data. Scoped exactly like the list beside it: a director sees the zones of
+   * the clinics they direct, and learns nothing about how anyone else is organized.
+   */
+  @Get('zones')
+  async listZones(@Request() req: { user: ReqUserWithRoles }) {
+    const actor = {
+      userId: req.user.user.id,
+      roles: req.user.roles,
+    };
+    this.assertCanAdministerClinics(actor.roles, 'list zones');
+    return this.clinicService.listZonesForActor(actor);
   }
 
   /**

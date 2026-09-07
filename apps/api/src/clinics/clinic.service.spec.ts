@@ -501,3 +501,131 @@ describe('ClinicService organization scoping', () => {
     });
   });
 });
+
+const DIRECTOR_CLINIC_A = 'aaaaaaaa-1111-4111-8111-111111111111';
+const DIRECTOR_CLINIC_B = 'bbbbbbbb-1111-4111-8111-111111111111';
+
+const asSystemAdmin = {
+  userId: 'user-admin',
+  roles: [{ clinicId: null, role: UserRole.SYSTEM_ADMIN }],
+};
+const asDirector = {
+  userId: 'user-director',
+  roles: [
+    { clinicId: DIRECTOR_CLINIC_A, role: UserRole.DIRECTOR },
+    { clinicId: DIRECTOR_CLINIC_B, role: UserRole.DIRECTOR },
+  ],
+};
+const asVolunteer = {
+  userId: 'user-volunteer',
+  roles: [{ clinicId: DIRECTOR_CLINIC_A, role: UserRole.VOLUNTEER }],
+};
+
+/** The `where` the service actually sent, for asserting on how a filter was composed. */
+const whereOf = (mock: jest.Mock) => mock.mock.calls[0][0].where;
+
+describe('ClinicService.listAllForAdmin zone filter', () => {
+  it('applies no zone clause when no filter is given', async () => {
+    const { prisma, service } = buildService();
+    await service.listAllForAdmin(asSystemAdmin);
+    expect(whereOf(prisma.clinic.findMany)).toEqual({});
+  });
+
+  it('narrows a system admin to one zone', async () => {
+    const { prisma, service } = buildService();
+    await service.listAllForAdmin(asSystemAdmin, { zoneCode: 'north' });
+    expect(whereOf(prisma.clinic.findMany)).toEqual({ zoneCode: 'north' });
+  });
+
+  it('selects the clinics with no zone under the sentinel', async () => {
+    const { prisma, service } = buildService();
+    await service.listAllForAdmin(asSystemAdmin, { zoneCode: '__unzoned__' });
+    expect(whereOf(prisma.clinic.findMany)).toEqual({ zoneCode: null });
+  });
+
+  it('normalizes the filter the way the column stores it', async () => {
+    const { prisma, service } = buildService();
+    await service.listAllForAdmin(asSystemAdmin, { zoneCode: '  NORTH ' });
+    expect(whereOf(prisma.clinic.findMany)).toEqual({ zoneCode: 'north' });
+  });
+
+  it('ignores a filter it cannot parse rather than failing the read', async () => {
+    const { prisma, service } = buildService();
+    await service.listAllForAdmin(asSystemAdmin, { zoneCode: 'not a zone' });
+    expect(whereOf(prisma.clinic.findMany)).toEqual({});
+  });
+
+  it('keeps a director scoped to their own clinics while filtering', async () => {
+    // The point of the whole feature: the zone clause is ANDed onto the clinic-id scope, never
+    // substituted for it. A director asking for a zone gets their clinics in that zone.
+    const { prisma, service } = buildService();
+    await service.listAllForAdmin(asDirector, { zoneCode: 'north' });
+    expect(whereOf(prisma.clinic.findMany)).toEqual({
+      id: { in: [DIRECTOR_CLINIC_A, DIRECTOR_CLINIC_B] },
+      zoneCode: 'north',
+    });
+  });
+
+  it('never drops the clinic-id scope, whatever the filter', async () => {
+    for (const zoneCode of [undefined, 'north', '__unzoned__', 'not a zone', '']) {
+      const { prisma, service } = buildService();
+      await service.listAllForAdmin(asDirector, { zoneCode });
+      expect(whereOf(prisma.clinic.findMany)).toMatchObject({
+        id: { in: [DIRECTOR_CLINIC_A, DIRECTOR_CLINIC_B] },
+      });
+    }
+  });
+
+  it('returns nothing for an actor who administers no clinic, filter or not', async () => {
+    const { prisma, service } = buildService();
+    await expect(service.listAllForAdmin(asVolunteer, { zoneCode: 'north' })).resolves.toEqual([]);
+    // No query at all, rather than a query with an empty scope -- which would match everything.
+    expect(prisma.clinic.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('ClinicService.listZonesForActor', () => {
+  it('summarizes the zones across every clinic for a system admin', async () => {
+    const { prisma, service } = buildService();
+    prisma.clinic.findMany.mockResolvedValue([
+      { zoneCode: 'north', isActive: true },
+      { zoneCode: 'north', isActive: false },
+      { zoneCode: null, isActive: true },
+    ]);
+
+    await expect(service.listZonesForActor(asSystemAdmin)).resolves.toEqual([
+      { zoneCode: 'north', clinicCount: 2, activeClinicCount: 1 },
+      { zoneCode: null, clinicCount: 1, activeClinicCount: 1 },
+    ]);
+    expect(whereOf(prisma.clinic.findMany)).toEqual({});
+  });
+
+  it('reads only the clinics a director administers', async () => {
+    // A zone list built from every clinic on the platform would leak how other organizations
+    // are structured, and offer a director filters that can only ever return nothing.
+    const { prisma, service } = buildService();
+    prisma.clinic.findMany.mockResolvedValue([{ zoneCode: 'north', isActive: true }]);
+
+    await service.listZonesForActor(asDirector);
+    expect(whereOf(prisma.clinic.findMany)).toEqual({
+      id: { in: [DIRECTOR_CLINIC_A, DIRECTOR_CLINIC_B] },
+    });
+  });
+
+  it('returns nothing for an actor who administers no clinic', async () => {
+    const { prisma, service } = buildService();
+    await expect(service.listZonesForActor(asVolunteer)).resolves.toEqual([]);
+    expect(prisma.clinic.findMany).not.toHaveBeenCalled();
+  });
+
+  it('scopes the zone list exactly like the clinic list beside it', async () => {
+    // The two endpoints back one picker and one table. If their scoping ever diverged, the
+    // picker would offer a zone the table could not show.
+    const { prisma: zonesPrisma, service: zonesService } = buildService();
+    const { prisma: listPrisma, service: listService } = buildService();
+    await zonesService.listZonesForActor(asDirector);
+    await listService.listAllForAdmin(asDirector);
+
+    expect(whereOf(zonesPrisma.clinic.findMany)).toEqual(whereOf(listPrisma.clinic.findMany));
+  });
+});

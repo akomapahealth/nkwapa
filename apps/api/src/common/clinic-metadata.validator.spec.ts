@@ -1,10 +1,12 @@
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
+import { UNZONED_FILTER_VALUE } from '@nkwapa/db';
 import {
   IsCountryCode,
   IsIanaTimeZone,
   IsLocationCode,
   IsZoneCode,
+  IsZoneFilter,
 } from './clinic-metadata.validator';
 
 class MetadataProbe {
@@ -90,6 +92,41 @@ describe('clinic metadata validators', () => {
 
     it('still shape-checks a zone code that is present', async () => {
       expect(await failingFields({ zoneCode: 'Greater Accra' })).toEqual(['zoneCode']);
+    });
+  });
+
+  describe('IsZoneFilter', () => {
+    class ZoneFilterSubject {
+      @IsZoneFilter()
+      zoneCode?: string;
+    }
+
+    const filterErrors = async (value: unknown) => {
+      const subject = new ZoneFilterSubject();
+      (subject as { zoneCode?: unknown }).zoneCode = value;
+      return (await validate(subject)).map((error) => error.property);
+    };
+
+    it('accepts a zone code, like IsZoneCode does', async () => {
+      expect(await filterErrors('greater-accra')).toEqual([]);
+    });
+
+    it('accepts the unzoned sentinel, which IsZoneCode does not', async () => {
+      // This is the whole reason the two decorators are separate: `__unzoned__` is a legal
+      // question to ask a query and an illegal value to store in the column.
+      expect(await filterErrors(UNZONED_FILTER_VALUE)).toEqual([]);
+      expect(await failingFields({ zoneCode: UNZONED_FILTER_VALUE })).toEqual(['zoneCode']);
+    });
+
+    it('treats absent and empty as no filter', async () => {
+      expect(await filterErrors(undefined)).toEqual([]);
+      expect(await filterErrors('')).toEqual([]);
+    });
+
+    it('rejects a value the column could not hold', async () => {
+      expect(await filterErrors('Greater Accra')).toEqual(['zoneCode']);
+      expect(await filterErrors('a'.repeat(65))).toEqual(['zoneCode']);
+      expect(await filterErrors(7)).toEqual(['zoneCode']);
     });
   });
 

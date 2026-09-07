@@ -2,11 +2,13 @@ import {
   COUNTRY_CODE_PATTERN,
   LOCATION_CODE_MAX_LENGTH,
   LOCATION_CODE_PATTERN,
+  UNZONED_FILTER_VALUE,
   ZONE_CODE_MAX_LENGTH,
   isCountryCode,
   isLocationCode,
   isTimeZone,
   isZoneCode,
+  isZoneFilterValue,
 } from '@nkwapa/db';
 import {
   registerDecorator,
@@ -93,6 +95,39 @@ export function IsZoneCode(validationOptions?: ValidationOptions) {
       options: validationOptions,
       constraints: [],
       validator: IsZoneCodeConstraint,
+    });
+  };
+}
+
+@ValidatorConstraint({ name: 'isZoneFilter', async: false })
+export class IsZoneFilterConstraint implements ValidatorConstraintInterface {
+  validate(value: unknown): boolean {
+    // Absent is "no filter", which `@IsOptional` has already let through. Anything present has
+    // to be a zone the column could hold, or the sentinel that selects the clinics with none.
+    if (value === null || value === undefined || value === '') return true;
+    return isZoneFilterValue(value);
+  }
+
+  defaultMessage(): string {
+    return `zoneCode must be a zone code, or "${UNZONED_FILTER_VALUE}" for clinics with no zone. Leave it out to list every zone.`;
+  }
+}
+
+/**
+ * Validates a zone *filter*, which is a different question from a zone *code*.
+ *
+ * `IsZoneCode` guards a value on its way into the column, so it knows nothing about the unzoned
+ * sentinel. This guards a value on its way into a query, where "the clinics with no zone" is a
+ * thing a caller needs to be able to ask for and an empty string cannot express.
+ */
+export function IsZoneFilter(validationOptions?: ValidationOptions) {
+  return function (object: object, propertyName: string) {
+    registerDecorator({
+      target: object.constructor,
+      propertyName,
+      options: validationOptions,
+      constraints: [],
+      validator: IsZoneFilterConstraint,
     });
   };
 }
