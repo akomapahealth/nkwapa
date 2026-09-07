@@ -15,6 +15,17 @@ import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
 import {
+  memberMatchesZone,
+  summarizeZones,
+  zoneByClinicId,
+  zoneFilterFromSelect,
+  zoneFilterLabel,
+  zoneFilterOptions,
+  zoneFilterToSelect,
+  zoneLabel,
+  type ZoneFilter,
+} from '@/lib/clinic-zones';
+import {
   EmptyState,
   InlineErrorState,
   SectionSkeleton,
@@ -304,7 +315,8 @@ export default function AdminUsersPage() {
   const activeClinicId = getBootstrapActiveClinicId(bootstrap);
   const activeMembership =
     bootstrap?.memberships.find((membership) => membership.clinicId === activeClinicId) ?? null;
-  const activeClinicName = getActiveBootstrapClinic(bootstrap, activeClinicId)?.clinicName ?? null;
+  const activeClinic = getActiveBootstrapClinic(bootstrap, activeClinicId);
+  const activeClinicName = activeClinic?.clinicName ?? null;
   const isSystemAdmin = bootstrap?.globalRoles?.includes('SYSTEM_ADMIN') ?? false;
   const directorMemberships = (bootstrap?.memberships ?? []).filter((membership) =>
     membership.roles.includes('DIRECTOR'),
@@ -330,6 +342,7 @@ export default function AdminUsersPage() {
   );
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
+  const [zoneFilter, setZoneFilter] = useState<ZoneFilter>(null);
   const [portalFilter, setPortalFilter] = useState<PortalFilter>('ALL');
   const [rows, setRows] = useState<StaffAccessRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -342,7 +355,9 @@ export default function AdminUsersPage() {
   const [userRoles, setUserRoles] = useState<UserRoleRow[]>([]);
   const [assignRole, setAssignRole] = useState<string>('');
   const [assignClinicId, setAssignClinicId] = useState<string>('');
-  const [allClinics, setAllClinics] = useState<Array<{ id: string; name: string }>>([]);
+  const [allClinics, setAllClinics] = useState<
+    Array<{ id: string; name: string; zoneCode: string | null }>
+  >([]);
   const [savingAssignment, setSavingAssignment] = useState(false);
   const [revokingRole, setRevokingRole] = useState<UserRoleRow | null>(null);
   const [deactivateOpen, setDeactivateOpen] = useState(false);
@@ -378,7 +393,9 @@ export default function AdminUsersPage() {
       if (!res.ok) {
         throw new Error(await readApiError(res));
       }
-      setAllClinics((await res.json()) as Array<{ id: string; name: string }>);
+      setAllClinics(
+        (await res.json()) as Array<{ id: string; name: string; zoneCode: string | null }>,
+      );
     } catch {
       setAllClinics([]);
     }
@@ -503,8 +520,26 @@ export default function AdminUsersPage() {
         name: membership.clinicName,
       }));
 
+  // Zone narrows the roster the API already scoped; it never reaches for a row that was not
+  // there. Offered only across clinics, because the clinic roster is one clinic and so one zone.
+  /*
+    Context rather than a control, in the clinic roster. That view is one clinic, so it is one
+    zone, and a picker there could only ever say "all" or "none". Naming the zone tells an
+    operator which slice of a zone report this roster is, which is the question they have.
+  */
+  const activeClinicZoneLabel =
+    viewMode === 'clinic' && activeClinic ? zoneLabel(activeClinic.zoneCode) : null;
+
+  const zoneLookup = zoneByClinicId(allClinics);
+  const showZoneFilter = viewMode === 'all' && allClinics.length > 0;
+  const zoneOptions = zoneFilterOptions(summarizeZones(allClinics));
+  const appliedZoneFilter = showZoneFilter ? zoneFilter : null;
+
   const visibleRows = rows.filter(
-    (row) => roleMatchesFilter(row, roleFilter) && patientPortalMatchesFilter(row, portalFilter),
+    (row) =>
+      roleMatchesFilter(row, roleFilter) &&
+      patientPortalMatchesFilter(row, portalFilter) &&
+      memberMatchesZone(row.clinicMemberships, zoneLookup, appliedZoneFilter),
   );
   const activeCount = rows.filter((row) => row.isActive).length;
   const inactiveCount = rows.filter((row) => !row.isActive).length;
@@ -939,6 +974,27 @@ export default function AdminUsersPage() {
                 </div>
               ) : null}
 
+              {showZoneFilter ? (
+                <div className="space-y-2">
+                  <Label htmlFor="staff-zone-filter">Zone</Label>
+                  <Select
+                    value={zoneFilterToSelect(zoneFilter)}
+                    onValueChange={(value) => setZoneFilter(zoneFilterFromSelect(value))}
+                  >
+                    <SelectTrigger id="staff-zone-filter">
+                      <SelectValue placeholder="All zones" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {zoneOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
@@ -947,6 +1003,7 @@ export default function AdminUsersPage() {
                     setStatusFilter('active');
                     setRoleFilter('ALL');
                     setPortalFilter('ALL');
+                    setZoneFilter(null);
                   }}
                 >
                   Reset filters
@@ -969,6 +1026,8 @@ export default function AdminUsersPage() {
                           : portalStatusLabel(portalFilter as PortalLinkStatus)
                         : null,
                   },
+                  { label: 'Zone', value: zoneFilterLabel(appliedZoneFilter) },
+                  { label: 'Clinic zone', value: activeClinicZoneLabel },
                 ]}
                 emptyLabel="Default roster view"
               />
@@ -1046,6 +1105,8 @@ export default function AdminUsersPage() {
                           : portalStatusLabel(portalFilter as PortalLinkStatus)
                         : null,
                   },
+                  { label: 'Zone', value: zoneFilterLabel(appliedZoneFilter) },
+                  { label: 'Clinic zone', value: activeClinicZoneLabel },
                 ]}
               />
             </CardHeader>

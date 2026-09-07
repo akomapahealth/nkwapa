@@ -99,3 +99,39 @@ export function zoneQueryString(filter: ZoneFilter): string {
 export function zoneResourceKey(base: string, filter: ZoneFilter): string {
   return `${base}:${filter ?? 'all'}`;
 }
+
+/**
+ * Does a person belong to a zone, by way of the clinics they hold a role at?
+ *
+ * A person is not in a zone; their clinics are. So this asks whether any clinic they hold a
+ * seat at is in the zone being filtered for. Someone with seats in two zones matches both,
+ * which is right: they really do work in both.
+ *
+ * The unzoned case reads "has no seat in any zone", so it covers both the person whose clinics
+ * simply have no zone code and the global administrator who holds no clinic seat at all. The
+ * alternative -- matching only the first -- would make a global admin invisible under every
+ * option including this one, and a roster that hides a row under all filters is worse than one
+ * that files it under the residue.
+ *
+ * This never decides what anyone may see. The roster it filters was already scoped by the API.
+ */
+export function memberMatchesZone(
+  memberships: { clinicId: string }[],
+  zoneByClinicId: Map<string, string | null>,
+  filter: ZoneFilter,
+): boolean {
+  if (filter === null) return true;
+
+  const zones = memberships.map((membership) => zoneByClinicId.get(membership.clinicId) ?? null);
+  if (filter === UNZONED_FILTER_VALUE) {
+    return zones.every((zone) => zone === null);
+  }
+  return zones.some((zone) => zoneFilterMatches(zone, filter));
+}
+
+/** Clinic id to zone code, for `memberMatchesZone`. */
+export function zoneByClinicId(
+  clinics: { id: string; zoneCode?: string | null }[],
+): Map<string, string | null> {
+  return new Map(clinics.map((clinic) => [clinic.id, clinic.zoneCode ?? null]));
+}

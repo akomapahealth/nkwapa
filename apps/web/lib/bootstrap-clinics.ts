@@ -1,6 +1,14 @@
 export interface BootstrapClinic {
   clinicId: string;
   clinicName: string;
+  /**
+   * The clinic's reporting zone, or `null`.
+   *
+   * Optional because an older API build does not send it, and a missing zone must read as "no
+   * zone" rather than take a screen down. It is context for a single-clinic view: zone is a
+   * reporting dimension and never decides what anyone may open.
+   */
+  zoneCode?: string | null;
 }
 
 export interface BootstrapMembership extends BootstrapClinic {
@@ -40,6 +48,7 @@ export function getSwitchableClinics(
     (bootstrap?.memberships ?? []).map((membership) => ({
       clinicId: membership.clinicId,
       clinicName: membership.clinicName,
+      zoneCode: membership.zoneCode ?? null,
     })),
   );
 }

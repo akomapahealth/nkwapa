@@ -5,7 +5,8 @@ import { ActivitySquare, FileClock, Shield } from 'lucide-react';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
-import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
+import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
+import { zoneLabel } from '@/lib/clinic-zones';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
@@ -35,6 +36,13 @@ export default function AuditPage() {
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const getToken = useAuth();
   const clinicId = getBootstrapActiveClinicId(bootstrap);
+  /*
+    Context, not a filter. This log is `/clinics/:clinicId/audit` -- one clinic, therefore one
+    zone -- so a zone control here could only say "all" or "none". What is worth saying is which
+    zone's activity the reader is looking at, and that sharing a zone with another clinic does
+    not put that clinic's entries in this log.
+  */
+  const activeClinic = getActiveBootstrapClinic(bootstrap, clinicId);
 
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -245,6 +253,7 @@ export default function AuditPage() {
                 { label: 'Actor', value: actor || null },
                 { label: 'Entity', value: entityType || null },
                 { label: 'Request', value: requestId || null },
+                { label: 'Zone', value: activeClinic ? zoneLabel(activeClinic.zoneCode) : null },
               ]}
               emptyLabel="Recent clinic activity"
             />

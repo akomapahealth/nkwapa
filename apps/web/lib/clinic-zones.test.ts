@@ -6,6 +6,8 @@ import {
   zoneFilterLabel,
   zoneFilterOptions,
   zoneFilterToSelect,
+  memberMatchesZone,
+  zoneByClinicId,
   zoneQueryString,
   zoneResourceKey,
   type ZoneSummary,
@@ -98,5 +100,47 @@ describe('the request and its cache key', () => {
     );
     expect(new Set(keys).size).toBe(keys.length);
     expect(zoneResourceKey('admin-clinics', null)).toBe('admin-clinics:all');
+  });
+});
+
+describe('memberMatchesZone', () => {
+  const zones = zoneByClinicId([
+    { id: 'c-north', zoneCode: 'north' },
+    { id: 'c-south', zoneCode: 'south' },
+    { id: 'c-none', zoneCode: null },
+  ]);
+  const at = (...clinicIds: string[]) => clinicIds.map((clinicId) => ({ clinicId }));
+
+  it('keeps everyone when no zone is applied', () => {
+    expect(memberMatchesZone(at('c-north'), zones, null)).toBe(true);
+    expect(memberMatchesZone([], zones, null)).toBe(true);
+  });
+
+  it('matches on any seat, not only the first', () => {
+    // Someone working in two zones really is in both; picking one would hide them from the other.
+    expect(memberMatchesZone(at('c-north', 'c-south'), zones, 'north')).toBe(true);
+    expect(memberMatchesZone(at('c-north', 'c-south'), zones, 'south')).toBe(true);
+  });
+
+  it('excludes someone with no seat in that zone', () => {
+    expect(memberMatchesZone(at('c-south'), zones, 'north')).toBe(false);
+  });
+
+  it('reads unzoned as having no seat in any zone', () => {
+    expect(memberMatchesZone(at('c-none'), zones, '__unzoned__')).toBe(true);
+    expect(memberMatchesZone(at('c-none', 'c-north'), zones, '__unzoned__')).toBe(false);
+  });
+
+  it('files someone with no clinic seat at all under unzoned', () => {
+    // A global administrator holds no clinic seat. Excluding them from every option would make
+    // the row unreachable under any filter, which is worse than filing it under the residue.
+    expect(memberMatchesZone([], zones, '__unzoned__')).toBe(true);
+    expect(memberMatchesZone([], zones, 'north')).toBe(false);
+  });
+
+  it('treats a clinic it has never heard of as unzoned', () => {
+    // The roster and the clinic list are two reads; one can be a moment behind the other.
+    expect(memberMatchesZone(at('c-unknown'), zones, '__unzoned__')).toBe(true);
+    expect(memberMatchesZone(at('c-unknown'), zones, 'north')).toBe(false);
   });
 });
