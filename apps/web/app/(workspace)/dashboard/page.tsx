@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { EmptyStateCard } from '@/components/ops/OpsShared';
 import { RefreshCw } from 'lucide-react';
+import { zoneQueryString, type ZoneFilter, type ZoneSummary } from '@/lib/clinic-zones';
 
 interface DashboardData {
   summary: {
@@ -102,10 +103,13 @@ interface DashboardData {
     clinicComparison: {
       clinicId: string;
       clinicName: string;
+      zoneCode: string | null;
       totalPatients: number;
       totalEncounters: number;
       totalFinalized: number;
     }[];
+    zones: ZoneSummary[];
+    appliedZoneCode: string | null;
   };
 }
 
@@ -117,6 +121,7 @@ export default function DashboardPage() {
   const clinicId = getBootstrapActiveClinicId(bootstrap);
   const activeClinic = getActiveBootstrapClinic(bootstrap, clinicId);
 
+  const [zoneFilter, setZoneFilter] = useState<ZoneFilter>(null);
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -132,9 +137,10 @@ export default function DashboardPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}/dashboard`, {
-          getToken,
-        });
+        const res = await apiFetch(
+          `/clinics/${encodeURIComponent(clinicId)}/dashboard${zoneQueryString(zoneFilter)}`,
+          { getToken },
+        );
         if (!res.ok) {
           throw await readApiError(res);
         }
@@ -170,7 +176,7 @@ export default function DashboardPage() {
         setLoading(false);
       }
     },
-    [activeClinic, clinicId, getToken, showToast],
+    [activeClinic, clinicId, getToken, showToast, zoneFilter],
   );
 
   useEffect(() => {
@@ -279,7 +285,14 @@ export default function DashboardPage() {
 
               {data.volunteer && <VolunteerDashboard {...data.volunteer} />}
 
-              {data.systemAdmin && <SystemAdminDashboard {...data.systemAdmin} />}
+              {data.systemAdmin && (
+                <SystemAdminDashboard
+                  {...data.systemAdmin}
+                  zoneFilter={zoneFilter}
+                  onZoneFilterChange={setZoneFilter}
+                  isRefreshing={loading}
+                />
+              )}
             </div>
           </>
         )}
