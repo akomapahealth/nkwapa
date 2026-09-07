@@ -29,6 +29,8 @@ export interface TenantFixtureClinic {
   organizationId: string;
   name: string;
   locationCode: string;
+  /** Optional in the schema, so the fixture carries a clinic without one too. */
+  zoneCode: string | null;
 }
 
 export interface TenantFixtureRoleGrant {
@@ -55,6 +57,15 @@ export interface TenantFixturePatient {
 const ORG_A_ID = 'aa000000-0000-4000-8000-000000000001';
 const ORG_B_ID = 'bb000000-0000-4000-8000-000000000001';
 
+/**
+ * One zone code deliberately held by clinics in two different organizations.
+ *
+ * Zone is a reporting filter and never a grant, and the only way to test that is to have a zone
+ * that straddles a tenant boundary. `a1` and `b1` share it; a filter for it must still return
+ * only the clinics the actor was already allowed to see.
+ */
+export const SHARED_ZONE_CODE = 'gate-shared-zone';
+
 export const TENANT_ORGANIZATIONS = {
   orgA: { id: ORG_A_ID, name: 'Gate Org A', slug: 'gate-org-a' },
   orgB: { id: ORG_B_ID, name: 'Gate Org B', slug: 'gate-org-b' },
@@ -67,6 +78,7 @@ export const TENANT_CLINICS = {
     organizationId: ORG_A_ID,
     name: 'Gate Clinic A1',
     locationCode: 'gate-a1',
+    zoneCode: SHARED_ZONE_CODE,
   },
   /** Same organization, different clinic. Proves clinic isolation inside one tenant. */
   a2: {
@@ -74,6 +86,7 @@ export const TENANT_CLINICS = {
     organizationId: ORG_A_ID,
     name: 'Gate Clinic A2',
     locationCode: 'gate-a2',
+    zoneCode: null,
   },
   /** Different organization. Proves tenant isolation across organizations. */
   b1: {
@@ -81,6 +94,7 @@ export const TENANT_CLINICS = {
     organizationId: ORG_B_ID,
     name: 'Gate Clinic B1',
     locationCode: 'gate-b1',
+    zoneCode: SHARED_ZONE_CODE,
   },
 } as const satisfies Record<string, TenantFixtureClinic>;
 
@@ -230,7 +244,7 @@ export function tenantFixtureSql(): string {
 
   for (const clinic of Object.values(TENANT_CLINICS)) {
     statements.push(
-      `INSERT INTO "Clinic" ("id", "organizationId", "name", "timezone", "locationCode", "updatedAt") VALUES (${sqlLiteral(clinic.id)}, ${sqlLiteral(clinic.organizationId)}, ${sqlLiteral(clinic.name)}, 'Africa/Accra', ${sqlLiteral(clinic.locationCode)}, CURRENT_TIMESTAMP);`,
+      `INSERT INTO "Clinic" ("id", "organizationId", "name", "timezone", "locationCode", "zoneCode", "updatedAt") VALUES (${sqlLiteral(clinic.id)}, ${sqlLiteral(clinic.organizationId)}, ${sqlLiteral(clinic.name)}, 'Africa/Accra', ${sqlLiteral(clinic.locationCode)}, ${clinic.zoneCode === null ? 'NULL' : sqlLiteral(clinic.zoneCode)}, CURRENT_TIMESTAMP);`,
     );
   }
 

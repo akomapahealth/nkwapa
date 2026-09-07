@@ -68,3 +68,58 @@ describe('row level security coverage', () => {
     expect(migrationSql).toMatch(/CREATE ROLE nkwapa_app[^;]*NOSUPERUSER/);
   });
 });
+
+/**
+ * Zone is a reporting dimension, not a permission scope.
+ *
+ * The V1 policy is stated in `docs/specs/03_AUTH_AND_RBAC.md`: a zone filter may only narrow a
+ * set of clinics an actor is already authorized to see, and sharing a zone with a clinic never
+ * grants access to it. The API enforces that by resolving the actor's clinics before any zone
+ * clause is applied, but a service-layer habit is one refactor from not being a boundary.
+ *
+ * These are the database half of the guarantee. `app.current_zone_code()` exists and the RLS
+ * context sets it, which makes it available for diagnostics and for a future deliberate change
+ * -- and makes it exactly the sort of thing someone reaches for while adding "just one" zone
+ * predicate. If that happens, this fails and points at the docs that would need rewriting first.
+ */
+describe('zone is not a permission scope', () => {
+  const policies = [...migrationSql.matchAll(/CREATE POLICY[\s\S]*?;/g)].map((match) => match[0]);
+
+  it('finds the policies to check', () => {
+    expect(policies.length).toBeGreaterThan(20);
+  });
+
+  it('defines the zone context helper', () => {
+    // Its presence is the point: the setting is carried deliberately, not by accident.
+    expect(migrationSql).toContain('CREATE OR REPLACE FUNCTION app.current_zone_code()');
+  });
+
+  it('never reads the zone context from a policy', () => {
+    const offenders = policies.filter((policy) => policy.includes('current_zone_code'));
+    expect(offenders).toEqual([]);
+  });
+
+  it('never reads a clinic zone column from a policy', () => {
+    const offenders = policies.filter((policy) => /"?zoneCode"?/.test(policy));
+    expect(offenders).toEqual([]);
+  });
+
+  it('keeps zone off the table that grants roles', () => {
+    // A zone column on UserClinicRole is what a zone-scoped role would need. Its absence is the
+    // schema-level statement that no such role exists.
+    const userClinicRole = schema.match(/^model UserClinicRole \{([\s\S]*?)^\}/m);
+    expect(userClinicRole).not.toBeNull();
+    expect(userClinicRole?.[1]).not.toMatch(/zone/i);
+  });
+
+  it('decides clinic access from the clinic id list alone', () => {
+    // The one predicate every clinic-scoped policy funnels through. If zone ever widens access,
+    // it widens here first.
+    const canAccessClinic = migrationSql.match(
+      /CREATE OR REPLACE FUNCTION app\.can_access_clinic[\s\S]*?\$\$;/,
+    );
+    expect(canAccessClinic).not.toBeNull();
+    expect(canAccessClinic?.[0]).toContain('app.current_clinic_ids()');
+    expect(canAccessClinic?.[0]).not.toContain('zone');
+  });
+});

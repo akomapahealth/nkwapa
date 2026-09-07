@@ -88,6 +88,20 @@ export {
   type ClinicDayWindow,
 } from './src/clinic-day';
 export {
+  UNZONED_FILTER_VALUE,
+  UNZONED_LABEL,
+  isZoneFilterValue,
+  listZoneCodes,
+  parseZoneFilter,
+  summarizeZones,
+  zoneFilterMatches,
+  zoneFilterWhere,
+  zoneLabel,
+  zoneSummaryFilterValue,
+  type ZoneFilter,
+  type ZoneSummary,
+} from './src/clinic-zones';
+export {
   DUPLICATE_CONFIDENCE_LEVELS,
   DUPLICATE_CONFIDENCE_THRESHOLDS,
   DUPLICATE_MATCH_REASONS,
@@ -148,6 +162,7 @@ export {
   type PatientChartSectionId,
 } from './src/patient-chart-sections';
 export {
+  SHARED_ZONE_CODE,
   TENANT_ORGANIZATIONS,
   TENANT_CLINICS,
   TENANT_CLINICAL_ROLES,
