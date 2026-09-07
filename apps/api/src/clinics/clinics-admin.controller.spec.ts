@@ -6,6 +6,9 @@ describe('ClinicsAdminController', () => {
   const clinicService = {
     listAllForAdmin: jest.fn().mockResolvedValue([{ id: 'clinic-1', name: 'Clinic One' }]),
     listOrganizations: jest.fn().mockResolvedValue([{ id: 'org-1', name: 'Nkwapa Health' }]),
+    resolveOrganizationIdForActor: jest
+      .fn()
+      .mockResolvedValue('11111111-1111-4111-8111-111111111111'),
     create: jest.fn().mockResolvedValue({ id: 'clinic-new' }),
     canManageClinic: jest.fn(),
     findByIdForAdmin: jest.fn(),
@@ -44,7 +47,16 @@ describe('ClinicsAdminController', () => {
   };
 
   beforeEach(() => {
+    // clearAllMocks resets recorded calls but keeps implementations, so a test that makes one
+    // of these reject would otherwise leak that into every test after it.
     jest.clearAllMocks();
+    clinicService.listAllForAdmin.mockResolvedValue([{ id: 'clinic-1', name: 'Clinic One' }]);
+    clinicService.listOrganizations.mockResolvedValue([{ id: 'org-1', name: 'Nkwapa Health' }]);
+    clinicService.resolveOrganizationIdForActor.mockResolvedValue(
+      '11111111-1111-4111-8111-111111111111',
+    );
+    clinicService.create.mockResolvedValue({ id: 'clinic-new' });
+    clinicService.update.mockResolvedValue({ id: 'clinic-1' });
   });
 
   it('rejects managers from listing clinic administration data', async () => {
@@ -64,6 +76,14 @@ describe('ClinicsAdminController', () => {
       ]);
     });
 
+    it('passes the actor through, so the service can scope the list to them', async () => {
+      await controller.listOrganizations(asDirector as never);
+
+      expect(clinicService.listOrganizations).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'director-1' }),
+      );
+    });
+
     it('is closed to managers, like the rest of clinic administration', async () => {
       await expect(controller.listOrganizations(asManager as never)).rejects.toBeInstanceOf(
         ForbiddenException,
@@ -78,6 +98,34 @@ describe('ClinicsAdminController', () => {
       // The bug this pins: the controller used to hand-map name/region/countryCode only, so
       // timezone, locationCode and zoneCode never reached the service.
       expect(clinicService.create).toHaveBeenCalledWith(expect.objectContaining(fullMetadata));
+    });
+
+    it('resolves the organization against the actor rather than trusting the body', async () => {
+      clinicService.resolveOrganizationIdForActor.mockResolvedValue('resolved-org');
+
+      await controller.create(
+        { ...fullMetadata, organizationId: 'someone-elses-org' } as never,
+        asDirector as never,
+      );
+
+      // Creating grants a director the directorship of what they created, so a body-supplied
+      // organization id would otherwise be a way into another tenant.
+      expect(clinicService.resolveOrganizationIdForActor).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'director-1' }),
+        'someone-elses-org',
+      );
+      expect(clinicService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ organizationId: 'resolved-org' }),
+      );
+    });
+
+    it('does not create the clinic when the actor may not use that organization', async () => {
+      clinicService.resolveOrganizationIdForActor.mockRejectedValue(new ForbiddenException());
+
+      await expect(
+        controller.create(fullMetadata as never, asDirector as never),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(clinicService.create).not.toHaveBeenCalled();
     });
 
     it('rejects managers', async () => {

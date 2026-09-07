@@ -50,7 +50,10 @@ export class ClinicsAdminController {
   @Get('organizations')
   async listOrganizations(@Request() req: { user: ReqUserWithRoles }) {
     this.assertCanAdministerClinics(req.user.roles, 'list organizations');
-    return this.clinicService.listOrganizations();
+    return this.clinicService.listOrganizations({
+      userId: req.user.user.id,
+      roles: req.user.roles,
+    });
   }
 
   @Post()
@@ -63,11 +66,20 @@ export class ClinicsAdminController {
       actor.roles,
       'create clinic',
     );
+    /*
+      Resolved against the actor, not taken from the body. Creating grants a director the
+      directorship of what they created, so letting one name any organization's id would be a
+      way into another tenant.
+    */
+    const organizationId = await this.clinicService.resolveOrganizationIdForActor(
+      actor,
+      dto.organizationId,
+    );
     const clinic = await this.clinicService.create({
       name: dto.name,
       region: dto.region,
       countryCode: dto.countryCode,
-      organizationId: dto.organizationId,
+      organizationId,
       timezone: dto.timezone,
       locationCode: dto.locationCode,
       zoneCode: dto.zoneCode,

@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import { Clinic, Prisma, UserRole } from '@prisma/client';
 import {
   CLINIC_DEFAULT_COUNTRY_CODE,
@@ -195,6 +200,7 @@ export class ClinicService {
     const organizationId = dto.organizationId
       ? await this.requireOrganizationId(dto.organizationId)
       : await this.resolveDefaultOrganizationId();
+
     const locationCode = normalizeLocationCode(dto.locationCode) || toLocationCode(dto.name);
 
     await this.assertLocationCodeIsFree(organizationId, locationCode);
@@ -264,9 +270,19 @@ export class ClinicService {
     );
   }
 
-  /** Organizations an admin can file a clinic under. Read-only: this never creates one. */
-  async listOrganizations(): Promise<OrganizationSummary[]> {
+  /**
+   * Organizations this actor may file a clinic under. Read-only: this never creates one.
+   *
+   * Scoped the same way `listAllForAdmin` is. A director sees only the organizations they
+   * already direct a clinic in; returning the whole list would hand every director the
+   * platform's tenant roster.
+   */
+  async listOrganizations(actor: AdminActor): Promise<OrganizationSummary[]> {
+    const allowedIds = await this.allowedOrganizationIds(actor);
+    if (allowedIds !== 'all' && allowedIds.length === 0) return [];
+
     const organizations = await this.prisma.organization.findMany({
+      where: allowedIds === 'all' ? undefined : { id: { in: allowedIds } },
       orderBy: { name: 'asc' },
       select: {
         id: true,
@@ -281,6 +297,85 @@ export class ClinicService {
       ...organization,
       clinicCount: _count.clinics,
     }));
+  }
+
+  /** `'all'` for a system admin; otherwise the organizations the actor directs a clinic in. */
+  private async allowedOrganizationIds(actor: AdminActor): Promise<'all' | string[]> {
+    const isSystemAdmin = actor.roles.some(
+      (r) => r.role === UserRole.SYSTEM_ADMIN && r.clinicId === null,
+    );
+    if (isSystemAdmin) return 'all';
+
+    const directorClinicIds = actor.roles
+      .filter((r) => r.role === UserRole.DIRECTOR && r.clinicId != null)
+      .map((r) => r.clinicId as string);
+    if (directorClinicIds.length === 0) return [];
+
+    const clinics = await this.prisma.clinic.findMany({
+      where: { id: { in: directorClinicIds } },
+      select: { organizationId: true },
+    });
+    return [...new Set(clinics.map((clinic) => clinic.organizationId))];
+  }
+
+  /**
+   * Decides which organization a new clinic belongs to, for this actor.
+   *
+   * A director may only create inside an organization they already direct a clinic in.
+   * Without this a director could name any organization's id and, because creating grants
+   * them the directorship of what they created, walk into another tenant.
+   */
+  async resolveOrganizationIdForActor(
+    actor: AdminActor,
+    requestedOrganizationId?: string,
+  ): Promise<string> {
+    const allowedIds = await this.allowedOrganizationIds(actor);
+
+    if (allowedIds === 'all') {
+      return requestedOrganizationId
+        ? this.requireOrganizationId(requestedOrganizationId)
+        : this.resolveDefaultOrganizationId();
+    }
+
+    if (allowedIds.length === 0) {
+      // A director with no clinics yet has no organization of their own to reason about, so
+      // they land in the default one, exactly as they did before organizationId was accepted.
+      if (requestedOrganizationId) {
+        throw this.organizationNotAllowed();
+      }
+      return this.resolveDefaultOrganizationId();
+    }
+
+    if (!requestedOrganizationId) {
+      if (allowedIds.length === 1) return allowedIds[0];
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Request validation failed.',
+        fieldErrors: [
+          {
+            field: 'organizationId',
+            message: 'Choose which organization this clinic belongs to.',
+          },
+        ],
+        recoveryAction: 'Pick an organization and try again.',
+      });
+    }
+
+    if (!allowedIds.includes(requestedOrganizationId)) {
+      throw this.organizationNotAllowed();
+    }
+    return requestedOrganizationId;
+  }
+
+  private organizationNotAllowed() {
+    // Deliberately the same answer whether the organization does not exist or is simply not
+    // theirs, so this cannot be used to enumerate other tenants.
+    return new ForbiddenException({
+      code: 'CLINIC_ORGANIZATION_FORBIDDEN',
+      message: 'You can only create clinics in an organization you already direct.',
+      fieldErrors: [{ field: 'organizationId', message: 'Not an organization you can use.' }],
+      recoveryAction: 'Choose one of the organizations offered, or ask a system admin.',
+    });
   }
 
   private async requireOrganizationId(organizationId: string): Promise<string> {

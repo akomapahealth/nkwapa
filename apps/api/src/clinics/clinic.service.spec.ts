@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { Prisma, UserRole } from '@prisma/client';
 import { ClinicService } from './clinic.service';
 
@@ -314,7 +314,12 @@ describe('ClinicService.listOrganizations', () => {
       },
     ]);
 
-    await expect(service.listOrganizations()).resolves.toEqual([
+    await expect(
+      service.listOrganizations({
+        userId: 'admin-1',
+        roles: [{ clinicId: null, role: UserRole.SYSTEM_ADMIN }],
+      }),
+    ).resolves.toEqual([
       {
         id: ORGANIZATION_ID,
         name: 'Nkwapa Health',
@@ -353,5 +358,146 @@ describe('ClinicService default organization', () => {
     expect(prisma.organization.upsert).toHaveBeenCalledWith(
       expect.objectContaining({ where: { slug: 'default' } }),
     );
+  });
+});
+
+describe('ClinicService organization scoping', () => {
+  const OTHER_ORGANIZATION_ID = '33333333-3333-4333-8333-333333333333';
+  const systemAdmin = {
+    userId: 'admin-1',
+    roles: [{ clinicId: null, role: UserRole.SYSTEM_ADMIN }],
+  };
+  const director = {
+    userId: 'director-1',
+    roles: [{ clinicId: 'clinic-1', role: UserRole.DIRECTOR }],
+  };
+
+  describe('listOrganizations', () => {
+    it('shows a system admin every organization', async () => {
+      const { prisma, service } = buildService();
+      prisma.organization.findMany.mockResolvedValue([]);
+
+      await service.listOrganizations(systemAdmin);
+
+      expect(prisma.organization.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: undefined }),
+      );
+    });
+
+    it('limits a director to organizations they already direct a clinic in', async () => {
+      const { prisma, service } = buildService();
+      prisma.clinic.findMany.mockResolvedValue([{ organizationId: ORGANIZATION_ID }]);
+      prisma.organization.findMany.mockResolvedValue([]);
+
+      await service.listOrganizations(director);
+
+      // Returning the full list would hand every director the platform's tenant roster.
+      expect(prisma.organization.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: { in: [ORGANIZATION_ID] } } }),
+      );
+    });
+
+    it('returns nothing, without querying, for a director with no clinics', async () => {
+      const { prisma, service } = buildService();
+
+      await expect(
+        service.listOrganizations({
+          userId: 'd',
+          roles: [{ clinicId: null, role: UserRole.DIRECTOR }],
+        }),
+      ).resolves.toEqual([]);
+      expect(prisma.organization.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('resolveOrganizationIdForActor', () => {
+    it('lets a system admin name any organization', async () => {
+      const { prisma, service } = buildService();
+      prisma.organization.findUnique.mockResolvedValue({ id: OTHER_ORGANIZATION_ID });
+
+      await expect(
+        service.resolveOrganizationIdForActor(systemAdmin, OTHER_ORGANIZATION_ID),
+      ).resolves.toBe(OTHER_ORGANIZATION_ID);
+    });
+
+    it('refuses a director an organization they do not direct in', async () => {
+      const { prisma, service } = buildService();
+      prisma.clinic.findMany.mockResolvedValue([{ organizationId: ORGANIZATION_ID }]);
+
+      // Creating grants a director the directorship of what they created, so accepting this
+      // would be a way into another tenant.
+      await expect(
+        service.resolveOrganizationIdForActor(director, OTHER_ORGANIZATION_ID),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('answers the same way whether the organization is missing or just not theirs', async () => {
+      const { prisma, service } = buildService();
+      prisma.clinic.findMany.mockResolvedValue([{ organizationId: ORGANIZATION_ID }]);
+
+      const unknown = await service
+        .resolveOrganizationIdForActor(director, '44444444-4444-4444-8444-444444444444')
+        .catch((e) => e);
+      const foreign = await service
+        .resolveOrganizationIdForActor(director, OTHER_ORGANIZATION_ID)
+        .catch((e) => e);
+
+      // Otherwise this endpoint becomes a way to enumerate which organization ids exist.
+      expect(unknown.response).toEqual(foreign.response);
+      expect(prisma.organization.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('uses a director’s only organization when they did not name one', async () => {
+      const { prisma, service } = buildService();
+      prisma.clinic.findMany.mockResolvedValue([{ organizationId: ORGANIZATION_ID }]);
+
+      await expect(service.resolveOrganizationIdForActor(director)).resolves.toBe(ORGANIZATION_ID);
+    });
+
+    it('asks a director who directs in two organizations to choose', async () => {
+      const { prisma, service } = buildService();
+      prisma.clinic.findMany.mockResolvedValue([
+        { organizationId: ORGANIZATION_ID },
+        { organizationId: OTHER_ORGANIZATION_ID },
+      ]);
+
+      const error = await service
+        .resolveOrganizationIdForActor({
+          userId: 'director-1',
+          roles: [
+            { clinicId: 'clinic-1', role: UserRole.DIRECTOR },
+            { clinicId: 'clinic-2', role: UserRole.DIRECTOR },
+          ],
+        })
+        .catch((e) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(error.response.fieldErrors).toEqual([
+        { field: 'organizationId', message: expect.any(String) },
+      ]);
+    });
+
+    it('falls back to the default organization for a director with no clinics', async () => {
+      const { prisma, service } = buildService();
+      prisma.organization.findFirst.mockResolvedValue({ id: ORGANIZATION_ID });
+
+      await expect(
+        service.resolveOrganizationIdForActor({
+          userId: 'd',
+          roles: [{ clinicId: null, role: UserRole.DIRECTOR }],
+        }),
+      ).resolves.toBe(ORGANIZATION_ID);
+    });
+
+    it('still refuses that director an organization they named', async () => {
+      const { service } = buildService();
+
+      await expect(
+        service.resolveOrganizationIdForActor(
+          { userId: 'd', roles: [{ clinicId: null, role: UserRole.DIRECTOR }] },
+          OTHER_ORGANIZATION_ID,
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
   });
 });
