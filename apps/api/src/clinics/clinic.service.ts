@@ -1,5 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { Clinic, UserRole } from '@prisma/client';
+import {
+  CLINIC_DEFAULT_COUNTRY_CODE,
+  CLINIC_DEFAULT_ORGANIZATION_NAME,
+  CLINIC_DEFAULT_ORGANIZATION_SLUG,
+  CLINIC_DEFAULT_TIMEZONE,
+  toLocationCode,
+} from '@nkwapa/db';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface ResearchSettingsDto {
@@ -30,20 +37,6 @@ export interface UpdateClinicDto {
 export interface AdminActor {
   userId: string;
   roles: { clinicId: string | null; role: UserRole }[];
-}
-
-const DEFAULT_ORGANIZATION_NAME = 'Nkwapa Health';
-const DEFAULT_ORGANIZATION_SLUG = 'default';
-const DEFAULT_TIMEZONE = 'Africa/Accra';
-
-function toLocationCode(value: string) {
-  const normalized = value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
-
-  return normalized || 'clinic';
 }
 
 @Injectable()
@@ -152,8 +145,8 @@ export class ClinicService {
         organizationId,
         name: dto.name,
         region: dto.region ?? null,
-        countryCode: dto.countryCode ?? 'GH',
-        timezone: dto.timezone ?? DEFAULT_TIMEZONE,
+        countryCode: dto.countryCode ?? CLINIC_DEFAULT_COUNTRY_CODE,
+        timezone: dto.timezone ?? CLINIC_DEFAULT_TIMEZONE,
         locationCode: dto.locationCode?.trim() || toLocationCode(dto.name),
         zoneCode: dto.zoneCode?.trim() || null,
       },
@@ -194,9 +187,9 @@ export class ClinicService {
 
     const organization = await this.prisma.organization.create({
       data: {
-        name: DEFAULT_ORGANIZATION_NAME,
-        slug: DEFAULT_ORGANIZATION_SLUG,
-        timezone: DEFAULT_TIMEZONE,
+        name: CLINIC_DEFAULT_ORGANIZATION_NAME,
+        slug: CLINIC_DEFAULT_ORGANIZATION_SLUG,
+        timezone: CLINIC_DEFAULT_TIMEZONE,
       },
       select: { id: true },
     });

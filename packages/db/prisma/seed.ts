@@ -9,6 +9,16 @@
  */
 import 'dotenv/config';
 import {
+  CLINIC_DEFAULT_COUNTRY_CODE,
+  CLINIC_DEFAULT_ORGANIZATION_NAME,
+  CLINIC_DEFAULT_ORGANIZATION_SLUG,
+  CLINIC_DEFAULT_TIMEZONE,
+  evaluateClinicMetadata,
+  normalizeCountryCode,
+  normalizeZoneCode,
+  toLocationCode,
+} from '../src/clinic-metadata';
+import {
   PrismaClient,
   UserRole,
   Sex,
@@ -49,16 +59,6 @@ const prisma = new PrismaClient({ adapter });
 /** Seed fixtures are dated relative to the run, so they never drift into the past on a re-seed. */
 function daysFromNow(days: number): Date {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
-}
-
-function toLocationCode(value: string) {
-  const normalized = value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
-
-  return normalized || 'clinic';
 }
 
 async function ensureGlobalRole(prisma: PrismaClient, userId: string, role: UserRole) {
@@ -585,16 +585,62 @@ async function seedIdentityFixtures(
   }
 }
 
+/** The SEED_* variable an operator would have to correct for each metadata field. */
+const SEED_VARIABLE_FOR_FIELD: Record<string, string> = {
+  organizationId: 'SEED_ORGANIZATION_SLUG',
+  timezone: 'SEED_CLINIC_TIMEZONE (or SEED_ORGANIZATION_TIMEZONE)',
+  locationCode: 'SEED_CLINIC_LOCATION_CODE',
+  zoneCode: 'SEED_CLINIC_ZONE_CODE',
+  countryCode: 'SEED_CLINIC_COUNTRY',
+};
+
+/**
+ * Refuses to seed a clinic whose metadata the rest of the product cannot use.
+ *
+ * The seed is where most environments get their only clinic, so a typo in SEED_CLINIC_TIMEZONE
+ * used to be written silently and only surface much later as reminders quietly sent in the
+ * wrong zone. Failing here names the variable to fix instead.
+ *
+ * Only errors stop the seed. A missing zone code is a warning by design -- zoneCode stays
+ * optional until zone RBAC exists, and a demo environment should not need one.
+ */
+function assertSeedMetadataIsValid(input: Parameters<typeof evaluateClinicMetadata>[0]) {
+  const blocking = evaluateClinicMetadata(input).filter((issue) => issue.severity === 'error');
+  if (blocking.length === 0) return;
+
+  console.error('Seed clinic metadata is not valid:\n');
+  for (const issue of blocking) {
+    const variable = SEED_VARIABLE_FOR_FIELD[issue.field] ?? issue.field;
+    const fix = issue.suggestion ? ` Try ${issue.suggestion}.` : '';
+    console.error(`  ${variable}: ${issue.message}${fix}`);
+  }
+  console.error('\nFix the environment variables above and run npm run db:seed again.');
+  process.exit(1);
+}
+
 async function main() {
-  const organizationName = process.env.SEED_ORGANIZATION_NAME ?? 'Nkwapa Health';
-  const organizationSlug = process.env.SEED_ORGANIZATION_SLUG ?? 'default';
-  const organizationTimezone = process.env.SEED_ORGANIZATION_TIMEZONE ?? 'Africa/Accra';
+  const organizationName = process.env.SEED_ORGANIZATION_NAME ?? CLINIC_DEFAULT_ORGANIZATION_NAME;
+  const organizationSlug = process.env.SEED_ORGANIZATION_SLUG ?? CLINIC_DEFAULT_ORGANIZATION_SLUG;
+  const organizationTimezone = process.env.SEED_ORGANIZATION_TIMEZONE ?? CLINIC_DEFAULT_TIMEZONE;
   const clinicName = process.env.SEED_CLINIC_NAME ?? 'Nkwapa Clinic - Demo';
   const clinicRegion = process.env.SEED_CLINIC_REGION ?? 'Greater Accra';
-  const clinicCountry = process.env.SEED_CLINIC_COUNTRY ?? 'GH';
+  const clinicCountry = normalizeCountryCode(
+    process.env.SEED_CLINIC_COUNTRY ?? CLINIC_DEFAULT_COUNTRY_CODE,
+  );
   const clinicTimezone = process.env.SEED_CLINIC_TIMEZONE ?? organizationTimezone;
   const clinicLocationCode = process.env.SEED_CLINIC_LOCATION_CODE ?? toLocationCode(clinicName);
-  const clinicZoneCode = process.env.SEED_CLINIC_ZONE_CODE?.trim() || null;
+  const clinicZoneCode = normalizeZoneCode(process.env.SEED_CLINIC_ZONE_CODE);
+
+  assertSeedMetadataIsValid({
+    name: clinicName,
+    organizationId: organizationSlug,
+    organizationTimezone,
+    timezone: clinicTimezone,
+    locationCode: clinicLocationCode,
+    zoneCode: clinicZoneCode,
+    countryCode: clinicCountry,
+    isActive: true,
+  });
   let researchSettingsOwnerId: string | null = null;
 
   const organization = await prisma.organization.upsert({
