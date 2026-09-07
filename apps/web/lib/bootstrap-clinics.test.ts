@@ -34,9 +34,11 @@ describe('bootstrap clinic helpers', () => {
       ],
     };
 
+    // An older payload carries no zone, and the fallback settles it to null rather than leaving
+    // the field absent, so a caller reading the zone gets "no zone" instead of undefined.
     expect(getSwitchableClinics(bootstrap)).toEqual([
-      { clinicId: 'clinic-3', clinicName: 'Clinic Three' },
-      { clinicId: 'clinic-4', clinicName: 'Clinic Four' },
+      { clinicId: 'clinic-3', clinicName: 'Clinic Three', zoneCode: null },
+      { clinicId: 'clinic-4', clinicName: 'Clinic Four', zoneCode: null },
     ]);
     expect(getBootstrapActiveClinicId(bootstrap)).toBe('clinic-3');
     expect(isStoredClinicIdValid(bootstrap, 'clinic-4')).toBe(true);

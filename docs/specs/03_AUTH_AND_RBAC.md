@@ -121,6 +121,62 @@ only.
 
 ---
 
+## Zone Model
+
+`Clinic.zoneCode` is a reporting and operations dimension. It is **not** a permission scope.
+
+The rule, which decides every surface:
+
+> Zone is a filter wherever a view spans more than one clinic, and context wherever a view is one
+> clinic. It is never a grant.
+
+| Surface                     | Spans        | Zone treatment                     |
+| --------------------------- | ------------ | ---------------------------------- |
+| `GET /admin/clinics`        | many clinics | `?zoneCode=` filter                |
+| `GET /admin/clinics/zones`  | many clinics | the filter's vocabulary            |
+| Dashboard network overview  | many clinics | `?zoneCode=` filter, plus rollup   |
+| Staff roster, all users     | many clinics | client-side filter over the roster |
+| Staff roster, active clinic | one clinic   | context only                       |
+| `GET /clinics/:id/audit`    | one clinic   | context only                       |
+
+A zone code is tenant-defined free text, shaped like a location code and validated by
+`packages/db/src/clinic-metadata.ts`. There is no zone table, no zone enum, and no zone column on
+`UserClinicRole`. Two clinics in different organizations may hold the same zone code, and that is
+expected rather than a conflict: a zone names a way of grouping clinics, not a boundary.
+
+### Why a filter and not a scope
+
+A zone-scoped role would have to widen access, because that is what a scope does. Zone codes are
+free text that any clinic administrator can set, so a zone that granted access would let whoever
+edits a clinic's metadata pull that clinic into the reach of everyone in the zone they typed.
+Making zone a filter first means the field earns a product meaning without that being possible.
+
+### How a filter is kept from becoming a grant
+
+Three layers, because a boundary that depends on one layer is one refactor from not being a
+boundary.
+
+1. **Ordering, in the service.** `ClinicService.clinicScopeForAdmin` resolves which clinics the
+   actor may administer, and the zone clause is applied on top of that result. `zoneFilterWhere`
+   in `packages/db/src/clinic-zones.ts` can only ever produce a `zoneCode` constraint, so no
+   branch exists in which a zone reaches the authorization decision.
+2. **A cross-tenant test.** `apps/api/src/auth/zone-scope.spec.ts` runs against a fixture where
+   clinics in two different organizations share a zone code, and asserts that filtering by it
+   still queries only the actor's own clinic ids, and that the composed `where` contains no `OR`.
+3. **A database invariant.** `packages/db/src/rls-coverage.spec.ts` asserts that no row level
+   security policy references `app.current_zone_code()` or a zone column, and that
+   `UserClinicRole` carries no zone field.
+
+`app.current_zone_code()` exists and the RLS context sets it from the active clinic. It is
+diagnostic context, read by no policy. Wiring it into one is a deliberate change to the permission
+model, and the invariant test above is what makes that a decision rather than an accident.
+
+The zone list is scoped like the clinic list it filters. The set of zone names describes how a
+tenant is organized, so a director learns the zones of the clinics they direct and nothing about
+anyone else's.
+
+---
+
 ## Enforcement Path
 
 ### API Layer
@@ -142,7 +198,7 @@ For HTTP traffic, Prisma opens a transaction-scoped RLS context with:
 - current organization ID
 - allowed clinic IDs
 - active clinic ID
-- zone code
+- zone code, as diagnostic context that no policy reads
 - system-admin bypass flag
 
 This means route guards and Postgres policies reinforce each other.
@@ -156,12 +212,15 @@ This means route guards and Postgres policies reinforce each other.
 It returns:
 
 - user identity
-- clinic memberships
+- clinic memberships, each with the clinic's zone code
 - global roles
 - active clinic
 - effective roles for the active clinic
 - effective permissions for the active clinic
 - onboarding state for patients who still need to claim a record
+
+A clinic's zone rides along so a single-clinic view can name the zone it is showing. It appears
+beside a clinic and nowhere else: never in effective roles, never in effective permissions.
 
 Frontend navigation and clinic switching are driven from this response.
 
@@ -203,6 +262,7 @@ The current realm export is hardened with:
 
 ## Current Gaps
 
-- zone-scoped RBAC is not yet implemented
+- zone is a reporting filter rather than a permission scope; zone-scoped roles are deliberately
+  not implemented, and the Zone Model section above is the statement of record
 - organization-level admin/reporting permissions are not yet distinct from clinic-level permissions
 - Keycloak still provides identity only; app-side policy remains the authority and must continue to be tested independently

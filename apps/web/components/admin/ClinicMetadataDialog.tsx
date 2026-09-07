@@ -35,6 +35,7 @@ import {
   CLINIC_FORM_FIELD_ORDER,
   LOCATION_CODE_MAX_LENGTH,
   matchesTimeZoneQuery,
+  normalizeZoneCode,
   timeZoneOptions,
   toLocationCode,
   validateClinicForm,
@@ -52,6 +53,13 @@ interface ClinicMetadataDialogProps {
   /** Initial values. A fresh object per open, so create and edit never share state. */
   initialValues: ClinicFormValues;
   organizations: OrganizationSummary[];
+  /**
+   * Zone codes already in use, offered as suggestions.
+   *
+   * Not a closed vocabulary: a zone comes into existence the first time a clinic is put in one,
+   * so the field stays free text and these only make the existing spellings reachable.
+   */
+  knownZoneCodes?: string[];
   /** Focused once the dialog opens, so "fix this" from a badge lands on the right control. */
   focusField?: ClinicFormField;
   saving: boolean;
@@ -77,6 +85,7 @@ export function ClinicMetadataDialog({
   mode,
   initialValues,
   organizations,
+  knownZoneCodes = [],
   focusField,
   saving,
   submitError,
@@ -128,10 +137,29 @@ export function ClinicMetadataDialog({
 
   const organization =
     organizations.find((entry) => entry.id === values.organizationId) ?? organizations[0] ?? null;
-  const zoneOptions = useMemo(
+  // Named for time zones explicitly. "Zone" now means a reporting zone everywhere else in this
+  // file, and two different things called zoneOptions in one component is a trap.
+  const timeZonePickerOptions = useMemo(
     () => timeZoneOptions(organization?.timezone ?? null),
     [organization?.timezone],
   );
+
+  const suggestedZoneCodes = useMemo(
+    () =>
+      [...new Set(knownZoneCodes.map((code) => normalizeZoneCode(code)))].filter(
+        (code): code is string => code !== null,
+      ),
+    [knownZoneCodes],
+  );
+
+  // A zone code nobody else uses is not an error -- someone has to be first -- but it is worth
+  // saying out loud, because the other way to arrive here is a typo, and a typo silently splits
+  // one zone's report into two.
+  const typedZoneCode = normalizeZoneCode(values.zoneCode);
+  const isNewZoneCode =
+    typedZoneCode !== null &&
+    suggestedZoneCodes.length > 0 &&
+    !suggestedZoneCodes.includes(typedZoneCode);
 
   const update = (patch: Partial<ClinicFormValues>) => {
     setValues((current) => {
@@ -175,8 +203,8 @@ export function ClinicMetadataDialog({
         <DialogHeader>
           <DialogTitle>{mode === 'create' ? 'Create clinic' : 'Edit clinic'}</DialogTitle>
           <DialogDescription>
-            Location metadata drives organization reporting and future zone behaviour, so a clinic
-            needs a time zone and a location code that is unique in its organization.
+            Location metadata drives organization reporting and zone filtering, so a clinic needs a
+            time zone and a location code that is unique in its organization.
           </DialogDescription>
         </DialogHeader>
 
@@ -316,7 +344,7 @@ export function ClinicMetadataDialog({
               <Combobox
                 id="clinic-timezone"
                 value={values.timezone}
-                options={zoneOptions}
+                options={timeZonePickerOptions}
                 matches={matchesTimeZoneQuery}
                 onChange={(next) => update({ timezone: next })}
                 placeholder="Search time zones"
@@ -342,11 +370,39 @@ export function ClinicMetadataDialog({
                   placeholder="greater-accra"
                   {...fieldErrorProps('clinic-zoneCode', shownErrors.zoneCode)}
                 />
+                {suggestedZoneCodes.length > 0 ? (
+                  <div className="space-y-1">
+                    <p id="clinic-zoneCode-suggestions" className="text-sm text-muted-foreground">
+                      Zones already in use
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {suggestedZoneCodes.map((zoneCode) => (
+                        <Button
+                          key={zoneCode}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          aria-describedby="clinic-zoneCode-suggestions"
+                          aria-pressed={normalizeZoneCode(values.zoneCode) === zoneCode}
+                          className="h-8 font-mono text-xs"
+                          onClick={() => update({ zoneCode })}
+                        >
+                          {zoneCode}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 {shownErrors.zoneCode ? (
                   <FieldError id="clinic-zoneCode" message={shownErrors.zoneCode} />
+                ) : isNewZoneCode ? (
+                  <p className="text-sm text-muted-foreground">
+                    No other clinic uses this code, so saving starts a new zone.
+                  </p>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    Optional. Leave empty until this clinic belongs to a zone.
+                    Optional. Groups clinics for reporting; it does not change who can open this
+                    clinic.
                   </p>
                 )}
               </div>

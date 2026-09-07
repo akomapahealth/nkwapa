@@ -16,6 +16,7 @@ import type {
   ClinicalMeasurementMetrics,
 } from './dto/dashboard-response.dto';
 import { isApiFeatureEnabled } from '../common/feature-flags';
+import { parseZoneFilter, summarizeZones, zoneFilterMatches, type ZoneFilter } from '@nkwapa/db';
 
 export const FLAGGED_DIABETES_WHERE = {
   OR: [
@@ -32,6 +33,7 @@ export class DashboardService {
     clinicId: string,
     roles: string[],
     userId: string,
+    filters?: { zoneCode?: string | null },
   ): Promise<DashboardResponse> {
     const summary = await this.getSummary(clinicId);
 
@@ -47,7 +49,7 @@ export class DashboardService {
         : null;
 
     if (isAdmin) {
-      response.systemAdmin = await this.getSystemAdminMetrics();
+      response.systemAdmin = await this.getSystemAdminMetrics(parseZoneFilter(filters?.zoneCode));
     }
     if (isDoctor) {
       const pendingClinicalNoteCosigns = isApiFeatureEnabled('clinicalNotes')
@@ -527,7 +529,16 @@ export class DashboardService {
     };
   }
 
-  private async getSystemAdminMetrics(): Promise<SystemAdminMetrics> {
+  /**
+   * The cross-clinic block, optionally narrowed to one zone.
+   *
+   * The zone filter is a reporting lens, not an access decision: the read is already bounded by
+   * row level security, and `zoneFilterWhere` only ever adds a `zoneCode` constraint on top.
+   * `zones` is deliberately built from the unfiltered clinic set, so the rollup still names
+   * every zone while the comparison shows one -- a filter that hid its own options would leave
+   * no way back.
+   */
+  private async getSystemAdminMetrics(zoneFilter: ZoneFilter): Promise<SystemAdminMetrics> {
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
@@ -545,7 +556,7 @@ export class DashboardService {
       this.prisma.encounter.count(),
       this.prisma.clinic.findMany({
         where: { isActive: true },
-        select: { id: true, name: true },
+        select: { id: true, name: true, zoneCode: true, isActive: true },
       }),
       this.prisma.encounter.groupBy({
         by: ['createdAt'],
@@ -560,21 +571,46 @@ export class DashboardService {
       now,
     );
 
-    const clinicComparison: ClinicComparisonRow[] = [];
-    for (const clinic of clinics) {
-      const [patients, encounters, finalized] = await Promise.all([
-        this.prisma.patient.count({ where: { primaryClinicId: clinic.id } }),
-        this.prisma.encounter.count({ where: { clinicId: clinic.id } }),
-        this.prisma.encounter.count({ where: { clinicId: clinic.id, status: 'FINALIZED' } }),
-      ]);
-      clinicComparison.push({
-        clinicId: clinic.id,
-        clinicName: clinic.name,
-        totalPatients: patients,
-        totalEncounters: encounters,
-        totalFinalized: finalized,
-      });
-    }
+    const zones = summarizeZones(clinics);
+    const comparedClinics = clinics.filter((clinic) =>
+      zoneFilterMatches(clinic.zoneCode, zoneFilter),
+    );
+    const comparedClinicIds = comparedClinics.map((clinic) => clinic.id);
+
+    // Three grouped reads rather than three counts per clinic. The loop this replaces issued
+    // 3N queries, which the zone rollup would only have made wider.
+    const [patientsByClinic, encountersByClinic, finalizedByClinic] = await Promise.all([
+      this.prisma.patient.groupBy({
+        by: ['primaryClinicId'],
+        where: { primaryClinicId: { in: comparedClinicIds } },
+        _count: true,
+      }),
+      this.prisma.encounter.groupBy({
+        by: ['clinicId'],
+        where: { clinicId: { in: comparedClinicIds } },
+        _count: true,
+      }),
+      this.prisma.encounter.groupBy({
+        by: ['clinicId'],
+        where: { clinicId: { in: comparedClinicIds }, status: 'FINALIZED' },
+        _count: true,
+      }),
+    ]);
+
+    const patientCounts = countsByKey(patientsByClinic, 'primaryClinicId');
+    const encounterCounts = countsByKey(encountersByClinic, 'clinicId');
+    const finalizedCounts = countsByKey(finalizedByClinic, 'clinicId');
+
+    const clinicComparison: ClinicComparisonRow[] = comparedClinics.map((clinic) => ({
+      clinicId: clinic.id,
+      clinicName: clinic.name,
+      zoneCode: clinic.zoneCode ?? null,
+      // A clinic with no rows is absent from a groupBy rather than present with zero, so the
+      // fallback is what keeps an empty clinic in the table instead of dropping it.
+      totalPatients: patientCounts.get(clinic.id) ?? 0,
+      totalEncounters: encounterCounts.get(clinic.id) ?? 0,
+      totalFinalized: finalizedCounts.get(clinic.id) ?? 0,
+    }));
 
     return {
       totalClinics,
@@ -583,6 +619,8 @@ export class DashboardService {
       systemWideEncounters,
       clinicComparison,
       systemEncountersTrend,
+      zones,
+      appliedZoneCode: zoneFilter,
     };
   }
 
@@ -689,6 +727,26 @@ function startOfMonth(d: Date): Date {
 
 function formatDate(d: Date): string {
   return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Folds a Prisma `groupBy` result into a lookup.
+ *
+ * `_count` is a number when `groupBy` is given `_count: true` and an object when it is given a
+ * field selection. Only the first form is used here, and the guard keeps a future caller of the
+ * second form from silently reading `NaN`.
+ */
+function countsByKey<K extends string>(
+  rows: ({ _count: number | Record<string, number> } & { [P in K]: string | null })[],
+  key: K,
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const id = row[key];
+    if (id === null) continue;
+    counts.set(id, typeof row._count === 'number' ? row._count : 0);
+  }
+  return counts;
 }
 
 function aggregateByDay(rows: { date: Date; count: number }[], from: Date, to: Date): TrendPoint[] {

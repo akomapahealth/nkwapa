@@ -36,6 +36,36 @@ async function analyze(page) {
   return new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
 }
 
+/**
+ * The sweep for a state where a Radix popup is open.
+ *
+ * Radix marks everything behind an open `Select` with `aria-hidden="true"` and traps focus in
+ * the popup. axe cannot see the focus trap, so it reports `aria-hidden-focus` against the page
+ * behind -- for every `Select` in the product, not just a new one. Verified against
+ * `#staff-status-filter` on `/admin/users`, which predates any zone work and reports exactly
+ * the same violation.
+ *
+ * Excluding that subtree rather than disabling the rule keeps `aria-hidden-focus` live for the
+ * popup itself, which is the markup a sweep here is actually about.
+ *
+ * `scrollable-region-focusable` goes for the same reason, and only once the option list is long
+ * enough to scroll -- which is why it appears in a full-suite run and not in a single-spec one.
+ * Radix puts `role="listbox"` on the content and the scrolling on an inner unlabelled viewport,
+ * so axe sees a scroll container with no tab stop and cannot see the roving focus that already
+ * navigates it. The custom `Combobox` passes the same sweep precisely because its scrolling
+ * element *is* the listbox.
+ *
+ * A disabled rule is only honest with something in its place, so the caller proves the access
+ * axe cannot see: it drives the picker open, down and closed by keyboard alone.
+ */
+function analyzeOpenPopup(page) {
+  return new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .exclude('[data-aria-hidden="true"]')
+    .disableRules(['scrollable-region-focusable'])
+    .analyze();
+}
+
 function describeViolations(violations) {
   return violations
     .map(
@@ -202,9 +232,11 @@ for (const breakpoint of BREAKPOINTS) {
   });
 }
 
-test('the clinic registry, its dialog, and its combobox survive an axe sweep', async ({ page }) => {
-  // Three states, because the interesting one is not in the DOM until it is opened: the registry
-  // itself, the dialog, and the dialog with the listbox up. The combobox is the first control of
+test('the clinic registry, its filters, its dialog, and its combobox survive an axe sweep', async ({
+  page,
+}) => {
+  // Four states, because the interesting ones are not in the DOM until they are opened: the
+  // registry itself, the zone picker's listbox, the dialog, and the dialog with the listbox up. The combobox is the first control of
   // its kind in the product, and a hand-built listbox popup is exactly the kind of thing that
   // passes review by eye and fails an automated rule.
   //
@@ -216,6 +248,28 @@ test('the clinic registry, its dialog, and its combobox survive an axe sweep', a
   ).toBeVisible({ timeout: 30_000 });
 
   expect(describeViolations((await analyze(page)).violations), 'registry').toBe('');
+
+  // The zone picker's own open state. A Radix Select renders its listbox in a portal outside
+  // #main-content, so an unopened one is not covered by the sweep above at all.
+  await page.locator('#clinic-zone-filter').click();
+  await expect(page.getByRole('listbox')).toBeVisible();
+  expect(describeViolations((await analyzeOpenPopup(page)).violations), 'zone filter open').toBe(
+    '',
+  );
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('listbox')).toBeHidden();
+
+  // The evidence behind the exclusion above. axe also reports `scrollable-region-focusable`
+  // against the Radix viewport once the option list is long enough to scroll, because it cannot
+  // see a roving-focus listbox. So prove the access it cannot see: open the picker by keyboard
+  // alone, walk down it, and commit -- reaching an option that was below the fold.
+  await page.locator('#clinic-zone-filter').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('listbox')).toBeVisible();
+  for (let i = 0; i < 3; i += 1) await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('listbox')).toBeHidden();
+  await expect(page.locator('#clinic-zone-filter')).toBeFocused();
 
   await page.getByRole('button', { name: 'Create clinic', exact: true }).first().click();
   const dialog = page.getByRole('dialog');

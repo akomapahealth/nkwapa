@@ -20,7 +20,7 @@ The current tenancy model is:
 
 `Organization -> Clinic(Location) -> Patients / Staff / Operations`
 
-`Clinic.zoneCode` exists as a forward-compatible field for future zone-aware reporting and access controls, but zone-level RBAC is not yet active.
+`Clinic.zoneCode` groups clinics for reporting and filtering. It is a filter dimension and not a permission scope: sharing a zone never grants access to a clinic. See the Zone Model section of `docs/specs/03_AUTH_AND_RBAC.md`.
 
 ---
 
@@ -72,7 +72,7 @@ nkwapa/
 3. The API verifies the JWT via JWKS and hydrates the local `User`.
 4. Local roles from `UserClinicRole` determine effective permissions.
 5. Clinic-scoped routes validate the requested clinic, permissions, and membership.
-6. The Prisma layer opens a transaction-scoped RLS context that sets current request, user, organization, clinic list, active clinic, zone, and system-admin flags.
+6. The Prisma layer opens a transaction-scoped RLS context that sets current request, user, organization, clinic list, active clinic, zone, and system-admin flags. The zone is diagnostic context; no policy reads it.
 7. Postgres RLS policies enforce clinic isolation for protected tables.
 
 This means authorization is enforced in three layers:
@@ -90,7 +90,7 @@ This means authorization is enforced in three layers:
 - `Organization` is the top-level business boundary.
 - `Clinic` is the operational and physical location boundary.
 - Most product behavior still operates at clinic scope.
-- Organization-wide and zone-wide reporting are follow-on work, not current defaults.
+- Zone filters narrow the admin clinic registry, the network overview and the staff roster. Organization-wide reporting is still follow-on work.
 
 ### Security Defaults
 
@@ -126,7 +126,7 @@ This means authorization is enforced in three layers:
 
 ## Current Follow-On Work
 
-- zone-aware RBAC and org-level reporting
+- org-level reporting, and zone-scoped RBAC if a zone is ever to mean more than a filter
 - deeper offline support outside the original EMR flow
 - fuller appointment calendar and rescheduling UX
 - broader job/script adoption of the same RLS safety model

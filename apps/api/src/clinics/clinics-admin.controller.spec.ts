@@ -5,6 +5,9 @@ import { ClinicsAdminController } from './clinics-admin.controller';
 describe('ClinicsAdminController', () => {
   const clinicService = {
     listAllForAdmin: jest.fn().mockResolvedValue([{ id: 'clinic-1', name: 'Clinic One' }]),
+    listZonesForActor: jest
+      .fn()
+      .mockResolvedValue([{ zoneCode: 'north', clinicCount: 1, activeClinicCount: 1 }]),
     listOrganizations: jest.fn().mockResolvedValue([{ id: 'org-1', name: 'Nkwapa Health' }]),
     resolveOrganizationIdForActor: jest
       .fn()
@@ -51,6 +54,9 @@ describe('ClinicsAdminController', () => {
     // of these reject would otherwise leak that into every test after it.
     jest.clearAllMocks();
     clinicService.listAllForAdmin.mockResolvedValue([{ id: 'clinic-1', name: 'Clinic One' }]);
+    clinicService.listZonesForActor.mockResolvedValue([
+      { zoneCode: 'north', clinicCount: 1, activeClinicCount: 1 },
+    ]);
     clinicService.listOrganizations.mockResolvedValue([{ id: 'org-1', name: 'Nkwapa Health' }]);
     clinicService.resolveOrganizationIdForActor.mockResolvedValue(
       '11111111-1111-4111-8111-111111111111',
@@ -60,13 +66,65 @@ describe('ClinicsAdminController', () => {
   });
 
   it('rejects managers from listing clinic administration data', async () => {
-    await expect(controller.listAll(asManager as never)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(controller.listAll(asManager as never, {})).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
   });
 
   it('allows directors to list clinics they can administer', async () => {
-    await expect(controller.listAll(asDirector as never)).resolves.toEqual([
+    await expect(controller.listAll(asDirector as never, {})).resolves.toEqual([
       { id: 'clinic-1', name: 'Clinic One' },
     ]);
+  });
+
+  describe('zone filter', () => {
+    it('passes the zone through to the service with the actor', async () => {
+      await controller.listAll(asDirector as never, { zoneCode: 'north' });
+      expect(clinicService.listAllForAdmin).toHaveBeenCalledWith(
+        { userId: 'director-1', roles: asDirector.user.roles },
+        { zoneCode: 'north' },
+      );
+    });
+
+    it('passes an absent zone through as an absent filter', async () => {
+      await controller.listAll(asDirector as never, {});
+      expect(clinicService.listAllForAdmin).toHaveBeenCalledWith(expect.anything(), {
+        zoneCode: undefined,
+      });
+    });
+
+    it('checks the seat before it looks at the filter', async () => {
+      // A manager holds CLINIC.MANAGE, so the class guard lets them in and this re-gate is the
+      // only thing stopping them. It has to run whatever the query says.
+      await expect(
+        controller.listAll(asManager as never, { zoneCode: 'north' }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(clinicService.listAllForAdmin).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('zones', () => {
+    it('lists the zones an admin can administer', async () => {
+      await expect(controller.listZones(asSystemAdmin as never)).resolves.toEqual([
+        { zoneCode: 'north', clinicCount: 1, activeClinicCount: 1 },
+      ]);
+    });
+
+    it('passes the actor through, so the service can scope the list to them', async () => {
+      await controller.listZones(asDirector as never);
+      expect(clinicService.listZonesForActor).toHaveBeenCalledWith({
+        userId: 'director-1',
+        roles: asDirector.user.roles,
+      });
+    });
+
+    it('is refused to a manager, like the list it filters', async () => {
+      // The picker must not be a way around the re-gate on the table it drives.
+      await expect(controller.listZones(asManager as never)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(clinicService.listZonesForActor).not.toHaveBeenCalled();
+    });
   });
 
   describe('organizations', () => {

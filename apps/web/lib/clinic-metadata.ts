@@ -19,6 +19,7 @@ import {
   type ClinicMetadataIssue,
   type ClinicMetadataSeverity,
 } from '@nkwapa/db/clinic-metadata';
+import { zoneFilterMatches, type ZoneFilter } from '@nkwapa/db/clinic-zones';
 
 export {
   CLINIC_DEFAULT_COUNTRY_CODE,
@@ -237,10 +238,28 @@ export function clinicNeedsAttention(clinic: ClinicRow): boolean {
 
 export type ClinicListFilter = 'all' | 'needs-attention' | 'inactive';
 
-export function filterClinics(clinics: ClinicRow[], filter: ClinicListFilter): ClinicRow[] {
-  if (filter === 'needs-attention') return clinics.filter(clinicNeedsAttention);
-  if (filter === 'inactive') return clinics.filter((clinic) => !clinic.isActive);
-  return clinics;
+/**
+ * Narrows the registry by view and, independently, by zone.
+ *
+ * The two are separate arguments rather than one widened `ClinicListFilter` because they
+ * compose: "clinics in the north zone that need attention" is a question an operator asks, and
+ * folding zone into the view union would have made the two mutually exclusive.
+ *
+ * The zone predicate is the shared one the API filters with, so a client-side narrowing and a
+ * server-side one can never disagree about which clinics are in a zone.
+ */
+export function filterClinics(
+  clinics: ClinicRow[],
+  filter: ClinicListFilter,
+  zoneFilter: ZoneFilter = null,
+): ClinicRow[] {
+  let rows = clinics;
+  if (filter === 'needs-attention') rows = rows.filter(clinicNeedsAttention);
+  if (filter === 'inactive') rows = rows.filter((clinic) => !clinic.isActive);
+  if (zoneFilter !== null) {
+    rows = rows.filter((clinic) => zoneFilterMatches(clinic.zoneCode, zoneFilter));
+  }
+  return rows;
 }
 
 export interface TimeZoneOption {

@@ -199,8 +199,8 @@ export type ClinicMetadataIssueCode =
  *
  * `error` blocks a write and counts toward "needs attention"; `warning` and `info` are shown
  * but never gate a save or fail the audit. `ZONE_CODE_MISSING` is the one to keep honest --
- * `zoneCode` is explicitly optional until zone RBAC exists, so a clinic without one is worth
- * listing and never worth refusing.
+ * `zoneCode` is optional by design -- zone is a reporting filter rather than a
+ * permission scope -- so a clinic without one is worth listing and never worth refusing.
  */
 export const CLINIC_METADATA_ISSUE_SEVERITY: Record<
   ClinicMetadataIssueCode,
@@ -383,7 +383,7 @@ export function evaluateClinicMetadata(input: ClinicMetadataInput): ClinicMetada
       issue(
         'ZONE_CODE_MISSING',
         'zoneCode',
-        'No zone code is set. Zone reporting will skip this clinic.',
+        'No zone code is set. This clinic reports under "No zone" rather than with a group.',
       ),
     );
   } else if (!isZoneCode(rawZoneCode)) {

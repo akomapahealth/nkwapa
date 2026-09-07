@@ -111,7 +111,7 @@ in the wrong zone -- so they are validated on write and auditable after the fact
 | `organizationId` | Yes      | Must reference an existing organization. Defaults to the only one when a caller does not name one.                      |
 | `locationCode`   | Yes      | Lowercase letters, digits and single hyphens, at most 64 characters. **Unique per organization.**                       |
 | `timezone`       | Yes      | A named IANA zone such as `Africa/Accra`. A fixed offset like `+05:00` is refused: it carries no daylight-saving rules. |
-| `zoneCode`       | No       | Same shape as a location code when present. Empty until zone-aware reporting is switched on.                            |
+| `zoneCode`       | No       | Same shape as a location code when present. Groups clinics for reporting; never a permission.                           |
 | `countryCode`    | Yes      | ISO-3166 alpha-2, stored uppercase. Defaults to `GH`.                                                                   |
 
 All of these live in `packages/db/src/clinic-metadata.ts`, which the API, the admin UI, the seed
@@ -132,7 +132,7 @@ Nkwapa Health (default)
   ℹ AUDIT Closed Site        info    This clinic is inactive and is excluded from daily operations.
   ✗ AUDIT Ridge Clinic       error   This clinic has no location code, so it cannot be identified in organization reporting. [fix: audit-ridge-clinic]
   ✗ AUDIT Tema Annex         error   "Africa/Akra" is not a known IANA time zone. [fix: Africa/Accra]
-  ⚠ Nkwapa Clinic - Demo     warning No zone code is set. Zone reporting will skip this clinic.
+  ⚠ Nkwapa Clinic - Demo     warning No zone code is set. This clinic reports under "No zone".
 
 2 errors, 1 warning across 4 clinics.
 Re-run with --apply to fix the 2 auto-fixable issues.

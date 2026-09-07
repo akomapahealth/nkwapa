@@ -31,8 +31,10 @@ Important notes:
 
 - `SYSTEM_ADMIN` is global and uses `clinicId = null`
 - most other roles are assigned per clinic
-- `zoneCode` exists on clinics for future scale-up, but zone RBAC is not yet active. It is
-  editable and audited in `/admin/clinics` so the data is trustworthy before behavior lands.
+- `zoneCode` groups clinics for reporting and filtering. It is a **filter, not a permission**:
+  putting two clinics in one zone lets you report on them together and gives nobody access to
+  either. Zone-scoped roles do not exist, by decision -- see the Zone Model section of
+  `docs/specs/03_AUTH_AND_RBAC.md`.
 
 ---
 
@@ -196,15 +198,15 @@ Current behavior:
 The create and edit dialogs collect the metadata organization reporting depends on. These are
 validated on both sides from one shared rule set, so the form and the API can never disagree.
 
-| Field         | Required | Notes                                                                                      |
-| ------------- | -------- | ------------------------------------------------------------------------------------------ |
-| Name          | Yes      | Not unique. Two clinics may share a name; their location codes still may not.              |
-| Region        | No       | Free text, for display.                                                                    |
-| Organization  | Yes      | Read-only once the clinic exists. Selectable on create only when more than one exists.     |
-| Location code | Yes      | Prefilled from the name, editable. **Unique within the organization.** Lowercase, hyphens. |
-| Time zone     | Yes      | A named IANA zone. Drives appointment times, reminders, and daily reporting.               |
-| Zone code     | No       | Reserved for zone-aware reporting. Leave empty until a clinic actually belongs to a zone.  |
-| Country code  | Yes      | ISO-3166 alpha-2. Defaults to `GH`.                                                        |
+| Field         | Required | Notes                                                                                             |
+| ------------- | -------- | ------------------------------------------------------------------------------------------------- |
+| Name          | Yes      | Not unique. Two clinics may share a name; their location codes still may not.                     |
+| Region        | No       | Free text, for display.                                                                           |
+| Organization  | Yes      | Read-only once the clinic exists. Selectable on create only when more than one exists.            |
+| Location code | Yes      | Prefilled from the name, editable. **Unique within the organization.** Lowercase, hyphens.        |
+| Time zone     | Yes      | A named IANA zone. Drives appointment times, reminders, and daily reporting.                      |
+| Zone code     | No       | Groups clinics for reporting and filtering. Reuse an existing spelling; the dialog suggests them. |
+| Country code  | Yes      | ISO-3166 alpha-2. Defaults to `GH`.                                                               |
 
 Creating an organization is not part of this flow. Clinics are filed under organizations that
 already exist.
@@ -230,7 +232,7 @@ Common seed fields for new environments:
 - clinic name
 - clinic location code
 - clinic timezone
-- clinic zone code when relevant later
+- clinic zone code, when clinics are grouped into zones for reporting
 
 ---
 

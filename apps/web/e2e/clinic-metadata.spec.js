@@ -201,3 +201,102 @@ test.describe('creating a clinic', () => {
     await expect(page.getByRole('grid').getByText(locationCode)).toBeVisible({ timeout: 15_000 });
   });
 });
+
+/**
+ * The zone filter.
+ *
+ * These run against a clinic this file creates, because the seed leaves `zoneCode` empty --
+ * `SEED_CLINIC_ZONE_CODE` is not set in CI -- so the seeded clinic is the "No zone" case and a
+ * zoned clinic has to be made. That is useful rather than awkward: both branches of the filter
+ * get exercised by the same run.
+ */
+test.describe('clinic zone filter', () => {
+  test.use({ storageState: storageStateFor('staff') });
+
+  // By id, not by label: the DataGrid also has a column header reading "Zone".
+  const zoneFilter = (page) => page.locator('#clinic-zone-filter');
+
+  /** Creates a clinic in its own zone and returns what identifies it. */
+  async function createZonedClinic(page) {
+    const suffix = Date.now().toString(36);
+    const name = `zz E2E Zone Clinic ${suffix}`;
+    const locationCode = `zz-e2e-zone-${suffix}`;
+    const zoneCode = `zz-zone-${suffix}`;
+
+    const dialog = await openCreateDialog(page);
+    await dialog.getByLabel('Name').fill(name);
+    await dialog.getByLabel('Location code').fill(locationCode);
+    await dialog.getByLabel('Zone code').fill(zoneCode);
+    await submit(dialog);
+    await expect(dialog).toBeHidden({ timeout: 15_000 });
+
+    return { locationCode, zoneCode };
+  }
+
+  test('narrows the registry to one zone and back again', async ({ page }) => {
+    const { locationCode, zoneCode } = await createZonedClinic(page);
+
+    // The seeded clinic has no zone code, so it is the row that must disappear.
+    const grid = page.getByRole('grid');
+    await expect(grid.getByText('nkwapa-clinic-demo')).toBeVisible({ timeout: 15_000 });
+
+    await zoneFilter(page).click();
+    await page.getByRole('option', { name: new RegExp(zoneCode) }).click();
+
+    await expect(grid.getByText(locationCode)).toBeVisible({ timeout: 15_000 });
+    await expect(grid.getByText('nkwapa-clinic-demo')).toBeHidden();
+    await expect(page.getByText(`Zone: ${zoneCode}`)).toBeVisible();
+
+    await zoneFilter(page).click();
+    await page.getByRole('option', { name: 'All zones' }).click();
+
+    await expect(grid.getByText('nkwapa-clinic-demo')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(`Zone: ${zoneCode}`)).toBeHidden();
+  });
+
+  test('selects the clinics that have no zone', async ({ page }) => {
+    const { locationCode } = await createZonedClinic(page);
+
+    await zoneFilter(page).click();
+    await page.getByRole('option', { name: /^No zone/ }).click();
+
+    const grid = page.getByRole('grid');
+    await expect(grid.getByText('nkwapa-clinic-demo')).toBeVisible({ timeout: 15_000 });
+    await expect(grid.getByText(locationCode)).toBeHidden();
+    await expect(page.getByText('Zone: No zone')).toBeVisible();
+  });
+
+  test('offers an existing zone as a suggestion rather than making it retypeable', async ({
+    page,
+  }) => {
+    // A zone is free text, so the only thing stopping one typo splitting a zone's report in two
+    // is that the spellings already in use are reachable without typing them.
+    const { zoneCode } = await createZonedClinic(page);
+
+    const dialog = await openCreateDialog(page);
+    const suggestion = dialog.getByRole('button', { name: zoneCode, exact: true });
+    await expect(suggestion).toBeVisible({ timeout: 15_000 });
+
+    await suggestion.click();
+    await expect(dialog.getByLabel('Zone code')).toHaveValue(zoneCode);
+  });
+
+  test('says a zone filter emptied the list, and offers the way back', async ({ page }) => {
+    // The registry's empty state used to say "No clinics yet" with a "Create the first clinic"
+    // button, because an empty filtered response and an empty database look identical on the
+    // wire. This is the test that it no longer does.
+    const { zoneCode } = await createZonedClinic(page);
+
+    await zoneFilter(page).click();
+    await page.getByRole('option', { name: new RegExp(zoneCode) }).click();
+    await expect(page.getByRole('grid')).toBeVisible({ timeout: 15_000 });
+
+    await page.getByRole('button', { name: 'Needs attention' }).click();
+
+    await expect(page.getByText(`No clinic in ${zoneCode} has a metadata problem.`)).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'No clinics yet' })).toBeHidden();
+
+    await page.getByRole('button', { name: 'Show all zones' }).click();
+    await expect(page.getByText(`Zone: ${zoneCode}`)).toBeHidden();
+  });
+});

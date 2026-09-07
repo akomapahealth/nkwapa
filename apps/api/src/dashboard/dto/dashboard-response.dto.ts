@@ -1,3 +1,5 @@
+import type { ZoneSummary } from '@nkwapa/db';
+
 export interface EncounterSummary {
   id: string;
   patientCode: string;
@@ -17,6 +19,8 @@ export interface StaffActivityRow {
 export interface ClinicComparisonRow {
   clinicId: string;
   clinicName: string;
+  /** `null` is a clinic with no zone, which the UI shows rather than hides. */
+  zoneCode: string | null;
   totalPatients: number;
   totalEncounters: number;
   totalFinalized: number;
@@ -109,6 +113,15 @@ export interface SystemAdminMetrics {
   systemWideEncounters: number;
   clinicComparison: ClinicComparisonRow[];
   systemEncountersTrend: TrendPoint[];
+  /**
+   * Every zone in the network, whether or not the comparison is filtered to one.
+   *
+   * Built from the unfiltered clinic set on purpose: a filter that removed its own options
+   * would leave the reader with no way back to the other zones.
+   */
+  zones: ZoneSummary[];
+  /** The filter in effect, echoed so the client can render it without re-deriving it. */
+  appliedZoneCode: string | null;
 }
 
 export interface DashboardResponse {

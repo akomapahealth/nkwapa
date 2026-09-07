@@ -15,12 +15,16 @@ export interface ReqUser {
 export interface Membership {
   clinicId: string;
   clinicName: string;
+  /** The clinic's reporting zone, or `null`. Context for the UI, never a permission. */
+  zoneCode: string | null;
   roles: string[];
 }
 
 export interface AvailableClinic {
   clinicId: string;
   clinicName: string;
+  /** The clinic's reporting zone, or `null`. Context for the UI, never a permission. */
+  zoneCode: string | null;
 }
 
 export interface WhoAmIResponse {
@@ -95,6 +99,7 @@ export class AuthController {
     const availableClinics: AvailableClinic[] = availableClinicRows.map((clinic) => ({
       clinicId: clinic.id,
       clinicName: clinic.name,
+      zoneCode: clinic.zoneCode ?? null,
     }));
     const availableClinicIds = new Set(availableClinics.map((clinic) => clinic.clinicId));
 
@@ -109,6 +114,7 @@ export class AuthController {
       memberships.push({
         clinicId: cid,
         clinicName: clinic.name,
+        zoneCode: clinic.zoneCode ?? null,
         roles: roleNames,
       });
     }

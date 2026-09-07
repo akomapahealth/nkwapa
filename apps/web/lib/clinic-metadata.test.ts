@@ -1,3 +1,4 @@
+import { zoneFilterMatches } from './clinic-zones';
 import {
   CLINIC_METADATA_ISSUE_LABELS,
   clinicFormFromRow,
@@ -237,6 +238,45 @@ describe('filterClinics', () => {
 
   it('narrows to inactive clinics', () => {
     expect(filterClinics(all, 'inactive').map((c) => c.id)).toEqual(['c']);
+  });
+
+  describe('with a zone', () => {
+    const north = clinic({ id: 'n', zoneCode: 'north' });
+    const south = clinic({ id: 's', zoneCode: 'south' });
+    const unzoned = clinic({ id: 'u', zoneCode: null });
+    const brokenNorth = clinic({
+      id: 'bn',
+      zoneCode: 'north',
+      metadataIssues: [issue('TIMEZONE_UNKNOWN', 'error')],
+    });
+    const zoned = [north, south, unzoned, brokenNorth];
+
+    it('changes nothing when no zone is applied', () => {
+      expect(filterClinics(zoned, 'all', null)).toHaveLength(4);
+    });
+
+    it('narrows to one zone', () => {
+      expect(filterClinics(zoned, 'all', 'north').map((c) => c.id)).toEqual(['n', 'bn']);
+    });
+
+    it('narrows to the clinics with no zone', () => {
+      expect(filterClinics(zoned, 'all', '__unzoned__').map((c) => c.id)).toEqual(['u']);
+    });
+
+    it('composes with the view rather than replacing it', () => {
+      // The reason zone is a second argument and not another member of the view union: an
+      // operator asks for "clinics in the north zone that need attention", not one or the other.
+      expect(filterClinics(zoned, 'needs-attention', 'north').map((c) => c.id)).toEqual(['bn']);
+      expect(filterClinics(zoned, 'needs-attention', 'south')).toEqual([]);
+    });
+
+    it('agrees with the shared predicate the API filters by', () => {
+      for (const filter of ['north', 'south', '__unzoned__', null]) {
+        expect(filterClinics(zoned, 'all', filter)).toEqual(
+          zoned.filter((c) => zoneFilterMatches(c.zoneCode, filter)),
+        );
+      }
+    });
   });
 });
 

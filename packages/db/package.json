@@ -17,6 +17,10 @@
       "types": "./dist/src/clinic-day.d.ts",
       "default": "./dist/src/clinic-day.js"
     },
+    "./clinic-zones": {
+      "types": "./dist/src/clinic-zones.d.ts",
+      "default": "./dist/src/clinic-zones.js"
+    },
     "./clinical-measurements": {
       "types": "./dist/src/clinical-measurements.d.ts",
       "default": "./dist/src/clinical-measurements.js"
