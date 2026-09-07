@@ -36,6 +36,25 @@ async function analyze(page) {
   return new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
 }
 
+/**
+ * The sweep for a state where a Radix popup is open.
+ *
+ * Radix marks everything behind an open `Select` with `aria-hidden="true"` and traps focus in
+ * the popup. axe cannot see the focus trap, so it reports `aria-hidden-focus` against the page
+ * behind -- for every `Select` in the product, not just a new one. Verified against
+ * `#staff-status-filter` on `/admin/users`, which predates any zone work and reports exactly
+ * the same violation.
+ *
+ * Excluding that subtree rather than disabling the rule keeps `aria-hidden-focus` live for the
+ * popup itself, which is the markup a sweep here is actually about.
+ */
+function analyzeOpenPopup(page) {
+  return new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .exclude('[data-aria-hidden="true"]')
+    .analyze();
+}
+
 function describeViolations(violations) {
   return violations
     .map(
@@ -223,7 +242,9 @@ test('the clinic registry, its filters, its dialog, and its combobox survive an 
   // #main-content, so an unopened one is not covered by the sweep above at all.
   await page.locator('#clinic-zone-filter').click();
   await expect(page.getByRole('listbox')).toBeVisible();
-  expect(describeViolations((await analyze(page)).violations), 'zone filter open').toBe('');
+  expect(describeViolations((await analyzeOpenPopup(page)).violations), 'zone filter open').toBe(
+    '',
+  );
   await page.keyboard.press('Escape');
   await expect(page.getByRole('listbox')).toBeHidden();
 
