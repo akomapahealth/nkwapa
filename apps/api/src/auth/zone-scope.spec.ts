@@ -147,3 +147,40 @@ describe('the zone filter cannot be reached without the seat', () => {
     expect(clinicService.listZonesForActor).not.toHaveBeenCalled();
   });
 });
+
+describe('the bootstrap contract carries zone as context only', () => {
+  it('never turns a zone into an effective role or permission', async () => {
+    // whoami is where a client learns what it may do. A zone appearing anywhere but beside a
+    // clinic's name would be the moment zone started reading like a grant.
+    const { AuthController } = await import('./auth.controller');
+    const clinicService = {
+      findByIds: jest
+        .fn()
+        .mockResolvedValue([
+          { id: CLINIC_A1, name: 'A1', region: null, zoneCode: SHARED_ZONE_CODE },
+        ]),
+      listActiveSwitchableClinics: jest
+        .fn()
+        .mockResolvedValue([
+          { id: CLINIC_A1, name: 'A1', region: null, zoneCode: SHARED_ZONE_CODE },
+        ]),
+    };
+    const prisma = { patientPortalInvite: { findMany: jest.fn().mockResolvedValue([]) } };
+    const controller = new AuthController(clinicService as never, prisma as never);
+
+    const response = await controller.whoami({
+      user: {
+        user: { id: 'u1', keycloakSub: 's1', displayName: 'U', email: null },
+        roles: [{ clinicId: CLINIC_A1, role: UserRole.VOLUNTEER }],
+      },
+      headers: {},
+    } as never);
+
+    expect(response.memberships[0].zoneCode).toBe(SHARED_ZONE_CODE);
+    expect(response.availableClinics[0].zoneCode).toBe(SHARED_ZONE_CODE);
+    // B1 is in the same zone and must not appear anywhere in the response.
+    expect(JSON.stringify(response)).not.toContain(CLINIC_B1);
+    expect(response.effectiveRolesForActiveClinic).toEqual([UserRole.VOLUNTEER]);
+    expect(response.effectivePermissionsForActiveClinic.join(' ')).not.toMatch(/zone/i);
+  });
+});

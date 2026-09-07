@@ -83,24 +83,28 @@ export class ClinicService {
     });
   }
 
-  async findByIds(ids: string[]): Promise<{ id: string; name: string; region: string | null }[]> {
+  async findByIds(
+    ids: string[],
+  ): Promise<{ id: string; name: string; region: string | null; zoneCode: string | null }[]> {
     if (ids.length === 0) return [];
     return this.prisma.clinic.findMany({
       where: { id: { in: ids }, isActive: true },
-      select: { id: true, name: true, region: true },
+      select: { id: true, name: true, region: true, zoneCode: true },
     });
   }
 
   async listActiveSwitchableClinics(
     ids?: string[],
-  ): Promise<{ id: string; name: string; region: string | null }[]> {
+  ): Promise<{ id: string; name: string; region: string | null; zoneCode: string | null }[]> {
     if (ids && ids.length === 0) return [];
     return this.prisma.clinic.findMany({
       where: {
         isActive: true,
         ...(ids ? { id: { in: ids } } : {}),
       },
-      select: { id: true, name: true, region: true },
+      // `zoneCode` rides along so a single-clinic view can say which zone it is showing without
+      // a second round trip. It names the clinic the caller already has; it grants nothing.
+      select: { id: true, name: true, region: true, zoneCode: true },
       orderBy: { name: 'asc' },
     });
   }
