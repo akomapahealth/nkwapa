@@ -233,7 +233,10 @@ export function ClinicRegistryScreen() {
       );
       if (!response.ok) throw await readApiError(response);
       setDialogOpen(false);
-      await clinics.refresh();
+      // Both, because a save can move a clinic into a zone that did not exist a moment ago, or
+      // empty the last one. Refreshing only the rows would leave the picker describing a set of
+      // zones the table no longer has.
+      await Promise.all([clinics.refresh(), zones.refresh()]);
     } catch (error) {
       setSubmitError(error instanceof Error ? error : new Error(String(error)));
     } finally {

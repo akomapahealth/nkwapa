@@ -202,9 +202,11 @@ for (const breakpoint of BREAKPOINTS) {
   });
 }
 
-test('the clinic registry, its dialog, and its combobox survive an axe sweep', async ({ page }) => {
-  // Three states, because the interesting one is not in the DOM until it is opened: the registry
-  // itself, the dialog, and the dialog with the listbox up. The combobox is the first control of
+test('the clinic registry, its filters, its dialog, and its combobox survive an axe sweep', async ({
+  page,
+}) => {
+  // Four states, because the interesting ones are not in the DOM until they are opened: the
+  // registry itself, the zone picker's listbox, the dialog, and the dialog with the listbox up. The combobox is the first control of
   // its kind in the product, and a hand-built listbox popup is exactly the kind of thing that
   // passes review by eye and fails an automated rule.
   //
@@ -216,6 +218,14 @@ test('the clinic registry, its dialog, and its combobox survive an axe sweep', a
   ).toBeVisible({ timeout: 30_000 });
 
   expect(describeViolations((await analyze(page)).violations), 'registry').toBe('');
+
+  // The zone picker's own open state. A Radix Select renders its listbox in a portal outside
+  // #main-content, so an unopened one is not covered by the sweep above at all.
+  await page.locator('#clinic-zone-filter').click();
+  await expect(page.getByRole('listbox')).toBeVisible();
+  expect(describeViolations((await analyze(page)).violations), 'zone filter open').toBe('');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('listbox')).toBeHidden();
 
   await page.getByRole('button', { name: 'Create clinic', exact: true }).first().click();
   const dialog = page.getByRole('dialog');
