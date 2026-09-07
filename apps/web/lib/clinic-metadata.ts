@@ -215,8 +215,19 @@ export const CLINIC_METADATA_SEVERITY_VARIANT: Record<
   info: 'draft',
 };
 
+/**
+ * Normalizes one row from the API.
+ *
+ * `metadataIssues` is defaulted rather than assumed. During a rolling deploy the web app can
+ * be newer than the API for a few minutes, and a list endpoint that has not learned to send
+ * the field yet must render as "no issues", not take the whole screen down.
+ */
+export function normalizeClinicRow(clinic: ClinicRow): ClinicRow {
+  return { ...clinic, metadataIssues: clinic.metadataIssues ?? [] };
+}
+
 export function clinicMetadataErrors(clinic: ClinicRow): ClinicMetadataIssue[] {
-  return clinic.metadataIssues.filter((issue) => issue.severity === 'error');
+  return (clinic.metadataIssues ?? []).filter((issue) => issue.severity === 'error');
 }
 
 /** True when a clinic has at least one problem that blocks a save. Drives "needs attention". */

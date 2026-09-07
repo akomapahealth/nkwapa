@@ -231,7 +231,9 @@ export function Combobox({
         ref={listRef}
         id={listboxId}
         role="listbox"
-        aria-label={placeholder}
+        // Deliberately not the field's own label. The popup is owned by the combobox through
+        // aria-controls, and naming it "Time zone" too gives the field's name to two elements.
+        aria-label="Suggestions"
         hidden={!open}
         className="absolute z-50 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-border bg-popover py-1 text-sm shadow-md"
       >

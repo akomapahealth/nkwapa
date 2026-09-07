@@ -27,6 +27,7 @@ import {
   clinicNeedsAttention,
   emptyClinicForm,
   filterClinics,
+  normalizeClinicRow,
   summarizeClinicMetadata,
   type ClinicFormField,
   type ClinicFormValues,
@@ -109,7 +110,7 @@ export function ClinicRegistryScreen() {
         signal,
       });
       if (!response.ok) throw await readApiError(response);
-      return (await response.json()) as ClinicRow[];
+      return ((await response.json()) as ClinicRow[]).map(normalizeClinicRow);
     },
   });
 

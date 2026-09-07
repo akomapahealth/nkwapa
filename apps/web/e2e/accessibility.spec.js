@@ -64,7 +64,11 @@ test('the dashboard, registry, and schedule have no automatically detectable vio
 }) => {
   // `/appointments` carries a wide data table, a triage panel, and two dialogs, and was outside
   // this sweep until the appointment release gate.
-  for (const route of ['/dashboard', '/patients', '/appointments']) {
+  //
+  // `/admin/clinics` joined it for the clinic metadata work: it is the first screen in the
+  // product with a combobox, and a hand-built listbox popup is exactly the kind of control
+  // that passes review by eye and fails an automated rule.
+  for (const route of ['/dashboard', '/patients', '/appointments', '/admin/clinics']) {
     await page.goto(route);
     await page.waitForLoadState('networkidle');
 
@@ -197,3 +201,22 @@ for (const breakpoint of BREAKPOINTS) {
     expect(overflow, `horizontal overflow at ${breakpoint.width}px`).toBeLessThanOrEqual(1);
   });
 }
+
+test('the clinic metadata dialog and its combobox survive an axe sweep', async ({ page }) => {
+  // The dialog is where the new combobox actually lives, and a closed dialog is not in the DOM,
+  // so the route-level sweep above never reaches it.
+  await page.goto('/admin/clinics');
+  await expect(page.getByRole('heading', { name: /^clinics$/i })).toBeVisible({ timeout: 30_000 });
+
+  await page.getByRole('button', { name: 'Create clinic', exact: true }).first().click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+
+  expect(describeViolations((await analyze(page)).violations), 'dialog closed combobox').toBe('');
+
+  // Again with the listbox open, which is the state the ARIA pattern is actually about.
+  await dialog.getByLabel('Time zone').click();
+  await expect(dialog.getByRole('listbox')).toBeVisible();
+
+  expect(describeViolations((await analyze(page)).violations), 'dialog open combobox').toBe('');
+});

@@ -338,14 +338,20 @@ export class ClinicService {
   }
 
   private locationCodeConflict(locationCode: string, clashingClinicName?: string) {
+    /*
+      The specific sentence goes on the field, not only in `message`. A client that renders
+      field errors next to their input shows the field error and suppresses the banner, so
+      putting the generic rule there and the name of the clashing clinic in `message` meant
+      the one useful detail was the one nobody saw.
+    */
+    const message = clashingClinicName
+      ? `"${clashingClinicName}" already uses the location code "${locationCode}" in this organization.`
+      : `The location code "${locationCode}" is already used in this organization.`;
+
     return new ConflictException({
       code: 'CLINIC_LOCATION_CODE_CONFLICT',
-      message: clashingClinicName
-        ? `"${clashingClinicName}" already uses the location code "${locationCode}" in this organization.`
-        : `The location code "${locationCode}" is already used in this organization.`,
-      fieldErrors: [
-        { field: 'locationCode', message: 'Location codes must be unique within an organization.' },
-      ],
+      message,
+      fieldErrors: [{ field: 'locationCode', message }],
       recoveryAction: 'Choose a different location code.',
     });
   }
