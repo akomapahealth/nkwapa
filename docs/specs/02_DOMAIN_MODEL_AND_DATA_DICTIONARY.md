@@ -60,7 +60,9 @@ API's DTO validators, the admin UI, the seed, and `npm run db:audit-clinics`):
 
 - `locationCode` is required, lowercase letters/digits/single hyphens, at most 64 characters
 - `timezone` must be a named IANA zone; a fixed offset is refused because it has no DST rules
-- `zoneCode` is optional, and shape-checked like a location code when present
+- `zoneCode` is optional, and shape-checked like a location code when present. It groups clinics
+  for reporting and filtering, and is never a permission scope: two clinics in different
+  organizations may share a zone code, and neither gains access to the other.
 - `countryCode` is ISO-3166 alpha-2, stored uppercase
 - a duplicate `locationCode` within an organization is a 409, not a constraint error
 

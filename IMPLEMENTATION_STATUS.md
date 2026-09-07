@@ -79,7 +79,7 @@ nkwapa/
 
 1. Keycloak owns identity, password hashing, session expiry, password reset, and brute-force protection.
 2. Nkwapa owns authorization through `UserClinicRole`, effective permissions, clinic context, and RLS-scoped data access.
-3. `Organization -> Clinic(Location)` is the current tenant model. `Clinic.zoneCode` exists for future zone-aware rollups, not current RBAC.
+3. `Organization -> Clinic(Location)` is the current tenant model. `Clinic.zoneCode` is a reporting and filtering dimension, never a permission scope.
 4. Clinic-scoped HTTP traffic is expected to run through the request-scoped Prisma RLS context.
 5. `/auth/whoami` remains the frontend bootstrap contract for memberships, active clinic, permissions, and onboarding state.
 6. The API returns structured error envelopes with request IDs and recovery actions instead of raw exception payloads.
@@ -100,7 +100,8 @@ nkwapa/
 | Effective permission computation | ✅     | 100% | Union across roles, `*` wildcard for SYSTEM_ADMIN |
 | Disabled-user handling           | ✅     | 100% | `isActive` flag on User model                     |
 | Patient claim onboarding state   | ✅     | 100% | Returned by `/auth/whoami`                        |
-| Zone-scoped RBAC                 | ❌     | 0%   | `zoneCode` reserved in schema, policies deferred  |
+| Zone reporting filters           | ✅     | 100% | Filter on registry, network overview, roster      |
+| Zone-scoped RBAC                 | ❌     | 0%   | Deliberately not built; zone is a filter in V1    |
 | Organization-level permissions   | ❌     | 0%   | Org model exists, admin UI still clinic-first     |
 
 ### Data Isolation & Infrastructure
@@ -294,7 +295,7 @@ through one encounter. Those are listed in `docs/USER_TESTING_GUIDE.md` section 
 
 2. 🚀 **Extend org-aware administration** - Organization dashboards, clinic roster views, org-level filters.
 
-3. 🚀 **Finish zone-aware access** - Promote `zoneCode` from schema reserve to real access/reporting policy.
+3. 🚀 **Org-level reporting** - Give directors cross-clinic rollups; zone filters already exist to slice them.
 
 4. 🚀 **Deepen patient identity** - Duplicate review queue, stronger match heuristics, cross-clinic consolidation.
 
