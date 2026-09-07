@@ -27,6 +27,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useAsyncResource } from '@/lib/use-async-resource';
 import { dataGridSx } from '@/lib/datagrid-theme';
 import {
+  listZoneCodes,
   zoneFilterFromSelect,
   zoneFilterLabel,
   zoneFilterOptions,
@@ -175,6 +176,7 @@ export function ClinicRegistryScreen() {
   const visibleRows = useMemo(() => filterClinics(rows, filter), [rows, filter]);
 
   const zoneList = useMemo(() => zones.data ?? [], [zones.data]);
+  const knownZoneCodes = useMemo(() => listZoneCodes(zoneList), [zoneList]);
   const zoneOptions = useMemo(() => zoneFilterOptions(zoneList), [zoneList]);
   const zonedClinicCount = zoneList.filter((zone) => zone.zoneCode !== null).length;
 
@@ -531,6 +533,7 @@ export function ClinicRegistryScreen() {
         mode={dialogMode}
         initialValues={dialogValues}
         organizations={organizationList}
+        knownZoneCodes={knownZoneCodes}
         focusField={focusField}
         saving={saving}
         submitError={submitError}
