@@ -1959,6 +1959,9 @@ export class PatientPortalService {
               bmi: true,
             },
           },
+          hypertensionAssessment: {
+            select: { repeatSystolicBp: true, repeatDiastolicBp: true },
+          },
         },
       }),
       this.prisma.diabetesScreening.findMany({
@@ -2021,15 +2024,39 @@ export class PatientPortalService {
 
     const bp: BloodPressureTrendPoint[] = [
       ...encounters.flatMap((encounter) => {
-        if (encounter.vitals?.systolicBp == null || encounter.vitals.diastolicBp == null) {
-          return [];
-        }
+        /*
+          A confirmed repeat outranks the reading that prompted it.
+
+          When an initial reading crosses the threshold, the volunteer is asked to rest the patient
+          and measure again with the right cuff, precisely because a single high reading is often
+          the walk into the room rather than the patient. Plotting the initial value would put the
+          measurement the system itself judged unreliable into the trend a clinician uses to decide
+          whether treatment is working -- and would show a spike on exactly the visits where
+          somebody did the careful thing.
+
+          The initial reading is not lost: it stays on Vitals, which is still the only place
+          today's measurement is stored. This decides which of two genuinely different measurements
+          the trend line draws.
+        */
+        const repeat = encounter.hypertensionAssessment;
+        const hasCompleteRepeat =
+          repeat?.repeatSystolicBp != null && repeat?.repeatDiastolicBp != null;
+        /*
+          The repeat is taken as a pair or not at all.
+
+          Falling back value by value would pair a repeat systolic with the initial diastolic and
+          plot a blood pressure nobody ever measured. A half-entered repeat is not a reading, so the
+          complete initial pair is the honest thing to draw.
+        */
+        const sys = hasCompleteRepeat ? repeat.repeatSystolicBp : encounter.vitals?.systolicBp;
+        const dia = hasCompleteRepeat ? repeat.repeatDiastolicBp : encounter.vitals?.diastolicBp;
+        if (sys == null || dia == null) return [];
 
         return [
           {
             t: encounter.createdAt.toISOString(),
-            sys: encounter.vitals.systolicBp,
-            dia: encounter.vitals.diastolicBp,
+            sys,
+            dia,
             source: 'ENCOUNTER' as const,
           },
         ];

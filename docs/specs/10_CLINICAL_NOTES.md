@@ -51,6 +51,29 @@ RLS repeats the active-clinical-role boundary at the database layer. Clinical-no
 `Cache-Control: private, no-store`, and audit events contain identifiers and transition metadata,
 never HAP or addendum text.
 
+## Drafting from the chronic-disease interviews
+
+`POST /clinics/:clinicId/encounters/:encounterId/clinical-note/seed` composes the encounter's
+hypertension and diabetes interviews into the draft. It requires `CLINICAL_NOTE.WRITE`, the same
+permission as any other draft edit, because that is what it is: a generator composes text and the
+ordinary draft path writes it, so authorship, the DRAFT-only rule, the optimistic version check and
+the immutability triggers all still decide whether it lands.
+
+The generator is a pure function over the stored row. There is no AI dependency in this repository
+and none was added. Determinism is the contract, because a signed note is hashed: no locale
+formatting, no clock, no randomness, and a fixed paragraph order. Both conditions compose in a
+fixed order and regenerate wholesale, so pressing the button twice produces the same note — and so
+regenerating over an edited draft is destructive, which the panel confirms before doing.
+
+The generated text lives only in `history`, `assessment` and `plan`. It is never stored on the
+assessment row, never included in the sync pull, and never written into an audit payload; the
+non-exposure spec asserts that the narrative modules are not imported by sync, research, dashboard,
+portal or patient chart, read no patient identifier beyond the name they are handed, and that no
+model carries a narrative column.
+
+A reader without `CAREPLAN.CLINICIAN_PLAN` gets a note with the supervising-clinician section
+absent rather than empty. See `14_CHRONIC_DISEASE_INTERVIEWS.md`.
+
 ## Online-only UX
 
 All note reads and writes are online-only in v1. When connectivity is lost, the UI removes any

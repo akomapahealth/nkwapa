@@ -10,7 +10,6 @@ import {
   SyncMutationStatus,
   EncounterStatus,
   GhanaRegion,
-  HypertensionClassification,
   NationalIdType,
   PatientLocationStatus,
   Sex,
@@ -28,7 +27,11 @@ import { assertPermissionAtClinic, type ScopedRole } from '../auth/clinic-roles'
 import type { EntityType as SyncEntityType } from './entity-types';
 import { SYNC_ENTITY_PERMISSIONS, isSyncEntityType } from './sync-permissions';
 import { classifySyncFailure, isTerminalOutcome } from './sync-outcome';
-import { SYNC_PATIENT_SELECT } from './sync-projection';
+import {
+  SYNC_DIABETES_SCREENING_SELECT,
+  SYNC_HYPERTENSION_ASSESSMENT_SELECT,
+  SYNC_PATIENT_SELECT,
+} from './sync-projection';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { PatientRepository } from '../patients/patient.repository';
@@ -51,6 +54,7 @@ import type {
   SetPreferredPharmacyDto,
 } from '../medication-reconciliation/dto/medication-reconciliation.dto';
 import { DiabetesScreeningService } from '../diabetes-screening/diabetes-screening.service';
+import { HypertensionAssessmentService } from '../hypertension-assessment/hypertension-assessment.service';
 import { serializeLegacyDiabetesSymptoms } from '@nkwapa/db';
 
 export type { EntityType } from './entity-types';
@@ -76,6 +80,7 @@ export class SyncService {
     private readonly clinicalMeasurementsService: ClinicalMeasurementsService,
     private readonly medicationReconciliationService: MedicationReconciliationService,
     private readonly diabetesScreeningService: DiabetesScreeningService,
+    private readonly hypertensionAssessmentService: HypertensionAssessmentService,
   ) {}
 
   async applyMutations(
@@ -299,6 +304,7 @@ export class SyncService {
         return this.applyHypertensionAssessmentUpsert(
           clinicId,
           actorUserId,
+          user,
           mut,
           payload,
           idempotencyKey,
@@ -752,9 +758,20 @@ export class SyncService {
     return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
   }
 
+  /**
+   * Replay a hypertension assessment through the same service the REST route uses.
+   *
+   * This used to be an inline upsert that cast `payload.classification` straight to the enum and
+   * coalesced every other field with `?? existing?.x ?? default`. It validated nothing: a mutation
+   * carrying `{ classification: 'BOGUS' }` was accepted here and failed later, and a device could
+   * assert `urgentReviewRequired` for itself. Diabetes has delegated like this since its module
+   * landed; the two conditions now reject the same payloads for the same reasons whether they
+   * arrive online or through the outbox.
+   */
   private async applyHypertensionAssessmentUpsert(
     clinicId: string,
     actorUserId: string,
+    user: UserWithId,
     mut: SyncMutationDto,
     payload: Record<string, unknown>,
     idempotencyKey: string,
@@ -762,60 +779,27 @@ export class SyncService {
   ): Promise<SyncMutationResultDto> {
     const encounterId = payload.encounterId as string;
     if (!encounterId) throw new Error('HypertensionAssessment payload must include encounterId');
-    await this.ensureEncounterNotFinalized(encounterId);
-
-    const existing = await this.prisma.hypertensionAssessment.findUnique({
-      where: { encounterId },
-    });
-    const before = existing ? JSON.stringify(existing) : null;
-
-    const classification =
-      (payload.classification as HypertensionClassification) ?? HypertensionClassification.UNKNOWN;
-    const assessment = await this.prisma.hypertensionAssessment.upsert({
-      where: { encounterId },
-      create: {
-        id: mut.entityId,
-        clinicId,
-        encounterId,
-        classification,
-        suspected: (payload.suspected as boolean) ?? false,
-        confirmed: (payload.confirmed as boolean) ?? false,
-        notes: (payload.notes as string) ?? null,
-      },
-      update: {
-        classification:
-          (payload.classification as HypertensionClassification) ??
-          existing?.classification ??
-          HypertensionClassification.UNKNOWN,
-        suspected: (payload.suspected as boolean) ?? existing?.suspected ?? false,
-        confirmed: (payload.confirmed as boolean) ?? existing?.confirmed ?? false,
-        notes: (payload.notes as string) ?? existing?.notes ?? null,
-      },
-    });
-
-    await this.auditService.logWrite({
+    const normalized = await this.hypertensionAssessmentService.validateSyncPayload(
+      payload,
+      mut.createdAt ?? new Date().toISOString(),
+    );
+    await this.hypertensionAssessmentService.upsert(
       clinicId,
-      actorUserId,
-      action: existing ? 'HYPERTENSION_ASSESSMENT.UPSERT' : 'HYPERTENSION_ASSESSMENT.CREATE',
-      entityType: 'HypertensionAssessment',
-      entityId: assessment.id,
-      beforeJson: before,
-      afterJson: JSON.stringify(assessment),
-      requestId: idempotencyKey,
-      ipAddress: metadata?.ipAddress,
-      userAgent: metadata?.userAgent,
-    });
-
-    await this.prisma.syncMutation.create({
-      data: {
-        clinicId,
-        entityType: 'hypertension_assessment',
-        entityId: mut.entityId,
-        operation: SyncOperation.UPSERT,
-        idempotencyKey,
-        status: SyncMutationStatus.APPLIED,
+      encounterId,
+      { userId: actorUserId, roles: user.roles },
+      normalized.dto,
+      {
+        requestId: idempotencyKey,
+        ipAddress: metadata?.ipAddress,
+        userAgent: metadata?.userAgent,
+        syncMutation: {
+          entityType: mut.entityType,
+          entityId: mut.entityId,
+          idempotencyKey,
+        },
       },
-    });
+      mut.entityId,
+    );
 
     return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
   }
@@ -1494,10 +1478,11 @@ export class SyncService {
       }),
       this.prisma.diabetesScreening.findMany({
         where: { ...where, ...updatedAtFilter },
-        include: { authoredBy: { select: { id: true, displayName: true } } },
+        select: SYNC_DIABETES_SCREENING_SELECT,
       }),
       this.prisma.hypertensionAssessment.findMany({
         where: { ...where, ...updatedAtFilter },
+        select: SYNC_HYPERTENSION_ASSESSMENT_SELECT,
       }),
       this.prisma.carePlan.findMany({
         where: { ...where, ...updatedAtFilter },

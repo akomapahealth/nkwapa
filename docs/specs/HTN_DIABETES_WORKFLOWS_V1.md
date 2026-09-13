@@ -1,3 +1,12 @@
+> **Superseded by `14_CHRONIC_DISEASE_INTERVIEWS.md`.** Kept for the record because it is where the
+> blood-pressure staging bands and the diabetes suspicion thresholds were first written down, and
+> those are still the approved rules.
+>
+> Two things below never matched the code and are now fixed rather than described: the system did
+> not compute a BP classification (the dropdown was manual until #114), and the encounter state
+> machine is documented in `02_DOMAIN_MODEL_AND_DATA_DICTIONARY.md` rather than here. The "Doctor
+> flow" heading also appears twice, the first of which describes clinical review.
+
 /docs/specs/HTN_DIABETES_WORKFLOWS_V1.md
 
 Workflow states

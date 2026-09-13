@@ -52,18 +52,35 @@ Captured alongside vitals in the same bundle.
 
 Offline: queued as `encounter_vitals_bundle`. The queued write requires the same permission as the online one.
 
-## Diabetes screening
+## Diabetes interview
 
-| Role | Read | Write |
-| --- | --- | --- |
-| SYSTEM_ADMIN | yes | yes |
-| DIRECTOR | yes | no |
-| MANAGER | yes | no |
-| DOCTOR | yes | yes |
-| VOLUNTEER | yes | yes |
-| PATIENT | no | no |
+The clinician plan is doctor-only, refused by the API for any other role, and withheld from the offline pull so no volunteer device caches it.
+
+| Role | Read | Write | Supervising clinician plan |
+| --- | --- | --- | --- |
+| SYSTEM_ADMIN | yes | yes | yes |
+| DIRECTOR | yes | no | no |
+| MANAGER | yes | no | no |
+| DOCTOR | yes | yes | yes |
+| VOLUNTEER | yes | yes | no |
+| PATIENT | no | no | no |
 
 Offline: queued as `diabetes_screening`. The queued write requires the same permission as the online one.
+
+## Hypertension interview
+
+The clinician plan is doctor-only, refused by the API for any other role, and withheld from the offline pull so no volunteer device caches it.
+
+| Role | Read | Write | Supervising clinician plan |
+| --- | --- | --- | --- |
+| SYSTEM_ADMIN | yes | yes | yes |
+| DIRECTOR | yes | no | no |
+| MANAGER | yes | no | no |
+| DOCTOR | yes | yes | yes |
+| VOLUNTEER | yes | yes | no |
+| PATIENT | no | no | no |
+
+Offline: queued as `hypertension_assessment`. The queued write requires the same permission as the online one.
 
 ## Medication reconciliation and pharmacy history
 
@@ -129,6 +146,7 @@ Offline: not queued. Every read and write requires a live connection.
 
 | Permission | SYSTEM_ADMIN | DIRECTOR | MANAGER | DOCTOR | VOLUNTEER | PATIENT |
 | --- | --- | --- | --- | --- | --- | --- |
+| `CAREPLAN.CLINICIAN_PLAN` | yes | no | no | yes | no | no |
 | `CLINICAL_NOTE.ADDENDUM` | yes | no | no | yes | no | no |
 | `CLINICAL_NOTE.COSIGN` | yes | no | no | yes | no | no |
 | `CLINICAL_NOTE.READ` | yes | no | no | yes | yes | no |

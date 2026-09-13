@@ -20,6 +20,8 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { VitalsForm } from '@/components/VitalsForm';
 import { DiabetesScreeningForm } from '@/components/DiabetesScreeningForm';
 import { HypertensionForm } from '@/components/HypertensionForm';
+import { HypertensionInterviewForm } from '@/components/encounters/hypertension/HypertensionInterviewForm';
+import { DiabetesInterviewForm } from '@/components/encounters/diabetes/DiabetesInterviewForm';
 import { CarePlanForm } from '@/components/CarePlanForm';
 import {
   db,
@@ -67,6 +69,14 @@ export default function EncounterDetailPage() {
   const canWritePrescriptions = hasPermission(perms, 'PRESCRIPTION.WRITE');
   const medicalHistoryEnabled = isWebFeatureEnabled('medicalHistory');
   const clinicalNotesEnabled = isWebFeatureEnabled('clinicalNotes');
+  const guidedChronicTabsEnabled = isWebFeatureEnabled('guidedChronicTabs');
+  /*
+    Resolved from the clinic-scoped permission rather than from the DOCTOR role.
+
+    The role and the permission happen to coincide today, but the permission is what the API
+    checks, and a boundary expressed two different ways is one grant away from disagreeing.
+  */
+  const canRecordClinicianPlan = hasPermission(perms, 'CAREPLAN.CLINICIAN_PLAN');
   const clinicRoles =
     bootstrap?.memberships.find((membership) => membership.clinicId === clinicId)?.roles ?? [];
   const isClinicalUser = clinicRoles.includes('DOCTOR') || clinicRoles.includes('VOLUNTEER');
@@ -406,15 +416,27 @@ export default function EncounterDetailPage() {
               />
             </TabsContent>
             <TabsContent value="diabetes" className="space-y-4">
-              <DiabetesScreeningForm
-                clinicId={clinicId}
-                encounterId={encounterId}
-                recordedByUserId={userId}
-                initialData={diabetes}
-                canEdit={canEditMeasurements}
-                onSaved={fetchData}
-                saveRef={diabetesSaveRef}
-              />
+              {guidedChronicTabsEnabled ? (
+                <DiabetesInterviewForm
+                  clinicId={clinicId}
+                  encounterId={encounterId}
+                  canRecordClinicianPlan={canRecordClinicianPlan}
+                  initialData={diabetes as Record<string, unknown> | null}
+                  canEdit={canEditMeasurements}
+                  onSaved={fetchData}
+                  saveRef={diabetesSaveRef}
+                />
+              ) : (
+                <DiabetesScreeningForm
+                  clinicId={clinicId}
+                  encounterId={encounterId}
+                  recordedByUserId={userId}
+                  initialData={diabetes}
+                  canEdit={canEditMeasurements}
+                  onSaved={fetchData}
+                  saveRef={diabetesSaveRef}
+                />
+              )}
               <DiabetesHistoryPanel
                 clinicId={clinicId}
                 patientId={encounter.patientId}
@@ -422,14 +444,46 @@ export default function EncounterDetailPage() {
               />
             </TabsContent>
             <TabsContent value="hypertension">
-              <HypertensionForm
-                clinicId={clinicId}
-                encounterId={encounterId}
-                initialData={hypertension as Parameters<typeof HypertensionForm>[0]['initialData']}
-                canEdit={canEditMeasurements}
-                onSaved={fetchData}
-                saveRef={hypertensionSaveRef}
-              />
+              {/*
+                The guided interview replaces the four-field form behind a flag, as clinical notes
+                did. Both write the same record, so a clinic can be switched back mid-rollout
+                without anything being lost.
+              */}
+              {guidedChronicTabsEnabled ? (
+                <HypertensionInterviewForm
+                  clinicId={clinicId}
+                  encounterId={encounterId}
+                  canRecordClinicianPlan={canRecordClinicianPlan}
+                  initialData={hypertension as Record<string, unknown> | null}
+                  vitals={
+                    vitals
+                      ? {
+                          systolicBp: vitals.systolicBp ?? null,
+                          diastolicBp: vitals.diastolicBp ?? null,
+                          pulseBpm: vitals.pulseBpm ?? null,
+                          weightKg: vitals.weightKg ?? null,
+                          heightCm: vitals.heightCm ?? null,
+                          bmi: vitals.bmi ?? null,
+                          updatedAt: vitals.updatedAt,
+                        }
+                      : null
+                  }
+                  canEdit={canEditMeasurements}
+                  onSaved={fetchData}
+                  saveRef={hypertensionSaveRef}
+                />
+              ) : (
+                <HypertensionForm
+                  clinicId={clinicId}
+                  encounterId={encounterId}
+                  initialData={
+                    hypertension as Parameters<typeof HypertensionForm>[0]['initialData']
+                  }
+                  canEdit={canEditMeasurements}
+                  onSaved={fetchData}
+                  saveRef={hypertensionSaveRef}
+                />
+              )}
             </TabsContent>
             {canFinalize && (
               <TabsContent value="careplan">

@@ -18,18 +18,45 @@ export function FieldError({
   id,
   message,
   className,
+  reserveSpace = false,
 }: {
   /** The field's own id. The message element gets `${id}-error`. */
   id: string;
   message?: string;
   className?: string;
+  /**
+   * Hold one line of vertical space whether or not there is a message.
+   *
+   * Pass the form's "has been submitted at least once" flag, not a constant. The shift this
+   * prevents is not the one at submit -- that one happens once, and `focusFirstInvalid` takes the
+   * user to it. It is the shift *afterwards*: MASTER.md section 10 revalidates each field as it is
+   * corrected, so fixing one field removes its message and pulls every field below it upwards,
+   * including the one the user was reaching for. On a sixty-field interview that happens once per
+   * correction.
+   *
+   * Reserving unconditionally would instead add a blank line under every field of every form,
+   * which on the same sixty-field interview is about a screen and a half of dead space a user has
+   * to scroll past before any error exists. Gating on submitted-once costs nothing until the first
+   * failed submit and then holds the layout still for the whole correction pass.
+   *
+   * One line is reserved, matching `leading-5`. A message that wraps to two lines still shifts;
+   * that is rare enough, and reserving two lines everywhere is the dead-space problem again.
+   */
+  reserveSpace?: boolean;
 }) {
-  if (!message) return null;
+  if (!message && !reserveSpace) return null;
+  /*
+    Rendered even when empty, rather than mounted when the message arrives.
+
+    A `role="alert"` element that is already in the document is a live region the browser is
+    watching, so inserting text into it announces reliably. Assistive technology is less consistent
+    about announcing an alert node that appears and carries its text in the same paint.
+  */
   return (
     <p
       id={fieldErrorId(id)}
       role="alert"
-      className={cn('text-sm leading-5 text-destructive', className)}
+      className={cn('text-sm leading-5 text-destructive', reserveSpace && 'min-h-5', className)}
     >
       {message}
     </p>

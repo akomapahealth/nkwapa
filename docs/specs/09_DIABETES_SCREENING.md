@@ -1,5 +1,17 @@
 # Dedicated Longitudinal Diabetes Screening
 
+> The record described here was extended into a guided interview by #114. Everything below still
+> holds — the fields, the thresholds, the compatibility rules and the access boundary are unchanged
+> — but it is no longer the whole record. See `14_CHRONIC_DISEASE_INTERVIEWS.md` for the added
+> sections, the server-side derivation, and the supervising-clinician boundary.
+>
+> Two clarifications that change nothing but are easy to misread now: `symptoms` still means the
+> past month, and gained three members (`HYPOGLYCEMIA_SYMPTOMS`, `FOOT_WOUND`, `NONE`) alongside a
+> separate `urgentSymptoms` column asking about the present moment. `GlucoseType` gained
+> `BEFORE_MEAL` and `POST_PRANDIAL_2H`, whose thresholds map onto the approved fasting and random
+> rules and were confirmed on 2026-09-13. `UNKNOWN` remains a distinct context that is never
+> classified.
+
 ## Scope
 
 Diabetes screening is a staff clinical workflow in encounter and patient-chart surfaces. It does

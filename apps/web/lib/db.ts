@@ -100,6 +100,47 @@ export interface DiabetesScreeningRecord {
   encounterStatus?: string;
   createdAt?: string;
   updatedAt?: string;
+  // Guided interview (#114).
+  diabetesStatus?: string;
+  diabetesType?: string;
+  yearDiagnosed?: number | null;
+  yearDiagnosedUnknown?: boolean;
+  mainConcern?: string;
+  mainConcernOther?: string | null;
+  hba1cStatus?: string;
+  hba1cMeasuredOn?: string | null;
+  homeGlucoseMonitoring?: string;
+  homeGlucoseLowMgDl?: number | null;
+  homeGlucoseHighMgDl?: number | null;
+  /** Right now, as opposed to `symptoms`, which asks about the past month. */
+  urgentSymptoms?: string[];
+  urgentReviewRequired?: boolean;
+  urgentReviewReasons?: string[];
+  /** Cached so the interview can show the threshold result offline; the server recomputes. */
+  derivedSuspicion?: string;
+  nutrition?: Record<string, unknown> | null;
+  phq2Interest?: string;
+  phq2Mood?: string;
+  phq2Total?: number | null;
+  phq2Positive?: boolean;
+  distressOverwhelmed?: string;
+  distressFailing?: string;
+  distressPositive?: boolean;
+  eyeExam?: string;
+  footExam?: string;
+  kidneyTesting?: string;
+  bpCheckedToday?: string;
+  currentFootWound?: string;
+  volunteerActions?: Record<string, unknown> | null;
+  clinicianReviewRequested?: boolean;
+  reviewReasons?: string[];
+  reviewReasonOther?: string | null;
+
+  /*
+    The supervising clinician plan is deliberately absent, as on the hypertension record.
+    `SYNC_DIABETES_SCREENING_WITHHELD` keeps it out of the pull; declaring the fields here would
+    invite a future `put` that writes them locally anyway.
+  */
 }
 
 export interface HypertensionAssessmentRecord {
@@ -107,9 +148,72 @@ export interface HypertensionAssessmentRecord {
   clinicId: string;
   encounterId: string;
   classification?: string;
+  /**
+   * What the thresholds say about this encounter's vitals, recomputed server-side on every write.
+   * Cached so the interview can show a volunteer what the reading implies while offline.
+   */
+  derivedClassification?: string;
+  classificationOverridden?: boolean;
   suspected?: boolean;
   confirmed?: boolean;
+
+  hypertensionStatus?: string;
+  yearDiagnosed?: number | null;
+  yearDiagnosedUnknown?: boolean;
+  mainConcern?: string;
+  mainConcernOther?: string | null;
+  usualCareFacility?: string | null;
+  usualCareFacilityStatus?: string;
+
+  repeatPerformed?: string;
+  repeatSystolicBp?: number | null;
+  repeatDiastolicBp?: number | null;
+  repeatPosition?: string | null;
+  repeatCuffSize?: string | null;
+  repeatPromptShown?: boolean;
+  homeMonitorStatus?: string;
+  homeCheckFrequency?: string;
+  homeSystolicAvg?: number | null;
+  homeDiastolicAvg?: number | null;
+  homeReadingsUnknown?: boolean;
+  homeReadingSource?: string;
+
+  currentSymptoms?: string[];
+  urgentReviewRequired?: boolean;
+  urgentReviewReasons?: string[];
+
+  medicationReminderStrategies?: string[];
+  reminderStrategyOther?: string | null;
+  contributingSubstances?: string[];
+  substanceDetails?: Record<string, unknown> | null;
+  lifestyle?: Record<string, unknown> | null;
+
+  relevantConditions?: string[];
+  pregnantNow?: string;
+  planningPregnancy?: string;
+
+  kidneyFunctionTesting?: string;
+  urineProteinTesting?: string;
+  cholesterolTesting?: string;
+  ecgCompleted?: string;
+  statinUse?: string;
+  aspirinUse?: string;
+
+  volunteerActions?: Record<string, unknown> | null;
+  clinicianReviewRequested?: boolean;
+  reviewReasons?: string[];
+  reviewReasonOther?: string | null;
+
+  /*
+    The supervising clinician plan is deliberately absent.
+
+    `SYNC_HYPERTENSION_ASSESSMENT_WITHHELD` keeps it out of the pull, because IndexedDB is readable
+    in devtools and caching it would put a doctor-only plan on every volunteer's laptop. Declaring
+    the fields here would invite a future `put` that writes them locally anyway.
+  */
+
   notes?: string;
+  collectedAt?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -380,6 +484,42 @@ export class NkwapaDb extends Dexie {
           .toCollection()
           .modify(stripStoredNationalIdSecrets);
       });
+
+    /*
+      v9 widens the hypertension record for the guided interview (#114).
+
+      `collectedAt` joins the index list so the interview's longitudinal history can order rows the
+      way the server does. The upgrade fills the new fields rather than leaving them undefined,
+      because an unanswered question and an answered "no" have to stay distinguishable -- an old
+      row rehydrated without this reads as a patient who denied every symptom.
+    */
+    this.version(9)
+      .stores({
+        hypertension_assessments: 'id, clinicId, encounterId, collectedAt, updatedAt',
+      })
+      .upgrade(async (transaction) => {
+        const { migrateLegacyHypertensionAssessment } = await import('./db-migrations');
+        await transaction
+          .table<HypertensionAssessmentRecord, string>('hypertension_assessments')
+          .toCollection()
+          .modify(migrateLegacyHypertensionAssessment);
+      });
+
+    /*
+      v10 widens the diabetes record for the guided interview (#114).
+
+      No index changes, so this is a data-only upgrade: the new fields get their unanswered values
+      so a row written before the interview does not rehydrate as a patient who denied every
+      symptom. `derivedSuspicion` is recomputed from the reading already on the row rather than
+      left blank, so an offline chart is honest about history before the next sync.
+    */
+    this.version(10).upgrade(async (transaction) => {
+      const { migrateLegacyDiabetesInterview } = await import('./db-migrations');
+      await transaction
+        .table<DiabetesScreeningRecord, string>('diabetes_screenings')
+        .toCollection()
+        .modify(migrateLegacyDiabetesInterview);
+    });
   }
 }
 

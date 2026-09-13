@@ -51,10 +51,31 @@ export const CLINICAL_RECORD_SURFACES: readonly ClinicalRecordSurface[] = [
   },
   {
     id: 'diabetes',
-    label: 'Diabetes screening',
+    label: 'Diabetes interview',
     read: PERMISSIONS.SCREENING_READ,
     write: PERMISSIONS.SCREENING_WRITE,
     syncEntityTypes: ['diabetes_screening'],
+    additional: [
+      {
+        label: 'Supervising clinician plan',
+        permission: PERMISSIONS.CAREPLAN_CLINICIAN_PLAN,
+      },
+    ],
+    note: 'The clinician plan is doctor-only, refused by the API for any other role, and withheld from the offline pull so no volunteer device caches it.',
+  },
+  {
+    id: 'hypertension',
+    label: 'Hypertension interview',
+    read: PERMISSIONS.SCREENING_READ,
+    write: PERMISSIONS.SCREENING_WRITE,
+    syncEntityTypes: ['hypertension_assessment'],
+    additional: [
+      {
+        label: 'Supervising clinician plan',
+        permission: PERMISSIONS.CAREPLAN_CLINICIAN_PLAN,
+      },
+    ],
+    note: 'The clinician plan is doctor-only, refused by the API for any other role, and withheld from the offline pull so no volunteer device caches it.',
   },
   {
     id: 'medication-reconciliation',

@@ -36,6 +36,38 @@
     "./patient-chart-sections": {
       "types": "./dist/src/patient-chart-sections.d.ts",
       "default": "./dist/src/patient-chart-sections.js"
+    },
+    "./clinical-vocabulary": {
+      "types": "./dist/src/clinical-vocabulary.d.ts",
+      "default": "./dist/src/clinical-vocabulary.js"
+    },
+    "./bp-classification": {
+      "types": "./dist/src/bp-classification.d.ts",
+      "default": "./dist/src/bp-classification.js"
+    },
+    "./phq2": {
+      "types": "./dist/src/phq2.d.ts",
+      "default": "./dist/src/phq2.js"
+    },
+    "./diabetes-thresholds": {
+      "types": "./dist/src/diabetes-thresholds.d.ts",
+      "default": "./dist/src/diabetes-thresholds.js"
+    },
+    "./medication-classes": {
+      "types": "./dist/src/medication-classes.d.ts",
+      "default": "./dist/src/medication-classes.js"
+    },
+    "./payload-contract": {
+      "types": "./dist/src/payload-contract.d.ts",
+      "default": "./dist/src/payload-contract.js"
+    },
+    "./hypertension-interview": {
+      "types": "./dist/src/hypertension-interview.d.ts",
+      "default": "./dist/src/hypertension-interview.js"
+    },
+    "./diabetes-interview": {
+      "types": "./dist/src/diabetes-interview.d.ts",
+      "default": "./dist/src/diabetes-interview.js"
     }
   },
   "scripts": {

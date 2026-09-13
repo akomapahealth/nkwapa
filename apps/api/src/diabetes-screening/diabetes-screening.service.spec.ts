@@ -36,6 +36,14 @@ function saved(overrides: Record<string, unknown> = {}) {
     collectedAt: new Date('2026-08-12T12:00:00.000Z'),
     authoredByUserId: 'user-1',
     authoredBy: { id: 'user-1', displayName: 'Dr Example' },
+    clinicianPlanAuthor: null,
+    clinicianPlanItems: [],
+    clinicianPlanOther: null,
+    followUpWindow: 'NOT_ASSESSED',
+    followUpOther: null,
+    followUpOwner: 'NOT_ASSESSED',
+    clinicianComments: null,
+    clinicianPlanAuthoredAt: null,
     encounter: {
       id: 'encounter-1',
       patientId: 'patient-1',
@@ -55,7 +63,9 @@ describe('DiabetesScreeningService', () => {
       diabetesScreening: {
         findUnique: jest.fn().mockResolvedValue(null),
         upsert: jest.fn().mockResolvedValue(saved()),
+        update: jest.fn().mockResolvedValue(saved()),
       },
+      carePlan: { upsert: jest.fn().mockResolvedValue({}) },
       auditEvent: { create: jest.fn().mockResolvedValue({}) },
       syncMutation: { create: jest.fn().mockResolvedValue({}) },
     };
@@ -213,6 +223,130 @@ describe('DiabetesScreeningService', () => {
       id: 'screening-1',
       patientId: 'patient-1',
       isEditable: false,
+    });
+  });
+
+  describe('the guided interview derives, the client does not', () => {
+    function writtenTo(tx: { diabetesScreening: { upsert: jest.Mock } }) {
+      return tx.diabetesScreening.upsert.mock.calls[0][0].create;
+    }
+
+    it('classifies suspicion from the reading and its timing', async () => {
+      const { service, tx } = setup();
+      await service.upsert('clinic-1', 'encounter-1', doctor, {
+        ...dto,
+        glucoseMgDl: 126,
+        glucoseType: 'FASTING',
+      } as never);
+      expect(writtenTo(tx)).toMatchObject({ derivedSuspicion: 'SUSPECTED' });
+    });
+
+    /*
+      09_DIABETES_SCREENING.md: an unknown context is never classified.
+
+      NOT_SUSPECTED asserts somebody looked and found nothing, which a reading with no timing does
+      not support.
+    */
+    it('refuses to classify a reading whose timing is unknown', async () => {
+      const { service, tx } = setup();
+      await service.upsert('clinic-1', 'encounter-1', doctor, {
+        ...dto,
+        glucoseMgDl: 400,
+        glucoseType: 'UNKNOWN',
+      } as never);
+      expect(writtenTo(tx)).toMatchObject({ derivedSuspicion: 'NOT_ASSESSED' });
+    });
+
+    it('scores PHQ-2 and marks a positive screen', async () => {
+      const { service, tx } = setup();
+      await service.upsert('clinic-1', 'encounter-1', doctor, {
+        ...dto,
+        phq2Interest: 'MORE_THAN_HALF_THE_DAYS',
+        phq2Mood: 'SEVERAL_DAYS',
+      } as never);
+      expect(writtenTo(tx)).toMatchObject({ phq2Total: 3, phq2Positive: true });
+    });
+
+    /* A partial total reads as a completed screen sitting on the threshold. */
+    it('leaves the score null until both items are answered', async () => {
+      const { service, tx } = setup();
+      await service.upsert('clinic-1', 'encounter-1', doctor, {
+        ...dto,
+        phq2Interest: 'NEARLY_EVERY_DAY',
+      } as never);
+      expect(writtenTo(tx)).toMatchObject({ phq2Total: null, phq2Positive: false });
+    });
+
+    it('escalates an urgent symptom the past-month checklist does not carry', async () => {
+      const { service, tx } = setup();
+      await service.upsert('clinic-1', 'encounter-1', doctor, {
+        ...dto,
+        urgentSymptoms: ['VOMITING'],
+      } as never);
+      expect(writtenTo(tx)).toMatchObject({
+        urgentReviewRequired: true,
+        urgentReviewReasons: ['URGENT_SYMPTOM_VOMITING'],
+      });
+    });
+
+    it('escalates a foot wound recorded in the preventive-care question', async () => {
+      const { service, tx } = setup();
+      await service.upsert('clinic-1', 'encounter-1', doctor, {
+        ...dto,
+        currentFootWound: 'YES',
+      } as never);
+      expect(writtenTo(tx)).toMatchObject({ urgentReviewReasons: ['ACTIVE_FOOT_WOUND'] });
+    });
+
+    it('rejects a nutrition payload the shared parser refuses', async () => {
+      const { service, tx } = setup();
+      await expect(
+        service.upsert('clinic-1', 'encounter-1', doctor, {
+          ...dto,
+          nutrition: { mealsPerDay: 'SEVEN' },
+        } as never),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(tx.diabetesScreening.upsert).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('the supervising clinician plan', () => {
+    const plan = {
+      clinicianPlanItems: ['MEDICATION_CHANGE'],
+      clinicianPlanOther: null,
+      followUpWindow: 'WITHIN_1_MONTH',
+      followUpOther: null,
+      followUpOwner: 'AKOMAPA_TEAM',
+      clinicianComments: 'Increase metformin.',
+    };
+
+    it('refuses a volunteer', async () => {
+      const { service } = setup();
+      const volunteer = {
+        userId: 'vol-1',
+        roles: [{ clinicId: 'clinic-1', role: 'VOLUNTEER' }],
+      } as never;
+      await expect(
+        service.upsertClinicianPlan('clinic-1', 'encounter-1', volunteer, plan as never),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    /* CarePlan.followUpDate is what EncounterService schedules the reminder from. */
+    it('resolves the follow-up window onto the care plan the reminder reads', async () => {
+      const { service, tx } = setup();
+      tx.diabetesScreening.findUnique.mockResolvedValue(saved());
+      await service.upsertClinicianPlan('clinic-1', 'encounter-1', doctor, plan as never);
+      expect(tx.carePlan.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { encounterId: 'encounter-1' } }),
+      );
+    });
+
+    it('refuses a plan before the screening itself exists', async () => {
+      const { service, tx } = setup();
+      tx.diabetesScreening.findUnique.mockResolvedValue(null);
+      await expect(
+        service.upsertClinicianPlan('clinic-1', 'encounter-1', doctor, plan as never),
+      ).rejects.toMatchObject({ status: 404 });
     });
   });
 });

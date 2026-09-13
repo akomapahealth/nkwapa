@@ -1,8 +1,6 @@
 import {
   Encounter,
   Vitals,
-  DiabetesScreening,
-  HypertensionAssessment,
   CarePlan,
   PatientConsent,
   Prescription,
@@ -16,7 +14,11 @@ import {
   PatientPharmacyRevision,
   PatientPharmacyPreference,
 } from '@prisma/client';
-import type { SyncPatientProjection } from '../sync-projection';
+import type {
+  SyncDiabetesScreeningProjection,
+  SyncHypertensionAssessmentProjection,
+  SyncPatientProjection,
+} from '../sync-projection';
 
 export type SyncVitalsRecord = Vitals & {
   /** @deprecated Compatibility alias for pulseBpm. */
@@ -33,8 +35,8 @@ export interface SyncPullResponseDto {
   encounters: Encounter[];
   vitals: SyncVitalsRecord[];
   tobaccoScreenings: TobaccoScreening[];
-  diabetesScreenings: DiabetesScreening[];
-  hypertensionAssessments: HypertensionAssessment[];
+  diabetesScreenings: SyncDiabetesScreeningProjection[];
+  hypertensionAssessments: SyncHypertensionAssessmentProjection[];
   carePlans: CarePlan[];
   patientConsents: PatientConsent[];
   prescriptions: Prescription[];

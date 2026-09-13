@@ -8,7 +8,15 @@ import { EncounterStatus, Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { plainToInstance } from 'class-transformer';
 import { validate, type ValidationError } from 'class-validator';
-import { parseLegacyDiabetesSymptoms } from '@nkwapa/db';
+import {
+  deriveDiabetesEscalation,
+  evaluateDiabetesMentalHealth,
+  evaluateGlucoseSuspicion,
+  parseDiabetesNutrition,
+  parseLegacyDiabetesSymptoms,
+  resolveFollowUpDate,
+  type PayloadIssue,
+} from '@nkwapa/db';
 import { PERMISSIONS } from '../auth/constants/permissions';
 import {
   assertPermissionAtClinic,
@@ -17,7 +25,10 @@ import {
 } from '../auth/clinic-roles';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildKeysetWhere, decodeKeysetCursor, encodeKeysetCursor } from '../common/keyset-cursor';
-import { UpsertDiabetesScreeningDto } from './dto/diabetes-screening.dto';
+import {
+  UpsertDiabetesClinicianPlanDto,
+  UpsertDiabetesScreeningDto,
+} from './dto/diabetes-screening.dto';
 
 const MAX_FUTURE_COLLECTION_SKEW_MS = 5 * 60 * 1000;
 const DEFAULT_PAGE_SIZE = 25;
@@ -25,6 +36,7 @@ const DEFAULT_PAGE_SIZE = 25;
 type DiabetesWithContext = Prisma.DiabetesScreeningGetPayload<{
   include: {
     authoredBy: { select: { id: true; displayName: true } };
+    clinicianPlanAuthor: { select: { id: true; displayName: true } };
     encounter: { select: { id: true; patientId: true; createdAt: true; status: true } };
   };
 }>;
@@ -101,6 +113,13 @@ export class DiabetesScreeningService {
     this.assertWritePermission(actor.roles, clinicId);
     const collectedAt = this.validateCollectionTime(dto.collectedAt);
 
+    /*
+      The JSONB section is checked by the shared parser, not by class-validator, so the encounter
+      form and the API reject the same payloads at the same paths for the same reasons.
+    */
+    const nutrition = parseDiabetesNutrition(dto.nutrition ?? null);
+    this.assertPayloadsValid(nutrition.issues);
+
     const screening = await this.prisma.$transaction(async (tx) => {
       const encounter = await tx.encounter.findUnique({
         where: { id: encounterId },
@@ -116,6 +135,64 @@ export class DiabetesScreeningService {
           existingStatus: encounter.status,
         });
       }
+
+      /*
+        Derived here, from this payload, and never accepted from a client.
+
+        A device deciding for itself whether a patient's screen is positive, or whether a visit
+        needs a clinician, is a device that can be wrong in the direction that matters. The
+        encounter form runs the same functions live so the volunteer sees the consequence while
+        the patient is still in the room; this is the copy that is stored.
+      */
+      const derivedSuspicion = evaluateGlucoseSuspicion(dto.glucoseMgDl, dto.glucoseType);
+      const mentalHealth = evaluateDiabetesMentalHealth({
+        phq2Interest: dto.phq2Interest,
+        phq2Mood: dto.phq2Mood,
+        distressOverwhelmed: dto.distressOverwhelmed,
+        distressFailing: dto.distressFailing,
+      });
+      const escalation = deriveDiabetesEscalation({
+        urgentSymptoms: dto.urgentSymptoms,
+        currentFootWound: dto.currentFootWound,
+        glucoseMgDl: dto.glucoseMgDl,
+        glucoseContext: dto.glucoseType,
+      });
+
+      const interview = {
+        diabetesStatus: dto.diabetesStatus,
+        diabetesType: dto.diabetesType,
+        yearDiagnosed: dto.yearDiagnosed,
+        yearDiagnosedUnknown: dto.yearDiagnosedUnknown,
+        mainConcern: dto.mainConcern,
+        mainConcernOther: dto.mainConcernOther,
+        hba1cStatus: dto.hba1cStatus,
+        hba1cMeasuredOn: dto.hba1cMeasuredOn ? new Date(dto.hba1cMeasuredOn) : null,
+        homeGlucoseMonitoring: dto.homeGlucoseMonitoring,
+        homeGlucoseLowMgDl: dto.homeGlucoseLowMgDl,
+        homeGlucoseHighMgDl: dto.homeGlucoseHighMgDl,
+        urgentSymptoms: dto.urgentSymptoms,
+        urgentReviewRequired: escalation.urgentReviewRequired,
+        urgentReviewReasons: escalation.reasons,
+        derivedSuspicion,
+        nutritionSchemaVersion: nutrition.schemaVersion,
+        nutrition: nutrition.payload as unknown as Prisma.InputJsonValue,
+        phq2Interest: dto.phq2Interest,
+        phq2Mood: dto.phq2Mood,
+        phq2Total: mentalHealth.phq2Total,
+        phq2Positive: mentalHealth.phq2Positive,
+        distressOverwhelmed: dto.distressOverwhelmed,
+        distressFailing: dto.distressFailing,
+        distressPositive: mentalHealth.distressPositive,
+        eyeExam: dto.eyeExam,
+        footExam: dto.footExam,
+        kidneyTesting: dto.kidneyTesting,
+        bpCheckedToday: dto.bpCheckedToday,
+        currentFootWound: dto.currentFootWound,
+        volunteerActions: (dto.volunteerActions ?? null) as Prisma.InputJsonValue,
+        clinicianReviewRequested: dto.clinicianReviewRequested,
+        reviewReasons: dto.reviewReasons,
+        reviewReasonOther: dto.reviewReasonOther,
+      };
 
       const existing = await tx.diabetesScreening.findUnique({ where: { encounterId } });
       const saved = await tx.diabetesScreening.upsert({
@@ -133,6 +210,7 @@ export class DiabetesScreeningService {
           notes: dto.notes,
           collectedAt,
           authoredByUserId: actor.userId,
+          ...interview,
         },
         update: {
           glucoseMgDl: dto.glucoseMgDl,
@@ -146,6 +224,7 @@ export class DiabetesScreeningService {
           ...(compatibility.symptomsJson !== undefined
             ? { symptomsJson: compatibility.symptomsJson }
             : {}),
+          ...interview,
         },
         include: this.contextInclude(),
       });
@@ -182,6 +261,95 @@ export class DiabetesScreeningService {
     return this.toResponse(screening, actor.roles, clinicId);
   }
 
+  /**
+   * Record the supervising clinician's plan.
+   *
+   * The clinical specification says this part shows only for the doctor. The UI honours that, but
+   * hiding is not a boundary, and this is the layer that decides.
+   *
+   * The follow-up window resolves to `CarePlan.followUpDate` in the same transaction, because that
+   * column is what `EncounterService` schedules the patient's reminder from on finalize. A plan
+   * storing only "within 1 month" would read as complete and schedule nothing.
+   */
+  async upsertClinicianPlan(
+    clinicId: string,
+    encounterId: string,
+    actor: DiabetesActor,
+    dto: UpsertDiabetesClinicianPlanDto,
+    metadata: DiabetesRequestMetadata = {},
+  ) {
+    assertPermissionAtClinic(
+      actor.roles,
+      clinicId,
+      PERMISSIONS.CAREPLAN_CLINICIAN_PLAN,
+      'CAREPLAN.CLINICIAN_PLAN permission is required',
+    );
+
+    const saved = await this.prisma.$transaction(async (tx) => {
+      const encounter = await tx.encounter.findUnique({
+        where: { id: encounterId },
+        select: { clinicId: true, status: true },
+      });
+      if (!encounter || encounter.clinicId !== clinicId) {
+        throw new NotFoundException('Encounter not found in the active clinic');
+      }
+      if (encounter.status === EncounterStatus.FINALIZED) {
+        throw new ConflictException({
+          code: 'CONFLICT_FINALIZED',
+          message: 'Cannot modify diabetes screening for a finalized encounter',
+          existingStatus: encounter.status,
+        });
+      }
+
+      const existing = await tx.diabetesScreening.findUnique({ where: { encounterId } });
+      if (!existing) {
+        throw new NotFoundException('Record the diabetes screening before adding a clinician plan');
+      }
+
+      const record = await tx.diabetesScreening.update({
+        where: { encounterId },
+        data: {
+          clinicianPlanItems: dto.clinicianPlanItems,
+          clinicianPlanOther: dto.clinicianPlanOther,
+          followUpWindow: dto.followUpWindow,
+          followUpOther: dto.followUpOther,
+          followUpOwner: dto.followUpOwner,
+          clinicianComments: dto.clinicianComments,
+          clinicianPlanAuthorId: actor.userId,
+          clinicianPlanAuthoredAt: new Date(),
+        },
+        include: this.contextInclude(),
+      });
+
+      const followUpDate = resolveFollowUpDate(dto.followUpWindow, new Date());
+      if (followUpDate) {
+        await tx.carePlan.upsert({
+          where: { encounterId },
+          create: { clinicId, encounterId, followUpDate },
+          update: { followUpDate },
+        });
+      }
+
+      await tx.auditEvent.create({
+        data: {
+          clinicId,
+          actorUserId: actor.userId,
+          action: 'DIABETES_SCREENING.CLINICIAN_PLAN',
+          entityType: 'DiabetesScreening',
+          entityId: record.id,
+          beforeJson: JSON.stringify(existing),
+          afterJson: JSON.stringify(record),
+          requestId: metadata.requestId ?? randomUUID(),
+          ipAddress: metadata.ipAddress,
+          userAgent: metadata.userAgent,
+        },
+      });
+      return record;
+    });
+
+    return this.toResponse(saved, actor.roles, clinicId);
+  }
+
   async validateSyncPayload(payload: Record<string, unknown>, fallbackCollectedAt: string) {
     const hasStructuredSymptoms = Object.prototype.hasOwnProperty.call(payload, 'symptoms');
     const hasLegacySymptoms = Object.prototype.hasOwnProperty.call(payload, 'symptomsJson');
@@ -195,6 +363,14 @@ export class DiabetesScreeningService {
     const legacy = hasLegacySymptoms
       ? parseLegacyDiabetesSymptoms(payload.symptomsJson)
       : { symptoms: [], hasUnmapped: false };
+    /*
+      Cherry-picked rather than spread.
+
+      The outbox stores `encounterId` and `clinicId` inside the payload to address the write, and
+      the DTO runs with `forbidNonWhitelisted`; spreading would reject every offline mutation. The
+      derived columns are left out for a different reason -- a replayed device must not be able to
+      assert whether a screen is positive or a visit needs a clinician.
+    */
     const candidate = {
       glucoseMgDl: payload.glucoseMgDl ?? null,
       glucoseType: payload.glucoseType ?? 'UNKNOWN',
@@ -202,6 +378,40 @@ export class DiabetesScreeningService {
       symptoms: hasStructuredSymptoms ? payload.symptoms : legacy.symptoms,
       notes: payload.notes ?? null,
       collectedAt: payload.collectedAt ?? fallbackCollectedAt,
+      ...Object.fromEntries(
+        (
+          [
+            'diabetesStatus',
+            'diabetesType',
+            'yearDiagnosed',
+            'yearDiagnosedUnknown',
+            'mainConcern',
+            'mainConcernOther',
+            'hba1cStatus',
+            'hba1cMeasuredOn',
+            'homeGlucoseMonitoring',
+            'homeGlucoseLowMgDl',
+            'homeGlucoseHighMgDl',
+            'urgentSymptoms',
+            'nutrition',
+            'phq2Interest',
+            'phq2Mood',
+            'distressOverwhelmed',
+            'distressFailing',
+            'eyeExam',
+            'footExam',
+            'kidneyTesting',
+            'bpCheckedToday',
+            'currentFootWound',
+            'volunteerActions',
+            'clinicianReviewRequested',
+            'reviewReasons',
+            'reviewReasonOther',
+          ] as const
+        )
+          .filter((key) => payload[key] !== undefined)
+          .map((key) => [key, payload[key]]),
+      ),
     };
     const dto = plainToInstance(UpsertDiabetesScreeningDto, candidate);
     const errors = await validate(dto, {
@@ -246,12 +456,72 @@ export class DiabetesScreeningService {
         status: record.encounter.status,
       },
       legacySymptomsUnmapped: record.legacySymptomsUnmapped,
+      diabetesStatus: record.diabetesStatus,
+      diabetesType: record.diabetesType,
+      yearDiagnosed: record.yearDiagnosed,
+      yearDiagnosedUnknown: record.yearDiagnosedUnknown,
+      mainConcern: record.mainConcern,
+      mainConcernOther: record.mainConcernOther,
+      hba1cStatus: record.hba1cStatus,
+      hba1cMeasuredOn: record.hba1cMeasuredOn?.toISOString() ?? null,
+      homeGlucoseMonitoring: record.homeGlucoseMonitoring,
+      homeGlucoseLowMgDl: record.homeGlucoseLowMgDl,
+      homeGlucoseHighMgDl: record.homeGlucoseHighMgDl,
+      urgentSymptoms: record.urgentSymptoms,
+      urgentReviewRequired: record.urgentReviewRequired,
+      urgentReviewReasons: record.urgentReviewReasons,
+      derivedSuspicion: record.derivedSuspicion,
+      nutrition: record.nutrition,
+      phq2Interest: record.phq2Interest,
+      phq2Mood: record.phq2Mood,
+      phq2Total: record.phq2Total,
+      phq2Positive: record.phq2Positive,
+      distressOverwhelmed: record.distressOverwhelmed,
+      distressFailing: record.distressFailing,
+      distressPositive: record.distressPositive,
+      eyeExam: record.eyeExam,
+      footExam: record.footExam,
+      kidneyTesting: record.kidneyTesting,
+      bpCheckedToday: record.bpCheckedToday,
+      currentFootWound: record.currentFootWound,
+      volunteerActions: record.volunteerActions,
+      clinicianReviewRequested: record.clinicianReviewRequested,
+      reviewReasons: record.reviewReasons,
+      reviewReasonOther: record.reviewReasonOther,
+      /*
+        Omitted, not blanked, for anyone without the permission. A key present with a null value
+        tells a volunteer there is a plan they cannot see, which is more than they are entitled to
+        know and enough to build a UI that hints at it.
+      */
+      ...(hasPermissionAtClinic(roles, clinicId, PERMISSIONS.CAREPLAN_CLINICIAN_PLAN)
+        ? {
+            clinicianPlan: {
+              items: record.clinicianPlanItems,
+              other: record.clinicianPlanOther,
+              followUpWindow: record.followUpWindow,
+              followUpOther: record.followUpOther,
+              followUpOwner: record.followUpOwner,
+              comments: record.clinicianComments,
+              author: record.clinicianPlanAuthor,
+              authoredAt: record.clinicianPlanAuthoredAt?.toISOString() ?? null,
+            },
+          }
+        : {}),
       isEditable:
         record.encounter.status !== EncounterStatus.FINALIZED &&
         hasPermissionAtClinic(roles, clinicId, PERMISSIONS.SCREENING_WRITE),
       createdAt: record.createdAt.toISOString(),
       updatedAt: record.updatedAt.toISOString(),
     };
+  }
+
+  private assertPayloadsValid(issues: readonly PayloadIssue[]): void {
+    if (!issues.length) return;
+    throw new BadRequestException({
+      code: 'VALIDATION_ERROR',
+      message: 'Diabetes screening validation failed.',
+      fieldErrors: issues.map((issue) => ({ field: issue.path, message: issue.message })),
+    });
   }
 
   private validateCollectionTime(value: string): Date {
@@ -313,6 +583,7 @@ export class DiabetesScreeningService {
   private contextInclude() {
     return {
       authoredBy: { select: { id: true, displayName: true } },
+      clinicianPlanAuthor: { select: { id: true, displayName: true } },
       encounter: { select: { id: true, patientId: true, createdAt: true, status: true } },
     } satisfies Prisma.DiabetesScreeningInclude;
   }

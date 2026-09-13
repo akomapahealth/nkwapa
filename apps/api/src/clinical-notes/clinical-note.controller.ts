@@ -23,6 +23,7 @@ import { ClinicalNoteService } from './clinical-note.service';
 import {
   AddClinicalNoteAddendumDto,
   ClinicalNoteDraftDto,
+  SeedClinicalNoteDto,
   UpdateClinicalNoteDraftDto,
 } from './dto/clinical-note.dto';
 
@@ -98,6 +99,32 @@ export class ClinicalNoteController {
   ) {
     this.assertEnabled();
     return this.notes.updateDraft(
+      params.clinicId,
+      params.encounterId,
+      this.actor(request),
+      dto,
+      this.metadata(request),
+    );
+  }
+
+  /**
+   * Draft the note from the encounter's chronic-disease interviews.
+   *
+   * `CLINICAL_NOTE.WRITE`, the same permission as any other draft edit, because that is what this
+   * is: the generator composes text and the existing draft path writes it, so authorship, the
+   * DRAFT-only rule and the optimistic version check all still decide whether it lands.
+   */
+  @Post('encounters/:encounterId/clinical-note/seed')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.CLINICAL_NOTE_WRITE)
+  @Header('Cache-Control', 'private, no-store, max-age=0')
+  seed(
+    @Param() params: ClinicEncounterNoteParams,
+    @Body() dto: SeedClinicalNoteDto,
+    @Request() request: ClinicalNoteRequest,
+  ) {
+    this.assertEnabled();
+    return this.notes.seedFromInterviews(
       params.clinicId,
       params.encounterId,
       this.actor(request),

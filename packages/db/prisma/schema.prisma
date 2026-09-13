@@ -108,18 +108,27 @@ enum AssignmentStatus {
   CANCELLED
 }
 
+/// BEFORE_MEAL and POST_PRANDIAL_2H are added by the guided interview (#114). Their suspicion
+/// thresholds are provisional: see packages/db/src/diabetes-thresholds.ts.
 enum GlucoseType {
   FASTING
+  BEFORE_MEAL
+  POST_PRANDIAL_2H
   RANDOM
   UNKNOWN
 }
 
+/// Symptoms over the past month. The last three are added by the guided interview (#114); the
+/// first five keep their original wire wording for older clients reading `symptomsJson`.
 enum DiabetesSymptom {
   POLYURIA
   POLYDIPSIA
   WEIGHT_LOSS
   BLURRED_VISION
   FATIGUE
+  HYPOGLYCEMIA_SYMPTOMS
+  FOOT_WOUND
+  NONE
 }
 
 enum PatientSelfReportType {
@@ -309,11 +318,16 @@ enum TemperatureSource {
   OTHER
 }
 
+/// CURRENT predates the guided interview (#114), which asks for occasional or daily. It is kept
+/// so existing rows stay readable and so a client that has not shipped the finer options yet can
+/// still record something true.
 enum TobaccoUseStatus {
   NOT_ASSESSED
   NEVER
   FORMER
   CURRENT
+  CURRENT_OCCASIONAL
+  CURRENT_DAILY
 }
 
 enum ScreeningAnswer {
@@ -328,6 +342,373 @@ enum ReadinessToQuit {
   CONSIDERING
   READY
   NOT_APPLICABLE
+}
+
+// ---------------------------------------------------------------------------
+// Guided chronic-disease interviews (#114).
+//
+// Every scale leads with NOT_ASSESSED, following TobaccoUseStatus above. These records are saved
+// on every tab change while a volunteer is still working through the interview, so most reads see
+// a half-answered row. Without a distinct "not yet asked", an unasked question is indistinguishable
+// from an answer of "no" -- and the generated note would state that a patient denied a symptom
+// nobody mentioned.
+//
+// The vocabularies are declared once in packages/db/src/{clinical-vocabulary,hypertension-interview}.ts
+// and mirrored here. hypertension-schema.spec.ts fails if the two drift.
+// ---------------------------------------------------------------------------
+
+enum NkwapaAnswer {
+  NOT_ASSESSED
+  YES
+  NO
+  UNSURE
+}
+
+enum ScreeningCompletionStatus {
+  NOT_ASSESSED
+  COMPLETED
+  NOT_COMPLETED
+  PATIENT_UNSURE
+}
+
+enum MedicationUseStatus {
+  NOT_ASSESSED
+  TAKING
+  NOT_TAKING
+  UNSURE
+}
+
+enum MedicationSupplyStatus {
+  NOT_ASSESSED
+  NONE
+  LESS_THAN_ONE_WEEK
+  AT_LEAST_ONE_WEEK
+  UNSURE
+}
+
+enum MedicationAdherenceLevel {
+  NOT_ASSESSED
+  ALWAYS
+  SOMETIMES
+  NOT_TAKING
+  UNSURE
+}
+
+enum MedicationDosesMissed {
+  NOT_ASSESSED
+  ZERO
+  ONE
+  TWO_TO_THREE
+  FOUR_OR_MORE
+  UNSURE
+}
+
+/// A multi-select. NONE is an answer -- the volunteer asked and found no barriers -- which is a
+/// different fact from an empty array meaning the question was skipped.
+enum MedicationProblem {
+  NONE
+  SIDE_EFFECTS
+  COST
+  UNAVAILABLE
+  FORGETTING
+  DOES_NOT_UNDERSTAND
+  OTHER
+}
+
+enum MedicationReminderStrategy {
+  SAME_TIME_DAILY
+  PILLBOX
+  PHONE_ALARM
+  FAMILY_REMINDER
+  WITH_ROUTINE_OR_MEAL
+  NONE
+  OTHER
+}
+
+/// The relative window a clinician picks. It resolves to a concrete CarePlan.followUpDate, which
+/// is what EncounterService schedules the reminder from; storing only the window would leave a
+/// plan that looks complete and schedules nothing.
+enum FollowUpWindow {
+  NOT_ASSESSED
+  TODAY
+  WITHIN_1_WEEK
+  WITHIN_1_MONTH
+  WITHIN_3_MONTHS
+  OTHER
+}
+
+enum FollowUpOwner {
+  NOT_ASSESSED
+  AKOMAPA_TEAM
+  COMMUNITY_HEALTH_WORKER
+  PARTNER_FACILITY
+  PATIENT
+}
+
+enum MedicationAdherenceContext {
+  HYPERTENSION
+  DIABETES
+}
+
+enum HypertensionStatus {
+  NOT_ASSESSED
+  KNOWN_HYPERTENSION
+  NEWLY_ELEVATED_BP
+  NO_KNOWN_HYPERTENSION
+  UNSURE
+}
+
+enum HypertensionConcern {
+  NOT_ASSESSED
+  NO_CONCERN
+  HIGH_BP
+  LOW_BP_OR_DIZZINESS
+  MEDICATION_PROBLEM
+  NEW_SYMPTOMS
+  DIET
+  OTHER
+}
+
+enum FacilityKnownStatus {
+  NOT_ASSESSED
+  SELECTED
+  NONE
+  UNKNOWN
+}
+
+enum BpRepeatStatus {
+  NOT_ASSESSED
+  YES
+  NO
+  NOT_REQUIRED
+}
+
+enum HomeBpMonitorStatus {
+  NOT_ASSESSED
+  HAS_ONE
+  DOES_NOT_HAVE_ONE
+  UNABLE_TO_AFFORD
+  DOES_NOT_WISH_TO_MONITOR
+}
+
+enum HomeBpCheckFrequency {
+  NOT_ASSESSED
+  NEVER
+  OCCASIONALLY
+  SEVERAL_TIMES_WEEKLY
+  DAILY
+}
+
+enum HomeBpSource {
+  NOT_ASSESSED
+  MONITOR_REVIEWED
+  WRITTEN_READINGS_REVIEWED
+  PATIENT_RECALL
+}
+
+enum HypertensionSymptom {
+  SEVERE_HEADACHE
+  BLURRED_VISION
+  CHEST_PAIN
+  SHORTNESS_OF_BREATH
+  NEW_WEAKNESS_OR_NUMBNESS
+  DIFFICULTY_SPEAKING
+  CONFUSION
+  FAINTING
+  SEVERE_DIZZINESS
+  NONE
+}
+
+/// Recorded as a possible contributor for clinician review. Nothing here derives causation: the
+/// clinical specification is explicit that the interview must flag a substance "without telling the
+/// student that the substance caused the hypertension".
+enum BpAffectingSubstance {
+  NSAID
+  STEROIDS
+  HERBAL_OR_TRADITIONAL
+  DECONGESTANTS
+  STIMULANTS
+  HORMONAL_CONTRACEPTION
+  NONE
+  UNSURE
+}
+
+enum CardiometabolicCondition {
+  DIABETES
+  KIDNEY_DISEASE
+  HEART_DISEASE_OR_MI
+  STROKE_OR_TIA
+  PERIPHERAL_VASCULAR_DISEASE
+  HEART_FAILURE
+  HIGH_CHOLESTEROL
+  PREGNANCY
+  NONE_KNOWN
+  UNSURE
+}
+
+/// Carries a refusal option the other yes/no/unsure scales do not. A reproductive-intent question
+/// is exactly where a patient is entitled to decline, and declining is a different fact from
+/// being unsure.
+enum PregnancyPlanningAnswer {
+  NOT_ASSESSED
+  YES
+  NO
+  UNSURE
+  PREFER_NOT_TO_ANSWER
+}
+
+enum HypertensionReviewReason {
+  SEVERELY_ELEVATED_BP
+  LOW_BP_OR_DIZZINESS
+  CONCERNING_SYMPTOMS
+  MEDICATION_PROBLEM
+  MISSED_MEDICATIONS
+  POSSIBLE_CONTRIBUTING_SUBSTANCE
+  PREGNANCY_OR_PLANNING
+  OVERDUE_SCREENING
+  OTHER
+  ROUTINE_REVIEW_ONLY
+}
+
+enum HypertensionClinicianPlanItem {
+  CONTINUE_CURRENT_MANAGEMENT
+  MEDICATION_REFILL
+  RESTART_PREVIOUS_MEDICATION
+  ADJUST_MEDICATION
+  START_MEDICATION
+  STOP_MEDICATION
+  ORDER_LABORATORY_TESTING
+  ARRANGE_HOME_BP_MONITORING
+  NUTRITION_COUNSELING
+  TOBACCO_OR_ALCOHOL_SUPPORT
+  LINK_TO_COMMUNITY_HEALTH_WORKER
+  REFER_TO_PARTNER_FACILITY
+  URGENT_TRANSFER
+  OTHER
+}
+
+/// Stable codes, not sentences. These are written to the record, read back by the note generator
+/// and rendered in the form; a stored sentence would freeze today's wording into every historical
+/// row and make a copy-edit a data migration.
+enum DiabetesStatus {
+  NOT_ASSESSED
+  KNOWN_DIABETES
+  NEWLY_ELEVATED_GLUCOSE
+  NO_KNOWN_DIABETES
+  UNSURE
+}
+
+enum DiabetesType {
+  NOT_ASSESSED
+  TYPE_1
+  TYPE_2
+  GESTATIONAL
+  UNKNOWN
+}
+
+enum DiabetesConcern {
+  NOT_ASSESSED
+  NO_CONCERN
+  HIGH_GLUCOSE
+  LOW_GLUCOSE
+  MEDICATION_PROBLEM
+  DIET
+  NEW_SYMPTOMS
+  OTHER
+}
+
+enum Hba1cStatus {
+  NOT_ASSESSED
+  VALUE_KNOWN
+  UNKNOWN
+  NEVER_CHECKED
+}
+
+/// Symptoms happening now, asked separately from the past-month checklist.
+///
+/// The clinical specification names vomiting, confusion, difficulty breathing, loss of
+/// consciousness and an active foot wound as requiring immediate review, but its own symptom list
+/// contains none of them except the wound -- and that list asks about the past month, while
+/// escalation is a question about this minute.
+enum DiabetesUrgentSymptom {
+  VOMITING
+  CONFUSION
+  DIFFICULTY_BREATHING
+  LOSS_OF_CONSCIOUSNESS
+  ACTIVE_FOOT_WOUND
+  NONE
+}
+
+enum PhqResponse {
+  NOT_ASSESSED
+  NOT_AT_ALL
+  SEVERAL_DAYS
+  MORE_THAN_HALF_THE_DAYS
+  NEARLY_EVERY_DAY
+}
+
+enum DiabetesDistressResponse {
+  NOT_ASSESSED
+  NOT_A_PROBLEM
+  SLIGHT_PROBLEM
+  MODERATE_PROBLEM
+  SERIOUS_PROBLEM
+  VERY_SERIOUS_PROBLEM
+}
+
+/// NOT_ASSESSED is not NOT_SUSPECTED. The second asserts somebody looked and found nothing, which
+/// an unmeasured or unknown-context glucose does not support.
+enum DiabetesSuspicion {
+  NOT_ASSESSED
+  SUSPECTED
+  NOT_SUSPECTED
+}
+
+enum DiabetesReviewReason {
+  ABNORMAL_GLUCOSE
+  HYPOGLYCEMIA_SYMPTOMS
+  HYPERGLYCEMIA_SYMPTOMS
+  MEDICATION_PROBLEM
+  POSITIVE_MENTAL_HEALTH_SCREEN
+  DIABETES_DISTRESS
+  FOOT_WOUND
+  OVERDUE_DIABETES_SCREENING
+  OTHER
+  ROUTINE_REVIEW_ONLY
+}
+
+enum DiabetesClinicianPlanItem {
+  CONTINUE_CURRENT_MANAGEMENT
+  MEDICATION_REFILL
+  MEDICATION_CHANGE
+  ORDER_LABORATORY_TESTING
+  NUTRITION_REFERRAL
+  EYE_EXAMINATION_REFERRAL
+  FOOT_OR_WOUND_CARE_REFERRAL
+  MENTAL_HEALTH_SUPPORT
+  LINK_TO_COMMUNITY_HEALTH_WORKER
+  REFER_TO_PARTNER_FACILITY
+  URGENT_TRANSFER
+  OTHER
+}
+
+enum DiabetesEscalationReason {
+  URGENT_SYMPTOM_VOMITING
+  URGENT_SYMPTOM_CONFUSION
+  URGENT_SYMPTOM_DIFFICULTY_BREATHING
+  URGENT_SYMPTOM_LOSS_OF_CONSCIOUSNESS
+  ACTIVE_FOOT_WOUND
+  HYPOGLYCEMIA
+}
+
+enum HypertensionEscalationReason {
+  URGENT_SYMPTOM_CHEST_PAIN
+  URGENT_SYMPTOM_SHORTNESS_OF_BREATH
+  URGENT_SYMPTOM_CONFUSION
+  URGENT_SYMPTOM_FAINTING
+  URGENT_SYMPTOM_NEUROLOGIC
+  SEVERELY_ELEVATED_BP
+  HYPOTENSION
 }
 
 model Organization {
@@ -371,6 +752,7 @@ model Clinic {
   tobaccoScreenings         TobaccoScreening[]
   diabetesScreening         DiabetesScreening[]
   hypertensionAssessment    HypertensionAssessment[]
+  medicationAdherence       EncounterMedicationAdherence[]
   carePlans                 CarePlan[]
   drugs                     Drug[]
   prescriptions             Prescription[]
@@ -418,51 +800,55 @@ model User {
   updatedAt DateTime @updatedAt
 
   // relations
-  clinicRoles                   UserClinicRole[]
-  portalPatient                 Patient?                        @relation("PatientPortalUser")
-  createdPatients               Patient[]                       @relation("PatientCreatedBy")
-  createdEncounters             Encounter[]                     @relation("EncounterCreatedBy")
-  preceptorReviewedEncounters   Encounter[]                     @relation("EncounterPreceptorReviewedBy")
-  doctorFinalizedEncounters     Encounter[]                     @relation("EncounterDoctorFinalizedBy")
-  recordedConsents              PatientConsent[]                @relation("ConsentRecordedBy")
-  updatedClinicResearchSettings ClinicResearchSettings[]        @relation("ResearchSettingsUpdatedBy")
-  requestedResearchExports      ResearchExport[]                @relation("ResearchExportRequestedBy")
-  approvedResearchExports       ResearchExport[]                @relation("ResearchExportApprovedBy")
-  auditEvents                   AuditEvent[]                    @relation("AuditActor")
-  prescriptions                 Prescription[]                  @relation("PrescriptionPrescribedBy")
-  patientSelfReports            PatientSelfReport[]             @relation("PatientSelfReportSubmittedBy")
-  triagedAppointmentRequests    AppointmentRequest[]            @relation("AppointmentRequestTriagedBy")
-  staffShifts                   StaffShift[]
-  volunteerAssignments          PatientAssignment[]             @relation("AssignmentVolunteer")
-  doctorAssignments             PatientAssignment[]             @relation("AssignmentDoctor")
-  createdAssignments            PatientAssignment[]             @relation("AssignmentAssignedBy")
-  doctorAppointments            Appointment[]                   @relation("AppointmentAssignedDoctor")
-  volunteerAppointments         Appointment[]                   @relation("AppointmentAssignedVolunteer")
-  createdPatientPortalInvites   PatientPortalInvite[]           @relation("PatientPortalInviteCreatedBy")
-  claimedPatientPortalInvites   PatientPortalInvite[]           @relation("PatientPortalInviteClaimedBy")
-  mergedPatients                Patient[]                       @relation("PatientMergedBy")
-  duplicateReviews              PatientDuplicateReview[]        @relation("PatientDuplicateReviewedBy")
-  patientMergeRecords           PatientMergeRecord[]            @relation("PatientMergeRecordMergedBy")
-  conversationParticipants      ConversationParticipant[]
-  sentMessages                  Message[]                       @relation("MessageSender")
-  authoredHistoryRevisions      MedicalHistoryRevision[]        @relation("MedicalHistoryRevisionAuthor")
-  recordedMedicationRecords     PatientMedicationRecord[]       @relation("PatientMedicationRecordedBy")
-  authoredMedicationRevisions   PatientMedicationRevision[]     @relation("PatientMedicationRevisionAuthor")
-  reconciledMedicationRevisions PatientMedicationRevision[]     @relation("PatientMedicationRevisionReconciler")
-  medicationReconciliations     MedicationReconciliationEvent[] @relation("MedicationReconciliationActor")
-  recordedPharmacyRecords       PatientPharmacyRecord[]         @relation("PatientPharmacyRecordedBy")
-  authoredPharmacyRevisions     PatientPharmacyRevision[]       @relation("PatientPharmacyRevisionAuthor")
-  setPharmacyPreferences        PatientPharmacyPreference[]     @relation("PatientPharmacyPreferenceSetBy")
-  endedPharmacyPreferences      PatientPharmacyPreference[]     @relation("PatientPharmacyPreferenceEndedBy")
-  reviewedTobaccoScreenings     TobaccoScreening[]              @relation("TobaccoScreeningReviewedBy")
-  authoredDiabetesScreenings    DiabetesScreening[]             @relation("DiabetesScreeningAuthoredBy")
-  authoredClinicalNotes         ClinicalNote[]                  @relation("ClinicalNoteAuthor")
-  submittedClinicalNotes        ClinicalNote[]                  @relation("ClinicalNoteSubmitter")
-  cosignedClinicalNotes         ClinicalNote[]                  @relation("ClinicalNoteCosigner")
-  assignedVolunteerNotes        ClinicalNote[]                  @relation("ClinicalNoteAssignedVolunteer")
-  assignedDoctorNotes           ClinicalNote[]                  @relation("ClinicalNoteAssignedDoctor")
-  authoredClinicalNoteAddenda   ClinicalNoteAddendum[]          @relation("ClinicalNoteAddendumAuthor")
-  receivedNotifications         Reminder[]                      @relation("ReminderRecipient")
+  clinicRoles                     UserClinicRole[]
+  portalPatient                   Patient?                        @relation("PatientPortalUser")
+  createdPatients                 Patient[]                       @relation("PatientCreatedBy")
+  createdEncounters               Encounter[]                     @relation("EncounterCreatedBy")
+  preceptorReviewedEncounters     Encounter[]                     @relation("EncounterPreceptorReviewedBy")
+  doctorFinalizedEncounters       Encounter[]                     @relation("EncounterDoctorFinalizedBy")
+  recordedConsents                PatientConsent[]                @relation("ConsentRecordedBy")
+  updatedClinicResearchSettings   ClinicResearchSettings[]        @relation("ResearchSettingsUpdatedBy")
+  requestedResearchExports        ResearchExport[]                @relation("ResearchExportRequestedBy")
+  approvedResearchExports         ResearchExport[]                @relation("ResearchExportApprovedBy")
+  auditEvents                     AuditEvent[]                    @relation("AuditActor")
+  prescriptions                   Prescription[]                  @relation("PrescriptionPrescribedBy")
+  patientSelfReports              PatientSelfReport[]             @relation("PatientSelfReportSubmittedBy")
+  triagedAppointmentRequests      AppointmentRequest[]            @relation("AppointmentRequestTriagedBy")
+  staffShifts                     StaffShift[]
+  volunteerAssignments            PatientAssignment[]             @relation("AssignmentVolunteer")
+  doctorAssignments               PatientAssignment[]             @relation("AssignmentDoctor")
+  createdAssignments              PatientAssignment[]             @relation("AssignmentAssignedBy")
+  doctorAppointments              Appointment[]                   @relation("AppointmentAssignedDoctor")
+  volunteerAppointments           Appointment[]                   @relation("AppointmentAssignedVolunteer")
+  createdPatientPortalInvites     PatientPortalInvite[]           @relation("PatientPortalInviteCreatedBy")
+  claimedPatientPortalInvites     PatientPortalInvite[]           @relation("PatientPortalInviteClaimedBy")
+  mergedPatients                  Patient[]                       @relation("PatientMergedBy")
+  duplicateReviews                PatientDuplicateReview[]        @relation("PatientDuplicateReviewedBy")
+  patientMergeRecords             PatientMergeRecord[]            @relation("PatientMergeRecordMergedBy")
+  conversationParticipants        ConversationParticipant[]
+  sentMessages                    Message[]                       @relation("MessageSender")
+  authoredHistoryRevisions        MedicalHistoryRevision[]        @relation("MedicalHistoryRevisionAuthor")
+  recordedMedicationRecords       PatientMedicationRecord[]       @relation("PatientMedicationRecordedBy")
+  authoredMedicationRevisions     PatientMedicationRevision[]     @relation("PatientMedicationRevisionAuthor")
+  reconciledMedicationRevisions   PatientMedicationRevision[]     @relation("PatientMedicationRevisionReconciler")
+  medicationReconciliations       MedicationReconciliationEvent[] @relation("MedicationReconciliationActor")
+  recordedPharmacyRecords         PatientPharmacyRecord[]         @relation("PatientPharmacyRecordedBy")
+  authoredPharmacyRevisions       PatientPharmacyRevision[]       @relation("PatientPharmacyRevisionAuthor")
+  setPharmacyPreferences          PatientPharmacyPreference[]     @relation("PatientPharmacyPreferenceSetBy")
+  endedPharmacyPreferences        PatientPharmacyPreference[]     @relation("PatientPharmacyPreferenceEndedBy")
+  reviewedTobaccoScreenings       TobaccoScreening[]              @relation("TobaccoScreeningReviewedBy")
+  authoredDiabetesScreenings      DiabetesScreening[]             @relation("DiabetesScreeningAuthoredBy")
+  authoredHypertensionAssessments HypertensionAssessment[]        @relation("HypertensionAssessmentAuthoredBy")
+  authoredHypertensionPlans       HypertensionAssessment[]        @relation("HypertensionClinicianPlanAuthor")
+  authoredDiabetesPlans           DiabetesScreening[]             @relation("DiabetesClinicianPlanAuthor")
+  authoredMedicationAdherence     EncounterMedicationAdherence[]  @relation("EncounterMedicationAdherenceAuthoredBy")
+  authoredClinicalNotes           ClinicalNote[]                  @relation("ClinicalNoteAuthor")
+  submittedClinicalNotes          ClinicalNote[]                  @relation("ClinicalNoteSubmitter")
+  cosignedClinicalNotes           ClinicalNote[]                  @relation("ClinicalNoteCosigner")
+  assignedVolunteerNotes          ClinicalNote[]                  @relation("ClinicalNoteAssignedVolunteer")
+  assignedDoctorNotes             ClinicalNote[]                  @relation("ClinicalNoteAssignedDoctor")
+  authoredClinicalNoteAddenda     ClinicalNoteAddendum[]          @relation("ClinicalNoteAddendumAuthor")
+  receivedNotifications           Reminder[]                      @relation("ReminderRecipient")
 
   @@index([isActive])
 }
@@ -621,6 +1007,7 @@ model Encounter {
   patientCheckIn         PatientCheckIn?
   patientMeasurements    PatientMeasurement[]
 
+  medicationAdherence        EncounterMedicationAdherence[]
   reminders                  Reminder[]
   prescriptions              Prescription[]
   sourcedHistoryRevisions    MedicalHistoryRevision[]        @relation("MedicalHistoryRevisionSourceEncounter")
@@ -842,6 +1229,68 @@ model DiabetesScreening {
   symptomsJson           String?           @db.Text
   legacySymptomsUnmapped Boolean           @default(false)
 
+  // 1. History
+  diabetesStatus       DiabetesStatus  @default(NOT_ASSESSED)
+  diabetesType         DiabetesType    @default(NOT_ASSESSED)
+  yearDiagnosed        Int?
+  yearDiagnosedUnknown Boolean         @default(false)
+  mainConcern          DiabetesConcern @default(NOT_ASSESSED)
+  mainConcernOther     String?         @db.VarChar(200)
+
+  // 2. Control. `glucoseMgDl` and `glucoseType` above already hold today's reading and its
+  // timing, so unlike hypertension there is nothing to read across from another record.
+  hba1cStatus           Hba1cStatus  @default(NOT_ASSESSED)
+  hba1cMeasuredOn       DateTime?    @db.Date
+  homeGlucoseMonitoring NkwapaAnswer @default(NOT_ASSESSED)
+  homeGlucoseLowMgDl    Int?
+  homeGlucoseHighMgDl   Int?
+
+  /// Symptoms happening now, separate from the past-month `symptoms` list above.
+  urgentSymptoms       DiabetesUrgentSymptom[]    @default([])
+  urgentReviewRequired Boolean                    @default(false)
+  urgentReviewReasons  DiabetesEscalationReason[] @default([])
+  /// Derived from today's glucose and its timing. Recomputed server-side on every write.
+  derivedSuspicion     DiabetesSuspicion          @default(NOT_ASSESSED)
+
+  // 4. Nutrition. Descriptive, so JSONB.
+  nutritionSchemaVersion Int   @default(1)
+  nutrition              Json?
+
+  // 5. Mental health. The two instruments are columns because their scores alert a clinician.
+  phq2Interest        PhqResponse              @default(NOT_ASSESSED)
+  phq2Mood            PhqResponse              @default(NOT_ASSESSED)
+  /// 0-6, null until both items are answered: a partial total reads as a completed screen.
+  phq2Total           Int?
+  phq2Positive        Boolean                  @default(false)
+  distressOverwhelmed DiabetesDistressResponse @default(NOT_ASSESSED)
+  distressFailing     DiabetesDistressResponse @default(NOT_ASSESSED)
+  distressPositive    Boolean                  @default(false)
+
+  // 6. Screening status.
+  eyeExam          ScreeningCompletionStatus @default(NOT_ASSESSED)
+  footExam         ScreeningCompletionStatus @default(NOT_ASSESSED)
+  kidneyTesting    ScreeningCompletionStatus @default(NOT_ASSESSED)
+  bpCheckedToday   ScreeningCompletionStatus @default(NOT_ASSESSED)
+  currentFootWound NkwapaAnswer              @default(NOT_ASSESSED)
+
+  // Guided plan -- volunteer.
+  volunteerActionsSchemaVersion Int                    @default(1)
+  volunteerActions              Json?
+  clinicianReviewRequested      Boolean                @default(false)
+  reviewReasons                 DiabetesReviewReason[] @default([])
+  reviewReasonOther             String?                @db.VarChar(200)
+
+  // Guided plan -- supervising clinician. The clinical specification is explicit that this part
+  // shows only for the doctor; `CAREPLAN.CLINICIAN_PLAN` enforces it and the sync pull withholds it.
+  clinicianPlanItems      DiabetesClinicianPlanItem[] @default([])
+  clinicianPlanOther      String?                     @db.VarChar(200)
+  followUpWindow          FollowUpWindow              @default(NOT_ASSESSED)
+  followUpOther           String?                     @db.VarChar(120)
+  followUpOwner           FollowUpOwner               @default(NOT_ASSESSED)
+  clinicianComments       String?                     @db.Text
+  clinicianPlanAuthorId   String?                     @db.Uuid
+  clinicianPlanAuthoredAt DateTime?
+
   notes String? @db.Text
 
   collectedAt      DateTime @default(now())
@@ -850,33 +1299,182 @@ model DiabetesScreening {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  encounter  Encounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
-  clinic     Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  authoredBy User      @relation("DiabetesScreeningAuthoredBy", fields: [authoredByUserId], references: [id])
+  encounter           Encounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+  clinic              Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  authoredBy          User      @relation("DiabetesScreeningAuthoredBy", fields: [authoredByUserId], references: [id])
+  clinicianPlanAuthor User?     @relation("DiabetesClinicianPlanAuthor", fields: [clinicianPlanAuthorId], references: [id], onDelete: SetNull)
 
   @@index([clinicId, updatedAt])
   @@index([clinicId, collectedAt])
   @@index([authoredByUserId, collectedAt])
 }
 
+/// The hypertension interview (#114).
+///
+/// Extended rather than replaced. `classification`, `suspected` and `confirmed` predate the
+/// interview and are still what the dashboard groups by, the research export reads, and the
+/// patient chart renders.
 model HypertensionAssessment {
   id          String @id @default(uuid()) @db.Uuid
   clinicId    String @db.Uuid
   encounterId String @unique @db.Uuid
 
-  classification HypertensionClassification @default(UNKNOWN)
-  suspected      Boolean                    @default(false)
-  confirmed      Boolean                    @default(false)
+  /// What a clinician settled on. Equals derivedClassification unless they overrode it.
+  classification           HypertensionClassification @default(UNKNOWN)
+  /// What the thresholds say about this encounter's vitals. Recomputed server-side on every
+  /// write; a client-sent value is ignored.
+  derivedClassification    HypertensionClassification @default(UNKNOWN)
+  /// True once a clinician has disagreed with the derivation. Every row that existed before the
+  /// interview is backfilled true, so the new rule can never silently rewrite a finding somebody
+  /// entered by hand.
+  classificationOverridden Boolean                    @default(false)
+  suspected                Boolean                    @default(false)
+  confirmed                Boolean                    @default(false)
+
+  // 1. History
+  hypertensionStatus      HypertensionStatus  @default(NOT_ASSESSED)
+  yearDiagnosed           Int?
+  yearDiagnosedUnknown    Boolean             @default(false)
+  mainConcern             HypertensionConcern @default(NOT_ASSESSED)
+  mainConcernOther        String?             @db.VarChar(200)
+  usualCareFacility       String?             @db.VarChar(200)
+  usualCareFacilityStatus FacilityKnownStatus @default(NOT_ASSESSED)
+
+  // 2. Blood-pressure control. Today's reading is NOT copied here -- it is read from Vitals, so
+  // one encounter cannot hold two disagreeing answers to "what was the blood pressure today".
+  repeatPerformed     BpRepeatStatus         @default(NOT_ASSESSED)
+  repeatSystolicBp    Int?
+  repeatDiastolicBp   Int?
+  repeatPosition      PatientPosition?
+  repeatCuffSize      BloodPressureCuffSize?
+  repeatMeasuredAt    DateTime?
+  /// Whether the rest-and-repeat prompt was surfaced, so an audit can tell a volunteer who
+  /// ignored it from one who was never asked.
+  repeatPromptShown   Boolean                @default(false)
+  homeMonitorStatus   HomeBpMonitorStatus    @default(NOT_ASSESSED)
+  homeCheckFrequency  HomeBpCheckFrequency   @default(NOT_ASSESSED)
+  homeSystolicAvg     Int?
+  homeDiastolicAvg    Int?
+  homeReadingsUnknown Boolean                @default(false)
+  homeReadingSource   HomeBpSource           @default(NOT_ASSESSED)
+
+  // 3. Symptoms, and the escalation derived from them plus the reading.
+  currentSymptoms      HypertensionSymptom[]          @default([])
+  urgentReviewRequired Boolean                        @default(false)
+  urgentReviewReasons  HypertensionEscalationReason[] @default([])
+
+  // 4. Adherence support. The medications themselves live in the reconciled patient list; only
+  // the per-visit observations are ours, in EncounterMedicationAdherence.
+  medicationReminderStrategies MedicationReminderStrategy[] @default([])
+  reminderStrategyOther        String?                      @db.VarChar(200)
+
+  // 5. Possible contributors.
+  contributingSubstances BpAffectingSubstance[] @default([])
+  substanceSchemaVersion Int                    @default(1)
+  substanceDetails       Json?
+
+  // 6. Nutrition, activity and alcohol. Descriptive, so JSONB. Tobacco is deliberately absent:
+  // TobaccoScreening already carries it for this encounter.
+  lifestyleSchemaVersion Int   @default(1)
+  lifestyle              Json?
+
+  // 7. Relevant history.
+  relevantConditions CardiometabolicCondition[] @default([])
+  pregnantNow        NkwapaAnswer               @default(NOT_ASSESSED)
+  planningPregnancy  PregnancyPlanningAnswer    @default(NOT_ASSESSED)
+
+  // 8. Screening status.
+  kidneyFunctionTesting ScreeningCompletionStatus @default(NOT_ASSESSED)
+  urineProteinTesting   ScreeningCompletionStatus @default(NOT_ASSESSED)
+  cholesterolTesting    ScreeningCompletionStatus @default(NOT_ASSESSED)
+  ecgCompleted          ScreeningCompletionStatus @default(NOT_ASSESSED)
+  statinUse             MedicationUseStatus       @default(NOT_ASSESSED)
+  aspirinUse            MedicationUseStatus       @default(NOT_ASSESSED)
+
+  // Guided plan -- volunteer.
+  volunteerActionsSchemaVersion Int                        @default(1)
+  volunteerActions              Json?
+  /// Lifted out of the volunteer-actions payload because it escalates a patient. Everything else
+  /// in that checklist is descriptive; where "descriptive" and "decides something" collide, the
+  /// column wins.
+  clinicianReviewRequested      Boolean                    @default(false)
+  reviewReasons                 HypertensionReviewReason[] @default([])
+  reviewReasonOther             String?                    @db.VarChar(200)
+
+  // Guided plan -- supervising clinician. Gated on CAREPLAN.CLINICIAN_PLAN, refused by the API
+  // for a non-doctor, and omitted from the sync pull so a volunteer's device never caches it.
+  clinicianPlanItems      HypertensionClinicianPlanItem[] @default([])
+  clinicianPlanOther      String?                         @db.VarChar(200)
+  bpGoalSystolic          Int?
+  bpGoalDiastolic         Int?
+  followUpWindow          FollowUpWindow                  @default(NOT_ASSESSED)
+  followUpOther           String?                         @db.VarChar(120)
+  followUpOwner           FollowUpOwner                   @default(NOT_ASSESSED)
+  clinicianComments       String?                         @db.Text
+  clinicianPlanAuthorId   String?                         @db.Uuid
+  clinicianPlanAuthoredAt DateTime?
 
   notes String? @db.Text
+
+  // Provenance, matching DiabetesScreening. Its absence was the clearest half of the asymmetry
+  // between the two conditions.
+  collectedAt      DateTime @default(now())
+  authoredByUserId String   @db.Uuid
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  encounter Encounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
-  clinic    Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  encounter           Encounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+  clinic              Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  authoredBy          User      @relation("HypertensionAssessmentAuthoredBy", fields: [authoredByUserId], references: [id])
+  clinicianPlanAuthor User?     @relation("HypertensionClinicianPlanAuthor", fields: [clinicianPlanAuthorId], references: [id], onDelete: SetNull)
 
   @@index([clinicId, updatedAt])
+  @@index([clinicId, collectedAt])
+  @@index([authoredByUserId, collectedAt])
+}
+
+/// What a volunteer observed about one reconciled medication at one visit.
+///
+/// Deliberately not a medication list. `PatientMedicationRevision` is the patient's medication of
+/// record and is append-on-change; writing "took it today" as a revision would fill that history
+/// with non-changes and corrupt `lastReconciledAt`. These are observations about a medication, not
+/// properties of it.
+model EncounterMedicationAdherence {
+  id          String                     @id @default(uuid()) @db.Uuid
+  clinicId    String                     @db.Uuid
+  encounterId String                     @db.Uuid
+  context     MedicationAdherenceContext
+
+  medicationRecordId String @db.Uuid
+  /// The revision the volunteer had on screen. Without it, a later reconciliation would silently
+  /// re-point a recorded observation at a different dose.
+  observedRevisionId String @db.Uuid
+
+  // Hypertension asks these two; diabetes asks takingAsPrescribed. A CHECK constraint keeps the
+  // other condition's columns at NOT_ASSESSED, so "not applicable here" is represented rather
+  // than implied by a null.
+  tookToday          NkwapaAnswer             @default(NOT_ASSESSED)
+  dosesMissed7d      MedicationDosesMissed    @default(NOT_ASSESSED)
+  takingAsPrescribed MedicationAdherenceLevel @default(NOT_ASSESSED)
+
+  supplyRemaining MedicationSupplyStatus @default(NOT_ASSESSED)
+  problems        MedicationProblem[]    @default([])
+  problemsOther   String?                @db.VarChar(200)
+
+  authoredByUserId String   @db.Uuid
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  clinic           Clinic                    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  encounter        Encounter                 @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+  medicationRecord PatientMedicationRecord   @relation(fields: [medicationRecordId], references: [id], onDelete: Cascade)
+  observedRevision PatientMedicationRevision @relation(fields: [observedRevisionId], references: [id])
+  authoredBy       User                      @relation("EncounterMedicationAdherenceAuthoredBy", fields: [authoredByUserId], references: [id])
+
+  @@unique([encounterId, context, medicationRecordId])
+  @@index([clinicId, updatedAt])
+  @@index([medicationRecordId, createdAt])
 }
 
 model CarePlan {
@@ -1364,11 +1962,12 @@ model PatientMedicationRecord {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  clinic          Clinic                      @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  patient         Patient                     @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  recordedBy      User                        @relation("PatientMedicationRecordedBy", fields: [recordedByUserId], references: [id])
-  revisions       PatientMedicationRevision[] @relation("PatientMedicationRecordRevisions")
-  currentRevision PatientMedicationRevision?  @relation("CurrentPatientMedicationRevision", fields: [currentRevisionId], references: [id], onDelete: SetNull)
+  clinic          Clinic                         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient         Patient                        @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  recordedBy      User                           @relation("PatientMedicationRecordedBy", fields: [recordedByUserId], references: [id])
+  revisions       PatientMedicationRevision[]    @relation("PatientMedicationRecordRevisions")
+  adherence       EncounterMedicationAdherence[]
+  currentRevision PatientMedicationRevision?     @relation("CurrentPatientMedicationRevision", fields: [currentRevisionId], references: [id], onDelete: SetNull)
 
   @@index([clinicId, patientId, updatedAt])
   @@index([clinicId, updatedAt, id])
@@ -1400,12 +1999,13 @@ model PatientMedicationRevision {
   lastReconciledAt   DateTime?
   createdAt          DateTime                @default(now())
 
-  record           PatientMedicationRecord  @relation("PatientMedicationRecordRevisions", fields: [recordId], references: [id], onDelete: Cascade)
-  currentForRecord PatientMedicationRecord? @relation("CurrentPatientMedicationRevision")
-  drug             Drug?                    @relation(fields: [drugId], references: [id], onDelete: SetNull)
-  sourceEncounter  Encounter?               @relation("PatientMedicationRevisionSourceEncounter", fields: [sourceEncounterId], references: [id], onDelete: SetNull)
-  authoredBy       User                     @relation("PatientMedicationRevisionAuthor", fields: [authoredByUserId], references: [id])
-  reconciledBy     User?                    @relation("PatientMedicationRevisionReconciler", fields: [reconciledByUserId], references: [id], onDelete: SetNull)
+  record            PatientMedicationRecord        @relation("PatientMedicationRecordRevisions", fields: [recordId], references: [id], onDelete: Cascade)
+  currentForRecord  PatientMedicationRecord?       @relation("CurrentPatientMedicationRevision")
+  observedAdherence EncounterMedicationAdherence[]
+  drug              Drug?                          @relation(fields: [drugId], references: [id], onDelete: SetNull)
+  sourceEncounter   Encounter?                     @relation("PatientMedicationRevisionSourceEncounter", fields: [sourceEncounterId], references: [id], onDelete: SetNull)
+  authoredBy        User                           @relation("PatientMedicationRevisionAuthor", fields: [authoredByUserId], references: [id])
+  reconciledBy      User?                          @relation("PatientMedicationRevisionReconciler", fields: [reconciledByUserId], references: [id], onDelete: SetNull)
 
   @@unique([recordId, revisionNumber])
   @@index([recordId, createdAt])
