@@ -110,31 +110,18 @@ export const HBA1C_STATUS_LABELS: Record<Hba1cStatusValue, string> = {
 /**
  * Symptoms over the past month.
  *
- * This is explicitly a recall question, which is why it is a separate field from the urgent
- * symptom list below. "Had a foot wound sometime last month" and "has an open foot wound right
- * now" are different clinical facts and only the second one stops a visit.
+ * Re-exported from `diabetes-screening.ts`, which owns the vocabulary behind the `symptoms`
+ * column. Declaring a second list here would let the form offer an option the write rejects.
+ *
+ * It is explicitly a recall question, which is why the urgent list below is separate: "had a foot
+ * wound sometime last month" and "has an open foot wound right now" are different clinical facts,
+ * and only the second one stops a visit.
  */
-export const DIABETES_INTERVIEW_SYMPTOMS = [
-  'INCREASED_THIRST',
-  'FREQUENT_URINATION',
-  'BLURRED_VISION',
-  'UNINTENTIONAL_WEIGHT_LOSS',
-  'FATIGUE',
-  'HYPOGLYCEMIA_SYMPTOMS',
-  'FOOT_WOUND',
-  'NONE',
-] as const;
-export type DiabetesInterviewSymptomValue = (typeof DIABETES_INTERVIEW_SYMPTOMS)[number];
-export const DIABETES_INTERVIEW_SYMPTOM_LABELS: Record<DiabetesInterviewSymptomValue, string> = {
-  INCREASED_THIRST: 'Increased thirst',
-  FREQUENT_URINATION: 'Frequent urination',
-  BLURRED_VISION: 'Blurred vision',
-  UNINTENTIONAL_WEIGHT_LOSS: 'Unintentional weight loss',
-  FATIGUE: 'Fatigue',
-  HYPOGLYCEMIA_SYMPTOMS: 'Shaking, sweating, dizziness, or confusion',
-  FOOT_WOUND: 'Foot wound',
-  NONE: 'None',
-};
+export {
+  DIABETES_SYMPTOMS as DIABETES_INTERVIEW_SYMPTOMS,
+  DIABETES_SYMPTOM_LABELS as DIABETES_INTERVIEW_SYMPTOM_LABELS,
+  type DiabetesSymptom as DiabetesInterviewSymptomValue,
+} from './diabetes-screening';
 
 /**
  * Symptoms happening now.

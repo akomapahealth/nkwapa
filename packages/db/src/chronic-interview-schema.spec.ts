@@ -14,6 +14,18 @@ import {
   SCREENING_COMPLETION_STATUSES,
 } from './clinical-vocabulary';
 import {
+  DIABETES_CLINICIAN_PLAN_ITEMS,
+  DIABETES_CONCERNS,
+  DIABETES_INTERVIEW_SYMPTOMS,
+  DIABETES_REVIEW_REASONS,
+  DIABETES_STATUSES,
+  DIABETES_TYPES,
+  DIABETES_URGENT_SYMPTOMS,
+  HBA1C_STATUSES,
+} from './diabetes-interview';
+import { DIABETES_DISTRESS_RESPONSES, PHQ2_RESPONSES } from './phq2';
+import { DIABETES_GLUCOSE_CONTEXTS, DIABETES_SUSPICION_RESULTS } from './diabetes-thresholds';
+import {
   BP_AFFECTING_SUBSTANCES,
   BP_REPEAT_STATUSES,
   CARDIOMETABOLIC_CONDITIONS,
@@ -86,9 +98,21 @@ const MIRRORED: ReadonlyArray<[string, readonly string[]]> = [
   ['HypertensionReviewReason', HYPERTENSION_REVIEW_REASONS],
   ['HypertensionClinicianPlanItem', HYPERTENSION_CLINICIAN_PLAN_ITEMS],
   ['HypertensionClassification', HYPERTENSION_CLASSIFICATIONS],
+  ['DiabetesStatus', DIABETES_STATUSES],
+  ['DiabetesType', DIABETES_TYPES],
+  ['DiabetesConcern', DIABETES_CONCERNS],
+  ['Hba1cStatus', HBA1C_STATUSES],
+  ['DiabetesUrgentSymptom', DIABETES_URGENT_SYMPTOMS],
+  ['DiabetesSymptom', DIABETES_INTERVIEW_SYMPTOMS],
+  ['PhqResponse', PHQ2_RESPONSES],
+  ['DiabetesDistressResponse', DIABETES_DISTRESS_RESPONSES],
+  ['DiabetesSuspicion', DIABETES_SUSPICION_RESULTS],
+  ['DiabetesReviewReason', DIABETES_REVIEW_REASONS],
+  ['DiabetesClinicianPlanItem', DIABETES_CLINICIAN_PLAN_ITEMS],
+  ['GlucoseType', DIABETES_GLUCOSE_CONTEXTS],
 ];
 
-describe('hypertension interview schema', () => {
+describe('chronic interview schema', () => {
   it.each(MIRRORED)('%s holds exactly the members the vocabulary declares', (name, members) => {
     expect(prismaEnum(name).sort()).toEqual([...members].sort());
   });
@@ -138,5 +162,37 @@ describe('hypertension interview schema', () => {
   it('keeps provenance on the assessment, closing the gap with DiabetesScreening', () => {
     const fields = modelFieldNames('HypertensionAssessment');
     expect(fields).toEqual(expect.arrayContaining(['collectedAt', 'authoredByUserId']));
+  });
+});
+
+describe('diabetes interview schema', () => {
+  /*
+    Two symptom lists, asked about two different periods.
+
+    `symptoms` is a recall question about the past month; `urgentSymptoms` is about this minute. If
+    they ever converged, "had a foot wound last month" and "has an open wound now" would collapse
+    into one fact, and only the second one stops a visit.
+  */
+  it('keeps the past-month and right-now symptom columns distinct', () => {
+    const fields = modelFieldNames('DiabetesScreening');
+    expect(fields).toEqual(expect.arrayContaining(['symptoms', 'urgentSymptoms']));
+    expect(prismaEnum('DiabetesSymptom')).toContain('FOOT_WOUND');
+    expect(prismaEnum('DiabetesUrgentSymptom')).toContain('ACTIVE_FOOT_WOUND');
+    expect(prismaEnum('DiabetesSymptom')).not.toContain('ACTIVE_FOOT_WOUND');
+  });
+
+  it('keeps the provenance the hypertension record had to be given', () => {
+    const fields = modelFieldNames('DiabetesScreening');
+    expect(fields).toEqual(expect.arrayContaining(['collectedAt', 'authoredByUserId']));
+  });
+
+  /*
+    The score is nullable so an incomplete screen is not a zero, and a separate boolean records
+    whether it met the cut-off -- the database CHECK keeps the two consistent.
+  */
+  it('stores the PHQ-2 score as nullable beside its derived verdict', () => {
+    const body = /^model DiabetesScreening \{([\s\S]*?)^\}/m.exec(schema)?.[1] ?? '';
+    expect(body).toMatch(/phq2Total\s+Int\?/);
+    expect(body).toMatch(/phq2Positive\s+Boolean/);
   });
 });

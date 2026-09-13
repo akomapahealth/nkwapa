@@ -157,3 +157,89 @@ export const SYNC_HYPERTENSION_ASSESSMENT_WITHHELD: Record<string, string> = {
 export type SyncHypertensionAssessmentProjection = Prisma.HypertensionAssessmentGetPayload<{
   select: typeof SYNC_HYPERTENSION_ASSESSMENT_SELECT;
 }>;
+
+/**
+ * The diabetes-screening fields the offline client receives.
+ *
+ * Same reasoning as the hypertension projection above: the guided interview (#114) added a
+ * supervising-clinician block to a row that used to be sent whole, and sending it would put a
+ * doctor-only plan into every volunteer's IndexedDB, where it is readable in devtools.
+ */
+export const SYNC_DIABETES_SCREENING_SELECT = {
+  id: true,
+  clinicId: true,
+  encounterId: true,
+  glucoseMgDl: true,
+  glucoseType: true,
+  hba1cPercent: true,
+  symptoms: true,
+  symptomsJson: true,
+  legacySymptomsUnmapped: true,
+  diabetesStatus: true,
+  diabetesType: true,
+  yearDiagnosed: true,
+  yearDiagnosedUnknown: true,
+  mainConcern: true,
+  mainConcernOther: true,
+  hba1cStatus: true,
+  hba1cMeasuredOn: true,
+  homeGlucoseMonitoring: true,
+  homeGlucoseLowMgDl: true,
+  homeGlucoseHighMgDl: true,
+  urgentSymptoms: true,
+  urgentReviewRequired: true,
+  urgentReviewReasons: true,
+  derivedSuspicion: true,
+  nutritionSchemaVersion: true,
+  nutrition: true,
+  phq2Interest: true,
+  phq2Mood: true,
+  phq2Total: true,
+  phq2Positive: true,
+  distressOverwhelmed: true,
+  distressFailing: true,
+  distressPositive: true,
+  eyeExam: true,
+  footExam: true,
+  kidneyTesting: true,
+  bpCheckedToday: true,
+  currentFootWound: true,
+  volunteerActionsSchemaVersion: true,
+  volunteerActions: true,
+  clinicianReviewRequested: true,
+  reviewReasons: true,
+  reviewReasonOther: true,
+  notes: true,
+  collectedAt: true,
+  authoredByUserId: true,
+  createdAt: true,
+  updatedAt: true,
+  // The offline chart names who recorded a screening; the pull has always carried it.
+  authoredBy: { select: { id: true, displayName: true } },
+} as const satisfies Prisma.DiabetesScreeningSelect;
+
+/**
+ * Diabetes columns deliberately withheld from the offline client, and why.
+ *
+ * A column named here must not appear in SYNC_DIABETES_SCREENING_SELECT; a column in neither is a
+ * decision nobody has made yet, which sync-projection.spec.ts reports as a failure.
+ */
+export const SYNC_DIABETES_SCREENING_WITHHELD: Record<string, string> = {
+  clinicianPlanItems:
+    'The supervising clinician plan is gated on CAREPLAN.CLINICIAN_PLAN; caching it offline would put it on every volunteer device, readable in devtools.',
+  clinicianPlanOther: 'Part of the clinician plan block; see clinicianPlanItems.',
+  followUpWindow:
+    'Set by the clinician. The patient-visible consequence is CarePlan.followUpDate, which syncs on its own record.',
+  followUpOther: 'Part of the clinician plan block; see clinicianPlanItems.',
+  followUpOwner: 'Part of the clinician plan block; see clinicianPlanItems.',
+  clinicianComments:
+    'Free clinical text written by a doctor for a doctor, which is the nearest thing on this record to note content, and note content is server-only by policy.',
+  clinicianPlanAuthorId:
+    'Names which doctor wrote a plan the device is not allowed to hold in the first place.',
+  clinicianPlanAuthoredAt:
+    'Reveals that a plan exists and when it was written, which is more than a device without the plan should know.',
+};
+
+export type SyncDiabetesScreeningProjection = Prisma.DiabetesScreeningGetPayload<{
+  select: typeof SYNC_DIABETES_SCREENING_SELECT;
+}>;

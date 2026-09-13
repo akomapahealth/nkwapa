@@ -52,16 +52,18 @@ Captured alongside vitals in the same bundle.
 
 Offline: queued as `encounter_vitals_bundle`. The queued write requires the same permission as the online one.
 
-## Diabetes screening
+## Diabetes interview
 
-| Role | Read | Write |
-| --- | --- | --- |
-| SYSTEM_ADMIN | yes | yes |
-| DIRECTOR | yes | no |
-| MANAGER | yes | no |
-| DOCTOR | yes | yes |
-| VOLUNTEER | yes | yes |
-| PATIENT | no | no |
+The clinician plan is doctor-only, refused by the API for any other role, and withheld from the offline pull so no volunteer device caches it.
+
+| Role | Read | Write | Supervising clinician plan |
+| --- | --- | --- | --- |
+| SYSTEM_ADMIN | yes | yes | yes |
+| DIRECTOR | yes | no | no |
+| MANAGER | yes | no | no |
+| DOCTOR | yes | yes | yes |
+| VOLUNTEER | yes | yes | no |
+| PATIENT | no | no | no |
 
 Offline: queued as `diabetes_screening`. The queued write requires the same permission as the online one.
 

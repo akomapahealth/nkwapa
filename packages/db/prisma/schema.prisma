@@ -108,18 +108,27 @@ enum AssignmentStatus {
   CANCELLED
 }
 
+/// BEFORE_MEAL and POST_PRANDIAL_2H are added by the guided interview (#114). Their suspicion
+/// thresholds are provisional: see packages/db/src/diabetes-thresholds.ts.
 enum GlucoseType {
   FASTING
+  BEFORE_MEAL
+  POST_PRANDIAL_2H
   RANDOM
   UNKNOWN
 }
 
+/// Symptoms over the past month. The last three are added by the guided interview (#114); the
+/// first five keep their original wire wording for older clients reading `symptomsJson`.
 enum DiabetesSymptom {
   POLYURIA
   POLYDIPSIA
   WEIGHT_LOSS
   BLURRED_VISION
   FATIGUE
+  HYPOGLYCEMIA_SYMPTOMS
+  FOOT_WOUND
+  NONE
 }
 
 enum PatientSelfReportType {
@@ -581,6 +590,117 @@ enum HypertensionClinicianPlanItem {
 /// Stable codes, not sentences. These are written to the record, read back by the note generator
 /// and rendered in the form; a stored sentence would freeze today's wording into every historical
 /// row and make a copy-edit a data migration.
+enum DiabetesStatus {
+  NOT_ASSESSED
+  KNOWN_DIABETES
+  NEWLY_ELEVATED_GLUCOSE
+  NO_KNOWN_DIABETES
+  UNSURE
+}
+
+enum DiabetesType {
+  NOT_ASSESSED
+  TYPE_1
+  TYPE_2
+  GESTATIONAL
+  UNKNOWN
+}
+
+enum DiabetesConcern {
+  NOT_ASSESSED
+  NO_CONCERN
+  HIGH_GLUCOSE
+  LOW_GLUCOSE
+  MEDICATION_PROBLEM
+  DIET
+  NEW_SYMPTOMS
+  OTHER
+}
+
+enum Hba1cStatus {
+  NOT_ASSESSED
+  VALUE_KNOWN
+  UNKNOWN
+  NEVER_CHECKED
+}
+
+/// Symptoms happening now, asked separately from the past-month checklist.
+///
+/// The clinical specification names vomiting, confusion, difficulty breathing, loss of
+/// consciousness and an active foot wound as requiring immediate review, but its own symptom list
+/// contains none of them except the wound -- and that list asks about the past month, while
+/// escalation is a question about this minute.
+enum DiabetesUrgentSymptom {
+  VOMITING
+  CONFUSION
+  DIFFICULTY_BREATHING
+  LOSS_OF_CONSCIOUSNESS
+  ACTIVE_FOOT_WOUND
+  NONE
+}
+
+enum PhqResponse {
+  NOT_ASSESSED
+  NOT_AT_ALL
+  SEVERAL_DAYS
+  MORE_THAN_HALF_THE_DAYS
+  NEARLY_EVERY_DAY
+}
+
+enum DiabetesDistressResponse {
+  NOT_ASSESSED
+  NOT_A_PROBLEM
+  SLIGHT_PROBLEM
+  MODERATE_PROBLEM
+  SERIOUS_PROBLEM
+  VERY_SERIOUS_PROBLEM
+}
+
+/// NOT_ASSESSED is not NOT_SUSPECTED. The second asserts somebody looked and found nothing, which
+/// an unmeasured or unknown-context glucose does not support.
+enum DiabetesSuspicion {
+  NOT_ASSESSED
+  SUSPECTED
+  NOT_SUSPECTED
+}
+
+enum DiabetesReviewReason {
+  ABNORMAL_GLUCOSE
+  HYPOGLYCEMIA_SYMPTOMS
+  HYPERGLYCEMIA_SYMPTOMS
+  MEDICATION_PROBLEM
+  POSITIVE_MENTAL_HEALTH_SCREEN
+  DIABETES_DISTRESS
+  FOOT_WOUND
+  OVERDUE_DIABETES_SCREENING
+  OTHER
+  ROUTINE_REVIEW_ONLY
+}
+
+enum DiabetesClinicianPlanItem {
+  CONTINUE_CURRENT_MANAGEMENT
+  MEDICATION_REFILL
+  MEDICATION_CHANGE
+  ORDER_LABORATORY_TESTING
+  NUTRITION_REFERRAL
+  EYE_EXAMINATION_REFERRAL
+  FOOT_OR_WOUND_CARE_REFERRAL
+  MENTAL_HEALTH_SUPPORT
+  LINK_TO_COMMUNITY_HEALTH_WORKER
+  REFER_TO_PARTNER_FACILITY
+  URGENT_TRANSFER
+  OTHER
+}
+
+enum DiabetesEscalationReason {
+  URGENT_SYMPTOM_VOMITING
+  URGENT_SYMPTOM_CONFUSION
+  URGENT_SYMPTOM_DIFFICULTY_BREATHING
+  URGENT_SYMPTOM_LOSS_OF_CONSCIOUSNESS
+  ACTIVE_FOOT_WOUND
+  HYPOGLYCEMIA
+}
+
 enum HypertensionEscalationReason {
   URGENT_SYMPTOM_CHEST_PAIN
   URGENT_SYMPTOM_SHORTNESS_OF_BREATH
@@ -720,6 +840,7 @@ model User {
   authoredDiabetesScreenings      DiabetesScreening[]             @relation("DiabetesScreeningAuthoredBy")
   authoredHypertensionAssessments HypertensionAssessment[]        @relation("HypertensionAssessmentAuthoredBy")
   authoredHypertensionPlans       HypertensionAssessment[]        @relation("HypertensionClinicianPlanAuthor")
+  authoredDiabetesPlans           DiabetesScreening[]             @relation("DiabetesClinicianPlanAuthor")
   authoredMedicationAdherence     EncounterMedicationAdherence[]  @relation("EncounterMedicationAdherenceAuthoredBy")
   authoredClinicalNotes           ClinicalNote[]                  @relation("ClinicalNoteAuthor")
   submittedClinicalNotes          ClinicalNote[]                  @relation("ClinicalNoteSubmitter")
@@ -1108,6 +1229,68 @@ model DiabetesScreening {
   symptomsJson           String?           @db.Text
   legacySymptomsUnmapped Boolean           @default(false)
 
+  // 1. History
+  diabetesStatus       DiabetesStatus  @default(NOT_ASSESSED)
+  diabetesType         DiabetesType    @default(NOT_ASSESSED)
+  yearDiagnosed        Int?
+  yearDiagnosedUnknown Boolean         @default(false)
+  mainConcern          DiabetesConcern @default(NOT_ASSESSED)
+  mainConcernOther     String?         @db.VarChar(200)
+
+  // 2. Control. `glucoseMgDl` and `glucoseType` above already hold today's reading and its
+  // timing, so unlike hypertension there is nothing to read across from another record.
+  hba1cStatus           Hba1cStatus  @default(NOT_ASSESSED)
+  hba1cMeasuredOn       DateTime?    @db.Date
+  homeGlucoseMonitoring NkwapaAnswer @default(NOT_ASSESSED)
+  homeGlucoseLowMgDl    Int?
+  homeGlucoseHighMgDl   Int?
+
+  /// Symptoms happening now, separate from the past-month `symptoms` list above.
+  urgentSymptoms       DiabetesUrgentSymptom[]    @default([])
+  urgentReviewRequired Boolean                    @default(false)
+  urgentReviewReasons  DiabetesEscalationReason[] @default([])
+  /// Derived from today's glucose and its timing. Recomputed server-side on every write.
+  derivedSuspicion     DiabetesSuspicion          @default(NOT_ASSESSED)
+
+  // 4. Nutrition. Descriptive, so JSONB.
+  nutritionSchemaVersion Int   @default(1)
+  nutrition              Json?
+
+  // 5. Mental health. The two instruments are columns because their scores alert a clinician.
+  phq2Interest        PhqResponse              @default(NOT_ASSESSED)
+  phq2Mood            PhqResponse              @default(NOT_ASSESSED)
+  /// 0-6, null until both items are answered: a partial total reads as a completed screen.
+  phq2Total           Int?
+  phq2Positive        Boolean                  @default(false)
+  distressOverwhelmed DiabetesDistressResponse @default(NOT_ASSESSED)
+  distressFailing     DiabetesDistressResponse @default(NOT_ASSESSED)
+  distressPositive    Boolean                  @default(false)
+
+  // 6. Screening status.
+  eyeExam          ScreeningCompletionStatus @default(NOT_ASSESSED)
+  footExam         ScreeningCompletionStatus @default(NOT_ASSESSED)
+  kidneyTesting    ScreeningCompletionStatus @default(NOT_ASSESSED)
+  bpCheckedToday   ScreeningCompletionStatus @default(NOT_ASSESSED)
+  currentFootWound NkwapaAnswer              @default(NOT_ASSESSED)
+
+  // Guided plan -- volunteer.
+  volunteerActionsSchemaVersion Int                    @default(1)
+  volunteerActions              Json?
+  clinicianReviewRequested      Boolean                @default(false)
+  reviewReasons                 DiabetesReviewReason[] @default([])
+  reviewReasonOther             String?                @db.VarChar(200)
+
+  // Guided plan -- supervising clinician. The clinical specification is explicit that this part
+  // shows only for the doctor; `CAREPLAN.CLINICIAN_PLAN` enforces it and the sync pull withholds it.
+  clinicianPlanItems      DiabetesClinicianPlanItem[] @default([])
+  clinicianPlanOther      String?                     @db.VarChar(200)
+  followUpWindow          FollowUpWindow              @default(NOT_ASSESSED)
+  followUpOther           String?                     @db.VarChar(120)
+  followUpOwner           FollowUpOwner               @default(NOT_ASSESSED)
+  clinicianComments       String?                     @db.Text
+  clinicianPlanAuthorId   String?                     @db.Uuid
+  clinicianPlanAuthoredAt DateTime?
+
   notes String? @db.Text
 
   collectedAt      DateTime @default(now())
@@ -1116,9 +1299,10 @@ model DiabetesScreening {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  encounter  Encounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
-  clinic     Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  authoredBy User      @relation("DiabetesScreeningAuthoredBy", fields: [authoredByUserId], references: [id])
+  encounter           Encounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+  clinic              Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  authoredBy          User      @relation("DiabetesScreeningAuthoredBy", fields: [authoredByUserId], references: [id])
+  clinicianPlanAuthor User?     @relation("DiabetesClinicianPlanAuthor", fields: [clinicianPlanAuthorId], references: [id], onDelete: SetNull)
 
   @@index([clinicId, updatedAt])
   @@index([clinicId, collectedAt])

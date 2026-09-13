@@ -27,7 +27,11 @@ import { assertPermissionAtClinic, type ScopedRole } from '../auth/clinic-roles'
 import type { EntityType as SyncEntityType } from './entity-types';
 import { SYNC_ENTITY_PERMISSIONS, isSyncEntityType } from './sync-permissions';
 import { classifySyncFailure, isTerminalOutcome } from './sync-outcome';
-import { SYNC_HYPERTENSION_ASSESSMENT_SELECT, SYNC_PATIENT_SELECT } from './sync-projection';
+import {
+  SYNC_DIABETES_SCREENING_SELECT,
+  SYNC_HYPERTENSION_ASSESSMENT_SELECT,
+  SYNC_PATIENT_SELECT,
+} from './sync-projection';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { PatientRepository } from '../patients/patient.repository';
@@ -1474,7 +1478,7 @@ export class SyncService {
       }),
       this.prisma.diabetesScreening.findMany({
         where: { ...where, ...updatedAtFilter },
-        include: { authoredBy: { select: { id: true, displayName: true } } },
+        select: SYNC_DIABETES_SCREENING_SELECT,
       }),
       this.prisma.hypertensionAssessment.findMany({
         where: { ...where, ...updatedAtFilter },

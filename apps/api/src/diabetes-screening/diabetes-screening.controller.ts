@@ -12,7 +12,10 @@ import {
   CursorLimitQueryDto,
 } from '../common/request-dto';
 import { DiabetesScreeningService } from './diabetes-screening.service';
-import { UpsertDiabetesScreeningDto } from './dto/diabetes-screening.dto';
+import {
+  UpsertDiabetesClinicianPlanDto,
+  UpsertDiabetesScreeningDto,
+} from './dto/diabetes-screening.dto';
 
 type DiabetesRequest = {
   user: { user: { id: string }; roles: ScopedRole[] };
@@ -58,6 +61,33 @@ export class DiabetesScreeningController {
         requestId: request.headers?.['x-request-id'],
         userAgent: request.headers?.['user-agent'],
         ipAddress: request.ip,
+      },
+    );
+  }
+
+  /**
+   * The supervising clinician's plan, on its own route behind its own permission.
+   *
+   * A volunteer sending these keys is a request the guard refuses, rather than one whose extra
+   * keys are stripped in a branch somebody can later delete.
+   */
+  @Put('encounters/:encounterId/diabetes-screening/clinician-plan')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.CAREPLAN_CLINICIAN_PLAN)
+  upsertClinicianPlan(
+    @Param() params: ClinicAndEncounterParamsDto,
+    @Body() dto: UpsertDiabetesClinicianPlanDto,
+    @Request() request: DiabetesRequest,
+  ) {
+    return this.diabetesScreeningService.upsertClinicianPlan(
+      params.clinicId,
+      params.encounterId,
+      { userId: request.user.user.id, roles: request.user.roles },
+      dto,
+      {
+        requestId: request.headers?.['x-request-id'],
+        ipAddress: request.ip,
+        userAgent: request.headers?.['user-agent'],
       },
     );
   }

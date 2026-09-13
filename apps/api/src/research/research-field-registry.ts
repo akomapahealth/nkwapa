@@ -139,6 +139,75 @@ export const RESEARCH_FIELD_DECISIONS: Record<
     notes: FREE_TEXT,
     collectedAt: COARSENED('Rounded to a timestamp bucket.'),
     authoredByUserId: STAFF,
+
+    // ------------------------------------------------ guided interview (#114)
+    diabetesStatus: EXPORTED('Whether diabetes is known, newly suspected, or absent.'),
+    diabetesType: EXPORTED('Type 1, type 2 and gestational diabetes are different populations.'),
+    yearDiagnosed: COARSENED(
+      'A year of diagnosis narrows a cohort sharply when combined with age; reduced to a band.',
+    ),
+    yearDiagnosedUnknown: EXPORTED(
+      'Distinguishes a patient who does not know their diagnosis year from one nobody asked.',
+    ),
+    mainConcern: EXPORTED('A closed set describing why the patient came.'),
+    mainConcernOther: FREE_TEXT,
+    hba1cStatus: EXPORTED('Separates a missing HbA1c from one that was never taken.'),
+    hba1cMeasuredOn: COARSENED('Reduced to month precision; an exact test date is near-unique.'),
+    homeGlucoseMonitoring: EXPORTED('Whether the patient self-monitors.'),
+    homeGlucoseLowMgDl: EXPORTED('Self-reported range, a measure of day-to-day control.'),
+    homeGlucoseHighMgDl: EXPORTED('Self-reported range, a measure of day-to-day control.'),
+    urgentSymptoms: EXPORTED('A closed set of coded symptoms, so it carries no free text.'),
+    urgentReviewRequired: EXPORTED('Whether the visit escalated.'),
+    urgentReviewReasons: EXPORTED('Stable derivation codes, not prose.'),
+    derivedSuspicion: EXPORTED('The threshold result, so an analysis need not recompute it.'),
+    nutritionSchemaVersion: OPERATIONAL,
+    /*
+      The nutrition section is excluded whole rather than field by field.
+
+      Its coded answers would be safe on their own, but it also carries a free-text recall of what
+      the patient ate yesterday, and a JSONB blob cannot be partially exported without a transform
+      that would have to be kept in step with the payload by hand. The coded answers that matter
+      clinically are columns; this is the descriptive remainder.
+    */
+    nutrition: FREE_TEXT,
+    phq2Interest: EXPORTED('An instrument item, already a coded response.'),
+    phq2Mood: EXPORTED('An instrument item, already a coded response.'),
+    phq2Total: EXPORTED('The published PHQ-2 score, 0 to 6.'),
+    phq2Positive: EXPORTED('Whether the screen met the published cut-off.'),
+    distressOverwhelmed: EXPORTED('An instrument item, already a coded response.'),
+    distressFailing: EXPORTED('An instrument item, already a coded response.'),
+    distressPositive: EXPORTED('Whether diabetes distress met the threshold for review.'),
+    eyeExam: EXPORTED('Preventive-care completion, a core programme measure.'),
+    footExam: EXPORTED('Preventive-care completion, a core programme measure.'),
+    kidneyTesting: EXPORTED('Preventive-care completion, a core programme measure.'),
+    bpCheckedToday: EXPORTED('Preventive-care completion, a core programme measure.'),
+    currentFootWound: EXPORTED('A coded finding that drives escalation.'),
+    volunteerActionsSchemaVersion: OPERATIONAL,
+    volunteerActions: FREE_TEXT,
+    clinicianReviewRequested: EXPORTED('Whether the volunteer asked for a clinician.'),
+    reviewReasons: EXPORTED('A closed set describing why review was requested.'),
+    reviewReasonOther: FREE_TEXT,
+
+    /*
+      The supervising clinician plan is excluded, and not because it is free text.
+
+      It is a doctor's decision about one identified patient, recorded under a named author. The
+      permission that gates it (`CAREPLAN.CLINICIAN_PLAN`) and the sync projection that withholds
+      it both exist to keep it away from readers who are not that patient's clinician; a research
+      export is the widest such reader there is.
+    */
+    clinicianPlanItems: {
+      disposition: 'EXCLUDED_QUASI_IDENTIFIER',
+      reason:
+        'A clinician plan is a decision about one identified patient; combined with a visit date it narrows a cohort to individuals.',
+    },
+    clinicianPlanOther: FREE_TEXT,
+    followUpWindow: EXPORTED('How soon the patient was asked to return.'),
+    followUpOther: FREE_TEXT,
+    followUpOwner: EXPORTED('Which team carries the follow-up.'),
+    clinicianComments: FREE_TEXT,
+    clinicianPlanAuthorId: STAFF,
+    clinicianPlanAuthoredAt: COARSENED('Rounded to a timestamp bucket.'),
   },
   MedicalHistoryRecord: {
     ...patientScoped,
