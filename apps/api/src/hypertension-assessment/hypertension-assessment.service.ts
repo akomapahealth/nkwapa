@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -104,6 +105,26 @@ export class HypertensionAssessmentService {
     assessmentId?: string,
   ) {
     this.assertWritePermission(actor.roles, clinicId);
+
+    /*
+      Overriding the derived classification is a clinician's judgement, not a volunteer's.
+
+      These two fields sit on the volunteer-writable payload because they belong to the record
+      rather than to the plan, which left a hole: a crafted payload could assert an override and the
+      server would honour it, defeating the point of deriving the classification at all. Refused
+      rather than silently ignored, so a client that thinks it recorded a finding finds out.
+    */
+    if (
+      dto.classificationOverridden &&
+      !hasPermissionAtClinic(actor.roles, clinicId, PERMISSIONS.CAREPLAN_CLINICIAN_PLAN)
+    ) {
+      throw new ForbiddenException({
+        code: 'CLASSIFICATION_OVERRIDE_FORBIDDEN',
+        message:
+          'Only a clinician may override the derived blood-pressure classification. Record the reading on the Vitals tab instead.',
+      });
+    }
+
     const collectedAt = this.validateCollectionTime(dto.collectedAt);
 
     /*

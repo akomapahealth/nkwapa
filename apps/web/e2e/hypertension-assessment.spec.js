@@ -149,8 +149,11 @@ test("today's reading, its classification and the repeat prompt all come from th
   await page.getByRole('tab', { name: 'Hypertension' }).click();
 
   // Read through from Vitals, never re-entered here.
-  await expect(page.getByText('162/98 mmHg')).toBeVisible();
-  await expect(page.getByText('Stage 2', { exact: true })).toBeVisible();
+  //
+  // `exact` matters: the `staff` identity holds every role, so the clinician classification block
+  // renders too and also names the reading ("Derived from 162/98 mmHg:").
+  await expect(page.getByText('162/98 mmHg', { exact: true })).toBeVisible();
+  await expect(page.getByText('Stage 2', { exact: true }).first()).toBeVisible();
 
   // 162/98 is at or above the repeat threshold, so the prompt is shown.
   const prompt = page.getByText(/rest quietly for five minutes/i);

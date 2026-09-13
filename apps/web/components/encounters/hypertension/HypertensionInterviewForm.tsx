@@ -26,6 +26,9 @@ import {
   HOME_BP_MONITOR_STATUS_LABELS,
   HOME_BP_SOURCES,
   HOME_BP_SOURCE_LABELS,
+  HYPERTENSION_CLASSIFICATIONS,
+  HYPERTENSION_CLINICIAN_PLAN_ITEMS,
+  HYPERTENSION_CLINICIAN_PLAN_ITEM_LABELS,
   HYPERTENSION_CONCERNS,
   HYPERTENSION_CONCERN_LABELS,
   HYPERTENSION_ESCALATION_REASON_LABELS,
@@ -80,6 +83,7 @@ import {
   type EncounterVitalsReading,
 } from '@/lib/encounter-vitals';
 import { HYPERTENSION_LABELS } from '@/lib/hypertension';
+import { ClinicianPlanSection } from '@/components/encounters/ClinicianPlanSection';
 import {
   CheckboxQuestion,
   ChoiceQuestion,
@@ -95,6 +99,14 @@ interface HypertensionInterviewFormProps {
   /** Today's vitals, read and shown but never stored on this record. */
   vitals?: EncounterVitalsReading | null;
   canEdit?: boolean;
+  /**
+   * Whether this actor holds `CAREPLAN.CLINICIAN_PLAN`.
+   *
+   * Controls both the plan section and the classification override. A volunteer sees neither --
+   * not a disabled version of either, because a disabled control still tells them what a doctor
+   * may do. The API refuses both independently.
+   */
+  canRecordClinicianPlan?: boolean;
   onSaved?: () => void;
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>;
 }
@@ -105,6 +117,7 @@ export function HypertensionInterviewForm({
   initialData,
   vitals,
   canEdit = true,
+  canRecordClinicianPlan = false,
   onSaved,
   saveRef,
 }: HypertensionInterviewFormProps) {
@@ -116,6 +129,8 @@ export function HypertensionInterviewForm({
   const [cachedVitals, setCachedVitals] = useState<EncounterVitalsReading | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [bpGoalSystolic, setBpGoalSystolic] = useState('');
+  const [bpGoalDiastolic, setBpGoalDiastolic] = useState('');
   /*
     Say which of the two things happened.
 
@@ -869,6 +884,48 @@ export function HypertensionInterviewForm({
         </div>
       </FormSectionCard>
 
+      {canRecordClinicianPlan ? (
+        <FormSectionCard
+          title="Clinician classification"
+          titleAs="h2"
+          description="The classification above is derived from today's reading. Override it only to record a different clinical judgement."
+        >
+          <p className="text-sm">
+            Derived from {formatBloodPressure(todaysVitals)}:{' '}
+            <span className="font-medium">{HYPERTENSION_LABELS[derivedClassification]}</span>
+          </p>
+          <CheckboxQuestion
+            id="htn-classification-override"
+            label="Record a different classification"
+            checked={values.classificationOverridden}
+            onChange={(checked) => {
+              update('classificationOverridden', checked);
+              /*
+                Seed the override from the derivation rather than from UNKNOWN.
+
+                A clinician ticking this box is disagreeing about a degree, not starting from
+                nothing, and defaulting to "Not classified" would make the safe first save a
+                deletion of the finding.
+              */
+              if (checked && values.classification === 'UNKNOWN') {
+                update('classification', derivedClassification);
+              }
+            }}
+            disabled={shared.disabled}
+          />
+          {values.classificationOverridden ? (
+            <ChoiceQuestion
+              {...q('htn-classification')}
+              label="Classification"
+              value={values.classification}
+              onChange={(value) => update('classification', value)}
+              options={HYPERTENSION_CLASSIFICATIONS}
+              labels={HYPERTENSION_LABELS}
+            />
+          ) : null}
+        </FormSectionCard>
+      ) : null}
+
       {saveError ? <InlineNotice tone="error">{saveError}</InlineNotice> : null}
       {saveMessage ? <InlineNotice tone="success">{saveMessage}</InlineNotice> : null}
 
@@ -879,6 +936,44 @@ export function HypertensionInterviewForm({
       ) : (
         <p className="text-sm text-muted-foreground">This assessment is read-only.</p>
       )}
+
+      {canRecordClinicianPlan ? (
+        <ClinicianPlanSection
+          clinicId={clinicId}
+          encounterId={encounterId}
+          endpoint="hypertension-assessment"
+          planItems={HYPERTENSION_CLINICIAN_PLAN_ITEMS}
+          planItemLabels={HYPERTENSION_CLINICIAN_PLAN_ITEM_LABELS}
+          initialPlan={initialData?.clinicianPlan as Record<string, unknown> | null}
+          canEdit={canEdit}
+          onSaved={onSaved}
+          idPrefix="htn"
+          extraFields={{
+            render: (disabled) => (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <NumberQuestion
+                  id="htn-bp-goal-systolic"
+                  label="BP goal systolic (mmHg)"
+                  value={bpGoalSystolic}
+                  onChange={setBpGoalSystolic}
+                  disabled={disabled}
+                />
+                <NumberQuestion
+                  id="htn-bp-goal-diastolic"
+                  label="BP goal diastolic (mmHg)"
+                  value={bpGoalDiastolic}
+                  onChange={setBpGoalDiastolic}
+                  disabled={disabled}
+                />
+              </div>
+            ),
+            toPayload: () => ({
+              bpGoalSystolic: bpGoalSystolic.trim() ? Number(bpGoalSystolic) : null,
+              bpGoalDiastolic: bpGoalDiastolic.trim() ? Number(bpGoalDiastolic) : null,
+            }),
+          }}
+        />
+      ) : null}
     </div>
   );
 }

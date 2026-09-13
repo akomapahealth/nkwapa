@@ -200,6 +200,29 @@ describe('HypertensionAssessmentService', () => {
       A clinician may still disagree with the threshold, and the flag is what distinguishes that
       from a client echoing back the value it was shown.
     */
+    /*
+      The override fields sit on the volunteer-writable payload because they belong to the record
+      rather than to the plan. Without this the derivation would be advisory: anyone who could
+      write a screening could assert whatever classification they liked.
+    */
+    it('refuses an override from someone who is not a clinician', async () => {
+      const { service, tx } = setup();
+      await expect(
+        service.upsert('clinic-1', 'encounter-1', volunteer, {
+          ...dto,
+          classification: 'NORMAL',
+          classificationOverridden: true,
+        } as never),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(tx.hypertensionAssessment.upsert).not.toHaveBeenCalled();
+    });
+
+    it('lets a volunteer save without claiming an override', async () => {
+      const { service, tx } = setup();
+      await service.upsert('clinic-1', 'encounter-1', volunteer, dto as never);
+      expect(tx.hypertensionAssessment.upsert).toHaveBeenCalled();
+    });
+
     it('honours a classification when the clinician claimed an override', async () => {
       const { service, tx } = setup();
       await service.upsert('clinic-1', 'encounter-1', doctor, {

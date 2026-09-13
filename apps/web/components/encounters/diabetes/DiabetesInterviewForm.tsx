@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
+  DIABETES_CLINICIAN_PLAN_ITEMS,
+  DIABETES_CLINICIAN_PLAN_ITEM_LABELS,
   DIABETES_CONCERNS,
   DIABETES_CONCERN_LABELS,
   DIABETES_DISTRESS_RESPONSES,
@@ -64,6 +66,7 @@ import {
   type ClinicalFieldErrors,
   type DiabetesInterviewValues,
 } from '@/lib/diabetes-interview';
+import { ClinicianPlanSection } from '@/components/encounters/ClinicianPlanSection';
 import {
   CheckboxQuestion,
   ChoiceQuestion,
@@ -83,6 +86,8 @@ interface DiabetesInterviewFormProps {
   encounterId: string;
   initialData?: Record<string, unknown> | null;
   canEdit?: boolean;
+  /** Whether this actor holds `CAREPLAN.CLINICIAN_PLAN`. See the note on the plan section. */
+  canRecordClinicianPlan?: boolean;
   onSaved?: () => void;
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>;
 }
@@ -92,6 +97,7 @@ export function DiabetesInterviewForm({
   encounterId,
   initialData,
   canEdit = true,
+  canRecordClinicianPlan = false,
   onSaved,
   saveRef,
 }: DiabetesInterviewFormProps) {
@@ -709,6 +715,20 @@ export function DiabetesInterviewForm({
       ) : (
         <p className="text-sm text-muted-foreground">This screening is read-only.</p>
       )}
+
+      {canRecordClinicianPlan ? (
+        <ClinicianPlanSection
+          clinicId={clinicId}
+          encounterId={encounterId}
+          endpoint="diabetes-screening"
+          planItems={DIABETES_CLINICIAN_PLAN_ITEMS}
+          planItemLabels={DIABETES_CLINICIAN_PLAN_ITEM_LABELS}
+          initialPlan={initialData?.clinicianPlan as Record<string, unknown> | null}
+          canEdit={canEdit}
+          onSaved={onSaved}
+          idPrefix="dm"
+        />
+      ) : null}
     </div>
   );
 }

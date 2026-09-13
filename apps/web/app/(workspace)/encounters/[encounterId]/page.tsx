@@ -70,6 +70,13 @@ export default function EncounterDetailPage() {
   const medicalHistoryEnabled = isWebFeatureEnabled('medicalHistory');
   const clinicalNotesEnabled = isWebFeatureEnabled('clinicalNotes');
   const guidedChronicTabsEnabled = isWebFeatureEnabled('guidedChronicTabs');
+  /*
+    Resolved from the clinic-scoped permission rather than from the DOCTOR role.
+
+    The role and the permission happen to coincide today, but the permission is what the API
+    checks, and a boundary expressed two different ways is one grant away from disagreeing.
+  */
+  const canRecordClinicianPlan = hasPermission(perms, 'CAREPLAN.CLINICIAN_PLAN');
   const clinicRoles =
     bootstrap?.memberships.find((membership) => membership.clinicId === clinicId)?.roles ?? [];
   const isClinicalUser = clinicRoles.includes('DOCTOR') || clinicRoles.includes('VOLUNTEER');
@@ -413,6 +420,7 @@ export default function EncounterDetailPage() {
                 <DiabetesInterviewForm
                   clinicId={clinicId}
                   encounterId={encounterId}
+                  canRecordClinicianPlan={canRecordClinicianPlan}
                   initialData={diabetes as Record<string, unknown> | null}
                   canEdit={canEditMeasurements}
                   onSaved={fetchData}
@@ -445,6 +453,7 @@ export default function EncounterDetailPage() {
                 <HypertensionInterviewForm
                   clinicId={clinicId}
                   encounterId={encounterId}
+                  canRecordClinicianPlan={canRecordClinicianPlan}
                   initialData={hypertension as Record<string, unknown> | null}
                   vitals={
                     vitals
