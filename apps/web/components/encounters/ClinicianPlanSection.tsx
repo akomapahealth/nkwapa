@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   FOLLOW_UP_OWNERS,
   FOLLOW_UP_OWNER_LABELS,
@@ -15,6 +15,7 @@ import { InlineNotice } from '@/components/ops/OpsShared';
 import { apiFetch, getErrorMessage, readApiError } from '@/lib/api';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { useAuth } from '@/lib/auth-context';
+import { useSeededFormValues } from '@/lib/use-seeded-form-values';
 import {
   ChoiceQuestion,
   MultiChoiceQuestion,
@@ -103,8 +104,15 @@ export function ClinicianPlanSection({
     toPayload: () => Record<string, unknown>;
   };
 }) {
-  const [values, setValues] = useState<ClinicianPlanValues>(() =>
-    clinicianPlanFromRecord(initialPlan),
+  /*
+    Keyed on the encounter, because the plan is a projection of its assessment's columns and
+    carries no id of its own -- and there is exactly one of it per encounter. See the hook for
+    why re-seeding on every refetch was wrong.
+  */
+  const [values, setValues] = useSeededFormValues(
+    encounterId,
+    initialPlan,
+    clinicianPlanFromRecord,
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -112,16 +120,11 @@ export function ClinicianPlanSection({
   const { isOnline, syncNow } = useSync();
   const getToken = useAuth();
 
-  useEffect(() => {
-    if (!initialPlan) return;
-    setValues(clinicianPlanFromRecord(initialPlan));
-  }, [initialPlan]);
-
   const update = useCallback(
     <K extends keyof ClinicianPlanValues>(key: K, value: ClinicianPlanValues[K]) => {
       setValues((current) => ({ ...current, [key]: value }));
     },
-    [],
+    [setValues],
   );
 
   const disabled = !canEdit || saving || !isOnline || !getToken;

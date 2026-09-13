@@ -55,6 +55,20 @@ Tobacco is recorded once per encounter, on `TobaccoScreening`, captured with the
 interview reads that record rather than asking again; `TobaccoUseStatus` gained
 `CURRENT_OCCASIONAL` and `CURRENT_DAILY` so the finer granularity the interview wanted is not lost.
 
+## The form seeds once per record
+
+The encounter page loads these records asynchronously and refetches after every save, so the
+interview has to take its values from a record that arrives after it mounted -- and must not take
+them again when the same record comes back. Re-seeding on every refetch reset whatever had been
+answered while that request was in flight, and said the save had succeeded while doing it. It
+reached the offline round-trip: the queued edit replayed the previous answers, the server applied
+it, and the outbox drained, so every signal the volunteer and the tests had said the change had
+landed.
+
+`shouldSeedFormValues` is the rule, keyed on the record's identity rather than the object's, and
+it is stated apart from the hook because both ways of getting it wrong are silent. The clinician
+plan is keyed on its encounter, having no id of its own.
+
 ## Two symptom lists, two questions
 
 Diabetes records symptoms twice, on purpose.
@@ -243,4 +257,5 @@ Migration replay against PostgreSQL 16 with seeded pre-interview rows, the share
 (`bp-classification`, `phq2`, `diabetes-thresholds`, the JSONB parsers), service role and
 derivation specs, the sync projection and role-matrix drift tests, the extended clinical-note
 non-exposure spec, and Playwright coverage of both interviews, the clinician-plan boundary from
-both sides, and the generated note. Exact command results belong in the pull request.
+both sides, the generated note, and a refetch held open across an edit to prove the form does
+not discard it. Exact command results belong in the pull request.

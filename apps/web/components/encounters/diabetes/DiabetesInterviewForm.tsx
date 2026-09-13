@@ -57,6 +57,7 @@ import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { db, type DiabetesScreeningRecord } from '@/lib/db';
 import { SYNC_OPERATION, enqueueOutboxMutation } from '@/lib/outbox';
 import { claimEncounterRecord } from '@/lib/encounter-record';
+import { useSeededFormValues } from '@/lib/use-seeded-form-values';
 import { generateClinicalId } from '@/lib/clinical-measurements';
 import {
   DIABETES_FIELD_ORDER,
@@ -101,8 +102,10 @@ export function DiabetesInterviewForm({
   onSaved,
   saveRef,
 }: DiabetesInterviewFormProps) {
-  const [values, setValues] = useState<DiabetesInterviewValues>(() =>
-    fromDiabetesRecord(initialData),
+  const [values, setValues] = useSeededFormValues(
+    initialData?.id as string | undefined,
+    initialData,
+    fromDiabetesRecord,
   );
   const [errors, setErrors] = useState<ClinicalFieldErrors>({});
   const [hasSubmitted, setHasSubmitted] = useState(false);
@@ -117,12 +120,6 @@ export function DiabetesInterviewForm({
   */
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const { isOnline, syncNow } = useSync();
-
-  /* Re-seed when the record arrives; see the note in HypertensionInterviewForm. */
-  useEffect(() => {
-    if (!initialData) return;
-    setValues(fromDiabetesRecord(initialData));
-  }, [initialData]);
 
   const glucose = Number.parseInt(values.glucoseMgDl, 10);
   const glucoseValue = Number.isFinite(glucose) ? glucose : null;
@@ -157,7 +154,7 @@ export function DiabetesInterviewForm({
         return next;
       });
     },
-    [hasSubmitted],
+    [hasSubmitted, setValues],
   );
 
   const updateNutrition = useCallback(
@@ -170,7 +167,7 @@ export function DiabetesInterviewForm({
         return next;
       });
     },
-    [hasSubmitted],
+    [hasSubmitted, setValues],
   );
 
   /* Preselect the implied review reasons visibly and reversibly. */

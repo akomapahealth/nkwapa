@@ -66,6 +66,7 @@ import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { db, type HypertensionAssessmentRecord } from '@/lib/db';
 import { SYNC_OPERATION, enqueueOutboxMutation } from '@/lib/outbox';
 import { claimEncounterRecord } from '@/lib/encounter-record';
+import { useSeededFormValues } from '@/lib/use-seeded-form-values';
 import { generateClinicalId } from '@/lib/clinical-measurements';
 import {
   HYPERTENSION_FIELD_ORDER,
@@ -121,8 +122,10 @@ export function HypertensionInterviewForm({
   onSaved,
   saveRef,
 }: HypertensionInterviewFormProps) {
-  const [values, setValues] = useState<HypertensionInterviewValues>(() =>
-    fromHypertensionRecord(initialData),
+  const [values, setValues] = useSeededFormValues(
+    initialData?.id as string | undefined,
+    initialData,
+    fromHypertensionRecord,
   );
   const [errors, setErrors] = useState<ClinicalFieldErrors>({});
   const [hasSubmitted, setHasSubmitted] = useState(false);
@@ -140,18 +143,6 @@ export function HypertensionInterviewForm({
   */
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const { isOnline, syncNow } = useSync();
-
-  /*
-    Re-seed when the record arrives.
-
-    `useState(initial)` reads its argument once, and the encounter page loads this record
-    asynchronously -- from the API, then from the local cache. Without this the form mounts before
-    the data exists and never catches up, which is issue #91 in its original form.
-  */
-  useEffect(() => {
-    if (!initialData) return;
-    setValues(fromHypertensionRecord(initialData));
-  }, [initialData]);
 
   /*
     Read today's vitals from the local cache as well as the prop.
@@ -272,7 +263,7 @@ export function HypertensionInterviewForm({
         return next;
       });
     },
-    [hasSubmitted],
+    [hasSubmitted, setValues],
   );
 
   const updateLifestyle = useCallback(
@@ -285,7 +276,7 @@ export function HypertensionInterviewForm({
         return next;
       });
     },
-    [hasSubmitted],
+    [hasSubmitted, setValues],
   );
 
   /*
