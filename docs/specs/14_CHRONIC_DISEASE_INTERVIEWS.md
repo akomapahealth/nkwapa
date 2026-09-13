@@ -202,9 +202,23 @@ plan being rejected rather than as a queue that had not drained.
 ## Feature flags and rollout
 
 ```dotenv
-FEATURE_GUIDED_CHRONIC_TABS_ENABLED=false
 NEXT_PUBLIC_FEATURE_GUIDED_CHRONIC_TABS_ENABLED=false
 ```
+
+One flag, and it is web-only.
+
+The API routes are permission-gated and validated, and every column the migrations add is additive
+with a default, so the server surface is safe to leave live whether or not the interview is being
+shown. What the flag decides is which form the encounter tabs render.
+
+A second, API-side flag was written and then removed before this shipped, because it would have had
+to agree with this one, and the failure when two such flags disagree is the tabs rendering while
+every save returns 404. `10_CLINICAL_NOTES.md` does gate both sides, for a different reason: note
+content is server-only by policy, so there is something worth refusing at the API independently.
+
+`NEXT_PUBLIC_*` values are inlined into the bundle at build time, so turning this on requires a
+**rebuild** of the web app rather than a restart, and the value must be the literal string `true` —
+`parseFeatureFlag` compares against it exactly, so `1` or `yes` read as off.
 
 Both forms write the same record, so a clinic can be switched back mid-rollout without losing
 anything. Migrations are additive and no existing column was dropped.
@@ -218,8 +232,9 @@ Before clinical enablement:
    suspicion result only where an approved rule applies.
 3. Verify the role matrix, the clinician-plan refusal for every non-doctor role, and that the sync
    pull omits every clinician-plan column.
-4. Enable the API flag, then the web flag, and rebuild the web app — `NEXT_PUBLIC_*` is inlined at
-   build time.
+4. Set `NEXT_PUBLIC_FEATURE_GUIDED_CHRONIC_TABS_ENABLED=true` where the web app is built — the
+   hosting project's environment for a deployed environment, `.env` locally — and rebuild. A
+   restart does not pick it up.
 5. Validate at a real clinic session before removing the old tabs.
 
 ## Release-gate evidence
