@@ -88,6 +88,7 @@
     "micromatch": {
       "picomatch": "2.3.2"
     },
+    "multer": "2.3.0",
     "mysql2": "3.24.2",
     "nanoid": "3.3.18",
     "next": {
@@ -99,6 +100,7 @@
       "picomatch": "2.3.2"
     },
     "rxjs": "7.8.2",
+    "sharp": "0.35.4",
     "socket.io-adapter": {
       "ws": "8.21.0"
     },
