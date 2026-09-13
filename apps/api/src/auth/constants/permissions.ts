@@ -242,6 +242,21 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   ],
 };
 
+/**
+ * Which roles hold a permission, derived from the table above rather than restated.
+ *
+ * For the places that need to filter *by* a permission rather than check one -- a user picker
+ * that should only offer people who can actually receive a message, say. Deriving it means a
+ * change to `ROLE_PERMISSIONS` is reflected everywhere, instead of leaving a hand-written role
+ * list to drift out of agreement with the permission it was meant to mirror.
+ */
+export function rolesWithPermission(required: string): UserRole[] {
+  return (Object.keys(ROLE_PERMISSIONS) as UserRole[]).filter((role) => {
+    const granted = ROLE_PERMISSIONS[role];
+    return granted.includes('*') || granted.includes(required);
+  });
+}
+
 export function hasPermission(userRoles: { role: UserRole }[], required: string): boolean {
   for (const { role } of userRoles) {
     const perms = ROLE_PERMISSIONS[role];
