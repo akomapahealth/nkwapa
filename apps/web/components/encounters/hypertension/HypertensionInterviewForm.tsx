@@ -59,6 +59,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { FormSectionCard } from '@/components/app-shell/FormSectionCard';
 import { FieldLabel, RequiredLegend, focusFirstInvalid } from '@/components/ui/field';
 import { InlineNotice } from '@/components/ops/OpsShared';
+import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { db, type HypertensionAssessmentRecord } from '@/lib/db';
 import { SYNC_OPERATION, enqueueOutboxMutation } from '@/lib/outbox';
 import { claimEncounterRecord } from '@/lib/encounter-record';
@@ -115,6 +116,15 @@ export function HypertensionInterviewForm({
   const [cachedVitals, setCachedVitals] = useState<EncounterVitalsReading | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  /*
+    Say which of the two things happened.
+
+    A clinic works offline routinely, so "saved" alone is ambiguous in the way that matters: a
+    volunteer needs to know whether the record has reached the server or is still only on this
+    laptop. The old form said so and the interview must not quietly drop that.
+  */
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const { isOnline, syncNow } = useSync();
 
   /*
     Re-seed when the record arrives.
@@ -292,6 +302,7 @@ export function HypertensionInterviewForm({
 
     setSaving(true);
     setSaveError(null);
+    setSaveMessage(null);
     try {
       /*
         Reuse the encounter's existing row rather than minting an id on every save, which is what
@@ -333,8 +344,15 @@ export function HypertensionInterviewForm({
         operation: SYNC_OPERATION.UPSERT,
         payloadJson: payload,
       });
+      const synced = isOnline ? await syncNow(clinicId) : null;
+      setSaveMessage(
+        synced?.success
+          ? 'Hypertension assessment saved and synced.'
+          : 'Hypertension assessment saved on this device and pending sync.',
+      );
       onSaved?.();
     } catch (error) {
+      setSaveMessage(null);
       setSaveError(error instanceof Error ? error.message : 'Failed to save the assessment.');
       throw error;
     } finally {
@@ -350,6 +368,8 @@ export function HypertensionInterviewForm({
     derivedClassification,
     escalation,
     onSaved,
+    isOnline,
+    syncNow,
   ]);
 
   useEffect(() => {
@@ -850,6 +870,7 @@ export function HypertensionInterviewForm({
       </FormSectionCard>
 
       {saveError ? <InlineNotice tone="error">{saveError}</InlineNotice> : null}
+      {saveMessage ? <InlineNotice tone="success">{saveMessage}</InlineNotice> : null}
 
       {canEdit ? (
         <Button onClick={() => void handleSave().catch(() => undefined)} disabled={saving}>

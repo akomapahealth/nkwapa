@@ -1,4 +1,5 @@
 import {
+  migrateLegacyDiabetesInterview,
   migrateLegacyDiabetesScreening,
   migrateLegacyHypertensionAssessment,
   migrateLegacyPulse,
@@ -138,6 +139,58 @@ describe('migrateLegacyHypertensionAssessment', () => {
       classificationOverridden: false,
       collectedAt: '2026-09-01T00:00:00.000Z',
       currentSymptoms: ['CHEST_PAIN'],
+    });
+  });
+});
+
+describe('migrateLegacyDiabetesInterview', () => {
+  it('fills the new fields with their unanswered values', () => {
+    const record = { glucoseMgDl: 100, glucoseType: 'FASTING' };
+    migrateLegacyDiabetesInterview(record);
+
+    expect(record).toMatchObject({
+      diabetesStatus: 'NOT_ASSESSED',
+      urgentSymptoms: [],
+      urgentReviewRequired: false,
+      phq2Interest: 'NOT_ASSESSED',
+      currentFootWound: 'NOT_ASSESSED',
+    });
+  });
+
+  /*
+    Recomputed rather than left blank, so an offline chart is honest about history before the next
+    sync arrives. It runs the same shared function the server does.
+  */
+  it('classifies a cached reading from its own timing', () => {
+    const suspected = { glucoseMgDl: 130, glucoseType: 'FASTING' };
+    migrateLegacyDiabetesInterview(suspected);
+    expect(suspected).toMatchObject({ derivedSuspicion: 'SUSPECTED' });
+
+    const negative = { glucoseMgDl: 100, glucoseType: 'FASTING' };
+    migrateLegacyDiabetesInterview(negative);
+    expect(negative).toMatchObject({ derivedSuspicion: 'NOT_SUSPECTED' });
+  });
+
+  /* An unknown context is never classified, offline or on the server. */
+  it('leaves a reading with no timing unclassified', () => {
+    const record = { glucoseMgDl: 400, glucoseType: 'UNKNOWN' };
+    migrateLegacyDiabetesInterview(record);
+    expect(record).toMatchObject({ derivedSuspicion: 'NOT_ASSESSED' });
+  });
+
+  it('leaves an already-migrated row alone', () => {
+    const record = {
+      glucoseMgDl: 130,
+      glucoseType: 'FASTING',
+      derivedSuspicion: 'NOT_SUSPECTED',
+      urgentSymptoms: ['VOMITING'],
+      phq2Positive: true,
+    };
+    migrateLegacyDiabetesInterview(record);
+    expect(record).toMatchObject({
+      derivedSuspicion: 'NOT_SUSPECTED',
+      urgentSymptoms: ['VOMITING'],
+      phq2Positive: true,
     });
   });
 });

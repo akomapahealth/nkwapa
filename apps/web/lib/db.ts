@@ -100,6 +100,47 @@ export interface DiabetesScreeningRecord {
   encounterStatus?: string;
   createdAt?: string;
   updatedAt?: string;
+  // Guided interview (#114).
+  diabetesStatus?: string;
+  diabetesType?: string;
+  yearDiagnosed?: number | null;
+  yearDiagnosedUnknown?: boolean;
+  mainConcern?: string;
+  mainConcernOther?: string | null;
+  hba1cStatus?: string;
+  hba1cMeasuredOn?: string | null;
+  homeGlucoseMonitoring?: string;
+  homeGlucoseLowMgDl?: number | null;
+  homeGlucoseHighMgDl?: number | null;
+  /** Right now, as opposed to `symptoms`, which asks about the past month. */
+  urgentSymptoms?: string[];
+  urgentReviewRequired?: boolean;
+  urgentReviewReasons?: string[];
+  /** Cached so the interview can show the threshold result offline; the server recomputes. */
+  derivedSuspicion?: string;
+  nutrition?: Record<string, unknown> | null;
+  phq2Interest?: string;
+  phq2Mood?: string;
+  phq2Total?: number | null;
+  phq2Positive?: boolean;
+  distressOverwhelmed?: string;
+  distressFailing?: string;
+  distressPositive?: boolean;
+  eyeExam?: string;
+  footExam?: string;
+  kidneyTesting?: string;
+  bpCheckedToday?: string;
+  currentFootWound?: string;
+  volunteerActions?: Record<string, unknown> | null;
+  clinicianReviewRequested?: boolean;
+  reviewReasons?: string[];
+  reviewReasonOther?: string | null;
+
+  /*
+    The supervising clinician plan is deliberately absent, as on the hypertension record.
+    `SYNC_DIABETES_SCREENING_WITHHELD` keeps it out of the pull; declaring the fields here would
+    invite a future `put` that writes them locally anyway.
+  */
 }
 
 export interface HypertensionAssessmentRecord {
@@ -463,6 +504,22 @@ export class NkwapaDb extends Dexie {
           .toCollection()
           .modify(migrateLegacyHypertensionAssessment);
       });
+
+    /*
+      v10 widens the diabetes record for the guided interview (#114).
+
+      No index changes, so this is a data-only upgrade: the new fields get their unanswered values
+      so a row written before the interview does not rehydrate as a patient who denied every
+      symptom. `derivedSuspicion` is recomputed from the reading already on the row rather than
+      left blank, so an offline chart is honest about history before the next sync.
+    */
+    this.version(10).upgrade(async (transaction) => {
+      const { migrateLegacyDiabetesInterview } = await import('./db-migrations');
+      await transaction
+        .table<DiabetesScreeningRecord, string>('diabetes_screenings')
+        .toCollection()
+        .modify(migrateLegacyDiabetesInterview);
+    });
   }
 }
 

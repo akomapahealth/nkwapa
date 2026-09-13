@@ -1,4 +1,9 @@
-import { parseLegacyDiabetesSymptoms, type DiabetesSymptom } from '@nkwapa/db';
+import {
+  evaluateGlucoseSuspicion,
+  parseLegacyDiabetesSymptoms,
+  type DiabetesGlucoseContext,
+  type DiabetesSymptom,
+} from '@nkwapa/db';
 
 export interface LegacyPulseRecord {
   heartRate?: number;
@@ -86,4 +91,66 @@ export function migrateLegacyHypertensionAssessment(
   record.relevantConditions ??= [];
   record.contributingSubstances ??= [];
   record.medicationReminderStrategies ??= [];
+}
+
+export interface LegacyDiabetesInterviewRecord {
+  glucoseMgDl?: number | null;
+  glucoseType?: string;
+  derivedSuspicion?: string;
+  diabetesStatus?: string;
+  diabetesType?: string;
+  hba1cStatus?: string;
+  homeGlucoseMonitoring?: string;
+  urgentSymptoms?: string[];
+  urgentReviewRequired?: boolean;
+  urgentReviewReasons?: string[];
+  phq2Interest?: string;
+  phq2Mood?: string;
+  phq2Positive?: boolean;
+  distressOverwhelmed?: string;
+  distressFailing?: string;
+  distressPositive?: boolean;
+  eyeExam?: string;
+  footExam?: string;
+  kidneyTesting?: string;
+  bpCheckedToday?: string;
+  currentFootWound?: string;
+  reviewReasons?: string[];
+}
+
+/**
+ * Mutates a cached diabetes row during the Dexie v10 upgrade.
+ *
+ * Every new field gets its unanswered value, because an unasked question and an answered "no" have
+ * to stay distinguishable -- an old row rehydrated without this reads as a patient who denied every
+ * symptom, and the generated note would say so.
+ *
+ * `derivedSuspicion` is recomputed from the reading already on the row rather than left blank, so
+ * an offline chart is honest about history before the next sync arrives. It uses the same shared
+ * function the server does, and leaves an unknown-context reading unclassified.
+ */
+export function migrateLegacyDiabetesInterview(record: LegacyDiabetesInterviewRecord): void {
+  record.diabetesStatus ??= 'NOT_ASSESSED';
+  record.diabetesType ??= 'NOT_ASSESSED';
+  record.hba1cStatus ??= 'NOT_ASSESSED';
+  record.homeGlucoseMonitoring ??= 'NOT_ASSESSED';
+  record.urgentSymptoms ??= [];
+  record.urgentReviewRequired ??= false;
+  record.urgentReviewReasons ??= [];
+  record.phq2Interest ??= 'NOT_ASSESSED';
+  record.phq2Mood ??= 'NOT_ASSESSED';
+  record.phq2Positive ??= false;
+  record.distressOverwhelmed ??= 'NOT_ASSESSED';
+  record.distressFailing ??= 'NOT_ASSESSED';
+  record.distressPositive ??= false;
+  record.eyeExam ??= 'NOT_ASSESSED';
+  record.footExam ??= 'NOT_ASSESSED';
+  record.kidneyTesting ??= 'NOT_ASSESSED';
+  record.bpCheckedToday ??= 'NOT_ASSESSED';
+  record.currentFootWound ??= 'NOT_ASSESSED';
+  record.reviewReasons ??= [];
+  record.derivedSuspicion ??= evaluateGlucoseSuspicion(
+    record.glucoseMgDl ?? null,
+    (record.glucoseType ?? 'UNKNOWN') as DiabetesGlucoseContext,
+  );
 }

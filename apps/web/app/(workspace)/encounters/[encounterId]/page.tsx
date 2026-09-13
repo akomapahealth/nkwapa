@@ -21,6 +21,7 @@ import { VitalsForm } from '@/components/VitalsForm';
 import { DiabetesScreeningForm } from '@/components/DiabetesScreeningForm';
 import { HypertensionForm } from '@/components/HypertensionForm';
 import { HypertensionInterviewForm } from '@/components/encounters/hypertension/HypertensionInterviewForm';
+import { DiabetesInterviewForm } from '@/components/encounters/diabetes/DiabetesInterviewForm';
 import { CarePlanForm } from '@/components/CarePlanForm';
 import {
   db,
@@ -408,15 +409,26 @@ export default function EncounterDetailPage() {
               />
             </TabsContent>
             <TabsContent value="diabetes" className="space-y-4">
-              <DiabetesScreeningForm
-                clinicId={clinicId}
-                encounterId={encounterId}
-                recordedByUserId={userId}
-                initialData={diabetes}
-                canEdit={canEditMeasurements}
-                onSaved={fetchData}
-                saveRef={diabetesSaveRef}
-              />
+              {guidedChronicTabsEnabled ? (
+                <DiabetesInterviewForm
+                  clinicId={clinicId}
+                  encounterId={encounterId}
+                  initialData={diabetes as Record<string, unknown> | null}
+                  canEdit={canEditMeasurements}
+                  onSaved={fetchData}
+                  saveRef={diabetesSaveRef}
+                />
+              ) : (
+                <DiabetesScreeningForm
+                  clinicId={clinicId}
+                  encounterId={encounterId}
+                  recordedByUserId={userId}
+                  initialData={diabetes}
+                  canEdit={canEditMeasurements}
+                  onSaved={fetchData}
+                  saveRef={diabetesSaveRef}
+                />
+              )}
               <DiabetesHistoryPanel
                 clinicId={clinicId}
                 patientId={encounter.patientId}
