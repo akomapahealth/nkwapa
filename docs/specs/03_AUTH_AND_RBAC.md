@@ -54,7 +54,7 @@ Current permission families include:
 
 - patient create/read/update/search
 - encounter create/read/review/finalize
-- screening and care plan actions
+- screening, care plan, and supervising-clinician plan actions
 - consent recording
 - prescription and drug access
 - medical-history read and write access
@@ -87,6 +87,24 @@ Screening reads follow the same read-back principle:
 A volunteer previously held `SCREENING.WRITE` without `SCREENING.READ`, so they could record a
 diabetes screening and then not see it. Any role allowed to record a clinical value is allowed to
 read that value back.
+
+The supervising clinician's block inside a screening record is narrower still:
+
+- `CAREPLAN.CLINICIAN_PLAN`: doctor only, with `SYSTEM_ADMIN` reaching it through the wildcard
+
+It is deliberately not a reuse of `CAREPLAN.WRITE`, which is also doctor-only and would work
+mechanically. That permission names the `CarePlan` record; using it to gate a section of a
+screening record would make the generated role matrix describe something that is not true.
+
+One permission governs reading and writing the block together, and it decides three layers: the
+route, the sync projection that withholds those columns from every device, and whether the web
+renders the section at all. A response omits the block rather than blanking it, because a key
+present with a null value tells a reader there is a plan they are not allowed to see.
+
+The same permission gates overriding a derived blood-pressure classification. Those fields sit on
+the volunteer-writable payload because they belong to the record rather than to the plan, so
+without the check the derivation would be advisory: anyone who could write a screening could assert
+whatever classification they liked.
 
 Duplicate review separates looking from acting:
 

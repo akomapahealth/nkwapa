@@ -54,6 +54,28 @@ Server responsibilities:
 permission its online route requires, in a table typed so that adding a replayable entity without
 deciding its permission is a compile error. Authorization does not depend on connectivity.
 
+Two things are deliberately **not** replayable, and the reason is the same in both cases: `SYNC.PUSH`
+is held by four roles, so an entity type is a wider door than the route it mirrors.
+
+- **Clinical note content**, as recorded above, is server-only in full.
+- **The supervising clinician plan** inside a chronic-disease interview. The interview itself
+  replays; the plan is an online REST write behind `CAREPLAN.CLINICIAN_PLAN`. This follows the
+  existing precedent that a clinician's deliberate, audited act stays online — a replay cannot
+  finalize an encounter either. It is a real constraint on a doctor working without signal, tracked
+  on issue #114 rather than hidden, and the web says so when the connection drops instead of failing
+  quietly.
+
+Because the interview replays and the plan does not, saving a plan flushes the outbox first.
+Otherwise a clinician who completed the interview and moved straight to the plan would be refused by
+a server that had not yet seen the screening, and the refusal would read as the plan being rejected
+rather than as a queue that had not drained.
+
+The pull is narrowed per record, not sent whole. `sync-projection.ts` names every column a device
+receives and, beside it, every column deliberately withheld with the reason; a column in neither is
+a decision nobody has made, which a drift test reports as a failure. Every clinician-plan column is
+withheld, because IndexedDB is readable in devtools and caching a doctor-only plan on a volunteer's
+laptop would defeat the permission rather than enforce it.
+
 ### Pull
 
 `GET /sync/pull`
