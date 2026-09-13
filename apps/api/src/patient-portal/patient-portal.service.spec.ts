@@ -300,6 +300,92 @@ describe('PatientPortalService', () => {
     expect(result[1].type).toBe('GENERAL');
   });
 
+  describe('a confirmed repeat outranks the reading that prompted it', () => {
+    /*
+      The interview asks for a repeat when an initial reading crosses the threshold, because a
+      single high value is frequently the walk into the room rather than the patient. Plotting the
+      initial number would put the measurement the system itself judged unreliable into the trend a
+      clinician reads to decide whether treatment is working -- and would show a spike on exactly
+      the visits where somebody did the careful thing.
+    */
+    function encountersOnly(encounter: Record<string, unknown>) {
+      prisma.patientMeasurement.findMany.mockResolvedValue([]);
+      prisma.diabetesScreening.findMany.mockResolvedValue([]);
+      prisma.encounter.findMany.mockResolvedValue([encounter]);
+      prisma.appointmentRequest.count.mockResolvedValue(0);
+      prisma.appointment.count.mockResolvedValue(0);
+    }
+
+    it('plots the repeat when one was recorded', async () => {
+      encountersOnly({
+        createdAt: new Date('2026-03-19T08:00:00.000Z'),
+        vitals: { systolicBp: 186, diastolicBp: 112 },
+        hypertensionAssessment: { repeatSystolicBp: 142, repeatDiastolicBp: 88 },
+      });
+
+      const result = await service.listTrendsForStaff('patient-1', 'clinic-1', {});
+
+      expect(result.bp).toEqual([
+        expect.objectContaining({ sys: 142, dia: 88, source: 'ENCOUNTER' }),
+      ]);
+    });
+
+    it('plots the initial reading when no repeat was taken', async () => {
+      encountersOnly({
+        createdAt: new Date('2026-03-19T08:00:00.000Z'),
+        vitals: { systolicBp: 186, diastolicBp: 112 },
+        hypertensionAssessment: { repeatSystolicBp: null, repeatDiastolicBp: null },
+      });
+
+      const result = await service.listTrendsForStaff('patient-1', 'clinic-1', {});
+
+      expect(result.bp).toEqual([expect.objectContaining({ sys: 186, dia: 112 })]);
+    });
+
+    it('plots the initial reading when the encounter has no interview at all', async () => {
+      encountersOnly({
+        createdAt: new Date('2026-03-19T08:00:00.000Z'),
+        vitals: { systolicBp: 132, diastolicBp: 86 },
+        hypertensionAssessment: null,
+      });
+
+      const result = await service.listTrendsForStaff('patient-1', 'clinic-1', {});
+
+      expect(result.bp).toEqual([expect.objectContaining({ sys: 132, dia: 86 })]);
+    });
+
+    /*
+      A half-entered repeat is not a reading.
+
+      Falling back per-value would pair a repeat systolic with an initial diastolic and plot a
+      blood pressure that was never measured.
+    */
+    it('ignores a half-entered repeat rather than pairing it with the initial reading', async () => {
+      encountersOnly({
+        createdAt: new Date('2026-03-19T08:00:00.000Z'),
+        vitals: { systolicBp: 186, diastolicBp: 112 },
+        hypertensionAssessment: { repeatSystolicBp: 140, repeatDiastolicBp: null },
+      });
+
+      const result = await service.listTrendsForStaff('patient-1', 'clinic-1', {});
+
+      // The complete initial pair, not 140/112 -- a reading nobody took.
+      expect(result.bp).toEqual([expect.objectContaining({ sys: 186, dia: 112 })]);
+    });
+
+    it('plots nothing when the visit recorded no blood pressure', async () => {
+      encountersOnly({
+        createdAt: new Date('2026-03-19T08:00:00.000Z'),
+        vitals: null,
+        hypertensionAssessment: null,
+      });
+
+      const result = await service.listTrendsForStaff('patient-1', 'clinic-1', {});
+
+      expect(result.bp).toEqual([]);
+    });
+  });
+
   it('merges finalized encounter readings with patient measurements and follow-up counts', async () => {
     prisma.patientMeasurement.findMany.mockResolvedValue([
       {

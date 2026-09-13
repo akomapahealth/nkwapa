@@ -59,7 +59,22 @@ const VISIT_INCLUDE = {
 type VisitWithContext = Prisma.EncounterGetPayload<{ include: typeof VISIT_INCLUDE }>;
 
 const VITALS_INCLUDE = {
-  encounter: { select: ENCOUNTER_CONTEXT_SELECT },
+  encounter: {
+    select: {
+      ...ENCOUNTER_CONTEXT_SELECT,
+      /*
+        The repeat reading belongs beside the one that prompted it.
+
+        The interview asks for a repeat when an initial reading crosses the threshold, because a
+        single high value is often the walk into the room. A chart that showed only the initial
+        number would show a spike on exactly the visits where somebody did the careful thing, and
+        give no hint that a better measurement exists.
+      */
+      hypertensionAssessment: {
+        select: { repeatSystolicBp: true, repeatDiastolicBp: true },
+      },
+    },
+  },
 } satisfies Prisma.VitalsInclude;
 
 type VitalsWithContext = Prisma.VitalsGetPayload<{ include: typeof VITALS_INCLUDE }>;
@@ -396,6 +411,8 @@ function toVitalsRecord(record: VitalsWithContext): ChartVitalsRecord {
     updatedAt: record.updatedAt,
     systolicBp: record.systolicBp,
     diastolicBp: record.diastolicBp,
+    repeatSystolicBp: record.encounter.hypertensionAssessment?.repeatSystolicBp ?? null,
+    repeatDiastolicBp: record.encounter.hypertensionAssessment?.repeatDiastolicBp ?? null,
     pulseBpm: record.pulseBpm,
     temperatureCelsius: record.temperatureCelsius,
     respiratoryRate: record.respiratoryRate,

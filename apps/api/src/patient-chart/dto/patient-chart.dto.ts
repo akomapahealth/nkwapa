@@ -31,6 +31,9 @@ export interface ChartVitalsRecord extends ChartRecordSource {
   updatedAt: Date;
   systolicBp: number | null;
   diastolicBp: number | null;
+  /** Recorded on the hypertension interview when the initial reading warranted a repeat. */
+  repeatSystolicBp: number | null;
+  repeatDiastolicBp: number | null;
   pulseBpm: number | null;
   temperatureCelsius: number | null;
   respiratoryRate: number | null;
