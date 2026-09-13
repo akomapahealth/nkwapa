@@ -542,6 +542,16 @@ The codebase previously ran both conventions inside the same submitted form: `*`
 - A failed submit **moves focus to the first invalid field**, via `focusFirstInvalid(errors,
 order)`. Pass the on-screen order; the error object's own key order is whatever order the
   validator happened to run in. No form did this before.
+- On a long form, pass `reserveSpace` to `FieldError` — bound to the form's _has been submitted
+  once_ flag, never to `true`. Principle 5 forbids moving content under a user mid-entry, and the
+  shift that matters here is not the one at submit: that happens once and focus follows it. It is
+  the one afterwards, because each field revalidates as it is corrected, so fixing one field
+  removes its message and pulls every field below it upwards — including the one the user was
+  reaching for. Reserving unconditionally is the opposite mistake: a blank line under every field
+  of every form, which on the hypertension interview is roughly a screen and a half of dead space
+  before any error exists. Gating on submitted-once costs nothing until the first failed submit,
+  then holds the layout still for the whole correction pass. One line is reserved; a message that
+  wraps to two still shifts.
 - Form-level messages use `InlineNotice`, which is `role="alert"` when the tone is error and a
   polite `role="status"` otherwise. It had neither, so a failed save on a dozen forms was
   completely silent to a screen reader.
