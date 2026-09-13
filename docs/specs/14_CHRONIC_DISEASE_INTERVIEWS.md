@@ -187,6 +187,15 @@ The rules that were already approved — fasting ≥ 126, random ≥ 200, and th
 because the bands overlap; a test pins that, since ascending evaluation would classify a
 hypertensive emergency as stage 2.
 
+All of these are programme-wide constants, not clinic-scoped configuration. That is worth stating
+because it is an exception: almost everything else here is scoped to a clinic and enforced by row
+level security, so the natural assumption is that a clinic could hold its own. It cannot. One
+clinical authority sets these for every clinic today, which is what the constants encode. Should a
+future clinic get its own director who needs a different cut-off, that is a schema and
+configuration change with a derivation path to rework, not an edit to a number — the server derives
+escalation on write, so per-clinic thresholds would also mean deciding what happens to rows derived
+under the old one.
+
 Escalation is deliberately not folded into classification. Classification says what a reading is;
 escalation says the visit must stop. A later change to one must not silently move the other.
 
