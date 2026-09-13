@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ConversationType } from '@prisma/client';
+import { PERMISSIONS, rolesWithPermission } from '../auth/constants/permissions';
 
 @Injectable()
 export class ChatService {
@@ -246,9 +247,19 @@ export class ChatService {
   /**
    * List users available for chat in a clinic (staff members with chat permission).
    */
+  /**
+   * The people in this clinic who can be messaged.
+   *
+   * Filtered to roles that actually hold `CHAT.READ`, derived from the permission table. It used
+   * to return every `UserClinicRole` in the clinic with no role filter at all, under a doc comment
+   * claiming it returned "staff members with chat permission" -- so anyone who was ever given a
+   * role here appeared in the staff picker, including a portal account, which is the directory
+   * enumeration issue #31 is careful about.
+   */
   async listClinicChatUsers(clinicId: string, currentUserId: string) {
     const roles = await this.prisma.userClinicRole.findMany({
       where: {
+        role: { in: rolesWithPermission(PERMISSIONS.CHAT_READ) },
         OR: [
           { clinicId },
           { clinicId: null }, // SYSTEM_ADMIN has access everywhere

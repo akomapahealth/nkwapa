@@ -6,10 +6,12 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
+import { UseInterceptors } from '@nestjs/common';
 import { Namespace, Socket } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
 import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
+import { PrismaRlsInterceptor } from '../prisma/prisma-rls.interceptor';
 import { ChatService } from './chat.service';
 import { createWsAuthMiddleware, WsAuthData } from './chat-ws-auth.middleware';
 import { getAllowedCorsOrigins } from '../common/api-config';
@@ -17,6 +19,17 @@ import { randomUUID } from 'crypto';
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
 
+/*
+  Bound explicitly, because a global one is not enough.
+
+  `PrismaRlsInterceptor` is registered as an `APP_INTERCEPTOR`, which covers HTTP but is not applied
+  to gateway handlers. Without this line every socket event ran outside a tenant context, and the
+  chat tables are FORCE row-level-security protected -- so `assertActiveParticipant` found nothing,
+  every send failed with "Conversation not found", and the gateway's own catch turned that into a
+  generic "Unable to send message". Sending is socket-only, so the feature stopped working while
+  the REST conversation list and history kept loading.
+*/
+@UseInterceptors(PrismaRlsInterceptor)
 @WebSocketGateway({
   namespace: '/chat',
   cors: {
