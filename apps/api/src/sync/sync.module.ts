@@ -8,6 +8,7 @@ import { MedicalHistoryModule } from '../medical-history/medical-history.module'
 import { ClinicalMeasurementsService } from './clinical-measurements.service';
 import { MedicationReconciliationModule } from '../medication-reconciliation/medication-reconciliation.module';
 import { DiabetesScreeningModule } from '../diabetes-screening/diabetes-screening.module';
+import { HypertensionAssessmentModule } from '../hypertension-assessment/hypertension-assessment.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { DiabetesScreeningModule } from '../diabetes-screening/diabetes-screenin
     MedicalHistoryModule,
     MedicationReconciliationModule,
     DiabetesScreeningModule,
+    HypertensionAssessmentModule,
   ],
   controllers: [SyncController],
   providers: [SyncService, ClinicalMeasurementsService],

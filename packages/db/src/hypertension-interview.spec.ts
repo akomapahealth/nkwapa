@@ -39,7 +39,7 @@ describe('parseHypertensionLifestyle', () => {
       saltDuringCooking: 'USUALLY' as const,
       fruitVegetables: 'SOME_DAYS' as const,
       activeDaysPerWeek: 3,
-      tobaccoUse: 'FORMER' as const,
+      alcoholUse: 'OCCASIONALLY' as const,
       breakfastYesterday: 'Koko and bread',
     };
     const parsed = parseHypertensionLifestyle(serializeHypertensionLifestyle(original));

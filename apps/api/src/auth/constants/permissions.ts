@@ -45,6 +45,18 @@ export const PERMISSIONS = {
   // Drug
   DRUG_READ: 'DRUG.READ',
   DRUG_MANAGE: 'DRUG.MANAGE',
+  /**
+   * The supervising clinician's assessment and plan inside a chronic-disease interview.
+   *
+   * Separate from CAREPLAN.WRITE, which is also doctor-only and would work mechanically. That
+   * one names the `CarePlan` record; reusing it to gate a section of a screening record would
+   * make the generated role matrix describe a permission that does not mean what it says.
+   *
+   * One permission governs reading and writing the block together. A volunteer is not shown a
+   * disabled clinician plan -- a disabled section still tells them what a doctor may do -- and the
+   * sync pull omits those columns entirely, so a volunteer's device never caches them either.
+   */
+  CAREPLAN_CLINICIAN_PLAN: 'CAREPLAN.CLINICIAN_PLAN',
   // Reminder
   REMINDER_CREATE: 'REMINDER.CREATE',
   REMINDER_READ: 'REMINDER.READ',
@@ -179,6 +191,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     PERMISSIONS.SCREENING_WRITE,
     PERMISSIONS.DOCTOR_FINALIZE,
     PERMISSIONS.CAREPLAN_WRITE,
+    PERMISSIONS.CAREPLAN_CLINICIAN_PLAN,
     PERMISSIONS.OPS_SHIFT_WRITE,
     PERMISSIONS.OPS_SHIFT_READ,
     PERMISSIONS.OPS_CHECKIN_CREATE,

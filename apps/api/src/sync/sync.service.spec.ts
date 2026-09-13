@@ -8,10 +8,11 @@ import { EncounterStatus } from '@prisma/client';
 import { SYNC_MUTATION_RESULT_STATUS } from './dto/sync-push-response.dto';
 import type { SyncMutationDto } from './dto/sync-mutation.dto';
 import { MedicalHistoryService } from '../medical-history/medical-history.service';
-import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { ClinicalMeasurementsService } from './clinical-measurements.service';
 import { MedicationReconciliationService } from '../medication-reconciliation/medication-reconciliation.service';
 import { DiabetesScreeningService } from '../diabetes-screening/diabetes-screening.service';
+import { HypertensionAssessmentService } from '../hypertension-assessment/hypertension-assessment.service';
 
 const mockUser = {
   user: { id: 'user-1' },
@@ -27,6 +28,7 @@ describe('SyncService', () => {
   let clinicalMeasurementsService: jest.Mocked<ClinicalMeasurementsService>;
   let medicationReconciliationService: jest.Mocked<MedicationReconciliationService>;
   let diabetesScreeningService: jest.Mocked<DiabetesScreeningService>;
+  let hypertensionAssessmentService: jest.Mocked<HypertensionAssessmentService>;
   beforeEach(async () => {
     const mockPrisma = {
       syncMutation: {
@@ -121,6 +123,20 @@ describe('SyncService', () => {
             upsert: jest.fn().mockResolvedValue({ id: 'diabetes-1' }),
           },
         },
+        {
+          provide: HypertensionAssessmentService,
+          useValue: {
+            validateSyncPayload: jest.fn().mockResolvedValue({
+              dto: {
+                hypertensionStatus: 'KNOWN_HYPERTENSION',
+                currentSymptoms: [],
+                classificationOverridden: false,
+                collectedAt: '2026-09-13T12:00:00.000Z',
+              },
+            }),
+            upsert: jest.fn().mockResolvedValue({ id: 'hypertension-1' }),
+          },
+        },
       ],
     }).compile();
 
@@ -132,6 +148,7 @@ describe('SyncService', () => {
     clinicalMeasurementsService = module.get(ClinicalMeasurementsService);
     medicationReconciliationService = module.get(MedicationReconciliationService);
     diabetesScreeningService = module.get(DiabetesScreeningService);
+    hypertensionAssessmentService = module.get(HypertensionAssessmentService);
   });
 
   describe('replay recovery', () => {
@@ -440,6 +457,72 @@ describe('SyncService', () => {
       'diabetes-1',
       {},
     );
+  });
+
+  /*
+    The hypertension replay path is the point of the new module.
+
+    It used to be an inline upsert in this file that cast `payload.classification` straight to the
+    enum and coalesced everything else with `?? existing?.x ?? default`, so an offline device could
+    write a value the REST route would have rejected. These two assert that the offline path now
+    goes through the same validated service, and that a device cannot assert the escalation the
+    server is supposed to derive.
+  */
+  it('routes hypertension replay through the shared validated service', async () => {
+    const mutation: SyncMutationDto = {
+      id: 'mut-htn-1',
+      entityType: 'hypertension_assessment',
+      entityId: 'htn-1',
+      operation: 'UPSERT',
+      clinicId: 'clinic-1',
+      idempotencyKey: 'htn-idem-1',
+      createdAt: '2026-09-13T12:00:00.000Z',
+      payloadJson: {
+        encounterId: 'enc-1',
+        hypertensionStatus: 'KNOWN_HYPERTENSION',
+        currentSymptoms: ['CHEST_PAIN'],
+        classificationOverridden: false,
+      },
+    };
+
+    const results = await service.applyMutations('clinic-1', mockUser as never, [mutation]);
+
+    expect(results).toEqual([{ id: 'mut-htn-1', status: 'APPLIED' }]);
+    expect(hypertensionAssessmentService.validateSyncPayload).toHaveBeenCalledWith(
+      mutation.payloadJson,
+      mutation.createdAt,
+    );
+    expect(hypertensionAssessmentService.upsert).toHaveBeenCalledWith(
+      'clinic-1',
+      'enc-1',
+      expect.objectContaining({ userId: 'user-1' }),
+      expect.objectContaining({ hypertensionStatus: 'KNOWN_HYPERTENSION' }),
+      expect.objectContaining({
+        syncMutation: expect.objectContaining({ idempotencyKey: 'htn-idem-1' }),
+      }),
+      'htn-1',
+    );
+  });
+
+  it('surfaces a rejected hypertension payload as an error rather than writing it', async () => {
+    hypertensionAssessmentService.validateSyncPayload.mockRejectedValueOnce(
+      new BadRequestException({ code: 'VALIDATION_ERROR' }),
+    );
+
+    const results = await service.applyMutations('clinic-1', mockUser as never, [
+      {
+        id: 'mut-htn-2',
+        entityType: 'hypertension_assessment',
+        entityId: 'htn-1',
+        operation: 'UPSERT',
+        clinicId: 'clinic-1',
+        idempotencyKey: 'htn-idem-2',
+        payloadJson: { encounterId: 'enc-1', classification: 'BOGUS' },
+      } as SyncMutationDto,
+    ]);
+
+    expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.ERROR);
+    expect(hypertensionAssessmentService.upsert).not.toHaveBeenCalled();
   });
 
   it('rejects diabetes replay for a read-only director', async () => {

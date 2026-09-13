@@ -1,6 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { SYNC_PATIENT_SELECT, SYNC_PATIENT_WITHHELD } from './sync-projection';
+import {
+  SYNC_HYPERTENSION_ASSESSMENT_SELECT,
+  SYNC_HYPERTENSION_ASSESSMENT_WITHHELD,
+  SYNC_PATIENT_SELECT,
+  SYNC_PATIENT_WITHHELD,
+} from './sync-projection';
 
 /** Field names declared on one Prisma model, ignoring relations and block attributes. */
 function modelFields(model: string): string[] {
@@ -12,7 +17,7 @@ function modelFields(model: string): string[] {
   if (!body) throw new Error(`Model ${model} not found`);
 
   const scalarTypes =
-    /^(String|Int|Float|Boolean|DateTime|Decimal|BigInt|Bytes|Json|Sex|NationalIdType|PatientLocationStatus|GhanaRegion)$/;
+    /^(String|Int|Float|Boolean|DateTime|Decimal|BigInt|Bytes|Json|Sex|NationalIdType|PatientLocationStatus|GhanaRegion|HypertensionClassification|HypertensionStatus|HypertensionConcern|FacilityKnownStatus|BpRepeatStatus|PatientPosition|BloodPressureCuffSize|HomeBpMonitorStatus|HomeBpCheckFrequency|HomeBpSource|HypertensionSymptom|HypertensionEscalationReason|MedicationReminderStrategy|BpAffectingSubstance|CardiometabolicCondition|NkwapaAnswer|PregnancyPlanningAnswer|ScreeningCompletionStatus|MedicationUseStatus|HypertensionReviewReason|HypertensionClinicianPlanItem|FollowUpWindow|FollowUpOwner)$/;
 
   return body
     .split('\n')
@@ -68,5 +73,66 @@ describe('offline sync patient projection', () => {
       expect(reason.length).toBeGreaterThan(30);
       expect(field).not.toBe('');
     }
+  });
+});
+
+describe('offline sync hypertension projection', () => {
+  const selected = Object.keys(SYNC_HYPERTENSION_ASSESSMENT_SELECT);
+  const withheld = Object.keys(SYNC_HYPERTENSION_ASSESSMENT_WITHHELD);
+
+  /*
+    The supervising clinician plan is doctor-only, and IndexedDB is readable in devtools.
+
+    Sending it would mean a volunteer's laptop holds a plan the API refuses to show them, which
+    defeats the permission rather than enforcing it. This is the second of the two layers; the
+    service also omits the block from its response.
+  */
+  it('never sends the supervising clinician plan to a device', () => {
+    for (const field of [
+      'clinicianPlanItems',
+      'clinicianPlanOther',
+      'bpGoalSystolic',
+      'bpGoalDiastolic',
+      'followUpWindow',
+      'followUpOther',
+      'followUpOwner',
+      'clinicianComments',
+      'clinicianPlanAuthorId',
+      'clinicianPlanAuthoredAt',
+    ]) {
+      expect(selected).not.toContain(field);
+      expect(withheld).toContain(field);
+    }
+  });
+
+  it('still sends what the offline interview renders', () => {
+    for (const field of [
+      'id',
+      'encounterId',
+      'classification',
+      'derivedClassification',
+      'classificationOverridden',
+      'hypertensionStatus',
+      'currentSymptoms',
+      'urgentReviewRequired',
+      'urgentReviewReasons',
+      'lifestyle',
+      'reviewReasons',
+      'collectedAt',
+      'updatedAt',
+    ]) {
+      expect(selected).toContain(field);
+    }
+  });
+
+  it('requires a decision for every hypertension column', () => {
+    const undecided = modelFields('HypertensionAssessment').filter(
+      (field) => !selected.includes(field) && !withheld.includes(field),
+    );
+    expect(undecided).toEqual([]);
+  });
+
+  it('never names a column in both lists', () => {
+    expect(selected.filter((field) => withheld.includes(field))).toEqual([]);
   });
 });

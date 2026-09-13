@@ -270,7 +270,23 @@ export class ResearchTransformService {
               vitals: true,
               tobaccoScreening: true,
               diabetesScreening: true,
-              hypertensionAssessment: true,
+              /*
+                Selected, not included whole.
+
+                The export's headers are a fixed list, so widening this record never leaked by
+                itself -- but the guided interview (#114) grew it from four columns to sixty-seven,
+                including the supervising clinician's free-text comments, and `true` pulled all of
+                them into the export process. Naming the three the transform actually reads means
+                adding a header is the only way to export a new field, which is the decision the
+                research registry exists to force.
+
+                HypertensionAssessment is still absent from RESEARCH_SCOPED_MODELS, which the
+                registry's own header calls the bad state. Declaring a disposition for each of its
+                columns is tracked on #114 and does not belong in this migration's PR.
+              */
+              hypertensionAssessment: {
+                select: { classification: true, suspected: true, confirmed: true, createdAt: true },
+              },
             },
             orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
           }),

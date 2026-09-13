@@ -22,14 +22,12 @@ import {
   FOOD_RECALL_MAX_LENGTH,
   FREE_TEXT_MAX_LENGTH,
   NKWAPA_ANSWERS,
-  TOBACCO_USE_STATUSES,
   type AlcoholUseStatusValue,
   type FrequencyNeverSometimesDailyValue,
   type FrequencyNeverSometimesOftenValue,
   type FrequencyNeverSometimesUsuallyValue,
   type FrequencyRarelySomeMostValue,
   type NkwapaAnswerValue,
-  type TobaccoUseStatusValue,
 } from './clinical-vocabulary';
 import {
   PayloadIssues,
@@ -409,7 +407,17 @@ export interface HypertensionLifestylePayload {
   typicalActivity: PhysicalActivityTypeValue;
   typicalActivityOther: string | null;
   wantsMoreActivity: NkwapaAnswerValue;
-  tobaccoUse: TobaccoUseStatusValue;
+  /*
+    Tobacco is deliberately absent from this payload.
+
+    `TobaccoScreening` already records smoking and smokeless status, readiness to quit and
+    counselling for the same encounter, captured in the vitals bundle. A second tobacco answer
+    here would let one visit hold two different ones, with nothing saying which a clinician
+    should believe. The interview reads that record instead -- the same treatment the
+    specification already asks for with blood pressure.
+
+    Alcohol has no such home, so it stays here.
+  */
   alcoholUse: AlcoholUseStatusValue;
   wantsToReduceOrStop: NkwapaAnswerValue;
 }
@@ -429,7 +437,6 @@ const LIFESTYLE_KEYS: readonly (keyof HypertensionLifestylePayload)[] = [
   'typicalActivity',
   'typicalActivityOther',
   'wantsMoreActivity',
-  'tobaccoUse',
   'alcoholUse',
   'wantsToReduceOrStop',
 ];
@@ -450,7 +457,6 @@ export function emptyHypertensionLifestyle(): HypertensionLifestylePayload {
     typicalActivity: 'NOT_ASSESSED',
     typicalActivityOther: null,
     wantsMoreActivity: 'NOT_ASSESSED',
-    tobaccoUse: 'NOT_ASSESSED',
     alcoholUse: 'NOT_ASSESSED',
     wantsToReduceOrStop: 'NOT_ASSESSED',
   };
@@ -550,7 +556,6 @@ export function parseHypertensionLifestyle(
       at,
       issues,
     ),
-    tobaccoUse: readEnum(source, 'tobaccoUse', TOBACCO_USE_STATUSES, 'NOT_ASSESSED', at, issues),
     alcoholUse: readEnum(source, 'alcoholUse', ALCOHOL_USE_STATUSES, 'NOT_ASSESSED', at, issues),
     wantsToReduceOrStop: readEnum(
       source,
