@@ -179,3 +179,72 @@ describe('signed clinical notes stay where they belong', () => {
     expect(SCHEMA).toContain('model ClinicalNoteAddendum {');
   });
 });
+
+/**
+ * The narrative generator composes note content, so it inherits every rule that governs a note.
+ *
+ * It is the newest way for that text to escape: it reads clinical rows, produces prose, and lives
+ * one import away from modules whose whole job is to send things elsewhere.
+ */
+describe('generated narrative stays inside the clinical-note boundary', () => {
+  const NARRATIVE_DIR = resolve(__dirname, 'narrative');
+  const narrativeModules = sourceFilesUnder(NARRATIVE_DIR).map((file) => file.replace(/\\/g, '/'));
+
+  it('finds the narrative modules to check', () => {
+    expect(narrativeModules.length).toBeGreaterThanOrEqual(3);
+  });
+
+  /*
+    Nothing that ships data outward may import the generator.
+
+    A dashboard tile or a research transform that reached for "the note text we already build"
+    would be a one-line change with no obvious blast radius, which is exactly the kind this test
+    exists to stop.
+  */
+  it('is not imported by sync, research, dashboard, portal or patient chart', () => {
+    const forbidden = ['sync', 'research', 'dashboard', 'patient-portal', 'patient-chart'];
+    for (const area of forbidden) {
+      for (const file of sourceFilesUnder(resolve(API_SRC, area))) {
+        expect(readFileSync(file, 'utf8')).not.toMatch(
+          /narrative\/(hypertension|diabetes)-narrative/,
+        );
+      }
+    }
+  });
+
+  /*
+    The generator itself must not reach for a person's identifiers beyond the name it is handed.
+
+    It is given `patientName` deliberately, as a rendered string, so that adding a date of birth or
+    a patient code to a note is a change somebody has to make on purpose.
+  */
+  it('reads no patient identifier of its own', () => {
+    for (const file of narrativeModules) {
+      const source = readFileSync(file, 'utf8');
+      for (const identifier of ['patientCode', 'nationalId', 'dob', 'phoneE164', 'email']) {
+        expect(source).not.toContain(identifier);
+      }
+    }
+  });
+
+  /*
+    A generated note is still a note: the seed path goes through the ordinary draft writers, so the
+    audit event it produces is the ordinary one, which already carries identifiers and never body
+    text. This asserts the seed method did not grow its own logging.
+  */
+  it('does not log narrative text when seeding a draft', () => {
+    const service = readModule('clinical-notes/clinical-note.service.ts');
+    const seed = /async seedFromInterviews\([\s\S]*?\n {2}\}/.exec(service)?.[0] ?? '';
+    expect(seed).toBeTruthy();
+    expect(seed).not.toMatch(/logWrite|auditEvent\.create/);
+    for (const field of NOTE_CONTENT_FIELDS) {
+      expect(seed).not.toMatch(new RegExp(`afterJson[\\s\\S]{0,200}${field}`));
+    }
+  });
+
+  /* Narrative is composed on demand and never stored anywhere but the note's own columns. */
+  it('adds no narrative column to any model', () => {
+    expect(SCHEMA).not.toMatch(/^\s+narrative\s/m);
+    expect(SCHEMA).not.toMatch(/^\s+generatedNote\s/m);
+  });
+});

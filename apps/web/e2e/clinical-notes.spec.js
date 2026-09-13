@@ -79,3 +79,70 @@ test('doctor authors, signs, amends, and securely loses note access offline', as
   );
   await context.setOffline(false);
 });
+
+/**
+ * The generated draft.
+ *
+ * Composed server-side from the encounter's interviews and written through the ordinary draft
+ * path, so every note invariant still decides whether it lands. The clinician edits and signs it;
+ * nothing here is signed automatically.
+ */
+test('the note can be drafted from the interviews, and regenerating is safe', async ({ page }) => {
+  test.setTimeout(150_000);
+  const encounterId = await createEncounter(page);
+  // The helper continues into the vitals step; land on the encounter itself.
+  await page.goto(`/encounters/${encounterId}`);
+
+  // Record something for the generator to describe.
+  await page.getByRole('tab', { name: 'Hypertension' }).click();
+  await page.getByLabel('Hypertension status').click();
+  await page.getByRole('option', { name: 'Known hypertension', exact: true }).click();
+  await page.getByRole('button', { name: 'Save assessment' }).click();
+  await expect(page.getByText(/saved (and synced|on this device)/i)).toBeVisible();
+
+  await page.getByRole('tab', { name: 'Clinical Note' }).click();
+  await page.getByRole('button', { name: 'Draft from the interviews' }).click();
+
+  await expect(page.getByText(/Draft written from the interviews/i)).toBeVisible();
+  const history = page.getByLabel('History');
+  await expect(history).toContainText('was seen for a hypertension follow-up');
+  await expect(history).toContainText('known hypertension');
+
+  /*
+    Regeneration replaces rather than appends.
+
+    A patient with both conditions has two interviews; appending would duplicate a section every
+    time the button was pressed. Pressing it twice must produce the same note.
+  */
+  const first = await history.inputValue();
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'Draft from the interviews' }).click();
+  await expect(page.getByText(/Draft written from the interviews/i)).toBeVisible();
+  expect(await history.inputValue()).toBe(first);
+
+  // It is a draft, not a signed note: the clinician still reviews and submits.
+  await expect(page.getByRole('button', { name: 'Save draft' })).toBeVisible();
+});
+
+/* Replacing text somebody typed is destructive, so it asks first. */
+test('regenerating over an edited draft asks before discarding it', async ({ page }) => {
+  test.setTimeout(150_000);
+  const encounterId = await createEncounter(page);
+  await page.goto(`/encounters/${encounterId}`);
+
+  await page.getByRole('tab', { name: 'Hypertension' }).click();
+  await page.getByRole('button', { name: 'Save assessment' }).click();
+  await expect(page.getByText(/saved (and synced|on this device)/i)).toBeVisible();
+
+  await page.getByRole('tab', { name: 'Clinical Note' }).click();
+  await page.getByRole('button', { name: 'Start HAP note' }).click();
+  await page.getByLabel('History').fill('Typed by the clinician.');
+
+  page.once('dialog', (dialog) => {
+    expect(dialog.message()).toMatch(/will be lost/i);
+    void dialog.dismiss();
+  });
+  await page.getByRole('button', { name: 'Draft from the interviews' }).click();
+
+  await expect(page.getByLabel('History')).toHaveValue('Typed by the clinician.');
+});

@@ -1,7 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FileCheck2, FilePenLine, LockKeyhole, Plus, Save, Stethoscope } from 'lucide-react';
+import {
+  FileCheck2,
+  FilePenLine,
+  LockKeyhole,
+  Plus,
+  Save,
+  Sparkles,
+  Stethoscope,
+} from 'lucide-react';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch, getErrorMessage, readApiError } from '@/lib/api';
@@ -90,6 +98,55 @@ export function ClinicalNotePanel({
       ),
     [draft, note],
   );
+  /**
+   * Draft the note from this encounter's chronic-disease interviews.
+   *
+   * Generated server-side and written through the ordinary draft path, so authorship, the
+   * DRAFT-only rule and the optimistic version check all still decide whether it lands.
+   *
+   * Confirms before replacing text somebody has already written. The generator regenerates
+   * wholesale rather than appending -- which is what makes pressing it twice safe -- and that is
+   * exactly what makes it destructive to a draft that has been edited.
+   */
+  const seedFromInterviews = useCallback(async () => {
+    if (!getToken || !isOnline) return;
+    const hasWriting = [draft.history, draft.assessment, draft.plan].some(
+      (text) => text.trim().length > 0,
+    );
+    if (
+      hasWriting &&
+      !window.confirm(
+        'This replaces the draft with text generated from the hypertension and diabetes interviews. Anything typed here will be lost. Continue?',
+      )
+    ) {
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const response = await apiFetch(
+        `/clinics/${encodeURIComponent(clinicId)}/encounters/${encodeURIComponent(encounterId)}/clinical-note/seed`,
+        {
+          method: 'POST',
+          body: JSON.stringify(note ? { expectedVersion: note.version } : {}),
+          getToken,
+          activeClinicId: clinicId,
+        },
+      );
+      if (!response.ok) throw await readApiError(response);
+      const saved = (await response.json()) as ClinicalNote;
+      setNote(saved);
+      setDraft({ history: saved.history, assessment: saved.assessment, plan: saved.plan });
+      setSuccess('Draft written from the interviews. Review it before submitting.');
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, 'The draft could not be generated.'));
+    } finally {
+      setBusy(false);
+    }
+  }, [clinicId, encounterId, getToken, isOnline, note, draft]);
+
   const editable = note?.status === 'DRAFT' && note.authorUserId === userId;
   const canCosign =
     isDoctor && note?.status === 'PENDING_COSIGN' && note.assignedDoctor?.id === userId;
@@ -229,15 +286,27 @@ export function ClinicalNotePanel({
           title="No HAP note for this encounter"
           description="Start one canonical History, Assessment, and Plan note for this visit."
         />
-        <Button
-          type="button"
-          onClick={() => void saveDraft()}
-          disabled={busy}
-          className="cursor-pointer"
-        >
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          Start HAP note
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            onClick={() => void saveDraft()}
+            disabled={busy}
+            className="cursor-pointer"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Start HAP note
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void seedFromInterviews()}
+            disabled={busy}
+            className="cursor-pointer"
+          >
+            <Sparkles className="h-4 w-4" aria-hidden="true" />
+            Draft from the interviews
+          </Button>
+        </div>
       </div>
     );
   }
@@ -332,6 +401,16 @@ export function ClinicalNotePanel({
                   >
                     <Save className="h-4 w-4" aria-hidden="true" />
                     Save draft
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => void seedFromInterviews()}
+                    disabled={busy}
+                    className="cursor-pointer"
+                  >
+                    <Sparkles className="h-4 w-4" aria-hidden="true" />
+                    Draft from the interviews
                   </Button>
                   <Button
                     type="button"

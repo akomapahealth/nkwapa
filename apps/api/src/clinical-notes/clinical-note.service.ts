@@ -15,6 +15,11 @@ import {
   UpdateClinicalNoteDraftDto,
 } from './dto/clinical-note.dto';
 import { CLINICAL_NOTE_INCLUDE, ClinicalNoteRepository } from './clinical-note.repository';
+import { PERMISSIONS } from '../auth/constants/permissions';
+import { hasPermissionAtClinic } from '../auth/clinic-roles';
+import { renderHypertensionNarrative } from './narrative/hypertension-narrative';
+import { renderDiabetesNarrative } from './narrative/diabetes-narrative';
+import type { HapSections } from './narrative/narrative-types';
 
 type ClinicalActor = {
   userId: string;
@@ -100,6 +105,126 @@ export class ClinicalNoteService {
       await this.log(note.id, clinicId, actor.userId, 'CLINICAL_NOTE.CREATE', note, metadata);
       return note;
     });
+  }
+
+  /**
+   * Compose the interviews into the HAP draft.
+   *
+   * Goes through `createDraft`/`updateDraft` rather than writing the row itself, so every invariant
+   * still applies: one author, DRAFT only, the optimistic `expectedVersion` check, and the database
+   * triggers that make a submitted body immutable. A generator that wrote the columns directly
+   * would be a second path into a record whose whole design is that there is one.
+   *
+   * Regenerated wholesale rather than appended. A patient with both conditions has two interviews,
+   * and appending would duplicate a section every time a clinician pressed the button; composing
+   * both in a fixed order means pressing it twice produces the same note.
+   *
+   * The clinician plan is included only when the actor may see it, so a volunteer's generated draft
+   * does not contain a block the API would refuse to show them.
+   */
+  async seedFromInterviews(
+    clinicId: string,
+    encounterId: string,
+    actor: ClinicalActor,
+    dto: { expectedVersion?: number },
+    metadata: RequestMetadata = {},
+  ) {
+    this.requireClinicalRole(actor, clinicId);
+
+    const encounter = await this.prisma.encounter.findFirst({
+      where: { id: encounterId, clinicId },
+      select: {
+        patient: { select: { firstName: true, lastName: true } },
+        vitals: { select: { systolicBp: true, diastolicBp: true, pulseBpm: true } },
+        hypertensionAssessment: true,
+        diabetesScreening: true,
+      },
+    });
+    if (!encounter) throw new NotFoundException('Encounter not found');
+
+    const maySeePlan = hasPermissionAtClinic(
+      actor.roles,
+      clinicId,
+      PERMISSIONS.CAREPLAN_CLINICIAN_PLAN,
+    );
+    const patientName = `${encounter.patient.firstName} ${encounter.patient.lastName}`.trim();
+
+    const sections: HapSections[] = [];
+    /*
+      Fixed order: hypertension, then diabetes.
+
+      Not alphabetical and not "whichever exists" -- a note whose sections reorder between renders
+      cannot be diffed by the clinician reviewing it.
+    */
+    if (encounter.hypertensionAssessment) {
+      const record = encounter.hypertensionAssessment;
+      sections.push(
+        renderHypertensionNarrative({
+          patientName,
+          assessment: record as unknown as Record<string, unknown>,
+          vitals: encounter.vitals,
+          clinicianPlan: maySeePlan
+            ? {
+                items: record.clinicianPlanItems,
+                other: record.clinicianPlanOther,
+                bpGoalSystolic: record.bpGoalSystolic,
+                bpGoalDiastolic: record.bpGoalDiastolic,
+                followUpWindow: record.followUpWindow,
+                followUpOther: record.followUpOther,
+                followUpOwner: record.followUpOwner,
+                comments: record.clinicianComments,
+              }
+            : null,
+        }),
+      );
+    }
+    if (encounter.diabetesScreening) {
+      const record = encounter.diabetesScreening;
+      sections.push(
+        renderDiabetesNarrative({
+          patientName,
+          assessment: record as unknown as Record<string, unknown>,
+          vitals: encounter.vitals,
+          clinicianPlan: maySeePlan
+            ? {
+                items: record.clinicianPlanItems,
+                other: record.clinicianPlanOther,
+                followUpWindow: record.followUpWindow,
+                followUpOther: record.followUpOther,
+                followUpOwner: record.followUpOwner,
+                comments: record.clinicianComments,
+              }
+            : null,
+        }),
+      );
+    }
+
+    if (!sections.length) {
+      throw new NotFoundException(
+        'Record a hypertension or diabetes interview before drafting a note.',
+      );
+    }
+
+    const joined = {
+      history: sections.map((part) => part.history).join('\n\n'),
+      assessment: sections.map((part) => part.assessment).join('\n\n'),
+      plan: sections.map((part) => part.plan).join('\n\n'),
+    };
+
+    const existing = await this.prisma.clinicalNote.findFirst({
+      where: { clinicId, encounterId },
+      select: { id: true, version: true },
+    });
+    if (!existing) {
+      return this.createDraft(clinicId, encounterId, actor, joined, metadata);
+    }
+    return this.updateDraft(
+      clinicId,
+      encounterId,
+      actor,
+      { ...joined, expectedVersion: dto.expectedVersion ?? existing.version },
+      metadata,
+    );
   }
 
   async updateDraft(

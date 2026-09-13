@@ -1,4 +1,5 @@
-import { IsInt, IsString, Length, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsInt, IsOptional, IsString, Length, Min } from 'class-validator';
 import {
   CLINICAL_NOTE_ADDENDUM_CONTENT_MAX_LENGTH,
   CLINICAL_NOTE_ADDENDUM_REASON_MAX_LENGTH,
@@ -33,4 +34,19 @@ export class AddClinicalNoteAddendumDto {
   @IsString()
   @Length(1, CLINICAL_NOTE_ADDENDUM_CONTENT_MAX_LENGTH)
   content!: string;
+}
+
+/**
+ * Seeding the draft from the interviews.
+ *
+ * `expectedVersion` is optional only because the first seed creates the note. Once a draft exists
+ * the caller should send the version it last read, so a generator cannot overwrite an edit somebody
+ * made in another session -- the same optimistic check every other draft write uses.
+ */
+export class SeedClinicalNoteDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  expectedVersion?: number;
 }
