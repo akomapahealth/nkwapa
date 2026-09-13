@@ -6,6 +6,7 @@ const webFeatureFlagReaders = {
   medicalHistory: () => process.env.NEXT_PUBLIC_FEATURE_MEDICAL_HISTORY_ENABLED,
   medicationReconciliation: () => process.env.NEXT_PUBLIC_FEATURE_MEDICATION_RECONCILIATION_ENABLED,
   clinicalNotes: () => process.env.NEXT_PUBLIC_FEATURE_CLINICAL_NOTES_ENABLED,
+  guidedChronicTabs: () => process.env.NEXT_PUBLIC_FEATURE_GUIDED_CHRONIC_TABS_ENABLED,
 } as const;
 
 export type WebFeatureFlag = keyof typeof webFeatureFlagReaders;

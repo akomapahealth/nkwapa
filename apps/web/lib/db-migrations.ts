@@ -43,3 +43,47 @@ export function stripStoredNationalIdSecrets(record: object): void {
   delete stored.nationalIdCiphertext;
   delete stored.nationalIdHash;
 }
+
+export interface LegacyHypertensionAssessmentRecord {
+  classification?: string;
+  derivedClassification?: string;
+  classificationOverridden?: boolean;
+  collectedAt?: string;
+  createdAt?: string;
+  hypertensionStatus?: string;
+  currentSymptoms?: string[];
+  urgentReviewRequired?: boolean;
+  urgentReviewReasons?: string[];
+  reviewReasons?: string[];
+  relevantConditions?: string[];
+  contributingSubstances?: string[];
+  medicationReminderStrategies?: string[];
+}
+
+/**
+ * Mutates a cached hypertension row during the Dexie v9 upgrade.
+ *
+ * The stored record predates the guided interview and holds a classification, two booleans and a
+ * note. Every new field gets its unanswered value so the form can tell "not yet asked" from
+ * "answered no" -- without that distinction a rehydrated old record would read as a patient who
+ * denied every symptom.
+ *
+ * The existing classification becomes an override, mirroring the server migration. From this
+ * release the server derives a classification from the encounter's vitals, and a cached row that
+ * did not claim an override would have its clinician-entered finding replaced on the next save.
+ */
+export function migrateLegacyHypertensionAssessment(
+  record: LegacyHypertensionAssessmentRecord,
+): void {
+  record.collectedAt ??= record.createdAt ?? new Date().toISOString();
+  record.derivedClassification ??= record.classification ?? 'UNKNOWN';
+  record.classificationOverridden ??= true;
+  record.hypertensionStatus ??= 'NOT_ASSESSED';
+  record.currentSymptoms ??= [];
+  record.urgentReviewRequired ??= false;
+  record.urgentReviewReasons ??= [];
+  record.reviewReasons ??= [];
+  record.relevantConditions ??= [];
+  record.contributingSubstances ??= [];
+  record.medicationReminderStrategies ??= [];
+}

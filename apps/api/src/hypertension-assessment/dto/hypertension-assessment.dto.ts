@@ -40,17 +40,16 @@ import {
   PregnancyPlanningAnswer,
   ScreeningCompletionStatus,
 } from '@prisma/client';
+import { BP_DIASTOLIC_MAX, BP_DIASTOLIC_MIN, BP_SYSTOLIC_MAX, BP_SYSTOLIC_MIN } from '@nkwapa/db';
 import { ToSanitizedString } from '../../common/validation';
 
 /**
  * Bounds shared with the database CHECK constraints in
- * `20260913090000_expand_hypertension_assessment`. Both layers enforce them, because a boundary
- * that depends on one layer is one refactor from not being a boundary.
+ * `20260913090000_expand_hypertension_assessment` and with the encounter form, which imports the
+ * same constants from `@nkwapa/db`. Every layer enforces them, because a boundary that depends on
+ * one layer is one refactor from not being a boundary.
  */
-export const BP_SYSTOLIC_MIN = 40;
-export const BP_SYSTOLIC_MAX = 300;
-export const BP_DIASTOLIC_MIN = 20;
-export const BP_DIASTOLIC_MAX = 200;
+export { BP_DIASTOLIC_MAX, BP_DIASTOLIC_MIN, BP_SYSTOLIC_MAX, BP_SYSTOLIC_MIN } from '@nkwapa/db';
 export const YEAR_DIAGNOSED_MIN = 1900;
 const SHORT_TEXT = 200;
 

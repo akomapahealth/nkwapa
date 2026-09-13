@@ -24,6 +24,21 @@ export const HYPERTENSION_CLASSIFICATIONS = [
 export type HypertensionClassificationValue = (typeof HYPERTENSION_CLASSIFICATIONS)[number];
 
 /**
+ * Plausible bounds for a recorded reading.
+ *
+ * Shared so the Postgres CHECK constraint, the request DTO and the encounter form all agree about
+ * what counts as a typo. They are wide on purpose: the job is to catch a transposed or mistyped
+ * number, not to second-guess a measurement a clinician actually took.
+ *
+ * (The vitals path still hardcodes the same numbers in its own DTO. Unifying that means touching
+ * the bundle write, which is not this change.)
+ */
+export const BP_SYSTOLIC_MIN = 40;
+export const BP_SYSTOLIC_MAX = 300;
+export const BP_DIASTOLIC_MIN = 20;
+export const BP_DIASTOLIC_MAX = 200;
+
+/**
  * Band edges, as the lowest value that belongs to each band.
  *
  * Written as inclusive lower bounds because that is how the source spec states them, and

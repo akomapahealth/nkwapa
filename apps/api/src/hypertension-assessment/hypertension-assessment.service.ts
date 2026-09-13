@@ -347,6 +347,17 @@ export class HypertensionAssessmentService {
       ...payload,
       collectedAt: payload.collectedAt ?? fallbackCollectedAt,
     };
+    /*
+      Routing information, not record fields.
+      
+      The outbox stores which encounter and clinic a mutation belongs to inside the payload, and
+      the sync handler reads them from there to address the write. The DTO runs with
+      `forbidNonWhitelisted`, so leaving them in rejects the whole mutation -- which is exactly what
+      happened the first time this ran end to end: the local save succeeded, the replay was refused,
+      and the volunteer had no way to tell.
+    */
+    delete candidate.encounterId;
+    delete candidate.clinicId;
     // Derived server-side; a replayed device must not be able to assert them.
     delete candidate.derivedClassification;
     delete candidate.urgentReviewRequired;

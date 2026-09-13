@@ -431,6 +431,22 @@ describe('HypertensionAssessmentService', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
+    /*
+      The outbox addresses a mutation by putting encounterId and clinicId in the payload, and the
+      DTO runs with forbidNonWhitelisted. Leaving them in rejected every offline hypertension write
+      -- the local save succeeded, the replay was refused, and nothing surfaced to the volunteer.
+      Found by running the interview end to end, not by reading the code.
+    */
+    it('ignores the routing fields the outbox stores alongside the record', async () => {
+      const { service } = setup();
+      await expect(
+        service.validateSyncPayload(
+          { ...dto, encounterId: 'encounter-1', clinicId: 'clinic-1' },
+          '2026-09-13T12:00:00.000Z',
+        ),
+      ).resolves.toBeDefined();
+    });
+
     it('strips derived fields so a device cannot assert its own escalation', async () => {
       const { service } = setup();
       const { dto: normalized } = await service.validateSyncPayload(

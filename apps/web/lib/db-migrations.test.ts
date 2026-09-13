@@ -1,5 +1,6 @@
 import {
   migrateLegacyDiabetesScreening,
+  migrateLegacyHypertensionAssessment,
   migrateLegacyPulse,
   stripStoredNationalIdSecrets,
   type LegacyDiabetesScreeningRecord,
@@ -74,5 +75,69 @@ describe('offline national id cleanup', () => {
     const record = { id: 'patient-2', nationalIdLast4: null };
     stripStoredNationalIdSecrets(record);
     expect(record).toEqual({ id: 'patient-2', nationalIdLast4: null });
+  });
+});
+
+describe('migrateLegacyHypertensionAssessment', () => {
+  /*
+    An unanswered question and an answered "no" have to stay distinguishable.
+
+    A cached row from before the interview has none of the new fields. Leaving them undefined would
+    rehydrate as a patient who denied every symptom, and the generated note would say so.
+  */
+  it('fills the new fields with their unanswered values', () => {
+    const record = { classification: 'STAGE1', createdAt: '2026-03-01T09:30:00.000Z' };
+    migrateLegacyHypertensionAssessment(record);
+
+    expect(record).toMatchObject({
+      hypertensionStatus: 'NOT_ASSESSED',
+      currentSymptoms: [],
+      urgentReviewRequired: false,
+      urgentReviewReasons: [],
+      reviewReasons: [],
+    });
+  });
+
+  /*
+    Mirrors the server migration.
+
+    From this release the server derives a classification from the encounter's vitals. A cached row
+    that did not claim an override would have its clinician-entered finding replaced on the next
+    save, silently.
+  */
+  it('treats an existing classification as a clinician override', () => {
+    const record = { classification: 'STAGE1', createdAt: '2026-03-01T09:30:00.000Z' };
+    migrateLegacyHypertensionAssessment(record);
+
+    expect(record).toMatchObject({
+      classification: 'STAGE1',
+      derivedClassification: 'STAGE1',
+      classificationOverridden: true,
+    });
+  });
+
+  it('dates the record from its own creation, not from the upgrade', () => {
+    const record = { createdAt: '2026-03-01T09:30:00.000Z' };
+    migrateLegacyHypertensionAssessment(record);
+    expect(record).toMatchObject({ collectedAt: '2026-03-01T09:30:00.000Z' });
+  });
+
+  it('leaves an already-migrated row alone', () => {
+    const record = {
+      classification: 'NORMAL',
+      derivedClassification: 'STAGE2',
+      classificationOverridden: false,
+      collectedAt: '2026-09-01T00:00:00.000Z',
+      createdAt: '2026-03-01T09:30:00.000Z',
+      currentSymptoms: ['CHEST_PAIN'],
+    };
+    migrateLegacyHypertensionAssessment(record);
+
+    expect(record).toMatchObject({
+      derivedClassification: 'STAGE2',
+      classificationOverridden: false,
+      collectedAt: '2026-09-01T00:00:00.000Z',
+      currentSymptoms: ['CHEST_PAIN'],
+    });
   });
 });
