@@ -22,7 +22,7 @@ describe('evaluateGlucoseSuspicion', () => {
     expect(evaluateGlucoseSuspicion(DM_RANDOM_SUSPICION_MG_DL - 1, 'RANDOM')).toBe('NOT_SUSPECTED');
   });
 
-  it('maps the two provisional contexts onto their nearest approved rule', () => {
+  it('maps the two added contexts onto their nearest previously approved rule', () => {
     expect(evaluateGlucoseSuspicion(126, 'BEFORE_MEAL')).toBe('SUSPECTED');
     expect(evaluateGlucoseSuspicion(125, 'BEFORE_MEAL')).toBe('NOT_SUSPECTED');
     expect(evaluateGlucoseSuspicion(200, 'POST_PRANDIAL_2H')).toBe('SUSPECTED');

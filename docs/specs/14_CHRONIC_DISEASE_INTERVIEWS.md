@@ -166,24 +166,29 @@ The specification's "Reviewed by / Date and time" trailer is deliberately not ge
 `ClinicalNote` records the cosigner and time in columns and hashes the signed body; a name written
 into the text is a second copy that can disagree with the columns attesting it.
 
-## Thresholds awaiting clinical sign-off
+## Thresholds, and who approved them
 
-Five clinical decisions — seven constants, since two are systolic/diastolic pairs — are marked
-`PROVISIONAL` in four places in code, and **must be ratified by Akomapa's medical director before
-clinical use**. They are named constants rather than inline numbers so correcting one is a
-reviewable single-line change.
+Five clinical decisions — seven constants, since two are systolic/diastolic pairs — had no number
+written down anywhere in this repository. They were implemented as named constants, marked
+provisional, and put to Akomapa's president, who holds clinical authority for the programme; there
+is no separate medical director role. **All five were approved as proposed on 2026-09-13.** They
+stay named rather than inlined so a later correction is a reviewable single-line change.
 
-| Constant                                 | Provisional value | Why it is not settled                                                                                                                                                                                        |
-| ---------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `BP_ESCALATION_SYSTOLIC` / `_DIASTOLIC`  | 180 / 120         | The specification asks for "Akomapa's locally approved escalation protocol". No such protocol exists in this repository; what is written down is an ACC/AHA _staging_ scheme, which is a different decision. |
-| `BP_HYPOTENSION_SYSTOLIC` / `_DIASTOLIC` | 90 / 60           | "Low BP or dizziness" is a listed review reason with no stated threshold.                                                                                                                                    |
-| `DM_BEFORE_MEAL_SUSPICION_MG_DL`         | 126               | The interview adds a pre-meal timing; no threshold is documented for it. Mapped to the approved fasting rule.                                                                                                |
-| `DM_POST_PRANDIAL_2H_SUSPICION_MG_DL`    | 200               | Same, mapped to the approved random rule.                                                                                                                                                                    |
-| `DM_HYPOGLYCEMIA_MG_DL`                  | 70                | Hypoglycemia drives escalation but no value is stated.                                                                                                                                                       |
+| Constant                                 | Approved value | What it decides                                                                                                                                                                              |
+| ---------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BP_ESCALATION_SYSTOLIC` / `_DIASTOLIC`  | 180 / 120      | The visit stops and a clinician looks now. The specification asked for "Akomapa's locally approved escalation protocol", which did not exist; the crisis edge was put forward and confirmed. |
+| `BP_HYPOTENSION_SYSTOLIC` / `_DIASTOLIC` | 90 / 60        | "Low BP or dizziness" becomes a review reason. Listed in the specification with no threshold.                                                                                                |
+| `DM_BEFORE_MEAL_SUSPICION_MG_DL`         | 126            | A pre-meal glucose counts as suspicious. The interview added the timing; mapped onto the approved fasting rule.                                                                              |
+| `DM_POST_PRANDIAL_2H_SUSPICION_MG_DL`    | 200            | Same for a two-hour post-prandial reading, mapped onto the approved random rule.                                                                                                             |
+| `DM_HYPOGLYCEMIA_MG_DL`                  | 70             | Hypoglycemia escalates for urgent review.                                                                                                                                                    |
 
-The approved rules — fasting ≥ 126, random ≥ 200, and the ACC/AHA staging bands — are implemented
-as written. Crisis is evaluated before stage 2 because the bands overlap; a test pins that, since
-ascending evaluation would classify a hypertensive emergency as stage 2.
+The rules that were already approved — fasting ≥ 126, random ≥ 200, and the ACC/AHA staging bands
+— are implemented as written and were not part of this decision. Crisis is evaluated before stage 2
+because the bands overlap; a test pins that, since ascending evaluation would classify a
+hypertensive emergency as stage 2.
+
+Escalation is deliberately not folded into classification. Classification says what a reading is;
+escalation says the visit must stop. A later change to one must not silently move the other.
 
 ## Access and lifecycle
 
@@ -239,17 +244,16 @@ anything. Migrations are additive and no existing column was dropped.
 
 Before clinical enablement:
 
-1. Ratify the provisional thresholds above with the medical director and correct them.
-2. Deploy both migrations and verify the backfills against PostgreSQL: a pre-interview
+1. Deploy both migrations and verify the backfills against PostgreSQL: a pre-interview
    classification survives and is marked `classificationOverridden`, `collectedAt` takes the
    record's own creation time rather than the deploy clock, and an existing glucose reading gains a
    suspicion result only where an approved rule applies.
-3. Verify the role matrix, the clinician-plan refusal for every non-doctor role, and that the sync
+2. Verify the role matrix, the clinician-plan refusal for every non-doctor role, and that the sync
    pull omits every clinician-plan column.
-4. Set `NEXT_PUBLIC_FEATURE_GUIDED_CHRONIC_TABS_ENABLED=true` where the web app is built — the
+3. Set `NEXT_PUBLIC_FEATURE_GUIDED_CHRONIC_TABS_ENABLED=true` where the web app is built — the
    hosting project's environment for a deployed environment, `.env` locally — and rebuild. A
    restart does not pick it up.
-5. Validate at a real clinic session before removing the old tabs.
+4. Validate at a real clinic session before removing the old tabs.
 
 ## Release-gate evidence
 

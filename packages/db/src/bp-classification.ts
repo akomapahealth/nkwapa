@@ -113,13 +113,14 @@ export function shouldPromptRepeat(
 }
 
 /**
- * PROVISIONAL -- awaiting sign-off from Akomapa's medical director.
+ * Approved 2026-09-13 by Akomapa's president, who holds clinical authority for the programme.
+ * There is no separate medical director role; see 14_CHRONIC_DISEASE_INTERVIEWS.md.
  *
  * The clinical specification asks Nkwapa to "flag severely elevated BP according to Akomapa's
- * locally approved escalation protocol". No such protocol exists in this repository. Rather than
- * invent one and have it look authoritative, these constants sit at the crisis edge -- the most
- * defensible reading of the only numbers that are written down -- and are named so that changing
- * them is a one-line, reviewable decision rather than an archaeology exercise.
+ * locally approved escalation protocol", and no such protocol was written down anywhere. These
+ * constants sit at the crisis edge -- the most defensible reading of the only numbers that were --
+ * and that reading is what was put to the president and confirmed. They stay named so a later
+ * correction is a one-line, reviewable decision rather than an archaeology exercise.
  *
  * Do not fold these back into `classifyBloodPressure`. Classification says what a reading is;
  * escalation says the visit must stop and a clinician must look now. Collapsing them means a later
@@ -138,9 +139,9 @@ export function isSeverelyElevated(
 }
 
 /**
- * PROVISIONAL -- awaiting the same sign-off.
+ * Approved 2026-09-13, with the above.
  *
- * "Low BP or dizziness" is one of the specified reasons for clinician review, but no threshold is
+ * "Low BP or dizziness" is one of the specified reasons for clinician review, and no threshold was
  * given. 90/60 is the conventional screening cut-off. It is stated here rather than left implicit
  * in a form so that a clinician can correct one number.
  */

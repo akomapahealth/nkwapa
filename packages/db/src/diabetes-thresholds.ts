@@ -31,25 +31,25 @@ export const DM_FASTING_SUSPICION_MG_DL = 126;
 export const DM_RANDOM_SUSPICION_MG_DL = 200;
 
 /**
- * PROVISIONAL -- awaiting sign-off from Akomapa's medical director.
+ * Approved 2026-09-13 by Akomapa's president, who holds clinical authority for the programme.
+ * There is no separate medical director role; see 14_CHRONIC_DISEASE_INTERVIEWS.md.
  *
  * The interview adds "before meal" and "within 2 hours after a meal" as measurement contexts, and
- * no threshold is written down for either. These map each new context onto the nearest approved
+ * no threshold was written down for either. These map each new context onto the nearest approved
  * one: a pre-meal reading is physiologically closest to fasting, a two-hour post-prandial reading
- * closest to random.
+ * closest to random. That mapping is what was confirmed.
  *
- * They are separate named constants rather than a reuse of the approved two so that ratifying or
- * correcting them is a visible edit. Collapsing them into the approved constants would make a
- * provisional number indistinguishable from an approved one.
+ * They remain separate named constants rather than a reuse of the approved two, so that a later
+ * correction to a post-meal rule cannot silently move the random-glucose rule with it.
  */
 export const DM_BEFORE_MEAL_SUSPICION_MG_DL = DM_FASTING_SUSPICION_MG_DL;
 export const DM_POST_PRANDIAL_2H_SUSPICION_MG_DL = DM_RANDOM_SUSPICION_MG_DL;
 
 /**
- * PROVISIONAL -- awaiting the same sign-off.
+ * Approved 2026-09-13, with the above.
  *
  * The interview asks about hypoglycemia symptoms and lists "Low glucose" as a presenting concern,
- * but states no value. 70 mg/dL is the conventional cut-off.
+ * and stated no value. 70 mg/dL is the conventional cut-off.
  */
 export const DM_HYPOGLYCEMIA_MG_DL = 70;
 
