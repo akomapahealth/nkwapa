@@ -16,6 +16,12 @@ export interface KeycloakAdminConfig {
   clientId: string;
   clientSecret: string | null;
   /**
+   * The browser-facing client an action-token redirect is validated against. Keycloak
+   * checks the redirect URI against this client's allowlist, so it must be the one the web
+   * app signs in with, not the service account.
+   */
+  publicClientId: string;
+  /**
    * Provisioning runs inside the request's transaction, which Postgres holds open for the
    * duration. The timeout is therefore a lock-contention budget as much as a network one.
    */
@@ -24,6 +30,7 @@ export interface KeycloakAdminConfig {
 
 const DEFAULT_REALM = 'nkwapa';
 const DEFAULT_CLIENT_ID = 'nkwapa-api';
+const DEFAULT_PUBLIC_CLIENT_ID = 'nkwapa-web';
 const DEFAULT_TIMEOUT_MS = 5_000;
 const MIN_TIMEOUT_MS = 1_000;
 const MAX_TIMEOUT_MS = 30_000;
@@ -72,6 +79,8 @@ export function resolveKeycloakAdminConfig(
   const clientSecret = read(env, 'KEYCLOAK_ADMIN_CLIENT_SECRET');
   const realm = read(env, 'KEYCLOAK_REALM') ?? DEFAULT_REALM;
   const clientId = read(env, 'KEYCLOAK_ADMIN_CLIENT_ID') ?? DEFAULT_CLIENT_ID;
+  const publicClientId =
+    read(env, 'KEYCLOAK_CLIENT_ID') ?? read(env, 'KEYCLOAK_AUDIENCE') ?? DEFAULT_PUBLIC_CLIENT_ID;
   const timeoutMs = resolveTimeoutMs(env);
 
   const missing: string[] = [];
@@ -86,11 +95,21 @@ export function resolveKeycloakAdminConfig(
       realm,
       clientId,
       clientSecret,
+      publicClientId,
       timeoutMs,
     };
   }
 
-  return { readiness: 'ready', missing: [], baseUrl, realm, clientId, clientSecret, timeoutMs };
+  return {
+    readiness: 'ready',
+    missing: [],
+    baseUrl,
+    realm,
+    clientId,
+    clientSecret,
+    publicClientId,
+    timeoutMs,
+  };
 }
 
 /** The operator-facing sentence, or null when nothing is wrong. */

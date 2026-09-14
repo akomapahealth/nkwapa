@@ -17,6 +17,32 @@ describe('resolveKeycloakAdminConfig', () => {
     expect(config.baseUrl).toBe('http://localhost:8080');
     expect(config.realm).toBe('nkwapa');
     expect(config.clientId).toBe('nkwapa-api');
+    expect(config.publicClientId).toBe('nkwapa-web');
+  });
+
+  /*
+    The redirect a patient comes back on is validated against the browser-facing client's
+    allowlist, not the service account's. Getting this wrong fails at the very end of the
+    journey, after the patient has already chosen a password.
+  */
+  it('takes the redirect-validating client from the browser client, not the service account', () => {
+    const config = resolveKeycloakAdminConfig({
+      ...ready,
+      KEYCLOAK_CLIENT_ID: 'nkwapa-web-staging',
+      KEYCLOAK_ADMIN_CLIENT_ID: 'nkwapa-api',
+    } as NodeJS.ProcessEnv);
+
+    expect(config.publicClientId).toBe('nkwapa-web-staging');
+    expect(config.clientId).toBe('nkwapa-api');
+  });
+
+  it('falls back to the audience, which staging and production already set', () => {
+    const config = resolveKeycloakAdminConfig({
+      ...ready,
+      KEYCLOAK_AUDIENCE: 'nkwapa-web',
+    } as NodeJS.ProcessEnv);
+
+    expect(config.publicClientId).toBe('nkwapa-web');
   });
 
   it('names the missing variables rather than throwing, so the API still boots', () => {

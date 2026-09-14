@@ -1,5 +1,9 @@
 import {
   DEFAULT_PORTAL_INVITE_TTL_DAYS,
+  PORTAL_CLAIM_PATH,
+  buildPortalClaimRedirectUri,
+  buildPortalClaimUrl,
+  resolveIdentityActionLifespanSeconds,
   claimableInviteForIdentityWhere,
   claimableInviteWhere,
   effectivePortalInviteStatus,
@@ -149,5 +153,65 @@ describe('claimableInviteForIdentityWhere', () => {
   // with no contact details would otherwise be handed every invite in the deployment.
   it('refuses to build a filter for someone with no contact details', () => {
     expect(claimableInviteForIdentityWhere({}, NOW)).toBeNull();
+  });
+});
+
+describe('claim URLs', () => {
+  it('points the invite email at the claim route', () => {
+    expect(buildPortalClaimUrl('https://app.nkwapa.app')).toBe(
+      'https://app.nkwapa.app/claim-record',
+    );
+  });
+
+  /*
+    The redirect carries continue=1 while the invite link does not, and the difference
+    matters. Silent check-sso runs in an iframe and is blocked by the third-party cookie
+    defaults in Safari and Firefox, so a patient returning from Keycloak with a live session
+    still reads as signed out. The marker is what tells the app to redirect at the top level
+    instead of waiting for a click the patient has no reason to expect.
+  */
+  it('marks the return from Keycloak so sign-in can continue without a click', () => {
+    expect(buildPortalClaimRedirectUri('https://app.nkwapa.app')).toBe(
+      'https://app.nkwapa.app/claim-record?continue=1',
+    );
+  });
+
+  it('keeps both on the same route, so only the marker differs', () => {
+    const origin = 'https://app.nkwapa.app';
+    expect(buildPortalClaimRedirectUri(origin).startsWith(buildPortalClaimUrl(origin))).toBe(true);
+    expect(PORTAL_CLAIM_PATH).toBe('/claim-record');
+  });
+});
+
+describe('resolveIdentityActionLifespanSeconds', () => {
+  const now = new Date('2026-09-02T12:00:00.000Z');
+  const inDays = (days: number) => new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+
+  /*
+    The account-setup link and the invitation have to die together. Outlive the invite and a
+    patient can choose a password and then be refused at the claim step, which reads as a
+    broken product rather than an expired invitation.
+  */
+  it('lives exactly as long as the invitation it belongs to', () => {
+    expect(resolveIdentityActionLifespanSeconds(inDays(14), now)).toBe(14 * 24 * 60 * 60);
+    expect(resolveIdentityActionLifespanSeconds(inDays(7), now)).toBe(7 * 24 * 60 * 60);
+  });
+
+  it('falls back to the deployment default for a legacy invite with no expiry', () => {
+    expect(resolveIdentityActionLifespanSeconds(null, now)).toBe(
+      DEFAULT_PORTAL_INVITE_TTL_DAYS * 24 * 60 * 60,
+    );
+  });
+
+  // Minting a link that is already useless helps nobody; an hour is enough to act on.
+  it('never mints a link shorter than an hour', () => {
+    expect(resolveIdentityActionLifespanSeconds(inDays(-5), now)).toBe(60 * 60);
+    expect(resolveIdentityActionLifespanSeconds(new Date(now.getTime() + 60_000), now)).toBe(
+      60 * 60,
+    );
+  });
+
+  it('caps at the longest invite the deployment can issue', () => {
+    expect(resolveIdentityActionLifespanSeconds(inDays(365), now)).toBe(90 * 24 * 60 * 60);
   });
 });

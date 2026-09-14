@@ -1,4 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import type { KeycloakAdminConfig } from './keycloak-admin.config';
+import { KEYCLOAK_ADMIN_CONFIG } from './keycloak-admin.token';
 import {
   KeycloakAdminClient,
   KeycloakAdminError,
@@ -24,8 +26,6 @@ export interface ProvisionPortalIdentityInput {
   lastName?: string | null;
   /** Where Keycloak returns the patient once setup is complete. */
   claimRedirectUri: string;
-  /** The public client the redirect is validated against. */
-  publicClientId: string;
   /** Tied to the invite's own expiry, so link and invitation die together. */
   lifespanSeconds: number;
 }
@@ -42,7 +42,10 @@ export interface ProvisionPortalIdentityResult {
 export class KeycloakAdminService {
   private readonly logger = new Logger(KeycloakAdminService.name);
 
-  constructor(private readonly client: KeycloakAdminClient) {}
+  constructor(
+    private readonly client: KeycloakAdminClient,
+    @Inject(KEYCLOAK_ADMIN_CONFIG) private readonly config: KeycloakAdminConfig,
+  ) {}
 
   get isReady(): boolean {
     return this.client.isReady;
@@ -125,7 +128,7 @@ export class KeycloakAdminService {
       userId,
       actions,
       redirectUri: input.claimRedirectUri,
-      clientId: input.publicClientId,
+      clientId: this.config.publicClientId,
       lifespanSeconds: input.lifespanSeconds,
     });
   }

@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ReminderService } from '../reminders/reminder.service';
 import { EmailDeliverabilityService } from '../common/email-policy';
+import { keycloakAdminServiceProvider } from '../testing/keycloak-admin-fixtures';
 import {
   APPOINTMENT_REQUEST_STATUSES,
   APPOINTMENT_REQUEST_TRANSITIONS,
@@ -79,6 +80,7 @@ describe('appointment lifecycle', () => {
           provide: EmailDeliverabilityService,
           useValue: collaborators.emailDeliverabilityService,
         },
+        keycloakAdminServiceProvider(),
       ],
     }).compile();
 

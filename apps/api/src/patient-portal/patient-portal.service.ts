@@ -14,6 +14,7 @@ import {
   PatientMeasurementSource,
   PatientMeasurementType,
   PatientSelfReportType,
+  PortalInviteIdentityStatus,
   Prisma,
   UserRole,
 } from '@prisma/client';
@@ -48,11 +49,16 @@ import {
 import { resolveAppPublicUrl } from '../notifications/email/email-config';
 import type { ClaimPatientRecordDto } from './dto/claim-record.dto';
 import {
+  buildPortalClaimRedirectUri,
+  buildPortalClaimUrl,
   claimableInviteForIdentityWhere,
   claimableInviteWhere,
   isPortalInviteExpired,
+  resolveIdentityActionLifespanSeconds,
   resolvePortalInviteExpiry,
 } from '../common/portal-invite-lifecycle';
+import { KeycloakAdminService } from '../keycloak/keycloak-admin.service';
+import type { ProvisionPortalIdentityResult } from '../keycloak/keycloak-admin.service';
 import { describeInviteStateForStaff, formatInviteExpiryDate } from './portal-invite-presentation';
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -195,6 +201,19 @@ export interface PatientTrendsResponse {
   followUp: FollowUpSummary;
 }
 
+/**
+ * What provisioning left on the invite, carried back to the caller.
+ *
+ * Returned rather than re-read: the update above has already written these, and a second
+ * read inside the request's transaction only adds a round trip to say the same thing.
+ */
+interface PortalInviteIdentityFields {
+  identityStatus: PortalInviteIdentityStatus;
+  keycloakUserId?: string | null;
+  identityProvisionedAt?: Date | null;
+  identityFailureReason?: string | null;
+}
+
 @Injectable()
 export class PatientPortalService {
   constructor(
@@ -202,6 +221,7 @@ export class PatientPortalService {
     private readonly auditService: AuditService,
     private readonly reminderService: ReminderService,
     private readonly emailDeliverabilityService: EmailDeliverabilityService,
+    private readonly keycloakAdminService: KeycloakAdminService,
   ) {}
 
   async getMe(clinicId: string, userId: string) {
@@ -1366,9 +1386,11 @@ export class PatientPortalService {
       requestId,
     });
 
+    // Before the email, so the message never arrives ahead of the account it describes.
+    const identity = await this.provisionInviteIdentity(invite, actorUserId, requestId);
     const delivery = await this.sendPortalInviteEmail(invite, actorUserId, false, requestId);
 
-    return this.serializePortalInvite(invite, delivery);
+    return this.serializePortalInvite({ ...invite, ...identity }, delivery);
   }
 
   /**
@@ -1422,9 +1444,126 @@ export class PatientPortalService {
       requestId,
     });
 
+    // Idempotent by construction: provisioning reads Keycloak's own state, so a resend
+    // re-sends only what is still outstanding and never resets a chosen password.
+    const identity = await this.provisionInviteIdentity(invite, actorUserId, requestId);
     const delivery = await this.sendPortalInviteEmail(invite, actorUserId, true, requestId);
 
-    return this.serializePortalInvite(invite, delivery);
+    return this.serializePortalInvite({ ...invite, ...identity }, delivery);
+  }
+
+  /**
+   * Make sure the invited address can actually sign in, and record what happened.
+   *
+   * This is the step that closes the gap the whole feature exists for. Before it, an invite
+   * told a patient to "create an account using this email address" against a realm with
+   * registration disabled -- a dead end that staff worked around by building identities in
+   * Keycloak by hand.
+   *
+   * Three things are deliberately true here.
+   *
+   * It never throws. A clinic must be able to invite a patient while Keycloak is unreachable
+   * or unconfigured; the invitation still exists, the chart says the account could not be
+   * created, and a resend finishes the job. Refusing the invite instead would put a Keycloak
+   * outage directly in the way of clinic work.
+   *
+   * It runs after the invite row exists, on the success path. Writes made on a refusal path
+   * are rolled back by the exception that accompanies them, because the RLS interceptor wraps
+   * the request in one interactive transaction -- the same trap documented on the resend
+   * refusals below.
+   *
+   * The action link is tied to the invitation's own expiry, so the two die together rather
+   * than leaving a patient able to set a password and then be refused at the claim step.
+   */
+  private async provisionInviteIdentity(
+    invite: {
+      id: string;
+      clinicId: string;
+      patientId: string;
+      email: string | null;
+      expiresAt: Date | null;
+    },
+    actorUserId: string,
+    requestId?: string,
+  ): Promise<PortalInviteIdentityFields> {
+    if (!invite.email) {
+      // Phone-only invites have no address to provision against. Not a failure.
+      return { identityStatus: 'NOT_REQUESTED' };
+    }
+
+    const appPublicUrl = resolveAppPublicUrl();
+    if (!appPublicUrl) {
+      // Keycloak must be told where to send the patient back to, and there is no honest
+      // guess available. Same reasoning as the null claimUrl in the invite template.
+      return this.recordInviteIdentity(
+        invite,
+        actorUserId,
+        {
+          outcome: 'SKIPPED',
+          keycloakUserId: null,
+          actionsSent: [],
+          failureReason: 'APP_PUBLIC_URL_UNSET',
+        },
+        requestId,
+      );
+    }
+
+    const patient = await this.prisma.patient.findUnique({
+      where: { id: invite.patientId },
+      select: { firstName: true, lastName: true },
+    });
+
+    const result = await this.keycloakAdminService.provisionPortalIdentity({
+      email: invite.email,
+      firstName: patient?.firstName ?? null,
+      lastName: patient?.lastName ?? null,
+      claimRedirectUri: buildPortalClaimRedirectUri(appPublicUrl),
+      lifespanSeconds: resolveIdentityActionLifespanSeconds(invite.expiresAt, new Date()),
+    });
+
+    return this.recordInviteIdentity(invite, actorUserId, result, requestId);
+  }
+
+  private async recordInviteIdentity(
+    invite: { id: string; clinicId: string },
+    actorUserId: string,
+    result: ProvisionPortalIdentityResult,
+    requestId?: string,
+  ): Promise<PortalInviteIdentityFields> {
+    const identityProvisionedAt = new Date();
+    await this.prisma.patientPortalInvite.update({
+      where: { id: invite.id },
+      data: {
+        identityStatus: result.outcome,
+        keycloakUserId: result.keycloakUserId,
+        identityProvisionedAt,
+        identityFailureReason: result.failureReason,
+      },
+    });
+
+    await this.auditService.logWrite({
+      clinicId: invite.clinicId,
+      actorUserId,
+      action: 'PATIENT.PORTAL.INVITE.IDENTITY',
+      entityType: 'PatientPortalInvite',
+      entityId: invite.id,
+      // Codes and the Keycloak id only. The address being provisioned is already on the
+      // invite row, and repeating it here would spread it through the audit trail.
+      afterJson: JSON.stringify({
+        outcome: result.outcome,
+        actionsSent: result.actionsSent,
+        failureReason: result.failureReason,
+        keycloakUserId: result.keycloakUserId,
+      }),
+      requestId,
+    });
+
+    return {
+      identityStatus: result.outcome,
+      keycloakUserId: result.keycloakUserId,
+      identityProvisionedAt,
+      identityFailureReason: result.failureReason,
+    };
   }
 
   private async sendPortalInviteEmail(
@@ -1469,7 +1608,7 @@ export class PatientPortalService {
         timezone: clinic?.timezone ?? undefined,
         patientCode: patient?.patientCode ?? null,
         patientFirstName: patient?.firstName ?? null,
-        claimUrl: appPublicUrl ? `${appPublicUrl}/claim-record` : null,
+        claimUrl: appPublicUrl ? buildPortalClaimUrl(appPublicUrl) : null,
         expiresAt: invite.expiresAt?.toISOString() ?? null,
         resend,
       },
@@ -2739,6 +2878,10 @@ export class PatientPortalService {
       expiresAt?: Date | null;
       createdAt: Date;
       updatedAt?: Date;
+      identityStatus?: PortalInviteIdentityStatus | null;
+      keycloakUserId?: string | null;
+      identityProvisionedAt?: Date | null;
+      identityFailureReason?: string | null;
     },
     delivery?: {
       status: string;
@@ -2760,6 +2903,19 @@ export class PatientPortalService {
       expiresAt: invite.expiresAt?.toISOString() ?? null,
       createdAt: invite.createdAt.toISOString(),
       updatedAt: invite.updatedAt?.toISOString() ?? null,
+      /*
+        Whether there is an account behind this invitation.
+
+        Deliberately separate from emailDelivery. A delivered invite pointing at an identity
+        that was never created is the exact failure this feature was built to remove, and
+        collapsing the two would hide it again. keycloakUserId is omitted: it is support
+        data, and the browser has no use for it.
+      */
+      identity: {
+        status: invite.identityStatus ?? 'NOT_REQUESTED',
+        provisionedAt: invite.identityProvisionedAt?.toISOString() ?? null,
+        failureReason: invite.identityFailureReason ?? null,
+      },
       // Null when nothing was sent: either the invite is phone-only, or this response
       // predates a send. Staff need the difference between "not sent" and "failed".
       emailDelivery: delivery

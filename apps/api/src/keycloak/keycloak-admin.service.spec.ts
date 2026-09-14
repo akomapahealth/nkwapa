@@ -1,13 +1,24 @@
 import { Logger } from '@nestjs/common';
 import { KeycloakAdminClient, KeycloakAdminError } from './keycloak-admin.client';
+import type { KeycloakAdminConfig } from './keycloak-admin.config';
 import { KeycloakAdminService } from './keycloak-admin.service';
+
+const CONFIG = {
+  readiness: 'ready',
+  missing: [],
+  baseUrl: 'http://keycloak.test',
+  realm: 'nkwapa',
+  clientId: 'nkwapa-api',
+  clientSecret: 'secret',
+  publicClientId: 'nkwapa-web',
+  timeoutMs: 5_000,
+} satisfies KeycloakAdminConfig;
 
 const INPUT = {
   email: 'patient@nkwapa.local',
   firstName: 'Ama',
   lastName: 'Mensah',
   claimRedirectUri: 'http://localhost:3000/claim-record?continue=1',
-  publicClientId: 'nkwapa-web',
   lifespanSeconds: 604_800,
 };
 
@@ -31,7 +42,7 @@ function createClient(overrides: Partial<ClientMock> = {}): ClientMock {
 }
 
 function service(client: ClientMock): KeycloakAdminService {
-  return new KeycloakAdminService(client as unknown as KeycloakAdminClient);
+  return new KeycloakAdminService(client as unknown as KeycloakAdminClient, CONFIG);
 }
 
 describe('KeycloakAdminService.provisionPortalIdentity', () => {

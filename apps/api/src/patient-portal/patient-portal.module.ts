@@ -4,6 +4,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
 import { AuditModule } from '../audit/audit.module';
 import { ReminderModule } from '../reminders/reminder.module';
+import { KeycloakModule } from '../keycloak/keycloak.module';
 import { EmailDeliverabilityService } from '../common/email-policy';
 import { PatientPortalController } from './patient-portal.controller';
 import { PatientApiController } from './patient-api.controller';
@@ -23,6 +24,7 @@ import {
     forwardRef(() => AuthModule),
     AuditModule,
     ReminderModule,
+    KeycloakModule,
     BullModule.registerQueue({ name: PORTAL_INVITE_MAINTENANCE_QUEUE }),
   ],
   controllers: [

@@ -11,6 +11,7 @@ const readyConfig: KeycloakAdminConfig = {
   realm: 'nkwapa',
   clientId: 'nkwapa-api',
   clientSecret: SECRET,
+  publicClientId: 'nkwapa-web',
   timeoutMs: 5_000,
 };
 

@@ -7,6 +7,11 @@ import { AuditService } from '../audit/audit.service';
 import { ReminderService } from '../reminders/reminder.service';
 import { EmailDeliverabilityService } from '../common/email-policy';
 import {
+  createKeycloakAdminServiceMock,
+  keycloakAdminServiceProvider,
+  type KeycloakAdminServiceMock,
+} from '../testing/keycloak-admin-fixtures';
+import {
   appointmentFixture,
   createAppointmentPrismaMock,
   portalPatientFixture as portalPatient,
@@ -22,6 +27,7 @@ describe('PatientPortalService', () => {
   let prisma: ReturnType<typeof createAppointmentPrismaMock>;
   let auditService: { logWrite: jest.Mock };
   let emailDeliverabilityService: { assertDomainAcceptsEmail: jest.Mock };
+  let keycloakAdminService: KeycloakAdminServiceMock;
   let reminderService: {
     scheduleAppointmentReminder: jest.Mock;
     scheduleAppointmentEmailReminder: jest.Mock;
@@ -36,6 +42,7 @@ describe('PatientPortalService', () => {
     emailDeliverabilityService = {
       assertDomainAcceptsEmail: jest.fn().mockResolvedValue(undefined),
     };
+    keycloakAdminService = createKeycloakAdminServiceMock();
     reminderService = {
       scheduleAppointmentReminder: jest.fn().mockResolvedValue(undefined),
       scheduleAppointmentEmailReminder: jest.fn().mockResolvedValue(undefined),
@@ -121,6 +128,7 @@ describe('PatientPortalService', () => {
         { provide: AuditService, useValue: auditService },
         { provide: ReminderService, useValue: reminderService },
         { provide: EmailDeliverabilityService, useValue: emailDeliverabilityService },
+        keycloakAdminServiceProvider(keycloakAdminService),
       ],
     }).compile();
 
@@ -1358,6 +1366,277 @@ describe('PatientPortalService', () => {
 
     afterEach(() => {
       jest.useRealTimers();
+    });
+
+    /*
+      Provisioning the Keycloak identity behind an invitation.
+
+      This is the step that makes the invite email true. Before it, the message told a
+      patient to "create an account using this email address" against a realm with
+      registration disabled, and staff closed the gap by building identities by hand.
+    */
+    describe('identity provisioning', () => {
+      const originalAppPublicUrl = process.env.APP_PUBLIC_URL;
+
+      beforeEach(() => {
+        process.env.APP_PUBLIC_URL = 'https://app.nkwapa.app';
+        prisma.patient.findUnique.mockResolvedValue({ firstName: 'Ama', lastName: 'Mensah' });
+        prisma.patientPortalInvite.update.mockImplementation(
+          async ({ data }: { data: Record<string, unknown> }) => ({ ...buildInvite(), ...data }),
+        );
+      });
+
+      afterEach(() => {
+        if (originalAppPublicUrl === undefined) {
+          delete process.env.APP_PUBLIC_URL;
+        } else {
+          process.env.APP_PUBLIC_URL = originalAppPublicUrl;
+        }
+      });
+
+      it('creates the account before the email that describes it goes out', async () => {
+        await service.createPortalInvite(
+          'clinic-1',
+          'patient-1',
+          { email: 'ama@example.com' },
+          'manager-1',
+          'req-1',
+        );
+
+        expect(keycloakAdminService.provisionPortalIdentity).toHaveBeenCalledWith({
+          email: 'ama@example.com',
+          firstName: 'Ama',
+          lastName: 'Mensah',
+          claimRedirectUri: 'https://app.nkwapa.app/claim-record?continue=1',
+          lifespanSeconds: 14 * 24 * 60 * 60,
+        });
+
+        const provisionOrder =
+          keycloakAdminService.provisionPortalIdentity.mock.invocationCallOrder[0];
+        const emailOrder = reminderService.sendNotificationNow.mock.invocationCallOrder[0];
+        expect(provisionOrder).toBeLessThan(emailOrder);
+      });
+
+      it('records the outcome on the invite so the chart can show it later', async () => {
+        await service.createPortalInvite(
+          'clinic-1',
+          'patient-1',
+          { email: 'ama@example.com' },
+          'manager-1',
+          'req-1',
+        );
+
+        expect(prisma.patientPortalInvite.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              identityStatus: 'PROVISIONED',
+              keycloakUserId: 'kc-provisioned-1',
+              identityFailureReason: null,
+            }),
+          }),
+        );
+      });
+
+      it('returns the identity state beside the delivery state, not folded into it', async () => {
+        const result = await service.createPortalInvite(
+          'clinic-1',
+          'patient-1',
+          { email: 'ama@example.com' },
+          'manager-1',
+          'req-1',
+        );
+
+        expect(result.identity).toMatchObject({
+          status: 'PROVISIONED',
+          failureReason: null,
+        });
+        // Support data. The browser has no use for it and it should not be shipped there.
+        expect(result).not.toHaveProperty('keycloakUserId');
+      });
+
+      it('audits the outcome as codes, never as the address provisioned', async () => {
+        await service.createPortalInvite(
+          'clinic-1',
+          'patient-1',
+          { email: 'ama@example.com' },
+          'manager-1',
+          'req-1',
+        );
+
+        const identityAudit = auditService.logWrite.mock.calls
+          .map(([entry]) => entry)
+          .find((entry) => entry.action === 'PATIENT.PORTAL.INVITE.IDENTITY');
+
+        expect(identityAudit).toBeDefined();
+        expect(JSON.parse(identityAudit.afterJson)).toEqual({
+          outcome: 'PROVISIONED',
+          actionsSent: ['UPDATE_PASSWORD', 'VERIFY_EMAIL'],
+          failureReason: null,
+          keycloakUserId: 'kc-provisioned-1',
+        });
+      });
+
+      // The link and the invitation must die together. A link that outlives its invite
+      // lets a patient choose a password and then be refused at the claim step.
+      it('ties the link lifetime to the invitation it belongs to', async () => {
+        await service.createPortalInvite(
+          'clinic-1',
+          'patient-1',
+          { email: 'ama@example.com', ttlDays: 7 },
+          'manager-1',
+          'req-1',
+        );
+
+        expect(keycloakAdminService.provisionPortalIdentity).toHaveBeenCalledWith(
+          expect.objectContaining({ lifespanSeconds: 7 * 24 * 60 * 60 }),
+        );
+      });
+
+      it('provisions nothing for a phone-only invite, and does not call that a failure', async () => {
+        const result = await service.createPortalInvite(
+          'clinic-1',
+          'patient-1',
+          { phoneE164: '+233201234567' },
+          'manager-1',
+          'req-1',
+        );
+
+        expect(keycloakAdminService.provisionPortalIdentity).not.toHaveBeenCalled();
+        expect(result.identity.status).toBe('NOT_REQUESTED');
+      });
+
+      it('skips provisioning when there is no honest address to send the patient back to', async () => {
+        delete process.env.APP_PUBLIC_URL;
+
+        const result = await service.createPortalInvite(
+          'clinic-1',
+          'patient-1',
+          { email: 'ama@example.com' },
+          'manager-1',
+          'req-1',
+        );
+
+        expect(keycloakAdminService.provisionPortalIdentity).not.toHaveBeenCalled();
+        expect(result.identity).toMatchObject({
+          status: 'SKIPPED',
+          failureReason: 'APP_PUBLIC_URL_UNSET',
+        });
+      });
+
+      /*
+        A Keycloak outage must not stand between a clinic and its patients. The invitation
+        is still created and still sent; the chart carries the reason the account behind it
+        does not exist yet, and a resend finishes the job.
+      */
+      it('still issues the invite when Keycloak cannot be reached', async () => {
+        keycloakAdminService.provisionPortalIdentity.mockResolvedValueOnce({
+          outcome: 'FAILED',
+          keycloakUserId: null,
+          actionsSent: [],
+          failureReason: 'KEYCLOAK_ADMIN_TIMEOUT',
+        });
+
+        const result = await service.createPortalInvite(
+          'clinic-1',
+          'patient-1',
+          { email: 'ama@example.com' },
+          'manager-1',
+          'req-1',
+        );
+
+        expect(prisma.patientPortalInvite.create).toHaveBeenCalled();
+        expect(reminderService.sendNotificationNow).toHaveBeenCalled();
+        expect(result.identity).toMatchObject({
+          status: 'FAILED',
+          failureReason: 'KEYCLOAK_ADMIN_TIMEOUT',
+        });
+      });
+
+      describe('resending', () => {
+        beforeEach(() => {
+          prisma.patientPortalInvite.findFirst.mockResolvedValue(buildInvite());
+        });
+
+        it('provisions again, so a half-finished account is carried to completion', async () => {
+          keycloakAdminService.provisionPortalIdentity.mockResolvedValueOnce({
+            outcome: 'EXISTING_PENDING',
+            keycloakUserId: 'kc-9',
+            actionsSent: ['VERIFY_EMAIL'],
+            failureReason: null,
+          });
+
+          const result = await service.resendPortalInvite(
+            'clinic-1',
+            'patient-1',
+            'invite-1',
+            'manager-1',
+            'req-1',
+          );
+
+          expect(result.identity.status).toBe('EXISTING_PENDING');
+        });
+
+        it('reports a patient who already has a working account', async () => {
+          keycloakAdminService.provisionPortalIdentity.mockResolvedValueOnce({
+            outcome: 'ALREADY_ACTIVE',
+            keycloakUserId: 'kc-9',
+            actionsSent: [],
+            failureReason: null,
+          });
+
+          const result = await service.resendPortalInvite(
+            'clinic-1',
+            'patient-1',
+            'invite-1',
+            'manager-1',
+            'req-1',
+          );
+
+          expect(result.identity.status).toBe('ALREADY_ACTIVE');
+        });
+
+        /*
+          The refusal paths must stay write-free. The RLS interceptor wraps the request in
+          one interactive transaction, so anything written on the way to an exception is
+          rolled back by that exception -- it reads as correct and persists nothing.
+        */
+        it('provisions nothing when the invite has lapsed', async () => {
+          prisma.patientPortalInvite.findFirst.mockResolvedValueOnce(
+            buildInvite({ expiresAt: day(-1) }),
+          );
+
+          await expect(
+            service.resendPortalInvite('clinic-1', 'patient-1', 'invite-1', 'manager-1', 'req-1'),
+          ).rejects.toThrow(/expired/i);
+
+          expect(keycloakAdminService.provisionPortalIdentity).not.toHaveBeenCalled();
+          expect(prisma.patientPortalInvite.update).not.toHaveBeenCalled();
+        });
+
+        it('provisions nothing when the invite was cancelled', async () => {
+          prisma.patientPortalInvite.findFirst.mockResolvedValueOnce(
+            buildInvite({ status: 'CANCELLED', cancelledAt: NOW }),
+          );
+
+          await expect(
+            service.resendPortalInvite('clinic-1', 'patient-1', 'invite-1', 'manager-1', 'req-1'),
+          ).rejects.toThrow();
+
+          expect(keycloakAdminService.provisionPortalIdentity).not.toHaveBeenCalled();
+        });
+
+        it('provisions nothing when the invite was already claimed', async () => {
+          prisma.patientPortalInvite.findFirst.mockResolvedValueOnce(
+            buildInvite({ status: 'CLAIMED', claimedAt: NOW }),
+          );
+
+          await expect(
+            service.resendPortalInvite('clinic-1', 'patient-1', 'invite-1', 'manager-1', 'req-1'),
+          ).rejects.toThrow();
+
+          expect(keycloakAdminService.provisionPortalIdentity).not.toHaveBeenCalled();
+        });
+      });
     });
 
     // Passing expiresAt straight through as null whenever staff did not type a date is
