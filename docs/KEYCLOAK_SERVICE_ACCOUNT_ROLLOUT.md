@@ -21,56 +21,44 @@ if you do.
 openssl rand -base64 32
 ```
 
-## 2. Create the client
+## 2. Apply the client
 
-Against the target Keycloak, as a realm administrator:
-
-```bash
-kcadm.sh config credentials --server "$KC_URL" --realm master \
-  --user "$KC_BOOTSTRAP_ADMIN_USERNAME"
-
-kcadm.sh create clients -r nkwapa \
-  -s clientId=nkwapa-api \
-  -s enabled=true \
-  -s publicClient=false \
-  -s serviceAccountsEnabled=true \
-  -s standardFlowEnabled=false \
-  -s implicitFlowEnabled=false \
-  -s directAccessGrantsEnabled=false \
-  -s fullScopeAllowed=false \
-  -s 'redirectUris=[]' \
-  -s 'webOrigins=[]' \
-  -s secret="$KEYCLOAK_ADMIN_CLIENT_SECRET"
-```
-
-## 3. Grant exactly one role
-
-`manage-users` on `realm-management`, and nothing else. `manage-realm`, `view-clients` or
-`realm-admin` would turn a leaked secret from a contained incident into a realm takeover.
+One command, idempotent, and it verifies itself. Run it from a machine that can reach the
+target Keycloak, with the credentials for that environment:
 
 ```bash
-kcadm.sh add-roles -r nkwapa \
-  --uusername service-account-nkwapa-api \
-  --cclientid realm-management \
-  --rolename manage-users
+KEYCLOAK_BASE_URL=https://auth.nkwapa.app \
+KC_BOOTSTRAP_ADMIN_USERNAME=<realm admin> \
+KC_BOOTSTRAP_ADMIN_PASSWORD=<realm admin password> \
+KEYCLOAK_ADMIN_CLIENT_SECRET=<the value from step 1> \
+npm run keycloak:apply-service-account
 ```
 
-## 4. Put that role in the client's scope
+Add `-- --dry-run` first if you want to see what it would change without writing anything.
 
-This step is easy to miss and fails in a way that does not look like a permissions problem.
-With `fullScopeAllowed=false`, Keycloak leaves any role that is not also in the client's scope
-out of the issued token: the client authenticates perfectly well, and then every admin call
-returns 403.
+It does four things, checking before each so a re-run is a no-op and a partial run can simply
+be repeated:
 
-```bash
-CID=$(kcadm.sh get clients -r nkwapa -q clientId=nkwapa-api --fields id --format csv --noquotes)
-RM=$(kcadm.sh get clients -r nkwapa -q clientId=realm-management --fields id --format csv --noquotes)
-ROLE=$(kcadm.sh get "clients/$RM/roles/manage-users" -r nkwapa --fields id,name --format json)
+1. **Creates the confidential `nkwapa-api` client.** No standard flow, no implicit flow, no
+   direct access grants, no redirect URIs. It exists only to be used server-side.
+2. **Grants `manage-users` on `realm-management`**, and warns if the service account holds any
+   other role. That is the whole ceiling: `manage-realm` or `realm-admin` would turn a leaked
+   secret from a contained incident into a realm takeover.
+3. **Adds the scope mapping.** This is the step that is easy to miss and hard to read. With
+   `fullScopeAllowed: false`, Keycloak leaves any role that is not also in the client's _scope_
+   out of the issued token: the client authenticates perfectly well, and then every admin call
+   returns 403. It looks like a missing role and is not.
+4. **Proves the ceiling rather than the happy path**, by taking a service-account token and
+   checking that reading users returns 200 while listing clients, listing realm roles and
+   updating the realm all return 403.
 
-kcadm.sh create "clients/$CID/scope-mappings/clients/$RM" -r nkwapa -f - <<< "[$ROLE]"
-```
+If the verification reports `read users: 403`, that is step 3 rather than step 2. Re-run the
+script.
 
-## 5. Set the environment variables
+The script also warns if `registrationAllowed` has been turned on. It must stay off: open
+self-registration would let anyone create an account against a clinic.
+
+## 3. Set the environment variables
 
 On the API service (see `deploy/env/*.api.env.example`):
 
@@ -91,33 +79,17 @@ KEYCLOAK_ADMIN_CLIENT_SECRET=<the same value>
 `APP_PUBLIC_URL` must also be set on the API. Without it there is no honest address to send
 the patient back to, and provisioning is skipped rather than guessed at.
 
-## 6. Confirm the ceiling, not just the happy path
+## 4. Restart the API, and confirm
 
-A service account that works is only half the check. Verify it cannot do more than it should:
+The API resolves this configuration once at startup, so it needs a restart to pick the values
+up. Then invite a patient from a chart you control and check the chart says **Account created**
+rather than **Account not created**.
 
-```bash
-TOKEN=$(curl -s -X POST "$KC_URL/realms/nkwapa/protocol/openid-connect/token" \
-  -d grant_type=client_credentials \
-  -d client_id=nkwapa-api \
-  -d client_secret="$KEYCLOAK_ADMIN_CLIENT_SECRET" | jq -r .access_token)
+If it still says the account could not be created, the reason is on the card. The usual ones
+are a secret that does not match, a missing `APP_PUBLIC_URL`, or the API pointing at a
+different Keycloak than the one the client was applied to.
 
-# expected 200
-curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $TOKEN" \
-  "$KC_URL/admin/realms/nkwapa/users?max=1"
-
-# all expected 403
-curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $TOKEN" \
-  "$KC_URL/admin/realms/nkwapa/clients"
-curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $TOKEN" \
-  "$KC_URL/admin/realms/nkwapa/roles"
-curl -s -o /dev/null -w '%{http_code}\n' -X PUT -H "Authorization: Bearer $TOKEN" \
-  -H 'Content-Type: application/json' -d '{"registrationAllowed":true}' \
-  "$KC_URL/admin/realms/nkwapa"
-```
-
-A 403 on the first call means step 4 was missed, not step 3.
-
-## 7. Check both mail paths
+## 5. Check both mail paths
 
 Keycloak sends the account-setup link through `KC_SMTP_*`; Nkwapa sends the invitation through
 its own `SMTP_*`. They are configured independently, and the patient needs both messages: one
