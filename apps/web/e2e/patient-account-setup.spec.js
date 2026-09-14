@@ -117,8 +117,18 @@ test('both emails arrive, and each one names the other', async () => {
   // Possession of the inbox is what authorises the flow. The link carries the action token.
   expect(setupBody).toContain('/realms/nkwapa/login-actions/action-token');
   expect(setupBody).toContain('key=');
-  // Two emails about one thing, neither acknowledging the other, reads as a phishing pair.
-  expect(setupBody).toContain('Set up your patient account');
+
+  /*
+    The pairing is one-directional on purpose, and the direction matters.
+
+    The invitation names this message by subject, because the message carrying the clinic and
+    the patient code is the one with standing to vouch for a bare link. This message cannot
+    return the favour unconditionally: every Keycloak required-actions email renders from the
+    same template, including the one an administrator sends when resetting a doctor's
+    password, and that reader has no invitation to be pointed at.
+  */
+  expect(setupBody).toContain('If you were invited to the patient portal');
+  expect(setupBody).not.toMatch(/health record online/i);
 });
 
 test('the patient sets a password and reaches the claim form', async () => {
