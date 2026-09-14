@@ -31,17 +31,17 @@ function assertSmtpPlaceholder(key, envName) {
   );
 }
 
-async function assertThemeFile(relativePath) {
+async function assertThemeFile(relativePath, root = themeLoginPath) {
   try {
-    await access(new URL(relativePath, themeLoginPath));
+    await access(new URL(relativePath, root));
   } catch {
     failures.push(`theme file must exist: ${relativePath}`);
   }
 }
 
-async function assertThemeFileIncludes(relativePath, expectedText, message) {
+async function assertThemeFileIncludes(relativePath, expectedText, message, root = themeLoginPath) {
   try {
-    const contents = await readFile(new URL(relativePath, themeLoginPath), 'utf8');
+    const contents = await readFile(new URL(relativePath, root), 'utf8');
     assert(contents.includes(expectedText), message);
   } catch {
     failures.push(`theme file must be readable: ${relativePath}`);
@@ -56,6 +56,13 @@ assert(
 );
 assert(realm.resetPasswordAllowed === true, 'resetPasswordAllowed must be true');
 assert(realm.verifyEmail === true, 'verifyEmail must be true');
+// Open self-registration would let anyone create an account against a clinic. Patients are
+// provisioned from an invite instead, so this flag staying false is load-bearing.
+assert(realm.registrationAllowed === false, 'registrationAllowed must stay false');
+assert(
+  realm.actionTokenGeneratedByAdminLifespan === 43200,
+  'admin action token lifespan must be 43200 seconds',
+);
 assert(
   realm.attributes?.['actionTokenGeneratedByUserLifespan.reset-credentials'] === '900',
   'reset credentials action token lifespan must be 900 seconds',
@@ -152,6 +159,74 @@ for (const redirectUri of [
     `nkwapa-web redirectUris must include ${redirectUri}`,
   );
 }
+
+/*
+  The public client must gain nothing from the service account being added beside it.
+
+  nkwapa-web ships to the browser, so anything it can do, anyone holding the page can do. The
+  provisioning capability belongs to nkwapa-api and must stay there; these are the assertions
+  that would fail if a future edit tried to take the shortcut of enabling a service account on
+  the client that already exists.
+*/
+assert(client?.publicClient === true, 'nkwapa-web must stay a public client');
+assert(client?.serviceAccountsEnabled !== true, 'nkwapa-web must not enable a service account');
+assert(
+  client?.authorizationServicesEnabled !== true,
+  'nkwapa-web must not enable authorization services',
+);
+assert(client?.secret === undefined, 'nkwapa-web must not carry a client secret');
+
+const apiClient = realm.clients?.find((candidate) => candidate.clientId === 'nkwapa-api');
+assert(Boolean(apiClient), 'nkwapa-api service-account client must be present');
+assert(apiClient?.publicClient === false, 'nkwapa-api must be a confidential client');
+assert(apiClient?.serviceAccountsEnabled === true, 'nkwapa-api must enable its service account');
+assert(
+  apiClient?.secret === '${KEYCLOAK_ADMIN_CLIENT_SECRET}',
+  'nkwapa-api secret must use the KEYCLOAK_ADMIN_CLIENT_SECRET placeholder',
+);
+// No browser-facing flow: this client never fronts a login, so every avenue that would let a
+// redirect or a password grant reach it stays shut.
+assert(apiClient?.standardFlowEnabled === false, 'nkwapa-api must not enable the standard flow');
+assert(apiClient?.implicitFlowEnabled === false, 'nkwapa-api must not enable the implicit flow');
+assert(
+  apiClient?.directAccessGrantsEnabled === false,
+  'nkwapa-api must not enable direct access grants',
+);
+assert(apiClient?.fullScopeAllowed === false, 'nkwapa-api must not allow full scope');
+assert(
+  Array.isArray(apiClient?.redirectUris) && apiClient.redirectUris.length === 0,
+  'nkwapa-api must declare no redirect URIs',
+);
+assert(
+  Array.isArray(apiClient?.webOrigins) && apiClient.webOrigins.length === 0,
+  'nkwapa-api must declare no web origins',
+);
+
+/*
+  The service account's ceiling, asserted as an exact set rather than a membership test.
+
+  manage-users is enough to create a patient identity and send it an action email. Anything
+  more -- manage-realm, view-clients, realm-admin -- would make a leaked secret a realm
+  takeover instead of a contained incident, so the check fails on any extra role.
+*/
+const serviceAccount = realm.users?.find(
+  (candidate) => candidate.serviceAccountClientId === 'nkwapa-api',
+);
+assert(Boolean(serviceAccount), 'nkwapa-api service account user must be exported');
+assert(serviceAccount?.enabled === true, 'nkwapa-api service account must be enabled');
+const serviceAccountClientRoles = serviceAccount?.clientRoles ?? {};
+assert(
+  Object.keys(serviceAccountClientRoles).join(',') === 'realm-management',
+  'nkwapa-api service account must hold client roles on realm-management only',
+);
+assert(
+  [...(serviceAccountClientRoles['realm-management'] ?? [])].sort().join(',') === 'manage-users',
+  'nkwapa-api service account must hold exactly manage-users',
+);
+assert(
+  (serviceAccount?.realmRoles ?? []).length === 0,
+  'nkwapa-api service account must hold no realm roles',
+);
 
 for (const relativePath of [
   'template.ftl',
