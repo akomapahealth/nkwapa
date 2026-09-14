@@ -1,4 +1,16 @@
-import { buildLoginHref, getSafeNextPath, shouldAutoContinue } from './auth-routing';
+import {
+  buildLoginHref,
+  getPostAuthPath,
+  getSafeNextPath,
+  shouldAutoContinue,
+} from './auth-routing';
+import type { WhoAmIResponse } from './bootstrap-context';
+
+const CLAIMANT = {
+  onboarding: { state: 'PATIENT_CLAIM_REQUIRED', pendingInvites: [] },
+} as unknown as WhoAmIResponse;
+
+const STAFF = { effectiveRolesForActiveClinic: ['DOCTOR'] } as unknown as WhoAmIResponse;
 
 describe('shouldAutoContinue', () => {
   /*
@@ -63,5 +75,38 @@ describe('shouldAutoContinue', () => {
 
   it('finds the marker alongside other parameters', () => {
     expect(shouldAutoContinue('/claim-record?foo=bar&continue=1')).toBe(true);
+  });
+});
+
+describe('getPostAuthPath', () => {
+  /*
+    A pending claim outranks wherever the visitor was headed, which is why this function
+    overrides `next` at all. It must not override its own query string too: the marker that
+    says a patient has just set a password rides there, and dropping it landed them on the
+    claim form with no acknowledgement of the step they had just completed.
+  */
+  it('keeps the marker when the destination is the claim route either way', () => {
+    expect(getPostAuthPath(CLAIMANT, '/claim-record?continue=1')).toBe('/claim-record?continue=1');
+  });
+
+  it('still overrides a destination that is not the claim route', () => {
+    expect(getPostAuthPath(CLAIMANT, '/dashboard')).toBe('/claim-record');
+    expect(getPostAuthPath(CLAIMANT, '/portal?continue=1')).toBe('/claim-record');
+  });
+
+  it('falls back to the bare route when there is no next', () => {
+    expect(getPostAuthPath(CLAIMANT, null)).toBe('/claim-record');
+  });
+
+  it('refuses a next that only looks like the claim route', () => {
+    expect(getPostAuthPath(CLAIMANT, '//evil.example/claim-record?continue=1')).toBe(
+      '/claim-record',
+    );
+    expect(getPostAuthPath(CLAIMANT, '/claim-record-evil?continue=1')).toBe('/claim-record');
+  });
+
+  it('leaves everyone without a pending claim exactly as they were', () => {
+    expect(getPostAuthPath(STAFF, '/patients')).toBe('/patients');
+    expect(getPostAuthPath(STAFF, null)).toBe('/dashboard');
   });
 });

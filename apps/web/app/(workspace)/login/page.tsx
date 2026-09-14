@@ -76,8 +76,8 @@ export default function LoginPage() {
     return (
       <PageSkeleton
         title="Finishing your account setup"
-        description="Your password is set. We are signing you in so you can confirm your details and open your record."
-        steps={['Password saved', 'Signing you in', 'Confirming your details']}
+        description="Your password is saved. Taking you to secure sign-in, so you can confirm your details and open your record."
+        steps={['Password saved', 'Secure sign-in', 'Confirming your details']}
         className="min-h-screen"
       />
     );

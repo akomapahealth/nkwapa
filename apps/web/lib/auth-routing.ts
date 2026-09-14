@@ -39,7 +39,14 @@ export function getPostAuthPath(
 ): string {
   const defaultPath = getDefaultWorkspacePath(bootstrap);
   if (defaultPath === '/claim-record') {
-    return defaultPath;
+    /*
+      A pending claim still outranks wherever the visitor was headed -- but not its own
+      query string. Returning the bare path here dropped the marker that says this patient
+      has just set a password, so they arrived at the claim form with no acknowledgement of
+      the step they had completed a moment earlier, on the one journey the marker exists for.
+    */
+    const safeNext = getSafeNextPath(next);
+    return safeNext && safeNext.split('?')[0] === defaultPath ? safeNext : defaultPath;
   }
 
   return getSafeNextPath(next) ?? defaultPath;
