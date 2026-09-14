@@ -3,6 +3,7 @@ import {
   describeInviteContact,
   describeInviteDeliveryGap,
   describeInviteExpiry,
+  describeInviteIdentity,
   describeInviteStatus,
   describePortalAccessStatus,
   formatInviteDate,
@@ -227,5 +228,142 @@ describe('describeInviteDeliveryGap', () => {
 
   it('says nothing when there is no invite at all', () => {
     expect(describeInviteDeliveryGap(null, available)).toBeNull();
+  });
+});
+
+/*
+  Whether there is an account behind the invitation.
+
+  The chart could not answer this before. An invite could be created, emailed and marked
+  delivered while no identity existed behind it, and the first anyone heard was a patient
+  ringing to say the link did not work. Delivery and identity fail independently, so they
+  are two facts on the chart rather than one.
+*/
+describe('describeInviteIdentity', () => {
+  const withIdentity = (status: string, failureReason: string | null = null) =>
+    describeInviteIdentity(invite({ identity: { status, provisionedAt: at(0), failureReason } }));
+
+  it('says nothing for a phone-only invitation, which was never going to have one', () => {
+    expect(describeInviteIdentity(invite({ identity: null, email: null }))).toBeNull();
+  });
+
+  it('says nothing for an invitation issued before this was recorded', () => {
+    expect(withIdentity('NOT_REQUESTED')).toBeNull();
+    expect(describeInviteIdentity(invite({ identity: undefined }))).toBeNull();
+  });
+
+  it('says nothing at all when there is no invitation', () => {
+    expect(describeInviteIdentity(null)).toBeNull();
+  });
+
+  it('confirms a newly created account and says what the patient does next', () => {
+    const result = withIdentity('PROVISIONED');
+    expect(result).toMatchObject({ label: 'Account created', variant: 'finalized' });
+    expect(result?.detail).toMatch(/secure link to choose a password/i);
+  });
+
+  /*
+    The reassurance staff need before clicking resend. Resending reads Keycloak's own state
+    and re-sends only what is outstanding, so a password the patient already chose survives.
+  */
+  it('reassures staff that a resend will not reset a chosen password', () => {
+    const result = withIdentity('EXISTING_PENDING');
+    expect(result).toMatchObject({ label: 'Account setup unfinished', variant: 'review' });
+    expect(result?.detail).toMatch(/already chose is untouched/i);
+  });
+
+  it('explains why no password email went out to a patient who already has an account', () => {
+    const result = withIdentity('ALREADY_ACTIVE');
+    expect(result).toMatchObject({ label: 'Patient already has an account' });
+    expect(result?.detail).toMatch(/no password email was sent/i);
+  });
+
+  it('warns, without alarming, when the server cannot create accounts at all', () => {
+    const result = withIdentity('SKIPPED');
+    expect(result).toMatchObject({ label: 'Account not created', variant: 'warning' });
+    expect(result?.detail).toMatch(/invitation still stands/i);
+  });
+
+  describe('failures', () => {
+    it.each([
+      ['KEYCLOAK_ADMIN_TIMEOUT', /resend it in a few minutes/i],
+      ['KEYCLOAK_ADMIN_UNREACHABLE', /resend it in a few minutes/i],
+      ['KEYCLOAK_ADMIN_AUTH_FAILED', /administrator needs to check its credentials/i],
+      ['IDENTITY_DISABLED', /has been disabled/i],
+      ['APP_PUBLIC_URL_UNSET', /does not know its own public address/i],
+    ])('turns %s into something staff can act on', (reason, expected) => {
+      const result = withIdentity('FAILED', reason);
+      expect(result?.variant).toBe('destructive');
+      expect(result?.detail).toMatch(expected);
+    });
+
+    // The code is for whoever reads the logs. On a chart it is noise.
+    it('never shows the raw code to staff', () => {
+      for (const reason of ['KEYCLOAK_ADMIN_TIMEOUT', 'IDENTITY_DISABLED', 'SOMETHING_NEW']) {
+        expect(withIdentity('FAILED', reason)?.detail).not.toContain(reason);
+      }
+    });
+
+    it('still gives an actionable sentence for a code it has never seen', () => {
+      const result = withIdentity('FAILED', 'A_CODE_FROM_A_NEWER_DEPLOY');
+      expect(result?.detail).toMatch(/resend it/i);
+    });
+  });
+
+  it('ignores a status a newer deployment added rather than rendering a blank badge', () => {
+    expect(withIdentity('SOMETHING_NEW_ENTIRELY')).toBeNull();
+  });
+});
+
+describe('buildManualInviteInstructions account setup wording', () => {
+  const base = {
+    clinicName: 'Cape Coast Clinic',
+    patientCode: 'NKP-2026-000001',
+    claimUrl: 'https://app.nkwapa.app/claim-record',
+    expiresAt: null,
+  };
+
+  /*
+    Staff read this aloud to the patient in front of them, so it has to be true of that
+    patient. It used to say "create an account", which self-registration being disabled
+    made impossible -- the same dead end the invite email carried.
+  */
+  it('never tells a patient to create an account, in any state', () => {
+    for (const identityStatus of [
+      'PROVISIONED',
+      'EXISTING_PENDING',
+      'ALREADY_ACTIVE',
+      'SKIPPED',
+      'FAILED',
+      'NOT_REQUESTED',
+      null,
+    ]) {
+      expect(buildManualInviteInstructions({ ...base, identityStatus })).not.toMatch(
+        /create an account/i,
+      );
+    }
+  });
+
+  it('points a newly provisioned patient at the password email by name', () => {
+    expect(buildManualInviteInstructions({ ...base, identityStatus: 'PROVISIONED' })).toContain(
+      'Choose your Nkwapa password',
+    );
+  });
+
+  it('tells a patient who already has an account simply to sign in', () => {
+    const text = buildManualInviteInstructions({ ...base, identityStatus: 'ALREADY_ACTIVE' });
+    expect(text).toMatch(/sign in with the email address/i);
+    expect(text).not.toContain('Choose your Nkwapa password');
+  });
+
+  it('falls back to wording true of any invitation when nothing is known', () => {
+    const text = buildManualInviteInstructions({ ...base, identityStatus: null });
+    expect(text).toMatch(/ask the clinic if you cannot sign in yet/i);
+  });
+
+  it('keeps the patient code, which is the reason staff read this out', () => {
+    expect(buildManualInviteInstructions({ ...base, identityStatus: 'PROVISIONED' })).toContain(
+      'NKP-2026-000001',
+    );
   });
 });

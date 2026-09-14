@@ -21,6 +21,28 @@ export interface PortalInviteDelivery {
   createdAt: string;
 }
 
+/**
+ * Whether there is a usable account behind an invitation.
+ *
+ * Mirrors PortalInviteIdentityStatus on the API. Left open to string because the browser
+ * must not break on a value a newer deployment added.
+ */
+export type PortalInviteIdentityStatus =
+  | 'NOT_REQUESTED'
+  | 'PROVISIONED'
+  | 'EXISTING_PENDING'
+  | 'ALREADY_ACTIVE'
+  | 'SKIPPED'
+  | 'FAILED'
+  | string;
+
+export interface PortalInviteIdentity {
+  status: PortalInviteIdentityStatus;
+  provisionedAt: string | null;
+  /** A stable code such as KEYCLOAK_ADMIN_TIMEOUT, never a sentence. */
+  failureReason: string | null;
+}
+
 export interface PortalInvite {
   id: string;
   status: PortalInviteStatus;
@@ -31,6 +53,7 @@ export interface PortalInvite {
   claimedAt: string | null;
   cancelledAt: string | null;
   createdByName: string | null;
+  identity?: PortalInviteIdentity | null;
   emailDelivery: PortalInviteDelivery | null;
 }
 
@@ -224,6 +247,8 @@ export interface ManualInstructionsInput {
   patientCode: string;
   claimUrl: string | null;
   expiresAt: string | null;
+  /** What provisioning did, so the closing line matches the patient's actual situation. */
+  identityStatus?: PortalInviteIdentityStatus | null;
 }
 
 /**
@@ -252,12 +277,26 @@ export function buildManualInviteInstructions(input: ManualInstructionsInput): s
     lines.push(`Valid until: ${formatInviteDate(input.expiresAt)}`);
   }
 
-  lines.push(
-    '',
-    'Create an account using the email address or phone number the clinic has on file, then confirm your patient code and date of birth.',
-  );
+  /*
+    Staff read this aloud, so it has to be true of the patient in front of them. It used to
+    say "create an account", which self-registration being disabled made impossible -- the
+    same sentence, and the same dead end, that the invite email carried.
+  */
+  lines.push('', closingInstruction(input.identityStatus ?? null));
 
   return lines.join('\n');
+}
+
+function closingInstruction(status: PortalInviteIdentityStatus | null): string {
+  switch (status) {
+    case 'PROVISIONED':
+    case 'EXISTING_PENDING':
+      return 'Look for the email titled "Choose your Nkwapa password" and use the link in it to set your password. Then sign in and confirm your patient code and date of birth.';
+    case 'ALREADY_ACTIVE':
+      return 'Sign in with the email address the clinic has on file, then confirm your patient code and date of birth.';
+    default:
+      return 'Sign in with the email address or phone number the clinic has on file, then confirm your patient code and date of birth. Ask the clinic if you cannot sign in yet.';
+  }
 }
 
 /**
@@ -361,4 +400,85 @@ export async function cancelPortalInvite(
     { method: 'DELETE' },
     context,
   );
+}
+
+/**
+ * Whether the patient can actually act on the invitation that was sent.
+ *
+ * This is the question the chart could not answer before. An invitation could be created,
+ * emailed and marked delivered while no account existed behind it, and the first anyone
+ * heard of it was a patient ringing to say the link did not work. Delivery and identity are
+ * shown as two separate facts because they fail independently.
+ *
+ * Returns null when there is nothing worth saying: a phone-only invitation was never going
+ * to have an account, and an invitation issued before this was recorded has no answer.
+ */
+export function describeInviteIdentity(
+  invite: Pick<PortalInvite, 'identity' | 'email'> | null,
+): { label: string; variant: StatusDescription['variant']; detail: string } | null {
+  const status = invite?.identity?.status;
+  if (!invite || !status || status === 'NOT_REQUESTED') return null;
+
+  switch (status) {
+    case 'PROVISIONED':
+      return {
+        label: 'Account created',
+        variant: 'finalized',
+        detail:
+          'The patient has been emailed a secure link to choose a password. They confirm their patient code and date of birth after signing in.',
+      };
+    case 'EXISTING_PENDING':
+      return {
+        label: 'Account setup unfinished',
+        variant: 'review',
+        detail:
+          'This address already had an account that was never finished. We have sent only the steps still outstanding; any password the patient already chose is untouched.',
+      };
+    case 'ALREADY_ACTIVE':
+      return {
+        label: 'Patient already has an account',
+        variant: 'finalized',
+        detail:
+          'No password email was sent, because none is needed. The patient signs in as usual and then confirms their details.',
+      };
+    case 'SKIPPED':
+      return {
+        label: 'Account not created',
+        variant: 'warning',
+        detail:
+          'This server is not configured to create patient accounts. The invitation still stands, but someone must create the account before the patient can use it. Resend once an administrator has finished the setup.',
+      };
+    case 'FAILED':
+      return {
+        label: 'Account could not be created',
+        variant: 'destructive',
+        detail: describeIdentityFailure(invite.identity?.failureReason ?? null),
+      };
+    default:
+      return null;
+  }
+}
+
+/**
+ * The failure codes, in words staff can act on.
+ *
+ * The code itself is never shown. It is useful to whoever reads the logs and meaningless
+ * to the person looking at the chart, who needs to know only whether to retry or to ask
+ * someone for help.
+ */
+function describeIdentityFailure(reason: string | null): string {
+  switch (reason) {
+    case 'IDENTITY_DISABLED':
+      return 'An account with this address exists but has been disabled. An administrator has to re-enable it, or use a different address.';
+    case 'KEYCLOAK_ADMIN_TIMEOUT':
+    case 'KEYCLOAK_ADMIN_UNREACHABLE':
+      return 'The sign-in service did not respond. The invitation still stands, so resend it in a few minutes.';
+    case 'KEYCLOAK_ADMIN_AUTH_FAILED':
+    case 'KEYCLOAK_ADMIN_UNCONFIGURED':
+      return 'This server could not authenticate with the sign-in service. An administrator needs to check its credentials, then you can resend.';
+    case 'APP_PUBLIC_URL_UNSET':
+      return 'This server does not know its own public address, so it could not tell the patient where to return to. An administrator needs to set it, then you can resend.';
+    default:
+      return 'The account could not be created. The invitation still stands, so resend it, and ask an administrator to check if it keeps failing.';
+  }
 }
