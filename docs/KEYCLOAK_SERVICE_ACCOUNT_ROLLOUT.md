@@ -89,12 +89,33 @@ If it still says the account could not be created, the reason is on the card. Th
 are a secret that does not match, a missing `APP_PUBLIC_URL`, or the API pointing at a
 different Keycloak than the one the client was applied to.
 
-## 5. Check both mail paths
+## 5. Check both mail paths, and that both are authenticated
 
 Keycloak sends the account-setup link through `KC_SMTP_*`; Nkwapa sends the invitation through
 its own `SMTP_*`. They are configured independently, and the patient needs both messages: one
-carries the link, the other carries the patient code. Send a real invitation to an address you
-control and confirm two emails arrive before opening this to a clinic.
+carries the link, the other carries the patient code.
+
+**The link is the half that fails quietly.** It is sent by Keycloak, so if the two services send
+from different domains and only one of them is authenticated, the patient receives the friendly
+context email and never sees the link. That is indistinguishable, from the clinic's side, from
+the invite being broken.
+
+Three things have to line up:
+
+1. **Same sender domain on both services.** `KC_SMTP_FROM` and `EMAIL_FROM` must match, or the
+   cross-reference that stops the pair reading as a phishing attempt has nothing to rest on.
+2. **The envelope sender too.** SPF authenticates the envelope sender, not the header From, so
+   `KC_SMTP_ENVELOPE_FROM` must be on the authenticated domain as well.
+3. **The relay must be authorised for that domain.** SPF authorises sending _servers_. If
+   Keycloak relays through a different service than the API does, add it to the domain's SPF
+   record first. Switching an unauthenticated sender onto an authenticated domain without doing
+   this makes delivery worse, not better: it turns "no SPF record" into an outright SPF failure,
+   and a DMARC policy will then act on it.
+
+Send a real invitation to an external address you control, not an internal one, and confirm two
+emails arrive. Then open the setup email's raw source (in Gmail, "Show original") and check that
+SPF, DKIM and DMARC all report `PASS`. Two emails arriving is necessary and not sufficient;
+authentication is what decides whether they keep arriving once volume picks up.
 
 ## Rollback
 
