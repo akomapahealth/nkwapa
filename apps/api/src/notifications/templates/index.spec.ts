@@ -173,3 +173,108 @@ describe('portal invite template', () => {
     expect(message.text).toContain('Jul 2026');
   });
 });
+
+/*
+  The invite used to tell every patient to "create an account using this email address".
+  Self-registration is disabled and always has been, so for a patient with no account that
+  sentence described a dead end -- the defect this whole feature removes. The account now
+  exists by the time the message is sent, and the message says which of three situations
+  the reader is actually in.
+*/
+describe('portal invite account setup wording', () => {
+  const base = {
+    clinicName: 'Cape Coast Clinic',
+    patientCode: 'NKP-2026-000001',
+    patientFirstName: 'Ama',
+    timezone: 'Africa/Accra',
+    claimUrl: 'https://app.nkwapa.app/claim-record',
+  };
+
+  const render = (accountSetup?: string) =>
+    renderMessage('PORTAL_INVITE_V1', { ...base, ...(accountSetup ? { accountSetup } : {}) });
+
+  it('never tells anyone to create an account, in any state', () => {
+    for (const state of ['PENDING_PASSWORD', 'EXISTING_ACCOUNT', 'UNKNOWN', undefined]) {
+      const message = render(state);
+      expect(message.text).not.toMatch(/create an account/i);
+      expect(message.html).not.toMatch(/create an account/i);
+    }
+  });
+
+  describe('when we have just created the account', () => {
+    it('points the patient at the companion email by name', () => {
+      const message = render('PENDING_PASSWORD');
+      expect(message.text).toContain('Choose your Nkwapa password');
+      expect(message.html).toContain('Choose your Nkwapa password');
+    });
+
+    /*
+      A patient who has not chosen a password cannot get through a sign-in link. Offering
+      one would be a second dead end beside the one being removed.
+    */
+    it('offers no sign-in link, because it could not be used yet', () => {
+      const message = render('PENDING_PASSWORD');
+      expect(message.html).not.toContain('<a href');
+      expect(message.text).not.toContain('https://app.nkwapa.app/claim-record');
+    });
+
+    it('stops claiming no account will be created, which is no longer true', () => {
+      const message = render('PENDING_PASSWORD');
+      expect(message.text).not.toMatch(/no account will be created/i);
+      expect(message.text).toMatch(/cannot be used until a password is chosen/i);
+    });
+  });
+
+  describe('when the patient already has an account', () => {
+    it('tells them to sign in as usual rather than set anything up', () => {
+      const message = render('EXISTING_ACCOUNT');
+      expect(message.text).toMatch(/already have an account/i);
+      expect(message.text).toMatch(/sign in as usual/i);
+    });
+
+    it('offers the sign-in link, which will work for them', () => {
+      const message = render('EXISTING_ACCOUNT');
+      expect(message.html).toContain('https://app.nkwapa.app/claim-record');
+    });
+
+    it('does not send them looking for a password email they will not receive', () => {
+      const message = render('EXISTING_ACCOUNT');
+      expect(message.text).not.toContain('Choose your Nkwapa password');
+    });
+  });
+
+  describe('when provisioning was skipped or failed', () => {
+    it('gives neutral instructions rather than guessing', () => {
+      const message = render('UNKNOWN');
+      expect(message.text).toMatch(/sign in with this email address/i);
+      expect(message.text).not.toContain('Choose your Nkwapa password');
+      expect(message.html).toContain('https://app.nkwapa.app/claim-record');
+    });
+
+    /*
+      Payloads are replayed out of Reminder.payloadJson, which older deploys wrote without
+      this field at all. parse is total, so an absent or nonsense value has to land on the
+      wording that is true of every invite rather than throwing or guessing.
+    */
+    it.each([undefined, 'NONSENSE', ''])('treats %p as unknown', (value) => {
+      const message = renderMessage('PORTAL_INVITE_V1', {
+        ...base,
+        ...(value === undefined ? {} : { accountSetup: value }),
+      });
+      expect(message.text).toMatch(/sign in with this email address/i);
+    });
+  });
+
+  it('still carries the patient code in every state', () => {
+    for (const state of ['PENDING_PASSWORD', 'EXISTING_ACCOUNT', 'UNKNOWN']) {
+      expect(render(state).text).toContain('NKP-2026-000001');
+    }
+  });
+
+  it('adds no clinical detail beyond the code, whatever the state', () => {
+    for (const state of ['PENDING_PASSWORD', 'EXISTING_ACCOUNT', 'UNKNOWN']) {
+      const message = render(state);
+      expect(message.text).not.toMatch(/diagnos|blood pressure|glucose|medication/i);
+    }
+  });
+});

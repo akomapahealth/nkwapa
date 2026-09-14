@@ -46,6 +46,7 @@ import {
   APPOINTMENT_REMINDER_TEMPLATE_KEY,
   PATIENT_REMINDER_TEMPLATE_KEYS,
 } from '../notifications/templates';
+import type { PortalInviteAccountSetup } from '../notifications/templates/portal-invite';
 import { resolveAppPublicUrl } from '../notifications/email/email-config';
 import type { ClaimPatientRecordDto } from './dto/claim-record.dto';
 import {
@@ -199,6 +200,25 @@ export interface PatientTrendsResponse {
   glucose: GlucoseTrendPoint[];
   measurements?: ExpandedVitalsTrendPoint[];
   followUp: FollowUpSummary;
+}
+
+/**
+ * Translate the stored provisioning state into what the patient has to do next.
+ *
+ * Anything we are not sure about reads as UNKNOWN, which renders the neutral "sign in and
+ * confirm" wording. Guessing PENDING_PASSWORD would point a patient at a second email that
+ * was never sent.
+ */
+function describeInviteAccountSetup(status: PortalInviteIdentityStatus): PortalInviteAccountSetup {
+  switch (status) {
+    case 'PROVISIONED':
+    case 'EXISTING_PENDING':
+      return 'PENDING_PASSWORD';
+    case 'ALREADY_ACTIVE':
+      return 'EXISTING_ACCOUNT';
+    default:
+      return 'UNKNOWN';
+  }
 }
 
 /**
@@ -1388,7 +1408,13 @@ export class PatientPortalService {
 
     // Before the email, so the message never arrives ahead of the account it describes.
     const identity = await this.provisionInviteIdentity(invite, actorUserId, requestId);
-    const delivery = await this.sendPortalInviteEmail(invite, actorUserId, false, requestId);
+    const delivery = await this.sendPortalInviteEmail(
+      invite,
+      actorUserId,
+      false,
+      identity.identityStatus,
+      requestId,
+    );
 
     return this.serializePortalInvite({ ...invite, ...identity }, delivery);
   }
@@ -1447,7 +1473,13 @@ export class PatientPortalService {
     // Idempotent by construction: provisioning reads Keycloak's own state, so a resend
     // re-sends only what is still outstanding and never resets a chosen password.
     const identity = await this.provisionInviteIdentity(invite, actorUserId, requestId);
-    const delivery = await this.sendPortalInviteEmail(invite, actorUserId, true, requestId);
+    const delivery = await this.sendPortalInviteEmail(
+      invite,
+      actorUserId,
+      true,
+      identity.identityStatus,
+      requestId,
+    );
 
     return this.serializePortalInvite({ ...invite, ...identity }, delivery);
   }
@@ -1576,6 +1608,7 @@ export class PatientPortalService {
     },
     actorUserId: string,
     resend: boolean,
+    identityStatus: PortalInviteIdentityStatus,
     requestId?: string,
   ) {
     if (!invite.email) {
@@ -1611,6 +1644,7 @@ export class PatientPortalService {
         claimUrl: appPublicUrl ? buildPortalClaimUrl(appPublicUrl) : null,
         expiresAt: invite.expiresAt?.toISOString() ?? null,
         resend,
+        accountSetup: describeInviteAccountSetup(identityStatus),
       },
       actorUserId,
       requestId,
