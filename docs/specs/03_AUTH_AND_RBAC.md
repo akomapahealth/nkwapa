@@ -254,12 +254,42 @@ Frontend navigation and clinic switching are driven from this response.
 
 ### Patient Users
 
-Current supported model:
+Patients do not create their own accounts, and staff do not create them by hand. The account
+is provisioned when the invitation is sent.
 
-1. Create a Keycloak identity.
-2. Let the identity log into Nkwapa once so the local `User` exists.
-3. Use the patient chart portal-link or portal-invite flow from staff/admin UI.
-4. If an invite is pending, `/auth/whoami` returns onboarding state and the user is routed to `/claim-record`.
+1. Staff issue a portal invite from the patient chart, against an email address.
+2. Nkwapa creates the Keycloak identity through the `nkwapa-api` service account, and asks
+   Keycloak to email the patient an action link for `UPDATE_PASSWORD` and `VERIFY_EMAIL`.
+   That action token is the secret: the invite link itself carries none.
+3. The patient receives two messages. Nkwapa's invitation carries the clinic, the patient
+   code and the expiry; Keycloak's carries the link. Each names the other, so the pair does
+   not read as a phishing attempt.
+4. The patient sets a password and their email address is confirmed by the same token. They
+   sign in once with the password they just chose, because completing an admin-issued action
+   token does not itself open a session, and land back on `/claim-record`.
+5. `/auth/whoami` returns onboarding state, and the patient confirms their patient code and
+   date of birth to link the record. That step is unchanged.
+
+Notes that matter operationally:
+
+- **Registration stays disabled.** `registrationAllowed` is `false` and must remain so; open
+  self-registration would let anyone create an account against a clinic. The realm validator
+  fails the build if it is flipped.
+- **Verification is load-bearing.** `jwt.strategy.ts` writes `User.email` only when Keycloak
+  reports the address verified, and invites are matched on that address. An unverified
+  identity will never match an invitation, which is why `VERIFY_EMAIL` is always requested.
+- **Resending is idempotent.** Provisioning reads Keycloak's own state, so a resend asks only
+  for what is still outstanding and never resets a password the patient has already chosen.
+- **A Keycloak outage does not block a clinic.** The invitation is still created and sent; the
+  chart reports that no account stands behind it, and a resend finishes the job.
+- **Two SMTP configurations must both be live.** Keycloak sends through `KC_SMTP_*`, and the
+  application through its own `SMTP_*`. Either one being down loses half the pair.
+- **Deployments carry a secret.** `KEYCLOAK_ADMIN_CLIENT_SECRET` is server-side only and has no
+  `NEXT_PUBLIC_` twin. The same value must be given to the API and to Keycloak, which
+  substitutes it into the realm import.
+- **Existing realms need a manual step.** `--import-realm` skips a realm that already exists, so
+  redeploying the auth service does not add `nkwapa-api` to staging or production. See
+  `docs/KEYCLOAK_SERVICE_ACCOUNT_ROLLOUT.md`.
 
 ---
 
@@ -274,6 +304,12 @@ The current realm export is hardened with:
 - 10 hour SSO max lifespan
 - 15 minute reset-credentials action token lifespan
 - 24 hour verify-email action token lifespan
+- 12 hour default lifespan for admin-issued action tokens, stated rather than inherited,
+  because a patient-facing account-setup link is now issued that way; each invitation
+  overrides it with its own remaining lifetime, so the link and the invitation expire together
+- a confidential `nkwapa-api` service account holding `manage-users` on `realm-management` and
+  nothing else, with no browser-facing flow and no redirect URIs; `nkwapa-web` stays public and
+  gains no capability from it
 - exact web origin and redirect URI allowlists for local, staging, and production frontends
 
 ---
@@ -284,3 +320,5 @@ The current realm export is hardened with:
   not implemented, and the Zone Model section above is the statement of record
 - organization-level admin/reporting permissions are not yet distinct from clinic-level permissions
 - Keycloak still provides identity only; app-side policy remains the authority and must continue to be tested independently
+- patient invitations reach an email address only; provisioning an identity from a phone number
+  is not implemented, and a phone-only invite is recorded as such rather than failing
