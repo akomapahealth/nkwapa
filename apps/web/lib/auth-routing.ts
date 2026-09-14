@@ -44,3 +44,42 @@ export function getPostAuthPath(
 
   return getSafeNextPath(next) ?? defaultPath;
 }
+
+/**
+ * The marker Keycloak sends a patient back with after they set their password.
+ *
+ * Mirrors PORTAL_CLAIM_CONTINUE_QUERY on the API, which builds the redirect URI.
+ */
+export const AUTH_CONTINUE_PARAM = 'continue';
+
+/**
+ * Whether to start sign-in without waiting for the visitor to click.
+ *
+ * A patient who has just chosen their password in Keycloak arrives back here holding a live
+ * SSO session, and we bounce them to a page asking them to sign in. Worse, the silent
+ * check-sso that would have spotted the session runs in an iframe, which the third-party
+ * cookie defaults in Safari and Firefox block outright -- so for most patients it is not
+ * even a redundant click, it is the only way through, on a page that gives no hint that
+ * clicking is safe.
+ *
+ * A top-level redirect is not subject to those cookie rules, so this returns them to a
+ * signed-in app in one hop with nothing to read.
+ *
+ * Gated on an explicit marker rather than applied to every unauthenticated arrival. Auto
+ * redirecting anyone who lands on /login would change how every deep link in the product
+ * behaves, and a sign-in page that navigates on its own is hostile to someone who arrived
+ * there deliberately.
+ */
+export function shouldAutoContinue(next: string | null | undefined): boolean {
+  const safeNext = getSafeNextPath(next);
+  if (!safeNext) {
+    return false;
+  }
+
+  const query = safeNext.indexOf('?');
+  if (query === -1) {
+    return false;
+  }
+
+  return new URLSearchParams(safeNext.slice(query + 1)).get(AUTH_CONTINUE_PARAM) === '1';
+}
