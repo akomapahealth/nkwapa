@@ -1,8 +1,11 @@
 <#import "template.ftl" as layout>
 <@layout.registrationLayout displayMessage=false; section>
     <#if section = "header">
+        <#-- messageHeader is a message KEY, not a sentence. Printing it directly put the
+             literal text "accountUpdatedTitle" in front of every patient who finished
+             setting their password, which is the last screen of the account-setup journey. -->
         <#if messageHeader??>
-            ${kcSanitize(messageHeader)?no_esc}
+            ${kcSanitize(msg("${messageHeader}"))?no_esc}
         <#elseif message?has_content>
             ${kcSanitize(message.summary)?no_esc}
         <#else>

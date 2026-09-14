@@ -53,6 +53,12 @@ module.exports = defineConfig({
         APP_PUBLIC_URL: process.env.APP_PUBLIC_URL || 'http://localhost:3000',
         EMAIL_DELIVERABILITY_ALLOWED_DOMAINS:
           process.env.EMAIL_DELIVERABILITY_ALLOWED_DOMAINS || 'nkwapa.local',
+        // Likewise: without the service account the API issues invites that no Keycloak
+        // account stands behind, and the account-setup journey has nothing to sign in to.
+        KEYCLOAK_ADMIN_BASE_URL: process.env.KEYCLOAK_ADMIN_BASE_URL || 'http://localhost:8080',
+        KEYCLOAK_ADMIN_CLIENT_ID: process.env.KEYCLOAK_ADMIN_CLIENT_ID || 'nkwapa-api',
+        KEYCLOAK_ADMIN_CLIENT_SECRET:
+          process.env.KEYCLOAK_ADMIN_CLIENT_SECRET || 'nkwapa-local-dev-secret',
       },
     },
     {

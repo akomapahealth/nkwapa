@@ -33,6 +33,7 @@ import {
   createPortalInvite,
   describeInviteContact,
   describeInviteDeliveryGap,
+  describeInviteIdentity,
   describeInviteExpiry,
   describeInviteStatus,
   describePortalAccessStatus,
@@ -108,6 +109,13 @@ export function PortalAccessCard({
     () => describeInviteExpiry(currentInvite?.expiresAt ?? null),
     [currentInvite?.expiresAt],
   );
+  /*
+    Whether there is an account behind the invitation, which is a different question from
+    whether the email went out. Both used to be answered by the delivery badge alone, so a
+    perfectly delivered invitation pointing at an identity that was never created looked
+    like success until the patient rang to say the link did not work.
+  */
+  const identity = describeInviteIdentity(portalAccess.currentInvite);
   const deliveryGap = describeInviteDeliveryGap(
     currentInvite,
     portalAccess.emailChannel ?? { available: true, readiness: 'unknown', reason: null },
@@ -119,8 +127,15 @@ export function PortalAccessCard({
         patientCode,
         claimUrl: portalAccess.claimUrl ?? null,
         expiresAt: currentInvite?.expiresAt ?? null,
+        identityStatus: currentInvite?.identity?.status ?? null,
       }),
-    [clinicName, patientCode, portalAccess.claimUrl, currentInvite?.expiresAt],
+    [
+      clinicName,
+      patientCode,
+      portalAccess.claimUrl,
+      currentInvite?.expiresAt,
+      currentInvite?.identity?.status,
+    ],
   );
 
   const mutationContext = useMemo(
@@ -288,6 +303,25 @@ export function PortalAccessCard({
                         {explainFailure(currentInvite.emailDelivery.failureReason)?.detail ?? ''}
                       </dd>
                     ) : null}
+                  </div>
+                ) : null}
+
+                {/*
+                  Deliberately its own row rather than a second badge on the line above.
+                  Delivery and identity fail independently, and putting them side by side
+                  reads as one fact with two labels.
+                */}
+                {identity ? (
+                  <div className="space-y-1">
+                    <dt className="sr-only">Patient account</dt>
+                    <dd>
+                      <Badge variant={identity.variant} className="rounded-full">
+                        {identity.label}
+                      </Badge>
+                    </dd>
+                    <dd className="text-xs leading-relaxed text-muted-foreground">
+                      {identity.detail}
+                    </dd>
                   </div>
                 ) : null}
               </dl>

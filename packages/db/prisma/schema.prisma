@@ -178,6 +178,28 @@ enum PatientPortalInviteStatus {
   EXPIRED
 }
 
+/// What happened to the patient's Keycloak identity when the invite was sent.
+///
+/// Separate from PatientPortalInviteStatus because they answer different questions. The
+/// invite status says whether the invitation is still live; this says whether the patient
+/// can act on it at all. An invite can be perfectly valid while the account behind it was
+/// never created, which is exactly the failure staff need to see rather than discover from
+/// a patient who cannot sign in.
+enum PortalInviteIdentityStatus {
+  /// Phone-only invite, or an invite issued before this was recorded.
+  NOT_REQUESTED
+  /// We created the identity and sent it password and verification actions.
+  PROVISIONED
+  /// The identity already existed and still has setup to finish.
+  EXISTING_PENDING
+  /// The patient already has a working account; nothing was sent.
+  ALREADY_ACTIVE
+  /// No service-account credentials are configured on this deployment.
+  SKIPPED
+  /// Keycloak refused or could not be reached. identityFailureReason says which.
+  FAILED
+}
+
 enum PatientDuplicateReviewStatus {
   OPEN
   DISMISSED
@@ -1620,6 +1642,17 @@ model PatientPortalInvite {
   expiresAt       DateTime?
   createdAt       DateTime                  @default(now())
   updatedAt       DateTime                  @updatedAt
+
+  // Identity provisioning, recorded so the chart can answer "can this patient actually act
+  // on the email we sent?" on every page load rather than only in the response to the
+  // click that sent it.
+  identityStatus        PortalInviteIdentityStatus @default(NOT_REQUESTED)
+  // Kept for support: it is the only way to tie an invite to the Keycloak account without
+  // searching by email, which is the thing we most want to avoid logging.
+  keycloakUserId        String?                    @db.VarChar(255)
+  identityProvisionedAt DateTime?
+  /// A stable code such as KEYCLOAK_ADMIN_TIMEOUT. Never a patient-identifying string.
+  identityFailureReason String?                    @db.VarChar(255)
 
   patient   Patient    @relation(fields: [patientId], references: [id], onDelete: Cascade)
   clinic    Clinic     @relation(fields: [clinicId], references: [id], onDelete: Cascade)

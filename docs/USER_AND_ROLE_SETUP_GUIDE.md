@@ -118,6 +118,11 @@ Why step 2 matters:
 - the local `User` record is created or hydrated on first successful login
 - users that only exist in Keycloak may not yet appear in Nkwapa admin views
 
+This pattern is for **staff only**. Patients are not set up this way, and creating a Keycloak
+identity for a patient by hand is no longer the supported path: issuing a portal invite from
+the patient chart provisions the account and emails the patient a setup link. See the Patient
+Users section of `docs/specs/03_AUTH_AND_RBAC.md`.
+
 ### Existing deployment cleanup after the doctor role migration
 
 The Prisma migration converts the retired preceptor operational role to `DOCTOR`. After deploying

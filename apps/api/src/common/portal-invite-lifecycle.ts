@@ -183,3 +183,56 @@ export function inviteIdentityMatchConditions(
   }
   return conditions;
 }
+
+/** The route a patient completes their claim on. */
+export const PORTAL_CLAIM_PATH = '/claim-record';
+
+/**
+ * Marks an arrival that has just come back from Keycloak with a live SSO session.
+ *
+ * The web app reads it as permission to start sign-in without waiting for a click.
+ * Silent check-sso runs in an iframe and is blocked by the third-party cookie defaults in
+ * Safari and Firefox, so a patient who has just set their password still reads as signed
+ * out; a top-level redirect is the only thing that reliably picks the session up.
+ */
+export const PORTAL_CLAIM_CONTINUE_QUERY = 'continue=1';
+
+/** Where the invite email points. Informational now: it carries no secret. */
+export function buildPortalClaimUrl(appPublicUrl: string): string {
+  return `${appPublicUrl}${PORTAL_CLAIM_PATH}`;
+}
+
+/** Where Keycloak returns the patient once the account actions are done. */
+export function buildPortalClaimRedirectUri(appPublicUrl: string): string {
+  return `${appPublicUrl}${PORTAL_CLAIM_PATH}?${PORTAL_CLAIM_CONTINUE_QUERY}`;
+}
+
+const MIN_IDENTITY_ACTION_LIFESPAN_SECONDS = 60 * 60;
+const MAX_IDENTITY_ACTION_LIFESPAN_SECONDS = MAX_TTL_DAYS * 24 * 60 * 60;
+const DEFAULT_IDENTITY_ACTION_LIFESPAN_SECONDS = DEFAULT_PORTAL_INVITE_TTL_DAYS * 24 * 60 * 60;
+
+/**
+ * How long Keycloak's account-setup link should live.
+ *
+ * Tied to the invitation's own expiry so the two die together. A link that outlives its
+ * invite lets a patient set a password and then be refused at the claim step, which reads
+ * as a broken product; a link that dies first strands them with no way back but a resend.
+ *
+ * Clamped at the bottom because an invite expiring within the hour would otherwise mint a
+ * link that is already useless, and at the top because the longest invite a deployment can
+ * issue is the longest a single-use credential link has any business living.
+ */
+export function resolveIdentityActionLifespanSeconds(
+  expiresAt: Date | null | undefined,
+  now: Date,
+): number {
+  if (!expiresAt) {
+    // Legacy invites carry no expiry. The deployment default is the honest stand-in.
+    return DEFAULT_IDENTITY_ACTION_LIFESPAN_SECONDS;
+  }
+  const seconds = Math.floor((expiresAt.getTime() - now.getTime()) / 1000);
+  return Math.min(
+    MAX_IDENTITY_ACTION_LIFESPAN_SECONDS,
+    Math.max(MIN_IDENTITY_ACTION_LIFESPAN_SECONDS, seconds),
+  );
+}

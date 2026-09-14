@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { BadgeCheck, CircleAlert, MailQuestion, ShieldCheck } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Check, MailQuestion } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { ApiError, apiFetch, getErrorMessage, readApiError } from '@/lib/api';
@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { EmptyState, InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { describeInviteExpiry } from '@/lib/portal-invite';
+import { AUTH_CONTINUE_PARAM } from '@/lib/auth-routing';
 
 /**
  * A refusal split into what happened and what to do about it.
@@ -48,6 +49,62 @@ function inviteExpiry(expiresAt: string | null) {
 }
 
 /*
+  Where the patient is in a journey that spans two systems.
+
+  Setting a password happens in Keycloak and claiming the record happens here, so a patient
+  arriving on this page has already done something they cannot see any record of. Showing
+  the completed step is what makes this read as the last stage of one process rather than a
+  second, unexplained form.
+*/
+const CLAIM_STEPS = [
+  { label: 'Account created', detail: 'Your password is set' },
+  { label: 'Confirm your details', detail: 'Patient code and date of birth' },
+  { label: 'Open your record', detail: 'Your care summary and appointments' },
+] as const;
+
+function ClaimProgress({ currentStep }: { currentStep: number }) {
+  return (
+    <ol className="grid gap-3 sm:grid-cols-3" aria-label="Setting up your patient access">
+      {CLAIM_STEPS.map((step, index) => {
+        const isComplete = index < currentStep;
+        const isCurrent = index === currentStep;
+        return (
+          <li
+            key={step.label}
+            className={`rounded-lg border p-4 ${
+              isCurrent ? 'border-primary bg-primary/5' : 'border-border bg-background'
+            }`}
+            aria-current={isCurrent ? 'step' : undefined}
+          >
+            <div className="flex items-center gap-2">
+              <span
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+                  isComplete
+                    ? 'bg-success text-background'
+                    : isCurrent
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground'
+                }`}
+              >
+                {/*
+                  The tick is decorative; the state is already in the text below it, so a
+                  screen reader that announced both would say everything twice.
+                */}
+                {isComplete ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : index + 1}
+              </span>
+              <p className="text-sm font-medium text-foreground">{step.label}</p>
+            </div>
+            <p className="mt-1 pl-8 text-xs leading-5 text-muted-foreground">
+              {isComplete ? `${step.detail} \u2014 done` : step.detail}
+            </p>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/*
   There is deliberately no RouteGuard here.
 
   This page serves a user who has an invitation but no linked patient record yet, so they may
@@ -58,6 +115,7 @@ function inviteExpiry(expiresAt: string | null) {
 */
 export default function ClaimRecordPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const getToken = useAuth();
   const bootstrapCtx = useBootstrap();
   const bootstrap = bootstrapCtx?.bootstrap ?? null;
@@ -70,6 +128,13 @@ export default function ClaimRecordPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<ClaimFailure | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  /*
+    Set only on the redirect Keycloak sends them back on, so it greets the patient who has
+    just chosen a password and stays quiet for someone who reached this page any other way.
+  */
+  const arrivedFromAccountSetup = searchParams.get(AUTH_CONTINUE_PARAM) === '1';
+  const currentStep = success ? 2 : 1;
 
   useEffect(() => {
     if (!selectedInviteId && pendingInvites.length > 0) {
@@ -153,39 +218,25 @@ export default function ClaimRecordPage() {
                     <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
                       Claim your existing patient record
                     </h1>
+                    {/*
+                      Two ledes, because the reader is in one of two situations. Someone who
+                      has just set a password needs to be told this is the last step, not
+                      handed a fresh-looking form with no acknowledgement of what they did.
+                    */}
                     <p className="max-w-2xl text-sm leading-6 text-muted-foreground md:text-base">
-                      We found a clinic invitation for this account. Confirm the patient code and
-                      date of birth on your clinic card so your portal opens the same chart staff
-                      already use.
+                      {arrivedFromAccountSetup
+                        ? 'Your account is ready. One last step: confirm the patient code and date of birth on your clinic card, and your record opens.'
+                        : 'We found a clinic invitation for this account. Confirm the patient code and date of birth on your clinic card so your portal opens the same chart staff already use.'}
                     </p>
                   </div>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-lg border border-border bg-background p-4">
-                    <BadgeCheck className="h-5 w-5 text-primary" />
-                    <p className="mt-3 text-sm font-medium text-foreground">One chart, one code</p>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      Your portal links to the same patient record created in clinic.
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-border bg-background p-4">
-                    <ShieldCheck className="h-5 w-5 text-primary" />
-                    <p className="mt-3 text-sm font-medium text-foreground">Verified access</p>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      We verify both the staged contact and your patient record details before
-                      linking.
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-border bg-background p-4">
-                    <CircleAlert className="h-5 w-5 text-primary" />
-                    <p className="mt-3 text-sm font-medium text-foreground">Need help?</p>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      If the details do not match, clinic staff can relink access from your patient
-                      chart.
-                    </p>
-                  </div>
-                </div>
+                <ClaimProgress currentStep={currentStep} />
+
+                <p className="text-xs leading-5 text-muted-foreground">
+                  Your portal opens the same record your clinic already uses. If the details below
+                  do not match, clinic staff can relink access from your patient chart.
+                </p>
               </div>
             </section>
 
@@ -198,6 +249,13 @@ export default function ClaimRecordPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5 px-0 pb-0">
+                {arrivedFromAccountSetup && !success ? (
+                  <InlineNotice tone="success">
+                    <span className="font-medium">Password saved.</span> You are signed in. Confirm
+                    the details below to finish linking your record.
+                  </InlineNotice>
+                ) : null}
+
                 {/*
                   The loading branch has to come first. Without it `pendingInvites` is [] while
                   bootstrap is still in flight, so the page told a patient who does have an
@@ -217,10 +275,16 @@ export default function ClaimRecordPage() {
                     retryLabel="Check again"
                   />
                 ) : pendingInvites.length === 0 ? (
+                  /*
+                    An invitation is matched against the email address Keycloak has
+                    confirmed, so the commonest reason for landing here is a verification
+                    step that was never finished -- not a missing invitation. Sending every
+                    such patient to ring the clinic is what made this a dead end.
+                  */
                   <EmptyState
                     icon={MailQuestion}
                     title="No pending invitation found"
-                    description="This account has no patient invitation waiting. Ask clinic staff to create or refresh your portal invite from your patient record, then check again."
+                    description="If you have just set up your account, check your inbox for a message asking you to confirm your email address. Your invitation only appears here once that is done. If you have already confirmed it, ask clinic staff to resend your invitation, then check again."
                     action={
                       <Button variant="outline" onClick={refreshInvitations}>
                         Check again

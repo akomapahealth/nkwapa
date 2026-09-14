@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ReminderService } from '../reminders/reminder.service';
 import { EmailDeliverabilityService } from '../common/email-policy';
+import { keycloakAdminServiceProvider } from '../testing/keycloak-admin-fixtures';
 import {
   FIXTURE_CLINIC_ID,
   FIXTURE_INVITE_ID,
@@ -115,6 +116,7 @@ describe('claiming a patient record', () => {
           provide: EmailDeliverabilityService,
           useValue: { assertDomainAcceptsEmail: jest.fn().mockResolvedValue(undefined) },
         },
+        keycloakAdminServiceProvider(),
       ],
     }).compile();
 

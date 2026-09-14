@@ -2,6 +2,7 @@
   "realm": "nkwapa",
   "enabled": true,
   "loginTheme": "nkwapa",
+  "emailTheme": "nkwapa",
   "sslRequired": "${KC_SSL_REQUIRED}",
   "registrationAllowed": false,
   "loginWithEmailAllowed": true,
@@ -22,6 +23,7 @@
   "ssoSessionIdleTimeout": 1800,
   "ssoSessionMaxLifespan": 36000,
   "actionTokenGeneratedByUserLifespan": 900,
+  "actionTokenGeneratedByAdminLifespan": 43200,
   "attributes": {
     "actionTokenGeneratedByUserLifespan.reset-credentials": "900",
     "actionTokenGeneratedByUserLifespan.verify-email": "86400"
@@ -187,7 +189,41 @@
       },
       "protocol": "openid-connect",
       "fullScopeAllowed": true
+    },
+    {
+      "clientId": "nkwapa-api",
+      "name": "Nkwapa API service account",
+      "description": "Server-side client used only to provision patient portal identities. No browser flow.",
+      "enabled": true,
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "frontchannelLogout": false,
+      "secret": "${KEYCLOAK_ADMIN_CLIENT_SECRET}",
+      "redirectUris": [],
+      "webOrigins": [],
+      "protocol": "openid-connect",
+      "fullScopeAllowed": false
     }
   ],
-  "users": []
+  "users": [
+    {
+      "username": "service-account-nkwapa-api",
+      "enabled": true,
+      "serviceAccountClientId": "nkwapa-api",
+      "clientRoles": {
+        "realm-management": ["manage-users"]
+      }
+    }
+  ],
+  "clientScopeMappings": {
+    "realm-management": [
+      {
+        "client": "nkwapa-api",
+        "roles": ["manage-users"]
+      }
+    ]
+  }
 }

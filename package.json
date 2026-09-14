@@ -13,6 +13,7 @@
     "db:assign-system-admin": "ts-node --transpile-only packages/db/prisma/assign-system-admin.ts",
     "db:audit-clinics": "ts-node --transpile-only packages/db/prisma/audit-clinic-metadata.ts",
     "keycloak:validate-realm": "node scripts/validate-keycloak-realm.mjs",
+    "keycloak:apply-service-account": "node scripts/apply-keycloak-service-account.mjs",
     "design:check-charts": "node scripts/check-chart-palette.mjs",
     "security:audit": "npm audit --omit=dev --workspaces --audit-level=moderate && npm audit --workspaces --audit-level=critical",
     "security:scan": "node scripts/check-secrets.mjs",

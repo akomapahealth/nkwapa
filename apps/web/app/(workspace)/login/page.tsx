@@ -2,10 +2,10 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useBootstrap } from '@/lib/bootstrap-context';
-import { getPostAuthPath, getSafeNextPath } from '@/lib/auth-routing';
+import { getPostAuthPath, getSafeNextPath, shouldAutoContinue } from '@/lib/auth-routing';
 import { useKeycloak } from '@/app/KeycloakProvider';
 import { PageSkeleton } from '@/components/feedback/AppState';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,30 @@ export default function LoginPage() {
 
   const nextPath = getSafeNextPath(searchParams.get('next'));
 
+  /*
+    A patient returning from Keycloak, having just chosen their password, arrives here
+    holding a live SSO session -- and is shown a page asking them to sign in.
+
+    The silent check-sso that would have noticed the session runs in an iframe, which the
+    third-party cookie defaults in Safari and Firefox block outright, so for most patients
+    this is not a redundant click but the only way through, on a screen that gives no hint
+    that clicking is safe. A top-level redirect is not subject to those cookie rules.
+
+    Started once, from a ref rather than state, so a re-render cannot fire a second
+    navigation. When sign-in itself is failing we fall through to the normal page, because
+    an automatic retry loop is worse than a button.
+  */
+  const autoContinue = shouldAutoContinue(searchParams.get('next')) && !error;
+  const autoContinueStarted = useRef(false);
+
+  useEffect(() => {
+    if (isAuthenticated || !autoContinue || autoContinueStarted.current) {
+      return;
+    }
+    autoContinueStarted.current = true;
+    login();
+  }, [autoContinue, isAuthenticated, login]);
+
   useEffect(() => {
     if (!isAuthenticated || isBootstrapLoading) {
       return;
@@ -41,6 +65,19 @@ export default function LoginPage() {
         title="Opening your workspace"
         description="Your session is active. We are selecting the right clinic context and opening your workspace."
         steps={['Session restored', 'Clinic selected', 'Dashboard loading']}
+        className="min-h-screen"
+      />
+    );
+  }
+
+  // Showing the sign-in page for the instant before the redirect fires would flash a
+  // screen the patient is not meant to act on, and invite a click that cancels nothing.
+  if (autoContinue) {
+    return (
+      <PageSkeleton
+        title="Finishing your account setup"
+        description="Your password is saved. Taking you to secure sign-in, so you can confirm your details and open your record."
+        steps={['Password saved', 'Secure sign-in', 'Confirming your details']}
         className="min-h-screen"
       />
     );

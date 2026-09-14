@@ -97,11 +97,23 @@ rather than blanked, so clinical note content never reaches a role without
 
 - staff can directly link an existing local user
 - staff can create a portal invite, resend its email, cancel it, or replace it
+- issuing an invite against an email address also provisions the patient's Keycloak identity
+  and has Keycloak email them an account-setup link; staff never create identities by hand
+- the chart reports whether an account actually stands behind the invitation, separately from
+  whether the invitation email was delivered, because the two fail independently
+- resending is idempotent: it asks only for the setup steps still outstanding, and never
+  resets a password the patient has already chosen
+- provisioning failure does not block the invitation; the invite still stands, the chart says
+  why no account exists yet, and a resend finishes the job
+- cancelling an invitation does not remove the identity, which the patient may already be
+  using or hold other invitations against
 - every invite has an expiry, and an expired invite cannot be claimed, cannot put its
-  holder into claim onboarding, and grants no clinic scope
+  holder into claim onboarding, and grants no clinic scope; the account-setup link carries
+  the same expiry, so the link and the invitation die together
 - the chart carries the live invite plus recently settled ones, so a cancelled or expired
   invitation is visible rather than absent
-- create, resend, cancel, claim, and expiry are all written to the audit trail
+- create, resend, cancel, claim, expiry, and identity provisioning are all written to the
+  audit trail; the provisioning entry carries outcome codes only, never the address
 - patients can later claim the record through the claim flow, which still matches the
   staged email or phone, the patient code, and the date of birth
 

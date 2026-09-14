@@ -81,6 +81,18 @@ export interface PatientPortalInviteSummary {
   cancelledAt: string | null;
   /** Who issued it. Staff chasing a wrong-chart invite need to know who to ask. */
   createdByName: string | null;
+  /**
+   * Whether there is an account behind the invitation.
+   *
+   * Separate from emailDelivery on purpose: a delivered invite pointing at an identity that
+   * was never created is the failure this answers, and folding the two together would hide
+   * it exactly as it was hidden before.
+   */
+  identity: {
+    status: string;
+    provisionedAt: string | null;
+    failureReason: string | null;
+  };
   emailDelivery: PatientPortalInviteDelivery | null;
 }
 
@@ -511,6 +523,9 @@ export class PatientService {
       expiresAt: Date | null;
       claimedAt: Date | null;
       cancelledAt: Date | null;
+      identityStatus?: string | null;
+      identityProvisionedAt?: Date | null;
+      identityFailureReason?: string | null;
       createdBy?: { displayName: string } | null;
       reminders: Array<{
         status: string;
@@ -532,6 +547,11 @@ export class PatientService {
       claimedAt: invite.claimedAt?.toISOString() ?? null,
       cancelledAt: invite.cancelledAt?.toISOString() ?? null,
       createdByName: invite.createdBy?.displayName ?? null,
+      identity: {
+        status: invite.identityStatus ?? 'NOT_REQUESTED',
+        provisionedAt: invite.identityProvisionedAt?.toISOString() ?? null,
+        failureReason: invite.identityFailureReason ?? null,
+      },
       emailDelivery: delivery
         ? {
             status: delivery.status,

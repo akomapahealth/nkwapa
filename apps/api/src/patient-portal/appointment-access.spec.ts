@@ -10,6 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ReminderService } from '../reminders/reminder.service';
 import { EmailDeliverabilityService } from '../common/email-policy';
+import { keycloakAdminServiceProvider } from '../testing/keycloak-admin-fixtures';
 import { ClinicAppointmentsController } from './clinic-appointments.controller';
 import { ClinicAppointmentRequestsController } from './clinic-appointment-requests.controller';
 import { PatientApiController } from './patient-api.controller';
@@ -108,6 +109,7 @@ describe('appointment access', () => {
           provide: EmailDeliverabilityService,
           useValue: collaborators.emailDeliverabilityService,
         },
+        keycloakAdminServiceProvider(),
       ],
     }).compile();
 
