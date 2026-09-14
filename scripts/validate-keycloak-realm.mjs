@@ -289,6 +289,34 @@ await assertThemeFileIncludes(
 );
 
 /*
+  messageHeader is a message KEY, not a sentence.
+
+  The override had dropped the msg() lookup the base template does, so the last screen of
+  the account-setup journey greeted patients with the literal text "accountUpdatedTitle".
+  Nothing else in the product would have caught it: it renders only after a password is
+  actually set, inside Keycloak, in a theme no build step type-checks.
+*/
+await assertThemeFileIncludes(
+  'info.ftl',
+  'msg("${messageHeader}")',
+  'info.ftl must resolve messageHeader through msg(), not print the key',
+);
+
+await assertThemeFile('messages/messages_en.properties');
+for (const [key, description] of [
+  ['accountUpdatedTitle=', 'the screen shown once account setup finishes'],
+  ['backToApplication=', 'the hand-off back to Nkwapa'],
+  ['requiredAction.UPDATE_PASSWORD=', 'the password step, in patient wording'],
+  ['requiredAction.VERIFY_EMAIL=', 'the email step, in patient wording'],
+]) {
+  await assertThemeFileIncludes(
+    'messages/messages_en.properties',
+    key,
+    `login messages must override ${description}`,
+  );
+}
+
+/*
   The emails Keycloak sends carry the link that authorises patient account setup, and they
   land in the same inbox, at the same moment, as the invite the API sends. A patient who
   cannot tell the pair apart from a phishing attempt will not use either, so the branded

@@ -1089,6 +1089,43 @@ async function main() {
       });
       console.log(`Seeded portal invite lifecycle E2E patient ${patient.patientCode}.`);
     }
+
+    /*
+      A chart for the cold-from-email journey: invited by staff during the test, claimed by
+      a patient who had no account until the invitation created one.
+
+      Its own chart rather than a shared one. "E2E Unclaimed" has to keep a claimable invite
+      for the Mailpit resend spec, and the lifecycle chart above is mutated by the lifecycle
+      spec; Playwright runs these files in series against one database, so a spec that
+      issues a fresh invite would settle an invitation another spec is relying on.
+
+      It is seeded with no invite at all, because the invite is what the test creates.
+    */
+    const signupPatient = await prisma.patient.findFirst({
+      where: { primaryClinicId: clinic.id, firstName: 'E2E', lastName: 'Signup' },
+    });
+    if (signupPatient) {
+      console.log('Portal signup E2E patient already exists; skipping.');
+    } else {
+      const signupPlain = 'GH-E2E-SIGNUP-1';
+      const patient = await prisma.patient.create({
+        data: {
+          patientCode: await generatePatientCode(prisma),
+          primaryClinicId: clinic.id,
+          firstName: 'E2E',
+          lastName: 'Signup',
+          // The spec types this date back. Changing it here breaks that spec and nothing else.
+          dob: new Date('1981-06-24'),
+          sex: Sex.FEMALE,
+          nationalIdType: NationalIdType.NATIONAL_ID,
+          nationalIdCiphertext: encryptNationalId(signupPlain),
+          nationalIdHash: hashNationalId(signupPlain),
+          nationalIdLast4: nationalIdLast4(signupPlain),
+          createdByUserId: researchSettingsOwnerId,
+        },
+      });
+      console.log(`Seeded portal signup E2E patient ${patient.patientCode}.`);
+    }
   }
 
   if (researchSettingsOwnerId) {

@@ -213,6 +213,13 @@ jobs:
       REDIS_URL: redis://localhost:6379
       KEYCLOAK_BASE_URL: http://localhost:8080
       KEYCLOAK_REALM: nkwapa
+      # The service account the API provisions patient identities with. Without these the
+      # invite still goes out, but no Keycloak account is created behind it and the
+      # cold-from-email journey has nothing to sign in to. The secret must match the value
+      # docker-compose hands Keycloak, which substitutes it into the realm import.
+      KEYCLOAK_ADMIN_BASE_URL: http://localhost:8080
+      KEYCLOAK_ADMIN_CLIENT_ID: nkwapa-api
+      KEYCLOAK_ADMIN_CLIENT_SECRET: nkwapa-local-dev-secret
       KEYCLOAK_ISSUER: http://localhost:8080/realms/nkwapa
       KEYCLOAK_JWKS_URI: http://localhost:8080/realms/nkwapa/protocol/openid-connect/certs
       NEXT_PUBLIC_API_BASE_URL: http://localhost:4000
