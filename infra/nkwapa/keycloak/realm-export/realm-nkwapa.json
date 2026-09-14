@@ -2,6 +2,7 @@
   "realm": "nkwapa",
   "enabled": true,
   "loginTheme": "nkwapa",
+  "emailTheme": "nkwapa",
   "sslRequired": "${KC_SSL_REQUIRED}",
   "registrationAllowed": false,
   "loginWithEmailAllowed": true,
@@ -216,5 +217,13 @@
         "realm-management": ["manage-users"]
       }
     }
-  ]
+  ],
+  "clientScopeMappings": {
+    "realm-management": [
+      {
+        "client": "nkwapa-api",
+        "roles": ["manage-users"]
+      }
+    ]
+  }
 }

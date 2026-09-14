@@ -5,6 +5,7 @@ const realmPath = new URL(
   import.meta.url,
 );
 const themeLoginPath = new URL('../infra/nkwapa/keycloak/themes/nkwapa/login/', import.meta.url);
+const themeEmailPath = new URL('../infra/nkwapa/keycloak/themes/nkwapa/email/', import.meta.url);
 const realm = JSON.parse(await readFile(realmPath, 'utf8'));
 const failures = [];
 
@@ -56,6 +57,7 @@ assert(
 );
 assert(realm.resetPasswordAllowed === true, 'resetPasswordAllowed must be true');
 assert(realm.verifyEmail === true, 'verifyEmail must be true');
+assert(realm.emailTheme === 'nkwapa', 'emailTheme must be nkwapa');
 // Open self-registration would let anyone create an account against a clinic. Patients are
 // provisioned from an invite instead, so this flag staying false is load-bearing.
 assert(realm.registrationAllowed === false, 'registrationAllowed must stay false');
@@ -228,6 +230,21 @@ assert(
   'nkwapa-api service account must hold no realm roles',
 );
 
+/*
+  Holding the role is not enough to use it.
+
+  With fullScopeAllowed false -- which is the posture we want -- Keycloak omits any role that
+  is not also in the client's scope, so the token comes back without manage-users and every
+  admin call 403s. The client still authenticates, which makes this fail as a permission
+  error at provisioning time rather than as anything that looks like misconfiguration.
+*/
+const apiScopeMappings = realm.clientScopeMappings?.['realm-management'] ?? [];
+const apiScope = apiScopeMappings.find((mapping) => mapping.client === 'nkwapa-api');
+assert(
+  [...(apiScope?.roles ?? [])].sort().join(',') === 'manage-users',
+  'nkwapa-api must scope exactly manage-users, or the role never reaches its token',
+);
+
 for (const relativePath of [
   'template.ftl',
   'login.ftl',
@@ -270,6 +287,50 @@ await assertThemeFileIncludes(
   '${url.loginAction}',
   'login-verify-email.ftl must keep the Keycloak resend-verification action',
 );
+
+/*
+  The emails Keycloak sends carry the link that authorises patient account setup, and they
+  land in the same inbox, at the same moment, as the invite the API sends. A patient who
+  cannot tell the pair apart from a phishing attempt will not use either, so the branded
+  shell is as load-bearing as the login theme and is guarded the same way.
+*/
+for (const relativePath of [
+  'theme.properties',
+  'html/template.ftl',
+  'html/executeActions.ftl',
+  'text/executeActions.ftl',
+  'messages/messages_en.properties',
+]) {
+  await assertThemeFile(relativePath, themeEmailPath);
+}
+
+await assertThemeFileIncludes(
+  'theme.properties',
+  'parent=keycloak',
+  'email theme must inherit the base Keycloak templates it does not override',
+  themeEmailPath,
+);
+await assertThemeFileIncludes(
+  'html/executeActions.ftl',
+  '${link}',
+  'html/executeActions.ftl must render the Keycloak action link',
+  themeEmailPath,
+);
+await assertThemeFileIncludes(
+  'text/executeActions.ftl',
+  '${link}',
+  'text/executeActions.ftl must render the Keycloak action link',
+  themeEmailPath,
+);
+// Both halves must name the companion invite, or the pair reads as unrelated mail.
+for (const relativePath of ['html/executeActions.ftl', 'text/executeActions.ftl']) {
+  await assertThemeFileIncludes(
+    relativePath,
+    'Set up your patient account',
+    `${relativePath} must name the companion invite email`,
+    themeEmailPath,
+  );
+}
 
 if (failures.length > 0) {
   console.error('Keycloak realm validation failed:');
