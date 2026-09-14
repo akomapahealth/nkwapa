@@ -3,13 +3,13 @@ NKWAPA
 
 Choose your password
 
-Your clinic has invited you to see your health record online. Choose a password to finish setting up your account, and we will take you straight to the next step.
+Your clinic has asked you to set a password for your Nkwapa account. Choose one now to finish setting it up.
 
 Choose my password: ${link}
 
-This link can only be used once, and expires in ${linkExpirationFormatter(linkExpiration)}. If it has expired, ask your clinic to send the invitation again.
+This link can only be used once, and expires in ${linkExpirationFormatter(linkExpiration)}. If it has expired, ask your clinic to send it again.
 
-You should also have an email titled "Set up your patient account", which carries the patient code you will be asked for once you have signed in.
+If you were invited to the patient portal, your clinic has also emailed you the patient code you will be asked for after signing in.
 
 If you were not expecting this, you can ignore this email. Nothing changes until the link above is used.
 

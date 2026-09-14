@@ -49,6 +49,20 @@ async function assertThemeFileIncludes(relativePath, expectedText, message, root
   }
 }
 
+async function assertThemeFileExcludes(
+  relativePath,
+  forbiddenText,
+  message,
+  root = themeLoginPath,
+) {
+  try {
+    const contents = await readFile(new URL(relativePath, root), 'utf8');
+    assert(!contents.includes(forbiddenText), message);
+  } catch {
+    failures.push(`theme file must be readable: ${relativePath}`);
+  }
+}
+
 assert(realm.realm === 'nkwapa', 'realm must be nkwapa');
 assert(realm.loginTheme === 'nkwapa', 'loginTheme must be nkwapa');
 assert(
@@ -350,12 +364,28 @@ await assertThemeFileIncludes(
   'text/executeActions.ftl must render the Keycloak action link',
   themeEmailPath,
 );
-// Both halves must name the companion invite, or the pair reads as unrelated mail.
+/*
+  This template is not the patient portal's.
+
+  Every Keycloak required-actions email renders through it, including the one an administrator
+  sends when resetting a member of staff's password from the console. The first version opened
+  "Your clinic has invited you to see your health record online" and pointed at an invitation
+  email that, for that reader, does not exist.
+
+  Asserted as an absence because that is the shape of the mistake: the copy reads perfectly
+  well if you only picture the caller you wrote it for.
+*/
 for (const relativePath of ['html/executeActions.ftl', 'text/executeActions.ftl']) {
+  await assertThemeFileExcludes(
+    relativePath,
+    'health record online',
+    `${relativePath} must not assume the reader is a patient`,
+    themeEmailPath,
+  );
   await assertThemeFileIncludes(
     relativePath,
-    'Set up your patient account',
-    `${relativePath} must name the companion invite email`,
+    'If you were invited to the patient portal',
+    `${relativePath} must keep the portal cross-reference conditional`,
     themeEmailPath,
   );
 }
