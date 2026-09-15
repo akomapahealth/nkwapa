@@ -104,13 +104,17 @@ Three things have to line up:
 
 1. **Same sender domain on both services.** `KC_SMTP_FROM` and `EMAIL_FROM` must match, or the
    cross-reference that stops the pair reading as a phishing attempt has nothing to rest on.
-2. **The envelope sender too.** SPF authenticates the envelope sender, not the header From, so
-   `KC_SMTP_ENVELOPE_FROM` must be on the authenticated domain as well.
-3. **The relay must be authorised for that domain.** SPF authorises sending _servers_. If
-   Keycloak relays through a different service than the API does, add it to the domain's SPF
-   record first. Switching an unauthenticated sender onto an authenticated domain without doing
-   this makes delivery worse, not better: it turns "no SPF record" into an outright SPF failure,
-   and a DMARC policy will then act on it.
+2. **Leave the envelope sender alone.** SPF is evaluated against the envelope sender rather than
+   the header From, and a transactional provider sets an envelope on a subdomain it controls and
+   has already published SPF for. Setting `KC_SMTP_ENVELOPE_FROM` to the bare domain overrides
+   that and hands SPF a record which does not list the provider, turning a pass into a softfail.
+   DKIM still carries DMARC, so nothing visibly breaks and the alignment is gone. Set it only if
+   you have a specific reason and have checked the record you are pointing it at.
+3. **Both services must authenticate against a domain the relay can actually send for.** If they
+   use different relays, or the same provider under two accounts, only the account that has
+   verified the sending domain can send as it: point both at that account's credentials. Adding
+   the second relay to the bare domain's SPF record is not the fix, because with a provider that
+   manages its own return-path, that record is not the one being checked.
 
 Send a real invitation to an external address you control, not an internal one, and confirm two
 emails arrive. Then open the setup email's raw source (in Gmail, "Show original") and check that
