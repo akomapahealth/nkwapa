@@ -23,8 +23,8 @@ test.use({ storageState: storageStateFor('staff') });
  *
  * Acts on the seeded "E2E Signup" chart, which exists for this file alone and is seeded with
  * no invitation, because the invitation is what this test creates. The other portal charts
- * are relied on by notifications-email.spec.js and portal-invite-lifecycle.spec.js, and
- * Playwright runs these files in series against one database.
+ * are relied on by notifications-email.spec.js and portal-invite-lifecycle.spec.js; the
+ * suites share one database, so each owns its own chart.
  */
 test.describe.configure({ mode: 'serial' });
 

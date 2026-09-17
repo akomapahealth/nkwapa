@@ -14,7 +14,11 @@ module.exports = defineConfig({
   expect: {
     timeout: 10_000,
   },
+  // fullyParallel: false only serializes tests within a file. Spec files still run
+  // concurrently across workers. Specs share one database and one Mailpit, so CI
+  // pins to a single worker; otherwise two files can race the same seeded chart.
   fullyParallel: false,
+  workers: isCI ? 1 : undefined,
   forbidOnly: isCI,
   retries: isCI ? 2 : 0,
   reporter: isCI ? [['github'], ['html', { open: 'never' }]] : 'list',

@@ -8,11 +8,11 @@ test.use({ storageState: storageStateFor('staff') });
 /**
  * Portal invite lifecycle from the chart.
  *
- * Acts on the seeded "E2E Lifecycle" chart rather than "E2E Unclaimed": Playwright runs
- * these files in series against one database, and notifications-email.spec.js needs that
- * other chart to keep a claimable invite for its Mailpit resend. This chart is seeded with
- * a cancelled and an expired invite and no live one, so the previous-invitations list is
- * deterministic and the mutations here are free to change what they like.
+ * Acts on the seeded "E2E Lifecycle" chart rather than "E2E Unclaimed": the suites share
+ * one database, and notifications-email.spec.js needs that other chart to keep a claimable
+ * invite for its Mailpit resend. This chart is seeded with a cancelled and an expired
+ * invite and no live one, so the previous-invitations list is deterministic and the
+ * mutations here are free to change what they like.
  */
 async function createInvite(page, { email, validFor }) {
   await page
