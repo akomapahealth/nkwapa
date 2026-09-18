@@ -1039,7 +1039,7 @@ async function main() {
 
       The lifecycle specs need a chart whose previous-invitations list is deterministic, and
       they need one they can mutate freely: the chart above must keep a claimable invite for
-      the Mailpit resend spec, and Playwright runs these files in series against one database.
+      the Mailpit resend spec, and the suites share one database.
     */
     const lifecyclePatient = await prisma.patient.findFirst({
       where: { primaryClinicId: clinic.id, firstName: 'E2E', lastName: 'Lifecycle' },
@@ -1096,8 +1096,8 @@ async function main() {
 
       Its own chart rather than a shared one. "E2E Unclaimed" has to keep a claimable invite
       for the Mailpit resend spec, and the lifecycle chart above is mutated by the lifecycle
-      spec; Playwright runs these files in series against one database, so a spec that
-      issues a fresh invite would settle an invitation another spec is relying on.
+      spec; the suites share one database, so a spec that issues a fresh invite would settle
+      an invitation another spec is relying on.
 
       It is seeded with no invite at all, because the invite is what the test creates.
     */
