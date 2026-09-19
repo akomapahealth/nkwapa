@@ -112,6 +112,21 @@ Prescription history within this module requires PRESCRIPTION.READ, which a volu
 
 Offline: queued as `patient_medication_revision`, `medication_reconciliation`, `patient_pharmacy_revision`, `patient_pharmacy_preference`. The queued write requires the same permission as the online one.
 
+## Encounter prescriptions
+
+Writing is doctor-only: a director and a manager may read the record but not create one, and a volunteer holds neither permission. A write is refused on a finalized encounter, and refused without an allergy-review acknowledgement when the patient has active or unrecorded allergies. Editing the drug catalogue the prescription draws on is a separate permission again, DRUG.MANAGE, held by director and manager rather than by the doctor prescribing from it.
+
+| Role | Read | Write |
+| --- | --- | --- |
+| SYSTEM_ADMIN | yes | yes |
+| DIRECTOR | yes | no |
+| MANAGER | yes | no |
+| DOCTOR | yes | yes |
+| VOLUNTEER | no | no |
+| PATIENT | no | no |
+
+Offline: queued as `prescription`. The queued write requires the same permission as the online one.
+
 ## HAP clinical notes
 
 Online-only and never queued. A system administrator must separately hold a doctor or volunteer seat at the clinic to read content.
@@ -174,6 +189,8 @@ Offline: not queued. Every read and write requires a live connection.
 | `MEDICATION_RECONCILIATION.WRITE` | yes | no | no | yes | yes | no |
 | `PATIENT.READ` | yes | yes | yes | yes | yes | no |
 | `PATIENT.UPDATE` | yes | yes | yes | yes | no | no |
+| `PRESCRIPTION.READ` | yes | yes | yes | yes | no | no |
+| `PRESCRIPTION.WRITE` | yes | no | no | yes | no | no |
 | `SCREENING.READ` | yes | yes | yes | yes | yes | no |
 | `SCREENING.WRITE` | yes | no | no | yes | yes | no |
 

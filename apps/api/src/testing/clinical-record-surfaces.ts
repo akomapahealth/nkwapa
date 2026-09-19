@@ -99,6 +99,14 @@ export const CLINICAL_RECORD_SURFACES: readonly ClinicalRecordSurface[] = [
     note: 'Prescription history within this module requires PRESCRIPTION.READ, which a volunteer does not hold.',
   },
   {
+    id: 'prescriptions',
+    label: 'Encounter prescriptions',
+    read: PERMISSIONS.PRESCRIPTION_READ,
+    write: PERMISSIONS.PRESCRIPTION_WRITE,
+    syncEntityTypes: ['prescription'],
+    note: 'Writing is doctor-only: a director and a manager may read the record but not create one, and a volunteer holds neither permission. A write is refused on a finalized encounter, and refused without an allergy-review acknowledgement when the patient has active or unrecorded allergies. Editing the drug catalogue the prescription draws on is a separate permission again, DRUG.MANAGE, held by director and manager rather than by the doctor prescribing from it.',
+  },
+  {
     id: 'clinical-notes',
     label: 'HAP clinical notes',
     read: PERMISSIONS.CLINICAL_NOTE_READ,

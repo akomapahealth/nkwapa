@@ -245,6 +245,10 @@ export function PrescriptionForm({
               placeholder="Search drugs..."
               value={drugQuery}
               onChange={(e) => setDrugQuery(e.target.value)}
+              {...fieldErrorProps(
+                'prescription-drug-search',
+                fieldErrors['prescription-drug-search'],
+              )}
             />
             {drugs.length > 0 && (
               <ul className="mt-1 max-h-40 overflow-y-auto rounded-md border">
@@ -257,6 +261,7 @@ export function PrescriptionForm({
                         setSelectedDrug(d);
                         setDrugQuery('');
                         setDrugs([]);
+                        clearFieldError('prescription-drug-search');
                       }}
                     >
                       {d.name}{' '}
@@ -270,6 +275,23 @@ export function PrescriptionForm({
             )}
           </div>
         )}
+        {/*
+          The drug is the one required field whose error had nowhere to go.
+
+          `validate()` has always produced "Choose a drug from the clinic catalog.", and the three
+          fields below have always rendered theirs, but this one was never displayed and the input
+          never carried `aria-invalid`. Pressing the button with no drug chosen therefore did
+          nothing visible: `focusFirstInvalid` moved the cursor here and said nothing, and a screen
+          reader announced nothing at all. It is also the field most easily missed, because it is
+          the only one that needs a search and a click rather than typing.
+
+          Outside the conditional above, so it survives the input being replaced by the chosen
+          drug's name.
+        */}
+        <FieldError
+          id="prescription-drug-search"
+          message={fieldErrors['prescription-drug-search']}
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
