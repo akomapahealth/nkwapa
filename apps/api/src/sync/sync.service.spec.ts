@@ -13,6 +13,7 @@ import { ClinicalMeasurementsService } from './clinical-measurements.service';
 import { MedicationReconciliationService } from '../medication-reconciliation/medication-reconciliation.service';
 import { DiabetesScreeningService } from '../diabetes-screening/diabetes-screening.service';
 import { HypertensionAssessmentService } from '../hypertension-assessment/hypertension-assessment.service';
+import { MedicationAdherenceService } from '../medication-adherence/medication-adherence.service';
 
 const mockUser = {
   user: { id: 'user-1' },
@@ -29,6 +30,7 @@ describe('SyncService', () => {
   let medicationReconciliationService: jest.Mocked<MedicationReconciliationService>;
   let diabetesScreeningService: jest.Mocked<DiabetesScreeningService>;
   let hypertensionAssessmentService: jest.Mocked<HypertensionAssessmentService>;
+  let medicationAdherenceService: jest.Mocked<MedicationAdherenceService>;
   beforeEach(async () => {
     const mockPrisma = {
       syncMutation: {
@@ -137,6 +139,15 @@ describe('SyncService', () => {
             upsert: jest.fn().mockResolvedValue({ id: 'hypertension-1' }),
           },
         },
+        {
+          provide: MedicationAdherenceService,
+          useValue: {
+            validateSyncPayload: jest.fn().mockResolvedValue({
+              dto: { context: 'HYPERTENSION', entries: [] },
+            }),
+            replaceForEncounter: jest.fn().mockResolvedValue({ items: [] }),
+          },
+        },
       ],
     }).compile();
 
@@ -149,6 +160,7 @@ describe('SyncService', () => {
     medicationReconciliationService = module.get(MedicationReconciliationService);
     diabetesScreeningService = module.get(DiabetesScreeningService);
     hypertensionAssessmentService = module.get(HypertensionAssessmentService);
+    medicationAdherenceService = module.get(MedicationAdherenceService);
   });
 
   describe('replay recovery', () => {
@@ -523,6 +535,69 @@ describe('SyncService', () => {
 
     expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.ERROR);
     expect(hypertensionAssessmentService.upsert).not.toHaveBeenCalled();
+  });
+
+  /*
+    The set, not a row.
+
+    A medication dropped from the reconciled list has to lose its observation, and a per-row replay
+    could never say so. `entityId` identifies the set for one encounter and one condition, so the
+    two conditions replay independently.
+  */
+  it('routes an adherence replay through the shared validated service', async () => {
+    const mutation: SyncMutationDto = {
+      id: 'mut-adh-1',
+      entityType: 'encounter_medication_adherence',
+      entityId: 'adh-set-1',
+      operation: 'UPSERT',
+      clinicId: 'clinic-1',
+      idempotencyKey: 'adh-idem-1',
+      createdAt: '2026-09-13T12:00:00.000Z',
+      payloadJson: { encounterId: 'enc-1', context: 'HYPERTENSION', entries: [] },
+    } as SyncMutationDto;
+
+    const results = await service.applyMutations('clinic-1', mockUser as never, [mutation]);
+
+    expect(results).toEqual([{ id: 'mut-adh-1', status: 'APPLIED' }]);
+    expect(medicationAdherenceService.validateSyncPayload).toHaveBeenCalledWith(
+      mutation.payloadJson,
+    );
+    expect(medicationAdherenceService.replaceForEncounter).toHaveBeenCalledWith(
+      'clinic-1',
+      'enc-1',
+      expect.objectContaining({ userId: 'user-1' }),
+      expect.objectContaining({ context: 'HYPERTENSION' }),
+      expect.objectContaining({
+        syncMutation: expect.objectContaining({ idempotencyKey: 'adh-idem-1' }),
+      }),
+    );
+  });
+
+  it('surfaces a rejected adherence payload as an error rather than writing it', async () => {
+    // The offline path validates through the same DTO as the REST route, so a value outside the
+    // vocabulary is refused before anything is written -- which is what hypertension lacked.
+    medicationAdherenceService.validateSyncPayload.mockRejectedValueOnce(
+      new BadRequestException({ code: 'VALIDATION_ERROR' }),
+    );
+
+    const results = await service.applyMutations('clinic-1', mockUser as never, [
+      {
+        id: 'mut-adh-2',
+        entityType: 'encounter_medication_adherence',
+        entityId: 'adh-set-1',
+        operation: 'UPSERT',
+        clinicId: 'clinic-1',
+        idempotencyKey: 'adh-idem-2',
+        payloadJson: {
+          encounterId: 'enc-1',
+          context: 'HYPERTENSION',
+          entries: [{ supplyRemaining: 'BOGUS' }],
+        },
+      } as SyncMutationDto,
+    ]);
+
+    expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.ERROR);
+    expect(medicationAdherenceService.replaceForEncounter).not.toHaveBeenCalled();
   });
 
   it('rejects diabetes replay for a read-only director', async () => {

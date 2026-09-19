@@ -85,6 +85,8 @@ import {
 } from '@/lib/encounter-vitals';
 import { HYPERTENSION_LABELS } from '@/lib/hypertension';
 import { ClinicianPlanSection } from '@/components/encounters/ClinicianPlanSection';
+import { MedicationAdherenceSection } from '@/components/encounters/MedicationAdherenceSection';
+import { useMedicationAdherence } from '@/lib/use-medication-adherence';
 import {
   CheckboxQuestion,
   ChoiceQuestion,
@@ -96,6 +98,8 @@ import {
 interface HypertensionInterviewFormProps {
   clinicId: string;
   encounterId: string;
+  /** Needed to read the reconciled medication list the adherence section asks about. */
+  patientId: string;
   initialData?: Record<string, unknown> | null;
   /** Today's vitals, read and shown but never stored on this record. */
   vitals?: EncounterVitalsReading | null;
@@ -115,6 +119,7 @@ interface HypertensionInterviewFormProps {
 export function HypertensionInterviewForm({
   clinicId,
   encounterId,
+  patientId,
   initialData,
   vitals,
   canEdit = true,
@@ -143,6 +148,13 @@ export function HypertensionInterviewForm({
   */
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const { isOnline, syncNow } = useSync();
+  const adherence = useMedicationAdherence(
+    clinicId,
+    encounterId,
+    patientId,
+    'HYPERTENSION',
+    canEdit,
+  );
 
   /*
     Read today's vitals from the local cache as well as the prop.
@@ -301,9 +313,20 @@ export function HypertensionInterviewForm({
     setHasSubmitted(true);
     const found = validateHypertensionInterview(values);
     setErrors(found);
+    /*
+      Both halves are validated before either is written.
+
+      The assessment and the adherence set are two records saved by one act, so a payload that
+      fails on one must not leave the other written -- a volunteer who fixed the highlighted
+      medication answer would otherwise be saving an assessment for the second time.
+    */
+    const adherenceErrors = adherence.validate();
     if (Object.keys(found).length) {
       focusFirstInvalid(found, [...HYPERTENSION_FIELD_ORDER]);
       throw new Error('Check the highlighted answers before saving.');
+    }
+    if (Object.keys(adherenceErrors).length) {
+      throw new Error('Check the highlighted medication answers before saving.');
     }
 
     setSaving(true);
@@ -350,6 +373,13 @@ export function HypertensionInterviewForm({
         operation: SYNC_OPERATION.UPSERT,
         payloadJson: payload,
       });
+      /*
+        Queued before the sync pass, so one drain carries both.
+
+        Saving them as separate passes would let a connection drop between the two and leave the
+        server holding an assessment whose medication answers it has never seen.
+      */
+      await adherence.save();
       const synced = isOnline ? await syncNow(clinicId) : null;
       setSaveMessage(
         synced?.success
@@ -376,6 +406,7 @@ export function HypertensionInterviewForm({
     onSaved,
     isOnline,
     syncNow,
+    adherence,
   ]);
 
   useEffect(() => {
@@ -606,10 +637,25 @@ export function HypertensionInterviewForm({
       </FormSectionCard>
 
       <FormSectionCard
-        title="4. Medication-taking support"
+        title="4. Medications and adherence"
         titleAs="h2"
-        description="Record what the patient is taking on the Medications tab. This section is about how they remember."
+        description="The medications come from the reconciled list on the Medications tab and are read-only here. Record only what was observed today."
       >
+        <MedicationAdherenceSection
+          context="HYPERTENSION"
+          clinicId={clinicId}
+          patientId={patientId}
+          forCondition={adherence.forCondition}
+          other={adherence.other}
+          categoriesUnavailable={adherence.categoriesUnavailable}
+          entries={adherence.entries}
+          errors={adherence.errors}
+          disabled={!canEdit || saving}
+          reserveErrorSpace={hasSubmitted}
+          onChange={adherence.update}
+          loading={adherence.loading}
+          loadError={adherence.loadError}
+        />
         <MultiChoiceQuestion
           {...q('htn-reminder-strategies')}
           label="How does the patient remember medications?"

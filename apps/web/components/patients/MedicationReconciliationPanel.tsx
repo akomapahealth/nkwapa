@@ -41,6 +41,7 @@ import {
   type PharmacyRecord,
   type PharmacyRevision,
   type ReconciliationEvent,
+  assembleMedicationRecords,
 } from '@/lib/medication-reconciliation';
 import { AllergySummaryBanner } from './AllergySummaryBanner';
 import { Badge } from '@/components/ui/badge';
@@ -231,14 +232,7 @@ export function MedicationReconciliationPanel({
         db.patient_pharmacy_revisions.toArray(),
         db.patient_pharmacy_preferences.where('patientId').equals(patientId).toArray(),
       ]);
-    const medications = records
-      .filter((record) => record.clinicId === clinicId && record.currentRevisionId)
-      .map((record) => {
-        const currentRevision = revisions.find((item) => item.id === record.currentRevisionId);
-        if (!currentRevision) return null;
-        return { ...record, currentRevision } as MedicationRecord;
-      })
-      .filter((record): record is MedicationRecord => record !== null);
+    const medications = assembleMedicationRecords(records, revisions, clinicId);
     const pharmacies = pharmacyRecords
       .filter((record) => record.clinicId === clinicId && record.currentRevisionId)
       .map((record) => {

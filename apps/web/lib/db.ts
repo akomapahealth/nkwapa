@@ -323,6 +323,35 @@ export interface PatientMedicationRevisionRecord {
   createdAt?: string;
 }
 
+/**
+ * One condition's adherence answers for one encounter.
+ *
+ * Stored as a set rather than a row per medication, because that is the shape the server writes
+ * and the outbox replays: removing a medication from the reconciled list has to remove its
+ * observation, and nothing in a per-row local table would say so. The pull regroups the server's
+ * per-medication rows back into this.
+ */
+export interface MedicationAdherenceSetRecord {
+  id: string;
+  clinicId: string;
+  encounterId: string;
+  context: string;
+  entries: MedicationAdherenceEntryRecord[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface MedicationAdherenceEntryRecord {
+  medicationRecordId: string;
+  observedRevisionId: string;
+  tookToday: string;
+  dosesMissed7d: string;
+  takingAsPrescribed: string;
+  supplyRemaining: string;
+  problems: string[];
+  problemsOther: string | null;
+}
+
 export interface MedicationReconciliationEventRecord {
   id: string;
   clinicId: string;
@@ -408,6 +437,7 @@ export class NkwapaDb extends Dexie {
   patient_medication_records!: Table<PatientMedicationRecord, string>;
   patient_medication_revisions!: Table<PatientMedicationRevisionRecord, string>;
   medication_reconciliation_events!: Table<MedicationReconciliationEventRecord, string>;
+  medication_adherence!: Table<MedicationAdherenceSetRecord, string>;
   patient_pharmacy_records!: Table<PatientPharmacyRecord, string>;
   patient_pharmacy_revisions!: Table<PatientPharmacyRevisionRecord, string>;
   patient_pharmacy_preferences!: Table<PatientPharmacyPreferenceRecord, string>;
@@ -519,6 +549,18 @@ export class NkwapaDb extends Dexie {
         .table<DiabetesScreeningRecord, string>('diabetes_screenings')
         .toCollection()
         .modify(migrateLegacyDiabetesInterview);
+    });
+
+    /*
+      v11 adds per-encounter medication adherence (#114).
+
+      A new store, so there is nothing to upgrade: a device that has never held adherence has
+      nothing to rehydrate wrongly. `[encounterId+context]` is a compound index rather than two,
+      because every read here asks the same question -- "this encounter's blood-pressure answers"
+      -- and the local row is the whole set for that pair.
+    */
+    this.version(11).stores({
+      medication_adherence: 'id, clinicId, encounterId, context, [encounterId+context], updatedAt',
     });
   }
 }

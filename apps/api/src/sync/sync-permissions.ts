@@ -51,6 +51,15 @@ export const SYNC_ENTITY_PERMISSIONS: Record<EntityType, SyncEntityPermission> =
   encounter_vitals_bundle: screening(),
   diabetes_screening: screening(),
   hypertension_assessment: screening(),
+  /*
+    The observation is the interview's, not the medication list's.
+
+    A volunteer holds both MEDICATION_RECONCILIATION.WRITE and SCREENING.WRITE, so the two look
+    interchangeable from the role table -- they are not. This row is refused on a finalized
+    encounter and the medication list is not, and SCREENING.WRITE is the permission that matches
+    the REST route performing the same write.
+  */
+  encounter_medication_adherence: screening(),
   care_plan: {
     create: PERMISSIONS.CAREPLAN_WRITE,
     update: PERMISSIONS.CAREPLAN_WRITE,

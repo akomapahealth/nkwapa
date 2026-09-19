@@ -6,6 +6,8 @@ export interface SyncPullResponseDto {
   tobaccoScreenings: Array<Record<string, unknown>>;
   diabetesScreenings: Array<Record<string, unknown>>;
   hypertensionAssessments: Array<Record<string, unknown>>;
+  /** Per-medication rows; `applyAdherencePull` regroups them into one local row per set. */
+  medicationAdherence?: Array<Record<string, unknown>>;
   carePlans: Array<Record<string, unknown>>;
   patientConsents: Array<Record<string, unknown>>;
   prescriptions: Array<Record<string, unknown>>;

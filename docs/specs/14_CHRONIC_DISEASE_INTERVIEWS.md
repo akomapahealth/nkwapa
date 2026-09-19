@@ -97,6 +97,45 @@ fill the medication history with non-changes and corrupt `lastReconciledAt`.
 The row records both the medication and the revision the volunteer had on screen, so a later
 reconciliation cannot silently re-point a recorded observation at a different dose.
 
+### The write replaces a set, not a row
+
+`PUT /clinics/:clinicId/encounters/:encounterId/medication-adherence` carries every observation for
+one encounter and one condition, and the server deletes whatever is no longer in it. A medication
+the volunteer removed from the reconciled list has to lose its observation, and nothing in a
+per-row request would say so.
+
+It is gated on `SCREENING.READ` / `SCREENING.WRITE` rather than on the medication-reconciliation
+permissions, although a volunteer holds all four and the two therefore look interchangeable in the
+role matrix. They are not: this row is refused on a finalized encounter and the medication list is
+not. The module never writes to the medication list.
+
+Row level security scopes the write to the clinic and nothing below it scopes to the patient, so
+the service checks that every medication named belongs to _this encounter's_ patient, and that each
+observed revision belongs to its own record. Pointing the revision elsewhere would be worse than
+not recording it, because the column reads as provenance.
+
+The client holds the same set as one local row per encounter and condition, so the stored shape and
+the outbox payload are one object. The set has no server-side identity — the server stores a row
+per medication — so the local id is claimed through `claimEncounterRecord`, by the save and by the
+pull alike. A pull that minted its own would leave two rows for one encounter, and `.first()` on a
+non-unique index returns whichever UUID sorts lowest: the shape of issue #91.
+
+Only medications with something recorded are sent. An untouched entry would write a row asserting
+every answer was "not assessed", which is indistinguishable from the row not existing.
+
+### It is what the note's medication paragraph says
+
+`NarrativeInput.medications` existed from the day the generators were written and nothing supplied
+it, so every note stated that no medications were recorded regardless of what the patient was on.
+The seed route fills it from these rows, naming the **observed** revision rather than the current
+one: the note should describe the dose the volunteer was looking at when they asked.
+
+Determinism carries over. The lines are sorted by their rendered label, using code-point ordering
+rather than `localeCompare`, which reads the process locale — two servers could otherwise produce
+notes differing only in paragraph order, which a signed hash reports as an edit. A medication with
+nothing recorded about it still appears, saying only that no adherence was recorded; a note must
+never imply the patient denied something nobody asked about.
+
 > **Known limitation.** `DrugCategory` mixes indication with pharmacologic class, has no member for
 > ACE inhibitors, ARBs or calcium channel blockers, and defaults to `OTHER`, so a real catalogue
 > will have most antihypertensives invisible to a category filter. The interview works around this
@@ -270,5 +309,6 @@ Migration replay against PostgreSQL 16 with seeded pre-interview rows, the share
 (`bp-classification`, `phq2`, `diabetes-thresholds`, the JSONB parsers), service role and
 derivation specs, the sync projection and role-matrix drift tests, the extended clinical-note
 non-exposure spec, and Playwright coverage of both interviews, the clinician-plan boundary from
-both sides, the generated note, and a refetch held open across an edit to prove the form does
-not discard it. Exact command results belong in the pull request.
+both sides, the generated note, per-medication adherence surviving a tab switch and keeping the two
+conditions apart, and a refetch held open across an edit to prove the form does not discard it.
+Exact command results belong in the pull request.

@@ -25,7 +25,14 @@ const medicationInclude = {
   recordedBy: { select: { id: true, displayName: true } },
   currentRevision: {
     include: {
-      drug: { select: { id: true, name: true, genericName: true } },
+      /*
+        `category` is what the chronic interviews group a patient's medications by.
+
+        Without it the hypertension and diabetes adherence sections cannot tell a blood-pressure
+        medication from anything else and have to show one undifferentiated list. See
+        `packages/db/src/medication-classes.ts` for what the category can and cannot answer.
+      */
+      drug: { select: { id: true, name: true, genericName: true, category: true } },
       sourceEncounter: { select: { id: true, createdAt: true } },
       authoredBy: { select: { id: true, displayName: true } },
       reconciledBy: { select: { id: true, displayName: true } },
@@ -87,7 +94,7 @@ export class MedicationReconciliationService {
       where: { recordId },
       orderBy: { revisionNumber: 'desc' },
       include: {
-        drug: { select: { id: true, name: true, genericName: true } },
+        drug: { select: { id: true, name: true, genericName: true, category: true } },
         sourceEncounter: { select: { id: true, createdAt: true } },
         authoredBy: { select: { id: true, displayName: true } },
         reconciledBy: { select: { id: true, displayName: true } },

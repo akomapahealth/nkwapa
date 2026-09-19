@@ -692,6 +692,20 @@ async function main() {
     });
   }
 
+  /*
+    The drug catalogue belongs to the clinic, not to the system admin.
+
+    It used to sit inside the `if (sysAdminSub)` block below, alongside that user's roles and the
+    research settings, so a deployment that did not configure `SEED_SYSTEM_ADMIN_SUB` came up with
+    no medicines at all. CI is exactly that deployment: every drug-backed path -- prescribing, and
+    the chronic interviews' medication grouping -- was silently running against an empty catalogue
+    there, which is why a spec that needed one passed locally and timed out in CI.
+
+    `seedDrugs` skips a medicine it already has, so moving it is additive for an environment that
+    was seeded under the old arrangement.
+  */
+  await seedDrugs(prisma, clinic.id);
+
   const sysAdminSub = process.env.SEED_SYSTEM_ADMIN_SUB;
   const sysAdminName = process.env.SEED_SYSTEM_ADMIN_NAME ?? 'System Admin';
 
@@ -712,9 +726,6 @@ async function main() {
 
     // Default research settings for clinic
     await ensureResearchSettings(prisma, clinic.id, user.id);
-
-    // Seed drug catalog for the clinic
-    await seedDrugs(prisma, clinic.id);
 
     console.log('Seeded clinic + system admin user + roles + clinic research settings.');
 

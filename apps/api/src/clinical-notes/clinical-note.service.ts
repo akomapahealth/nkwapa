@@ -19,6 +19,7 @@ import { PERMISSIONS } from '../auth/constants/permissions';
 import { hasPermissionAtClinic } from '../auth/clinic-roles';
 import { renderHypertensionNarrative } from './narrative/hypertension-narrative';
 import { renderDiabetesNarrative } from './narrative/diabetes-narrative';
+import { renderMedicationLines, type AdherenceNarrativeRow } from './narrative/medication-lines';
 import type { HapSections } from './narrative/narrative-types';
 
 type ClinicalActor = {
@@ -138,9 +139,55 @@ export class ClinicalNoteService {
         vitals: { select: { systolicBp: true, diastolicBp: true, pulseBpm: true } },
         hypertensionAssessment: true,
         diabetesScreening: true,
+        /*
+          The medications the note names.
+
+          `NarrativeInput.medications` has existed since the generators were written and nothing
+          ever supplied it, so every note stated that no medications were recorded regardless of
+          what the patient was on. The observed revision, not the current one: the note should
+          describe the dose the volunteer was looking at when they asked.
+        */
+        medicationAdherence: {
+          include: {
+            observedRevision: {
+              select: {
+                medicationName: true,
+                strength: true,
+                dose: true,
+                doseUnit: true,
+                frequency: true,
+              },
+            },
+          },
+        },
       },
     });
     if (!encounter) throw new NotFoundException('Encounter not found');
+
+    const medicationsFor = (context: 'HYPERTENSION' | 'DIABETES') =>
+      renderMedicationLines(
+        encounter.medicationAdherence
+          .filter((row) => row.context === context)
+          .map(
+            (row): AdherenceNarrativeRow => ({
+              entry: {
+                medicationRecordId: row.medicationRecordId,
+                observedRevisionId: row.observedRevisionId,
+                tookToday: row.tookToday,
+                dosesMissed7d: row.dosesMissed7d,
+                takingAsPrescribed: row.takingAsPrescribed,
+                supplyRemaining: row.supplyRemaining,
+                problems: row.problems,
+                problemsOther: row.problemsOther,
+              },
+              medicationName: row.observedRevision.medicationName,
+              strength: row.observedRevision.strength,
+              dose: row.observedRevision.dose,
+              doseUnit: row.observedRevision.doseUnit,
+              frequency: row.observedRevision.frequency,
+            }),
+          ),
+      );
 
     const maySeePlan = hasPermissionAtClinic(
       actor.roles,
@@ -163,6 +210,7 @@ export class ClinicalNoteService {
           patientName,
           assessment: record as unknown as Record<string, unknown>,
           vitals: encounter.vitals,
+          medications: medicationsFor('HYPERTENSION'),
           clinicianPlan: maySeePlan
             ? {
                 items: record.clinicianPlanItems,
@@ -185,6 +233,7 @@ export class ClinicalNoteService {
           patientName,
           assessment: record as unknown as Record<string, unknown>,
           vitals: encounter.vitals,
+          medications: medicationsFor('DIABETES'),
           clinicianPlan: maySeePlan
             ? {
                 items: record.clinicianPlanItems,

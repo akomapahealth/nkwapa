@@ -29,6 +29,7 @@ import { PatientChartModule } from './patient-chart/patient-chart.module';
 import { MedicationReconciliationModule } from './medication-reconciliation/medication-reconciliation.module';
 import { DiabetesScreeningModule } from './diabetes-screening/diabetes-screening.module';
 import { HypertensionAssessmentModule } from './hypertension-assessment/hypertension-assessment.module';
+import { MedicationAdherenceModule } from './medication-adherence/medication-adherence.module';
 import { ClinicalNoteModule } from './clinical-notes/clinical-note.module';
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
@@ -63,6 +64,7 @@ const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
     MedicationReconciliationModule,
     DiabetesScreeningModule,
     HypertensionAssessmentModule,
+    MedicationAdherenceModule,
     ClinicalNoteModule,
   ],
   providers: [RateLimitGuard],

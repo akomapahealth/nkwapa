@@ -2,6 +2,7 @@
 
 import { db } from './db';
 import type { SyncPullResponseDto } from './sync-types';
+import { applyAdherencePull } from './medication-adherence';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
 
@@ -219,6 +220,7 @@ async function performSync(options: SyncNowOptions): Promise<SyncResult> {
         toRecord(h) as unknown as Parameters<typeof db.hypertension_assessments.put>[0],
       );
     }
+    await applyAdherencePull(db, pull.medicationAdherence ?? []);
     for (const c of pull.carePlans) {
       await db.care_plans.put(toRecord(c) as unknown as Parameters<typeof db.care_plans.put>[0]);
     }

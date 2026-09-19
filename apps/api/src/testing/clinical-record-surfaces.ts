@@ -78,6 +78,14 @@ export const CLINICAL_RECORD_SURFACES: readonly ClinicalRecordSurface[] = [
     note: 'The clinician plan is doctor-only, refused by the API for any other role, and withheld from the offline pull so no volunteer device caches it.',
   },
   {
+    id: 'medication-adherence',
+    label: 'Per-encounter medication adherence',
+    read: PERMISSIONS.SCREENING_READ,
+    write: PERMISSIONS.SCREENING_WRITE,
+    syncEntityTypes: ['encounter_medication_adherence'],
+    note: 'An observation about a reconciled medication at one visit, gated on the interview permissions rather than medication reconciliation: it is refused on a finalized encounter, and the medication list is not.',
+  },
+  {
     id: 'medication-reconciliation',
     label: 'Medication reconciliation and pharmacy history',
     read: PERMISSIONS.MEDICATION_RECONCILIATION_READ,

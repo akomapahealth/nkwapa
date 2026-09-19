@@ -68,6 +68,8 @@ import {
   type DiabetesInterviewValues,
 } from '@/lib/diabetes-interview';
 import { ClinicianPlanSection } from '@/components/encounters/ClinicianPlanSection';
+import { MedicationAdherenceSection } from '@/components/encounters/MedicationAdherenceSection';
+import { useMedicationAdherence } from '@/lib/use-medication-adherence';
 import {
   CheckboxQuestion,
   ChoiceQuestion,
@@ -85,6 +87,8 @@ const SUSPICION_LABELS: Record<string, string> = {
 interface DiabetesInterviewFormProps {
   clinicId: string;
   encounterId: string;
+  /** Needed to read the reconciled medication list the adherence section asks about. */
+  patientId: string;
   initialData?: Record<string, unknown> | null;
   canEdit?: boolean;
   /** Whether this actor holds `CAREPLAN.CLINICIAN_PLAN`. See the note on the plan section. */
@@ -96,6 +100,7 @@ interface DiabetesInterviewFormProps {
 export function DiabetesInterviewForm({
   clinicId,
   encounterId,
+  patientId,
   initialData,
   canEdit = true,
   canRecordClinicianPlan = false,
@@ -110,6 +115,7 @@ export function DiabetesInterviewForm({
   const [errors, setErrors] = useState<ClinicalFieldErrors>({});
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
+  const adherence = useMedicationAdherence(clinicId, encounterId, patientId, 'DIABETES', canEdit);
   const [saveError, setSaveError] = useState<string | null>(null);
   /*
     Say which of the two things happened.
@@ -188,9 +194,17 @@ export function DiabetesInterviewForm({
     setHasSubmitted(true);
     const found = validateDiabetesInterview(values);
     setErrors(found);
+    /*
+      Both halves are validated before either is written, so a failure on one does not leave the
+      other saved. See the same note on the hypertension form.
+    */
+    const adherenceErrors = adherence.validate();
     if (Object.keys(found).length) {
       focusFirstInvalid(found, [...DIABETES_FIELD_ORDER]);
       throw new Error('Check the highlighted answers before saving.');
+    }
+    if (Object.keys(adherenceErrors).length) {
+      throw new Error('Check the highlighted medication answers before saving.');
     }
 
     setSaving(true);
@@ -233,6 +247,8 @@ export function DiabetesInterviewForm({
         operation: SYNC_OPERATION.UPSERT,
         payloadJson: payload,
       });
+      // Queued before the sync pass, so one drain carries the screening and its adherence set.
+      await adherence.save();
       const synced = isOnline ? await syncNow(clinicId) : null;
       setSaveMessage(
         synced?.success
@@ -258,6 +274,7 @@ export function DiabetesInterviewForm({
     escalation,
     onSaved,
     isOnline,
+    adherence,
     syncNow,
   ]);
 
@@ -461,7 +478,32 @@ export function DiabetesInterviewForm({
         ) : null}
       </FormSectionCard>
 
-      <FormSectionCard title="3. Nutrition" titleAs="h2">
+      <FormSectionCard
+        title="3. Medications and adherence"
+        titleAs="h2"
+        description="The medications come from the reconciled list on the Medications tab and are read-only here. Record only what was observed today."
+      >
+        <MedicationAdherenceSection
+          context="DIABETES"
+          clinicId={clinicId}
+          patientId={patientId}
+          forCondition={adherence.forCondition}
+          other={adherence.other}
+          categoriesUnavailable={adherence.categoriesUnavailable}
+          entries={adherence.entries}
+          errors={adherence.errors}
+          disabled={!canEdit || saving}
+          reserveErrorSpace={hasSubmitted}
+          onChange={adherence.update}
+          loading={adherence.loading}
+          loadError={adherence.loadError}
+        />
+        <InlineNotice tone="info" live={false}>
+          Document what the patient takes and any barriers. Do not recommend medication changes.
+        </InlineNotice>
+      </FormSectionCard>
+
+      <FormSectionCard title="4. Nutrition" titleAs="h2">
         <div className="grid gap-4 sm:grid-cols-2">
           <ChoiceQuestion
             {...q('dm-nutrition-meals')}
@@ -523,7 +565,7 @@ export function DiabetesInterviewForm({
       </FormSectionCard>
 
       <FormSectionCard
-        title="4. Mental health and diabetes distress"
+        title="5. Mental health and diabetes distress"
         titleAs="h2"
         description="Over the past two weeks, how often has the patient experienced:"
       >
@@ -608,7 +650,7 @@ export function DiabetesInterviewForm({
       </FormSectionCard>
 
       <FormSectionCard
-        title="5. Essential screening status"
+        title="6. Essential screening status"
         titleAs="h2"
         description="Record what has been done. A detailed foot examination is not expected without competency-based training."
       >
@@ -697,8 +739,7 @@ export function DiabetesInterviewForm({
           />
         </div>
         <InlineNotice tone="info" live={false}>
-          Document medications and barriers on the Medications tab. Do not recommend medication
-          changes.
+          Do not recommend medication changes. Record what the patient takes in section 3.
         </InlineNotice>
       </FormSectionCard>
 

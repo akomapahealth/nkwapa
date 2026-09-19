@@ -83,6 +83,63 @@ describe('claimEncounterRecord', () => {
     expect((await claimEncounterRecord(table, 'enc-1', generate)).id).toBe('aaa');
   });
 
+  /*
+    Medication adherence is one set per encounter *and* condition, so both live in the same table
+    under the same encounterId. Without the matcher the duplicate cleanup would delete whichever
+    condition the volunteer was not looking at, and the pull would keep re-creating it.
+  */
+  it('keeps two rows apart when the domain scopes them by more than the encounter', async () => {
+    const { table, deleted } = fakeTable([
+      { id: 'htn-set', encounterId: 'enc-1', context: 'HYPERTENSION' },
+      { id: 'dm-set', encounterId: 'enc-1', context: 'DIABETES' },
+    ]);
+    const claimed = await claimEncounterRecord(
+      table,
+      'enc-1',
+      generate,
+      (record) => record.context === 'DIABETES',
+    );
+    expect(claimed.id).toBe('dm-set');
+    expect(deleted).toEqual([]);
+  });
+
+  it('still collapses duplicates within the narrowed set', async () => {
+    const { table, deleted } = fakeTable([
+      { id: 'htn-set', encounterId: 'enc-1', context: 'HYPERTENSION' },
+      {
+        id: 'dm-old',
+        encounterId: 'enc-1',
+        context: 'DIABETES',
+        updatedAt: '2026-01-01T00:00:00Z',
+      },
+      {
+        id: 'dm-new',
+        encounterId: 'enc-1',
+        context: 'DIABETES',
+        updatedAt: '2026-01-01T00:00:05Z',
+      },
+    ]);
+    const claimed = await claimEncounterRecord(
+      table,
+      'enc-1',
+      generate,
+      (record) => record.context === 'DIABETES',
+    );
+    expect(claimed.id).toBe('dm-new');
+    expect(deleted).toEqual(['dm-old']);
+  });
+
+  it('mints an id for a condition that has no row yet', async () => {
+    const { table } = fakeTable([{ id: 'htn-set', encounterId: 'enc-1', context: 'HYPERTENSION' }]);
+    const claimed = await claimEncounterRecord(
+      table,
+      'enc-1',
+      generate,
+      (record) => record.context === 'DIABETES',
+    );
+    expect(claimed.id).toBe('generated-id');
+  });
+
   it('never invents an id when one already exists', async () => {
     const { table } = fakeTable([{ id: 'existing', encounterId: 'enc-1' }]);
     const claimed = await claimEncounterRecord(table, 'enc-1', () => {

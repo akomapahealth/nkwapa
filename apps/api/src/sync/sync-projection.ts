@@ -243,3 +243,42 @@ export const SYNC_DIABETES_SCREENING_WITHHELD: Record<string, string> = {
 export type SyncDiabetesScreeningProjection = Prisma.DiabetesScreeningGetPayload<{
   select: typeof SYNC_DIABETES_SCREENING_SELECT;
 }>;
+
+/**
+ * The medication-adherence fields the offline client receives.
+ *
+ * Nothing on this record is clinician-only -- the whole point of it is that a volunteer records it
+ * at the chair-side -- so the withheld list is short. It is written out anyway, because the value
+ * of this pattern is that a column added by a later migration cannot reach every device by
+ * default: `sync-projection.spec.ts` fails until somebody decides.
+ */
+export const SYNC_ENCOUNTER_MEDICATION_ADHERENCE_SELECT = {
+  id: true,
+  clinicId: true,
+  encounterId: true,
+  context: true,
+  medicationRecordId: true,
+  observedRevisionId: true,
+  tookToday: true,
+  dosesMissed7d: true,
+  takingAsPrescribed: true,
+  supplyRemaining: true,
+  problems: true,
+  problemsOther: true,
+  authoredByUserId: true,
+  createdAt: true,
+  updatedAt: true,
+} as const satisfies Prisma.EncounterMedicationAdherenceSelect;
+
+/**
+ * Adherence columns deliberately withheld from the offline client, and why.
+ *
+ * A column named here must not appear in SYNC_ENCOUNTER_MEDICATION_ADHERENCE_SELECT; a column in
+ * neither is a decision nobody has made yet, which sync-projection.spec.ts reports as a failure.
+ */
+export const SYNC_ENCOUNTER_MEDICATION_ADHERENCE_WITHHELD: Record<string, string> = {};
+
+export type SyncEncounterMedicationAdherenceProjection =
+  Prisma.EncounterMedicationAdherenceGetPayload<{
+    select: typeof SYNC_ENCOUNTER_MEDICATION_ADHERENCE_SELECT;
+  }>;

@@ -82,6 +82,21 @@ The clinician plan is doctor-only, refused by the API for any other role, and wi
 
 Offline: queued as `hypertension_assessment`. The queued write requires the same permission as the online one.
 
+## Per-encounter medication adherence
+
+An observation about a reconciled medication at one visit, gated on the interview permissions rather than medication reconciliation: it is refused on a finalized encounter, and the medication list is not.
+
+| Role | Read | Write |
+| --- | --- | --- |
+| SYSTEM_ADMIN | yes | yes |
+| DIRECTOR | yes | no |
+| MANAGER | yes | no |
+| DOCTOR | yes | yes |
+| VOLUNTEER | yes | yes |
+| PATIENT | no | no |
+
+Offline: queued as `encounter_medication_adherence`. The queued write requires the same permission as the online one.
+
 ## Medication reconciliation and pharmacy history
 
 Prescription history within this module requires PRESCRIPTION.READ, which a volunteer does not hold.

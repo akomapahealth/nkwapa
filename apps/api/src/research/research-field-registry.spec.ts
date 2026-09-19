@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   RESEARCH_FIELD_DECISIONS,
+  RESEARCH_OUT_OF_SCOPE_MODELS,
   RESEARCH_SCOPED_MODELS,
   fullyExcludedModels,
   type ResearchScopedModel,
@@ -30,6 +31,47 @@ function declaredFields(model: string): string[] {
     })
     .map(([name]) => name);
 }
+
+/** Every model the schema declares. */
+function declaredModels(): string[] {
+  return [...SCHEMA.matchAll(/^model\s+([A-Za-z0-9_]+)\s*\{/gm)].map((match) => match[1]);
+}
+
+/*
+  The gap that let hypertension go a whole release without a single decision recorded against it.
+
+  Every case below iterates `RESEARCH_SCOPED_MODELS`, so a model missing from that list was never
+  visited and nothing failed -- a table nobody had wired up and a table deliberately left out were
+  indistinguishable to a reader and to this suite. Requiring each model to appear in exactly one of
+  the two lists is what closes it, and it is the shape `sync-projection.ts` already uses for
+  columns.
+*/
+describe('every table is either in scope or explicitly out of it', () => {
+  const scoped = new Set<string>(RESEARCH_SCOPED_MODELS);
+  const outOfScope = new Set(Object.keys(RESEARCH_OUT_OF_SCOPE_MODELS));
+
+  it('leaves no model undecided', () => {
+    const undecided = declaredModels().filter(
+      (model) => !scoped.has(model) && !outOfScope.has(model),
+    );
+    expect(undecided).toEqual([]);
+  });
+
+  it('never names a model in both lists', () => {
+    expect([...outOfScope].filter((model) => scoped.has(model))).toEqual([]);
+  });
+
+  it('does not exclude a model the schema no longer has', () => {
+    const declared = new Set(declaredModels());
+    expect([...outOfScope].filter((model) => !declared.has(model))).toEqual([]);
+  });
+
+  it('gives every exclusion a reason a reviewer can read', () => {
+    for (const [model, reason] of Object.entries(RESEARCH_OUT_OF_SCOPE_MODELS)) {
+      expect([model, reason.length > 12, reason.endsWith('.')]).toEqual([model, true, true]);
+    }
+  });
+});
 
 describe('research export field decisions', () => {
   describe.each(RESEARCH_SCOPED_MODELS)('%s', (model: ResearchScopedModel) => {
@@ -111,17 +153,51 @@ describe('research export field decisions', () => {
   });
 
   it('agrees with the CSV headers the pack actually writes', () => {
-    // A decision to export means nothing unless the column exists. These are the models whose
-    // fields already have a home in the pack.
+    /*
+      A decision to export means nothing unless the column exists.
+
+      This used to check `Vitals` alone, which is why most of the diabetes interview could carry
+      `EXPORTED` while reaching no analysis: the registry and the pack were only held together for
+      one model. Both chronic interviews and the adherence file are now in, so an exported decision
+      without a column is a failure here rather than a silence.
+
+      The chronic models are prefixed in the CSV, because one screenings row carries both
+      conditions and `status` would otherwise mean two different things.
+    */
     const transform = readFileSync(resolve(__dirname, 'research-transform.service.ts'), 'utf8');
+    const snake = (field: string) => field.replace(/([A-Z])/g, '_$1').toLowerCase();
     const exported = (model: ResearchScopedModel) =>
       Object.entries(RESEARCH_FIELD_DECISIONS[model])
         .filter(([, d]) => d.disposition === 'EXPORTED')
         .map(([field]) => field);
 
-    for (const field of exported('Vitals')) {
-      const column = field.replace(/([A-Z])/g, '_$1').toLowerCase();
-      expect(transform).toContain(`'${column}'`);
+    const prefixes: Partial<Record<ResearchScopedModel, string>> = {
+      HypertensionAssessment: 'hypertension_',
+    };
+
+    /*
+      Where the CSV name is not what camelCase-to-snake_case produces.
+
+      Kept as an explicit list rather than a cleverer transformation: a rule that split before a
+      digit would turn `spo2Percent` into `spo_2_percent`, and a header nobody wanted is worse than
+      a line of exception here.
+    */
+    const columnOverrides: Record<string, string> = {
+      dosesMissed7d: 'doses_missed_7d',
+    };
+
+    for (const model of [
+      'Vitals',
+      'HypertensionAssessment',
+      'EncounterMedicationAdherence',
+    ] as const) {
+      for (const field of exported(model)) {
+        const name = columnOverrides[field] ?? snake(field);
+        const prefix = prefixes[model] ?? '';
+        // `hypertensionStatus` is already prefixed by its own name; do not say it twice.
+        const column = name.startsWith(prefix) ? name : `${prefix}${name}`;
+        expect([model, field, transform.includes(`'${column}'`)]).toEqual([model, field, true]);
+      }
     }
   });
 });

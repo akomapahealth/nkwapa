@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   SYNC_DIABETES_SCREENING_SELECT,
+  SYNC_ENCOUNTER_MEDICATION_ADHERENCE_SELECT,
+  SYNC_ENCOUNTER_MEDICATION_ADHERENCE_WITHHELD,
   SYNC_DIABETES_SCREENING_WITHHELD,
   SYNC_HYPERTENSION_ASSESSMENT_SELECT,
   SYNC_HYPERTENSION_ASSESSMENT_WITHHELD,
@@ -19,7 +21,7 @@ function modelFields(model: string): string[] {
   if (!body) throw new Error(`Model ${model} not found`);
 
   const scalarTypes =
-    /^(String|Int|Float|Boolean|DateTime|Decimal|BigInt|Bytes|Json|Sex|NationalIdType|PatientLocationStatus|GhanaRegion|HypertensionClassification|HypertensionStatus|HypertensionConcern|FacilityKnownStatus|BpRepeatStatus|PatientPosition|BloodPressureCuffSize|HomeBpMonitorStatus|HomeBpCheckFrequency|HomeBpSource|HypertensionSymptom|HypertensionEscalationReason|MedicationReminderStrategy|BpAffectingSubstance|CardiometabolicCondition|NkwapaAnswer|PregnancyPlanningAnswer|ScreeningCompletionStatus|MedicationUseStatus|HypertensionReviewReason|HypertensionClinicianPlanItem|FollowUpWindow|FollowUpOwner|GlucoseType|DiabetesSymptom|DiabetesStatus|DiabetesType|DiabetesConcern|Hba1cStatus|DiabetesUrgentSymptom|DiabetesEscalationReason|DiabetesSuspicion|PhqResponse|DiabetesDistressResponse|DiabetesReviewReason|DiabetesClinicianPlanItem)$/;
+    /^(String|Int|Float|Boolean|DateTime|Decimal|BigInt|Bytes|Json|Sex|NationalIdType|PatientLocationStatus|GhanaRegion|HypertensionClassification|HypertensionStatus|HypertensionConcern|FacilityKnownStatus|BpRepeatStatus|PatientPosition|BloodPressureCuffSize|HomeBpMonitorStatus|HomeBpCheckFrequency|HomeBpSource|HypertensionSymptom|HypertensionEscalationReason|MedicationReminderStrategy|BpAffectingSubstance|CardiometabolicCondition|NkwapaAnswer|PregnancyPlanningAnswer|ScreeningCompletionStatus|MedicationUseStatus|HypertensionReviewReason|HypertensionClinicianPlanItem|FollowUpWindow|FollowUpOwner|GlucoseType|DiabetesSymptom|DiabetesStatus|DiabetesType|DiabetesConcern|Hba1cStatus|DiabetesUrgentSymptom|DiabetesEscalationReason|DiabetesSuspicion|PhqResponse|DiabetesDistressResponse|DiabetesReviewReason|DiabetesClinicianPlanItem|MedicationAdherenceContext|MedicationDosesMissed|MedicationAdherenceLevel|MedicationSupplyStatus|MedicationProblem)$/;
 
   return body
     .split('\n')
@@ -180,6 +182,46 @@ describe('offline sync diabetes projection', () => {
 
   it('requires a decision for every diabetes column', () => {
     const undecided = modelFields('DiabetesScreening').filter(
+      (field) => !selected.includes(field) && !withheld.includes(field),
+    );
+    expect(undecided).toEqual([]);
+  });
+
+  it('never names a column in both lists', () => {
+    expect(selected.filter((field) => withheld.includes(field))).toEqual([]);
+  });
+});
+
+describe('offline sync medication adherence projection', () => {
+  const selected = Object.keys(SYNC_ENCOUNTER_MEDICATION_ADHERENCE_SELECT);
+  const withheld = Object.keys(SYNC_ENCOUNTER_MEDICATION_ADHERENCE_WITHHELD);
+
+  it('sends what the offline interview renders', () => {
+    for (const field of [
+      'id',
+      'encounterId',
+      'context',
+      'medicationRecordId',
+      /*
+        The revision the volunteer had on screen.
+
+        Without it a device that reconciles a medication between the save and the sync would show
+        an observation next to a dose it was never made about.
+      */
+      'observedRevisionId',
+      'tookToday',
+      'dosesMissed7d',
+      'takingAsPrescribed',
+      'supplyRemaining',
+      'problems',
+      'updatedAt',
+    ]) {
+      expect(selected).toContain(field);
+    }
+  });
+
+  it('requires a decision for every adherence column', () => {
+    const undecided = modelFields('EncounterMedicationAdherence').filter(
       (field) => !selected.includes(field) && !withheld.includes(field),
     );
     expect(undecided).toEqual([]);

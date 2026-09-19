@@ -234,4 +234,118 @@ describe('ClinicalNoteService', () => {
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
+  describe('seeding a draft from the interviews', () => {
+    function adherenceRow(context: 'HYPERTENSION' | 'DIABETES', medicationName: string) {
+      return {
+        context,
+        medicationRecordId: 'record-1',
+        observedRevisionId: 'revision-1',
+        tookToday: 'YES',
+        dosesMissed7d: 'NOT_ASSESSED',
+        takingAsPrescribed: 'NOT_ASSESSED',
+        supplyRemaining: 'NOT_ASSESSED',
+        problems: [],
+        problemsOther: null,
+        observedRevision: {
+          medicationName,
+          strength: '10mg',
+          dose: null,
+          doseUnit: null,
+          frequency: 'once daily',
+        },
+      };
+    }
+
+    function seedEncounter(overrides: Record<string, unknown> = {}) {
+      return {
+        patient: { firstName: 'Ama', lastName: 'Mensah' },
+        vitals: { systolicBp: 152, diastolicBp: 94, pulseBpm: 78 },
+        hypertensionAssessment: null,
+        diabetesScreening: null,
+        medicationAdherence: [],
+        ...overrides,
+      };
+    }
+
+    function seededDraft() {
+      return (
+        prisma.clinicalNote.create.mock.calls[0]?.[0]?.data ??
+        prisma.clinicalNote.update.mock.calls[0]?.[0]?.data
+      );
+    }
+
+    beforeEach(() => {
+      prisma.clinicalNote.findFirst.mockResolvedValue(null);
+      prisma.patient.findFirst.mockResolvedValue({ id: 'patient-1' });
+      prisma.patientAssignment.findFirst.mockResolvedValue(null);
+      prisma.clinicalNote.create.mockResolvedValue(note());
+      prisma.clinicalNote.findUniqueOrThrow.mockResolvedValue(note());
+    });
+
+    /*
+      `NarrativeInput.medications` has existed since the generators were written and nothing ever
+      supplied it, so every note said no medications were recorded regardless of what the patient
+      was on.
+    */
+    it('names the medications the volunteer recorded adherence for', async () => {
+      prisma.encounter.findFirst.mockResolvedValue(
+        seedEncounter({
+          hypertensionAssessment: {
+            clinicianPlanItems: [],
+            reviewReasons: [],
+            currentSymptoms: [],
+          },
+          medicationAdherence: [adherenceRow('HYPERTENSION', 'Amlodipine')],
+        }),
+      );
+
+      await service.seedFromInterviews(clinicId, encounterId, roles(doctorId, UserRole.DOCTOR), {});
+
+      expect(seededDraft().history).toContain('Amlodipine 10mg once daily');
+      expect(seededDraft().history).toContain('took it today');
+    });
+
+    /*
+      One encounter can carry both conditions, and each note section must name only its own
+      medications. Without the filter a diabetes paragraph would list the patient's antihypertensives
+      as diabetes medications.
+    */
+    it('gives each condition only its own medications', async () => {
+      prisma.encounter.findFirst.mockResolvedValue(
+        seedEncounter({
+          diabetesScreening: {
+            clinicianPlanItems: [],
+            reviewReasons: [],
+            symptoms: [],
+            urgentSymptoms: [],
+          },
+          medicationAdherence: [
+            adherenceRow('HYPERTENSION', 'Amlodipine'),
+            adherenceRow('DIABETES', 'Metformin'),
+          ],
+        }),
+      );
+
+      await service.seedFromInterviews(clinicId, encounterId, roles(doctorId, UserRole.DOCTOR), {});
+
+      expect(seededDraft().history).toContain('Metformin');
+      expect(seededDraft().history).not.toContain('Amlodipine');
+    });
+
+    it('still says none were recorded when the encounter has no adherence', async () => {
+      prisma.encounter.findFirst.mockResolvedValue(
+        seedEncounter({
+          hypertensionAssessment: {
+            clinicianPlanItems: [],
+            reviewReasons: [],
+            currentSymptoms: [],
+          },
+        }),
+      );
+
+      await service.seedFromInterviews(clinicId, encounterId, roles(doctorId, UserRole.DOCTOR), {});
+
+      expect(seededDraft().history).toContain('No blood-pressure medications were recorded');
+    });
+  });
 });

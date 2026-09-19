@@ -29,6 +29,7 @@ import { SYNC_ENTITY_PERMISSIONS, isSyncEntityType } from './sync-permissions';
 import { classifySyncFailure, isTerminalOutcome } from './sync-outcome';
 import {
   SYNC_DIABETES_SCREENING_SELECT,
+  SYNC_ENCOUNTER_MEDICATION_ADHERENCE_SELECT,
   SYNC_HYPERTENSION_ASSESSMENT_SELECT,
   SYNC_PATIENT_SELECT,
 } from './sync-projection';
@@ -55,6 +56,7 @@ import type {
 } from '../medication-reconciliation/dto/medication-reconciliation.dto';
 import { DiabetesScreeningService } from '../diabetes-screening/diabetes-screening.service';
 import { HypertensionAssessmentService } from '../hypertension-assessment/hypertension-assessment.service';
+import { MedicationAdherenceService } from '../medication-adherence/medication-adherence.service';
 import { serializeLegacyDiabetesSymptoms } from '@nkwapa/db';
 
 export type { EntityType } from './entity-types';
@@ -81,6 +83,7 @@ export class SyncService {
     private readonly medicationReconciliationService: MedicationReconciliationService,
     private readonly diabetesScreeningService: DiabetesScreeningService,
     private readonly hypertensionAssessmentService: HypertensionAssessmentService,
+    private readonly medicationAdherenceService: MedicationAdherenceService,
   ) {}
 
   async applyMutations(
@@ -302,6 +305,16 @@ export class SyncService {
         );
       case 'hypertension_assessment':
         return this.applyHypertensionAssessmentUpsert(
+          clinicId,
+          actorUserId,
+          user,
+          mut,
+          payload,
+          idempotencyKey,
+          metadata,
+        );
+      case 'encounter_medication_adherence':
+        return this.applyMedicationAdherenceReplace(
           clinicId,
           actorUserId,
           user,
@@ -799,6 +812,48 @@ export class SyncService {
         },
       },
       mut.entityId,
+    );
+
+    return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
+  }
+
+  /**
+   * Replay a whole adherence set through the same service the REST route uses.
+   *
+   * The mutation carries the set for one encounter and one condition, not a row, because that is
+   * what the write is: a medication dropped from the reconciled list has to lose its observation,
+   * and a per-row replay could never express that. `entityId` identifies the set, so two contexts
+   * on one encounter replay independently.
+   */
+  private async applyMedicationAdherenceReplace(
+    clinicId: string,
+    actorUserId: string,
+    user: UserWithId,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+    idempotencyKey: string,
+    metadata?: RequestMetadata,
+  ): Promise<SyncMutationResultDto> {
+    const encounterId = payload.encounterId as string;
+    if (!encounterId) {
+      throw new Error('EncounterMedicationAdherence payload must include encounterId');
+    }
+    const normalized = await this.medicationAdherenceService.validateSyncPayload(payload);
+    await this.medicationAdherenceService.replaceForEncounter(
+      clinicId,
+      encounterId,
+      { userId: actorUserId, roles: user.roles },
+      normalized.dto,
+      {
+        requestId: idempotencyKey,
+        ipAddress: metadata?.ipAddress,
+        userAgent: metadata?.userAgent,
+        syncMutation: {
+          entityType: mut.entityType,
+          entityId: mut.entityId,
+          idempotencyKey,
+        },
+      },
     );
 
     return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
@@ -1447,6 +1502,7 @@ export class SyncService {
       tobaccoScreenings,
       diabetesScreenings,
       hypertensionAssessments,
+      medicationAdherence,
       carePlans,
       patientConsents,
       prescriptions,
@@ -1483,6 +1539,10 @@ export class SyncService {
       this.prisma.hypertensionAssessment.findMany({
         where: { ...where, ...updatedAtFilter },
         select: SYNC_HYPERTENSION_ASSESSMENT_SELECT,
+      }),
+      this.prisma.encounterMedicationAdherence.findMany({
+        where: { ...where, ...updatedAtFilter },
+        select: SYNC_ENCOUNTER_MEDICATION_ADHERENCE_SELECT,
       }),
       this.prisma.carePlan.findMany({
         where: { ...where, ...updatedAtFilter },
@@ -1532,6 +1592,7 @@ export class SyncService {
       ...tobaccoScreenings.map((t) => ({ updatedAt: t.updatedAt, id: t.id })),
       ...diabetesScreenings.map((d) => ({ updatedAt: d.updatedAt, id: d.id })),
       ...hypertensionAssessments.map((h) => ({ updatedAt: h.updatedAt, id: h.id })),
+      ...medicationAdherence.map((a) => ({ updatedAt: a.updatedAt, id: a.id })),
       ...carePlans.map((c) => ({ updatedAt: c.updatedAt, id: c.id })),
       ...patientConsents.map((pc) => ({ updatedAt: pc.updatedAt, id: pc.id })),
       ...prescriptions.map((p) => ({ updatedAt: p.updatedAt, id: p.id })),
@@ -1581,6 +1642,7 @@ export class SyncService {
       tobaccoScreenings,
       diabetesScreenings: diabetesScreeningRecords,
       hypertensionAssessments,
+      medicationAdherence,
       carePlans,
       patientConsents,
       prescriptions,
