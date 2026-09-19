@@ -16,6 +16,7 @@ import {
 } from '@prisma/client';
 import type {
   SyncDiabetesScreeningProjection,
+  SyncEncounterMedicationAdherenceProjection,
   SyncHypertensionAssessmentProjection,
   SyncPatientProjection,
 } from '../sync-projection';
@@ -37,6 +38,7 @@ export interface SyncPullResponseDto {
   tobaccoScreenings: TobaccoScreening[];
   diabetesScreenings: SyncDiabetesScreeningProjection[];
   hypertensionAssessments: SyncHypertensionAssessmentProjection[];
+  medicationAdherence: SyncEncounterMedicationAdherenceProjection[];
   carePlans: CarePlan[];
   patientConsents: PatientConsent[];
   prescriptions: Prescription[];

@@ -14,6 +14,7 @@ export type EntityType =
   | 'encounter_vitals_bundle'
   | 'diabetes_screening'
   | 'hypertension_assessment'
+  | 'encounter_medication_adherence'
   | 'care_plan'
   | 'patient_consent'
   | 'prescription'
