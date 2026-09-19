@@ -10,10 +10,22 @@ import { UpdatePrescriptionDto } from './dto/update-prescription.dto';
 import { MedicalHistoryService } from '../medical-history/medical-history.service';
 import { isApiFeatureEnabled } from '../common/feature-flags';
 import { flattenValidationErrors } from '../common/validation';
+import { assertPermissionAtClinic, type ScopedRole } from '../auth/clinic-roles';
+import { PERMISSIONS } from '../auth/constants/permissions';
 
 export interface AuditContext {
   clinicId: string;
   actorUserId: string;
+  /*
+    The actor's clinic seats, so this service can decide for itself who may write.
+
+    The controller's `@RequirePermission` still runs first. This is the second layer the guided
+    interviews established and the reason they give for it: a boundary that depends on one layer is
+    one refactor from not being a boundary. It matters more here than it used to, because since
+    #134 this service has two callers -- the REST controller and the offline replay -- and a
+    service reachable from two places that trusts both to have checked is exactly that shape.
+  */
+  roles: ScopedRole[];
   requestId?: string;
   /*
     Carried so a replayed write keeps the provenance the inline sync handler used to log.
@@ -33,6 +45,24 @@ export class PrescriptionService {
     private readonly auditService: AuditService,
     private readonly medicalHistoryService: MedicalHistoryService,
   ) {}
+
+  private assertWritePermission(roles: ScopedRole[], clinicId: string): void {
+    assertPermissionAtClinic(
+      roles,
+      clinicId,
+      PERMISSIONS.PRESCRIPTION_WRITE,
+      'PRESCRIPTION.WRITE permission is required',
+    );
+  }
+
+  private assertReadPermission(roles: ScopedRole[], clinicId: string): void {
+    assertPermissionAtClinic(
+      roles,
+      clinicId,
+      PERMISSIONS.PRESCRIPTION_READ,
+      'PRESCRIPTION.READ permission is required',
+    );
+  }
 
   private async ensureEncounterNotFinalized(encounterId: string, clinicId?: string) {
     const encounter = await this.prisma.encounter.findUnique({
@@ -57,6 +87,7 @@ export class PrescriptionService {
     /** Supplied only by an offline replay; see the note on the create below. */
     prescriptionId?: string,
   ): Promise<Prescription> {
+    this.assertWritePermission(auditContext.roles, clinicId);
     const encounter = await this.ensureEncounterNotFinalized(encounterId, clinicId);
     if (isApiFeatureEnabled('medicalHistory')) {
       const allergySummary = await this.medicalHistoryService.getAllergySummary(
@@ -188,7 +219,8 @@ export class PrescriptionService {
     );
   }
 
-  async listByEncounter(encounterId: string) {
+  async listByEncounter(clinicId: string, encounterId: string, roles: ScopedRole[]) {
+    this.assertReadPermission(roles, clinicId);
     return this.prescriptionRepository.listByEncounter(encounterId);
   }
 
@@ -197,6 +229,7 @@ export class PrescriptionService {
     dto: UpdatePrescriptionDto,
     auditContext: AuditContext,
   ): Promise<Prescription> {
+    this.assertWritePermission(auditContext.roles, auditContext.clinicId);
     const existing = await this.prescriptionRepository.findById(id);
     if (!existing) throw new NotFoundException('Prescription not found');
 
@@ -228,6 +261,7 @@ export class PrescriptionService {
   }
 
   async remove(id: string, auditContext: AuditContext): Promise<void> {
+    this.assertWritePermission(auditContext.roles, auditContext.clinicId);
     const existing = await this.prescriptionRepository.findById(id);
     if (!existing) throw new NotFoundException('Prescription not found');
 
