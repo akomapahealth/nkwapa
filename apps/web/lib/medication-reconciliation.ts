@@ -22,7 +22,13 @@ export interface MedicationRevision {
   revisionNumber: number;
   medicationName: string;
   drugId?: string | null;
-  drug?: { id: string; name: string; genericName?: string | null } | null;
+  /** `category` drives the chronic interviews' grouping; it is absent on an offline-cached row. */
+  drug?: {
+    id: string;
+    name: string;
+    genericName?: string | null;
+    category?: string | null;
+  } | null;
   strength?: string | null;
   dose?: string | null;
   doseUnit?: string | null;
