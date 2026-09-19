@@ -169,3 +169,27 @@ export function pharmacyAddress(revision: PharmacyRevision) {
     .filter(Boolean)
     .join(', ');
 }
+
+/**
+ * Join offline medication records to their current revision.
+ *
+ * Both the Medications tab and the chronic interviews' adherence sections read the same two Dexie
+ * tables and have to perform the same join, and getting it wrong is silent: a record whose current
+ * revision has not arrived yet renders as a medication with no dose rather than as a row to skip.
+ * Stated once so the two cannot drift.
+ */
+export function assembleMedicationRecords(
+  records: ReadonlyArray<{ id: string; clinicId: string; currentRevisionId?: string | null }>,
+  revisions: ReadonlyArray<{ id: string }>,
+  clinicId: string,
+): MedicationRecord[] {
+  const revisionById = new Map(revisions.map((revision) => [revision.id, revision]));
+  return records
+    .filter((record) => record.clinicId === clinicId && record.currentRevisionId)
+    .map((record) => {
+      const currentRevision = revisionById.get(record.currentRevisionId as string);
+      if (!currentRevision) return null;
+      return { ...record, currentRevision } as MedicationRecord;
+    })
+    .filter((record): record is MedicationRecord => record !== null);
+}

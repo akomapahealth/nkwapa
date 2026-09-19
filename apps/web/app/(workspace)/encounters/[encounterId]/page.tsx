@@ -420,6 +420,7 @@ export default function EncounterDetailPage() {
                 <DiabetesInterviewForm
                   clinicId={clinicId}
                   encounterId={encounterId}
+                  patientId={encounter.patientId}
                   canRecordClinicianPlan={canRecordClinicianPlan}
                   initialData={diabetes as Record<string, unknown> | null}
                   canEdit={canEditMeasurements}
@@ -453,6 +454,7 @@ export default function EncounterDetailPage() {
                 <HypertensionInterviewForm
                   clinicId={clinicId}
                   encounterId={encounterId}
+                  patientId={encounter.patientId}
                   canRecordClinicianPlan={canRecordClinicianPlan}
                   initialData={hypertension as Record<string, unknown> | null}
                   vitals={

@@ -21,6 +21,14 @@ export interface EncounterScopedRecord {
   encounterId: string;
   createdAt?: string;
   updatedAt?: string;
+  /**
+   * Set when the domain says one row per encounter *and* something else.
+   *
+   * Medication adherence is one set per encounter and condition, so both sets live in this table
+   * under the same `encounterId`. Declared here rather than left to the caller's `matches`
+   * predicate because the type is what stops the predicate being forgotten.
+   */
+  context?: string;
 }
 
 /** The slice of a Dexie table this needs, so it can be tested without a browser. */
@@ -53,8 +61,18 @@ export async function claimEncounterRecord<T extends EncounterScopedRecord>(
   table: EncounterScopedTable<T>,
   encounterId: string,
   generateId: () => string,
+  /**
+   * Narrows "the row for this encounter" when the domain says there is one per encounter *and*
+   * something else.
+   *
+   * Medication adherence is one set per encounter and condition, so the hypertension and diabetes
+   * sets live in the same table under the same `encounterId`. Without this they would collapse
+   * into each other and the duplicate cleanup below would delete the condition the volunteer was
+   * not looking at.
+   */
+  matches: (record: T) => boolean = () => true,
 ): Promise<ClaimedEncounterRecord> {
-  const existing = await table.where('encounterId').equals(encounterId).toArray();
+  const existing = (await table.where('encounterId').equals(encounterId).toArray()).filter(matches);
 
   if (existing.length === 0) {
     return { id: generateId(), removedDuplicates: 0 };
