@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   RESEARCH_FIELD_DECISIONS,
+  RESEARCH_OUT_OF_SCOPE_MODELS,
   RESEARCH_SCOPED_MODELS,
   fullyExcludedModels,
   type ResearchScopedModel,
@@ -30,6 +31,47 @@ function declaredFields(model: string): string[] {
     })
     .map(([name]) => name);
 }
+
+/** Every model the schema declares. */
+function declaredModels(): string[] {
+  return [...SCHEMA.matchAll(/^model\s+([A-Za-z0-9_]+)\s*\{/gm)].map((match) => match[1]);
+}
+
+/*
+  The gap that let hypertension go a whole release without a single decision recorded against it.
+
+  Every case below iterates `RESEARCH_SCOPED_MODELS`, so a model missing from that list was never
+  visited and nothing failed -- a table nobody had wired up and a table deliberately left out were
+  indistinguishable to a reader and to this suite. Requiring each model to appear in exactly one of
+  the two lists is what closes it, and it is the shape `sync-projection.ts` already uses for
+  columns.
+*/
+describe('every table is either in scope or explicitly out of it', () => {
+  const scoped = new Set<string>(RESEARCH_SCOPED_MODELS);
+  const outOfScope = new Set(Object.keys(RESEARCH_OUT_OF_SCOPE_MODELS));
+
+  it('leaves no model undecided', () => {
+    const undecided = declaredModels().filter(
+      (model) => !scoped.has(model) && !outOfScope.has(model),
+    );
+    expect(undecided).toEqual([]);
+  });
+
+  it('never names a model in both lists', () => {
+    expect([...outOfScope].filter((model) => scoped.has(model))).toEqual([]);
+  });
+
+  it('does not exclude a model the schema no longer has', () => {
+    const declared = new Set(declaredModels());
+    expect([...outOfScope].filter((model) => !declared.has(model))).toEqual([]);
+  });
+
+  it('gives every exclusion a reason a reviewer can read', () => {
+    for (const [model, reason] of Object.entries(RESEARCH_OUT_OF_SCOPE_MODELS)) {
+      expect([model, reason.length > 12, reason.endsWith('.')]).toEqual([model, true, true]);
+    }
+  });
+});
 
 describe('research export field decisions', () => {
   describe.each(RESEARCH_SCOPED_MODELS)('%s', (model: ResearchScopedModel) => {

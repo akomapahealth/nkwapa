@@ -62,6 +62,8 @@ export const RESEARCH_SCOPED_MODELS = [
   'Vitals',
   'TobaccoScreening',
   'DiabetesScreening',
+  'HypertensionAssessment',
+  'EncounterMedicationAdherence',
   'MedicalHistoryRecord',
   'MedicalHistoryRevision',
   'PatientMedicationRecord',
@@ -75,6 +77,80 @@ export const RESEARCH_SCOPED_MODELS = [
 ] as const;
 
 export type ResearchScopedModel = (typeof RESEARCH_SCOPED_MODELS)[number];
+
+/**
+ * Every other model in the schema, and why it carries no field decisions.
+ *
+ * The list above answers "which fields of this table are exported"; nothing answered "is this
+ * table in scope at all". That gap is how `HypertensionAssessment` went a release without a single
+ * decision recorded against it: every case in the companion spec iterates
+ * `RESEARCH_SCOPED_MODELS`, so a model absent from it is never visited and nothing fails. A table
+ * nobody had wired up and a table deliberately left out were indistinguishable -- which is exactly
+ * what the header above says this file exists to prevent, one level up.
+ *
+ * So the spec now requires every model in `schema.prisma` to appear in exactly one of the two
+ * lists. This is the shape of `SYNC_PATIENT_WITHHELD` in `sync/sync-projection.ts`, applied to
+ * tables rather than to columns.
+ *
+ * Four reasons recur, and they are worth naming rather than paraphrasing per row:
+ *
+ * - **Subject data reached through another file.** The clinical record is exported through the
+ *   encounter- and patient-level files the transform already writes; these tables are read to
+ *   build them rather than exported in their own right.
+ * - **Programme operations.** Rosters, queues, shifts and messages describe how the clinic runs,
+ *   not what happened to a patient.
+ * - **Administrative and identity.** Staff, roles, invitations and merge provenance.
+ * - **Infrastructure.** Sequences, sync bookkeeping, and the research pipeline's own records.
+ *
+ * Adding a model here is a decision a reviewer can read and disagree with. Adding one to
+ * `RESEARCH_SCOPED_MODELS` commits to a disposition for every one of its columns.
+ */
+export const RESEARCH_OUT_OF_SCOPE_MODELS: Record<string, string> = {
+  // Subject data, already reaching the pack through the files the transform writes.
+  Patient: 'The subject record itself, de-identified directly into research_subjects.csv.',
+  Encounter: 'Exported as the encounter key and status on every clinical file.',
+  CarePlan:
+    'Counselling and follow-up reach the pack through the interviews that set them; the row itself adds no field an analysis reads.',
+  PatientMeasurement: 'Exported directly into research_measurements.csv.',
+  PatientSelfReport: 'Home readings are exported through research_measurements.csv.',
+  PatientCheckIn: 'Exported directly into research_ops_checkins.csv.',
+  PatientAssignment: 'Exported directly into research_ops_assignments.csv.',
+  Appointment: 'Exported directly into research_appointments.csv.',
+  AppointmentRequest: 'Exported directly into research_appointments.csv.',
+  PatientConsent:
+    'The gate on the export rather than a subject attribute; revocations are exported separately.',
+  Prescription:
+    'A clinician decision about one identified patient, carrying free-text instructions. Medication exposure is exported through the reconciled list instead.',
+
+  // Programme operations.
+  Clinic: 'Programme infrastructure. The clinic reaches the pack as a salted key.',
+  Organization: 'Programme infrastructure above the clinic.',
+  StaffShift: 'A staff roster, which describes how the clinic runs rather than any patient.',
+  Reminder:
+    'Outbound message scheduling. Its clinical driver, the follow-up date, is exported with the plan that set it.',
+  Conversation: 'Staff messaging, which carries free text and no subject data by design.',
+  ConversationParticipant: 'Staff messaging membership.',
+  Message: 'Staff messaging content, free text throughout.',
+  Drug: 'A clinic medication catalogue, not a record about anyone.',
+
+  // Administrative and identity.
+  User: 'Staff, who are not research subjects.',
+  UserClinicRole: 'Which staff hold which seat at which clinic.',
+  PatientAccountLink: 'Links a chart to a portal login, which is an authentication fact.',
+  PatientPortalInvite: 'An invitation to a login, carrying an email address and a token.',
+  PatientCodeAlias: 'Retired patient codes, which are identifiers by construction.',
+  PatientMergeRecord: 'Merge provenance, an administrative record reviewed inside the clinic.',
+  PatientDuplicateReview: 'A review queue over identifiers, which is what makes it a queue.',
+  AuditEvent:
+    'The audit trail names actors and carries before and after images of records this registry decides about individually.',
+
+  // Infrastructure.
+  PatientCodeSequence:
+    'A per-clinic counter behind patient code allocation, with no clinical content.',
+  SyncMutation: 'Offline replay bookkeeping with no clinical content.',
+  ResearchExport: "The export pipeline's own record of its runs.",
+  ClinicResearchSettings: 'Per-clinic configuration for this pipeline.',
+};
 
 /**
  * Identity and lifecycle fields, composed per model rather than spread blindly, so the registry
@@ -208,6 +284,154 @@ export const RESEARCH_FIELD_DECISIONS: Record<
     clinicianComments: FREE_TEXT,
     clinicianPlanAuthorId: STAFF,
     clinicianPlanAuthoredAt: COARSENED('Rounded to a timestamp bucket.'),
+  },
+  /*
+    Registered here for the first time. It was the state the header above calls bad: a table nobody
+    had wired up and a table deliberately left out looked identical to a reader and to a passing
+    test, and `research-transform.service.ts` carried a comment saying so.
+
+    Where hypertension and diabetes share a column the decision is the same, deliberately. The two
+    conditions are siblings in the interview and were not siblings in the codebase, which is the
+    asymmetry #114 exists to close; a disposition that differed between them would put it back.
+  */
+  HypertensionAssessment: {
+    ...encounterScoped,
+    /*
+      Both classifications, and the flag that separates them.
+
+      `derivedClassification` is what the thresholds say, `classification` is what was recorded,
+      and `classificationOverridden` is the only thing that distinguishes a clinician disagreeing
+      with a band from a client echoing back what it was shown. An analysis given one of the three
+      cannot tell a threshold result from a judgement.
+    */
+    classification: EXPORTED('The recorded finding, which is what a cohort is grouped by.'),
+    derivedClassification: EXPORTED('The threshold result, so an analysis need not recompute it.'),
+    classificationOverridden: EXPORTED(
+      'Separates a clinician disagreeing with the derivation from the derivation standing.',
+    ),
+    suspected: EXPORTED('Screening outcome carried forward from the pre-interview record.'),
+    confirmed: EXPORTED('Screening outcome carried forward from the pre-interview record.'),
+    hypertensionStatus: EXPORTED('Whether hypertension is known, newly elevated, or absent.'),
+    yearDiagnosed: COARSENED(
+      'A year of diagnosis narrows a cohort sharply when combined with age; reduced to a band.',
+    ),
+    yearDiagnosedUnknown: EXPORTED(
+      'Distinguishes a patient who does not know their diagnosis year from one nobody asked.',
+    ),
+    mainConcern: EXPORTED('A closed set describing why the patient came.'),
+    mainConcernOther: FREE_TEXT,
+    /*
+      A named facility locates the patient about as precisely as a street address does, which is
+      why `PatientPharmacyRevision.name` is excluded on the same ground.
+    */
+    usualCareFacility: {
+      disposition: 'EXCLUDED_DIRECT_IDENTIFIER',
+      reason:
+        'A named facility locates the patient as precisely as a street address, and a rural clinic serves few enough people to identify one.',
+    },
+    usualCareFacilityStatus: EXPORTED(
+      'Whether the patient has regular care somewhere, without naming where.',
+    ),
+    repeatPerformed: EXPORTED('Whether the rest-and-repeat protocol was followed.'),
+    repeatSystolicBp: EXPORTED('A blood-pressure measurement, the core outcome of this record.'),
+    repeatDiastolicBp: EXPORTED('A blood-pressure measurement, the core outcome of this record.'),
+    repeatPosition: EXPORTED('Measurement context needed to interpret the reading.'),
+    repeatCuffSize: EXPORTED('Measurement context needed to interpret the reading.'),
+    repeatMeasuredAt: COARSENED('Rounded to a timestamp bucket.'),
+    repeatPromptShown: EXPORTED(
+      'Separates a volunteer who ignored the prompt from one who was never shown it.',
+    ),
+    homeMonitorStatus: EXPORTED('Whether the patient self-monitors.'),
+    homeCheckFrequency: EXPORTED('How often, which is what makes a home average interpretable.'),
+    homeSystolicAvg: EXPORTED('Self-reported home average, a measure of day-to-day control.'),
+    homeDiastolicAvg: EXPORTED('Self-reported home average, a measure of day-to-day control.'),
+    homeReadingsUnknown: EXPORTED(
+      'Distinguishes a patient who does not know their home readings from one nobody asked.',
+    ),
+    homeReadingSource: EXPORTED('Where the home readings came from, which bears on their weight.'),
+    currentSymptoms: EXPORTED('A closed set of coded symptoms, so it carries no free text.'),
+    urgentReviewRequired: EXPORTED('Whether the visit escalated.'),
+    urgentReviewReasons: EXPORTED('Stable derivation codes, not prose.'),
+    medicationReminderStrategies: EXPORTED('A closed set describing an adherence support.'),
+    reminderStrategyOther: FREE_TEXT,
+    contributingSubstances: EXPORTED('A closed set, recorded for a clinician to weigh.'),
+    substanceSchemaVersion: OPERATIONAL,
+    /*
+      The JSONB sections are excluded whole, for the reason written out for `nutrition` above: a
+      blob cannot be partially exported without a transform kept in step with the payload by hand,
+      and the coded answers that matter clinically are already columns. This is the descriptive
+      remainder, and it can carry free text.
+    */
+    substanceDetails: FREE_TEXT,
+    lifestyleSchemaVersion: OPERATIONAL,
+    lifestyle: FREE_TEXT,
+    relevantConditions: EXPORTED('A closed set of comorbidities, a core cohort variable.'),
+    pregnantNow: EXPORTED('Changes which treatments are possible, so it changes the cohort.'),
+    planningPregnancy: EXPORTED('Changes which treatments are possible, so it changes the cohort.'),
+    kidneyFunctionTesting: EXPORTED('Preventive-care completion, a core programme measure.'),
+    urineProteinTesting: EXPORTED('Preventive-care completion, a core programme measure.'),
+    cholesterolTesting: EXPORTED('Preventive-care completion, a core programme measure.'),
+    ecgCompleted: EXPORTED('Preventive-care completion, a core programme measure.'),
+    statinUse: EXPORTED('Preventive medication use, a core programme measure.'),
+    aspirinUse: EXPORTED('Preventive medication use, a core programme measure.'),
+    volunteerActionsSchemaVersion: OPERATIONAL,
+    volunteerActions: FREE_TEXT,
+    clinicianReviewRequested: EXPORTED('Whether the volunteer asked for a clinician.'),
+    reviewReasons: EXPORTED('A closed set describing why review was requested.'),
+    reviewReasonOther: FREE_TEXT,
+    clinicianPlanItems: {
+      disposition: 'EXCLUDED_QUASI_IDENTIFIER',
+      reason:
+        'A clinician plan is a decision about one identified patient; combined with a visit date it narrows a cohort to individuals.',
+    },
+    clinicianPlanOther: FREE_TEXT,
+    /*
+      The goal, not the plan.
+
+      A target blood pressure is a number on a scale thousands of patients share, which is a
+      different kind of fact from the list of actions a named doctor chose for this one.
+    */
+    bpGoalSystolic: EXPORTED(
+      'A treatment target on a shared scale, not a decision about a person.',
+    ),
+    bpGoalDiastolic: EXPORTED(
+      'A treatment target on a shared scale, not a decision about a person.',
+    ),
+    followUpWindow: EXPORTED('How soon the patient was asked to return.'),
+    followUpOther: FREE_TEXT,
+    followUpOwner: EXPORTED('Which team carries the follow-up.'),
+    clinicianComments: FREE_TEXT,
+    clinicianPlanAuthorId: STAFF,
+    clinicianPlanAuthoredAt: COARSENED('Rounded to a timestamp bucket.'),
+    notes: FREE_TEXT,
+    collectedAt: COARSENED('Rounded to a timestamp bucket.'),
+    authoredByUserId: STAFF,
+  },
+  /*
+    Per-medication observations, joined to the medication list through keyed identifiers.
+
+    The medication itself is never named here -- `PatientMedicationRevision.medicationName` is
+    excluded as free text and `drugId` is keyed -- so an analysis links an observation to a coded
+    drug without either file carrying a name.
+  */
+  EncounterMedicationAdherence: {
+    ...encounterScoped,
+    context: EXPORTED('Which condition the observation was made for.'),
+    medicationRecordId: KEYED,
+    /*
+      Keyed rather than dropped.
+
+      The revision is what pins the observation to a dose; without it an analysis of adherence
+      against dose has to assume the current revision, which may have changed since the visit.
+    */
+    observedRevisionId: KEYED,
+    tookToday: EXPORTED('A coded adherence observation, the point of the record.'),
+    dosesMissed7d: EXPORTED('A coded adherence observation, the point of the record.'),
+    takingAsPrescribed: EXPORTED('A coded adherence observation, the point of the record.'),
+    supplyRemaining: EXPORTED('Supply is the most actionable barrier the programme can address.'),
+    problems: EXPORTED('A closed set of barriers, so it carries no free text.'),
+    problemsOther: FREE_TEXT,
+    authoredByUserId: STAFF,
   },
   MedicalHistoryRecord: {
     ...patientScoped,
