@@ -1,5 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { Prescription, EncounterStatus } from '@prisma/client';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { PrescriptionRepository } from './prescription.repository';
@@ -7,11 +9,20 @@ import { CreatePrescriptionDto } from './dto/create-prescription.dto';
 import { UpdatePrescriptionDto } from './dto/update-prescription.dto';
 import { MedicalHistoryService } from '../medical-history/medical-history.service';
 import { isApiFeatureEnabled } from '../common/feature-flags';
+import { flattenValidationErrors } from '../common/validation';
 
 export interface AuditContext {
   clinicId: string;
   actorUserId: string;
   requestId?: string;
+  /*
+    Carried so a replayed write keeps the provenance the inline sync handler used to log.
+
+    Delegating to this service would otherwise have quietly dropped the address and client a
+    prescription arrived from, which is exactly the sort of thing a clinical audit trail is for.
+  */
+  ipAddress?: string;
+  userAgent?: string;
 }
 
 @Injectable()
@@ -43,6 +54,8 @@ export class PrescriptionService {
     encounterId: string,
     dto: CreatePrescriptionDto,
     auditContext: AuditContext,
+    /** Supplied only by an offline replay; see the note on the create below. */
+    prescriptionId?: string,
   ): Promise<Prescription> {
     const encounter = await this.ensureEncounterNotFinalized(encounterId, clinicId);
     if (isApiFeatureEnabled('medicalHistory')) {
@@ -68,6 +81,12 @@ export class PrescriptionService {
     }
 
     const prescription = await this.prescriptionRepository.create({
+      /*
+        The offline replay writes under the id the device already queued, so replaying the same
+        mutation twice cannot produce two prescriptions. An online create has no id to supply and
+        lets the database generate one.
+      */
+      ...(prescriptionId ? { id: prescriptionId } : {}),
       encounter: { connect: { id: encounterId } },
       clinic: { connect: { id: clinicId } },
       drug: { connect: { id: dto.drugId } },
@@ -87,9 +106,86 @@ export class PrescriptionService {
       entityId: prescription.id,
       afterJson: JSON.stringify(prescription),
       requestId: auditContext.requestId,
+      ipAddress: auditContext.ipAddress,
+      userAgent: auditContext.userAgent,
     });
 
     return prescription;
+  }
+
+  /**
+   * Validate an offline replay through the same DTO the REST route uses.
+   *
+   * `SyncService` used to write this record with an inline Prisma upsert that touched none of
+   * this: it accepted a drug belonging to another clinic, an empty dosage and frequency, a
+   * negative quantity, unbounded and unsanitized free text, and a `prescribedByUserId` chosen by
+   * the client. The REST route refuses all six. The two paths now run one DTO, so they cannot
+   * drift again -- the same fix #114 applied to hypertension, for the same reason.
+   */
+  async validateSyncPayload(payload: Record<string, unknown>): Promise<{
+    dto: CreatePrescriptionDto;
+  }> {
+    const candidate: Record<string, unknown> = { ...payload };
+    /*
+      Routing and provenance, not record fields.
+
+      The outbox stores the encounter and clinic inside the payload and the sync handler addresses
+      the write from there. `prescribedByUserId` is in there too, because the form has always sent
+      it -- it is dropped rather than rejected so a mutation queued before this change still
+      replays, and the prescriber is taken from the replaying actor instead.
+    */
+    delete candidate.encounterId;
+    delete candidate.clinicId;
+    delete candidate.prescribedByUserId;
+
+    const dto = plainToInstance(CreatePrescriptionDto, candidate);
+    const errors = await validate(dto, {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      forbidUnknownValues: true,
+    });
+    if (errors.length) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Prescription validation failed.',
+        fieldErrors: flattenValidationErrors(errors),
+      });
+    }
+    return { dto };
+  }
+
+  /**
+   * Apply a replayed prescription, creating it under the id the device queued.
+   *
+   * A replay is idempotent by that id: the second delivery of the same mutation updates the row
+   * the first one wrote rather than adding a second prescription. The update goes through the
+   * ordinary `update`, so a finalized encounter refuses it there as well.
+   */
+  async upsertFromSync(
+    clinicId: string,
+    encounterId: string,
+    prescriptionId: string,
+    dto: CreatePrescriptionDto,
+    auditContext: AuditContext,
+  ): Promise<Prescription> {
+    const existing = await this.prescriptionRepository.findById(prescriptionId);
+    if (!existing) {
+      return this.create(clinicId, encounterId, dto, auditContext, prescriptionId);
+    }
+    if (existing.clinicId !== clinicId) {
+      throw new NotFoundException('Prescription not found');
+    }
+    return this.update(
+      prescriptionId,
+      {
+        dosage: dto.dosage,
+        frequency: dto.frequency,
+        duration: dto.duration,
+        quantity: dto.quantity,
+        instructions: dto.instructions,
+      },
+      auditContext,
+    );
   }
 
   async listByEncounter(encounterId: string) {
@@ -124,6 +220,8 @@ export class PrescriptionService {
       beforeJson: JSON.stringify(existing),
       afterJson: JSON.stringify(updated),
       requestId: auditContext.requestId,
+      ipAddress: auditContext.ipAddress,
+      userAgent: auditContext.userAgent,
     });
 
     return updated;
@@ -145,6 +243,8 @@ export class PrescriptionService {
       entityId: id,
       beforeJson: JSON.stringify(existing),
       requestId: auditContext.requestId,
+      ipAddress: auditContext.ipAddress,
+      userAgent: auditContext.userAgent,
     });
   }
 }

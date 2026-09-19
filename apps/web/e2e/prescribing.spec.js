@@ -2,6 +2,7 @@ const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
 
 const { storageStateFor } = require('../playwright/roles');
+const { waitForOutboxDrain } = require('../playwright/outbox');
 
 /**
  * Prescribing, end to end, for the first time.
@@ -153,6 +154,43 @@ test.describe('as a doctor', () => {
     await expect(page.getByRole('listitem').filter({ hasText: 'Atenolol' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Add prescription' })).toHaveCount(0);
     await expect(page.getByLabel('Dosage (with unit, e.g. mg)')).toHaveCount(0);
+  });
+
+  /*
+    A prescription written offline replays through the same validation as an online one.
+
+    `SyncService` used to write this record with an inline Prisma upsert that checked neither the
+    drug's clinic nor the payload's shape, and took the prescriber from the payload. It now
+    delegates to `PrescriptionService` (#134), and this is the proof the queued path still lands:
+    the outbox is empty only once the server reported the mutation applied.
+  */
+  test('a prescription written offline replays and lands', async ({ page, context }) => {
+    test.setTimeout(150_000);
+
+    const patientId = await createPatient(page, 'Offline');
+    const encounterId = await createEncounter(page, patientId);
+    await page.goto(`/encounters/${encounterId}`);
+
+    // Chosen while online: the picker reads the catalogue from the server.
+    await chooseDrug(page, 'Nifedipine');
+    await page.getByLabel('Dosage (with unit, e.g. mg)').fill('20 mg');
+    await page.getByLabel('Frequency (doses per day)').fill('Twice daily');
+    await page.getByLabel("I reviewed the patient's allergy status before prescribing.").check();
+
+    await context.setOffline(true);
+    await page.getByRole('button', { name: 'Add prescription' }).click();
+
+    await context.setOffline(false);
+    await waitForOutboxDrain(page, expect, { entityType: 'prescription' });
+
+    await expect(async () => {
+      await page.goto(`/encounters/${encounterId}`);
+      const listed = page.getByRole('listitem').filter({ hasText: 'Nifedipine' });
+      await expect(listed).toBeVisible({ timeout: 5_000 });
+      await expect(listed).toContainText('20 mg');
+      // The prescriber is the replaying actor, not anything the payload named.
+      await expect(listed).toContainText('Prescribed by');
+    }).toPass({ timeout: 30_000 });
   });
 
   test('the required fields are named rather than left to a disabled button', async ({ page }) => {
