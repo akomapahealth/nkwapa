@@ -14,6 +14,7 @@ import { MedicationReconciliationService } from '../medication-reconciliation/me
 import { DiabetesScreeningService } from '../diabetes-screening/diabetes-screening.service';
 import { HypertensionAssessmentService } from '../hypertension-assessment/hypertension-assessment.service';
 import { MedicationAdherenceService } from '../medication-adherence/medication-adherence.service';
+import { PrescriptionService } from '../prescriptions/prescription.service';
 
 const mockUser = {
   user: { id: 'user-1' },
@@ -31,6 +32,7 @@ describe('SyncService', () => {
   let diabetesScreeningService: jest.Mocked<DiabetesScreeningService>;
   let hypertensionAssessmentService: jest.Mocked<HypertensionAssessmentService>;
   let medicationAdherenceService: jest.Mocked<MedicationAdherenceService>;
+  let prescriptionService: jest.Mocked<PrescriptionService>;
   beforeEach(async () => {
     const mockPrisma = {
       syncMutation: {
@@ -148,6 +150,15 @@ describe('SyncService', () => {
             replaceForEncounter: jest.fn().mockResolvedValue({ items: [] }),
           },
         },
+        {
+          provide: PrescriptionService,
+          useValue: {
+            validateSyncPayload: jest.fn().mockResolvedValue({
+              dto: { drugId: 'drug-1', dosage: '10 mg', frequency: 'Once daily' },
+            }),
+            upsertFromSync: jest.fn().mockResolvedValue({ id: 'prescription-1' }),
+          },
+        },
       ],
     }).compile();
 
@@ -161,6 +172,7 @@ describe('SyncService', () => {
     diabetesScreeningService = module.get(DiabetesScreeningService);
     hypertensionAssessmentService = module.get(HypertensionAssessmentService);
     medicationAdherenceService = module.get(MedicationAdherenceService);
+    prescriptionService = module.get(PrescriptionService);
   });
 
   describe('replay recovery', () => {
@@ -598,6 +610,73 @@ describe('SyncService', () => {
 
     expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.ERROR);
     expect(medicationAdherenceService.replaceForEncounter).not.toHaveBeenCalled();
+  });
+
+  /*
+    Prescriptions replay through the service, not an inline upsert.
+
+    The handler used to write them with a Prisma upsert that checked neither the drug's clinic nor
+    the payload's shape, and took the prescriber from the payload. See #134.
+  */
+  it('routes a prescription replay through the shared validated service', async () => {
+    const mutation = {
+      id: 'mut-rx-1',
+      entityType: 'prescription',
+      entityId: '55555555-5555-4555-8555-555555555555',
+      operation: 'UPSERT',
+      clinicId: 'clinic-1',
+      idempotencyKey: 'rx-idem-1',
+      payloadJson: {
+        encounterId: 'enc-1',
+        drugId: '11111111-1111-4111-8111-111111111111',
+        dosage: '10 mg',
+        frequency: 'Once daily',
+        prescribedByUserId: 'a-different-doctor',
+      },
+    } as SyncMutationDto;
+
+    const doctor = {
+      user: { id: 'user-1' },
+      roles: [{ clinicId: 'clinic-1', role: 'DOCTOR' }],
+    };
+    const results = await service.applyMutations('clinic-1', doctor as never, [mutation]);
+
+    expect(results).toEqual([{ id: 'mut-rx-1', status: 'APPLIED' }]);
+    expect(prescriptionService.validateSyncPayload).toHaveBeenCalledWith(mutation.payloadJson);
+    expect(prescriptionService.upsertFromSync).toHaveBeenCalledWith(
+      'clinic-1',
+      'enc-1',
+      // The id the device queued, so a redelivery is not a second prescription.
+      '55555555-5555-4555-8555-555555555555',
+      expect.objectContaining({ dosage: '10 mg' }),
+      // The prescriber is the replaying actor; the payload named someone else.
+      expect.objectContaining({ actorUserId: 'user-1' }),
+    );
+  });
+
+  it('surfaces a rejected prescription payload as an error rather than writing it', async () => {
+    prescriptionService.validateSyncPayload.mockRejectedValueOnce(
+      new BadRequestException({ code: 'VALIDATION_ERROR' }),
+    );
+
+    const doctor = {
+      user: { id: 'user-1' },
+      roles: [{ clinicId: 'clinic-1', role: 'DOCTOR' }],
+    };
+    const results = await service.applyMutations('clinic-1', doctor as never, [
+      {
+        id: 'mut-rx-2',
+        entityType: 'prescription',
+        entityId: '55555555-5555-4555-8555-555555555555',
+        operation: 'UPSERT',
+        clinicId: 'clinic-1',
+        idempotencyKey: 'rx-idem-2',
+        payloadJson: { encounterId: 'enc-1', drugId: 'not-a-uuid' },
+      } as SyncMutationDto,
+    ]);
+
+    expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.ERROR);
+    expect(prescriptionService.upsertFromSync).not.toHaveBeenCalled();
   });
 
   it('rejects diabetes replay for a read-only director', async () => {

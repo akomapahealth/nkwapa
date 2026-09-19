@@ -10,6 +10,7 @@ import { MedicationReconciliationModule } from '../medication-reconciliation/med
 import { DiabetesScreeningModule } from '../diabetes-screening/diabetes-screening.module';
 import { HypertensionAssessmentModule } from '../hypertension-assessment/hypertension-assessment.module';
 import { MedicationAdherenceModule } from '../medication-adherence/medication-adherence.module';
+import { PrescriptionModule } from '../prescriptions/prescription.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { MedicationAdherenceModule } from '../medication-adherence/medication-ad
     DiabetesScreeningModule,
     HypertensionAssessmentModule,
     MedicationAdherenceModule,
+    PrescriptionModule,
   ],
   controllers: [SyncController],
   providers: [SyncService, ClinicalMeasurementsService],

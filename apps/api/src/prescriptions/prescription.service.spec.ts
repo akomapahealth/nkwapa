@@ -193,4 +193,183 @@ describe('PrescriptionService', () => {
       service.update('nonexistent', { dosage: '5mg' }, { clinicId: 'c', actorUserId: 'u' }),
     ).rejects.toThrow(NotFoundException);
   });
+  /*
+    The offline replay and the REST route now run one DTO.
+
+    Before this, `SyncService` wrote prescriptions with an inline Prisma upsert that validated
+    almost nothing. Each case below is a payload the online route has always refused and the
+    offline path accepted. See #134.
+  */
+  describe('validating an offline replay', () => {
+    const valid = {
+      encounterId: 'encounter-1',
+      clinicId: 'clinic-1',
+      drugId: '11111111-1111-4111-8111-111111111111',
+      dosage: '10 mg',
+      frequency: 'Once daily',
+    };
+
+    it('accepts what the REST route would accept', async () => {
+      const { dto } = await service.validateSyncPayload({ ...valid });
+      expect(dto).toMatchObject({ dosage: '10 mg', frequency: 'Once daily' });
+    });
+
+    it('drops the outbox routing keys rather than rejecting the mutation for carrying them', async () => {
+      // The DTO runs with `forbidNonWhitelisted`; leaving them in would refuse a replay whose
+      // local save had already succeeded.
+      await expect(service.validateSyncPayload({ ...valid })).resolves.toBeDefined();
+    });
+
+    /*
+      The prescriber is the replaying actor, never the payload.
+
+      `prescribedByUserId` has always been part of the outbox payload -- `PrescriptionForm` sends
+      it -- and the old handler trusted it, so a replay could attribute a prescription to a
+      clinician who did not write it. It is dropped rather than refused, so a mutation queued
+      before this change still replays.
+    */
+    it('ignores a prescriber named by the payload', async () => {
+      const { dto } = await service.validateSyncPayload({
+        ...valid,
+        prescribedByUserId: 'someone-else',
+      });
+      expect(dto).not.toHaveProperty('prescribedByUserId');
+    });
+
+    it.each([
+      ['a quantity below one', { quantity: 0 }],
+      ['a negative quantity', { quantity: -5 }],
+      ['a drug id that is not a uuid', { drugId: 'not-a-uuid' }],
+    ])('refuses %s', async (_label, override) => {
+      await expect(service.validateSyncPayload({ ...valid, ...override })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
+    /*
+      Free text is truncated to its column, not refused.
+
+      `ToSanitizedString` transforms before `@MaxLength` runs, so an over-length value is cut to
+      size and then passes. That is the REST route's behaviour too, and the point here is that the
+      replay now gets it: the old handler stored the raw string, uncapped and with control
+      characters intact.
+    */
+    it('truncates free text to the width of its column', async () => {
+      const { dto } = await service.validateSyncPayload({
+        ...valid,
+        dosage: 'x'.repeat(200),
+        instructions: 'y'.repeat(2500),
+      });
+      expect(dto.dosage).toHaveLength(120);
+      expect(dto.instructions).toHaveLength(2000);
+    });
+
+    it('strips control characters the replay used to store raw', async () => {
+      const { dto } = await service.validateSyncPayload({ ...valid, dosage: '10\u0000 mg' });
+      expect(dto.dosage).not.toContain('\u0000');
+    });
+
+    /*
+      An empty dosage is accepted, by this path and by the REST route alike.
+
+      `CreatePrescriptionDto` has no `@IsNotEmpty` on either required field, so "" survives
+      `@IsString()` and `@MaxLength()`. This records that rather than asserting a refusal that does
+      not happen. Whether a prescription should be allowed to carry no dose at all is a separate
+      question from making the two paths agree; it is noted on #134.
+    */
+    it('accepts an empty dosage, as the REST route does, and does not pretend otherwise', async () => {
+      await expect(
+        service.validateSyncPayload({ ...valid, dosage: '', frequency: '' }),
+      ).resolves.toBeDefined();
+    });
+
+    it('refuses a key the contract does not declare', async () => {
+      await expect(
+        service.validateSyncPayload({ ...valid, prescribedAt: '2026-01-01' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('reports the failing field so a rejected mutation can say which', async () => {
+      await service.validateSyncPayload({ ...valid, quantity: 0 }).catch((error) => {
+        expect(error.getResponse()).toMatchObject({
+          code: 'VALIDATION_ERROR',
+          fieldErrors: expect.arrayContaining([expect.objectContaining({ field: 'quantity' })]),
+        });
+      });
+    });
+  });
+
+  describe('applying an offline replay', () => {
+    const dto = {
+      drugId: 'drug-1',
+      dosage: '10 mg',
+      frequency: 'Once daily',
+    } as never;
+
+    it('writes under the id the device queued, so a second delivery is not a second prescription', async () => {
+      mockRepoFindById.mockResolvedValueOnce(null);
+      await service.upsertFromSync('clinic-1', 'encounter-1', 'queued-id', dto, {
+        clinicId: 'clinic-1',
+        actorUserId: 'doctor-1',
+      });
+      expect(mockRepoCreate.mock.calls[0][0]).toMatchObject({ id: 'queued-id' });
+    });
+
+    it('updates rather than duplicating when the mutation is redelivered', async () => {
+      await service.upsertFromSync('clinic-1', 'encounter-1', 'prescription-1', dto, {
+        clinicId: 'clinic-1',
+        actorUserId: 'doctor-1',
+      });
+      expect(mockRepoCreate).not.toHaveBeenCalled();
+      expect(mockRepoUpdate).toHaveBeenCalled();
+    });
+
+    it('takes the prescriber from the replaying actor', async () => {
+      mockRepoFindById.mockResolvedValueOnce(null);
+      await service.upsertFromSync('clinic-1', 'encounter-1', 'queued-id', dto, {
+        clinicId: 'clinic-1',
+        actorUserId: 'doctor-1',
+      });
+      expect(mockRepoCreate.mock.calls[0][0].prescribedBy).toEqual({ connect: { id: 'doctor-1' } });
+    });
+
+    it('refuses a drug that belongs to another clinic', async () => {
+      // The inline handler never checked this, so a replay could attach another clinic's drug.
+      mockRepoFindById.mockResolvedValueOnce(null);
+      mockDrugFind.mockResolvedValueOnce({ id: 'drug-1', clinicId: 'another-clinic' });
+      await expect(
+        service.upsertFromSync('clinic-1', 'encounter-1', 'queued-id', dto, {
+          clinicId: 'clinic-1',
+          actorUserId: 'doctor-1',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(mockRepoCreate).not.toHaveBeenCalled();
+    });
+
+    it('refuses a replay onto a finalized encounter', async () => {
+      mockRepoFindById.mockResolvedValueOnce(null);
+      mockEncounterFind.mockResolvedValueOnce({
+        status: 'FINALIZED',
+        clinicId: 'clinic-1',
+        patientId: 'patient-1',
+      });
+      await expect(
+        service.upsertFromSync('clinic-1', 'encounter-1', 'queued-id', dto, {
+          clinicId: 'clinic-1',
+          actorUserId: 'doctor-1',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('refuses to touch a prescription held by another clinic', async () => {
+      mockRepoFindById.mockResolvedValueOnce({ ...mockPrescription, clinicId: 'another-clinic' });
+      await expect(
+        service.upsertFromSync('clinic-1', 'encounter-1', 'prescription-1', dto, {
+          clinicId: 'clinic-1',
+          actorUserId: 'doctor-1',
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(mockRepoUpdate).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -56,6 +56,7 @@ import type {
 } from '../medication-reconciliation/dto/medication-reconciliation.dto';
 import { DiabetesScreeningService } from '../diabetes-screening/diabetes-screening.service';
 import { HypertensionAssessmentService } from '../hypertension-assessment/hypertension-assessment.service';
+import { PrescriptionService } from '../prescriptions/prescription.service';
 import { MedicationAdherenceService } from '../medication-adherence/medication-adherence.service';
 import { serializeLegacyDiabetesSymptoms } from '@nkwapa/db';
 
@@ -84,6 +85,7 @@ export class SyncService {
     private readonly diabetesScreeningService: DiabetesScreeningService,
     private readonly hypertensionAssessmentService: HypertensionAssessmentService,
     private readonly medicationAdherenceService: MedicationAdherenceService,
+    private readonly prescriptionService: PrescriptionService,
   ) {}
 
   async applyMutations(
@@ -1048,6 +1050,18 @@ export class SyncService {
     return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
   }
 
+  /**
+   * Replay a prescription through the same service the REST route uses.
+   *
+   * This was an inline Prisma upsert that validated almost nothing. It accepted a drug belonging
+   * to another clinic, an empty dosage and frequency, a quantity below one, free text with no
+   * length cap and no sanitising, and -- the part worth closing regardless of likelihood -- a
+   * `prescribedByUserId` chosen by the payload, so a replay could attribute a prescription to a
+   * clinician who did not write it.
+   *
+   * The finalized-encounter and allergy checks were here and are now the service's, which is where
+   * the REST route already got them. See #134, and the identical fix #114 made for hypertension.
+   */
   private async applyPrescriptionUpsert(
     clinicId: string,
     actorUserId: string,
@@ -1058,70 +1072,21 @@ export class SyncService {
   ): Promise<SyncMutationResultDto> {
     const encounterId = payload.encounterId as string;
     if (!encounterId) throw new Error('Prescription payload must include encounterId');
-    await this.ensureEncounterNotFinalized(encounterId);
-    if (isApiFeatureEnabled('medicalHistory')) {
-      const encounter = await this.prisma.encounter.findUnique({
-        where: { id: encounterId },
-        select: { clinicId: true, patientId: true },
-      });
-      if (!encounter || encounter.clinicId !== clinicId) {
-        throw new Error('Prescription encounter does not belong to this clinic');
-      }
-      const allergySummary = await this.medicalHistoryService.getAllergySummary(
-        clinicId,
-        encounter.patientId,
-      );
-      if (
-        (allergySummary.state === 'ACTIVE_ALLERGIES' || allergySummary.state === 'NOT_RECORDED') &&
-        payload.allergyReviewed !== true
-      ) {
-        throw new Error('Allergy review acknowledgement is required');
-      }
-    }
 
-    const drugId = payload.drugId as string;
-    if (!drugId) throw new Error('Prescription payload must include drugId');
-
-    const existing = await this.prisma.prescription.findUnique({
-      where: { id: mut.entityId },
-    });
-    const before = existing ? JSON.stringify(existing) : null;
-
-    const prescription = await this.prisma.prescription.upsert({
-      where: { id: mut.entityId },
-      create: {
-        id: mut.entityId,
-        clinicId,
-        encounterId,
-        drugId,
-        dosage: (payload.dosage as string) ?? '',
-        frequency: (payload.frequency as string) ?? '',
-        duration: (payload.duration as string) ?? null,
-        quantity: (payload.quantity as number) ?? null,
-        instructions: (payload.instructions as string) ?? null,
-        prescribedByUserId: (payload.prescribedByUserId as string) ?? actorUserId,
-      },
-      update: {
-        dosage: (payload.dosage as string) ?? existing?.dosage ?? '',
-        frequency: (payload.frequency as string) ?? existing?.frequency ?? '',
-        duration: (payload.duration as string) ?? existing?.duration ?? null,
-        quantity: (payload.quantity as number) ?? existing?.quantity ?? null,
-        instructions: (payload.instructions as string) ?? existing?.instructions ?? null,
-      },
-    });
-
-    await this.auditService.logWrite({
+    const normalized = await this.prescriptionService.validateSyncPayload(payload);
+    await this.prescriptionService.upsertFromSync(
       clinicId,
-      actorUserId,
-      action: existing ? 'PRESCRIPTION.UPSERT' : 'PRESCRIPTION.CREATE',
-      entityType: 'Prescription',
-      entityId: prescription.id,
-      beforeJson: before,
-      afterJson: JSON.stringify(prescription),
-      requestId: idempotencyKey,
-      ipAddress: metadata?.ipAddress,
-      userAgent: metadata?.userAgent,
-    });
+      encounterId,
+      mut.entityId,
+      normalized.dto,
+      {
+        clinicId,
+        actorUserId,
+        requestId: idempotencyKey,
+        ipAddress: metadata?.ipAddress,
+        userAgent: metadata?.userAgent,
+      },
+    );
 
     await this.prisma.syncMutation.create({
       data: {
