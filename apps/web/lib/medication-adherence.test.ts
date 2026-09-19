@@ -263,11 +263,33 @@ describe('the outbox payload', () => {
 });
 
 describe('applying the pull', () => {
+  /**
+   * Enough of a Dexie table for `claimEncounterRecord`, which the pull shares with the save so the
+   * two cannot write two rows for the same encounter and condition.
+   */
   function fakeTable() {
-    const rows: Record<string, unknown>[] = [];
+    let rows: Record<string, unknown>[] = [];
+    let minted = 0;
+    const table = {
+      put: jest.fn(async (row: Record<string, unknown>) => {
+        rows = rows.filter((existing) => existing.id !== row.id);
+        rows.push(row);
+      }),
+      where: (index: 'encounterId') => ({
+        equals: (value: string) => ({
+          toArray: async () => rows.filter((row) => row[index] === value),
+        }),
+      }),
+      bulkDelete: async (ids: string[]) => {
+        rows = rows.filter((row) => !ids.includes(row.id as string));
+      },
+    };
     return {
-      rows,
-      medication_adherence: { put: jest.fn(async (row: never) => void rows.push(row)) },
+      get rows() {
+        return rows;
+      },
+      generateId: () => `generated-${++minted}`,
+      medication_adherence: table,
     };
   }
 
@@ -293,54 +315,89 @@ describe('applying the pull', () => {
 
   it('regroups per-medication rows into one set', async () => {
     const table = fakeTable();
-    await applyAdherencePull(table as never, [
-      serverRow(),
-      serverRow({ id: 'server-row-2', medicationRecordId: METFORMIN }),
-    ]);
+    await applyAdherencePull(
+      table as never,
+      [serverRow(), serverRow({ id: 'server-row-2', medicationRecordId: METFORMIN })],
+      table.generateId,
+    );
     expect(table.rows).toHaveLength(1);
     expect((table.rows[0] as { entries: unknown[] }).entries).toHaveLength(2);
   });
 
   it('keeps the two conditions apart', async () => {
     const table = fakeTable();
-    await applyAdherencePull(table as never, [
-      serverRow(),
-      serverRow({ id: 'server-row-2', context: 'DIABETES' }),
+    await applyAdherencePull(
+      table as never,
+      [serverRow(), serverRow({ id: 'server-row-2', context: 'DIABETES' })],
+      table.generateId,
+    );
+    expect(table.rows).toHaveLength(2);
+    expect(table.rows.map((row) => (row as { context: string }).context)).toEqual([
+      'HYPERTENSION',
+      'DIABETES',
     ]);
-    expect(table.rows.map((row) => (row as { id: string }).id)).toEqual([
-      'encounter-1:HYPERTENSION',
-      'encounter-1:DIABETES',
-    ]);
+    // Two rows under one encounterId, kept apart by the claim's context matcher.
+    expect(new Set(table.rows.map((row) => (row as { id: string }).id)).size).toBe(2);
   });
 
-  it('derives the local id from the pair rather than from a server row', async () => {
+  it('writes one local row however many times it is pulled', async () => {
     /*
-      A random id would make the next pull mint a second set for the same encounter and condition,
-      and `.first()` on a non-unique index returns whichever UUID sorts lowest -- the shape of
-      issue #91.
+      The set has no server-side identity, so the id is settled locally through
+      `claimEncounterRecord`. A pull that minted its own id each time would leave several rows for
+      one encounter and condition, and `.first()` on a non-unique index returns whichever UUID
+      sorts lowest -- the shape of issue #91.
     */
     const table = fakeTable();
-    await applyAdherencePull(table as never, [serverRow()]);
-    await applyAdherencePull(table as never, [serverRow({ id: 'a-different-server-id' })]);
-    expect(new Set(table.rows.map((row) => (row as { id: string }).id)).size).toBe(1);
+    await applyAdherencePull(table as never, [serverRow()], table.generateId);
+    await applyAdherencePull(
+      table as never,
+      [serverRow({ id: 'a-different-server-id' })],
+      table.generateId,
+    );
+    expect(table.rows).toHaveLength(1);
+  });
+
+  it('adopts the id a local save already claimed', async () => {
+    // Otherwise the volunteer's saved set and the server's copy sit side by side and the form
+    // reads back whichever UUID sorts lowest.
+    const table = fakeTable();
+    await table.medication_adherence.put({
+      id: 'claimed-by-the-save',
+      clinicId: 'clinic-1',
+      encounterId: 'encounter-1',
+      context: 'HYPERTENSION',
+      entries: [],
+      createdAt: '2026-09-13T11:00:00.000Z',
+    });
+    await applyAdherencePull(table as never, [serverRow()], table.generateId);
+    expect(table.rows).toHaveLength(1);
+    expect(table.rows[0]).toMatchObject({
+      id: 'claimed-by-the-save',
+      // Preserved: the pull is not the moment the record came into existence.
+      createdAt: '2026-09-13T11:00:00.000Z',
+    });
   });
 
   it('stamps the set with its freshest row', async () => {
     const table = fakeTable();
-    await applyAdherencePull(table as never, [
-      serverRow(),
-      serverRow({
-        id: 'server-row-2',
-        medicationRecordId: METFORMIN,
-        updatedAt: '2026-09-14T09:00:00.000Z',
-      }),
-    ]);
+    await applyAdherencePull(
+      table as never,
+      [
+        serverRow(),
+        serverRow({
+          id: 'server-row-2',
+          medicationRecordId: METFORMIN,
+          updatedAt: '2026-09-14T09:00:00.000Z',
+        }),
+      ],
+      table.generateId,
+    );
     expect(table.rows[0]).toMatchObject({ updatedAt: '2026-09-14T09:00:00.000Z' });
   });
 
   it('round-trips through the local record', async () => {
     const table = fakeTable();
-    await applyAdherencePull(table as never, [serverRow()]);
+    await applyAdherencePull(table as never, [serverRow()], table.generateId);
     const entries = fromAdherenceRecord(table.rows[0] as never);
     expect(entries[0]).toMatchObject({
       medicationRecordId: AMLODIPINE,
@@ -352,7 +409,7 @@ describe('applying the pull', () => {
 
   it('writes nothing when the pull carries no adherence', async () => {
     const table = fakeTable();
-    await applyAdherencePull(table as never, []);
+    await applyAdherencePull(table as never, [], table.generateId);
     expect(table.medication_adherence.put).not.toHaveBeenCalled();
   });
 });

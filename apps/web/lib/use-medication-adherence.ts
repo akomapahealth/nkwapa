@@ -121,19 +121,26 @@ export function useMedicationAdherence(
       const stored = await db.medication_adherence
         .where('[encounterId+context]')
         .equals([encounterId, context])
-        .first()
-        .catch(() => undefined);
+        .first();
 
       if (cancelled) return;
 
       setMedications(list);
       const seedKey = `${encounterId}::${context}`;
-      setEntries((current) =>
-        seededFor.current === seedKey
-          ? seedAdherenceEntries(list, current, context)
-          : seedAdherenceEntries(list, fromAdherenceRecord(stored), context),
-      );
+      /*
+        Read the ref before the updater, not inside it.
+
+        `setEntries` takes a lazy updater: React runs it when it processes the update, which is
+        after the assignment below. Reading `seededFor.current` in there therefore always saw the
+        key it had just been given, took the "already seeded" branch, and seeded from the empty
+        state instead of from the stored record -- so every answer vanished on the first tab
+        switch. It survived unit tests because nothing there re-mounts the hook.
+      */
+      const alreadySeeded = seededFor.current === seedKey;
       seededFor.current = seedKey;
+      setEntries((current) =>
+        seedAdherenceEntries(list, alreadySeeded ? current : fromAdherenceRecord(stored), context),
+      );
       setLoading(false);
     };
 

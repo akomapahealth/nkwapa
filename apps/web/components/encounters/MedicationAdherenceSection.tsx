@@ -142,7 +142,7 @@ export function MedicationAdherenceSection({
     ) : null;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" id={`adherence-section-${context.toLowerCase()}`}>
       {/*
         A running count, because this is the one part of the interview whose length the volunteer
         cannot see from the form. Six medications is six near-identical cards, and "2 of 6" is what

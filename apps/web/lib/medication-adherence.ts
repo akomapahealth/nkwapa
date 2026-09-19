@@ -10,6 +10,7 @@ import {
 import { isCategoryForCondition } from '@nkwapa/db/medication-classes';
 import type { MedicationAdherenceEntryRecord, MedicationAdherenceSetRecord, NkwapaDb } from './db';
 import type { MedicationRecord } from './medication-reconciliation';
+import { claimEncounterRecord } from './encounter-record';
 
 export type { MedicationAdherenceContextValue, MedicationAdherenceEntry };
 
@@ -184,10 +185,17 @@ export function fromAdherenceRecord(
  * export need; the client stores the set because that is what it saves and what it renders. Doing
  * the regrouping here rather than in the component means the local shape and the outbox payload
  * are the same object, and nothing has to reassemble a bundle at save time.
+ *
+ * The set has no server-side identity, so the id has to be settled locally. It is claimed through
+ * `claimEncounterRecord`, the same call the save makes: a pull that minted its own id would leave
+ * two rows for one encounter and condition, and `.first()` on a non-unique index returns whichever
+ * UUID sorts lowest -- the shape of issue #91. Whichever of the two runs first wins, and the other
+ * adopts it.
  */
 export async function applyAdherencePull(
   database: Pick<NkwapaDb, 'medication_adherence'>,
   rows: ReadonlyArray<Record<string, unknown>>,
+  generateId: () => string = () => crypto.randomUUID(),
 ): Promise<void> {
   if (!rows.length) return;
 
@@ -201,14 +209,8 @@ export async function applyAdherencePull(
 
     const existing = sets.get(key);
     const set: MedicationAdherenceSetRecord = existing ?? {
-      /*
-        The set's local id is derived from the pair it represents, not from any one server row.
-
-        A random id would make the next pull mint a second set for the same encounter and
-        condition, and `.first()` on a non-unique index returns whichever UUID sorts lowest --
-        the shape of issue #91.
-      */
-      id: `${encounterId}:${context}`,
+      // Replaced below by the claimed id, which needs an await this loop does not have.
+      id: key,
       clinicId: String(row.clinicId),
       encounterId,
       context,
@@ -234,7 +236,18 @@ export async function applyAdherencePull(
   }
 
   for (const set of sets.values()) {
-    await database.medication_adherence.put(set as never);
+    const claimed = await claimEncounterRecord(
+      database.medication_adherence,
+      set.encounterId,
+      generateId,
+      (record: MedicationAdherenceSetRecord) => record.context === set.context,
+    );
+    await database.medication_adherence.put({
+      ...set,
+      id: claimed.id,
+      // Preserved, not restamped: the pull is not the moment the record came into existence.
+      createdAt: claimed.createdAt ?? set.createdAt,
+    } as never);
   }
 }
 
