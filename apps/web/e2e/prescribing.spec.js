@@ -120,6 +120,41 @@ test.describe('as a doctor', () => {
     await expect(page.getByRole('listitem').filter({ hasText: 'Lisinopril' })).toBeVisible();
   });
 
+  /*
+    A finalized encounter closes prescribing, and says so by removing the controls.
+
+    The route refuses it too -- `ensureEncounterNotFinalized` throws before anything is written,
+    covered by `prescription.service.spec.ts` -- but that refusal is not reachable through the UI,
+    because the form is gone. This is the half a prescriber actually meets, and it was untested.
+  */
+  test('finalizing an encounter closes prescribing without hiding what was prescribed', async ({
+    page,
+  }) => {
+    test.setTimeout(150_000);
+
+    const patientId = await createPatient(page, 'Finalized');
+    const encounterId = await createEncounter(page, patientId);
+    await page.goto(`/encounters/${encounterId}`);
+
+    await chooseDrug(page, 'Atenolol');
+    await page.getByLabel('Dosage (with unit, e.g. mg)').fill('25 mg');
+    await page.getByLabel('Frequency (doses per day)').fill('Once daily');
+    await page.getByLabel("I reviewed the patient's allergy status before prescribing.").check();
+    await page.getByRole('button', { name: 'Add prescription' }).click();
+
+    const listed = page.getByRole('listitem').filter({ hasText: 'Atenolol' });
+    await expect(listed).toBeVisible();
+
+    await page.getByRole('button', { name: 'Submit for Review' }).click();
+    await page.getByRole('button', { name: 'Mark Reviewed' }).click();
+    await page.getByRole('button', { name: 'Finalize' }).click();
+
+    // The record stays readable -- a finalized encounter is history, not a blank.
+    await expect(page.getByRole('listitem').filter({ hasText: 'Atenolol' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Add prescription' })).toHaveCount(0);
+    await expect(page.getByLabel('Dosage (with unit, e.g. mg)')).toHaveCount(0);
+  });
+
   test('the required fields are named rather than left to a disabled button', async ({ page }) => {
     test.setTimeout(150_000);
 
