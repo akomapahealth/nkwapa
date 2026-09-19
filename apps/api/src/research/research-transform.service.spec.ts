@@ -17,6 +17,7 @@ describe('ResearchTransformService', () => {
     appointmentRequest: { findMany: jest.Mock };
     patient: { findMany: jest.Mock };
     medicalHistoryRevision: { findMany: jest.Mock };
+    encounterMedicationAdherence: { findMany: jest.Mock };
   };
   let service: ResearchTransformService;
 
@@ -35,6 +36,7 @@ describe('ResearchTransformService', () => {
       appointmentRequest: { findMany: jest.fn() },
       patient: { findMany: jest.fn() },
       medicalHistoryRevision: { findMany: jest.fn() },
+      encounterMedicationAdherence: { findMany: jest.fn() },
     };
 
     service = new ResearchTransformService(prisma as never, new DeIdentificationService());
@@ -65,7 +67,7 @@ describe('ResearchTransformService', () => {
         'research_revocations.csv',
       ]),
     );
-    expect(result.manifest.datasetVersion).toBe(4);
+    expect(result.manifest.datasetVersion).toBe(5);
     expect(fs.existsSync(result.artifactPath)).toBe(true);
   });
 
@@ -189,9 +191,50 @@ describe('ResearchTransformService', () => {
         },
         hypertensionAssessment: {
           createdAt: new Date('2026-03-18T08:39:00.000Z'),
-          classification: 'NORMAL',
+          collectedAt: new Date('2026-03-18T08:39:00.000Z'),
+          classification: 'STAGE2',
+          derivedClassification: 'STAGE1',
+          classificationOverridden: true,
           suspected: false,
-          confirmed: false,
+          confirmed: true,
+          hypertensionStatus: 'KNOWN_HYPERTENSION',
+          yearDiagnosed: 2017,
+          yearDiagnosedUnknown: false,
+          mainConcern: 'HIGH_BP',
+          usualCareFacilityStatus: 'KNOWN',
+          repeatPerformed: 'PERFORMED',
+          repeatSystolicBp: 148,
+          repeatDiastolicBp: 92,
+          repeatPosition: 'SEATED',
+          repeatCuffSize: 'ADULT',
+          repeatMeasuredAt: new Date('2026-03-18T08:44:00.000Z'),
+          repeatPromptShown: true,
+          homeMonitorStatus: 'HAS_ONE',
+          homeCheckFrequency: 'WEEKLY',
+          homeSystolicAvg: 139,
+          homeDiastolicAvg: 88,
+          homeReadingsUnknown: false,
+          homeReadingSource: 'PATIENT_LOG',
+          currentSymptoms: ['HEADACHE', 'BLURRED_VISION'],
+          urgentReviewRequired: false,
+          urgentReviewReasons: [],
+          medicationReminderStrategies: ['PILLBOX'],
+          contributingSubstances: ['NONE'],
+          relevantConditions: ['DIABETES'],
+          pregnantNow: 'NO',
+          planningPregnancy: 'NO',
+          kidneyFunctionTesting: 'COMPLETED',
+          urineProteinTesting: 'NOT_COMPLETED',
+          cholesterolTesting: 'COMPLETED',
+          ecgCompleted: 'NOT_COMPLETED',
+          statinUse: 'TAKING',
+          aspirinUse: 'NOT_TAKING',
+          clinicianReviewRequested: true,
+          reviewReasons: ['UNCONTROLLED_BP'],
+          bpGoalSystolic: 130,
+          bpGoalDiastolic: 80,
+          followUpWindow: 'WITHIN_1_MONTH',
+          followUpOwner: 'AKOMAPA_TEAM',
         },
       },
     ]);
@@ -282,6 +325,22 @@ describe('ResearchTransformService', () => {
         residentialRegion: null,
       },
     ]);
+    prisma.encounterMedicationAdherence.findMany.mockResolvedValue([
+      {
+        id: 'adherence-1',
+        encounterId: 'enc-1',
+        context: 'HYPERTENSION',
+        medicationRecordId: 'medication-record-1',
+        observedRevisionId: 'medication-revision-1',
+        tookToday: 'YES',
+        dosesMissed7d: 'TWO_TO_THREE',
+        takingAsPrescribed: 'NOT_ASSESSED',
+        supplyRemaining: 'LESS_THAN_ONE_WEEK',
+        problems: ['COST', 'FORGETTING'],
+        createdAt: new Date('2026-03-18T08:47:00.000Z'),
+        encounter: { patientId: 'patient-1' },
+      },
+    ]);
     prisma.medicalHistoryRevision.findMany.mockResolvedValue([
       {
         id: 'history-revision-1',
@@ -331,9 +390,12 @@ describe('ResearchTransformService', () => {
     const screeningsCsv = result.repoFiles.find(
       (file) => file.name === 'research_clinical_screenings.csv',
     );
+    const adherenceCsv = result.repoFiles.find(
+      (file) => file.name === 'research_medication_adherence.csv',
+    );
 
     expect(result.recordCount).toBeGreaterThan(0);
-    expect(result.manifest.datasetVersion).toBe(4);
+    expect(result.manifest.datasetVersion).toBe(5);
     expect(subjectsCsv?.content).toContain('research_patient_key');
     expect(subjectsCsv?.content).toContain('1990');
     expect(subjectsCsv?.content).not.toContain('Witness');
@@ -350,6 +412,35 @@ describe('ResearchTransformService', () => {
     expect(tobaccoCsv?.content).toContain('NEVER');
     expect(tobaccoCsv?.content).not.toContain('doctor-private-id');
     expect(screeningsCsv?.content).toContain('2026-03-18T08:45:00.000Z');
+
+    /*
+      The guided interview reaches the pack.
+
+      A disposition of EXPORTED means nothing unless a column exists for it, and until #114
+      hypertension had three columns for sixty fields, so none of this was analysable.
+    */
+    expect(screeningsCsv?.content).toContain('hypertension_derived_classification');
+    expect(screeningsCsv?.content).toContain('STAGE1');
+    // The override flag, without which a threshold result and a clinician's finding look alike.
+    expect(screeningsCsv?.content).toContain('hypertension_classification_overridden');
+    expect(screeningsCsv?.content).toContain('HEADACHE|BLURRED_VISION');
+    // A year of diagnosis is banded: exact plus age is frequently unique in a clinic this size.
+    expect(screeningsCsv?.content).toContain('2015');
+    expect(screeningsCsv?.content).not.toContain('2017');
+    // The clinician plan's prose stays out; the numeric goal, a shared scale, does not.
+    expect(screeningsCsv?.content).toContain('hypertension_bp_goal_systolic');
+    expect(screeningsCsv?.content).not.toContain('clinician_comments');
+    expect(screeningsCsv?.content).not.toContain('clinician_plan_items');
+    // A named facility locates the patient; only whether one is known is exported.
+    expect(screeningsCsv?.content).not.toContain('usual_care_facility,');
+    expect(screeningsCsv?.content).toContain('hypertension_usual_care_facility_status');
+
+    expect(adherenceCsv?.content).toContain('research_medication_record_key');
+    expect(adherenceCsv?.content).toContain('TWO_TO_THREE');
+    expect(adherenceCsv?.content).toContain('COST|FORGETTING');
+    // The medication is never named here; the keyed record joins to the reconciled list.
+    expect(adherenceCsv?.content).not.toContain('medication-record-1');
+    expect(adherenceCsv?.content).not.toContain('Amlodipine');
     expect(appointmentsCsv?.content).toContain('2026-03-25');
     expect(appointmentsCsv?.content).not.toContain('Should not leak');
     expect(revocationsCsv?.content).toContain('REVOKED');

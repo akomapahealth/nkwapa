@@ -28,6 +28,19 @@ export class DeIdentificationService {
     return dob ? dob.getUTCFullYear() : null;
   }
 
+  /**
+   * A year of diagnosis reduced to a five-year band.
+   *
+   * An exact year combined with an age narrows a cohort sharply -- in a clinic of a few hundred it
+   * is frequently unique -- while the analysis a year of diagnosis supports is disease duration,
+   * which a band answers as well. Rendered as the band's opening year so it sorts and subtracts
+   * like a number.
+   */
+  yearBand(year: number | null | undefined, width = 5): number | null {
+    if (typeof year !== 'number' || !Number.isFinite(year)) return null;
+    return Math.floor(year / width) * width;
+  }
+
   roundTimestamp(value: Date | null | undefined): string | null {
     if (!value) {
       return null;
