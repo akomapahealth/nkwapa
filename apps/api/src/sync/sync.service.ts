@@ -347,6 +347,7 @@ export class SyncService {
         return this.applyPrescriptionUpsert(
           clinicId,
           actorUserId,
+          user,
           mut,
           payload,
           idempotencyKey,
@@ -1065,6 +1066,7 @@ export class SyncService {
   private async applyPrescriptionUpsert(
     clinicId: string,
     actorUserId: string,
+    user: UserWithId,
     mut: SyncMutationDto,
     payload: Record<string, unknown>,
     idempotencyKey: string,
@@ -1082,6 +1084,15 @@ export class SyncService {
       {
         clinicId,
         actorUserId,
+        /*
+          The replay's own roles, so the service decides for itself.
+
+          `SYNC_ENTITY_PERMISSIONS` has already refused a role that may not queue a prescription.
+          Passing them on means the service refuses too, rather than trusting that whoever called
+          it checked -- which is the second layer, and the reason this handler was worth fixing in
+          the first place.
+        */
+        roles: user.roles,
         requestId: idempotencyKey,
         ipAddress: metadata?.ipAddress,
         userAgent: metadata?.userAgent,

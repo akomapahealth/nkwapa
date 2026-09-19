@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrescriptionService } from './prescription.service';
 import { PrescriptionRepository } from './prescription.repository';
 import { PrismaService } from '../prisma/prisma.service';
@@ -20,6 +20,11 @@ const mockPrescription = {
   createdAt: new Date(),
   updatedAt: new Date(),
 };
+
+const DOCTOR_ROLES = [{ clinicId: 'clinic-1', role: 'DOCTOR' }] as never;
+const VOLUNTEER_ROLES = [{ clinicId: 'clinic-1', role: 'VOLUNTEER' }] as never;
+const DIRECTOR_ROLES = [{ clinicId: 'clinic-1', role: 'DIRECTOR' }] as never;
+const DOCTOR_ELSEWHERE = [{ clinicId: 'another-clinic', role: 'DOCTOR' }] as never;
 
 describe('PrescriptionService', () => {
   const originalMedicalHistoryFlag = process.env.FEATURE_MEDICAL_HISTORY_ENABLED;
@@ -104,6 +109,7 @@ describe('PrescriptionService', () => {
       {
         clinicId: 'clinic-1',
         actorUserId: 'user-1',
+        roles: DOCTOR_ROLES,
         requestId: 'req-1',
       },
     );
@@ -130,7 +136,7 @@ describe('PrescriptionService', () => {
           dosage: '10mg',
           frequency: 'daily',
         },
-        { clinicId: 'clinic-1', actorUserId: 'user-1' },
+        { clinicId: 'clinic-1', actorUserId: 'user-1', roles: DOCTOR_ROLES },
       ),
     ).rejects.toThrow(BadRequestException);
   });
@@ -151,7 +157,7 @@ describe('PrescriptionService', () => {
           dosage: '10mg',
           frequency: 'daily',
         },
-        { clinicId: 'clinic-1', actorUserId: 'user-1' },
+        { clinicId: 'clinic-1', actorUserId: 'user-1', roles: DOCTOR_ROLES },
       ),
     ).rejects.toMatchObject({
       response: expect.objectContaining({ code: 'ALLERGY_REVIEW_REQUIRED' }),
@@ -165,6 +171,7 @@ describe('PrescriptionService', () => {
       {
         clinicId: 'clinic-1',
         actorUserId: 'user-1',
+        roles: DOCTOR_ROLES,
       },
     );
 
@@ -178,6 +185,7 @@ describe('PrescriptionService', () => {
     await service.remove('rx-1', {
       clinicId: 'clinic-1',
       actorUserId: 'user-1',
+      roles: DOCTOR_ROLES,
     });
 
     expect(mockRepoDelete).toHaveBeenCalledWith('rx-1');
@@ -190,7 +198,11 @@ describe('PrescriptionService', () => {
     mockRepoFindById.mockResolvedValue(null);
 
     await expect(
-      service.update('nonexistent', { dosage: '5mg' }, { clinicId: 'c', actorUserId: 'u' }),
+      service.update(
+        'nonexistent',
+        { dosage: '5mg' },
+        { clinicId: 'clinic-1', actorUserId: 'u', roles: DOCTOR_ROLES },
+      ),
     ).rejects.toThrow(NotFoundException);
   });
   /*
@@ -311,6 +323,7 @@ describe('PrescriptionService', () => {
       await service.upsertFromSync('clinic-1', 'encounter-1', 'queued-id', dto, {
         clinicId: 'clinic-1',
         actorUserId: 'doctor-1',
+        roles: DOCTOR_ROLES,
       });
       expect(mockRepoCreate.mock.calls[0][0]).toMatchObject({ id: 'queued-id' });
     });
@@ -319,6 +332,7 @@ describe('PrescriptionService', () => {
       await service.upsertFromSync('clinic-1', 'encounter-1', 'prescription-1', dto, {
         clinicId: 'clinic-1',
         actorUserId: 'doctor-1',
+        roles: DOCTOR_ROLES,
       });
       expect(mockRepoCreate).not.toHaveBeenCalled();
       expect(mockRepoUpdate).toHaveBeenCalled();
@@ -329,6 +343,7 @@ describe('PrescriptionService', () => {
       await service.upsertFromSync('clinic-1', 'encounter-1', 'queued-id', dto, {
         clinicId: 'clinic-1',
         actorUserId: 'doctor-1',
+        roles: DOCTOR_ROLES,
       });
       expect(mockRepoCreate.mock.calls[0][0].prescribedBy).toEqual({ connect: { id: 'doctor-1' } });
     });
@@ -341,6 +356,7 @@ describe('PrescriptionService', () => {
         service.upsertFromSync('clinic-1', 'encounter-1', 'queued-id', dto, {
           clinicId: 'clinic-1',
           actorUserId: 'doctor-1',
+          roles: DOCTOR_ROLES,
         }),
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(mockRepoCreate).not.toHaveBeenCalled();
@@ -357,6 +373,7 @@ describe('PrescriptionService', () => {
         service.upsertFromSync('clinic-1', 'encounter-1', 'queued-id', dto, {
           clinicId: 'clinic-1',
           actorUserId: 'doctor-1',
+          roles: DOCTOR_ROLES,
         }),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -367,9 +384,92 @@ describe('PrescriptionService', () => {
         service.upsertFromSync('clinic-1', 'encounter-1', 'prescription-1', dto, {
           clinicId: 'clinic-1',
           actorUserId: 'doctor-1',
+          roles: DOCTOR_ROLES,
         }),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(mockRepoUpdate).not.toHaveBeenCalled();
+    });
+  });
+  /*
+    The service decides for itself who may write, below the controller's guard.
+
+    The guided interviews established this and gave the reason: a boundary that depends on one
+    layer is one refactor from not being a boundary. It matters more here since #134, because this
+    service now has two callers -- the REST controller and the offline replay -- and a service
+    reachable from two places that trusts both to have checked is exactly that shape.
+  */
+  describe('permission, checked here and not only at the controller', () => {
+    const dto = { drugId: 'drug-1', dosage: '10 mg', frequency: 'Once daily' } as never;
+    const context = (roles: never) => ({ clinicId: 'clinic-1', actorUserId: 'user-1', roles });
+
+    it('refuses a create from a role without the write', async () => {
+      await expect(
+        service.create('clinic-1', 'encounter-1', dto, context(VOLUNTEER_ROLES)),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(mockRepoCreate).not.toHaveBeenCalled();
+    });
+
+    it('refuses a create from a director, who may read but not prescribe', async () => {
+      await expect(
+        service.create('clinic-1', 'encounter-1', dto, context(DIRECTOR_ROLES)),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('allows a create from a doctor', async () => {
+      await expect(
+        service.create('clinic-1', 'encounter-1', dto, context(DOCTOR_ROLES)),
+      ).resolves.toBeDefined();
+    });
+
+    /*
+      A seat elsewhere does not authorize a write here.
+
+      `assertPermissionAtClinic` scopes to the clinic rather than scanning the raw role array,
+      which is the difference between "is a doctor somewhere" and "is a doctor at this clinic".
+    */
+    it('refuses a doctor whose seat is at another clinic', async () => {
+      await expect(
+        service.create('clinic-1', 'encounter-1', dto, context(DOCTOR_ELSEWHERE)),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('refuses an update and a delete from a role without the write', async () => {
+      await expect(
+        service.update('prescription-1', { dosage: '20mg' } as never, context(VOLUNTEER_ROLES)),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(
+        service.remove('prescription-1', context(VOLUNTEER_ROLES)),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(mockRepoUpdate).not.toHaveBeenCalled();
+      expect(mockRepoDelete).not.toHaveBeenCalled();
+    });
+
+    it('refuses a read from a role that holds neither permission', async () => {
+      await expect(
+        service.listByEncounter('clinic-1', 'encounter-1', VOLUNTEER_ROLES),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('allows a read from a director, who supervises without prescribing', async () => {
+      await expect(
+        service.listByEncounter('clinic-1', 'encounter-1', DIRECTOR_ROLES),
+      ).resolves.toBeDefined();
+    });
+
+    it('refuses a replay whose actor may not prescribe', async () => {
+      // The sync permission table refuses this first; the service refuses it again rather than
+      // trusting that it did.
+      mockRepoFindById.mockResolvedValueOnce(null);
+      await expect(
+        service.upsertFromSync(
+          'clinic-1',
+          'encounter-1',
+          'queued-id',
+          dto,
+          context(VOLUNTEER_ROLES),
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(mockRepoCreate).not.toHaveBeenCalled();
     });
   });
 });
