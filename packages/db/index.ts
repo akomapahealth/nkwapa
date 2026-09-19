@@ -315,3 +315,4 @@ export {
 } from './src/payload-contract';
 export * from './src/hypertension-interview';
 export * from './src/diabetes-interview';
+export * from './src/medication-adherence';

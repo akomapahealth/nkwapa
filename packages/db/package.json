@@ -68,6 +68,10 @@
     "./diabetes-interview": {
       "types": "./dist/src/diabetes-interview.d.ts",
       "default": "./dist/src/diabetes-interview.js"
+    },
+    "./medication-adherence": {
+      "types": "./dist/src/medication-adherence.d.ts",
+      "default": "./dist/src/medication-adherence.js"
     }
   },
   "scripts": {
