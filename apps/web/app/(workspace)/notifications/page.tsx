@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, Bell, CheckCheck, Clock3, SendHorizontal } from 'lucide-react';
+import { AlertTriangle, Bell, CheckCheck, Clock3, SendHorizontal, Timer } from 'lucide-react';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
@@ -31,11 +31,14 @@ import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
 import {
   NOTIFICATION_TYPE_FILTERS,
   describeEmailAvailability,
+  deliveryLatencyMs,
   explainFailure,
   explainTerminalStatus,
+  formatDeliveryLatency,
   formatFailureReason,
   formatTemplateLabel,
   getStatusVariant,
+  medianDeliveryLatencyMs,
   type EmailAvailability,
 } from '@/lib/notification-delivery';
 
@@ -177,6 +180,25 @@ export default function RemindersPage() {
       valueFormatter: (v) => (v ? new Date(v as string).toLocaleString() : ''),
     },
     {
+      field: 'sentAt',
+      headerName: 'Sent',
+      width: 160,
+      valueFormatter: (v) => (v ? new Date(v as string).toLocaleString() : ''),
+    },
+    {
+      /*
+        Derived, not a stored column: `sentAt` already records the fact and this is the
+        arithmetic on it. Sorting works because the value is the number of milliseconds; the
+        formatter is only what an operator reads.
+      */
+      field: 'deliveryLatency',
+      headerName: 'Time to send',
+      width: 130,
+      sortable: true,
+      valueGetter: (_value, row: ReminderRow) => deliveryLatencyMs(row),
+      valueFormatter: (v) => formatDeliveryLatency(typeof v === 'number' ? v : null),
+    },
+    {
       field: 'status',
       headerName: 'Status',
       width: 120,
@@ -241,6 +263,7 @@ export default function RemindersPage() {
   const sentCount = rows.filter((row) => row.status === 'SENT').length;
   const deliveredCount = rows.filter((row) => row.status === 'DELIVERED').length;
   const failedCount = rows.filter((row) => row.status === 'FAILED').length;
+  const medianLatencyMs = medianDeliveryLatencyMs(rows);
   const emailNotice = describeEmailAvailability(emailStatus);
 
   return (
@@ -260,7 +283,7 @@ export default function RemindersPage() {
           </InlineNotice>
         ) : null}
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
           <AppMetricCard
             title="Visible messages"
             value={rows.length}
@@ -290,6 +313,12 @@ export default function RemindersPage() {
             value={failedCount}
             icon={AlertTriangle}
             detail="Not delivered. Open a row to see why and what to do."
+          />
+          <AppMetricCard
+            title="Typical time to send"
+            value={formatDeliveryLatency(medianLatencyMs)}
+            icon={Timer}
+            detail="Median wait between a message becoming due and the provider accepting it, across the rows loaded here."
           />
         </div>
 
@@ -409,9 +438,12 @@ export default function RemindersPage() {
               emptyLabel="All message history"
             />
             <ProgressiveHelp title="Reading delivery status">
-              Queued means the message is waiting to send, and Sent means the provider accepted it.
-              Only SMS reports Delivered: {explainTerminalStatus('EMAIL')} Failed rows name the
-              reason and what to do about it, so start there when a patient says they heard nothing.
+              Queued means the message is waiting to send, and Sent means the provider accepted it —
+              the Sent column and &ldquo;Time to send&rdquo; show when that happened and how long it
+              waited. Only SMS reports Delivered: {explainTerminalStatus('EMAIL')} So a message
+              reading Sent has left the clinic, and anything after that is the mail provider&rsquo;s
+              to answer for. Failed rows name the reason and what to do about it, so start there
+              when a patient says they heard nothing.
             </ProgressiveHelp>
           </CardContent>
         </Card>
@@ -470,6 +502,12 @@ export default function RemindersPage() {
                         </p>
                         {row.appointmentId ? (
                           <p>Appointment {row.appointmentId.slice(0, 8)}</p>
+                        ) : null}
+                        {row.sentAt ? (
+                          <p>
+                            Sent {new Date(row.sentAt).toLocaleString()} (
+                            {formatDeliveryLatency(deliveryLatencyMs(row))} after it was due)
+                          </p>
                         ) : null}
                       </div>
                       {row.failureReason ? (

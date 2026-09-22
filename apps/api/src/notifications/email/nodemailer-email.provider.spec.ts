@@ -118,7 +118,7 @@ describe('NodemailerEmailProvider', () => {
 
     const result = await provider.send('p@example.org', 'Subject', '<p>Hi</p>');
 
-    expect(result).toEqual({ success: false, error: 'EMAIL_SEND_FAILED' });
+    expect(result).toMatchObject({ success: false, error: 'EMAIL_SEND_FAILED' });
     expect(JSON.stringify(result)).not.toContain('p@example.org');
   });
 
@@ -170,6 +170,57 @@ describe('NodemailerEmailProvider', () => {
     } finally {
       warn.mockRestore();
     }
+  });
+
+  describe('classifying a failure as worth retrying', () => {
+    async function sendFailingWith(error: unknown) {
+      const provider = new NodemailerEmailProvider(
+        { transport: { host: 'smtp.test', port: 2587, secure: false }, from: 'info@akomapa.org' },
+        () => createTransporterSpy({ sendMail: jest.fn().mockRejectedValue(error) }) as never,
+      );
+      return provider.send('p@example.org', 'Subject', '<p>Hi</p>');
+    }
+
+    it.each(['ETIMEDOUT', 'ECONNECTION', 'ECONNREFUSED', 'ECONNRESET', 'ESOCKET', 'EDNS', 'EPIPE'])(
+      'calls %s transient, because the relay never took the message',
+      async (code) => {
+        const result = await sendFailingWith(Object.assign(new Error('nope'), { code }));
+        expect(result).toMatchObject({ success: false, retryable: true });
+      },
+    );
+
+    it.each(['EAUTH', 'EENVELOPE', 'EMESSAGE'])(
+      'calls %s terminal, because trying again cannot change the answer',
+      async (code) => {
+        const result = await sendFailingWith(Object.assign(new Error('nope'), { code }));
+        expect(result.retryable).toBe(false);
+      },
+    );
+
+    it('follows the SMTP reply code when there is one: 4xx transient, 5xx permanent', async () => {
+      const transient = await sendFailingWith(
+        Object.assign(new Error('451 try again later'), { responseCode: 451 }),
+      );
+      const permanent = await sendFailingWith(
+        Object.assign(new Error('550 recipient rejected'), { responseCode: 550 }),
+      );
+
+      expect(transient.retryable).toBe(true);
+      expect(permanent.retryable).toBe(false);
+    });
+
+    it('lets the reply code override a transient-looking error code', async () => {
+      // A 550 arriving on a socket that then dropped is still a refusal, not a blip.
+      const result = await sendFailingWith(
+        Object.assign(new Error('550 rejected'), { code: 'ESOCKET', responseCode: 550 }),
+      );
+      expect(result.retryable).toBe(false);
+    });
+
+    it('treats an unrecognised failure as terminal rather than inventing a retry', async () => {
+      const result = await sendFailingWith(new Error('something new'));
+      expect(result.retryable).toBe(false);
+    });
   });
 
   it('reports verification failure without throwing, so a bad host cannot stop boot', async () => {

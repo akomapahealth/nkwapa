@@ -37,7 +37,10 @@ describe('ReminderProcessor tenant context', () => {
       expect.any(Function),
     );
     expect(reminderService.findReminderClinicId).not.toHaveBeenCalled();
-    expect(reminderService.processReminder).toHaveBeenCalledWith('reminder-1');
+    expect(reminderService.processReminder).toHaveBeenCalledWith('reminder-1', {
+      attemptsMade: 0,
+      maxAttempts: 1,
+    });
   });
 
   it('runs a deliberately global notification as system work instead of discarding it', async () => {
@@ -60,7 +63,10 @@ describe('ReminderProcessor tenant context', () => {
       }),
       expect.any(Function),
     );
-    expect(reminderService.processReminder).toHaveBeenCalledWith('reminder-global');
+    expect(reminderService.processReminder).toHaveBeenCalledWith('reminder-global', {
+      attemptsMade: 0,
+      maxAttempts: 1,
+    });
   });
 
   it('still resolves a legacy payload rather than treating it as global', async () => {
@@ -118,5 +124,39 @@ describe('ReminderProcessor tenant context', () => {
       userId: null,
     });
     expect(reminderService.findReminderClinicId).not.toHaveBeenCalled();
+  });
+
+  it("hands the service the job's place in its retry budget", async () => {
+    // The service cannot tell a retry from the last attempt without this, and that decision is
+    // what keeps a row QUEUED between tries instead of marking it FAILED on the first blip.
+    const processor = new ReminderProcessor(reminderService as never, tenantContext as never);
+
+    await processor.process({
+      id: 'job-retry',
+      attemptsMade: 1,
+      opts: { attempts: 3 },
+      data: { reminderId: 'reminder-1', clinicId: 'clinic-1', userId: null, scope: 'clinic' },
+    } as never);
+
+    expect(reminderService.processReminder).toHaveBeenCalledWith('reminder-1', {
+      attemptsMade: 1,
+      maxAttempts: 3,
+    });
+  });
+
+  it('reads a job queued before retries were configured as a single final attempt', async () => {
+    // Jobs already on the queue when this deploys carry no `opts.attempts`. Treating that as one
+    // attempt keeps their behaviour exactly as it was rather than inventing a retry budget.
+    const processor = new ReminderProcessor(reminderService as never, tenantContext as never);
+
+    await processor.process({
+      id: 'job-legacy-opts',
+      data: { reminderId: 'reminder-1', clinicId: 'clinic-1', userId: null, scope: 'clinic' },
+    } as never);
+
+    expect(reminderService.processReminder).toHaveBeenCalledWith('reminder-1', {
+      attemptsMade: 0,
+      maxAttempts: 1,
+    });
   });
 });

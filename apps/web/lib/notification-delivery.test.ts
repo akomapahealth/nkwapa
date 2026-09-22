@@ -1,10 +1,14 @@
 import {
   describeEmailAvailability,
+  deliveryLatencyMs,
   explainFailure,
   explainTerminalStatus,
+  formatDeliveryLatency,
   formatFailureReason,
   formatTemplateLabel,
   getStatusVariant,
+  medianDeliveryLatencyMs,
+  type DeliveryTimings,
 } from './notification-delivery';
 
 describe('explainFailure', () => {
@@ -133,5 +137,84 @@ describe('describeEmailAvailability', () => {
 
   it('shows nothing before the status has loaded', () => {
     expect(describeEmailAvailability(null)).toBeNull();
+  });
+});
+
+describe('delivery latency', () => {
+  const row = (overrides: Partial<DeliveryTimings> = {}): DeliveryTimings => ({
+    status: 'SENT',
+    createdAt: '2026-03-21T09:00:00.000Z',
+    scheduledAt: '2026-03-21T09:00:00.000Z',
+    sentAt: '2026-03-21T09:00:12.000Z',
+    ...overrides,
+  });
+
+  it('measures from when the message became eligible, not when the row was made', () => {
+    // The defect this guards: a reminder scheduled for tomorrow is not a day late when it goes
+    // out tomorrow. Measuring from createdAt would bury the queue delay under the intended wait.
+    const scheduled = row({
+      createdAt: '2026-03-20T09:00:00.000Z',
+      scheduledAt: '2026-03-21T09:00:00.000Z',
+      sentAt: '2026-03-21T09:00:05.000Z',
+    });
+
+    expect(deliveryLatencyMs(scheduled)).toBe(5_000);
+  });
+
+  it('measures from creation when the message was queued to go immediately', () => {
+    expect(deliveryLatencyMs(row())).toBe(12_000);
+  });
+
+  it('has no latency for a message that has not been sent', () => {
+    expect(deliveryLatencyMs(row({ status: 'QUEUED', sentAt: null }))).toBeNull();
+  });
+
+  it('clamps clock skew to zero rather than reporting a negative duration', () => {
+    expect(deliveryLatencyMs(row({ sentAt: '2026-03-21T08:59:59.000Z' }))).toBe(0);
+  });
+
+  it('returns null for an unparseable timestamp instead of NaN', () => {
+    expect(deliveryLatencyMs(row({ sentAt: 'not a date' }))).toBeNull();
+  });
+
+  it('takes the median so one stuck message cannot misrepresent a session', () => {
+    const rows = [
+      row({ sentAt: '2026-03-21T09:00:01.000Z' }),
+      row({ sentAt: '2026-03-21T09:00:02.000Z' }),
+      row({ sentAt: '2026-03-21T09:01:00.000Z' }),
+    ];
+
+    // The mean would be ~21s. The typical message took 2.
+    expect(medianDeliveryLatencyMs(rows)).toBe(2_000);
+  });
+
+  it('averages the middle pair for an even count', () => {
+    const rows = [
+      row({ sentAt: '2026-03-21T09:00:02.000Z' }),
+      row({ sentAt: '2026-03-21T09:00:04.000Z' }),
+    ];
+
+    expect(medianDeliveryLatencyMs(rows)).toBe(3_000);
+  });
+
+  it('ignores unsent rows when taking the median', () => {
+    const rows = [row({ sentAt: '2026-03-21T09:00:02.000Z' }), row({ sentAt: null })];
+    expect(medianDeliveryLatencyMs(rows)).toBe(2_000);
+  });
+
+  it('has no median when nothing has been sent', () => {
+    expect(medianDeliveryLatencyMs([row({ sentAt: null })])).toBeNull();
+    expect(medianDeliveryLatencyMs([])).toBeNull();
+  });
+
+  it.each([
+    [null, '\u2014'],
+    [400, 'under a second'],
+    [1_400, '1s'],
+    [45_000, '45s'],
+    [60_000, '1m'],
+    [95_000, '1m 35s'],
+  ])('formats %p as %p', (ms, expected) => {
+    expect(formatDeliveryLatency(ms as number | null)).toBe(expected);
   });
 });

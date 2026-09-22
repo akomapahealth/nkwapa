@@ -12,6 +12,7 @@ import {
 } from '../common/keyset-cursor';
 import { EMAIL_PROVIDER } from '../notifications/email/email-provider.token';
 import type { EmailProvider } from '../notifications/email/email-provider.interface';
+import type { SmsProvider } from './sms-provider.interface';
 import {
   isTemplateKey,
   renderMessage,
@@ -25,6 +26,26 @@ const REMINDER_QUEUE_NAME = 'reminders';
 const FOLLOWUP_TEMPLATE_KEY = 'FOLLOWUP_REMINDER_V1';
 const APPOINTMENT_TEMPLATE_KEY = 'APPOINTMENT_REMINDER_V1';
 const REMINDER_SEND_FAILED = 'SEND_FAILED';
+
+/**
+ * Thrown to hand a transient send failure back to BullMQ.
+ *
+ * The row is deliberately left QUEUED when this is raised: `processReminder` refuses to act on a
+ * row that is not QUEUED, so marking it FAILED first would make every retry a silent no-op. That
+ * is what the old code did - it caught every failure, wrote FAILED, and returned normally, so the
+ * `attempts: 3` on the queue never once fired for a send failure and a momentary relay blip killed
+ * the notification outright.
+ */
+export class TransientReminderSendError extends Error {
+  constructor(
+    readonly reminderId: string,
+    readonly failureReason: string,
+    readonly attemptsMade: number,
+  ) {
+    super(`Reminder ${reminderId} send failed transiently (attempt ${attemptsMade})`);
+    this.name = 'TransientReminderSendError';
+  }
+}
 const EMAIL_CHANNEL_UNAVAILABLE = 'EMAIL_CHANNEL_UNAVAILABLE';
 const TEMPLATE_NOT_FOUND = 'TEMPLATE_NOT_FOUND';
 const QUEUE_UNAVAILABLE = 'QUEUE_UNAVAILABLE';
@@ -188,13 +209,10 @@ export class ReminderService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    // The declared interface rather than a structural copy of it. The copy had already drifted:
+    // it did not carry `retryable`, so the union below silently lost the field.
     @Inject('SmsProvider')
-    private readonly smsProvider: {
-      send(
-        to: string,
-        body: string,
-      ): Promise<{ success: boolean; providerMessageId?: string; error?: string }>;
-    },
+    private readonly smsProvider: SmsProvider,
     @Optional()
     @Inject(EMAIL_PROVIDER)
     private readonly emailProvider: EmailProvider | null,
@@ -547,7 +565,15 @@ export class ReminderService {
     });
   }
 
-  async processReminder(reminderId: string): Promise<void> {
+  /**
+   * @param attempt Where this run sits in the job's retry budget. Omitted by callers outside the
+   * queue (and by older queued jobs), which is read as a single, final attempt - the behaviour
+   * before retries existed.
+   */
+  async processReminder(
+    reminderId: string,
+    attempt: { attemptsMade: number; maxAttempts: number } = { attemptsMade: 0, maxAttempts: 1 },
+  ): Promise<void> {
     const reminder = await this.prisma.reminder.findUnique({
       where: { id: reminderId },
       include: { clinic: true, patient: true, appointment: true },
@@ -639,16 +665,44 @@ export class ReminderService {
             }),
           );
         }
+        const failureReason = this.normalizeFailureReason(result.error);
+        const attemptsLeft = attempt.attemptsMade + 1 < attempt.maxAttempts;
+
+        if (result.retryable && attemptsLeft) {
+          /*
+            Leave the row QUEUED and throw, so BullMQ schedules the next attempt and the guard at
+            the top of this method lets it through. Nothing is written here on purpose: a row that
+            reads FAILED between attempts would show an operator a failure that is still being
+            worked on, and a resend they do not need.
+          */
+          throw new TransientReminderSendError(reminderId, failureReason, attempt.attemptsMade);
+        }
+
         // Keep the provider's own code when it gave one. A row that reads
         // EMAIL_NOT_CONFIGURED tells an operator exactly what to change; SEND_FAILED
         // sends them to the logs to find out.
-        await this.failReminder(
-          reminder,
-          this.normalizeFailureReason(result.error),
-          'REMINDER.SEND_FAILED',
-        );
+        await this.failReminder(reminder, failureReason, 'REMINDER.SEND_FAILED');
       }
     } catch (err) {
+      if (err instanceof TransientReminderSendError) {
+        /*
+          Not a processing failure: a deliberate hand-off to the queue. It has to pass through
+          this catch untouched, because the block below marks the row FAILED - which is precisely
+          the state the retry depends on the row not being in.
+        */
+        this.logger.log(
+          JSON.stringify({
+            message: 'Reminder send will be retried',
+            reminderId,
+            clinicId: reminder.clinicId,
+            channel: reminder.channel,
+            attemptsMade: err.attemptsMade,
+            failureReason: err.failureReason,
+          }),
+        );
+        throw err;
+      }
+
       this.logger.warn(
         JSON.stringify({
           message: 'Reminder processing failed',
