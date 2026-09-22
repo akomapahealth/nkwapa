@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Put, Query, Request, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Put,
+  Query,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 import { ClinicScoped } from '../auth/decorators/clinic-scoped.decorator';
@@ -11,6 +21,7 @@ import {
   ClinicAndPatientParamsDto,
   CursorLimitQueryDto,
 } from '../common/request-dto';
+import { isApiFeatureEnabled } from '../common/feature-flags';
 import { HypertensionAssessmentService } from './hypertension-assessment.service';
 import {
   UpsertHypertensionAssessmentDto,
@@ -45,6 +56,7 @@ export class HypertensionAssessmentController {
     @Query() query: CursorLimitQueryDto,
     @Request() request: HypertensionRequest,
   ) {
+    this.assertEnabled();
     return this.hypertensionAssessmentService.list(
       params.clinicId,
       params.patientId,
@@ -61,6 +73,7 @@ export class HypertensionAssessmentController {
     @Body() dto: UpsertHypertensionAssessmentDto,
     @Request() request: HypertensionRequest,
   ) {
+    this.assertEnabled();
     return this.hypertensionAssessmentService.upsert(
       params.clinicId,
       params.encounterId,
@@ -85,6 +98,7 @@ export class HypertensionAssessmentController {
     @Body() dto: UpsertHypertensionClinicianPlanDto,
     @Request() request: HypertensionRequest,
   ) {
+    this.assertEnabled();
     return this.hypertensionAssessmentService.upsertClinicianPlan(
       params.clinicId,
       params.encounterId,
@@ -92,6 +106,18 @@ export class HypertensionAssessmentController {
       dto,
       this.metadataFrom(request),
     );
+  }
+
+  /**
+   * 404 rather than 403 while the feature is off, matching `clinical-note.controller.ts`.
+   *
+   * The whole controller is gated because the whole controller is new: hypertension had no REST
+   * surface before the guided interview, so nothing else can be reaching it. The offline sync
+   * handler is deliberately not gated - it writes rows a device queued earlier, and refusing to
+   * replay them would lose clinical work that was already recorded.
+   */
+  private assertEnabled() {
+    if (!isApiFeatureEnabled('guidedChronicTabs')) throw new NotFoundException();
   }
 
   private metadataFrom(request: HypertensionRequest) {

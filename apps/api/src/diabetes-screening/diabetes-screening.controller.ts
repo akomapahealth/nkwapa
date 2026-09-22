@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Put, Query, Request, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Put,
+  Query,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 import { ClinicScoped } from '../auth/decorators/clinic-scoped.decorator';
@@ -11,6 +21,7 @@ import {
   ClinicAndPatientParamsDto,
   CursorLimitQueryDto,
 } from '../common/request-dto';
+import { isApiFeatureEnabled } from '../common/feature-flags';
 import { DiabetesScreeningService } from './diabetes-screening.service';
 import {
   UpsertDiabetesClinicianPlanDto,
@@ -79,6 +90,7 @@ export class DiabetesScreeningController {
     @Body() dto: UpsertDiabetesClinicianPlanDto,
     @Request() request: DiabetesRequest,
   ) {
+    this.assertGuidedInterviewEnabled();
     return this.diabetesScreeningService.upsertClinicianPlan(
       params.clinicId,
       params.encounterId,
@@ -90,5 +102,18 @@ export class DiabetesScreeningController {
         userAgent: request.headers?.['user-agent'],
       },
     );
+  }
+
+  /**
+   * Gates the clinician plan alone, not this controller.
+   *
+   * Diabetes screening shipped long before the guided interview and its list and upsert routes
+   * are read and written outside it, so gating the module would withdraw working behaviour. The
+   * clinician plan is the only surface here the interview introduced, which is why it is the only
+   * one that disappears when the interview is off. Hypertension gates its whole controller
+   * because its whole controller is new.
+   */
+  private assertGuidedInterviewEnabled() {
+    if (!isApiFeatureEnabled('guidedChronicTabs')) throw new NotFoundException();
   }
 }
