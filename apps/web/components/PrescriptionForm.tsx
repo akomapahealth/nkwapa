@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, getErrorMessage, readApiError } from '@/lib/api';
+import { mapServerFieldErrors, mayQueueAfterFailure } from '@/lib/prescription-save';
 import { db } from '@/lib/db';
 import { enqueueOutboxMutation, SYNC_OPERATION } from '@/lib/outbox';
 import { Button } from '@/components/ui/button';
@@ -60,7 +61,7 @@ export function PrescriptionForm({
   const [quantity, setQuantity] = useState('');
   const [instructions, setInstructions] = useState('');
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
   const [allergyAcknowledged, setAllergyAcknowledged] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -73,6 +74,17 @@ export function PrescriptionForm({
     'prescription-quantity',
     'prescription-allergy-acknowledgement',
   ];
+  /** Server field names to the input that shows them. Anything unmapped stays in the banner. */
+  const SERVER_FIELD_TO_INPUT: Record<string, string> = {
+    drugId: 'prescription-drug-search',
+    dosage: 'prescription-dosage',
+    frequency: 'prescription-frequency',
+    duration: 'prescription-duration',
+    quantity: 'prescription-quantity',
+    instructions: 'prescription-instructions',
+    allergyReviewed: 'prescription-allergy-acknowledgement',
+  };
+
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -138,7 +150,7 @@ export function PrescriptionForm({
     // validate() has already refused an empty drug; this restates it for the type system.
     if (!selectedDrug) return;
     setSaving(true);
-    setError(null);
+    setNotice(null);
 
     const body = {
       drugId: selectedDrug.id,
@@ -150,63 +162,122 @@ export function PrescriptionForm({
       allergyReviewed: acknowledgementRequired ? allergyAcknowledged : undefined,
     };
 
+    /*
+      Only a request that never reached the server may fall through to the outbox.
+
+      This used to be one try/catch around the whole exchange, so a refusal and a dropped
+      connection were indistinguishable: both queued the prescription, reset the form and
+      reported a save. A prescriber was told a refused prescription was recorded, and the
+      queued copy could only ever collect the same refusal on replay. Scoping the try to
+      the call itself makes that structurally impossible rather than merely handled --
+      apiFetch returns a Response whenever the server answered at all, and raises only when
+      nothing came back.
+    */
     try {
-      const res = await apiFetch(
-        `/clinics/${encodeURIComponent(clinicId)}/encounters/${encodeURIComponent(encounterId)}/prescriptions`,
-        {
-          method: 'POST',
-          body: JSON.stringify(body),
-          getToken,
-          activeClinicId: clinicId,
-        },
-      );
-      if (!res.ok) throw new Error(await res.text());
-      resetForm();
-      onSaved?.();
-    } catch {
+      let res: Response;
       try {
-        const prescriptionId = generateId();
-        const now = new Date().toISOString();
-        await db.prescriptions.put({
-          id: prescriptionId,
-          clinicId,
-          encounterId,
-          drugId: selectedDrug.id,
-          dosage,
-          frequency,
-          duration: duration || undefined,
-          quantity: quantity ? parseInt(quantity, 10) : undefined,
-          instructions: instructions || undefined,
-          prescribedByUserId: userId,
-          createdAt: now,
-          updatedAt: now,
-        });
-        await enqueueOutboxMutation(db, {
-          clinicId,
-          entityType: 'prescription',
-          entityId: prescriptionId,
-          operation: SYNC_OPERATION.UPSERT,
-          payloadJson: {
-            encounterId,
-            drugId: selectedDrug.id,
-            dosage,
-            frequency,
-            duration: duration || null,
-            quantity: quantity ? parseInt(quantity, 10) : null,
-            instructions: instructions || null,
-            allergyReviewed: acknowledgementRequired ? allergyAcknowledged : undefined,
-            prescribedByUserId: userId,
+        res = await apiFetch(
+          `/clinics/${encodeURIComponent(clinicId)}/encounters/${encodeURIComponent(encounterId)}/prescriptions`,
+          {
+            method: 'POST',
+            body: JSON.stringify(body),
+            getToken,
+            activeClinicId: clinicId,
           },
-        });
-        resetForm();
-        onSaved?.();
-      } catch (offlineErr) {
-        setError(offlineErr instanceof Error ? offlineErr.message : 'Failed to save');
+        );
+      } catch (err) {
+        // The only path to the outbox. Nothing below this line may reach it.
+        await queueOffline(err);
+        return;
       }
+
+      if (!res.ok) {
+        const refusal = await readApiError(res);
+        const mapped = mapServerFieldErrors(refusal.fieldErrors, SERVER_FIELD_TO_INPUT);
+        if (Object.keys(mapped).length) {
+          setFieldErrors(mapped);
+          focusFirstInvalid(mapped, FIELD_ORDER);
+        }
+        setNotice({
+          tone: 'error',
+          text: getErrorMessage(refusal, 'The prescription was not saved.'),
+        });
+        return;
+      }
+
+      resetForm();
+      setNotice({ tone: 'success', text: 'Prescription saved and synced.' });
+      onSaved?.();
+    } catch (err) {
+      // Reading or handling the response itself failed. The server answered, so this is
+      // still not an offline case and is reported rather than queued.
+      setNotice({ tone: 'error', text: getErrorMessage(err, 'The prescription was not saved.') });
     } finally {
       setSaving(false);
     }
   };
+
+  /**
+   * Queue a prescription the server never saw.
+   *
+   * Reached only when apiFetch raised, which it does for a dropped connection or a timeout
+   * and never for a response the server actually sent. A refusal must not arrive here.
+   */
+  async function queueOffline(cause: unknown) {
+    if (!mayQueueAfterFailure(cause)) {
+      // A raised error carrying a status came from the server, so it is a refusal and is
+      // not ours to queue.
+      setNotice({ tone: 'error', text: getErrorMessage(cause, 'The prescription was not saved.') });
+      return;
+    }
+    if (!selectedDrug) return;
+
+    try {
+      const prescriptionId = generateId();
+      const now = new Date().toISOString();
+      await db.prescriptions.put({
+        id: prescriptionId,
+        clinicId,
+        encounterId,
+        drugId: selectedDrug.id,
+        dosage,
+        frequency,
+        duration: duration || undefined,
+        quantity: quantity ? parseInt(quantity, 10) : undefined,
+        instructions: instructions || undefined,
+        prescribedByUserId: userId,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await enqueueOutboxMutation(db, {
+        clinicId,
+        entityType: 'prescription',
+        entityId: prescriptionId,
+        operation: SYNC_OPERATION.UPSERT,
+        payloadJson: {
+          encounterId,
+          drugId: selectedDrug.id,
+          dosage,
+          frequency,
+          duration: duration || null,
+          quantity: quantity ? parseInt(quantity, 10) : null,
+          instructions: instructions || null,
+          allergyReviewed: requiresPrescriptionAllergyAcknowledgement(allergyState)
+            ? allergyAcknowledged
+            : undefined,
+          prescribedByUserId: userId,
+        },
+      });
+      resetForm();
+      setNotice({
+        tone: 'success',
+        text: 'Prescription saved on this device and pending sync.',
+      });
+      onSaved?.();
+    } catch (offlineErr) {
+      setNotice({ tone: 'error', text: getErrorMessage(offlineErr, 'Failed to save') });
+    }
+  }
 
   function resetForm() {
     setSelectedDrug(null);
@@ -225,7 +296,7 @@ export function PrescriptionForm({
   return (
     <div className="space-y-4 rounded-lg border border-border bg-background p-4 sm:p-5">
       <h3 className="text-base font-semibold">Add prescription</h3>
-      {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
+      {notice ? <InlineNotice tone={notice.tone}>{notice.text}</InlineNotice> : null}
 
       <div className="space-y-2">
         <FieldLabel htmlFor="prescription-drug-search" required>
