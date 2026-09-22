@@ -256,6 +256,73 @@ describe('ReminderService', () => {
       });
     });
 
+    it('hands a transient failure back to the queue instead of marking it failed', async () => {
+      /*
+        The defect this guards: every send failure was caught, written FAILED and returned
+        normally, so the queue's `attempts: 3` never once fired for a send and one blocked relay
+        killed the notification outright. The row has to stay QUEUED, because processReminder
+        refuses to act on a row that is not.
+      */
+      queueEmailReminder();
+      emailProvider.send.mockResolvedValue({
+        success: false,
+        error: 'EMAIL_SEND_FAILED',
+        retryable: true,
+      });
+
+      await expect(
+        service.processReminder('reminder-1', { attemptsMade: 0, maxAttempts: 3 }),
+      ).rejects.toThrow(/send failed transiently/i);
+
+      expect(prisma.reminder.update).not.toHaveBeenCalled();
+    });
+
+    it('marks a transient failure failed once the attempts are spent', async () => {
+      queueEmailReminder();
+      emailProvider.send.mockResolvedValue({
+        success: false,
+        error: 'EMAIL_SEND_FAILED',
+        retryable: true,
+      });
+
+      await service.processReminder('reminder-1', { attemptsMade: 2, maxAttempts: 3 });
+
+      expect(prisma.reminder.update).toHaveBeenCalledWith({
+        where: { id: 'reminder-1' },
+        data: { status: 'FAILED', failureReason: 'EMAIL_SEND_FAILED' },
+      });
+    });
+
+    it('never retries a failure the provider did not call transient', async () => {
+      // Absent `retryable` means terminal, so anything unclassified behaves as it always has.
+      queueEmailReminder();
+      emailProvider.send.mockResolvedValue({ success: false, error: 'EMAIL_NOT_CONFIGURED' });
+
+      await service.processReminder('reminder-1', { attemptsMade: 0, maxAttempts: 3 });
+
+      expect(prisma.reminder.update).toHaveBeenCalledWith({
+        where: { id: 'reminder-1' },
+        data: { status: 'FAILED', failureReason: 'EMAIL_NOT_CONFIGURED' },
+      });
+    });
+
+    it('treats a caller with no attempt budget as a single final attempt', async () => {
+      // The default argument, which is what a non-queue caller and an older queued job get.
+      queueEmailReminder();
+      emailProvider.send.mockResolvedValue({
+        success: false,
+        error: 'EMAIL_SEND_FAILED',
+        retryable: true,
+      });
+
+      await service.processReminder('reminder-1');
+
+      expect(prisma.reminder.update).toHaveBeenCalledWith({
+        where: { id: 'reminder-1' },
+        data: { status: 'FAILED', failureReason: 'EMAIL_SEND_FAILED' },
+      });
+    });
+
     it('records an unknown template distinctly from a send failure', async () => {
       queueEmailReminder({ templateKey: 'REMOVED_TEMPLATE_V9' });
 

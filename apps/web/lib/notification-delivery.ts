@@ -213,3 +213,68 @@ export function describeEmailAvailability(
 
   return null;
 }
+
+export interface DeliveryTimings {
+  status: string;
+  createdAt: string;
+  scheduledAt: string;
+  sentAt: string | null;
+}
+
+/**
+ * How long a message waited between becoming eligible to send and being accepted.
+ *
+ * Measured from the later of `createdAt` and `scheduledAt`, never from `createdAt` alone. A
+ * reminder scheduled for tomorrow is not late by a day when it goes out tomorrow, and averaging
+ * the intentional wait in with the queue's own delay would bury the number worth watching under
+ * one nobody can act on.
+ *
+ * Derived rather than stored. `sentAt` already records the fact; a second column holding the
+ * arithmetic could only ever agree with it or be wrong.
+ */
+export function deliveryLatencyMs(row: DeliveryTimings): number | null {
+  if (!row.sentAt) return null;
+
+  const sent = new Date(row.sentAt).getTime();
+  const created = new Date(row.createdAt).getTime();
+  const scheduled = new Date(row.scheduledAt).getTime();
+  if (!Number.isFinite(sent) || !Number.isFinite(created) || !Number.isFinite(scheduled)) {
+    return null;
+  }
+
+  // Clamped at zero: a clock skew between the API and the database should read as "immediate",
+  // not as a negative duration rendered to an operator.
+  return Math.max(0, sent - Math.max(created, scheduled));
+}
+
+/**
+ * The median, not the mean.
+ *
+ * One message that sat behind a dead relay for a minute would drag an average far enough to
+ * misrepresent a session that was otherwise instant. The median answers the question an operator
+ * is actually asking: what happens to a typical message.
+ */
+export function medianDeliveryLatencyMs(rows: ReadonlyArray<DeliveryTimings>): number | null {
+  const latencies = rows
+    .map((row) => deliveryLatencyMs(row))
+    .filter((value): value is number => value !== null)
+    .sort((a, b) => a - b);
+
+  if (latencies.length === 0) return null;
+
+  const middle = Math.floor(latencies.length / 2);
+  return latencies.length % 2 === 0
+    ? Math.round((latencies[middle - 1] + latencies[middle]) / 2)
+    : latencies[middle];
+}
+
+/** A duration an operator can read at a glance, rather than a millisecond count. */
+export function formatDeliveryLatency(ms: number | null): string {
+  if (ms === null) return '—';
+  if (ms < 1_000) return 'under a second';
+  if (ms < 60_000) return `${Math.round(ms / 1_000)}s`;
+
+  const minutes = Math.floor(ms / 60_000);
+  const seconds = Math.round((ms % 60_000) / 1_000);
+  return seconds === 0 ? `${minutes}m` : `${minutes}m ${seconds}s`;
+}

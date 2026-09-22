@@ -87,6 +87,34 @@ EMAIL_NOT_CONFIGURED, EMAIL_CHANNEL_UNAVAILABLE, QUEUE_UNAVAILABLE,
 TEMPLATE_NOT_FOUND:<key>, DELIVERY_FAILED:<code>, APPOINTMENT_NOT_FOUND,
 APPOINTMENT_NOT_CONFIRMED:<status>, APPOINTMENT_RESCHEDULED.
 
+Delivery rate and retries
+
+The worker runs five jobs at a time, capped at five per second. The default concurrency of 1 made
+every notification wait on the SMTP round trip of the one in front of it, so a clinic session's
+worth of invites delivered strictly serially. The cap is what makes raising it safe: Resend allows
+10 requests per second per team, and the Keycloak service sends through the same account, so half
+the budget stays with it. The limiter is per worker process, so running more than one API instance
+multiplies the effective rate and these numbers need revisiting. Concurrency changes the rate, never
+the volume, so the account's daily cap is unaffected.
+
+A send failure the provider can positively identify as transient — a relay that never answered, a
+dropped connection, a 4xx SMTP reply — is handed back to the queue rather than written `FAILED`.
+The row stays `QUEUED` between attempts, because `processReminder` refuses to act on a row that is
+not, and a row reading `FAILED` mid-retry would show an operator a failure still being worked and a
+resend they do not need. Three attempts, five seconds before the first retry and sixty before the
+second: a blip is usually over in seconds, and anything still failing after that is not a blip.
+Anything not positively transient — bad credentials, a bad address, a 5xx reply, an unrecognised
+error — stays terminal on the first attempt, as it always was.
+
+Time to send
+
+Recorded as the gap between the later of `createdAt` and `scheduledAt` and `sentAt`, and shown per
+row and as a median across the loaded rows. It is derived rather than stored: `sentAt` already
+records the fact, and a column holding the arithmetic could only agree with it or be wrong. The
+later of the two start points matters — a reminder scheduled for tomorrow is not a day late when it
+goes out tomorrow, and averaging the intended wait in with the queue's own delay buries the number
+an operator can act on.
+
 Fallback behavior
 
 • no phone and no email: the record is created as FAILED with NO_CONTACT_METHOD and
