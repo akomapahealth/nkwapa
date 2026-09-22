@@ -24,8 +24,32 @@ export function redactUrl(url: string | undefined | null): string | null {
   }
 }
 
+/**
+ * Reduce a value to one loggable line without losing it entirely.
+ *
+ * Taking `split('\n')[0]` unconditionally used to erase the errors that matter most:
+ * Prisma messages begin with a newline and Node's `AggregateError` (thrown when a
+ * dual-stack connect fails) carries an empty message, so both logged as `""`. An empty
+ * `error` field is worse than a noisy one — it says something went wrong and refuses to
+ * say what. Fall back through the first non-blank line, then the error's own name and
+ * code, so there is always something to act on.
+ */
+function firstMeaningfulLine(value: unknown): string {
+  const source = value instanceof Error ? value.message : String(value);
+  const line = source.split(/\r?\n/).find((candidate) => candidate.trim().length > 0);
+  if (line) return line.trim();
+
+  if (value instanceof Error) {
+    const { code } = value as Error & { code?: unknown };
+    const name = value.name || 'Error';
+    return typeof code === 'string' && code.length > 0 ? `${name} (${code})` : name;
+  }
+
+  return '[no message]';
+}
+
 export function redactLogValue(value: unknown): string {
-  const raw = (value instanceof Error ? value.message : String(value)).split(/\r?\n/)[0];
+  const raw = firstMeaningfulLine(value);
   const redacted = REDACTION_PATTERNS.reduce(
     (current, [pattern, replacement]) => current.replace(pattern, replacement),
     raw,
