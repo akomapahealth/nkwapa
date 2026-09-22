@@ -2,9 +2,27 @@
 
 ## Status and scope
 
-Current, behind disabled-by-default API and web feature flags. Supersedes
-`HTN_DIABETES_WORKFLOWS_V1.md`, which described a four-field hypertension record and a
+Current, behind disabled-by-default API and web feature flags:
+`FEATURE_GUIDED_CHRONIC_TABS_ENABLED` and `NEXT_PUBLIC_FEATURE_GUIDED_CHRONIC_TABS_ENABLED`.
+Supersedes `HTN_DIABETES_WORKFLOWS_V1.md`, which described a four-field hypertension record and a
 classification the system was supposed to compute but never did.
+
+What the API flag covers, and what it deliberately does not:
+
+- The **hypertension** controller is gated in full, because the whole controller is new. Before the
+  interview, hypertension had no REST surface at all.
+- On **diabetes**, only the clinician-plan route is gated. List and upsert shipped with
+  `20260812000000_promote_diabetes_screening`, are read and written outside the interview, and
+  withdrawing them would remove working behaviour.
+- The **offline sync handler is not gated.** It replays rows a device queued earlier, and refusing
+  them would discard clinical work that was already recorded.
+- Note seeding is gated by `FEATURE_CLINICAL_NOTES_ENABLED`, since it writes through the clinical
+  note draft path and obeys that lifecycle.
+
+This section previously claimed an API flag that did not exist. Only the web flag was implemented,
+so the interview routes were reachable in a deployment whose UI had never shown them. RBAC was
+still the real boundary throughout — `CAREPLAN.CLINICIAN_PLAN` is doctor-only and enforced at the
+API — so nothing was exposed to the wrong role, but the gate the text described was not there.
 
 Each encounter has at most one hypertension assessment and at most one diabetes screening, the same
 records as before. They were extended, not replaced: `classification`, `suspected`, `confirmed`,
