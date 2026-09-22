@@ -61,6 +61,35 @@ function daysFromNow(days: number): Date {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 }
 
+/**
+ * The settled invitations a portal-invite chart is defined by.
+ *
+ * One cancelled and one expired, and no live invitation, so a chart reads as not "invited" and
+ * its previous-invitations list holds both settled states. Shared by the read-only history chart
+ * and the mutable lifecycle chart, and used both to create a fixture and to re-establish it.
+ */
+function settledInviteFixtures(clinicId: string, patientId: string, createdByUserId: string) {
+  return [
+    {
+      clinicId,
+      patientId,
+      status: PatientPortalInviteStatus.CANCELLED,
+      email: 'wrong.address@nkwapa.local',
+      createdByUserId,
+      cancelledAt: daysFromNow(-9),
+      expiresAt: daysFromNow(4),
+    },
+    {
+      clinicId,
+      patientId,
+      status: PatientPortalInviteStatus.EXPIRED,
+      email: 'e2e.lifecycle@nkwapa.local',
+      createdByUserId,
+      expiresAt: daysFromNow(-3),
+    },
+  ];
+}
+
 async function ensureGlobalRole(prisma: PrismaClient, userId: string, role: UserRole) {
   const existingRole = await prisma.userClinicRole.findFirst({
     where: { userId, clinicId: null, role },
@@ -1007,8 +1036,19 @@ async function main() {
       console.log(`Seeded portal-linked E2E patient ${patient.patientCode}.`);
     }
 
+    /*
+      Scoped to this chart, not to the clinic.
+
+      Asking whether the clinic holds any pending invitation meant a leftover one on another
+      fixture chart - the lifecycle chart issues and replaces invitations on every run - answered
+      for this one, and the unclaimed chart the claim journey needs was silently skipped.
+    */
     const existingInvite = await prisma.patientPortalInvite.findFirst({
-      where: { clinicId: clinic.id, status: PatientPortalInviteStatus.PENDING },
+      where: {
+        clinicId: clinic.id,
+        status: PatientPortalInviteStatus.PENDING,
+        patient: { firstName: 'E2E', lastName: 'Unclaimed' },
+      },
     });
     if (existingInvite) {
       console.log('Pending portal invite already exists; skipping.');
@@ -1056,7 +1096,25 @@ async function main() {
       where: { primaryClinicId: clinic.id, firstName: 'E2E', lastName: 'Lifecycle' },
     });
     if (lifecyclePatient) {
-      console.log('Portal invite lifecycle E2E patient already exists; skipping.');
+      /*
+        Reset the invite history rather than skipping the chart.
+
+        Skipping made the fixture accumulate instead of settle. The lifecycle spec issues a
+        replacement invitation on every run, which cancels its predecessor, so each run left one
+        more CANCELLED row behind. `PORTAL_INVITE_HISTORY_LIMIT` is 5 and the chart reads the
+        newest settled invites first, so after about three runs the seeded EXPIRED invite was
+        pushed off the end of the list and the spec's "Expired" assertion found nothing.
+
+        The failure looked like a flake and was not: it was deterministic, it survived a reseed
+        because this branch skipped, and only dropping the database restored it. Re-seeding the
+        two known invites makes `db:seed` authoritative again, which is what the comment above
+        already claimed it was.
+      */
+      await prisma.patientPortalInvite.deleteMany({ where: { patientId: lifecyclePatient.id } });
+      await prisma.patientPortalInvite.createMany({
+        data: settledInviteFixtures(clinic.id, lifecyclePatient.id, researchSettingsOwnerId),
+      });
+      console.log('Reset portal invite lifecycle E2E fixture to its seeded invitations.');
     } else {
       const lifecyclePlain = 'GH-E2E-LIFECYCLE-1';
       const patient = await prisma.patient.create({
@@ -1078,27 +1136,52 @@ async function main() {
       });
 
       await prisma.patientPortalInvite.createMany({
-        data: [
-          {
-            clinicId: clinic.id,
-            patientId: patient.id,
-            status: PatientPortalInviteStatus.CANCELLED,
-            email: 'wrong.address@nkwapa.local',
-            createdByUserId: researchSettingsOwnerId,
-            cancelledAt: daysFromNow(-9),
-            expiresAt: daysFromNow(4),
-          },
-          {
-            clinicId: clinic.id,
-            patientId: patient.id,
-            status: PatientPortalInviteStatus.EXPIRED,
-            email: 'e2e.lifecycle@nkwapa.local',
-            createdByUserId: researchSettingsOwnerId,
-            expiresAt: daysFromNow(-3),
-          },
-        ],
+        data: settledInviteFixtures(clinic.id, patient.id, researchSettingsOwnerId),
       });
       console.log(`Seeded portal invite lifecycle E2E patient ${patient.patientCode}.`);
+    }
+
+    /*
+      A chart nothing mutates, holding the same two settled invitations.
+
+      The lifecycle chart below cannot answer "does the previous-invitations list render a
+      cancelled and an expired invitation", because the specs that use it issue a replacement on
+      every run and each replacement cancels its predecessor. `PORTAL_INVITE_HISTORY_LIMIT` is 5
+      and the newest settled invitations win, so after about four runs the seeded EXPIRED row is
+      pushed off the end and the assertion fails on a database that has simply been used.
+
+      Re-seeding restores it, but a read-only chart means the assertion never depends on how many
+      times the suite has run. The mutations keep the chart below; the reading happens here.
+    */
+    const inviteHistoryPatient = await prisma.patient.findFirst({
+      where: { primaryClinicId: clinic.id, firstName: 'E2E', lastName: 'InviteHistory' },
+    });
+    if (inviteHistoryPatient) {
+      console.log('Portal invite history E2E patient already exists; skipping.');
+    } else {
+      const historyPlain = 'GH-E2E-INVITEHISTORY-1';
+      const patient = await prisma.patient.create({
+        data: {
+          patientCode: await generatePatientCode(prisma),
+          primaryClinicId: clinic.id,
+          firstName: 'E2E',
+          lastName: 'InviteHistory',
+          dob: new Date('1972-11-03'),
+          sex: Sex.FEMALE,
+          email: 'e2e.invitehistory@nkwapa.local',
+          phoneE164: '+233201234587',
+          nationalIdType: NationalIdType.NATIONAL_ID,
+          nationalIdCiphertext: encryptNationalId(historyPlain),
+          nationalIdHash: hashNationalId(historyPlain),
+          nationalIdLast4: nationalIdLast4(historyPlain),
+          createdByUserId: researchSettingsOwnerId,
+        },
+      });
+
+      await prisma.patientPortalInvite.createMany({
+        data: settledInviteFixtures(clinic.id, patient.id, researchSettingsOwnerId),
+      });
+      console.log(`Seeded portal invite history E2E patient ${patient.patientCode}.`);
     }
 
     /*
