@@ -27,25 +27,40 @@ async function createInvite(page, { email, validFor }) {
   await expect(page.getByText('Invitation waiting')).toBeVisible({ timeout: 20_000 });
 }
 
-async function openLifecycleChart(page) {
+async function openChart(page, lastName) {
   await page.goto('/patients');
   await expect(page.locator('#main-content')).toBeVisible({ timeout: 30_000 });
 
-  await page.getByPlaceholder(/search by name, patient code/i).fill('Lifecycle');
+  await page.getByPlaceholder(/search by name, patient code/i).fill(lastName);
   // Matched by name, not position: the search is debounced, so the first row can still be
   // the unfiltered one when the fill resolves.
-  const row = page.getByRole('row', { name: /Lifecycle/i });
+  const row = page.getByRole('row', { name: new RegExp(lastName, 'i') });
   await expect(row).toBeVisible({ timeout: 30_000 });
   await row.getByRole('link', { name: /view/i }).click();
 
-  await expect(page.getByRole('heading', { name: /E2E Lifecycle/i })).toBeVisible({
-    timeout: 30_000,
-  });
+  await expect(page.getByRole('heading', { name: new RegExp(`E2E ${lastName}`, 'i') })).toBeVisible(
+    { timeout: 30_000 },
+  );
 }
 
+/** The chart the specs mutate: invitations are issued, replaced and cancelled here. */
+const openLifecycleChart = (page) => openChart(page, 'Lifecycle');
+
+/**
+ * The chart nothing mutates.
+ *
+ * Reading the settled list on the mutable chart was a slow-acting bug rather than a flake. Each
+ * run issues a replacement, which cancels its predecessor; PORTAL_INVITE_HISTORY_LIMIT is 5 and
+ * the newest settled invitations win, so after about four runs the seeded expired invitation was
+ * pushed off the list and this assertion failed on a database that had only been used.
+ */
+const openInviteHistoryChart = (page) => openChart(page, 'InviteHistory');
+
 test.describe('portal invite lifecycle', () => {
-  test('staff can read the whole lifecycle and recover from a stale invite', async ({ page }) => {
-    await openLifecycleChart(page);
+  test('a chart with only settled invitations reads as uninvited and shows them', async ({
+    page,
+  }) => {
+    await openInviteHistoryChart(page);
 
     // The chart's only invites have lapsed or been cancelled, so it is not "invited": the
     // action offered has to be a new invitation, not a resend of a dead one.
@@ -60,12 +75,14 @@ test.describe('portal invite lifecycle', () => {
     await previous.click();
     await expect(previous).toHaveAttribute('aria-expanded', 'true');
 
-    // Scoped to the list, and counted rather than matched exactly once: the suite may have
-    // run against this database before, so the number of settled invitations grows.
     const settled = page.locator('#portal-previous-invites').getByRole('listitem');
     await expect(settled.first()).toBeVisible();
     await expect(settled.filter({ hasText: 'Cancelled' }).first()).toBeVisible();
     await expect(settled.filter({ hasText: 'Expired' }).first()).toBeVisible();
+  });
+
+  test('staff can recover from a stale invite by issuing a replacement', async ({ page }) => {
+    await openLifecycleChart(page);
 
     // Issue a replacement with an explicit lifetime.
     await createInvite(page, { email: 'e2e.lifecycle@nkwapa.local', validFor: '7 days' });
