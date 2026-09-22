@@ -100,7 +100,7 @@ from different domains and only one of them is authenticated, the patient receiv
 context email and never sees the link. That is indistinguishable, from the clinic's side, from
 the invite being broken.
 
-Three things have to line up:
+Four things have to line up:
 
 1. **Same sender domain on both services.** `KC_SMTP_FROM` and `EMAIL_FROM` must match, or the
    cross-reference that stops the pair reading as a phishing attempt has nothing to rest on.
@@ -115,6 +115,12 @@ Three things have to line up:
    verified the sending domain can send as it: point both at that account's credentials. Adding
    the second relay to the bare domain's SPF record is not the fix, because with a provider that
    manages its own return-path, that record is not the one being checked.
+4. **Same display name on both services, per environment.** `EMAIL_FROM_NAME` on the API and
+   `KC_SMTP_FROM_DISPLAY_NAME` on Keycloak. The domain check above is what machines verify; this
+   is what the patient verifies. The display name is the most prominent thing in an inbox list,
+   more so than the address, which most clients hide entirely — so an invite from one name
+   followed by a setup link from another defeats the pairing even when SPF and DKIM both pass.
+   Staging uses its own name on both services rather than borrowing production's.
 
 Send a real invitation to an external address you control, not an internal one, and confirm two
 emails arrive. Then open the setup email's raw source (in Gmail, "Show original") and check that

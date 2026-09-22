@@ -10,6 +10,29 @@ describe('redaction utilities', () => {
     );
   });
 
+  it('keeps a first line for errors whose message starts with a newline', () => {
+    // The defect this guards: Prisma messages begin with a newline, so taking line [0]
+    // unconditionally logged `error: ""` and erased the only clue to what went wrong.
+    const prismaShaped = new Error(
+      '\nInvalid `prisma.reminder.update()` invocation:\n\nRecord not found',
+    );
+
+    expect(redactLogValue(prismaShaped)).toBe('Invalid `prisma.reminder.update()` invocation:');
+  });
+
+  it('falls back to the error name and code when there is no message at all', () => {
+    // Node throws AggregateError with an empty message when a dual-stack connect fails.
+    const empty = Object.assign(new Error(''), { code: 'ETIMEDOUT' });
+    empty.name = 'AggregateError';
+
+    expect(redactLogValue(empty)).toBe('AggregateError (ETIMEDOUT)');
+    expect(redactLogValue(new Error(''))).toBe('Error');
+  });
+
+  it('never returns an empty string for a whitespace-only message', () => {
+    expect(redactLogValue(new Error('   \n\t  '))).not.toBe('');
+  });
+
   it('redacts common secret and PII shapes from log values', () => {
     const redacted = redactLogValue(
       'Bearer abc.def.ghi for test@example.com and postgres://user:pass@localhost/db',

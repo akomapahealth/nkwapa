@@ -7,6 +7,7 @@ import {
 type EmailEnvKey =
   | 'EMAIL_PROVIDER'
   | 'EMAIL_FROM'
+  | 'EMAIL_FROM_NAME'
   | 'EMAIL_REPLY_TO'
   | 'SMTP_HOST'
   | 'SMTP_PORT'
@@ -44,7 +45,7 @@ describe('resolveEmailConfig', () => {
     );
 
     expect(config.readiness).toBe('smtp');
-    expect(config.smtp?.transport).toEqual({ host: 'localhost', port: 1025, secure: false });
+    expect(config.smtp?.transport).toMatchObject({ host: 'localhost', port: 1025, secure: false });
     expect(config.smtp?.transport).not.toHaveProperty('auth');
   });
 
@@ -108,6 +109,58 @@ describe('resolveEmailConfig', () => {
     });
   });
 
+  // Hosts that block 25/465/587 push you onto the 2xxx aliases. Getting `secure` wrong on
+  // 2465 produces a hang that is indistinguishable from the blocked port you moved off.
+  it.each([
+    [25, false],
+    [465, true],
+    [587, false],
+    [2465, true],
+    [2587, false],
+    [1025, false],
+  ])('derives implicit TLS correctly for port %i', (port, secure) => {
+    const config = resolveEmailConfig(
+      env({
+        EMAIL_PROVIDER: 'nodemailer',
+        SMTP_HOST: 'smtp.test',
+        EMAIL_FROM: 'info@akomapa.org',
+        SMTP_PORT: String(port),
+      }),
+    );
+    expect(config.smtp?.transport).toMatchObject({ port, secure });
+  });
+
+  it('lets SMTP_SECURE turn implicit TLS off on an alternate submissions port', () => {
+    const config = resolveEmailConfig(
+      env({
+        EMAIL_PROVIDER: 'nodemailer',
+        SMTP_HOST: 'smtp.test',
+        EMAIL_FROM: 'info@akomapa.org',
+        SMTP_PORT: '2465',
+        SMTP_SECURE: 'false',
+      }),
+    );
+    expect(config.smtp?.transport.secure).toBe(false);
+  });
+
+  it('bounds every SMTP timeout so one dead relay cannot stall the queue', () => {
+    // Nodemailer's defaults are 2 min to connect and 10 min on the socket. The reminders
+    // queue runs one job at a time, so those defaults block every other notification.
+    const config = resolveEmailConfig(
+      env({
+        EMAIL_PROVIDER: 'nodemailer',
+        SMTP_HOST: 'smtp.test',
+        EMAIL_FROM: 'info@akomapa.org',
+      }),
+    );
+
+    expect(config.smtp?.transport).toMatchObject({
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 30_000,
+    });
+  });
+
   it.each(['', 'not-a-number', '0', '70000'])(
     'falls back to 587 for the unusable port %p',
     (port) => {
@@ -134,6 +187,73 @@ describe('resolveEmailConfig', () => {
       }),
     );
     expect(config.smtp?.transport.secure).toBe(true);
+  });
+
+  describe('sender name', () => {
+    const base = {
+      EMAIL_PROVIDER: 'nodemailer',
+      SMTP_HOST: 'smtp.test',
+      EMAIL_FROM: 'no-reply@akomapa.org',
+    };
+
+    it('sends a bare address when no display name is configured', () => {
+      const config = resolveEmailConfig(env(base));
+      expect(config.smtp?.from).toBe('no-reply@akomapa.org');
+      expect(config.fromName).toBeNull();
+    });
+
+    it('hands nodemailer a structured pair rather than a pre-joined header', () => {
+      // Joining it here would break on a name carrying a comma, a quote or an accent.
+      // Nodemailer already knows the RFC 5322 quoting rules, so let it do them.
+      const config = resolveEmailConfig(env({ ...base, EMAIL_FROM_NAME: 'Nkwapa' }));
+      expect(config.smtp?.from).toEqual({ name: 'Nkwapa', address: 'no-reply@akomapa.org' });
+    });
+
+    it('keeps fromAddress bare so the status endpoint still names the mailbox', () => {
+      const config = resolveEmailConfig(env({ ...base, EMAIL_FROM_NAME: 'Nkwapa' }));
+      expect(config.fromAddress).toBe('no-reply@akomapa.org');
+      expect(config.fromName).toBe('Nkwapa');
+    });
+
+    it('accepts a display name inlined in EMAIL_FROM, which was the only way before', () => {
+      const config = resolveEmailConfig(
+        env({ ...base, EMAIL_FROM: 'Akomapa <no-reply@akomapa.org>' }),
+      );
+      expect(config.readiness).toBe('smtp');
+      expect(config.fromAddress).toBe('no-reply@akomapa.org');
+      expect(config.smtp?.from).toEqual({ name: 'Akomapa', address: 'no-reply@akomapa.org' });
+    });
+
+    it('lets EMAIL_FROM_NAME win over a name inlined in EMAIL_FROM', () => {
+      const config = resolveEmailConfig(
+        env({
+          ...base,
+          EMAIL_FROM: 'Akomapa <no-reply@akomapa.org>',
+          EMAIL_FROM_NAME: 'Nkwapa',
+        }),
+      );
+      expect(config.smtp?.from).toEqual({ name: 'Nkwapa', address: 'no-reply@akomapa.org' });
+    });
+
+    it('strips the quotes from an already-quoted inline display name', () => {
+      const config = resolveEmailConfig(
+        env({ ...base, EMAIL_FROM: '"Nkwapa Health" <no-reply@akomapa.org>' }),
+      );
+      expect(config.smtp?.from).toEqual({
+        name: 'Nkwapa Health',
+        address: 'no-reply@akomapa.org',
+      });
+    });
+
+    it.each(['Nkwapa', 'no-reply@akomapa.org, info@akomapa.org', 'no-reply@localhost', '@x.org'])(
+      'reports EMAIL_FROM unusable for %p rather than failing at send time',
+      (value) => {
+        const config = resolveEmailConfig(env({ ...base, EMAIL_FROM: value }));
+        expect(config.readiness).toBe('unconfigured');
+        expect(config.missing).toContain('EMAIL_FROM');
+        expect(describeEmailUnavailability(config)).toContain('missing or unusable');
+      },
+    );
   });
 
   it('carries a reply-to only when one is configured', () => {

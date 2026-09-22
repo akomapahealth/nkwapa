@@ -658,7 +658,24 @@ export class ReminderService {
           error: redactLogValue(err),
         }),
       );
-      await this.failReminder(reminder, REMINDER_SEND_FAILED, 'REMINDER.SEND_FAILED');
+      // `failReminder` is the most likely thing to have thrown us in here, since the
+      // success and failure branches above both end in one. Calling it again unguarded
+      // meant the second throw escaped with nothing logged, and the only trace of the
+      // original cause was the line above. Record that we could not record the failure.
+      try {
+        await this.failReminder(reminder, REMINDER_SEND_FAILED, 'REMINDER.SEND_FAILED');
+      } catch (failErr) {
+        this.logger.error(
+          JSON.stringify({
+            message: 'Reminder failure could not be recorded',
+            reminderId,
+            clinicId: reminder.clinicId,
+            channel: reminder.channel,
+            error: redactLogValue(failErr),
+          }),
+        );
+        throw failErr;
+      }
     }
   }
 
