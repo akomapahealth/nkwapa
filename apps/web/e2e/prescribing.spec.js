@@ -3,6 +3,7 @@ const { test, expect } = require('@playwright/test');
 
 const { storageStateFor } = require('../playwright/roles');
 const { waitForOutboxDrain } = require('../playwright/outbox');
+const { apiRequestAs } = require('../playwright/api-client');
 
 /**
  * Prescribing, end to end, for the first time.
@@ -27,7 +28,9 @@ async function createPatient(page, prefix) {
     .fill(`E2E-${prefix.toUpperCase()}-${suffix}`);
   await page.getByRole('button', { name: 'Create patient' }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
-  return page.url().split('/').at(-1);
+  const segments = page.url().split('/');
+  // .../clinics/<clinicId>/patients/<patientId>
+  return { patientId: segments.at(-1), clinicId: segments.at(-3) };
 }
 
 async function createEncounter(page, patientId) {
@@ -57,7 +60,7 @@ test.describe('as a doctor', () => {
   }) => {
     test.setTimeout(150_000);
 
-    const patientId = await createPatient(page, 'Prescribe');
+    const { patientId } = await createPatient(page, 'Prescribe');
     const encounterId = await createEncounter(page, patientId);
     await page.goto(`/encounters/${encounterId}`);
 
@@ -99,7 +102,7 @@ test.describe('as a doctor', () => {
   test('the allergy acknowledgement is refused rather than assumed', async ({ page }) => {
     test.setTimeout(150_000);
 
-    const patientId = await createPatient(page, 'Allergy');
+    const { patientId } = await createPatient(page, 'Allergy');
     const encounterId = await createEncounter(page, patientId);
     await page.goto(`/encounters/${encounterId}`);
 
@@ -124,16 +127,17 @@ test.describe('as a doctor', () => {
   /*
     A finalized encounter closes prescribing, and says so by removing the controls.
 
-    The route refuses it too -- `ensureEncounterNotFinalized` throws before anything is written,
-    covered by `prescription.service.spec.ts` -- but that refusal is not reachable through the UI,
-    because the form is gone. This is the half a prescriber actually meets, and it was untested.
+    Both halves are asserted here. The UI half is what a prescriber meets: the form is gone. The
+    route half is what actually protects the record, and it used to be reachable only from a
+    service unit test, because removing the form also removes every way to ask the API from the
+    page. `apiRequestAs` is how a spec asks anyway.
   */
   test('finalizing an encounter closes prescribing without hiding what was prescribed', async ({
     page,
   }) => {
     test.setTimeout(150_000);
 
-    const patientId = await createPatient(page, 'Finalized');
+    const { patientId, clinicId } = await createPatient(page, 'Finalized');
     const encounterId = await createEncounter(page, patientId);
     await page.goto(`/encounters/${encounterId}`);
 
@@ -154,6 +158,31 @@ test.describe('as a doctor', () => {
     await expect(page.getByRole('listitem').filter({ hasText: 'Atenolol' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Add prescription' })).toHaveCount(0);
     await expect(page.getByLabel('Dosage (with unit, e.g. mg)')).toHaveCount(0);
+
+    /*
+      The absent form is a courtesy; this is the boundary.
+
+      `drugId` is a random UUID on purpose. It satisfies the DTO so the request reaches the
+      service, and `ensureEncounterNotFinalized` runs before the drug is ever looked up -- so the
+      refusal under test is the finalized one and cannot be a missing drug wearing its clothes.
+    */
+    const refused = await apiRequestAs(
+      'doctor',
+      'post',
+      `/clinics/${clinicId}/encounters/${encounterId}/prescriptions`,
+      {
+        clinicId,
+        data: {
+          drugId: randomUUID(),
+          dosage: '25 mg',
+          frequency: 'Once daily',
+          allergyReviewed: true,
+        },
+      },
+    );
+
+    expect(refused.status()).toBe(400);
+    expect(await refused.text()).toContain('finalized encounter');
   });
 
   /*
@@ -167,7 +196,7 @@ test.describe('as a doctor', () => {
   test('a prescription written offline replays and lands', async ({ page, context }) => {
     test.setTimeout(150_000);
 
-    const patientId = await createPatient(page, 'Offline');
+    const { patientId } = await createPatient(page, 'Offline');
     const encounterId = await createEncounter(page, patientId);
     await page.goto(`/encounters/${encounterId}`);
 
@@ -196,7 +225,7 @@ test.describe('as a doctor', () => {
   test('the required fields are named rather than left to a disabled button', async ({ page }) => {
     test.setTimeout(150_000);
 
-    const patientId = await createPatient(page, 'Validate');
+    const { patientId } = await createPatient(page, 'Validate');
     const encounterId = await createEncounter(page, patientId);
     await page.goto(`/encounters/${encounterId}`);
 
@@ -231,9 +260,8 @@ test.describe('as a doctor', () => {
 
 /**
  * A volunteer holds neither prescription permission, and the encounter page gates the whole
- * section on `PRESCRIPTION.READ`. The API refuses the routes independently -- that is asserted in
- * `prescriptions.controller.spec.ts` -- and this is the other half: the surface is absent rather
- * than present and failing.
+ * section on `PRESCRIPTION.READ`. Both halves are asserted: the surface is absent rather than
+ * present and failing, and the route refuses the request that the absent surface would have sent.
  */
 test.describe('as a volunteer', () => {
   test.use({ storageState: storageStateFor('volunteer') });
@@ -241,7 +269,7 @@ test.describe('as a volunteer', () => {
   test('the prescribing surface is not on the page at all', async ({ page }) => {
     test.setTimeout(150_000);
 
-    const patientId = await createPatient(page, 'NoRx');
+    const { patientId } = await createPatient(page, 'NoRx');
     const encounterId = await createEncounter(page, patientId);
     await page.goto(`/encounters/${encounterId}`);
 
@@ -251,5 +279,39 @@ test.describe('as a volunteer', () => {
     await expect(page.getByRole('heading', { name: 'Prescriptions' })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Add prescription' })).toHaveCount(0);
     await expect(page.getByLabel('Dosage (with unit, e.g. mg)')).toHaveCount(0);
+  });
+
+  /*
+    A hidden control is not a closed door.
+
+    Until `apiRequestAs` existed this could only be approximated by the assertion above, which
+    proves the volunteer is not offered the form and says nothing about what happens if they ask
+    the API anyway. `RbacGuard` refuses on `PRESCRIPTION.WRITE` before the body is even validated,
+    so the bogus drug id below never gets a chance to be the reason.
+  */
+  test('the API refuses a prescription even though the form was never offered', async ({
+    page,
+  }) => {
+    test.setTimeout(150_000);
+
+    const { patientId, clinicId } = await createPatient(page, 'NoRxRoute');
+    const encounterId = await createEncounter(page, patientId);
+
+    const refused = await apiRequestAs(
+      'volunteer',
+      'post',
+      `/clinics/${clinicId}/encounters/${encounterId}/prescriptions`,
+      {
+        clinicId,
+        data: {
+          drugId: randomUUID(),
+          dosage: '25 mg',
+          frequency: 'Once daily',
+          allergyReviewed: true,
+        },
+      },
+    );
+
+    expect(refused.status()).toBe(403);
   });
 });
