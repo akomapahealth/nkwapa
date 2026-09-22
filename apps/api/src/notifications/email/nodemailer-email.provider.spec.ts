@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { NodemailerEmailProvider, type SmtpTransportConfig } from './nodemailer-email.provider';
 import { FakeEmailProvider } from './fake-email.provider';
 
@@ -30,6 +31,26 @@ describe('NodemailerEmailProvider', () => {
       html: '<p>Hi</p>',
       text: 'Hi',
       replyTo: 'support@akomapa.org',
+    });
+  });
+
+  it('passes a named sender through to the transport untouched', async () => {
+    // Nodemailer owns the RFC 5322 quoting, so the pair must reach sendMail intact
+    // rather than being flattened into a header string on the way.
+    const transporter = createTransporterSpy();
+    const provider = new NodemailerEmailProvider(
+      {
+        transport: { host: 'smtp.test', port: 2587, secure: false },
+        from: { name: 'Nkwapa', address: 'no-reply@akomapa.org' },
+      },
+      () => transporter as never,
+    );
+
+    await provider.send('p@example.org', 'Subject', '<p>Hi</p>');
+
+    expect(transporter.sendMail.mock.calls[0][0].from).toEqual({
+      name: 'Nkwapa',
+      address: 'no-reply@akomapa.org',
     });
   });
 
@@ -99,6 +120,56 @@ describe('NodemailerEmailProvider', () => {
 
     expect(result).toEqual({ success: false, error: 'EMAIL_SEND_FAILED' });
     expect(JSON.stringify(result)).not.toContain('p@example.org');
+  });
+
+  it('names the port and error code on a failed send', async () => {
+    // A blocked SMTP port and a wrong password both surfaced as the same opaque sentence.
+    // The code is what tells an operator which one they are looking at, and the port is
+    // what tells them the egress rule they tripped over. Neither is PHI.
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      const timeout = Object.assign(new Error('Connection timeout'), { code: 'ETIMEDOUT' });
+      const provider = new NodemailerEmailProvider(
+        {
+          transport: { host: 'smtp.resend.com', port: 2587, secure: false },
+          from: 'info@akomapa.org',
+        },
+        () => createTransporterSpy({ sendMail: jest.fn().mockRejectedValue(timeout) }) as never,
+      );
+
+      await provider.send('p@example.org', 'Subject', '<p>Hi</p>');
+
+      const payload = JSON.parse(warn.mock.calls[0][0] as string) as Record<string, unknown>;
+      expect(payload).toMatchObject({
+        message: 'SMTP send failed',
+        host: 'smtp.resend.com',
+        port: 2587,
+        code: 'ETIMEDOUT',
+      });
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('keeps the recipient out of the failure log even when the relay quotes it back', async () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      const provider = new NodemailerEmailProvider(
+        { transport: { host: 'smtp.test', port: 587, secure: false }, from: 'info@akomapa.org' },
+        () =>
+          createTransporterSpy({
+            sendMail: jest
+              .fn()
+              .mockRejectedValue(new Error('550 5.1.1 <p@example.org> unknown user')),
+          }) as never,
+      );
+
+      await provider.send('p@example.org', 'Subject', '<p>Hi</p>');
+
+      expect(warn.mock.calls[0][0] as string).not.toContain('p@example.org');
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('reports verification failure without throwing, so a bad host cannot stop boot', async () => {

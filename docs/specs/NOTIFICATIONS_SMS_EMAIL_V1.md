@@ -24,6 +24,15 @@ Provider selection lives in the global NotificationModule and never throws. A mi
 SMTP variable is an operational problem for one feature, not a reason to fail startup for
 every route.
 
+The SMTP port is a deployment constraint, not a preference. Render blocks outbound traffic
+to ports 25, 465 and 587 on free web services, and to 25 on every tier, by dropping packets
+rather than refusing them — so a service pointed at 587 hangs until it times out instead of
+failing. Both the API and Keycloak run on Render and both use Resend's alternate ports: 2587
+for STARTTLS, 2465 for implicit TLS. `resolveSecure` treats 465 and 2465 as implicit TLS for
+that reason. Transport timeouts are set explicitly (10s connect, 10s greeting, 30s socket)
+because nodemailer's two-minute default would stall the single-concurrency reminder queue
+behind one unreachable relay.
+
 Templates
 
 Templates are TypeScript modules behind a registry, not HTML assets. They were previously
@@ -98,3 +107,17 @@ Boundary with Keycloak
 Verify-email and forgot-password are sent by Keycloak from its own KC*SMTP*\* configuration
 on the Keycloak service. The app never reimplements them, and the two SMTP configurations
 are independent.
+
+The two configurations are independent but not unrelated. `EMAIL_FROM` and `KC_SMTP_FROM`
+must share a domain so SPF and DKIM hold across the pair, and `EMAIL_FROM_NAME` must match
+`KC_SMTP_FROM_DISPLAY_NAME` for that environment. A patient receives the portal invite from
+the API and the account-setup link from Keycloak moments apart, and the display name is the
+most visible thing in an inbox list — more visible than the address, which most clients
+hide. Two different names across that pair is what makes the second message, the one
+carrying the link, read as a phishing attempt. Nothing in code enforces the match; it is a
+deployment convention, recorded in `deploy/env/*.example`.
+
+`EMAIL_FROM` holds the bare address. A display name inlined as `Nkwapa <no-reply@...>` is
+still accepted, since it was the only way to set one before `EMAIL_FROM_NAME` existed, but
+`EMAIL_FROM_NAME` wins when both are present. The address is validated loosely at config
+time — an unusable one is reported as `EMAIL_FROM` missing rather than failing at send.
