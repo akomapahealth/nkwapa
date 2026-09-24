@@ -73,6 +73,7 @@ import { useMedicationAdherence } from '@/lib/use-medication-adherence';
 import {
   CheckboxQuestion,
   ChoiceQuestion,
+  DateQuestion,
   MultiChoiceQuestion,
   NumberQuestion,
   TextQuestion,
@@ -287,6 +288,8 @@ export function DiabetesInterviewForm({
 
   const shared = { disabled: !canEdit || saving, reserveErrorSpace: hasSubmitted };
   const q = (id: string) => ({ id, error: errors[id], ...shared });
+  // A screening completed in the future is a typo, not an answer.
+  const today = new Date().toISOString().slice(0, 10);
   const monitorsAtHome = values.homeGlucoseMonitoring === 'YES';
 
   return (
@@ -663,6 +666,16 @@ export function DiabetesInterviewForm({
             options={SCREENING_COMPLETION_STATUSES}
             labels={SCREENING_COMPLETION_STATUS_LABELS}
           />
+          {values.eyeExam === 'COMPLETED' ? (
+            <DateQuestion
+              {...q('dm-eye-exam-completed-on')}
+              label="Date of the eye examination"
+              hint="Leave blank if the patient is not sure when."
+              max={today}
+              value={values.eyeExamCompletedOn ?? ''}
+              onChange={(value) => update('eyeExamCompletedOn', value || null)}
+            />
+          ) : null}
           <ChoiceQuestion
             {...q('dm-foot-exam')}
             label="Foot examination within the past year"
@@ -671,6 +684,16 @@ export function DiabetesInterviewForm({
             options={SCREENING_COMPLETION_STATUSES}
             labels={SCREENING_COMPLETION_STATUS_LABELS}
           />
+          {values.footExam === 'COMPLETED' ? (
+            <DateQuestion
+              {...q('dm-foot-exam-completed-on')}
+              label="Date of the foot examination"
+              hint="Leave blank if the patient is not sure when."
+              max={today}
+              value={values.footExamCompletedOn ?? ''}
+              onChange={(value) => update('footExamCompletedOn', value || null)}
+            />
+          ) : null}
           <ChoiceQuestion
             {...q('dm-kidney-testing')}
             label="Kidney testing within the past year"
@@ -679,6 +702,16 @@ export function DiabetesInterviewForm({
             options={SCREENING_COMPLETION_STATUSES}
             labels={SCREENING_COMPLETION_STATUS_LABELS}
           />
+          {values.kidneyTesting === 'COMPLETED' ? (
+            <DateQuestion
+              {...q('dm-kidney-testing-completed-on')}
+              label="Date of the kidney testing"
+              hint="Leave blank if the patient is not sure when."
+              max={today}
+              value={values.kidneyTestingCompletedOn ?? ''}
+              onChange={(value) => update('kidneyTestingCompletedOn', value || null)}
+            />
+          ) : null}
           <ChoiceQuestion
             {...q('dm-bp-checked')}
             label="Blood pressure checked today"

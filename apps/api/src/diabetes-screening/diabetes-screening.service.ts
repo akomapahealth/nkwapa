@@ -29,6 +29,7 @@ import {
   UpsertDiabetesClinicianPlanDto,
   UpsertDiabetesScreeningDto,
 } from './dto/diabetes-screening.dto';
+import { screeningCompletionDate, toDateOnly } from '../common/screening-completion';
 
 const MAX_FUTURE_COLLECTION_SKEW_MS = 5 * 60 * 1000;
 const DEFAULT_PAGE_SIZE = 25;
@@ -186,6 +187,12 @@ export class DiabetesScreeningService {
         eyeExam: dto.eyeExam,
         footExam: dto.footExam,
         kidneyTesting: dto.kidneyTesting,
+        eyeExamCompletedOn: screeningCompletionDate(dto.eyeExam, dto.eyeExamCompletedOn),
+        footExamCompletedOn: screeningCompletionDate(dto.footExam, dto.footExamCompletedOn),
+        kidneyTestingCompletedOn: screeningCompletionDate(
+          dto.kidneyTesting,
+          dto.kidneyTestingCompletedOn,
+        ),
         bpCheckedToday: dto.bpCheckedToday,
         currentFootWound: dto.currentFootWound,
         volunteerActions: (dto.volunteerActions ?? null) as Prisma.InputJsonValue,
@@ -401,6 +408,9 @@ export class DiabetesScreeningService {
             'eyeExam',
             'footExam',
             'kidneyTesting',
+            'eyeExamCompletedOn',
+            'footExamCompletedOn',
+            'kidneyTestingCompletedOn',
             'bpCheckedToday',
             'currentFootWound',
             'volunteerActions',
@@ -482,6 +492,9 @@ export class DiabetesScreeningService {
       eyeExam: record.eyeExam,
       footExam: record.footExam,
       kidneyTesting: record.kidneyTesting,
+      eyeExamCompletedOn: toDateOnly(record.eyeExamCompletedOn),
+      footExamCompletedOn: toDateOnly(record.footExamCompletedOn),
+      kidneyTestingCompletedOn: toDateOnly(record.kidneyTestingCompletedOn),
       bpCheckedToday: record.bpCheckedToday,
       currentFootWound: record.currentFootWound,
       volunteerActions: record.volunteerActions,

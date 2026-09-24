@@ -54,6 +54,10 @@ export interface DiabetesInterviewValues {
   eyeExam: string;
   footExam: string;
   kidneyTesting: string;
+  /** Date-only (YYYY-MM-DD). Null is "not recorded", never "not completed". */
+  eyeExamCompletedOn: string | null;
+  footExamCompletedOn: string | null;
+  kidneyTestingCompletedOn: string | null;
   bpCheckedToday: string;
   currentFootWound: string;
 
@@ -91,6 +95,9 @@ export function emptyDiabetesInterview(): DiabetesInterviewValues {
     eyeExam: 'NOT_ASSESSED',
     footExam: 'NOT_ASSESSED',
     kidneyTesting: 'NOT_ASSESSED',
+    eyeExamCompletedOn: null,
+    footExamCompletedOn: null,
+    kidneyTestingCompletedOn: null,
     bpCheckedToday: 'NOT_ASSESSED',
     currentFootWound: 'NOT_ASSESSED',
     volunteerActions: [],
@@ -326,6 +333,9 @@ export function toDiabetesPayload(
     eyeExam: values.eyeExam,
     footExam: values.footExam,
     kidneyTesting: values.kidneyTesting,
+    eyeExamCompletedOn: values.eyeExamCompletedOn,
+    footExamCompletedOn: values.footExamCompletedOn,
+    kidneyTestingCompletedOn: values.kidneyTestingCompletedOn,
     bpCheckedToday: values.bpCheckedToday,
     currentFootWound: values.currentFootWound,
     volunteerActions: { selected: values.volunteerActions },
@@ -343,6 +353,8 @@ export function fromDiabetesRecord(
   const base = emptyDiabetesInterview();
   if (!record) return base;
 
+  const dateOnly = (value: unknown): string | null =>
+    typeof value === 'string' && value.length >= 10 ? value.slice(0, 10) : null;
   const str = (value: unknown, fallback: string): string =>
     typeof value === 'string' && value ? value : fallback;
   const num = (value: unknown): string =>
@@ -378,6 +390,10 @@ export function fromDiabetesRecord(
     eyeExam: str(record.eyeExam, base.eyeExam),
     footExam: str(record.footExam, base.footExam),
     kidneyTesting: str(record.kidneyTesting, base.kidneyTesting),
+    // A date-only string or null; an absent one reads back as "not recorded", not as today.
+    eyeExamCompletedOn: dateOnly(record.eyeExamCompletedOn),
+    footExamCompletedOn: dateOnly(record.footExamCompletedOn),
+    kidneyTestingCompletedOn: dateOnly(record.kidneyTestingCompletedOn),
     bpCheckedToday: str(record.bpCheckedToday, base.bpCheckedToday),
     currentFootWound: str(record.currentFootWound, base.currentFootWound),
     volunteerActions: list(
