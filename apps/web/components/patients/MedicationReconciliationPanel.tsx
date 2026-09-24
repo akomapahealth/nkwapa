@@ -55,6 +55,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -101,6 +102,13 @@ type MedicationForm = {
   duration: string;
   startDate: string;
   endDate: string;
+  /**
+   * "Still taking it": the medication has no end date yet.
+   *
+   * Explicit rather than derived from an empty endDate, so "ongoing" and "we have not filled
+   * the date in yet" stay distinguishable while the form is open.
+   */
+  present: boolean;
   indication: string;
   status: MedicationStatus;
   notes: string;
@@ -132,6 +140,7 @@ const emptyMedicationForm: MedicationForm = {
   duration: '',
   startDate: '',
   endDate: '',
+  present: true,
   indication: '',
   status: 'CURRENT',
   notes: '',
@@ -378,6 +387,7 @@ export function MedicationReconciliationPanel({
             duration: revision.duration ?? '',
             startDate: revision.startDate?.slice(0, 10) ?? '',
             endDate: revision.endDate?.slice(0, 10) ?? '',
+            present: !revision.endDate,
             indication: revision.indication ?? '',
             status: revision.status,
             notes: revision.notes ?? '',
@@ -393,10 +403,6 @@ export function MedicationReconciliationPanel({
   async function saveMedication() {
     if (!medicationForm.medicationName.trim()) {
       setError('Medication name is required.');
-      return;
-    }
-    if (medicationForm.status === 'CURRENT' && medicationForm.endDate) {
-      setError('Current medications cannot have an end date.');
       return;
     }
     setSaving(true);
@@ -1437,7 +1443,10 @@ function MedicationDialog({
               setForm((current) => ({
                 ...current,
                 status: value as MedicationStatus,
-                endDate: value === 'CURRENT' ? '' : current.endDate,
+                // A default, not a rule. Past and stopped medications have ended, so the date
+                // opens without an extra click; ticking Present again is still allowed, because
+                // "they stopped it and nobody knows when" is a real answer.
+                present: value === 'CURRENT' ? current.present : false,
               }))
             }
           />
@@ -1448,14 +1457,42 @@ function MedicationDialog({
             value={form.startDate}
             onChange={(value) => setForm((current) => ({ ...current, startDate: value }))}
           />
-          <Field
-            id="medication-end-date"
-            label="End date"
-            type="date"
-            disabled={form.status === 'CURRENT'}
-            value={form.endDate}
-            onChange={(value) => setForm((current) => ({ ...current, endDate: value }))}
-          />
+          <div className="space-y-2">
+            <Field
+              id="medication-end-date"
+              label="End date"
+              type="date"
+              disabled={form.present}
+              value={form.endDate}
+              onChange={(value) => setForm((current) => ({ ...current, endDate: value }))}
+            />
+            {/*
+              The end date used to be disabled whenever the status was Current, which made a
+              known stop date on an ongoing medication impossible to record - a ten-day course
+              is current and has an end date. Whether the medication has ended is now its own
+              answer rather than one inferred from the status.
+            */}
+            <div className="flex items-center gap-2">
+              <Checkbox
+                aria-describedby="medication-present-hint"
+                id="medication-present"
+                checked={form.present}
+                onCheckedChange={(checked) =>
+                  setForm((current) => ({
+                    ...current,
+                    present: checked === true,
+                    endDate: checked === true ? '' : current.endDate,
+                  }))
+                }
+              />
+              <Label htmlFor="medication-present" className="text-sm font-normal">
+                Present
+              </Label>
+            </div>
+            <p id="medication-present-hint" className="text-sm text-muted-foreground">
+              Still being taken, with no end date recorded.
+            </p>
+          </div>
           <SelectField
             id="medication-source"
             label="Source type"

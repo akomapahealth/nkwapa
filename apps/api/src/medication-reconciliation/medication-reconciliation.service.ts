@@ -534,8 +534,14 @@ export class MedicationReconciliationService {
     dto: MedicationSnapshotDto,
   ) {
     await this.requirePatient(clinicId, patientId);
-    if (dto.status === PatientMedicationStatus.CURRENT && dto.endDate)
-      throw new BadRequestException({ code: 'CURRENT_MEDICATION_END_DATE' });
+    /*
+      A current medication may carry an end date.
+
+      This used to be refused outright, which made a ten-day course impossible to record as what
+      it is: current, and stopping on a known date. The status says whether the patient is taking
+      it now; the end date says when it stops. They are different questions, and collapsing them
+      lost the answer to the second. The ordering rule below still applies to both.
+    */
     if (dto.startDate && dto.endDate && dto.endDate < dto.startDate)
       throw new BadRequestException({ code: 'INVALID_MEDICATION_DATE_ORDER' });
     if (dto.drugId) {
