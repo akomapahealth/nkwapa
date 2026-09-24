@@ -1289,11 +1289,19 @@ model DiabetesScreening {
   distressPositive    Boolean                  @default(false)
 
   // 6. Screening status.
-  eyeExam          ScreeningCompletionStatus @default(NOT_ASSESSED)
-  footExam         ScreeningCompletionStatus @default(NOT_ASSESSED)
-  kidneyTesting    ScreeningCompletionStatus @default(NOT_ASSESSED)
-  bpCheckedToday   ScreeningCompletionStatus @default(NOT_ASSESSED)
-  currentFootWound NkwapaAnswer              @default(NOT_ASSESSED)
+  eyeExam                  ScreeningCompletionStatus @default(NOT_ASSESSED)
+  footExam                 ScreeningCompletionStatus @default(NOT_ASSESSED)
+  kidneyTesting            ScreeningCompletionStatus @default(NOT_ASSESSED)
+  /// When each screening was done, where the patient could say. Optional even when the status is
+  /// COMPLETED: "sometime last year" is a real answer, and requiring a date would invite an
+  /// invented one. Null therefore means "not recorded", never "not completed" -- the status
+  /// column is the only thing that says whether it happened.
+  eyeExamCompletedOn       DateTime?                 @db.Date
+  footExamCompletedOn      DateTime?                 @db.Date
+  kidneyTestingCompletedOn DateTime?                 @db.Date
+  /// No date: this one asks about today by definition.
+  bpCheckedToday           ScreeningCompletionStatus @default(NOT_ASSESSED)
+  currentFootWound         NkwapaAnswer              @default(NOT_ASSESSED)
 
   // Guided plan -- volunteer.
   volunteerActionsSchemaVersion Int                    @default(1)
@@ -1406,12 +1414,17 @@ model HypertensionAssessment {
   planningPregnancy  PregnancyPlanningAnswer    @default(NOT_ASSESSED)
 
   // 8. Screening status.
-  kidneyFunctionTesting ScreeningCompletionStatus @default(NOT_ASSESSED)
-  urineProteinTesting   ScreeningCompletionStatus @default(NOT_ASSESSED)
-  cholesterolTesting    ScreeningCompletionStatus @default(NOT_ASSESSED)
-  ecgCompleted          ScreeningCompletionStatus @default(NOT_ASSESSED)
-  statinUse             MedicationUseStatus       @default(NOT_ASSESSED)
-  aspirinUse            MedicationUseStatus       @default(NOT_ASSESSED)
+  kidneyFunctionTesting            ScreeningCompletionStatus @default(NOT_ASSESSED)
+  urineProteinTesting              ScreeningCompletionStatus @default(NOT_ASSESSED)
+  cholesterolTesting               ScreeningCompletionStatus @default(NOT_ASSESSED)
+  ecgCompleted                     ScreeningCompletionStatus @default(NOT_ASSESSED)
+  /// See the note on DiabetesScreening: optional even when COMPLETED, so null is "not recorded".
+  kidneyFunctionTestingCompletedOn DateTime?                 @db.Date
+  urineProteinTestingCompletedOn   DateTime?                 @db.Date
+  cholesterolTestingCompletedOn    DateTime?                 @db.Date
+  ecgCompletedOn                   DateTime?                 @db.Date
+  statinUse                        MedicationUseStatus       @default(NOT_ASSESSED)
+  aspirinUse                       MedicationUseStatus       @default(NOT_ASSESSED)
 
   // Guided plan -- volunteer.
   volunteerActionsSchemaVersion Int                        @default(1)

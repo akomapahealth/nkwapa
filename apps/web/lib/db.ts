@@ -129,6 +129,10 @@ export interface DiabetesScreeningRecord {
   eyeExam?: string;
   footExam?: string;
   kidneyTesting?: string;
+  // Date-only strings (YYYY-MM-DD), and optional even when the screening is COMPLETED.
+  eyeExamCompletedOn?: string | null;
+  footExamCompletedOn?: string | null;
+  kidneyTestingCompletedOn?: string | null;
   bpCheckedToday?: string;
   currentFootWound?: string;
   volunteerActions?: Record<string, unknown> | null;
@@ -196,6 +200,11 @@ export interface HypertensionAssessmentRecord {
   urineProteinTesting?: string;
   cholesterolTesting?: string;
   ecgCompleted?: string;
+  // Date-only strings (YYYY-MM-DD), and optional even when the screening is COMPLETED.
+  kidneyFunctionTestingCompletedOn?: string | null;
+  urineProteinTestingCompletedOn?: string | null;
+  cholesterolTestingCompletedOn?: string | null;
+  ecgCompletedOn?: string | null;
   statinUse?: string;
   aspirinUse?: string;
 

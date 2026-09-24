@@ -90,6 +90,7 @@ import { useMedicationAdherence } from '@/lib/use-medication-adherence';
 import {
   CheckboxQuestion,
   ChoiceQuestion,
+  DateQuestion,
   MultiChoiceQuestion,
   NumberQuestion,
   TextQuestion,
@@ -418,6 +419,8 @@ export function HypertensionInterviewForm({
 
   const shared = { disabled: !canEdit || saving, reserveErrorSpace: hasSubmitted };
   const q = (id: string) => ({ id, error: errors[id], ...shared });
+  // A screening completed in the future is a typo, not an answer.
+  const today = new Date().toISOString().slice(0, 10);
 
   return (
     <div className="space-y-4">
@@ -774,6 +777,21 @@ export function HypertensionInterviewForm({
             options={PHYSICAL_ACTIVITY_TYPES}
             labels={PHYSICAL_ACTIVITY_TYPE_LABELS}
           />
+          {/*
+            `typicalActivityOther` has been in the lifestyle payload since the interview shipped
+            and was the one OTHER answer with nowhere to write it down, so "Other" recorded that
+            the question was answered and discarded the answer.
+          */}
+          {values.lifestyle.typicalActivity === 'OTHER' ? (
+            <TextQuestion
+              {...q('htn-lifestyle-activity-other')}
+              label="Describe the activity"
+              required
+              value={values.lifestyle.typicalActivityOther ?? ''}
+              onChange={(value) => updateLifestyle('typicalActivityOther', value)}
+              maxLength={200}
+            />
+          ) : null}
           <ChoiceQuestion
             {...q('htn-lifestyle-alcohol')}
             label="Alcohol use"
@@ -836,6 +854,16 @@ export function HypertensionInterviewForm({
             options={SCREENING_COMPLETION_STATUSES}
             labels={SCREENING_COMPLETION_STATUS_LABELS}
           />
+          {values.kidneyFunctionTesting === 'COMPLETED' ? (
+            <DateQuestion
+              {...q('htn-kidney-testing-completed-on')}
+              label="Date of the kidney function testing"
+              hint="Leave blank if the patient is not sure when."
+              max={today}
+              value={values.kidneyFunctionTestingCompletedOn ?? ''}
+              onChange={(value) => update('kidneyFunctionTestingCompletedOn', value || null)}
+            />
+          ) : null}
           <ChoiceQuestion
             {...q('htn-urine-protein')}
             label="Urine protein testing in the past year"
@@ -844,6 +872,16 @@ export function HypertensionInterviewForm({
             options={SCREENING_COMPLETION_STATUSES}
             labels={SCREENING_COMPLETION_STATUS_LABELS}
           />
+          {values.urineProteinTesting === 'COMPLETED' ? (
+            <DateQuestion
+              {...q('htn-urine-protein-completed-on')}
+              label="Date of the urine protein testing"
+              hint="Leave blank if the patient is not sure when."
+              max={today}
+              value={values.urineProteinTestingCompletedOn ?? ''}
+              onChange={(value) => update('urineProteinTestingCompletedOn', value || null)}
+            />
+          ) : null}
           <ChoiceQuestion
             {...q('htn-cholesterol')}
             label="Cholesterol testing in the past year"
@@ -852,6 +890,16 @@ export function HypertensionInterviewForm({
             options={SCREENING_COMPLETION_STATUSES}
             labels={SCREENING_COMPLETION_STATUS_LABELS}
           />
+          {values.cholesterolTesting === 'COMPLETED' ? (
+            <DateQuestion
+              {...q('htn-cholesterol-completed-on')}
+              label="Date of the cholesterol testing"
+              hint="Leave blank if the patient is not sure when."
+              max={today}
+              value={values.cholesterolTestingCompletedOn ?? ''}
+              onChange={(value) => update('cholesterolTestingCompletedOn', value || null)}
+            />
+          ) : null}
           <ChoiceQuestion
             {...q('htn-ecg')}
             label="ECG previously completed"
@@ -860,6 +908,16 @@ export function HypertensionInterviewForm({
             options={SCREENING_COMPLETION_STATUSES}
             labels={SCREENING_COMPLETION_STATUS_LABELS}
           />
+          {values.ecgCompleted === 'COMPLETED' ? (
+            <DateQuestion
+              {...q('htn-ecg-completed-on')}
+              label="Date of the ECG"
+              hint="Leave blank if the patient is not sure when."
+              max={today}
+              value={values.ecgCompletedOn ?? ''}
+              onChange={(value) => update('ecgCompletedOn', value || null)}
+            />
+          ) : null}
           <ChoiceQuestion
             {...q('htn-statin')}
             label="Statin"

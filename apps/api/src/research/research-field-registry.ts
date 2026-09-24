@@ -256,6 +256,15 @@ export const RESEARCH_FIELD_DECISIONS: Record<
     eyeExam: EXPORTED('Preventive-care completion, a core programme measure.'),
     footExam: EXPORTED('Preventive-care completion, a core programme measure.'),
     kidneyTesting: EXPORTED('Preventive-care completion, a core programme measure.'),
+    eyeExamCompletedOn: COARSENED(
+      'Reduced to month precision; an exact screening date is near-unique, the same reason\n       hba1cMeasuredOn is coarsened.',
+    ),
+    footExamCompletedOn: COARSENED(
+      'Reduced to month precision; an exact screening date is near-unique, the same reason\n       hba1cMeasuredOn is coarsened.',
+    ),
+    kidneyTestingCompletedOn: COARSENED(
+      'Reduced to month precision; an exact screening date is near-unique, the same reason\n       hba1cMeasuredOn is coarsened.',
+    ),
     bpCheckedToday: EXPORTED('Preventive-care completion, a core programme measure.'),
     currentFootWound: EXPORTED('A coded finding that drives escalation.'),
     volunteerActionsSchemaVersion: OPERATIONAL,
@@ -372,6 +381,18 @@ export const RESEARCH_FIELD_DECISIONS: Record<
     urineProteinTesting: EXPORTED('Preventive-care completion, a core programme measure.'),
     cholesterolTesting: EXPORTED('Preventive-care completion, a core programme measure.'),
     ecgCompleted: EXPORTED('Preventive-care completion, a core programme measure.'),
+    kidneyFunctionTestingCompletedOn: COARSENED(
+      'Reduced to month precision; an exact screening date is near-unique, the same reason\n       hba1cMeasuredOn is coarsened.',
+    ),
+    urineProteinTestingCompletedOn: COARSENED(
+      'Reduced to month precision; an exact screening date is near-unique, the same reason\n       hba1cMeasuredOn is coarsened.',
+    ),
+    cholesterolTestingCompletedOn: COARSENED(
+      'Reduced to month precision; an exact screening date is near-unique, the same reason\n       hba1cMeasuredOn is coarsened.',
+    ),
+    ecgCompletedOn: COARSENED(
+      'Reduced to month precision; an exact screening date is near-unique, the same reason\n       hba1cMeasuredOn is coarsened.',
+    ),
     statinUse: EXPORTED('Preventive medication use, a core programme measure.'),
     aspirinUse: EXPORTED('Preventive medication use, a core programme measure.'),
     volunteerActionsSchemaVersion: OPERATIONAL,

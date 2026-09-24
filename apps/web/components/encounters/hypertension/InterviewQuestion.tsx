@@ -224,6 +224,38 @@ export function NumberQuestion({
   );
 }
 
+/**
+ * A calendar date, for "when did that happen".
+ *
+ * `max` is set to today by callers recording something that already happened, because a screening
+ * completed next week is a typo rather than an answer.
+ */
+export function DateQuestion({
+  value,
+  onChange,
+  max,
+  ...shell
+}: QuestionProps & {
+  value: string;
+  onChange: (value: string) => void;
+  max?: string;
+}) {
+  return (
+    <QuestionShell {...shell}>
+      <Input
+        id={shell.id}
+        type="date"
+        max={max}
+        autoComplete="off"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={shell.disabled}
+        {...fieldErrorProps(shell.id, shell.error)}
+      />
+    </QuestionShell>
+  );
+}
+
 /** Free text, for the answers a vocabulary cannot hold. */
 export function TextQuestion({
   value,

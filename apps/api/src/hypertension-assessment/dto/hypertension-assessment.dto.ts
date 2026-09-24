@@ -236,6 +236,31 @@ export class UpsertHypertensionAssessmentDto {
   @IsEnum(ScreeningCompletionStatus)
   ecgCompleted!: ScreeningCompletionStatus;
 
+  /*
+    Optional even when the status is COMPLETED. "Sometime last year" is a real answer, and
+    requiring a date would invite an invented one. Null means "not recorded", never "not done":
+    the status field beside it is the only thing that says whether the screening happened.
+  */
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsDateString({ strict: true })
+  kidneyFunctionTestingCompletedOn?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsDateString({ strict: true })
+  urineProteinTestingCompletedOn?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsDateString({ strict: true })
+  cholesterolTestingCompletedOn?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsDateString({ strict: true })
+  ecgCompletedOn?: string | null;
+
   @IsEnum(MedicationUseStatus)
   statinUse!: MedicationUseStatus;
 

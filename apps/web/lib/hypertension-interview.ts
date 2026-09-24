@@ -60,6 +60,11 @@ export interface HypertensionInterviewValues {
   urineProteinTesting: string;
   cholesterolTesting: string;
   ecgCompleted: string;
+  /** Date-only (YYYY-MM-DD). Null is "not recorded", never "not completed". */
+  kidneyFunctionTestingCompletedOn: string | null;
+  urineProteinTestingCompletedOn: string | null;
+  cholesterolTestingCompletedOn: string | null;
+  ecgCompletedOn: string | null;
   statinUse: string;
   aspirinUse: string;
 
@@ -108,6 +113,10 @@ export function emptyHypertensionInterview(): HypertensionInterviewValues {
     urineProteinTesting: 'NOT_ASSESSED',
     cholesterolTesting: 'NOT_ASSESSED',
     ecgCompleted: 'NOT_ASSESSED',
+    kidneyFunctionTestingCompletedOn: null,
+    urineProteinTestingCompletedOn: null,
+    cholesterolTestingCompletedOn: null,
+    ecgCompletedOn: null,
     statinUse: 'NOT_ASSESSED',
     aspirinUse: 'NOT_ASSESSED',
     volunteerActions: [],
@@ -416,6 +425,10 @@ export function toHypertensionPayload(
     urineProteinTesting: values.urineProteinTesting,
     cholesterolTesting: values.cholesterolTesting,
     ecgCompleted: values.ecgCompleted,
+    kidneyFunctionTestingCompletedOn: values.kidneyFunctionTestingCompletedOn,
+    urineProteinTestingCompletedOn: values.urineProteinTestingCompletedOn,
+    cholesterolTestingCompletedOn: values.cholesterolTestingCompletedOn,
+    ecgCompletedOn: values.ecgCompletedOn,
     statinUse: values.statinUse,
     aspirinUse: values.aspirinUse,
     volunteerActions: { selected: values.volunteerActions },
@@ -440,6 +453,8 @@ export function fromHypertensionRecord(
   const base = emptyHypertensionInterview();
   if (!record) return base;
 
+  const dateOnly = (value: unknown): string | null =>
+    typeof value === 'string' && value.length >= 10 ? value.slice(0, 10) : null;
   const str = (value: unknown, fallback: string): string =>
     typeof value === 'string' && value ? value : fallback;
   const num = (value: unknown): string =>
@@ -481,6 +496,11 @@ export function fromHypertensionRecord(
     urineProteinTesting: str(record.urineProteinTesting, base.urineProteinTesting),
     cholesterolTesting: str(record.cholesterolTesting, base.cholesterolTesting),
     ecgCompleted: str(record.ecgCompleted, base.ecgCompleted),
+    // A date-only string or null; an absent one reads back as "not recorded", not as today.
+    kidneyFunctionTestingCompletedOn: dateOnly(record.kidneyFunctionTestingCompletedOn),
+    urineProteinTestingCompletedOn: dateOnly(record.urineProteinTestingCompletedOn),
+    cholesterolTestingCompletedOn: dateOnly(record.cholesterolTestingCompletedOn),
+    ecgCompletedOn: dateOnly(record.ecgCompletedOn),
     statinUse: str(record.statinUse, base.statinUse),
     aspirinUse: str(record.aspirinUse, base.aspirinUse),
     volunteerActions: list(

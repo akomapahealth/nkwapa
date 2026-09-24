@@ -29,6 +29,7 @@ import {
   UpsertHypertensionAssessmentDto,
   UpsertHypertensionClinicianPlanDto,
 } from './dto/hypertension-assessment.dto';
+import { screeningCompletionDate, toDateOnly } from '../common/screening-completion';
 
 const MAX_FUTURE_COLLECTION_SKEW_MS = 5 * 60 * 1000;
 const DEFAULT_PAGE_SIZE = 25;
@@ -232,6 +233,19 @@ export class HypertensionAssessmentService {
         urineProteinTesting: dto.urineProteinTesting,
         cholesterolTesting: dto.cholesterolTesting,
         ecgCompleted: dto.ecgCompleted,
+        kidneyFunctionTestingCompletedOn: screeningCompletionDate(
+          dto.kidneyFunctionTesting,
+          dto.kidneyFunctionTestingCompletedOn,
+        ),
+        urineProteinTestingCompletedOn: screeningCompletionDate(
+          dto.urineProteinTesting,
+          dto.urineProteinTestingCompletedOn,
+        ),
+        cholesterolTestingCompletedOn: screeningCompletionDate(
+          dto.cholesterolTesting,
+          dto.cholesterolTestingCompletedOn,
+        ),
+        ecgCompletedOn: screeningCompletionDate(dto.ecgCompleted, dto.ecgCompletedOn),
         statinUse: dto.statinUse,
         aspirinUse: dto.aspirinUse,
         volunteerActions: (dto.volunteerActions ?? null) as Prisma.InputJsonValue,
@@ -467,6 +481,10 @@ export class HypertensionAssessmentService {
       urineProteinTesting: record.urineProteinTesting,
       cholesterolTesting: record.cholesterolTesting,
       ecgCompleted: record.ecgCompleted,
+      kidneyFunctionTestingCompletedOn: toDateOnly(record.kidneyFunctionTestingCompletedOn),
+      urineProteinTestingCompletedOn: toDateOnly(record.urineProteinTestingCompletedOn),
+      cholesterolTestingCompletedOn: toDateOnly(record.cholesterolTestingCompletedOn),
+      ecgCompletedOn: toDateOnly(record.ecgCompletedOn),
       statinUse: record.statinUse,
       aspirinUse: record.aspirinUse,
       volunteerActions: record.volunteerActions,
