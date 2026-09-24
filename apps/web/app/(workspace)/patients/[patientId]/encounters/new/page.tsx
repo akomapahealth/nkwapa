@@ -16,6 +16,9 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { VitalsForm } from '@/components/VitalsForm';
 import { DiabetesScreeningForm } from '@/components/DiabetesScreeningForm';
 import { HypertensionForm } from '@/components/HypertensionForm';
+import { DiabetesInterviewForm } from '@/components/encounters/diabetes/DiabetesInterviewForm';
+import { HypertensionInterviewForm } from '@/components/encounters/hypertension/HypertensionInterviewForm';
+import { isWebFeatureEnabled } from '@/lib/feature-flags';
 
 const STEPS = ['confirm', 'vitals', 'htn', 'diabetes', 'review'] as const;
 
@@ -39,6 +42,25 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
     lastName: string;
     patientCode: string;
   } | null>(null);
+  /*
+    This wizard rendered the pre-interview forms unconditionally while the encounter page rendered
+    the guided ones behind the flag. With the flag on, a volunteer creating a visit here answered
+    four hypertension fields and then landed on a tab showing the full interview - two different
+    forms writing one record in a single sitting. The flag is read in both places now.
+  */
+  const guidedChronicTabsEnabled = isWebFeatureEnabled('guidedChronicTabs');
+  const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
+  const canRecordClinicianPlan = perms.includes('CAREPLAN.CLINICIAN_PLAN');
+
+  /*
+    The guided hypertension interview reads today's blood pressure through from Vitals rather than
+    copying it, and the vitals step immediately before this one is what produces it. Without
+    reloading the encounter between steps the interview would show no reading at all on the one
+    path where it was certainly just taken.
+  */
+  const [vitals, setVitals] = useState<Record<string, unknown> | null>(null);
+  const [hypertension, setHypertension] = useState<Record<string, unknown> | null>(null);
+  const [diabetes, setDiabetes] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +76,27 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
     const enc = (await res.json()) as { id: string };
     return enc.id;
   }, [clinicId, patientId, getToken]);
+
+  /** Re-read what the previous step wrote, so the next one starts from the saved record. */
+  const refreshEncounterRecords = useCallback(
+    async (id: string) => {
+      if (!getToken) return;
+      try {
+        const res = await apiFetch(`/encounters/${encodeURIComponent(id)}`, { getToken });
+        if (!res.ok) return;
+        const enc = (await res.json()) as Record<string, unknown>;
+        setVitals((enc.vitals as Record<string, unknown> | undefined) ?? null);
+        setHypertension(
+          (enc.hypertensionAssessment as Record<string, unknown> | undefined) ?? null,
+        );
+        setDiabetes((enc.diabetesScreening as Record<string, unknown> | undefined) ?? null);
+      } catch {
+        // A failed refresh is not a failed step. The forms fall back to their own local record,
+        // and the encounter page reloads everything after this flow hands off to it.
+      }
+    },
+    [getToken],
+  );
 
   useEffect(() => {
     if (!clinicId || !getToken) return;
@@ -172,26 +215,70 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
           clinicId={clinicId}
           encounterId={encounterId}
           recordedByUserId={userId}
-          onSaved={() => setStep(2)}
+          onSaved={() => {
+            void refreshEncounterRecords(encounterId);
+            setStep(2);
+          }}
         />
       )}
 
-      {currentStep === 'htn' && (
-        <HypertensionForm
-          clinicId={clinicId}
-          encounterId={encounterId}
-          onSaved={() => setStep(3)}
-        />
-      )}
+      {currentStep === 'htn' &&
+        (guidedChronicTabsEnabled ? (
+          <HypertensionInterviewForm
+            clinicId={clinicId}
+            encounterId={encounterId}
+            patientId={patientId}
+            canRecordClinicianPlan={canRecordClinicianPlan}
+            initialData={hypertension}
+            vitals={
+              vitals
+                ? {
+                    systolicBp: (vitals.systolicBp as number | null) ?? null,
+                    diastolicBp: (vitals.diastolicBp as number | null) ?? null,
+                    pulseBpm: (vitals.pulseBpm as number | null) ?? null,
+                    weightKg: (vitals.weightKg as number | null) ?? null,
+                    heightCm: (vitals.heightCm as number | null) ?? null,
+                    bmi: (vitals.bmi as number | null) ?? null,
+                    updatedAt: vitals.updatedAt as string,
+                  }
+                : null
+            }
+            canEdit
+            onSaved={() => {
+              void refreshEncounterRecords(encounterId);
+              setStep(3);
+            }}
+          />
+        ) : (
+          <HypertensionForm
+            clinicId={clinicId}
+            encounterId={encounterId}
+            onSaved={() => setStep(3)}
+          />
+        ))}
 
-      {currentStep === 'diabetes' && (
-        <DiabetesScreeningForm
-          clinicId={clinicId}
-          encounterId={encounterId}
-          recordedByUserId={userId}
-          onSaved={() => setStep(4)}
-        />
-      )}
+      {currentStep === 'diabetes' &&
+        (guidedChronicTabsEnabled ? (
+          <DiabetesInterviewForm
+            clinicId={clinicId}
+            encounterId={encounterId}
+            patientId={patientId}
+            canRecordClinicianPlan={canRecordClinicianPlan}
+            initialData={diabetes}
+            canEdit
+            onSaved={() => {
+              void refreshEncounterRecords(encounterId);
+              setStep(4);
+            }}
+          />
+        ) : (
+          <DiabetesScreeningForm
+            clinicId={clinicId}
+            encounterId={encounterId}
+            recordedByUserId={userId}
+            onSaved={() => setStep(4)}
+          />
+        ))}
 
       {currentStep === 'review' && (
         <Card>
