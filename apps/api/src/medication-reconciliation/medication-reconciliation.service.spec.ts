@@ -99,6 +99,46 @@ describe('MedicationReconciliationService', () => {
     );
   });
 
+  it('records a stop date on a medication the patient is still taking', async () => {
+    /*
+      This used to be refused with CURRENT_MEDICATION_END_DATE. A ten-day course is current and
+      has a known end date, and the rule made that impossible to write down: the status answers
+      whether they are taking it now, the end date answers when it stops.
+    */
+    const { service, prisma } = setup();
+
+    await service.createMedication(clinicId, patientId, actorId, {
+      recordId,
+      revisionId,
+      medicationName: 'Amoxicillin',
+      status: PatientMedicationStatus.CURRENT,
+      sourceType: MedicationSourceType.PATIENT_REPORTED,
+      startDate: '2026-09-20',
+      endDate: '2026-09-30',
+    });
+
+    expect(prisma.patientMedicationRevision.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ endDate: new Date('2026-09-30') }),
+    });
+  });
+
+  it('still refuses an end date that precedes the start date', async () => {
+    // Dropping the status rule must not drop the ordering rule with it.
+    const { service } = setup();
+
+    await expect(
+      service.createMedication(clinicId, patientId, actorId, {
+        recordId,
+        revisionId,
+        medicationName: 'Amoxicillin',
+        status: PatientMedicationStatus.CURRENT,
+        sourceType: MedicationSourceType.PATIENT_REPORTED,
+        startDate: '2026-09-30',
+        endDate: '2026-09-20',
+      }),
+    ).rejects.toMatchObject({ response: { code: 'INVALID_MEDICATION_DATE_ORDER' } });
+  });
+
   it('rejects a stale revision and returns the latest record context', async () => {
     const { service } = setup();
 
