@@ -1,4 +1,6 @@
+import { execFileSync } from 'node:child_process';
 import { access, readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 
 const realmPath = new URL(
   '../infra/nkwapa/keycloak/realm-export/realm-nkwapa.json',
@@ -388,6 +390,51 @@ for (const relativePath of ['html/executeActions.ftl', 'text/executeActions.ftl'
     `${relativePath} must keep the portal cross-reference conditional`,
     themeEmailPath,
   );
+}
+
+/*
+  The realm export only reaches an environment on its first import. After that, KC_SMTP_*
+  reach the realm through the entrypoint's reconcile, so an image that lost the entrypoint
+  would ship with mail settings nobody can change from the service environment, and fail
+  silently: the API invitation arrives, the account-setup link never does.
+*/
+const dockerfile = await readFile(new URL('../infra/keycloak/Dockerfile', import.meta.url), 'utf8');
+assert(
+  dockerfile.includes('ENTRYPOINT ["/opt/keycloak/bin/nkwapa-entrypoint.sh"]'),
+  'the Keycloak image must start through nkwapa-entrypoint.sh so KC_SMTP_* apply to an existing realm',
+);
+for (const key of ['connectionTimeout', 'timeout', 'writeTimeout']) {
+  assert(
+    /^\d+$/.test(realm.smtpServer?.[key] ?? ''),
+    `smtpServer.${key} must be a bounded number of milliseconds`,
+  );
+}
+
+const entrypointPath = fileURLToPath(
+  new URL('../infra/nkwapa/keycloak/entrypoint.sh', import.meta.url),
+);
+try {
+  execFileSync('bash', ['-n', entrypointPath]);
+  const awkwardPassword = 'q"uo\\te\nline\ttab';
+  const built = JSON.parse(
+    execFileSync('bash', ['-c', 'source "$0"; build_smtp_json', entrypointPath], {
+      env: {
+        PATH: process.env.PATH,
+        KC_SMTP_HOST: 'smtp.example.test',
+        KC_SMTP_PORT: '2587',
+        KC_SMTP_PASSWORD: awkwardPassword,
+      },
+    }).toString(),
+  );
+  assert(built.smtpServer?.host === 'smtp.example.test', 'reconcile must carry KC_SMTP_HOST');
+  assert(built.smtpServer?.port === '2587', 'reconcile must carry KC_SMTP_PORT as a string');
+  assert(
+    built.smtpServer?.password === awkwardPassword,
+    'reconcile must escape quotes, backslashes and control characters in SMTP values',
+  );
+  assert(built.smtpServer?.envelopeFrom === '', 'an unset KC_SMTP_ENVELOPE_FROM must stay empty');
+} catch (error) {
+  failures.push(`entrypoint.sh reconcile check failed: ${error.message}`);
 }
 
 if (failures.length > 0) {

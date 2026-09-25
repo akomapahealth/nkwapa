@@ -18,8 +18,10 @@ ENV KC_HEALTH_ENABLED=true
 ENV KC_METRICS_ENABLED=true
 
 COPY --from=builder /opt/keycloak/ /opt/keycloak/
+# Applies KC_SMTP_* to the existing realm on every boot; --import-realm only does so once.
+COPY infra/nkwapa/keycloak/entrypoint.sh /opt/keycloak/bin/nkwapa-entrypoint.sh
 
 EXPOSE 8080
 
-ENTRYPOINT ["/opt/keycloak/bin/kc.sh"]
+ENTRYPOINT ["/opt/keycloak/bin/nkwapa-entrypoint.sh"]
 CMD ["start", "--optimized", "--import-realm"]

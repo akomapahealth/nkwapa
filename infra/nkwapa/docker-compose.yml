@@ -33,6 +33,8 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:26.6.2
     container_name: nkwapa-keycloak
+    # Same entrypoint as the deployed image, so the SMTP reconcile runs here too.
+    entrypoint: ['/opt/keycloak/bin/nkwapa-entrypoint.sh']
     command: ['start-dev', '--import-realm']
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:-${KEYCLOAK_ADMIN:-admin}}
@@ -61,6 +63,7 @@ services:
     volumes:
       - ./keycloak/realm-export:/opt/keycloak/data/import:ro
       - ./keycloak/themes/nkwapa:/opt/keycloak/themes/nkwapa:ro
+      - ./keycloak/entrypoint.sh:/opt/keycloak/bin/nkwapa-entrypoint.sh:ro
     healthcheck:
       test:
         [
