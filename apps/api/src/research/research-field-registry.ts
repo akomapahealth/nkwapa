@@ -138,6 +138,8 @@ export const RESEARCH_OUT_OF_SCOPE_MODELS: Record<string, string> = {
   UserClinicRole: 'Which staff hold which seat at which clinic.',
   PatientAccountLink: 'Links a chart to a portal login, which is an authentication fact.',
   PatientPortalInvite: 'An invitation to a login, carrying an email address and a token.',
+  StaffInvite:
+    'An offer of a staff role to an email address. Operational, and about staff, not patients.',
   PatientCodeAlias: 'Retired patient codes, which are identifiers by construction.',
   PatientMergeRecord: 'Merge provenance, an administrative record reviewed inside the clinic.',
   PatientDuplicateReview: 'A review queue over identifiers, which is what makes it a queue.',

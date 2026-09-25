@@ -46,7 +46,6 @@ import {
   APPOINTMENT_REMINDER_TEMPLATE_KEY,
   PATIENT_REMINDER_TEMPLATE_KEYS,
 } from '../notifications/templates';
-import type { PortalInviteAccountSetup } from '../notifications/templates/portal-invite';
 import { resolveAppPublicUrl } from '../notifications/email/email-config';
 import type { ClaimPatientRecordDto } from './dto/claim-record.dto';
 import {
@@ -58,8 +57,9 @@ import {
   resolveIdentityActionLifespanSeconds,
   resolvePortalInviteExpiry,
 } from '../common/portal-invite-lifecycle';
+import { describeInviteAccountSetup } from '../common/invite-account-setup';
 import { KeycloakAdminService } from '../keycloak/keycloak-admin.service';
-import type { ProvisionPortalIdentityResult } from '../keycloak/keycloak-admin.service';
+import type { ProvisionInvitedIdentityResult } from '../keycloak/keycloak-admin.service';
 import { describeInviteStateForStaff, formatInviteExpiryDate } from './portal-invite-presentation';
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -200,25 +200,6 @@ export interface PatientTrendsResponse {
   glucose: GlucoseTrendPoint[];
   measurements?: ExpandedVitalsTrendPoint[];
   followUp: FollowUpSummary;
-}
-
-/**
- * Translate the stored provisioning state into what the patient has to do next.
- *
- * Anything we are not sure about reads as UNKNOWN, which renders the neutral "sign in and
- * confirm" wording. Guessing PENDING_PASSWORD would point a patient at a second email that
- * was never sent.
- */
-function describeInviteAccountSetup(status: PortalInviteIdentityStatus): PortalInviteAccountSetup {
-  switch (status) {
-    case 'PROVISIONED':
-    case 'EXISTING_PENDING':
-      return 'PENDING_PASSWORD';
-    case 'ALREADY_ACTIVE':
-      return 'EXISTING_ACCOUNT';
-    default:
-      return 'UNKNOWN';
-  }
 }
 
 /**
@@ -1545,7 +1526,7 @@ export class PatientPortalService {
       select: { firstName: true, lastName: true },
     });
 
-    const result = await this.keycloakAdminService.provisionPortalIdentity({
+    const result = await this.keycloakAdminService.provisionInvitedIdentity({
       email: invite.email,
       firstName: patient?.firstName ?? null,
       lastName: patient?.lastName ?? null,
@@ -1559,7 +1540,7 @@ export class PatientPortalService {
   private async recordInviteIdentity(
     invite: { id: string; clinicId: string },
     actorUserId: string,
-    result: ProvisionPortalIdentityResult,
+    result: ProvisionInvitedIdentityResult,
     requestId?: string,
   ): Promise<PortalInviteIdentityFields> {
     const identityProvisionedAt = new Date();

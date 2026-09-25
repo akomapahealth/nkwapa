@@ -22,10 +22,30 @@ export function buildLoginHref(next: string | null | undefined): string {
   return `/login?${params.toString()}`;
 }
 
+/** Where a staff invitee accepts. Mirrors STAFF_INVITE_ACCEPT_PATH on the API. */
+export const STAFF_INVITE_ACCEPT_PATH = '/accept-invite';
+
+/**
+ * The page an account with no role is held on, if any.
+ *
+ * Both onboarding states work the same way: the account can do nothing else yet, so it is sent to
+ * the one page that moves it forward and kept there until whoami says otherwise.
+ */
+export function getOnboardingPath(bootstrap: WhoAmIResponse | null): string | null {
+  switch (bootstrap?.onboarding?.state) {
+    case 'PATIENT_CLAIM_REQUIRED':
+      return '/claim-record';
+    case 'STAFF_INVITE_ACCEPT_REQUIRED':
+      return STAFF_INVITE_ACCEPT_PATH;
+    default:
+      return null;
+  }
+}
+
 export function getDefaultWorkspacePath(bootstrap: WhoAmIResponse | null): string {
-  const requiresPatientClaim = bootstrap?.onboarding?.state === 'PATIENT_CLAIM_REQUIRED';
-  if (requiresPatientClaim) {
-    return '/claim-record';
+  const onboardingPath = getOnboardingPath(bootstrap);
+  if (onboardingPath) {
+    return onboardingPath;
   }
 
   const roles = bootstrap?.effectiveRolesForActiveClinic ?? bootstrap?.globalRoles ?? [];
@@ -38,9 +58,9 @@ export function getPostAuthPath(
   next: string | null | undefined,
 ): string {
   const defaultPath = getDefaultWorkspacePath(bootstrap);
-  if (defaultPath === '/claim-record') {
+  if (defaultPath === getOnboardingPath(bootstrap)) {
     /*
-      A pending claim still outranks wherever the visitor was headed -- but not its own
+      Pending onboarding still outranks wherever the visitor was headed -- but not its own
       query string. Returning the bare path here dropped the marker that says this patient
       has just set a password, so they arrived at the claim form with no acknowledgement of
       the step they had completed a moment earlier, on the one journey the marker exists for.

@@ -2,6 +2,7 @@ import { EMPTY, lastValueFrom, of } from 'rxjs';
 import type { CallHandler, ExecutionContext } from '@nestjs/common';
 import { PrismaRlsInterceptor } from './prisma-rls.interceptor';
 import type { PrismaService } from './prisma.service';
+import { IncludeStaffInviteScope } from '../staff-invites/staff-invite-scope.decorator';
 
 /**
  * The tenant boundary this interceptor draws is partly decided by portal invites: an
@@ -11,13 +12,26 @@ import type { PrismaService } from './prisma.service';
  * read. These tests exist so that cannot come back.
  */
 describe('PrismaRlsInterceptor supplemental clinic access', () => {
-  const buildContext = () =>
+  class OrdinaryController {
+    handle() {}
+  }
+  class InviteController {
+    @IncludeStaffInviteScope()
+    handle() {}
+  }
+
+  const buildContext = (
+    roles: Array<{ clinicId: string | null; role: string }> = [],
+    controller: { new (): { handle: () => void } } = OrdinaryController,
+  ) =>
     ({
       getType: () => 'http',
+      getHandler: () => controller.prototype.handle,
+      getClass: () => controller,
       switchToHttp: () => ({
         getRequest: () => ({
           headers: {},
-          user: { user: { id: 'user-1' }, roles: [] },
+          user: { user: { id: 'user-1' }, roles },
         }),
       }),
     }) as unknown as ExecutionContext;
@@ -26,11 +40,13 @@ describe('PrismaRlsInterceptor supplemental clinic access', () => {
 
   function buildPrisma(user: { email: string | null; phoneE164: string | null } | null) {
     const findMany = jest.fn().mockResolvedValue([{ clinicId: 'clinic-9' }]);
+    const staffInviteFindMany = jest.fn().mockResolvedValue([{ clinicId: 'clinic-staff' }]);
     const tx = {
       user: {
         findUnique: jest.fn().mockResolvedValue(user && { ...user, portalPatient: null }),
       },
       patientPortalInvite: { findMany },
+      staffInvite: { findMany: staffInviteFindMany },
       // A second bootstrap read runs once a supplemental clinic has been resolved, to
       // find the organization the request will be scoped to.
       clinic: { findMany: jest.fn().mockResolvedValue([]) },
@@ -41,7 +57,12 @@ describe('PrismaRlsInterceptor supplemental clinic access', () => {
       ),
       withRlsContext: jest.fn(async (_ctx: unknown, run: () => Promise<unknown>) => run()),
     } as unknown as PrismaService;
-    return { prisma, findMany };
+    return { prisma, findMany, staffInviteFindMany };
+  }
+
+  function scopedClinicIds(prisma: PrismaService): string[] {
+    const calls = (prisma.withRlsContext as jest.Mock).mock.calls;
+    return (calls[calls.length - 1][0] as { clinicIds: string[] }).clinicIds;
   }
 
   it('only widens scope from an invite that is still claimable', async () => {
@@ -71,6 +92,64 @@ describe('PrismaRlsInterceptor supplemental clinic access', () => {
     await lastValueFrom(interceptor.intercept(buildContext(), buildHandler()));
 
     expect(findMany).not.toHaveBeenCalled();
+  });
+
+  /*
+    A doctor at one clinic invited to volunteer at another is the ordinary case for a staff
+    invitation. If every request widened on it, they would hold tenant scope over the second
+    clinic on every route that leans on row level security, before accepting anything.
+  */
+  it('never widens to a staff invitation on an ordinary route', async () => {
+    const { prisma, staffInviteFindMany } = buildPrisma({
+      email: 'kofi@example.com',
+      phoneE164: null,
+    });
+    const interceptor = new PrismaRlsInterceptor(prisma);
+
+    await lastValueFrom(
+      interceptor.intercept(
+        buildContext([{ clinicId: 'clinic-a', role: 'DOCTOR' }]),
+        buildHandler(),
+      ),
+    );
+
+    expect(staffInviteFindMany).not.toHaveBeenCalled();
+    expect(scopedClinicIds(prisma)).not.toContain('clinic-staff');
+  });
+
+  it('widens to an open staff invitation, by verified email only, on a route that opts in', async () => {
+    const { prisma, staffInviteFindMany } = buildPrisma({
+      email: 'Kofi@Example.com',
+      phoneE164: '+233201234567',
+    });
+    const interceptor = new PrismaRlsInterceptor(prisma);
+
+    await lastValueFrom(
+      interceptor.intercept(
+        buildContext([{ clinicId: 'clinic-a', role: 'DOCTOR' }], InviteController),
+        buildHandler(),
+      ),
+    );
+
+    // No phone clause: a staff invitation has no second factor to fall back on, so only the
+    // verified inbox counts.
+    expect(staffInviteFindMany).toHaveBeenCalledWith({
+      where: { status: 'PENDING', expiresAt: { gt: expect.any(Date) }, email: 'kofi@example.com' },
+      select: { clinicId: true },
+    });
+    expect(scopedClinicIds(prisma)).toEqual(expect.arrayContaining(['clinic-a', 'clinic-staff']));
+  });
+
+  it('does not look for staff invitations for a user without a verified email', async () => {
+    const { prisma, staffInviteFindMany } = buildPrisma({
+      email: null,
+      phoneE164: '+233201234567',
+    });
+    const interceptor = new PrismaRlsInterceptor(prisma);
+
+    await lastValueFrom(interceptor.intercept(buildContext([], InviteController), buildHandler()));
+
+    expect(staffInviteFindMany).not.toHaveBeenCalled();
   });
 });
 

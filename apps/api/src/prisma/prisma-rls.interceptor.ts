@@ -1,10 +1,19 @@
-import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
+import {
+  CallHandler,
+  ExecutionContext,
+  Injectable,
+  NestInterceptor,
+  Optional,
+} from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { Prisma, UserRole } from '@prisma/client';
 import { lastValueFrom, defaultIfEmpty, defer, from, mergeMap, type Observable } from 'rxjs';
 import { randomUUID } from 'node:crypto';
 import { getRequestId } from '../common/request-context';
 import { PrismaRlsContext, PrismaService } from './prisma.service';
 import { claimableInviteForIdentityWhere } from '../common/portal-invite-lifecycle';
+import { acceptableStaffInviteWhere } from '../common/staff-invite-lifecycle';
+import { STAFF_INVITE_SCOPE_KEY } from '../staff-invites/staff-invite-scope.decorator';
 
 /**
  * The tenant fields the chat handshake attaches to a socket.
@@ -27,7 +36,14 @@ type RequestWithAuth = {
 
 @Injectable()
 export class PrismaRlsInterceptor implements NestInterceptor {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly reflector: Reflector;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() reflector?: Reflector,
+  ) {
+    this.reflector = reflector ?? new Reflector();
+  }
 
   intercept(context: ExecutionContext, next: CallHandler): ReturnType<CallHandler['handle']> {
     if (context.getType() === 'ws') {
@@ -38,8 +54,13 @@ export class PrismaRlsInterceptor implements NestInterceptor {
     }
 
     const request = context.switchToHttp().getRequest<RequestWithAuth>();
+    const includeStaffInvites =
+      this.reflector.getAllAndOverride<boolean>(STAFF_INVITE_SCOPE_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]) === true;
     return defer(() =>
-      from(this.buildRlsContext(request)).pipe(
+      from(this.buildRlsContext(request, includeStaffInvites)).pipe(
         mergeMap((rlsContext) =>
           from(this.prisma.withRlsContext(rlsContext, () => lastValueFrom(next.handle() as never))),
         ),
@@ -105,7 +126,10 @@ export class PrismaRlsInterceptor implements NestInterceptor {
     ) as unknown as ReturnType<CallHandler['handle']>;
   }
 
-  private async buildRlsContext(request: RequestWithAuth): Promise<PrismaRlsContext> {
+  private async buildRlsContext(
+    request: RequestWithAuth,
+    includeStaffInvites = false,
+  ): Promise<PrismaRlsContext> {
     const roles = request.user?.roles ?? [];
     const userId = request.user?.user?.id ?? null;
     const allowedClinicIds = [
@@ -123,6 +147,7 @@ export class PrismaRlsInterceptor implements NestInterceptor {
     const supplementalClinicIds = await this.resolveSupplementalClinicIds(
       userId,
       getRequestId(request as never),
+      includeStaffInvites,
     );
     const effectiveClinicIds = [...new Set([...allowedClinicIds, ...supplementalClinicIds])];
     const activeClinicId =
@@ -183,7 +208,11 @@ export class PrismaRlsInterceptor implements NestInterceptor {
     };
   }
 
-  private async resolveSupplementalClinicIds(userId: string | null, requestId?: string) {
+  private async resolveSupplementalClinicIds(
+    userId: string | null,
+    requestId?: string,
+    includeStaffInvites = false,
+  ) {
     if (!userId) {
       return [];
     }
@@ -197,11 +226,15 @@ export class PrismaRlsInterceptor implements NestInterceptor {
         userId,
         systemReason: 'Resolve portal clinic access for an inbound request',
       },
-      async (tx) => this.collectSupplementalClinicIds(tx, userId),
+      async (tx) => this.collectSupplementalClinicIds(tx, userId, includeStaffInvites),
     );
   }
 
-  private async collectSupplementalClinicIds(tx: Prisma.TransactionClient, userId: string) {
+  private async collectSupplementalClinicIds(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    includeStaffInvites: boolean,
+  ) {
     const user = await tx.user.findUnique({
       where: { id: userId },
       select: {
@@ -220,23 +253,43 @@ export class PrismaRlsInterceptor implements NestInterceptor {
       clinicIds.add(user.portalPatient.primaryClinicId);
     }
 
+    const now = new Date();
+
     // An expired invite must widen nothing. This matched on status alone, so an invite
     // staged a year ago still handed its clinic to whoever held the address it was sent
     // to — a tenant boundary decided by a column nothing read.
-    const claimable = claimableInviteForIdentityWhere(user ?? {}, new Date());
-    if (!claimable) {
-      return [...clinicIds];
+    const claimable = claimableInviteForIdentityWhere(user ?? {}, now);
+    if (claimable) {
+      const invites = await tx.patientPortalInvite.findMany({
+        where: claimable,
+        select: {
+          clinicId: true,
+        },
+      });
+      for (const invite of invites) {
+        clinicIds.add(invite.clinicId);
+      }
     }
 
-    const invites = await tx.patientPortalInvite.findMany({
-      where: claimable,
-      select: {
-        clinicId: true,
-      },
-    });
+    /*
+      A staff invitee holds no role in the clinic yet, so without this they could not read the
+      invitation they are about to accept. Keyed on email alone, never phone: User.email is only
+      written from a verified token, and a staff invitation has no second factor to fall back on.
 
-    for (const invite of invites) {
-      clinicIds.add(invite.clinicId);
+      Only on handlers marked @IncludeStaffInviteScope. See that decorator for why this cannot
+      apply to every request the way the patient widening above does.
+    */
+    const acceptable = includeStaffInvites ? acceptableStaffInviteWhere(user?.email, now) : null;
+    if (acceptable) {
+      const staffInvites = await tx.staffInvite.findMany({
+        where: acceptable,
+        select: {
+          clinicId: true,
+        },
+      });
+      for (const invite of staffInvites) {
+        clinicIds.add(invite.clinicId);
+      }
     }
 
     return [...clinicIds];

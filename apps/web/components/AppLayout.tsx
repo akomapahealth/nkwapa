@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Header } from '@/components/Header';
 import { Sidebar } from '@/components/Sidebar';
 import { ChatWidget } from '@/components/chat/ChatWidget';
+import { PendingStaffInviteNotice } from '@/components/staff/PendingStaffInviteNotice';
 
 const SIDEBAR_STORAGE_KEY = 'nkwapa.sidebar.collapsed';
 
@@ -83,7 +84,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             tabIndex={-1}
             className="min-w-0 flex-1 overflow-auto px-4 py-5 pb-24 focus-visible:outline-none md:px-6 md:pb-8 lg:px-8"
           >
-            <div className="mx-auto w-full max-w-[1440px] space-y-6">{children}</div>
+            <div className="mx-auto w-full max-w-[1440px] space-y-6">
+              <PendingStaffInviteNotice />
+              {children}
+            </div>
           </main>
         </div>
       </div>

@@ -25,6 +25,7 @@ import {
   type BootstrapClinic,
 } from './bootstrap-clinics';
 import { getStoredActiveClinicId, setStoredActiveClinicId } from './bootstrap-storage';
+import type { PendingStaffInvite } from './staff-invite';
 
 export { BOOTSTRAP_STORAGE_KEY } from './bootstrap-storage';
 
@@ -46,21 +47,29 @@ export interface WhoAmIResponse {
   activeClinicId: string | null;
   effectiveRolesForActiveClinic: string[];
   effectivePermissionsForActiveClinic: string[];
-  onboarding: {
-    state: 'PATIENT_CLAIM_REQUIRED';
-    pendingInvites: Array<{
-      id: string;
-      clinicId: string;
-      clinicName: string;
-      patientId: string;
-      patientName: string;
-      patientCode: string;
-      email: string | null;
-      phoneE164: string | null;
-      createdAt: string;
-      expiresAt: string | null;
-    }>;
-  } | null;
+  /**
+   * Staff invitations this account can accept, whatever roles it already holds. Optional so an
+   * older API that does not send it still parses.
+   */
+  pendingStaffInvites?: PendingStaffInvite[];
+  onboarding:
+    | { state: 'STAFF_INVITE_ACCEPT_REQUIRED' }
+    | {
+        state: 'PATIENT_CLAIM_REQUIRED';
+        pendingInvites: Array<{
+          id: string;
+          clinicId: string;
+          clinicName: string;
+          patientId: string;
+          patientName: string;
+          patientCode: string;
+          email: string | null;
+          phoneE164: string | null;
+          createdAt: string;
+          expiresAt: string | null;
+        }>;
+      }
+    | null;
 }
 
 interface BootstrapContextValue {

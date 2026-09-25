@@ -1,5 +1,7 @@
 import {
   buildLoginHref,
+  getDefaultWorkspacePath,
+  getOnboardingPath,
   getPostAuthPath,
   getSafeNextPath,
   shouldAutoContinue,
@@ -108,5 +110,42 @@ describe('getPostAuthPath', () => {
   it('leaves everyone without a pending claim exactly as they were', () => {
     expect(getPostAuthPath(STAFF, '/patients')).toBe('/patients');
     expect(getPostAuthPath(STAFF, null)).toBe('/dashboard');
+  });
+});
+
+describe('staff invitation onboarding', () => {
+  const INVITEE = {
+    onboarding: { state: 'STAFF_INVITE_ACCEPT_REQUIRED' },
+    pendingStaffInvites: [{ id: 'invite-1' }],
+  } as unknown as WhoAmIResponse;
+
+  it('holds an account with no role on the acceptance page', () => {
+    expect(getOnboardingPath(INVITEE)).toBe('/accept-invite');
+    expect(getDefaultWorkspacePath(INVITEE)).toBe('/accept-invite');
+  });
+
+  it('outranks wherever the invitee was headed', () => {
+    expect(getPostAuthPath(INVITEE, '/patients')).toBe('/accept-invite');
+  });
+
+  // Same contract as the patient journey: the marker says a password was just chosen.
+  it('keeps the continue marker the API puts on the redirect', () => {
+    expect(getPostAuthPath(INVITEE, '/accept-invite?continue=1')).toBe('/accept-invite?continue=1');
+    expect(shouldAutoContinue('/accept-invite?continue=1')).toBe(true);
+  });
+
+  // A colleague invited to a second clinic is offered it, not sent away from their work.
+  it('does not hold an existing staff member who also has an invitation', () => {
+    const colleague = {
+      ...STAFF,
+      onboarding: null,
+      pendingStaffInvites: [{ id: 'invite-2' }],
+    } as unknown as WhoAmIResponse;
+    expect(getOnboardingPath(colleague)).toBeNull();
+    expect(getPostAuthPath(colleague, '/patients')).toBe('/patients');
+  });
+
+  it('leaves the patient claim path unchanged', () => {
+    expect(getOnboardingPath(CLAIMANT)).toBe('/claim-record');
   });
 });

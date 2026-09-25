@@ -165,7 +165,13 @@ describe('the bootstrap contract carries zone as context only', () => {
           { id: CLINIC_A1, name: 'A1', region: null, zoneCode: SHARED_ZONE_CODE },
         ]),
     };
-    const prisma = { patientPortalInvite: { findMany: jest.fn().mockResolvedValue([]) } };
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({ email: 'a1@example.test', isActive: true }),
+      },
+      patientPortalInvite: { findMany: jest.fn().mockResolvedValue([]) },
+      staffInvite: { findMany: jest.fn().mockResolvedValue([]) },
+    };
     const controller = new AuthController(clinicService as never, prisma as never);
 
     const response = await controller.whoami({

@@ -66,6 +66,13 @@ export const PERMISSIONS = {
   // Clinic
   CLINIC_READ: 'CLINIC.READ',
   CLINIC_MANAGE: 'CLINIC.MANAGE',
+  /*
+    Invite someone onto a clinic's staff by email. DIRECTOR and SYSTEM_ADMIN only, and narrower
+    than CLINIC_MANAGE on purpose: a manager can deactivate a volunteer, but an invitation hands
+    a stranger a role with nothing but an inbox as proof, so it sits with the two seats that
+    already decide who works in a clinic. StaffInviteService also applies the role ceiling itself.
+  */
+  CLINIC_STAFF_INVITE: 'CLINIC.STAFF.INVITE',
   // Ops
   OPS_SHIFT_WRITE: 'OPS.SHIFT.WRITE',
   OPS_SHIFT_READ: 'OPS.SHIFT.READ',
@@ -113,6 +120,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   [UserRole.DIRECTOR]: [
     PERMISSIONS.CLINIC_READ,
     PERMISSIONS.CLINIC_MANAGE,
+    PERMISSIONS.CLINIC_STAFF_INVITE,
     PERMISSIONS.OPS_SHIFT_READ,
     PERMISSIONS.OPS_CHECKIN_CREATE,
     PERMISSIONS.OPS_CHECKIN_READ,

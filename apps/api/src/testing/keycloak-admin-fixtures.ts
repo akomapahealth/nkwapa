@@ -1,9 +1,9 @@
 import { KeycloakAdminService } from '../keycloak/keycloak-admin.service';
-import type { ProvisionPortalIdentityResult } from '../keycloak/keycloak-admin.service';
+import type { ProvisionInvitedIdentityResult } from '../keycloak/keycloak-admin.service';
 
 export interface KeycloakAdminServiceMock {
   isReady: boolean;
-  provisionPortalIdentity: jest.Mock<Promise<ProvisionPortalIdentityResult>>;
+  provisionInvitedIdentity: jest.Mock<Promise<ProvisionInvitedIdentityResult>>;
 }
 
 /**
@@ -12,8 +12,8 @@ export interface KeycloakAdminServiceMock {
  * other outcomes override the mock rather than restating the whole shape.
  */
 export function provisionResult(
-  overrides: Partial<ProvisionPortalIdentityResult> = {},
-): ProvisionPortalIdentityResult {
+  overrides: Partial<ProvisionInvitedIdentityResult> = {},
+): ProvisionInvitedIdentityResult {
   return {
     outcome: 'PROVISIONED',
     keycloakUserId: 'kc-provisioned-1',
@@ -24,11 +24,11 @@ export function provisionResult(
 }
 
 export function createKeycloakAdminServiceMock(
-  result: ProvisionPortalIdentityResult = provisionResult(),
+  result: ProvisionInvitedIdentityResult = provisionResult(),
 ): KeycloakAdminServiceMock {
   return {
     isReady: true,
-    provisionPortalIdentity: jest.fn().mockResolvedValue(result),
+    provisionInvitedIdentity: jest.fn().mockResolvedValue(result),
   };
 }
 
