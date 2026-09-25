@@ -274,17 +274,41 @@ Common seed fields for new environments:
 
 ## 9. Deactivation And Lifecycle
 
-Current behavior:
+Deactivating someone ends their sign-in as well as their access to Nkwapa (issue #126). Both
+halves are shown separately on the account page, because they can fail separately.
 
-- users can be deactivated without hard deletion
-- clinic roles can be revoked
-- deactivated users should fail app bootstrap or lose access
-- self-destructive admin actions are blocked where unsafe
+**Deactivate** (account page on `/admin/users`):
 
-Main surfaces:
+- **Their only clinic, or a global deactivation by a system admin:** `User.isActive` is set to
+  false at once, which blocks every API and app request on the next call. Then, after the request
+  has committed, a background job disables the Keycloak identity and ends every open session. The
+  account page shows **Sign-in disabled** when that lands.
+- **They also work in another clinic** (only a system admin can reach this from a clinic roster):
+  only this clinic's roles are withdrawn. The account and the sign-in stay active for the clinics
+  they still work in. Getting this backwards would lock a working clinician out of a clinic that
+  never asked for it.
 
-- `/admin/users`
-- clinic roster actions
+**Reactivate:** the same people who may deactivate may reactivate. It restores `isActive`,
+re-enables the Keycloak identity, and emails the person that they can sign in again with their
+existing password.
+
+**When the sign-in half fails.** Keycloak being down never delays or undoes the local block; the
+job retries on its own for a few minutes. If it still cannot finish, the account page says
+**Can still sign in** (after a deactivation) or **Cannot sign in** (after a reactivation), with the
+reason, and a **Sync sign-in** button. Users deactivated before this existed show **Sign-in not yet
+disabled**, and the same button fixes them.
+
+Repeating a deactivation or a reactivation is safe. It changes nothing locally, sends no email,
+and re-runs the sign-in half.
+
+What never happens: the Keycloak user is **disabled, never deleted**. Audit events and portal links
+reference its subject, and deleting it would break the record of who did what.
+
+Audit: `USER.DEACTIVATE`, `USER.REACTIVATE`, `ROLE.REVOKE` (for a clinic-only withdrawal), and
+`USER.IDENTITY.DISABLE` / `USER.IDENTITY.ENABLE` with the outcome and a failure code.
+
+Patient portal accounts are not covered yet: a patient is not deactivated by an administrator in
+the same way, and that trigger is a separate change.
 
 ---
 

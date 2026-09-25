@@ -28,6 +28,8 @@ type ClientMock = {
   createUser: jest.Mock;
   hasPasswordCredential: jest.Mock;
   executeActionsEmail: jest.Mock;
+  setUserEnabled: jest.Mock;
+  logoutUser: jest.Mock;
 };
 
 function createClient(overrides: Partial<ClientMock> = {}): ClientMock {
@@ -37,6 +39,8 @@ function createClient(overrides: Partial<ClientMock> = {}): ClientMock {
     createUser: jest.fn().mockResolvedValue({ id: 'kc-1', email: INPUT.email }),
     hasPasswordCredential: jest.fn().mockResolvedValue(false),
     executeActionsEmail: jest.fn().mockResolvedValue(undefined),
+    setUserEnabled: jest.fn().mockResolvedValue('UPDATED'),
+    logoutUser: jest.fn().mockResolvedValue('LOGGED_OUT'),
     ...overrides,
   };
 }
@@ -220,6 +224,79 @@ describe('KeycloakAdminService.provisionInvitedIdentity', () => {
 
       const logged = warn.mock.calls.map((call) => String(call[0])).join('\n');
       expect(logged).not.toContain(INPUT.email);
+    });
+  });
+});
+
+describe('KeycloakAdminService.setIdentityAccess', () => {
+  let warn: jest.SpyInstance;
+
+  beforeEach(() => {
+    warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    warn.mockRestore();
+  });
+
+  it('disables the identity and then ends its sessions', async () => {
+    const client = createClient();
+
+    await expect(service(client).setIdentityAccess('kc-1', false)).resolves.toEqual({
+      outcome: 'APPLIED',
+      sessionsEnded: true,
+      retryable: false,
+      failureReason: null,
+    });
+    expect(client.setUserEnabled).toHaveBeenCalledWith('kc-1', false);
+    expect(client.logoutUser).toHaveBeenCalledWith('kc-1');
+    expect(client.setUserEnabled.mock.invocationCallOrder[0]).toBeLessThan(
+      client.logoutUser.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('enables without touching sessions', async () => {
+    const client = createClient();
+
+    await expect(service(client).setIdentityAccess('kc-1', true)).resolves.toMatchObject({
+      outcome: 'APPLIED',
+      sessionsEnded: false,
+    });
+    expect(client.logoutUser).not.toHaveBeenCalled();
+  });
+
+  it('reports a missing identity', async () => {
+    const client = createClient({ setUserEnabled: jest.fn().mockResolvedValue('NOT_FOUND') });
+
+    await expect(service(client).setIdentityAccess('gone', false)).resolves.toMatchObject({
+      outcome: 'NOT_FOUND',
+      failureReason: 'IDENTITY_NOT_FOUND',
+    });
+  });
+
+  it('skips on a deployment without the service account', async () => {
+    const client = createClient({ isReady: false });
+
+    await expect(service(client).setIdentityAccess('kc-1', false)).resolves.toMatchObject({
+      outcome: 'SKIPPED',
+      failureReason: 'KEYCLOAK_ADMIN_UNCONFIGURED',
+    });
+    expect(client.setUserEnabled).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [new KeycloakAdminError('KEYCLOAK_ADMIN_TIMEOUT'), true],
+    [new KeycloakAdminError('KEYCLOAK_ADMIN_UNREACHABLE'), true],
+    [new KeycloakAdminError('KEYCLOAK_ADMIN_REQUEST_FAILED', 503), true],
+    [new KeycloakAdminError('KEYCLOAK_ADMIN_REQUEST_FAILED', 403), false],
+    [new KeycloakAdminError('KEYCLOAK_ADMIN_AUTH_FAILED', 401), false],
+  ])('never throws, and marks %s retryable=%s', async (error, retryable) => {
+    const client = createClient({ setUserEnabled: jest.fn().mockRejectedValue(error) });
+
+    await expect(service(client).setIdentityAccess('kc-1', false)).resolves.toMatchObject({
+      outcome: 'FAILED',
+      retryable,
+      failureReason: error.code,
     });
   });
 });

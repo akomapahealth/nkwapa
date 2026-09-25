@@ -816,6 +816,24 @@ model Clinic {
   @@index([isActive])
 }
 
+/// Whether the Keycloak identity behind a user matches their Nkwapa access. Issue #126.
+///
+/// Separate from User.isActive because the two are written by different systems and can fail
+/// independently: the local block always lands, and the identity half may not. An admin who
+/// can see "deactivated here, still able to sign in" can act on it; one who sees nothing cannot.
+enum UserIdentitySyncStatus {
+  /// Never synced. Every user before #126, and every user never deactivated since.
+  NOT_SYNCED
+  /// A change was made locally and the identity job has not reported yet.
+  PENDING
+  /// Keycloak confirmed the identity matches isActive.
+  IN_SYNC
+  /// Keycloak refused or could not be reached. identitySyncFailureReason says which.
+  FAILED
+  /// This deployment has no service account, so nothing was attempted.
+  SKIPPED
+}
+
 model User {
   id          String @id @default(uuid()) @db.Uuid
   keycloakSub String @unique @db.VarChar(255)
@@ -827,6 +845,13 @@ model User {
   phoneE164   String? @db.VarChar(32) // enforced E.164 in app layer
 
   isActive Boolean @default(true)
+
+  // Whether the Keycloak identity has been brought in line with isActive. See the enum.
+  identitySyncStatus        UserIdentitySyncStatus @default(NOT_SYNCED)
+  identitySyncRequestedAt   DateTime?
+  identitySyncedAt          DateTime?
+  /// A stable code such as KEYCLOAK_ADMIN_TIMEOUT. Never a sentence, never an address.
+  identitySyncFailureReason String?                @db.VarChar(255)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

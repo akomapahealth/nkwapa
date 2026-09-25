@@ -142,6 +142,7 @@ const TYPE_LABELS: Record<string, string> = {
   STAFF_ROLE_GRANTED_V1: 'Access granted',
   STAFF_ROLE_REVOKED_V1: 'Access removed',
   STAFF_ACCOUNT_DEACTIVATED_V1: 'Account deactivated',
+  STAFF_ACCOUNT_REACTIVATED_V1: 'Account reactivated',
 };
 
 export function formatTemplateLabel(templateKey: string): string {

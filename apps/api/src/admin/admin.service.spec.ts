@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { AdminService, type AdminActor } from './admin.service';
 
@@ -43,6 +43,10 @@ function buildUser(
     createdAt: overrides.createdAt ?? new Date('2026-03-23T08:00:00.000Z'),
     updatedAt: overrides.updatedAt ?? new Date('2026-03-23T09:00:00.000Z'),
     clinicRoles: overrides.clinicRoles ?? [buildRoleEntry()],
+    identitySyncStatus: 'NOT_SYNCED' as const,
+    identitySyncFailureReason: null,
+    identitySyncRequestedAt: null,
+    identitySyncedAt: null,
   };
 }
 
@@ -116,11 +120,21 @@ describe('AdminService', () => {
       }),
     };
 
+    const identitySync = {
+      requestSync: jest.fn().mockResolvedValue({ status: 'PENDING', failureReason: null }),
+    };
+
     return {
       prisma,
+      identitySync,
       auditService,
       reminderService,
-      service: new AdminService(prisma as never, auditService as never, reminderService as never),
+      service: new AdminService(
+        prisma as never,
+        auditService as never,
+        reminderService as never,
+        identitySync as never,
+      ),
     };
   }
 
@@ -467,8 +481,10 @@ describe('AdminService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('raises a conflict when deactivating an already inactive user', async () => {
-    const { prisma, service } = createService();
+  // Idempotent (#126): a repeat changes nothing locally, sends nothing, and re-requests the
+  // identity half, which is how an admin retries a disable that did not land.
+  it('treats deactivating an already inactive user as a retry of the identity half', async () => {
+    const { prisma, reminderService, identitySync, service } = createService();
     prisma.user.findUnique.mockResolvedValue(
       buildUser({
         id: 'inactive-1',
@@ -479,7 +495,204 @@ describe('AdminService', () => {
 
     await expect(
       service.deactivateUserGlobally(systemAdminActor, 'inactive-1', 'req-9'),
-    ).rejects.toBeInstanceOf(ConflictException);
+    ).resolves.toMatchObject({ alreadyInactive: true, identity: { status: 'PENDING' } });
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(reminderService.sendNotificationNow).not.toHaveBeenCalled();
+    expect(identitySync.requestSync).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'inactive-1', expectedActive: false }),
+    );
+  });
+
+  describe('the sign-in identity (#126)', () => {
+    it('queues the identity disable after the local block, never before', async () => {
+      const { prisma, identitySync, service } = createService();
+      const target = buildUser({ id: 'vol-1' });
+      prisma.user.findUnique.mockResolvedValue(target);
+      prisma.user.update.mockResolvedValue({ ...target, isActive: false });
+
+      const result = await service.deactivateUserGlobally(systemAdminActor, 'vol-1', 'req-10');
+
+      expect(identitySync.requestSync).toHaveBeenCalledWith({
+        userId: 'vol-1',
+        expectedActive: false,
+        actorUserId: systemAdminActor.userId,
+        requestId: 'req-10',
+      });
+      expect(prisma.user.update.mock.invocationCallOrder[0]).toBeLessThan(
+        identitySync.requestSync.mock.invocationCallOrder[0],
+      );
+      expect(result).toMatchObject({ isActive: false, identity: { status: 'PENDING' } });
+    });
+
+    // The local block is what matters for safety. A queue that cannot take the job must not
+    // turn a completed deactivation into an error.
+    it('keeps the local block and reports it when the identity half cannot even be queued', async () => {
+      const { prisma, identitySync, service } = createService();
+      const target = buildUser({ id: 'vol-2' });
+      prisma.user.findUnique.mockResolvedValue(target);
+      prisma.user.update.mockResolvedValue({ ...target, isActive: false });
+      identitySync.requestSync.mockResolvedValue({
+        status: 'FAILED',
+        failureReason: 'QUEUE_UNAVAILABLE',
+      });
+
+      await expect(
+        service.deactivateUserGlobally(systemAdminActor, 'vol-2', 'req-11'),
+      ).resolves.toMatchObject({
+        isActive: false,
+        identity: { status: 'FAILED', failureReason: 'QUEUE_UNAVAILABLE' },
+      });
+    });
+
+    it('disables the identity when a clinic deactivation removes the last access', async () => {
+      const { prisma, identitySync, service } = createService();
+      const target = buildUser({ id: 'vol-3' });
+      prisma.user.findUnique.mockResolvedValue(target);
+      prisma.user.update.mockResolvedValue({ ...target, isActive: false });
+
+      await service.deactivateUserInClinic(managerActor, 'clinic-1', 'vol-3', 'req-12');
+
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { isActive: false } }),
+      );
+      expect(identitySync.requestSync).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'vol-3', expectedActive: false }),
+      );
+    });
+
+    /*
+      The case the issue names: getting it backwards locks a working clinician out of a clinic
+      that never asked for it. The account stays active, the identity is untouched, and only this
+      clinic's roles go.
+    */
+    it('withdraws only this clinic when the user still works elsewhere', async () => {
+      const { prisma, auditService, identitySync, service } = createService();
+      prisma.user.findUnique.mockResolvedValue(
+        buildUser({
+          id: 'doc-1',
+          clinicRoles: [
+            buildRoleEntry({ id: 'r-a', clinicId: 'clinic-1', role: UserRole.DOCTOR }),
+            buildRoleEntry({
+              id: 'r-b',
+              clinicId: 'clinic-2',
+              role: UserRole.DOCTOR,
+              clinicName: 'Clinic Two',
+            }),
+          ],
+        }),
+      );
+
+      const result = await service.deactivateUserInClinic(
+        systemAdminActor,
+        'clinic-1',
+        'doc-1',
+        'req-13',
+      );
+
+      expect(prisma.user.update).not.toHaveBeenCalled();
+      expect(identitySync.requestSync).not.toHaveBeenCalled();
+      expect(prisma.userClinicRole.delete).toHaveBeenCalledWith({ where: { id: 'r-a' } });
+      expect(prisma.userClinicRole.delete).toHaveBeenCalledTimes(1);
+      expect(auditService.logWrite).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'ROLE.REVOKE', entityId: 'r-a', clinicId: 'clinic-1' }),
+      );
+      expect(result).toMatchObject({
+        isActive: true,
+        accessRemaining: true,
+        rolesWithdrawn: [UserRole.DOCTOR],
+      });
+    });
+
+    it('reactivates globally, announces it, and re-enables the identity', async () => {
+      const { prisma, auditService, reminderService, identitySync, service } = createService();
+      const target = buildUser({ id: 'vol-4', isActive: false });
+      prisma.user.findUnique.mockResolvedValue(target);
+      prisma.user.update.mockResolvedValue({ ...target, isActive: true });
+
+      const result = await service.reactivateUserGlobally(systemAdminActor, 'vol-4', 'req-14');
+
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { isActive: true } }),
+      );
+      expect(auditService.logWrite).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'USER.REACTIVATE', clinicId: null }),
+      );
+      expect(reminderService.sendNotificationNow).toHaveBeenCalledWith(
+        expect.objectContaining({ templateKey: 'STAFF_ACCOUNT_REACTIVATED_V1' }),
+      );
+      expect(identitySync.requestSync).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'vol-4', expectedActive: true }),
+      );
+      expect(result).toMatchObject({ isActive: true, identity: { status: 'PENDING' } });
+    });
+
+    it('lets a clinic manager reactivate a volunteer they could deactivate', async () => {
+      const { prisma, identitySync, service } = createService();
+      const target = buildUser({ id: 'vol-5', isActive: false });
+      prisma.user.findUnique.mockResolvedValue(target);
+      prisma.user.update.mockResolvedValue({ ...target, isActive: true });
+
+      await service.reactivateUserInClinic(managerActor, 'clinic-1', 'vol-5', 'req-15');
+
+      expect(identitySync.requestSync).toHaveBeenCalledWith(
+        expect.objectContaining({ expectedActive: true }),
+      );
+    });
+
+    it('refuses a clinic manager reactivating someone with access elsewhere', async () => {
+      const { prisma, identitySync, service } = createService();
+      prisma.user.findUnique.mockResolvedValue(
+        buildUser({
+          id: 'vol-6',
+          isActive: false,
+          clinicRoles: [
+            buildRoleEntry({ id: 'r-1', clinicId: 'clinic-1' }),
+            buildRoleEntry({ id: 'r-2', clinicId: 'clinic-2', clinicName: 'Clinic Two' }),
+          ],
+        }),
+      );
+
+      await expect(
+        service.reactivateUserInClinic(managerActor, 'clinic-1', 'vol-6', 'req-16'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.user.update).not.toHaveBeenCalled();
+      expect(identitySync.requestSync).not.toHaveBeenCalled();
+    });
+
+    it('treats reactivating an active user as a retry of the identity enable', async () => {
+      const { prisma, reminderService, identitySync, service } = createService();
+      prisma.user.findUnique.mockResolvedValue(buildUser({ id: 'vol-7' }));
+
+      await expect(
+        service.reactivateUserGlobally(systemAdminActor, 'vol-7', 'req-17'),
+      ).resolves.toMatchObject({ alreadyActive: true });
+      expect(prisma.user.update).not.toHaveBeenCalled();
+      expect(reminderService.sendNotificationNow).not.toHaveBeenCalled();
+      expect(identitySync.requestSync).toHaveBeenCalledWith(
+        expect.objectContaining({ expectedActive: true }),
+      );
+    });
+
+    it.each([
+      [true, 'an active user'],
+      [false, 'a deactivated user'],
+    ])('syncs toward the account state for %s (%s)', async (isActive) => {
+      const { prisma, identitySync, service } = createService();
+      prisma.user.findUnique.mockResolvedValue(buildUser({ id: 'vol-8', isActive }));
+
+      await service.retryIdentitySync(systemAdminActor, 'vol-8', null, 'req-18');
+
+      expect(identitySync.requestSync).toHaveBeenCalledWith(
+        expect.objectContaining({ expectedActive: isActive }),
+      );
+    });
+
+    it('keeps a clinic-less identity sync to system admins', async () => {
+      const { service } = createService();
+      await expect(
+        service.retryIdentitySync(directorActor, 'vol-9', null, 'req-19'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
   });
 
   it('blocks assigning a role to an inactive user with a lifecycle message', async () => {

@@ -34,6 +34,7 @@ import {
 import { RouteGuard } from '@/components/RouteGuard';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { StaffInvitesCard } from '@/components/staff/StaffInvitesCard';
+import { describeIdentitySync, type IdentitySync } from '@/lib/identity-sync';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -89,6 +90,7 @@ interface ClinicRosterRow {
   clinicRoles: RoleName[];
   globalRoles: RoleName[];
   otherClinicCount: number;
+  identitySync?: IdentitySync;
 }
 
 interface ClinicRosterResponse {
@@ -113,6 +115,7 @@ interface AllUsersRow {
     role: RoleName;
   }>;
   patientPortal: PatientPortalLinkState;
+  identitySync?: IdentitySync;
 }
 
 interface UserRoleRow {
@@ -142,12 +145,32 @@ interface StaffAccessRow {
     role: RoleName;
   }>;
   patientPortal?: PatientPortalLinkState | null;
+  identitySync?: IdentitySync | null;
 }
 
 type StatusFilter = 'active' | 'inactive' | 'all';
 type ViewMode = 'clinic' | 'all';
 
 const ROLES: RoleName[] = ['SYSTEM_ADMIN', 'DIRECTOR', 'MANAGER', 'DOCTOR', 'VOLUNTEER', 'PATIENT'];
+
+interface LifecycleResult {
+  id: string;
+  isActive: boolean;
+  identity?: IdentitySync;
+  accessRemaining?: boolean;
+}
+
+/** What the notice says about the sign-in half, which lands after the request, not in it. */
+function describeLifecycleIdentity(result: LifecycleResult, enabling: boolean): string {
+  if (result.identity?.status === 'FAILED') {
+    return enabling
+      ? 'Their sign-in could not be re-enabled yet; the account page says why.'
+      : 'Their sign-in could not be disabled yet; the account page says why.';
+  }
+  return enabling
+    ? 'Their sign-in is being re-enabled.'
+    : 'Their sign-in is being disabled and any open sessions ended.';
+}
 
 function statusBadgeVariant(isActive: boolean) {
   return isActive ? 'finalized' : 'destructive';
@@ -266,6 +289,7 @@ function normalizeClinicRow(row: ClinicRosterRow, clinicId: string, clinicName: 
       role,
     })),
     patientPortal: null,
+    identitySync: row.identitySync ?? null,
   } satisfies StaffAccessRow;
 }
 
@@ -306,6 +330,7 @@ function normalizeAllUsersRow(
           ]
         : row.clinicMemberships,
     patientPortal: row.patientPortal,
+    identitySync: row.identitySync ?? null,
   } satisfies StaffAccessRow;
 }
 
@@ -568,6 +593,32 @@ export default function AdminUsersPage() {
       (!selectedHasProtectedExternalAccess || isSystemAdmin)) ||
       (viewMode === 'all' && isSystemAdmin)),
   );
+  // The same authority as deactivating, pointed the other way.
+  const selectedCanReactivate = Boolean(
+    selectedUser &&
+    !selectedUser.isActive &&
+    canManageLifecycle &&
+    ((viewMode === 'clinic' &&
+      activeClinicId &&
+      selectedUser.clinicRoles.length > 0 &&
+      selectedUser.clinicRoles.every((role) => lifecycleRoles.includes(role)) &&
+      (!selectedHasProtectedExternalAccess || isSystemAdmin)) ||
+      (viewMode === 'all' && isSystemAdmin)),
+  );
+  const selectedIdentity = selectedUser
+    ? describeIdentitySync(selectedUser.isActive, selectedUser.identitySync)
+    : null;
+  // Whoever could deactivate or reactivate this user may also re-run the identity half.
+  const selectedCanSyncIdentity = Boolean(
+    selectedUser &&
+    (isSystemAdmin ||
+      (viewMode === 'clinic' &&
+        canManageLifecycle &&
+        activeClinicId &&
+        selectedUser.clinicRoles.length > 0 &&
+        selectedUser.clinicRoles.every((role) => lifecycleRoles.includes(role)) &&
+        !selectedHasProtectedExternalAccess)),
+  );
   const showPortalFilter = isSystemAdmin && viewMode === 'all';
   const showPortalDetails =
     isSystemAdmin && viewMode === 'all' && Boolean(selectedUser?.patientPortal);
@@ -594,13 +645,25 @@ export default function AdminUsersPage() {
     {
       field: 'isActive',
       headerName: 'Status',
-      width: 130,
+      width: 220,
       sortable: false,
-      renderCell: (params) => (
-        <Badge variant={statusBadgeVariant(Boolean(params.value))}>
-          {params.value ? 'Active' : 'Deactivated'}
-        </Badge>
-      ),
+      renderCell: (params) => {
+        const row = params.row as StaffAccessRow;
+        const identity = describeIdentitySync(row.isActive, row.identitySync);
+        return (
+          <span className="flex flex-wrap items-center gap-1.5">
+            <Badge variant={statusBadgeVariant(row.isActive)}>
+              {row.isActive ? 'Active' : 'Deactivated'}
+            </Badge>
+            {/* Only the states someone has to act on; a quiet row stays quiet. */}
+            {identity && identity.variant !== 'finalized' ? (
+              <Badge variant={identity.variant} title={identity.detail}>
+                {identity.label}
+              </Badge>
+            ) : null}
+          </span>
+        );
+      },
     },
     {
       field: 'clinicRoles',
@@ -789,9 +852,55 @@ export default function AdminUsersPage() {
         throw new Error(await readApiError(res));
       }
 
+      const result = (await res.json()) as LifecycleResult;
       setDeactivateOpen(false);
-      setNotice(`${nameForRow(selectedUser)} has been deactivated.`);
+      setNotice(
+        result.accessRemaining
+          ? `${nameForRow(selectedUser)} no longer has access to this clinic. Their account stays active for the other clinics they work in.`
+          : `${nameForRow(selectedUser)} has been deactivated. ${describeLifecycleIdentity(result, false)}`,
+      );
       await refreshAfterMutation({ closeDetail: true });
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : String(nextError));
+    } finally {
+      setMutationLoading(false);
+    }
+  }
+
+  /** Reactivate, or re-run the identity half. Same routing rule as deactivation. */
+  async function handleLifecycleAction(action: 'reactivate' | 'sync') {
+    if (!getToken || !selectedUser) {
+      return;
+    }
+
+    setMutationLoading(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const useClinicRoute = viewMode === 'clinic' && Boolean(activeClinicId);
+      const userPath = useClinicRoute
+        ? `/clinics/${encodeURIComponent(activeClinicId!)}/users/${encodeURIComponent(selectedUser.id)}`
+        : `/users/${encodeURIComponent(selectedUser.id)}`;
+      const res = await apiFetch(
+        action === 'reactivate' ? `${userPath}/reactivate` : `${userPath}/identity/sync`,
+        {
+          method: action === 'reactivate' ? 'PATCH' : 'POST',
+          getToken,
+          ...(useClinicRoute ? { activeClinicId } : { skipClinicHeader: true }),
+        },
+      );
+      if (!res.ok) {
+        throw new Error(await readApiError(res));
+      }
+
+      const result = (await res.json()) as LifecycleResult;
+      setNotice(
+        action === 'reactivate'
+          ? `${nameForRow(selectedUser)} has been reactivated. ${describeLifecycleIdentity(result, true)}`
+          : `Sign-in sync requested for ${nameForRow(selectedUser)}. ${describeLifecycleIdentity(result, result.isActive)}`,
+      );
+      await refreshAfterMutation();
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : String(nextError));
     } finally {
@@ -1340,6 +1449,31 @@ export default function AdminUsersPage() {
                     {selectedUser.isActive ? 'Active' : 'Deactivated'}
                   </Badge>
                 </CardContent>
+                {/*
+                  The sign-in identity, as its own fact. The account state above is written here
+                  and always lands; this half is applied to Keycloak afterwards and may not.
+                */}
+                {selectedIdentity ? (
+                  <CardContent className="space-y-3 border-t border-border/60 pt-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium text-foreground">Sign-in</span>
+                      <Badge variant={selectedIdentity.variant}>{selectedIdentity.label}</Badge>
+                    </div>
+                    <p className="text-sm leading-6 text-muted-foreground">
+                      {selectedIdentity.detail}
+                    </p>
+                    {selectedIdentity.offerSync && selectedCanSyncIdentity ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void handleLifecycleAction('sync')}
+                        disabled={mutationLoading}
+                      >
+                        Sync sign-in
+                      </Button>
+                    ) : null}
+                  </CardContent>
+                ) : null}
               </Card>
 
               <Card className="bg-background">
@@ -1511,40 +1645,67 @@ export default function AdminUsersPage() {
                 </Card>
               ) : null}
 
-              <Card className="border-destructive/25 bg-destructive/5">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg text-foreground">
-                    <ShieldAlert className="h-5 w-5 text-destructive" />
-                    Deactivate account
-                  </CardTitle>
-                  <CardDescription>
-                    This blocks API and app access without deleting audit or clinical history.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {selectedHasProtectedExternalAccess && !isSystemAdmin && viewMode === 'clinic' ? (
-                    <InlineNotice tone="error">
-                      Only System Admin can deactivate users who still have global roles or access
-                      in other clinics.
-                    </InlineNotice>
-                  ) : null}
-                  {selectedUser.clinicRoles.some((role) => !lifecycleRoles.includes(role)) &&
-                  !isSystemAdmin ? (
-                    <InlineNotice tone="error">
-                      This user holds a role above your clinic lifecycle authority in the active
-                      clinic.
-                    </InlineNotice>
-                  ) : null}
-                  <Button
-                    variant="destructive"
-                    onClick={() => setDeactivateOpen(true)}
-                    disabled={!selectedCanDeactivate || mutationLoading}
-                    className="w-full sm:w-auto"
-                  >
-                    Deactivate account
-                  </Button>
-                </CardContent>
-              </Card>
+              {!selectedUser.isActive ? (
+                <Card className="bg-background">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Reactivate account</CardTitle>
+                    <CardDescription>
+                      Restores access to Nkwapa and re-enables their sign-in. They keep their
+                      existing password and are emailed to say so.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button
+                      onClick={() => void handleLifecycleAction('reactivate')}
+                      disabled={!selectedCanReactivate || mutationLoading}
+                      className="w-full sm:w-auto"
+                    >
+                      Reactivate account
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              {selectedUser.isActive ? (
+                <Card className="border-destructive/25 bg-destructive/5">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-lg text-foreground">
+                      <ShieldAlert className="h-5 w-5 text-destructive" />
+                      Deactivate account
+                    </CardTitle>
+                    <CardDescription>
+                      This blocks API and app access without deleting audit or clinical history,
+                      then disables their sign-in and ends any open sessions. For someone who also
+                      works in another clinic, only this clinic&apos;s access is withdrawn.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {selectedHasProtectedExternalAccess &&
+                    !isSystemAdmin &&
+                    viewMode === 'clinic' ? (
+                      <InlineNotice tone="error">
+                        Only System Admin can deactivate users who still have global roles or access
+                        in other clinics.
+                      </InlineNotice>
+                    ) : null}
+                    {selectedUser.clinicRoles.some((role) => !lifecycleRoles.includes(role)) &&
+                    !isSystemAdmin ? (
+                      <InlineNotice tone="error">
+                        This user holds a role above your clinic lifecycle authority in the active
+                        clinic.
+                      </InlineNotice>
+                    ) : null}
+                    <Button
+                      variant="destructive"
+                      onClick={() => setDeactivateOpen(true)}
+                      disabled={!selectedCanDeactivate || mutationLoading}
+                      className="w-full sm:w-auto"
+                    >
+                      Deactivate account
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : null}
             </div>
           ) : null}
         </SheetContent>
