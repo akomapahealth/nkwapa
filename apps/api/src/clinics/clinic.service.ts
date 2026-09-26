@@ -67,6 +67,19 @@ export interface AdminActor {
   roles: { clinicId: string | null; role: UserRole }[];
 }
 
+/**
+ * Every clause must hold. ANDed rather than spread, so a filter can never replace the scope
+ * clause: once an admin scope is expressed by organization, spreading `{ organizationId }` over
+ * it would silently swap the actor's boundary for the caller's choice. Empty clauses are dropped
+ * so the common one-clause case stays a plain object.
+ */
+function allOf(...clauses: Prisma.ClinicWhereInput[]): Prisma.ClinicWhereInput {
+  const present = clauses.filter((clause) => Object.keys(clause).length > 0);
+  if (present.length === 0) return {};
+  if (present.length === 1) return present[0];
+  return { AND: present };
+}
+
 @Injectable()
 export class ClinicService {
   constructor(private readonly prisma: PrismaService) {}
@@ -198,21 +211,26 @@ export class ClinicService {
    * The issues are computed by the same `evaluateClinicMetadata` the repair CLI runs, so a
    * badge in the UI and a line of CLI output can never describe a clinic differently.
    *
-   * The zone filter narrows and can do nothing else. The actor's scope is resolved first and
-   * the zone clause is ANDed onto it, so filtering by a zone that another organization also
-   * uses returns this actor's clinics in that zone and nothing more. That ordering is the
+   * The zone and organization filters narrow and can do nothing else. The actor's scope is
+   * resolved first and each filter is ANDed onto it, so filtering by a zone that another
+   * organization also uses, or by another organization outright, returns this actor's clinics
+   * that match and nothing more. That ordering is the
    * boundary; `zoneFilterWhere` cannot express anything but a `zoneCode` constraint, and
    * `docs/specs/03_AUTH_AND_RBAC.md` says why.
    */
   async listAllForAdmin(
     actor: AdminActor,
-    filters?: { zoneCode?: string | null },
+    filters?: { zoneCode?: string | null; organizationId?: string | null },
   ): Promise<AdminClinicView[]> {
     const scope = this.clinicScopeForAdmin(actor);
     if (scope === null) return [];
 
     const clinics = await this.prisma.clinic.findMany({
-      where: { ...scope, ...zoneFilterWhere(parseZoneFilter(filters?.zoneCode)) },
+      where: allOf(
+        scope,
+        zoneFilterWhere(parseZoneFilter(filters?.zoneCode)),
+        filters?.organizationId ? { organizationId: filters.organizationId } : {},
+      ),
       orderBy: { name: 'asc' },
       include: { organization: true },
     });

@@ -14,7 +14,14 @@ function buildRoleEntry(
     id: overrides.id ?? `${overrides.role ?? UserRole.VOLUNTEER}-role`,
     clinicId: overrides.clinicId ?? 'clinic-1',
     role: overrides.role ?? UserRole.VOLUNTEER,
-    clinic: overrides.clinicId === null ? null : { name: overrides.clinicName ?? 'Clinic One' },
+    clinic:
+      overrides.clinicId === null
+        ? null
+        : {
+            name: overrides.clinicName ?? 'Clinic One',
+            organizationId: 'org-1',
+            organization: { name: 'Akomapa Health' },
+          },
   };
 }
 
@@ -174,6 +181,56 @@ describe('AdminService', () => {
         }),
       }),
     ]);
+  });
+
+  describe('organization filter (#12)', () => {
+    it('narrows to users holding a role in that organization’s clinics', async () => {
+      const { prisma, service } = createService();
+      prisma.user.findMany.mockResolvedValue([]);
+
+      await service.listUsers(systemAdminActor, 'active', 'org-1');
+
+      expect(prisma.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            isActive: true,
+            clinicRoles: { some: { clinic: { organizationId: 'org-1' } } },
+          },
+        }),
+      );
+    });
+
+    it('applies no organization clause when none is asked for', async () => {
+      const { prisma, service } = createService();
+      prisma.user.findMany.mockResolvedValue([]);
+
+      await service.listUsers(systemAdminActor, 'all');
+
+      expect(prisma.user.findMany.mock.calls[0][0].where).toEqual({});
+    });
+
+    it('names the organization on every clinic membership', async () => {
+      const { prisma, service } = createService();
+      prisma.user.findMany.mockResolvedValue([buildUser()]);
+
+      const [row] = await service.listUsers(systemAdminActor, 'all');
+
+      expect(row.clinicMemberships[0]).toMatchObject({
+        clinicName: 'Clinic One',
+        organizationId: 'org-1',
+        organizationName: 'Akomapa Health',
+      });
+    });
+
+    // Non-system-admins never reach the cross-clinic list, filtered or not.
+    it('stays system-admin only with a filter', async () => {
+      const { prisma, service } = createService();
+
+      await expect(service.listUsers(directorActor, 'all', 'org-1')).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(prisma.user.findMany).not.toHaveBeenCalled();
+    });
   });
 
   it('reports ROLE_ONLY when a user has PATIENT access without a portal link', async () => {

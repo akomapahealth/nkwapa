@@ -35,6 +35,16 @@ import { RouteGuard } from '@/components/RouteGuard';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { StaffInvitesCard } from '@/components/staff/StaffInvitesCard';
 import { describeIdentitySync, type IdentitySync } from '@/lib/identity-sync';
+import type { OrganizationSummary } from '@/lib/clinic-metadata';
+import {
+  adminUsersPath,
+  organizationFilterFromSelect,
+  organizationFilterLabel,
+  organizationFilterOptions,
+  organizationFilterToSelect,
+  shouldOfferOrganizationFilter,
+  type OrganizationFilter,
+} from '@/lib/organization-filter';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -123,6 +133,7 @@ interface UserRoleRow {
   clinicId: string | null;
   role: RoleName;
   clinicName: string | null;
+  organizationName?: string | null;
 }
 
 interface StaffAccessRow {
@@ -370,6 +381,8 @@ export default function AdminUsersPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
   const [zoneFilter, setZoneFilter] = useState<ZoneFilter>(null);
+  const [organizationFilter, setOrganizationFilter] = useState<OrganizationFilter>(null);
+  const [organizations, setOrganizations] = useState<OrganizationSummary[]>([]);
   const [portalFilter, setPortalFilter] = useState<PortalFilter>('ALL');
   const [rows, setRows] = useState<StaffAccessRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -426,6 +439,17 @@ export default function AdminUsersPage() {
     } catch {
       setAllClinics([]);
     }
+
+    // Separate from the clinic list so a failure here only hides the filter, never the roster.
+    try {
+      const res = await apiFetch('/admin/clinics/organizations', {
+        getToken,
+        skipClinicHeader: true,
+      });
+      setOrganizations(res.ok ? ((await res.json()) as OrganizationSummary[]) : []);
+    } catch {
+      setOrganizations([]);
+    }
   }, [getToken, isSystemAdmin]);
 
   const fetchRows = useCallback(
@@ -469,7 +493,7 @@ export default function AdminUsersPage() {
           return nextRows;
         }
 
-        const res = await apiFetch(`/admin/users?status=${encodeURIComponent(statusFilter)}`, {
+        const res = await apiFetch(adminUsersPath(statusFilter, organizationFilter), {
           getToken,
           skipClinicHeader: true,
         });
@@ -491,7 +515,7 @@ export default function AdminUsersPage() {
         setRefreshing(false);
       }
     },
-    [activeClinicId, activeClinicName, getToken, statusFilter, viewMode],
+    [activeClinicId, activeClinicName, getToken, organizationFilter, statusFilter, viewMode],
   );
 
   const fetchUserRoles = useCallback(
@@ -561,6 +585,9 @@ export default function AdminUsersPage() {
   const showZoneFilter = viewMode === 'all' && allClinics.length > 0;
   const zoneOptions = zoneFilterOptions(summarizeZones(allClinics));
   const appliedZoneFilter = showZoneFilter ? zoneFilter : null;
+  // Across clinics only, like zone: the clinic roster is one clinic and so one organization.
+  const showOrganizationFilter =
+    viewMode === 'all' && isSystemAdmin && shouldOfferOrganizationFilter(organizations);
 
   const visibleRows = rows.filter(
     (row) =>
@@ -1099,6 +1126,29 @@ export default function AdminUsersPage() {
                 </div>
               ) : null}
 
+              {showOrganizationFilter ? (
+                <div className="space-y-2">
+                  <Label htmlFor="staff-organization-filter">Organization</Label>
+                  <Select
+                    value={organizationFilterToSelect(organizationFilter)}
+                    onValueChange={(value) =>
+                      setOrganizationFilter(organizationFilterFromSelect(value))
+                    }
+                  >
+                    <SelectTrigger id="staff-organization-filter">
+                      <SelectValue placeholder="All organizations" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {organizationFilterOptions(organizations).map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+
               {showZoneFilter ? (
                 <div className="space-y-2">
                   <Label htmlFor="staff-zone-filter">Zone</Label>
@@ -1129,6 +1179,7 @@ export default function AdminUsersPage() {
                     setRoleFilter('ALL');
                     setPortalFilter('ALL');
                     setZoneFilter(null);
+                    setOrganizationFilter(null);
                   }}
                 >
                   Reset filters
@@ -1150,6 +1201,12 @@ export default function AdminUsersPage() {
                           ? 'Mismatch only'
                           : portalStatusLabel(portalFilter as PortalLinkStatus)
                         : null,
+                  },
+                  {
+                    label: 'Organization',
+                    value: showOrganizationFilter
+                      ? organizationFilterLabel(organizations, organizationFilter)
+                      : null,
                   },
                   { label: 'Zone', value: zoneFilterLabel(appliedZoneFilter) },
                   { label: 'Clinic zone', value: activeClinicZoneLabel },
@@ -1556,7 +1613,9 @@ export default function AdminUsersPage() {
                           <span className="text-sm text-muted-foreground">
                             {role.clinicId === null
                               ? 'Global scope'
-                              : (role.clinicName ?? 'Clinic access')}
+                              : [role.clinicName ?? 'Clinic access', role.organizationName]
+                                  .filter(Boolean)
+                                  .join(' · ')}
                           </span>
                         </div>
                       </div>
