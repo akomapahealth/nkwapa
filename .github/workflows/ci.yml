@@ -154,6 +154,15 @@ jobs:
           RUN_STAFF_INVITE_MIGRATION_TESTS: '1'
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
+      # The same guarantee one layer up: real requests through the RLS interceptor and the real
+      # services, as the unprivileged role, across two organizations and a straddling zone (#16).
+      - name: Verify organization and zone isolation end to end
+        run: npm run test --workspace=@nkwapa/api -- --runInBand src/tenancy/org-zone-isolation.integration.spec.ts
+        env:
+          RUN_ORG_ZONE_ISOLATION_TESTS: '1'
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          APP_DATABASE_URL: postgresql://nkwapa_app:nkwapa_app@localhost:5432/nkwapa
+
       - name: Verify tenant isolation is enforced by the database
         run: npm run test --workspace=@nkwapa/db -- --runInBand src/tenant-isolation.integration.spec.ts
         env:
