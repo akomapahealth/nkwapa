@@ -561,19 +561,55 @@ describe('ClinicService.listAllForAdmin zone filter', () => {
     const { prisma, service } = buildService();
     await service.listAllForAdmin(asDirector, { zoneCode: 'north' });
     expect(whereOf(prisma.clinic.findMany)).toEqual({
-      id: { in: [DIRECTOR_CLINIC_A, DIRECTOR_CLINIC_B] },
-      zoneCode: 'north',
+      AND: [{ id: { in: [DIRECTOR_CLINIC_A, DIRECTOR_CLINIC_B] } }, { zoneCode: 'north' }],
     });
   });
 
+  /** The scope clause, wherever the composition put it. */
+  const scopeClauseOf = (where: Record<string, unknown>) =>
+    Array.isArray(where.AND) ? where.AND[0] : where;
+
   it('never drops the clinic-id scope, whatever the filter', async () => {
     for (const zoneCode of [undefined, 'north', '__unzoned__', 'not a zone', '']) {
-      const { prisma, service } = buildService();
-      await service.listAllForAdmin(asDirector, { zoneCode });
-      expect(whereOf(prisma.clinic.findMany)).toMatchObject({
-        id: { in: [DIRECTOR_CLINIC_A, DIRECTOR_CLINIC_B] },
-      });
+      for (const organizationId of [undefined, 'org-elsewhere']) {
+        const { prisma, service } = buildService();
+        await service.listAllForAdmin(asDirector, { zoneCode, organizationId });
+        expect(scopeClauseOf(whereOf(prisma.clinic.findMany))).toEqual({
+          id: { in: [DIRECTOR_CLINIC_A, DIRECTOR_CLINIC_B] },
+        });
+      }
     }
+  });
+
+  describe('by organization (#12)', () => {
+    it('narrows a system admin to one organization', async () => {
+      const { prisma, service } = buildService();
+      await service.listAllForAdmin(asSystemAdmin, { organizationId: 'org-1' });
+      expect(whereOf(prisma.clinic.findMany)).toEqual({ organizationId: 'org-1' });
+    });
+
+    it('combines with a zone rather than replacing it', async () => {
+      const { prisma, service } = buildService();
+      await service.listAllForAdmin(asSystemAdmin, { organizationId: 'org-1', zoneCode: 'north' });
+      expect(whereOf(prisma.clinic.findMany)).toEqual({
+        AND: [{ zoneCode: 'north' }, { organizationId: 'org-1' }],
+      });
+    });
+
+    /*
+      The boundary: a director naming another organization's id gets their own clinics in that
+      organization, which is none. The filter is ANDed onto the scope; it can never stand in for it.
+    */
+    it('keeps a director inside their own clinics when they name another organization', async () => {
+      const { prisma, service } = buildService();
+      await service.listAllForAdmin(asDirector, { organizationId: 'someone-elses-org' });
+      expect(whereOf(prisma.clinic.findMany)).toEqual({
+        AND: [
+          { id: { in: [DIRECTOR_CLINIC_A, DIRECTOR_CLINIC_B] } },
+          { organizationId: 'someone-elses-org' },
+        ],
+      });
+    });
   });
 
   it('returns nothing for an actor who administers no clinic, filter or not', async () => {

@@ -35,6 +35,12 @@ Important notes:
   putting two clinics in one zone lets you report on them together and gives nobody access to
   either. Zone-scoped roles do not exist, by decision -- see the Zone Model section of
   `docs/specs/03_AUTH_AND_RBAC.md`.
+- organization is also a **filter, not a permission** (#12). `/admin/clinics` shows each clinic's
+  organization and can be filtered by it, and a system admin's all-users view on `/admin/users`
+  can be narrowed to one organization. A user belongs to an organization only through the clinics
+  they hold a role in, so a global-only account appears under none. Every filter is ANDed onto the
+  viewer's own scope: a director who names another organization gets an empty list, never its
+  clinics. The organization picker appears only when there is more than one organization to pick.
 
 ---
 

@@ -45,6 +45,21 @@ const directorOfB = actor('director-b', [{ clinicId: CLINIC_B1, role: UserRole.D
 
 const asActor = (a: typeof directorOfA) => ({ userId: a.user.id, roles: a.roles });
 
+/**
+ * The conditions a `where` requires, whether written as one object or as an `AND` list.
+ *
+ * These tests pin the property, not the shape: the actor's scope must be one of the conditions
+ * every returned row satisfies, and nothing may be offered as an alternative to it. The service
+ * composes filters with `AND` so that no filter can ever replace the scope clause.
+ */
+function conjuncts(where: Record<string, unknown>): Record<string, unknown>[] {
+  const { AND, ...rest } = where as { AND?: Record<string, unknown>[] };
+  const own = Object.keys(rest).length > 0 ? [rest] : [];
+  return [...own, ...(AND ?? []).flatMap((clause) => conjuncts(clause))];
+}
+
+const merged = (where: Record<string, unknown>) => Object.assign({}, ...conjuncts(where));
+
 describe('a shared zone grants no access', () => {
   it('is a fixture where one zone really does straddle two organizations', () => {
     // If this ever stopped being true the tests below would pass for the wrong reason.
@@ -57,20 +72,20 @@ describe('a shared zone grants no access', () => {
     const { service, findMany } = buildService();
     await service.listAllForAdmin(asActor(directorOfA), { zoneCode: SHARED_ZONE_CODE });
 
-    const where = findMany.mock.calls[0][0].where;
+    const where = merged(findMany.mock.calls[0][0].where);
     expect(where).toEqual({
       id: { in: [CLINIC_A1, CLINIC_A2] },
       zoneCode: SHARED_ZONE_CODE,
     });
     // The decisive assertion: B's clinic is not reachable by this query under any row it returns.
-    expect(where.id.in).not.toContain(CLINIC_B1);
+    expect((where.id as { in: string[] }).in).not.toContain(CLINIC_B1);
   });
 
   it('keeps a director of B inside B for the same filter', async () => {
     const { service, findMany } = buildService();
     await service.listAllForAdmin(asActor(directorOfB), { zoneCode: SHARED_ZONE_CODE });
 
-    expect(findMany.mock.calls[0][0].where).toEqual({
+    expect(merged(findMany.mock.calls[0][0].where)).toEqual({
       id: { in: [CLINIC_B1] },
       zoneCode: SHARED_ZONE_CODE,
     });
@@ -83,10 +98,12 @@ describe('a shared zone grants no access', () => {
       const { service, findMany } = buildService();
       await service.listAllForAdmin(asActor(directorOfA), { zoneCode });
 
-      const where = findMany.mock.calls[0][0].where;
-      expect(where).not.toHaveProperty('OR');
-      expect(where).not.toHaveProperty('NOT');
-      expect(where.id).toEqual({ in: [CLINIC_A1, CLINIC_A2] });
+      const clauses = conjuncts(findMany.mock.calls[0][0].where);
+      for (const clause of clauses) {
+        expect(clause).not.toHaveProperty('OR');
+        expect(clause).not.toHaveProperty('NOT');
+      }
+      expect(clauses).toContainEqual({ id: { in: [CLINIC_A1, CLINIC_A2] } });
     }
   });
 
@@ -94,7 +111,7 @@ describe('a shared zone grants no access', () => {
     const { service, findMany } = buildService();
     await service.listAllForAdmin(asActor(directorOfA), { zoneCode: UNZONED_FILTER_VALUE });
 
-    expect(findMany.mock.calls[0][0].where).toEqual({
+    expect(merged(findMany.mock.calls[0][0].where)).toEqual({
       id: { in: [CLINIC_A1, CLINIC_A2] },
       zoneCode: null,
     });
@@ -188,5 +205,23 @@ describe('the bootstrap contract carries zone as context only', () => {
     expect(JSON.stringify(response)).not.toContain(CLINIC_B1);
     expect(response.effectiveRolesForActiveClinic).toEqual([UserRole.VOLUNTEER]);
     expect(response.effectivePermissionsForActiveClinic.join(' ')).not.toMatch(/zone/i);
+  });
+});
+
+describe('an organization filter grants no access (#12)', () => {
+  it("keeps a director of A inside A when they name B's organization", async () => {
+    const { service, findMany } = buildService();
+    await service.listAllForAdmin(asActor(directorOfA), {
+      organizationId: TENANT_CLINICS.b1.organizationId,
+    });
+
+    const clauses = conjuncts(findMany.mock.calls[0][0].where);
+    // The scope is still a required condition, so the answer is A's clinics in B's organization:
+    // none. The filter cannot stand in for the scope.
+    expect(clauses).toContainEqual({ id: { in: [CLINIC_A1, CLINIC_A2] } });
+    expect(clauses).toContainEqual({ organizationId: TENANT_CLINICS.b1.organizationId });
+    for (const clause of clauses) {
+      expect(clause).not.toHaveProperty('OR');
+    }
   });
 });

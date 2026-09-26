@@ -15,6 +15,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 import { RbacGuard } from '../auth/guards/rbac.guard';
 import { AdminService } from './admin.service';
+import { ListUsersQueryDto } from './dto/list-users.query.dto';
 import { PERMISSIONS } from '../auth/constants/permissions';
 import { UserRole } from '@prisma/client';
 import { AssignRoleDto } from './dto/assign-role.dto';
@@ -37,15 +38,12 @@ export class AdminController {
   ) {}
 
   @Get('users')
-  async listUsers(
-    @Query('status') status: string | undefined,
-    @Request() req: { user: ReqUserWithRoles },
-  ) {
+  async listUsers(@Query() query: ListUsersQueryDto, @Request() req: { user: ReqUserWithRoles }) {
     const actor = {
       userId: req.user.user.id,
       roles: req.user.roles,
     };
-    return this.adminService.listUsers(actor, status);
+    return this.adminService.listUsers(actor, query.status, query.organizationId);
   }
 
   @Get('users/:userId/roles')

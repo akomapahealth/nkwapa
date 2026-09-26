@@ -37,6 +37,8 @@ type UserWithRolesAndClinics = Prisma.UserGetPayload<{
         clinic: {
           select: {
             name: true;
+            organizationId: true;
+            organization: { select: { name: true } };
           };
         };
       };
@@ -70,11 +72,21 @@ export class AdminService {
     private readonly identitySync: IdentitySyncService,
   ) {}
 
-  async listUsers(actor: AdminActor, status?: string) {
+  /**
+   * Every user, for a system admin, optionally narrowed to one organization.
+   *
+   * A user is in an organization by way of the clinics they hold a role in; there is no direct
+   * link. So a global-only account (a system admin with no clinic seat) belongs to none and drops
+   * out of an organization filter, which is the honest answer rather than an omission.
+   */
+  async listUsers(actor: AdminActor, status?: string, organizationId?: string) {
     this.assertSystemAdmin(actor, 'Only System Admin can list all users');
 
     const users = await this.prisma.user.findMany({
-      where: this.buildUserStatusWhere(status, 'all'),
+      where: {
+        ...this.buildUserStatusWhere(status, 'all'),
+        ...(organizationId ? { clinicRoles: { some: { clinic: { organizationId } } } } : {}),
+      },
       include: this.userInclude,
       orderBy: [{ displayName: 'asc' }, { createdAt: 'asc' }],
     });
@@ -115,6 +127,7 @@ export class AdminService {
       clinicId: r.clinicId,
       role: r.role,
       clinicName: r.clinic?.name ?? null,
+      organizationName: r.clinic?.organization?.name ?? null,
     }));
   }
 
@@ -689,6 +702,8 @@ export class AdminService {
         clinic: {
           select: {
             name: true,
+            organizationId: true,
+            organization: { select: { name: true } },
           },
         },
       },
@@ -994,6 +1009,8 @@ export class AdminService {
       id: entry.id,
       clinicId: entry.clinicId as string,
       clinicName: entry.clinic?.name ?? '',
+      organizationId: entry.clinic?.organizationId ?? null,
+      organizationName: entry.clinic?.organization?.name ?? null,
       role: entry.role,
     }));
 
