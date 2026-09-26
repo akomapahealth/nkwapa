@@ -6,6 +6,11 @@ import { computeEffectivePermissions } from './constants/permissions';
 import { PrismaService } from '../prisma/prisma.service';
 import { RateLimit } from '../common/rate-limit.decorator';
 import { claimableInviteForIdentityWhere } from '../common/portal-invite-lifecycle';
+import { IncludeStaffInviteScope } from '../staff-invites/staff-invite-scope.decorator';
+import {
+  findAcceptableStaffInvites,
+  type AcceptableStaffInvite,
+} from '../staff-invites/staff-invite.queries';
 
 export interface ReqUser {
   user: { id: string; keycloakSub: string; displayName: string; email: string | null };
@@ -37,21 +42,32 @@ export interface WhoAmIResponse {
   activeClinicId: string | null;
   effectiveRolesForActiveClinic: string[];
   effectivePermissionsForActiveClinic: string[];
-  onboarding: {
-    state: 'PATIENT_CLAIM_REQUIRED';
-    pendingInvites: Array<{
-      id: string;
-      clinicId: string;
-      clinicName: string;
-      patientId: string;
-      patientName: string;
-      patientCode: string;
-      email: string | null;
-      phoneE164: string | null;
-      createdAt: string;
-      expiresAt: string | null;
-    }>;
-  } | null;
+  /**
+   * Staff invitations this person can accept, whatever roles they already hold.
+   *
+   * Separate from `onboarding` because an existing colleague invited to a second clinic is not
+   * onboarding: they keep working, and the app offers the invitation alongside. Only someone
+   * with no role at all is routed to it.
+   */
+  pendingStaffInvites: AcceptableStaffInvite[];
+  onboarding:
+    | { state: 'STAFF_INVITE_ACCEPT_REQUIRED' }
+    | {
+        state: 'PATIENT_CLAIM_REQUIRED';
+        pendingInvites: Array<{
+          id: string;
+          clinicId: string;
+          clinicName: string;
+          patientId: string;
+          patientName: string;
+          patientCode: string;
+          email: string | null;
+          phoneE164: string | null;
+          createdAt: string;
+          expiresAt: string | null;
+        }>;
+      }
+    | null;
 }
 
 @Controller('auth')
@@ -70,6 +86,7 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Get('whoami')
+  @IncludeStaffInviteScope()
   @RateLimit({ key: 'auth_whoami', limit: 60, windowSeconds: 60, scope: 'user-or-ip' })
   async whoami(
     @Request() req: { user: ReqUser; headers?: { 'x-clinic-id'?: string } },
@@ -136,8 +153,19 @@ export class AuthController {
     const allEffectiveRoles = [...new Set([...activeRoles, ...globalRoleList])];
     const effectiveRolesForActiveClinic = allEffectiveRoles;
     const effectivePermissionsForActiveClinic = computeEffectivePermissions(allEffectiveRoles);
-    const onboarding =
-      roles.length === 0 ? await this.findPendingPatientClaimOnboarding(user.id) : null;
+    const pendingStaffInvites = await findAcceptableStaffInvites(this.prisma, user.id, new Date());
+    /*
+      Someone with no role anywhere can do nothing in the app but accept, so they are sent to do
+      it. A staff invitation outranks a patient claim here only because the pair is vanishingly
+      rare and one has to win; once accepted, the account holds a role and the claim onboarding
+      below no longer applies to it.
+    */
+    const onboarding: WhoAmIResponse['onboarding'] =
+      roles.length > 0
+        ? null
+        : pendingStaffInvites.length > 0
+          ? { state: 'STAFF_INVITE_ACCEPT_REQUIRED' }
+          : await this.findPendingPatientClaimOnboarding(user.id);
 
     return {
       userId: user.id,
@@ -149,13 +177,14 @@ export class AuthController {
       activeClinicId,
       effectiveRolesForActiveClinic,
       effectivePermissionsForActiveClinic,
+      pendingStaffInvites,
       onboarding,
     };
   }
 
   private async findPendingPatientClaimOnboarding(
     userId: string,
-  ): Promise<WhoAmIResponse['onboarding']> {
+  ): Promise<Extract<WhoAmIResponse['onboarding'], { state: 'PATIENT_CLAIM_REQUIRED' }> | null> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {

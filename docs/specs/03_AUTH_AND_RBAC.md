@@ -235,7 +235,11 @@ It returns:
 - active clinic
 - effective roles for the active clinic
 - effective permissions for the active clinic
-- onboarding state for patients who still need to claim a record
+- staff invitations the user can accept (`pendingStaffInvites`), whatever roles they hold
+- onboarding state: `PATIENT_CLAIM_REQUIRED` for a patient who still needs to claim a record, or
+  `STAFF_INVITE_ACCEPT_REQUIRED` for an account with no role and an open staff invitation. Only an
+  account with no role at all is held on an onboarding page; a colleague who already works in one
+  clinic is offered an invitation to another, not redirected to it
 
 A clinic's zone rides along so a single-clinic view can name the zone it is showing. It appears
 beside a clinic and nowhere else: never in effective roles, never in effective permissions.
@@ -248,9 +252,41 @@ Frontend navigation and clinic switching are driven from this response.
 
 ### Staff and Admin Users
 
-1. Create the identity in Keycloak.
-2. Let the user log into Nkwapa once.
-3. Assign local roles in Nkwapa.
+Managers, doctors and volunteers are invited by email (issue #124). Nobody creates their Keycloak
+identity by hand.
+
+1. A DIRECTOR of the clinic, or a SYSTEM_ADMIN, issues a `StaffInvite` from `/admin/users`
+   (`POST /clinics/:clinicId/staff-invites`, permission `CLINIC.STAFF.INVITE`).
+2. The API provisions the Keycloak identity through the `nkwapa-api` service account, exactly as
+   for a patient invitation, and Keycloak emails the password link. The API emails
+   `STAFF_INVITE_V1`, which names the clinic, the role and that link's subject.
+3. The invitee signs in and accepts on `/accept-invite` (`POST /staff-invites/:id/accept`). The
+   role is granted immediately and audited as `ROLE.GRANT` with the invitation it came from.
+
+A staff invitation grants a role over other people's records with possession of the inbox as the
+only proof, unlike a patient invitation, which still needs a patient code and a date of birth. So
+it carries controls the patient flow does not:
+
+- **Role ceiling.** Only MANAGER, DOCTOR and VOLUNTEER can be invited. A DIRECTOR invites only into
+  a clinic they direct; a SYSTEM_ADMIN into any clinic. The service applies this from the actor's
+  own role rows, behind `ClinicScopeGuard` and the permission, and the database's
+  `StaffInvite_role_check` refuses any other role.
+- **Short expiry.** 72 hours by default, at most 7 days. The Keycloak action link inherits it.
+- **Shared inboxes refused**, and reuse of an address that already belongs to a staff account
+  requires the inviter to confirm.
+- **Acceptance is keyed on the verified email.** `User.email` is written only from a token with
+  `email_verified`; when Keycloak recorded which identity it provisioned, only that identity may
+  accept.
+- **Tenant scope is widened only where needed.** The RLS interceptor adds the clinic of an open
+  staff invitation only on handlers marked `@IncludeStaffInviteScope()` (whoami, the invitee's
+  list, accept). A patient invitation widens every request, which is safe because a patient
+  invitee holds no role. A staff invitee often does (a doctor at one clinic invited to another),
+  and widening every request would give them scope over the second clinic before accepting.
+- One live invitation per address per clinic (`StaffInvite_pending_unique_idx`); reissuing
+  cancels the previous one. The hourly invite sweep settles lapsed ones to EXPIRED.
+
+DIRECTOR and SYSTEM_ADMIN seats are still assigned by hand on `/admin/users`, once the person has
+signed in and their local `User` row exists.
 
 ### Patient Users
 
@@ -320,5 +356,7 @@ The current realm export is hardened with:
   not implemented, and the Zone Model section above is the statement of record
 - organization-level admin/reporting permissions are not yet distinct from clinic-level permissions
 - Keycloak still provides identity only; app-side policy remains the authority and must continue to be tested independently
+- deactivating a user does not yet disable their Keycloak identity (#126), which matters more now
+  that staff accounts are created automatically
 - patient invitations reach an email address only; provisioning an identity from a phone number
   is not implemented, and a phone-only invite is recorded as such rather than failing

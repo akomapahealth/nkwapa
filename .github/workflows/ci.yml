@@ -146,6 +146,14 @@ jobs:
           APP_DATABASE_PASSWORD: nkwapa_app
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
+      # After the role is provisioned: the row-level-security cases act as nkwapa_app, which does
+      # not own the table, so they exercise the policy rather than the owner's exemption from it.
+      - name: Verify staff invitation safeguards
+        run: npm run test --workspace=@nkwapa/db -- --runInBand src/staff-invite-migration.integration.spec.ts
+        env:
+          RUN_STAFF_INVITE_MIGRATION_TESTS: '1'
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
       - name: Verify tenant isolation is enforced by the database
         run: npm run test --workspace=@nkwapa/db -- --runInBand src/tenant-isolation.integration.spec.ts
         env:

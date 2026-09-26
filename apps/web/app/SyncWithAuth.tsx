@@ -3,7 +3,12 @@
 import { useEffect } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { buildLoginHref, getDefaultWorkspacePath } from '@/lib/auth-routing';
+import {
+  STAFF_INVITE_ACCEPT_PATH,
+  buildLoginHref,
+  getDefaultWorkspacePath,
+  getOnboardingPath,
+} from '@/lib/auth-routing';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useKeycloak } from '@/app/KeycloakProvider';
 import { AppLayout } from '@/components/AppLayout';
@@ -33,28 +38,40 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
     }
   }, [currentPath, isAuthenticated, isLoginRoute, router]);
 
-  const requiresPatientClaim = bootstrap?.onboarding?.state === 'PATIENT_CLAIM_REQUIRED';
+  const onboardingPath = getOnboardingPath(bootstrap);
+  const hasStaffInvites = (bootstrap?.pendingStaffInvites?.length ?? 0) > 0;
 
   useEffect(() => {
     if (!isAuthenticated || bootstrapCtx?.isLoading || isLoginRoute) {
       return;
     }
 
-    if (requiresPatientClaim && pathname !== '/claim-record') {
-      router.replace('/claim-record');
+    // An account with nothing else it can do is held on the page that moves it forward.
+    if (onboardingPath && pathname !== onboardingPath) {
+      router.replace(onboardingPath);
       return;
     }
 
-    if (!requiresPatientClaim && pathname === '/claim-record') {
+    if (!onboardingPath && pathname === '/claim-record') {
+      router.replace(getDefaultWorkspacePath(bootstrap));
+      return;
+    }
+
+    /*
+      Someone who already works in a clinic may open the acceptance page while an invitation is
+      waiting; it is offered, not imposed. With nothing to accept there is nothing to show.
+    */
+    if (!onboardingPath && pathname === STAFF_INVITE_ACCEPT_PATH && !hasStaffInvites) {
       router.replace(getDefaultWorkspacePath(bootstrap));
     }
   }, [
     bootstrap,
     bootstrapCtx?.isLoading,
+    hasStaffInvites,
     isAuthenticated,
     isLoginRoute,
+    onboardingPath,
     pathname,
-    requiresPatientClaim,
     router,
   ]);
 
@@ -72,7 +89,8 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
   }
 
   const isPortal = pathname?.startsWith('/portal');
-  const isClaimRoute = pathname === '/claim-record';
+  // Both onboarding pages stand alone, without workspace navigation the account cannot use yet.
+  const isOnboardingRoute = pathname === '/claim-record' || pathname === STAFF_INVITE_ACCEPT_PATH;
   const isDisabledAccount = bootstrapCtx?.errorCode === 'USER_DISABLED';
 
   if (isLoginRoute) {
@@ -97,7 +115,7 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
             </Button>
           }
         />
-      ) : isClaimRoute ? (
+      ) : isOnboardingRoute ? (
         <>{children}</>
       ) : isPortal ? (
         <PortalLayout>{children}</PortalLayout>

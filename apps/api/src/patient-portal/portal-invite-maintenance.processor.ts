@@ -4,6 +4,7 @@ import { Queue } from 'bullmq';
 import { JobTenantContextRunner } from '../prisma/job-tenant-context.runner';
 import { redactLogValue } from '../common/redaction';
 import { PortalInviteExpiryService } from './portal-invite-expiry.service';
+import { StaffInviteExpiryService } from '../staff-invites/staff-invite-expiry.service';
 
 export const PORTAL_INVITE_MAINTENANCE_QUEUE = 'portal-invite-maintenance';
 export const PORTAL_INVITE_EXPIRY_JOB = 'expire-overdue-invites';
@@ -33,6 +34,7 @@ export class PortalInviteMaintenanceProcessor extends WorkerHost implements OnMo
     @InjectQueue(PORTAL_INVITE_MAINTENANCE_QUEUE) private readonly queue: Queue,
     private readonly expiryService: PortalInviteExpiryService,
     private readonly tenantContext: JobTenantContextRunner,
+    private readonly staffInviteExpiryService: StaffInviteExpiryService,
   ) {
     super();
   }
@@ -64,9 +66,15 @@ export class PortalInviteMaintenanceProcessor extends WorkerHost implements OnMo
       {
         queueName: PORTAL_INVITE_MAINTENANCE_QUEUE,
         resourceId: PORTAL_INVITE_EXPIRY_JOB,
-        systemReason: 'Expire portal invites that have passed their expiry date',
+        systemReason: 'Expire patient and staff invites that have passed their expiry date',
       },
-      (client) => this.expiryService.expireOverdueInvites(new Date(), client),
+      async (client) => {
+        const now = new Date();
+        await this.expiryService.expireOverdueInvites(now, client);
+        // Staff invitations lapse on the same clock, so they share the job rather than
+        // scheduling a second one for the same hourly tick.
+        await this.staffInviteExpiryService.expireOverdueInvites(now, client);
+      },
     );
   }
 }

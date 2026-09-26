@@ -5,6 +5,7 @@ import { AuthModule } from '../auth/auth.module';
 import { AuditModule } from '../audit/audit.module';
 import { ReminderModule } from '../reminders/reminder.module';
 import { KeycloakModule } from '../keycloak/keycloak.module';
+import { StaffInviteModule } from '../staff-invites/staff-invite.module';
 import { EmailDeliverabilityService } from '../common/email-policy';
 import { PatientPortalController } from './patient-portal.controller';
 import { PatientApiController } from './patient-api.controller';
@@ -25,6 +26,7 @@ import {
     AuditModule,
     ReminderModule,
     KeycloakModule,
+    StaffInviteModule,
     BullModule.registerQueue({ name: PORTAL_INVITE_MAINTENANCE_QUEUE }),
   ],
   controllers: [

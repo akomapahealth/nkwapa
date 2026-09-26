@@ -1403,7 +1403,7 @@ describe('PatientPortalService', () => {
           'req-1',
         );
 
-        expect(keycloakAdminService.provisionPortalIdentity).toHaveBeenCalledWith({
+        expect(keycloakAdminService.provisionInvitedIdentity).toHaveBeenCalledWith({
           email: 'ama@example.com',
           firstName: 'Ama',
           lastName: 'Mensah',
@@ -1412,7 +1412,7 @@ describe('PatientPortalService', () => {
         });
 
         const provisionOrder =
-          keycloakAdminService.provisionPortalIdentity.mock.invocationCallOrder[0];
+          keycloakAdminService.provisionInvitedIdentity.mock.invocationCallOrder[0];
         const emailOrder = reminderService.sendNotificationNow.mock.invocationCallOrder[0];
         expect(provisionOrder).toBeLessThan(emailOrder);
       });
@@ -1487,7 +1487,7 @@ describe('PatientPortalService', () => {
           'req-1',
         );
 
-        expect(keycloakAdminService.provisionPortalIdentity).toHaveBeenCalledWith(
+        expect(keycloakAdminService.provisionInvitedIdentity).toHaveBeenCalledWith(
           expect.objectContaining({ lifespanSeconds: 7 * 24 * 60 * 60 }),
         );
       });
@@ -1501,7 +1501,7 @@ describe('PatientPortalService', () => {
           'req-1',
         );
 
-        expect(keycloakAdminService.provisionPortalIdentity).not.toHaveBeenCalled();
+        expect(keycloakAdminService.provisionInvitedIdentity).not.toHaveBeenCalled();
         expect(result.identity.status).toBe('NOT_REQUESTED');
       });
 
@@ -1516,7 +1516,7 @@ describe('PatientPortalService', () => {
           'req-1',
         );
 
-        expect(keycloakAdminService.provisionPortalIdentity).not.toHaveBeenCalled();
+        expect(keycloakAdminService.provisionInvitedIdentity).not.toHaveBeenCalled();
         expect(result.identity).toMatchObject({
           status: 'SKIPPED',
           failureReason: 'APP_PUBLIC_URL_UNSET',
@@ -1529,7 +1529,7 @@ describe('PatientPortalService', () => {
         does not exist yet, and a resend finishes the job.
       */
       it('still issues the invite when Keycloak cannot be reached', async () => {
-        keycloakAdminService.provisionPortalIdentity.mockResolvedValueOnce({
+        keycloakAdminService.provisionInvitedIdentity.mockResolvedValueOnce({
           outcome: 'FAILED',
           keycloakUserId: null,
           actionsSent: [],
@@ -1558,7 +1558,7 @@ describe('PatientPortalService', () => {
         });
 
         it('provisions again, so a half-finished account is carried to completion', async () => {
-          keycloakAdminService.provisionPortalIdentity.mockResolvedValueOnce({
+          keycloakAdminService.provisionInvitedIdentity.mockResolvedValueOnce({
             outcome: 'EXISTING_PENDING',
             keycloakUserId: 'kc-9',
             actionsSent: ['VERIFY_EMAIL'],
@@ -1577,7 +1577,7 @@ describe('PatientPortalService', () => {
         });
 
         it('reports a patient who already has a working account', async () => {
-          keycloakAdminService.provisionPortalIdentity.mockResolvedValueOnce({
+          keycloakAdminService.provisionInvitedIdentity.mockResolvedValueOnce({
             outcome: 'ALREADY_ACTIVE',
             keycloakUserId: 'kc-9',
             actionsSent: [],
@@ -1609,7 +1609,7 @@ describe('PatientPortalService', () => {
             service.resendPortalInvite('clinic-1', 'patient-1', 'invite-1', 'manager-1', 'req-1'),
           ).rejects.toThrow(/expired/i);
 
-          expect(keycloakAdminService.provisionPortalIdentity).not.toHaveBeenCalled();
+          expect(keycloakAdminService.provisionInvitedIdentity).not.toHaveBeenCalled();
           expect(prisma.patientPortalInvite.update).not.toHaveBeenCalled();
         });
 
@@ -1622,7 +1622,7 @@ describe('PatientPortalService', () => {
             service.resendPortalInvite('clinic-1', 'patient-1', 'invite-1', 'manager-1', 'req-1'),
           ).rejects.toThrow();
 
-          expect(keycloakAdminService.provisionPortalIdentity).not.toHaveBeenCalled();
+          expect(keycloakAdminService.provisionInvitedIdentity).not.toHaveBeenCalled();
         });
 
         it('provisions nothing when the invite was already claimed', async () => {
@@ -1634,7 +1634,7 @@ describe('PatientPortalService', () => {
             service.resendPortalInvite('clinic-1', 'patient-1', 'invite-1', 'manager-1', 'req-1'),
           ).rejects.toThrow();
 
-          expect(keycloakAdminService.provisionPortalIdentity).not.toHaveBeenCalled();
+          expect(keycloakAdminService.provisionInvitedIdentity).not.toHaveBeenCalled();
         });
       });
     });

@@ -135,6 +135,7 @@ const TYPE_LABELS: Record<string, string> = {
   FOLLOWUP_REMINDER_V1: 'Follow-up reminder',
   APPOINTMENT_REMINDER_V1: 'Appointment reminder',
   PORTAL_INVITE_V1: 'Portal invite',
+  STAFF_INVITE_V1: 'Staff invitation',
   APPOINTMENT_CONFIRMED_V1: 'Appointment confirmed',
   APPOINTMENT_RESCHEDULED_V1: 'Appointment moved',
   APPOINTMENT_CANCELLED_V1: 'Appointment cancelled',
@@ -149,7 +150,7 @@ export function formatTemplateLabel(templateKey: string): string {
 
 export const NOTIFICATION_TYPE_FILTERS = [
   { value: 'REMINDER', label: 'Reminders' },
-  { value: 'INVITE', label: 'Portal invites' },
+  { value: 'INVITE', label: 'Invitations' },
   { value: 'APPOINTMENT_UPDATE', label: 'Appointment updates' },
   { value: 'STAFF', label: 'Staff access' },
 ] as const;

@@ -106,17 +106,48 @@ npm run db:assign-system-admin
 
 ## 6. Staff User Setup
 
-Recommended pattern for directors, managers, doctors, and volunteers:
+### Managers, doctors, and volunteers: invite by email
 
-1. Create the identity in Keycloak.
-2. Let the user log into Nkwapa once.
-3. Open `/admin/users` as an authorized admin.
-4. Assign the correct role for the target clinic.
+Nobody needs Keycloak credentials to add a colleague. On `/admin/users`, with the clinic
+selected, a director of that clinic or a system admin uses **Invite a colleague**:
 
-Why step 2 matters:
+1. Enter an address only that person reads, pick the role (Manager, Doctor or Volunteer) and how
+   long the invitation stays open (24 hours, 3 days, or 7 days; 3 days by default).
+2. Nkwapa creates the Keycloak account and Keycloak emails a "Choose your Nkwapa password" link.
+   Nkwapa sends a second email naming the clinic, the role and that password email.
+3. The colleague sets a password, signs in, and lands on `/accept-invite`, where they check the
+   clinic and role and accept. The role is granted at that moment, in that clinic only.
 
-- the local `User` record is created or hydrated on first successful login
-- users that only exist in Keycloak may not yet appear in Nkwapa admin views
+The invitation list keeps every invitation, including cancelled and expired ones, and shows two
+separate facts for an open one: whether an account stands behind it, and whether the email went
+out. **Resend** is safe at any time. It only sends the setup steps that are still outstanding and
+never resets a password someone has already chosen. **Cancel** stops the link granting anything.
+
+What is refused, and why:
+
+- **Director and System Admin** are never granted by email, by anyone. Those stay deliberate,
+  manual assignments (below).
+- **A director invites only into a clinic they direct.** Managers do not invite; they keep their
+  existing lifecycle authority over doctor and volunteer seats.
+- **Shared inboxes** such as `info@`, `reception@`, `admin@` are refused outright. A staff
+  invitation has no second check, so whoever reads the inbox would get the role.
+- **An address that already belongs to a staff account** is not refused, but the inviter is told
+  and has to confirm. Accepting adds the role to that existing account.
+- **A deactivated account** cannot be re-admitted through an invitation; reactivate it first.
+
+Every step is audited: `STAFF.INVITE.CREATE`, `.RESEND`, `.CANCEL`, `.IDENTITY`, `.ACCEPT`,
+`.EXPIRE`, and the grant itself as `ROLE.GRANT` with the invitation it came from.
+
+If the list shows **Account not created**, the card says why. The usual causes are the
+service-account setup in `docs/KEYCLOAK_SERVICE_ACCOUNT_ROLLOUT.md`, or `APP_PUBLIC_URL` unset on
+the API. The invitation still stands; resend once it is fixed.
+
+### Directors and system admins: assign by hand
+
+1. Ask the person to sign in once (an invitation to any role is the easy way to get them an
+   account), so their local `User` record exists.
+2. Open `/admin/users` as a system admin (or a director, for a Director seat in their clinic).
+3. Assign the role for the target clinic.
 
 This pattern is for **staff only**. Patients are not set up this way, and creating a Keycloak
 identity for a patient by hand is no longer the supported path: issuing a portal invite from

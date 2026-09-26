@@ -200,6 +200,15 @@ enum PortalInviteIdentityStatus {
   FAILED
 }
 
+/// Where a staff invitation is in its life. Mirrors PatientPortalInviteStatus, with ACCEPTED
+/// in place of CLAIMED because nothing is being claimed: a role is being granted.
+enum StaffInviteStatus {
+  PENDING
+  ACCEPTED
+  CANCELLED
+  EXPIRED
+}
+
 enum PatientDuplicateReviewStatus {
   OPEN
   DISMISSED
@@ -786,6 +795,7 @@ model Clinic {
   appointmentRequests       AppointmentRequest[]
   appointments              Appointment[]
   patientPortalInvites      PatientPortalInvite[]
+  staffInvites              StaffInvite[]
   conversations             Conversation[]
   chatMessages              Message[]
   medicalHistoryRecords     MedicalHistoryRecord[]
@@ -844,6 +854,9 @@ model User {
   volunteerAppointments           Appointment[]                   @relation("AppointmentAssignedVolunteer")
   createdPatientPortalInvites     PatientPortalInvite[]           @relation("PatientPortalInviteCreatedBy")
   claimedPatientPortalInvites     PatientPortalInvite[]           @relation("PatientPortalInviteClaimedBy")
+  createdStaffInvites             StaffInvite[]                   @relation("StaffInviteCreatedBy")
+  acceptedStaffInvites            StaffInvite[]                   @relation("StaffInviteAcceptedBy")
+  cancelledStaffInvites           StaffInvite[]                   @relation("StaffInviteCancelledBy")
   mergedPatients                  Patient[]                       @relation("PatientMergedBy")
   duplicateReviews                PatientDuplicateReview[]        @relation("PatientDuplicateReviewedBy")
   patientMergeRecords             PatientMergeRecord[]            @relation("PatientMergeRecordMergedBy")
@@ -1599,6 +1612,9 @@ model Reminder {
   recipientType   ReminderRecipientType @default(PATIENT)
   recipientUserId String?               @db.Uuid
   portalInviteId  String?               @db.Uuid
+  // An invited colleague has no User row until they first sign in, so a staff invitation is
+  // addressed through the invite rather than through recipientUserId.
+  staffInviteId   String?               @db.Uuid
   encounterId     String?               @db.Uuid
   appointmentId   String?               @db.Uuid
 
@@ -1620,6 +1636,7 @@ model Reminder {
   patient       Patient?             @relation(fields: [patientId], references: [id], onDelete: Cascade)
   recipientUser User?                @relation("ReminderRecipient", fields: [recipientUserId], references: [id], onDelete: SetNull)
   portalInvite  PatientPortalInvite? @relation(fields: [portalInviteId], references: [id], onDelete: SetNull)
+  staffInvite   StaffInvite?         @relation(fields: [staffInviteId], references: [id], onDelete: SetNull)
   encounter     Encounter?           @relation(fields: [encounterId], references: [id], onDelete: SetNull)
   appointment   Appointment?         @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
 
@@ -1629,6 +1646,7 @@ model Reminder {
   @@index([appointmentId])
   @@index([recipientUserId])
   @@index([portalInviteId])
+  @@index([staffInviteId])
   @@index([clinicId, templateKey, createdAt])
 }
 
@@ -1679,6 +1697,52 @@ model PatientPortalInvite {
   @@index([phoneE164, status])
   // The expiry sweep's only query: overdue pending rows, oldest first. Without this it
   // is a sequential scan over every invite the deployment has ever issued.
+  @@index([status, expiresAt])
+}
+
+/// An invitation for someone to join a clinic's staff in a given role.
+///
+/// Deliberately not the patient invite with a role column. A patient invite grants one record
+/// the invitee must still identify with a patient code and date of birth; this grants a role
+/// over other people's clinical data, with possession of the inbox as the only proof. The
+/// controls that difference demands (a role ceiling, a short expiry, refusing shared inboxes)
+/// live in apps/api/src/common/staff-invite-lifecycle.ts.
+model StaffInvite {
+  id                String            @id @default(uuid()) @db.Uuid
+  clinicId          String            @db.Uuid
+  /// Stored lower-cased. Matched against User.email, which only holds a verified address.
+  email             String            @db.VarChar(320)
+  role              UserRole
+  status            StaffInviteStatus @default(PENDING)
+  createdByUserId   String            @db.Uuid
+  acceptedByUserId  String?           @db.Uuid
+  acceptedAt        DateTime?
+  cancelledByUserId String?           @db.Uuid
+  cancelledAt       DateTime?
+  /// Never null: unlike the patient invite, this table has no rows from before expiry existed.
+  expiresAt         DateTime
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  // Identity provisioning, the same shape PatientPortalInvite records, so the admin view can
+  // say whether the invitee can act on the email rather than only whether it was sent.
+  identityStatus        PortalInviteIdentityStatus @default(NOT_REQUESTED)
+  keycloakUserId        String?                    @db.VarChar(255)
+  identityProvisionedAt DateTime?
+  /// A stable code such as KEYCLOAK_ADMIN_TIMEOUT. Never an address.
+  identityFailureReason String?                    @db.VarChar(255)
+
+  clinic      Clinic     @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  createdBy   User       @relation("StaffInviteCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  acceptedBy  User?      @relation("StaffInviteAcceptedBy", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+  cancelledBy User?      @relation("StaffInviteCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
+  reminders   Reminder[]
+
+  // "Invitations for this clinic, newest first", the admin listing.
+  @@index([clinicId, status, createdAt])
+  // "What is this signed-in person invited to", read by whoami on every bootstrap.
+  @@index([email, status])
+  // The expiry sweep.
   @@index([status, expiresAt])
 }
 

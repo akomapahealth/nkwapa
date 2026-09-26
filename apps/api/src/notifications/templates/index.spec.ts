@@ -278,3 +278,43 @@ describe('portal invite account setup wording', () => {
     }
   });
 });
+
+describe('staff invite template', () => {
+  const base = {
+    clinicName: 'Cape Coast Clinic',
+    role: 'DOCTOR',
+    inviterName: 'Dr Mensah',
+    acceptUrl: 'https://app.example/accept-invite',
+    expiresAt: '2026-09-28T12:00:00Z',
+    timezone: 'Africa/Accra',
+  };
+
+  it('names the clinic, the role and who sent it', () => {
+    const message = renderMessage('STAFF_INVITE_V1', base);
+    expect(message.subject).toContain('Cape Coast Clinic');
+    expect(message.text).toContain('Doctor');
+    expect(message.text).toContain('Dr Mensah');
+  });
+
+  // The reader is a colleague. The patient wording would tell them they have a record.
+  it('never implies a health record', () => {
+    const message = renderMessage('STAFF_INVITE_V1', { ...base, accountSetup: 'PENDING_PASSWORD' });
+    expect(message.text).not.toMatch(/health record|patient code|date of birth/i);
+  });
+
+  it('points a new account at the password email, and offers no link it could not use yet', () => {
+    const message = renderMessage('STAFF_INVITE_V1', { ...base, accountSetup: 'PENDING_PASSWORD' });
+    expect(message.text).toContain('Choose your Nkwapa password');
+    expect(message.html).not.toContain('https://app.example/accept-invite');
+  });
+
+  it('offers the acceptance link to someone who already has an account', () => {
+    const message = renderMessage('STAFF_INVITE_V1', { ...base, accountSetup: 'EXISTING_ACCOUNT' });
+    expect(message.html).toContain('https://app.example/accept-invite');
+  });
+
+  // No second factor stands behind this message, so it says so to the one person who can act.
+  it('warns against forwarding', () => {
+    expect(renderMessage('STAFF_INVITE_V1', base).text).toMatch(/do not forward/i);
+  });
+});

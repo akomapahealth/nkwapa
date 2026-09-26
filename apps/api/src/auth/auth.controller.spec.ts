@@ -20,6 +20,9 @@ describe('AuthController', () => {
     patientPortalInvite: {
       findMany: jest.fn(),
     },
+    staffInvite: {
+      findMany: jest.fn(),
+    },
   };
 
   const controller = new AuthController(clinicService as never, prisma as never);
@@ -56,6 +59,7 @@ describe('AuthController', () => {
       isActive: true,
     });
     prisma.patientPortalInvite.findMany.mockResolvedValue([]);
+    prisma.staffInvite.findMany.mockResolvedValue([]);
   });
 
   it('returns the raw profile for /auth/me', () => {
@@ -423,6 +427,86 @@ describe('AuthController', () => {
           }),
         }),
       );
+    });
+  });
+
+  describe('staff invitations', () => {
+    const openInvite = {
+      id: 'staff-invite-1',
+      clinicId: 'clinic-3',
+      role: UserRole.VOLUNTEER,
+      createdAt: new Date('2026-09-25T10:00:00Z'),
+      expiresAt: new Date('2026-09-28T10:00:00Z'),
+      clinic: { name: 'Third Clinic' },
+      createdBy: { displayName: 'Dr Director' },
+    };
+    const rolelessInvitee: ReqUser = {
+      user: {
+        id: 'user-3',
+        keycloakSub: 'invitee-sub',
+        displayName: 'New Colleague',
+        email: 'colleague@example.com',
+      },
+      roles: [],
+    };
+
+    it('sends someone with no role to accept, ahead of a patient claim', async () => {
+      prisma.staffInvite.findMany.mockResolvedValue([openInvite]);
+
+      const result = await controller.whoami({ user: rolelessInvitee });
+
+      expect(result.onboarding).toEqual({ state: 'STAFF_INVITE_ACCEPT_REQUIRED' });
+      expect(result.pendingStaffInvites).toEqual([
+        {
+          id: 'staff-invite-1',
+          clinicId: 'clinic-3',
+          clinicName: 'Third Clinic',
+          role: UserRole.VOLUNTEER,
+          invitedBy: 'Dr Director',
+          createdAt: '2026-09-25T10:00:00.000Z',
+          expiresAt: '2026-09-28T10:00:00.000Z',
+        },
+      ]);
+      expect(prisma.patientPortalInvite.findMany).not.toHaveBeenCalled();
+    });
+
+    // A doctor invited to a second clinic keeps working; the invitation is offered, not imposed.
+    it('offers an invitation to someone who already holds a role, without onboarding them', async () => {
+      prisma.staffInvite.findMany.mockResolvedValue([openInvite]);
+
+      const result = await controller.whoami({ user: reqUser });
+
+      expect(result.onboarding).toBeNull();
+      expect(result.pendingStaffInvites).toHaveLength(1);
+    });
+
+    it('matches on the verified address only, and only while the invitation is open', async () => {
+      await controller.whoami({ user: rolelessInvitee });
+
+      expect(prisma.staffInvite.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            status: 'PENDING',
+            expiresAt: { gt: expect.any(Date) },
+            email: 'test@example.com',
+            clinic: { isActive: true },
+          },
+        }),
+      );
+    });
+
+    it('offers nothing to a deactivated account', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        email: 'colleague@example.com',
+        phoneE164: null,
+        isActive: false,
+      });
+      prisma.staffInvite.findMany.mockResolvedValue([openInvite]);
+
+      const result = await controller.whoami({ user: rolelessInvitee });
+
+      expect(result.pendingStaffInvites).toEqual([]);
+      expect(prisma.staffInvite.findMany).not.toHaveBeenCalled();
     });
   });
 });

@@ -33,6 +33,7 @@ import {
 } from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
 import { InlineNotice } from '@/components/ops/OpsShared';
+import { StaffInvitesCard } from '@/components/staff/StaffInvitesCard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -323,6 +324,7 @@ export default function AdminUsersPage() {
   );
   const activeClinicRoles = activeMembership?.roles ?? [];
   const canAssignRoles = isSystemAdmin || directorMemberships.length > 0;
+  const canInviteStaff = isSystemAdmin || activeMembership?.roles.includes('DIRECTOR') === true;
   const canManageLifecycle =
     isSystemAdmin ||
     activeClinicRoles.includes('DIRECTOR') ||
@@ -905,6 +907,20 @@ export default function AdminUsersPage() {
           />
         ) : null}
         {notice ? <InlineNotice tone="success">{notice}</InlineNotice> : null}
+
+        {/*
+          Invitations belong to one clinic, so they appear with the clinic roster only. The API
+          applies the same seats (a director of this clinic, or a system admin) and the role
+          ceiling; this only avoids offering a button that would be refused.
+        */}
+        {viewMode === 'clinic' && activeClinicId && canInviteStaff ? (
+          <StaffInvitesCard
+            clinicId={activeClinicId}
+            clinicName={activeClinicName}
+            getToken={getToken}
+            onChanged={() => void fetchRows({ background: true })}
+          />
+        ) : null}
 
         <section className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
           <Card className="min-w-0">

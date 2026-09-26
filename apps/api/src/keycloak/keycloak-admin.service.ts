@@ -8,19 +8,20 @@ import {
 } from './keycloak-admin.client';
 
 /**
- * What happened to the patient's identity when an invite was sent.
+ * What happened to the invitee's identity when an invite was sent.
  *
- * Mirrors PortalInviteIdentityStatus in the schema. Staff read these on the chart, so each
- * value has to answer "can the patient act on the email I just sent?" on its own.
+ * Mirrors PortalInviteIdentityStatus in the schema, which both patient and staff invitations
+ * record. Whoever sent the invite reads these, so each value has to answer "can this person
+ * act on the email I just sent?" on its own.
  */
-export type PortalIdentityOutcome =
+export type InvitedIdentityOutcome =
   | 'PROVISIONED'
   | 'EXISTING_PENDING'
   | 'ALREADY_ACTIVE'
   | 'SKIPPED'
   | 'FAILED';
 
-export interface ProvisionPortalIdentityInput {
+export interface ProvisionInvitedIdentityInput {
   email: string;
   firstName?: string | null;
   lastName?: string | null;
@@ -30,8 +31,8 @@ export interface ProvisionPortalIdentityInput {
   lifespanSeconds: number;
 }
 
-export interface ProvisionPortalIdentityResult {
-  outcome: PortalIdentityOutcome;
+export interface ProvisionInvitedIdentityResult {
+  outcome: InvitedIdentityOutcome;
   keycloakUserId: string | null;
   actionsSent: KeycloakRequiredAction[];
   /** A stable code, never a sentence and never anything patient-identifying. */
@@ -67,9 +68,9 @@ export class KeycloakAdminService {
    * the invite still exists, the chart says the account could not be created, and a resend
    * finishes the job later.
    */
-  async provisionPortalIdentity(
-    input: ProvisionPortalIdentityInput,
-  ): Promise<ProvisionPortalIdentityResult> {
+  async provisionInvitedIdentity(
+    input: ProvisionInvitedIdentityInput,
+  ): Promise<ProvisionInvitedIdentityResult> {
     if (!this.client.isReady) {
       return this.result('SKIPPED', null, [], 'KEYCLOAK_ADMIN_UNCONFIGURED');
     }
@@ -121,7 +122,7 @@ export class KeycloakAdminService {
   private async sendActions(
     userId: string,
     actions: KeycloakRequiredAction[],
-    input: ProvisionPortalIdentityInput,
+    input: ProvisionInvitedIdentityInput,
   ): Promise<void> {
     if (actions.length === 0) return;
     await this.client.executeActionsEmail({
@@ -134,11 +135,11 @@ export class KeycloakAdminService {
   }
 
   private result(
-    outcome: PortalIdentityOutcome,
+    outcome: InvitedIdentityOutcome,
     keycloakUserId: string | null,
     actionsSent: KeycloakRequiredAction[],
     failureReason: string | null = null,
-  ): ProvisionPortalIdentityResult {
+  ): ProvisionInvitedIdentityResult {
     return { outcome, keycloakUserId, actionsSent, failureReason };
   }
 }

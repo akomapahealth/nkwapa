@@ -121,7 +121,10 @@ export default function ClaimRecordPage() {
   const bootstrap = bootstrapCtx?.bootstrap ?? null;
   const isLoading = bootstrapCtx?.isLoading ?? true;
   const bootstrapError = bootstrapCtx?.error ?? null;
-  const pendingInvites = useMemo(() => bootstrap?.onboarding?.pendingInvites ?? [], [bootstrap]);
+  const pendingInvites = useMemo(() => {
+    const onboarding = bootstrap?.onboarding;
+    return onboarding?.state === 'PATIENT_CLAIM_REQUIRED' ? onboarding.pendingInvites : [];
+  }, [bootstrap]);
   const [selectedInviteId, setSelectedInviteId] = useState<string>('');
   const [patientCode, setPatientCode] = useState('');
   const [dob, setDob] = useState('');

@@ -45,7 +45,7 @@ function service(client: ClientMock): KeycloakAdminService {
   return new KeycloakAdminService(client as unknown as KeycloakAdminClient, CONFIG);
 }
 
-describe('KeycloakAdminService.provisionPortalIdentity', () => {
+describe('KeycloakAdminService.provisionInvitedIdentity', () => {
   let warn: jest.SpyInstance;
 
   beforeEach(() => {
@@ -61,7 +61,7 @@ describe('KeycloakAdminService.provisionPortalIdentity', () => {
     it('creates the identity and asks for a password and verification', async () => {
       const client = createClient();
 
-      const result = await service(client).provisionPortalIdentity(INPUT);
+      const result = await service(client).provisionInvitedIdentity(INPUT);
 
       expect(result).toEqual({
         outcome: 'PROVISIONED',
@@ -98,7 +98,7 @@ describe('KeycloakAdminService.provisionPortalIdentity', () => {
         hasPasswordCredential: jest.fn().mockResolvedValue(false),
       });
 
-      const result = await service(client).provisionPortalIdentity(INPUT);
+      const result = await service(client).provisionInvitedIdentity(INPUT);
 
       expect(result.outcome).toBe('EXISTING_PENDING');
       expect(result.keycloakUserId).toBe('kc-9');
@@ -112,7 +112,7 @@ describe('KeycloakAdminService.provisionPortalIdentity', () => {
         hasPasswordCredential: jest.fn().mockResolvedValue(true),
       });
 
-      const result = await service(client).provisionPortalIdentity(INPUT);
+      const result = await service(client).provisionInvitedIdentity(INPUT);
 
       expect(result.outcome).toBe('EXISTING_PENDING');
       expect(result.actionsSent).toEqual(['VERIFY_EMAIL']);
@@ -127,7 +127,7 @@ describe('KeycloakAdminService.provisionPortalIdentity', () => {
         hasPasswordCredential: jest.fn().mockResolvedValue(true),
       });
 
-      const result = await service(client).provisionPortalIdentity(INPUT);
+      const result = await service(client).provisionInvitedIdentity(INPUT);
 
       expect(result).toEqual({
         outcome: 'ALREADY_ACTIVE',
@@ -146,8 +146,8 @@ describe('KeycloakAdminService.provisionPortalIdentity', () => {
       });
 
       const subject = service(client);
-      await subject.provisionPortalIdentity(INPUT);
-      await subject.provisionPortalIdentity(INPUT);
+      await subject.provisionInvitedIdentity(INPUT);
+      await subject.provisionInvitedIdentity(INPUT);
 
       expect(client.createUser).not.toHaveBeenCalled();
     });
@@ -159,7 +159,7 @@ describe('KeycloakAdminService.provisionPortalIdentity', () => {
           .mockResolvedValue({ id: 'kc-9', enabled: false, emailVerified: true }),
       });
 
-      const result = await service(client).provisionPortalIdentity(INPUT);
+      const result = await service(client).provisionInvitedIdentity(INPUT);
 
       expect(result).toMatchObject({
         outcome: 'FAILED',
@@ -174,7 +174,7 @@ describe('KeycloakAdminService.provisionPortalIdentity', () => {
     it('is skipped, not failed, when no credentials are configured', async () => {
       const client = createClient({ isReady: false });
 
-      const result = await service(client).provisionPortalIdentity(INPUT);
+      const result = await service(client).provisionInvitedIdentity(INPUT);
 
       expect(result).toEqual({
         outcome: 'SKIPPED',
@@ -196,7 +196,7 @@ describe('KeycloakAdminService.provisionPortalIdentity', () => {
           .mockRejectedValue(new KeycloakAdminError(code as 'KEYCLOAK_ADMIN_TIMEOUT')),
       });
 
-      const result = await service(client).provisionPortalIdentity(INPUT);
+      const result = await service(client).provisionInvitedIdentity(INPUT);
 
       expect(result).toMatchObject({ outcome: 'FAILED', failureReason: code });
     });
@@ -206,7 +206,7 @@ describe('KeycloakAdminService.provisionPortalIdentity', () => {
         findUserByEmail: jest.fn().mockRejectedValue(new Error('something odd')),
       });
 
-      const result = await service(client).provisionPortalIdentity(INPUT);
+      const result = await service(client).provisionInvitedIdentity(INPUT);
 
       expect(result.failureReason).toBe('KEYCLOAK_ADMIN_REQUEST_FAILED');
     });
@@ -216,7 +216,7 @@ describe('KeycloakAdminService.provisionPortalIdentity', () => {
         findUserByEmail: jest.fn().mockRejectedValue(new Error(INPUT.email)),
       });
 
-      await service(client).provisionPortalIdentity(INPUT);
+      await service(client).provisionInvitedIdentity(INPUT);
 
       const logged = warn.mock.calls.map((call) => String(call[0])).join('\n');
       expect(logged).not.toContain(INPUT.email);
