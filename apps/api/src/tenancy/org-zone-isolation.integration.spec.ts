@@ -225,10 +225,24 @@ describeIsolation('organization and zone isolation', () => {
       the database still fails closed: the clinical-note status function refuses a clinic outside
       the context outright, rather than answering with anyone's numbers.
     */
-    it('fails closed when a clinic-scoped user reads another clinic dashboard', async () => {
-      await expect(
-        asRequest(DIRECTOR_A1, () => dashboard.getDashboard(b1.id, ['DIRECTOR'], DIRECTOR_A1.id)),
-      ).rejects.toThrow(/Clinical note operational status is not available/);
+    describe('with clinical notes enabled', () => {
+      // The status function is only reached behind this flag, so pin it rather than inherit it.
+      const previous = process.env.FEATURE_CLINICAL_NOTES_ENABLED;
+
+      beforeEach(() => {
+        process.env.FEATURE_CLINICAL_NOTES_ENABLED = 'true';
+      });
+
+      afterEach(() => {
+        if (previous === undefined) delete process.env.FEATURE_CLINICAL_NOTES_ENABLED;
+        else process.env.FEATURE_CLINICAL_NOTES_ENABLED = previous;
+      });
+
+      it('fails closed when a clinic-scoped user reads another clinic dashboard', async () => {
+        await expect(
+          asRequest(DIRECTOR_A1, () => dashboard.getDashboard(b1.id, ['DIRECTOR'], DIRECTOR_A1.id)),
+        ).rejects.toThrow(/Clinical note operational status is not available/);
+      });
     });
   });
 
