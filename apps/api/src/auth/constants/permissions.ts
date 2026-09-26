@@ -107,6 +107,14 @@ export const PERMISSIONS = {
     being a boundary.
   */
   PATIENT_MERGE: 'PATIENT.MERGE',
+  /*
+    Read an organization's rollup across all of its clinics (#13).
+
+    Granted to no role, like PATIENT_MERGE: SYSTEM_ADMIN holds it through '*' and nobody else can.
+    It exists as a name so an organization-level leadership role can be given exactly this later,
+    rather than a director's clinic permissions being stretched across an organization.
+  */
+  ORGANIZATION_REPORT_READ: 'ORGANIZATION.REPORT.READ',
   // Chat
   CHAT_SEND: 'CHAT.SEND',
   CHAT_READ: 'CHAT.READ',

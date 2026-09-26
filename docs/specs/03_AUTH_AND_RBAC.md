@@ -364,7 +364,11 @@ The current realm export is hardened with:
 
 - zone is a reporting filter rather than a permission scope; zone-scoped roles are deliberately
   not implemented, and the Zone Model section above is the statement of record
-- organization-level admin/reporting permissions are not yet distinct from clinic-level permissions
+- organization-level roles do not exist yet. The organization report (`GET
+/organizations/:id/report`, #13) sits behind its own permission, `ORGANIZATION.REPORT.READ`,
+  which is granted to no role, so today only `SYSTEM_ADMIN` reads it through `'*'`. It is named so
+  a future organization leadership role can be given exactly that, instead of a director's clinic
+  permissions being stretched across an organization
 - Keycloak still provides identity only; app-side policy remains the authority and must continue to be tested independently
 - patient invitations reach an email address only; provisioning an identity from a phone number
   is not implemented, and a phone-only invite is recorded as such rather than failing
