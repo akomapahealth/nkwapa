@@ -1075,6 +1075,8 @@ model Encounter {
   medicationReconciliations  MedicationReconciliationEvent[] @relation("MedicationReconciliationSourceEncounter")
   clinicalNote               ClinicalNote?
 
+  // Windowed per-clinic reads: clinic dashboards (today, trends) and organization rollups (#13).
+  @@index([clinicId, createdAt])
   @@index([clinicId, updatedAt])
   @@index([patientId, updatedAt])
   @@index([status])

@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import {
+  BarChart3,
   Bell,
   Building2,
   CalendarDays,
@@ -148,6 +149,13 @@ const NAV_SECTIONS: AppNavSection[] = [
         description: 'Roles and access.',
         icon: UserCog,
         permission: 'CLINIC.MANAGE',
+      },
+      {
+        href: '/reports/organization',
+        label: 'Organization report',
+        description: 'Every clinic at once.',
+        icon: BarChart3,
+        permission: 'ORGANIZATION.REPORT.READ',
       },
       {
         href: '/admin/duplicates',
