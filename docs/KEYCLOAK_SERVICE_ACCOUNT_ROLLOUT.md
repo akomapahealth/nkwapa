@@ -127,6 +127,31 @@ emails arrive. Then open the setup email's raw source (in Gmail, "Show original"
 SPF, DKIM and DMARC all report `PASS`. Two emails arriving is necessary and not sufficient;
 authentication is what decides whether they keep arriving once volume picks up.
 
+## 6. Keycloak's SMTP settings come from the environment on every boot
+
+The realm export substitutes `KC_SMTP_*` into the realm's `smtpServer`, but, like the client
+above, only on the first import. Before this was handled, changing `KC_SMTP_PORT` on the
+Keycloak service and redeploying left the live realm on its original relay and port. In
+practice the API invitation arrived and the account-setup link never did, because Keycloak was
+still dialling a port Render drops.
+
+The image now starts through `infra/nkwapa/keycloak/entrypoint.sh`. Once Keycloak is up, it
+signs in with `KC_BOOTSTRAP_ADMIN_USERNAME`/`KC_BOOTSTRAP_ADMIN_PASSWORD` and writes every
+`KC_SMTP_*` value into the realm. Check for this line in the Keycloak logs after each deploy:
+
+```
+[nkwapa-reconcile] smtp applied to realm nkwapa: smtp.resend.com:2587 starttls=true ssl=false auth=true
+```
+
+It never logs the relay username or password. The reconcile is written so it can't stop
+Keycloak from starting: if it can't authenticate or the update is refused, it logs a
+`WARNING` and sign-in carries on. The usual causes are bootstrap admin credentials that were
+changed after first boot, or `KC_SMTP_HOST` being unset. An unset host is deliberate: the
+reconcile then leaves the realm alone instead of blanking it.
+
+The same pass warns if the `nkwapa-api` client is missing from the realm. That is the other
+way the setup link never goes out, and it's fixed by step 2 above.
+
 ## Rollback
 
 Delete the client. Invitations keep working, the chart goes back to reporting that no account

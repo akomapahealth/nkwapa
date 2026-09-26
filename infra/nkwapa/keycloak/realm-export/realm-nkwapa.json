@@ -40,7 +40,10 @@
     "starttls": "${KC_SMTP_STARTTLS}",
     "ssl": "${KC_SMTP_SSL}",
     "user": "${KC_SMTP_USER}",
-    "password": "${KC_SMTP_PASSWORD}"
+    "password": "${KC_SMTP_PASSWORD}",
+    "connectionTimeout": "10000",
+    "timeout": "10000",
+    "writeTimeout": "10000"
   },
   "resetCredentialsFlow": "reset credentials",
   "authenticatorConfig": [
