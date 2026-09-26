@@ -10,6 +10,10 @@ import { isSystemAdmin } from '../auth/clinic-roles';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ReminderService } from '../reminders/reminder.service';
+import {
+  IdentitySyncService,
+  type IdentitySyncState,
+} from '../identity-sync/identity-sync.service';
 
 export interface AdminActor {
   userId: string;
@@ -63,6 +67,7 @@ export class AdminService {
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
     private readonly reminderService: ReminderService,
+    private readonly identitySync: IdentitySyncService,
   ) {}
 
   async listUsers(actor: AdminActor, status?: string) {
@@ -313,6 +318,21 @@ export class AdminService {
     return { deleted: true };
   }
 
+  /**
+   * Withdraw a user's access to one clinic.
+   *
+   * What that means depends on whether the clinic is the only place they work, and getting it
+   * backwards locks a working clinician out of a clinic that never asked for it (#126):
+   *
+   *   - last clinic: the account is deactivated, and the identity behind it is disabled with its
+   *     sessions ended, after this request commits
+   *   - access elsewhere: only this clinic's roles are withdrawn; the account and the identity
+   *     stay as they are, because the user still works somewhere. Only a system admin reaches
+   *     this branch, since clinic managers are refused a user with outside access below.
+   *
+   * Idempotent: repeating it on an already-deactivated user re-requests the identity sync and
+   * sends nothing, which is also how an admin retries a sync that failed.
+   */
   async deactivateUserInClinic(
     actor: AdminActor,
     clinicId: string,
@@ -327,14 +347,53 @@ export class AdminService {
     if (!target) {
       throw new NotFoundException('User not found');
     }
-    if (!target.clinicRoles.some((entry) => entry.clinicId === clinicId)) {
+    const clinicEntries = target.clinicRoles.filter((entry) => entry.clinicId === clinicId);
+    if (clinicEntries.length === 0) {
       throw new NotFoundException('User is not assigned to this clinic');
-    }
-    if (!target.isActive) {
-      throw new ConflictException('User is already deactivated');
     }
 
     this.assertCanDeactivateInClinic(actor, clinicId, target);
+    const clinicName = clinicEntries[0]?.clinic?.name ?? null;
+
+    if (!target.isActive) {
+      const identity = await this.requestIdentitySync(target.id, false, actor, requestId);
+      return { ...this.toLifecycleUserSummary(target), identity, alreadyInactive: true };
+    }
+
+    const accessElsewhere = target.clinicRoles.some((entry) => entry.clinicId !== clinicId);
+    if (accessElsewhere) {
+      for (const entry of clinicEntries) {
+        await this.prisma.userClinicRole.delete({ where: { id: entry.id } });
+        await this.auditService.logWrite({
+          clinicId,
+          actorUserId: actor.userId,
+          action: 'ROLE.REVOKE',
+          entityType: 'UserClinicRole',
+          entityId: entry.id,
+          beforeJson: JSON.stringify(entry),
+          afterJson: JSON.stringify({ reason: 'CLINIC_DEACTIVATION', accountStaysActive: true }),
+          requestId,
+        });
+      }
+
+      await this.notifyStaffLifecycle({
+        templateKey: 'STAFF_ACCOUNT_DEACTIVATED_V1',
+        clinicId,
+        recipient: target,
+        clinicName,
+        role: null,
+        scope: 'CLINIC',
+        actorUserId: actor.userId,
+        requestId,
+      });
+
+      return {
+        ...this.toLifecycleUserSummary(target),
+        identity: this.currentIdentityState(target),
+        accessRemaining: true,
+        rolesWithdrawn: clinicEntries.map((entry) => entry.role),
+      };
+    }
 
     const updated = await this.prisma.user.update({
       where: { id: targetUserId },
@@ -357,15 +416,158 @@ export class AdminService {
       templateKey: 'STAFF_ACCOUNT_DEACTIVATED_V1',
       clinicId,
       recipient: updated,
-      clinicName:
-        target.clinicRoles.find((entry) => entry.clinicId === clinicId)?.clinic?.name ?? null,
+      clinicName,
       role: null,
       scope: 'CLINIC',
       actorUserId: actor.userId,
       requestId,
     });
 
-    return this.toLifecycleUserSummary(updated);
+    const identity = await this.requestIdentitySync(updated.id, false, actor, requestId);
+    return { ...this.toLifecycleUserSummary(updated), identity };
+  }
+
+  /**
+   * Restore a user deactivated from this clinic, and the identity behind them.
+   *
+   * The same authority as deactivating: a manager or director of the clinic, over roles they
+   * could deactivate, for a user with no access elsewhere (anything wider is a system admin's).
+   * Without re-enabling the identity, the first reactivation after #126 shipped would produce a
+   * user who is active here and refused at the sign-in page, with nothing on this page to say why.
+   */
+  async reactivateUserInClinic(
+    actor: AdminActor,
+    clinicId: string,
+    targetUserId: string,
+    requestId?: string,
+  ) {
+    await this.assertActiveClinic(clinicId);
+    this.assertNotSelf(targetUserId, actor.userId, 'You cannot reactivate your own account');
+    this.assertCanManageClinicLifecycle(actor, clinicId);
+
+    const target = await this.findUserWithRoles(targetUserId);
+    if (!target) {
+      throw new NotFoundException('User not found');
+    }
+    const clinicEntry = target.clinicRoles.find((entry) => entry.clinicId === clinicId);
+    if (!clinicEntry) {
+      throw new NotFoundException('User is not assigned to this clinic');
+    }
+    this.assertCanDeactivateInClinic(actor, clinicId, target);
+
+    return this.reactivate(actor, target, clinicId, clinicEntry.clinic?.name ?? null, requestId);
+  }
+
+  async reactivateUserGlobally(actor: AdminActor, targetUserId: string, requestId?: string) {
+    this.assertSystemAdmin(actor, 'Only System Admin can reactivate users globally');
+    this.assertNotSelf(targetUserId, actor.userId, 'You cannot reactivate your own account');
+
+    const target = await this.findUserWithRoles(targetUserId);
+    if (!target) {
+      throw new NotFoundException('User not found');
+    }
+    const { clinicName } = this.resolveNotificationClinic(target.clinicRoles);
+    return this.reactivate(actor, target, null, clinicName, requestId);
+  }
+
+  /**
+   * Bring the identity back in line with the account, whichever way it should point.
+   *
+   * For the "deactivated here, still able to sign in" state the admin page shows, and for users
+   * deactivated before #126, whose identities were never touched.
+   */
+  async retryIdentitySync(
+    actor: AdminActor,
+    targetUserId: string,
+    clinicId: string | null,
+    requestId?: string,
+  ) {
+    if (clinicId) {
+      await this.assertActiveClinic(clinicId);
+      this.assertCanManageClinicLifecycle(actor, clinicId);
+    } else {
+      this.assertSystemAdmin(actor, 'Only System Admin can sync a user outside a clinic');
+    }
+
+    const target = await this.findUserWithRoles(targetUserId);
+    if (!target) {
+      throw new NotFoundException('User not found');
+    }
+    if (clinicId) {
+      if (!target.clinicRoles.some((entry) => entry.clinicId === clinicId)) {
+        throw new NotFoundException('User is not assigned to this clinic');
+      }
+      this.assertCanDeactivateInClinic(actor, clinicId, target);
+    }
+
+    const identity = await this.requestIdentitySync(target.id, target.isActive, actor, requestId);
+    return { ...this.toLifecycleUserSummary(target), identity };
+  }
+
+  private async reactivate(
+    actor: AdminActor,
+    target: UserWithRolesAndClinics,
+    clinicId: string | null,
+    clinicName: string | null,
+    requestId?: string,
+  ) {
+    if (target.isActive) {
+      // Idempotent, and the way to re-enable an identity that the first attempt failed to.
+      const identity = await this.requestIdentitySync(target.id, true, actor, requestId);
+      return { ...this.toLifecycleUserSummary(target), identity, alreadyActive: true };
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: target.id },
+      data: { isActive: true },
+      include: this.userInclude,
+    });
+
+    await this.auditService.logWrite({
+      clinicId,
+      actorUserId: actor.userId,
+      action: 'USER.REACTIVATE',
+      entityType: 'User',
+      entityId: updated.id,
+      beforeJson: JSON.stringify({ isActive: false }),
+      afterJson: JSON.stringify({ isActive: true }),
+      requestId,
+    });
+
+    await this.notifyStaffLifecycle({
+      templateKey: 'STAFF_ACCOUNT_REACTIVATED_V1',
+      clinicId: clinicId ?? this.resolveNotificationClinic(target.clinicRoles).clinicId,
+      recipient: updated,
+      clinicName,
+      role: null,
+      scope: clinicId ? 'CLINIC' : 'GLOBAL',
+      actorUserId: actor.userId,
+      requestId,
+    });
+
+    const identity = await this.requestIdentitySync(updated.id, true, actor, requestId);
+    return { ...this.toLifecycleUserSummary(updated), identity };
+  }
+
+  private requestIdentitySync(
+    userId: string,
+    expectedActive: boolean,
+    actor: AdminActor,
+    requestId?: string,
+  ): Promise<IdentitySyncState> {
+    return this.identitySync.requestSync({
+      userId,
+      expectedActive,
+      actorUserId: actor.userId,
+      requestId,
+    });
+  }
+
+  private currentIdentityState(user: {
+    identitySyncStatus: IdentitySyncState['status'];
+    identitySyncFailureReason: string | null;
+  }): IdentitySyncState {
+    return { status: user.identitySyncStatus, failureReason: user.identitySyncFailureReason };
   }
 
   async deactivateUserGlobally(actor: AdminActor, targetUserId: string, requestId?: string) {
@@ -377,7 +579,10 @@ export class AdminService {
       throw new NotFoundException('User not found');
     }
     if (!target.isActive) {
-      throw new ConflictException('User is already deactivated');
+      // Idempotent: nothing to change locally and nothing to announce, but the identity half is
+      // requested again, which is how an admin retries a disable that did not land.
+      const identity = await this.requestIdentitySync(target.id, false, actor, requestId);
+      return { ...this.toLifecycleUserSummary(target), identity, alreadyInactive: true };
     }
 
     const updated = await this.prisma.user.update({
@@ -414,7 +619,10 @@ export class AdminService {
       requestId,
     });
 
-    return this.toLifecycleUserSummary(updated);
+    // After the local write, never before: this only queues the identity half, which runs once
+    // the request has committed. A Keycloak outage cannot delay or undo the block above.
+    const identity = await this.requestIdentitySync(updated.id, false, actor, requestId);
+    return { ...this.toLifecycleUserSummary(updated), identity };
   }
 
   /**
@@ -429,7 +637,11 @@ export class AdminService {
    * failing the role change itself; access management must not depend on a mailbox.
    */
   private async notifyStaffLifecycle(params: {
-    templateKey: 'STAFF_ROLE_GRANTED_V1' | 'STAFF_ROLE_REVOKED_V1' | 'STAFF_ACCOUNT_DEACTIVATED_V1';
+    templateKey:
+      | 'STAFF_ROLE_GRANTED_V1'
+      | 'STAFF_ROLE_REVOKED_V1'
+      | 'STAFF_ACCOUNT_DEACTIVATED_V1'
+      | 'STAFF_ACCOUNT_REACTIVATED_V1';
     clinicId: string | null;
     recipient: { id: string; email: string | null; displayName: string | null };
     clinicName: string | null;
@@ -798,6 +1010,12 @@ export class AdminService {
       globalRoles,
       clinicMemberships,
       patientPortal,
+      identitySync: {
+        status: user.identitySyncStatus,
+        failureReason: user.identitySyncFailureReason,
+        requestedAt: user.identitySyncRequestedAt?.toISOString() ?? null,
+        syncedAt: user.identitySyncedAt?.toISOString() ?? null,
+      },
     };
   }
 
@@ -827,6 +1045,12 @@ export class AdminService {
       clinicRoles,
       globalRoles,
       otherClinicCount,
+      identitySync: {
+        status: user.identitySyncStatus,
+        failureReason: user.identitySyncFailureReason,
+        requestedAt: user.identitySyncRequestedAt?.toISOString() ?? null,
+        syncedAt: user.identitySyncedAt?.toISOString() ?? null,
+      },
     };
   }
 

@@ -288,6 +288,16 @@ it carries controls the patient flow does not:
 DIRECTOR and SYSTEM_ADMIN seats are still assigned by hand on `/admin/users`, once the person has
 signed in and their local `User` row exists.
 
+Removal mirrors it (issue #126). Deactivation sets `User.isActive` in the request, then an
+`identity-sync` BullMQ job disables the Keycloak identity (`PUT /users/{id}` with `enabled: false`)
+and ends its sessions (`POST /users/{id}/logout`). Reactivation re-enables it. Both calls are within
+the service account's `manage-users` ceiling. The job runs after the request commits because the
+request is a single bounded transaction, and a slow Keycloak inside it could roll the local block
+back. The job converges on the user's current state rather than replaying a command, so a quick
+deactivate-then-reactivate lands correctly whichever job runs first. `User.identitySyncStatus`
+records the outcome for the admin page. A clinic-scoped deactivation of someone who still works
+in another clinic withdraws only that clinic's roles and leaves the identity alone.
+
 ### Patient Users
 
 Patients do not create their own accounts, and staff do not create them by hand. The account
@@ -356,7 +366,5 @@ The current realm export is hardened with:
   not implemented, and the Zone Model section above is the statement of record
 - organization-level admin/reporting permissions are not yet distinct from clinic-level permissions
 - Keycloak still provides identity only; app-side policy remains the authority and must continue to be tested independently
-- deactivating a user does not yet disable their Keycloak identity (#126), which matters more now
-  that staff accounts are created automatically
 - patient invitations reach an email address only; provisioning an identity from a phone number
   is not implemented, and a phone-only invite is recorded as such rather than failing

@@ -39,6 +39,29 @@ export interface ProvisionInvitedIdentityResult {
   failureReason: string | null;
 }
 
+/**
+ * What happened when an identity was brought in line with a user's Nkwapa access.
+ *
+ * APPLIED means Keycloak now matches: disabled with its sessions ended, or enabled. NOT_FOUND is
+ * reported rather than folded into either, because it means different things in each direction:
+ * nobody can sign in as a missing identity (fine after a deactivation), and nobody can sign in as
+ * one either (a problem after a reactivation).
+ */
+export type IdentityAccessOutcome = 'APPLIED' | 'NOT_FOUND' | 'SKIPPED' | 'FAILED';
+
+export interface IdentityAccessResult {
+  outcome: IdentityAccessOutcome;
+  /** True only when sessions were actually ended, which happens only on a disable. */
+  sessionsEnded: boolean;
+  /** Retrying could change the answer. False for configuration problems and refusals. */
+  retryable: boolean;
+  /** A stable code, never a sentence and never anything identifying. */
+  failureReason: string | null;
+}
+
+/** Failures that are about the moment rather than the request. Worth another attempt. */
+const RETRYABLE_CODES = new Set(['KEYCLOAK_ADMIN_TIMEOUT', 'KEYCLOAK_ADMIN_UNREACHABLE']);
+
 @Injectable()
 export class KeycloakAdminService {
   private readonly logger = new Logger(KeycloakAdminService.name);
@@ -117,6 +140,53 @@ export class KeycloakAdminService {
       );
       return this.result('FAILED', null, [], code);
     }
+  }
+
+  /**
+   * Enable or disable the identity behind a user, ending its sessions when disabling.
+   *
+   * Idempotent: setting the flag it already has, or ending sessions that are already gone, is a
+   * no-op in Keycloak. Never throws, for the reason provisioning never throws: the local change
+   * has already happened and must not be undone by this half failing.
+   */
+  async setIdentityAccess(keycloakUserId: string, enabled: boolean): Promise<IdentityAccessResult> {
+    if (!this.client.isReady) {
+      return this.accessResult('SKIPPED', false, 'KEYCLOAK_ADMIN_UNCONFIGURED');
+    }
+
+    try {
+      if ((await this.client.setUserEnabled(keycloakUserId, enabled)) === 'NOT_FOUND') {
+        return this.accessResult('NOT_FOUND', false, 'IDENTITY_NOT_FOUND');
+      }
+      if (enabled) {
+        return this.accessResult('APPLIED', false, null);
+      }
+      // Disabled already; ending sessions is what makes it take effect now. A missing identity
+      // here means it vanished between the two calls, which leaves nobody able to sign in either.
+      const loggedOut = await this.client.logoutUser(keycloakUserId);
+      return this.accessResult('APPLIED', loggedOut === 'LOGGED_OUT', null);
+    } catch (error) {
+      const code =
+        error instanceof KeycloakAdminError ? error.code : 'KEYCLOAK_ADMIN_REQUEST_FAILED';
+      const status = error instanceof KeycloakAdminError ? error.status : undefined;
+      this.logger.warn(
+        JSON.stringify({
+          message: enabled ? 'Identity enable failed' : 'Identity disable failed',
+          reason: code,
+        }),
+      );
+      // A 5xx is Keycloak having a bad moment; a 4xx is a refusal that will not change.
+      const retryable = RETRYABLE_CODES.has(code) || (status !== undefined && status >= 500);
+      return { outcome: 'FAILED', sessionsEnded: false, retryable, failureReason: code };
+    }
+  }
+
+  private accessResult(
+    outcome: IdentityAccessOutcome,
+    sessionsEnded: boolean,
+    failureReason: string | null,
+  ): IdentityAccessResult {
+    return { outcome, sessionsEnded, retryable: false, failureReason };
   }
 
   private async sendActions(
