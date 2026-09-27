@@ -311,6 +311,27 @@ describe('SyncService', () => {
       expect(prisma.encounter.upsert).not.toHaveBeenCalled();
     });
 
+    it('refuses an encounter queued against a chart that has since been merged', async () => {
+      (prisma.patient.findFirst as jest.Mock).mockResolvedValue({
+        id: 'patient-1',
+        mergedIntoPatientId: 'canonical-1',
+      });
+      (patientRepo.findById as jest.Mock).mockResolvedValue({
+        id: 'canonical-1',
+        patientCode: 'NKP-2025-000011',
+      });
+
+      const results = await pushEncounter({ patientId: 'patient-1' });
+
+      expect(results[0]).toMatchObject({
+        status: SYNC_MUTATION_RESULT_STATUS.CONFLICT,
+        conflictType: 'PATIENT_MERGED',
+        retryable: false,
+        conflictDetails: { canonicalPatientId: 'canonical-1', patientCode: 'NKP-2025-000011' },
+      });
+      expect(prisma.encounter.upsert).not.toHaveBeenCalled();
+    });
+
     it('refuses to finalize an encounter through offline replay', async () => {
       // Finalization locks vitals, screenings, and clinical notes. It has its own route and its
       // own permission, and must not be reachable by replaying a queued payload.
@@ -800,41 +821,227 @@ describe('SyncService', () => {
     expect(prisma.vitals.deleteMany).not.toHaveBeenCalled();
   });
 
-  describe('patient UPSERT - DUPLICATE_NATIONAL_ID', () => {
+  describe('patient UPSERT - identity conflicts', () => {
+    const PATIENT_ID = '44444444-4444-4444-8444-444444444444';
+    const pushPatient = (payloadJson: Record<string, unknown>, roles = mockUser.roles) =>
+      service.applyMutations('clinic-1', { user: { id: 'user-1' }, roles } as never, [
+        {
+          id: 'mut-1',
+          entityType: 'patient',
+          entityId: PATIENT_ID,
+          operation: 'UPSERT',
+          clinicId: 'clinic-1',
+          payloadJson,
+          idempotencyKey: `idem-${JSON.stringify(payloadJson)}`,
+        } as SyncMutationDto,
+      ]);
+    const doctor = [{ clinicId: 'clinic-1', role: 'DOCTOR' }];
+
+    beforeAll(() => {
+      process.env.NATIONAL_ID_ENCRYPTION_KEY = 'a'.repeat(64);
+    });
+
+    beforeEach(() => {
+      (prisma.patient as unknown as { update: jest.Mock }).update = jest.fn().mockResolvedValue({
+        id: PATIENT_ID,
+        primaryClinicId: 'clinic-1',
+      });
+    });
+
     it('returns CONFLICT with DUPLICATE_NATIONAL_ID when nationalIdHash matches existing patient with different id', async () => {
       (patientRepo.findByNationalIdHash as jest.Mock).mockResolvedValue({
         id: 'existing-patient-id',
         patientCode: 'NKP-2025-000099',
       });
-      (patientRepo.findById as jest.Mock).mockResolvedValue(null);
 
-      const mutations: SyncMutationDto[] = [
-        {
-          id: 'mut-1',
-          entityType: 'patient',
-          entityId: 'new-patient-id',
-          operation: 'UPSERT',
-          clinicId: 'clinic-1',
-          payloadJson: {
-            nationalId: '1234567890',
-            primaryClinicId: 'clinic-1',
-            firstName: 'John',
-            lastName: 'Doe',
-          },
-          idempotencyKey: 'idem-1',
-        },
-      ];
-
-      const results = await service.applyMutations('clinic-1', mockUser as never, mutations);
+      const results = await pushPatient({
+        nationalId: '1234567890',
+        primaryClinicId: 'clinic-1',
+        firstName: 'John',
+        lastName: 'Doe',
+      });
 
       expect(results).toHaveLength(1);
-      expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.CONFLICT);
-      expect(results[0].conflictType).toBe('DUPLICATE_NATIONAL_ID');
-      expect(results[0].conflictDetails).toEqual({
-        existingPatientId: 'existing-patient-id',
-        patientCode: 'NKP-2025-000099',
+      expect(results[0]).toMatchObject({
+        status: SYNC_MUTATION_RESULT_STATUS.CONFLICT,
+        conflictType: 'DUPLICATE_NATIONAL_ID',
+        retryable: false,
+        conflictDetails: {
+          existingPatientId: 'existing-patient-id',
+          patientCode: 'NKP-2025-000099',
+        },
       });
       expect(prisma.patient.upsert).not.toHaveBeenCalled();
+      expect(prisma.syncMutation.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: 'CONFLICT',
+            conflictType: 'DUPLICATE_NATIONAL_ID',
+          }),
+        }),
+      );
+    });
+
+    it('applies an offline edit of an existing chart that carries no national ID', async () => {
+      // The device stopped storing national IDs, so this is every offline patient edit. It was
+      // refused with a plain Error, classified as retryable, and re-sent on every sync forever.
+      (patientRepo.findById as jest.Mock).mockResolvedValue({
+        id: PATIENT_ID,
+        patientCode: 'NKP-2025-000010',
+        primaryClinicId: 'clinic-1',
+        mergedIntoPatientId: null,
+      });
+
+      const results = await pushPatient({ firstName: 'Edited', lastName: 'Name' }, doctor);
+
+      expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.APPLIED);
+      expect(patientRepo.findByNationalIdHash).not.toHaveBeenCalled();
+      expect(prisma.patient.upsert).not.toHaveBeenCalled();
+      const update = (prisma.patient as unknown as { update: jest.Mock }).update;
+      expect(update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: PATIENT_ID },
+          data: expect.not.objectContaining({ nationalIdHash: expect.anything() }),
+        }),
+      );
+    });
+
+    it('refuses a new chart without a national ID as something a replay cannot fix', async () => {
+      const results = await pushPatient({ firstName: 'No', lastName: 'Identifier' });
+
+      expect(results[0]).toMatchObject({
+        status: SYNC_MUTATION_RESULT_STATUS.ERROR,
+        conflictType: 'PATIENT_NATIONAL_ID_REQUIRED',
+        retryable: false,
+      });
+    });
+
+    it('points an edit of a merged chart at the chart that survived', async () => {
+      (patientRepo.findById as jest.Mock).mockImplementation(async (id: string) =>
+        id === PATIENT_ID
+          ? {
+              id: PATIENT_ID,
+              patientCode: 'NKP-2025-000010-M',
+              primaryClinicId: 'clinic-1',
+              mergedIntoPatientId: 'canonical-1',
+            }
+          : { id: 'canonical-1', patientCode: 'NKP-2025-000011', primaryClinicId: 'clinic-1' },
+      );
+
+      const results = await pushPatient({ firstName: 'Late', lastName: 'Edit' }, doctor);
+
+      expect(results[0]).toMatchObject({
+        status: SYNC_MUTATION_RESULT_STATUS.CONFLICT,
+        conflictType: 'PATIENT_MERGED',
+        retryable: false,
+        conflictDetails: { canonicalPatientId: 'canonical-1', patientCode: 'NKP-2025-000011' },
+      });
+      expect(prisma.patient.upsert).not.toHaveBeenCalled();
+      expect((prisma.patient as unknown as { update: jest.Mock }).update).not.toHaveBeenCalled();
+    });
+
+    it('refuses an edit of a chart that belongs to another clinic', async () => {
+      (patientRepo.findById as jest.Mock).mockResolvedValue({
+        id: PATIENT_ID,
+        patientCode: 'NKP-2025-000010',
+        primaryClinicId: 'clinic-2',
+        mergedIntoPatientId: null,
+      });
+
+      const results = await pushPatient({ firstName: 'Cross', lastName: 'Tenant' }, doctor);
+
+      expect(results[0]).toMatchObject({
+        status: SYNC_MUTATION_RESULT_STATUS.ERROR,
+        conflictType: 'RECORD_NOT_FOUND',
+      });
+      expect((prisma.patient as unknown as { update: jest.Mock }).update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('pull', () => {
+    const MODELS = [
+      'encounter',
+      'vitals',
+      'tobaccoScreening',
+      'diabetesScreening',
+      'hypertensionAssessment',
+      'encounterMedicationAdherence',
+      'carePlan',
+      'patientConsent',
+      'prescription',
+      'medicalHistoryRecord',
+      'medicalHistoryRevision',
+      'patientMedicationRecord',
+      'patientMedicationRevision',
+      'medicationReconciliationEvent',
+      'patientPharmacyRecord',
+      'patientPharmacyRevision',
+      'patientPharmacyPreference',
+    ];
+
+    it('tells the device which charts a merge retired, and advances the cursor past them', async () => {
+      const client = prisma as unknown as Record<string, { findMany: jest.Mock }>;
+      for (const model of MODELS) {
+        client[model] = { ...client[model], findMany: jest.fn().mockResolvedValue([]) };
+      }
+      const mergedAt = new Date('2026-09-20T10:00:00.000Z');
+      client.patient.findMany = jest
+        .fn()
+        .mockImplementation(async ({ where }: { where: Record<string, unknown> }) =>
+          where.mergedIntoPatientId === null
+            ? []
+            : [{ id: 'retired-1', mergedIntoPatientId: 'canonical-1', updatedAt: mergedAt }],
+        );
+
+      const result = await service.pull('clinic-1', '2026-09-19T00:00:00.000Z|x');
+
+      expect(result.mergedPatients).toEqual([
+        { id: 'retired-1', mergedIntoPatientId: 'canonical-1' },
+      ]);
+      expect(result.cursor).toBe(`${mergedAt.toISOString()}|retired-1`);
+      expect(client.patient.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            primaryClinicId: 'clinic-1',
+            mergedIntoPatientId: { not: null },
+          }),
+        }),
+      );
+    });
+  });
+
+  describe('conflict code consistency', () => {
+    it('tells the client whether every refusal is retryable, whichever path produced it', async () => {
+      (encounterRepo.findById as jest.Mock).mockResolvedValue({
+        id: 'enc-final',
+        status: EncounterStatus.FINALIZED,
+      });
+
+      const results = await service.applyMutations('clinic-1', mockUser as never, [
+        {
+          id: 'mut-mismatch',
+          entityType: 'encounter',
+          entityId: 'enc-final',
+          operation: 'UPSERT',
+          clinicId: 'clinic-2',
+          payloadJson: {},
+          idempotencyKey: 'idem-mismatch',
+        } as SyncMutationDto,
+        {
+          id: 'mut-final',
+          entityType: 'encounter',
+          entityId: 'enc-final',
+          operation: 'UPSERT',
+          clinicId: 'clinic-1',
+          payloadJson: { patientId: 'patient-1' },
+          idempotencyKey: 'idem-final',
+        } as SyncMutationDto,
+      ]);
+
+      expect(results.map((result) => [result.conflictType, result.retryable])).toEqual([
+        ['CLINIC_MISMATCH', false],
+        ['CONFLICT_FINALIZED', false],
+      ]);
     });
   });
 

@@ -34,26 +34,43 @@ export type SyncConflictCategory = (typeof SYNC_CONFLICT_CATEGORIES)[number];
 export interface SyncConflictCodeDefinition {
   category: SyncConflictCategory;
   deterministic: boolean;
+  /**
+   * Whether replaying the identical mutation could still succeed without anyone touching it.
+   *
+   * Deterministic conflicts never can. Neither can content the server refuses: the queued payload
+   * does not change on its own, so re-sending it every pass only hides the problem behind a
+   * counter that never clears. A permission, a missing reference or an unexpected failure can
+   * resolve itself.
+   */
+  retryable: boolean;
 }
 
 const code = (
   category: SyncConflictCategory,
-  deterministic = false,
-): SyncConflictCodeDefinition => ({ category, deterministic });
+  options: { deterministic?: boolean; retryable?: boolean } = {},
+): SyncConflictCodeDefinition => {
+  const deterministic = options.deterministic ?? false;
+  return {
+    category,
+    deterministic,
+    retryable: options.retryable ?? (!deterministic && category !== 'validation'),
+  };
+};
+const terminal = { deterministic: true } as const;
 
 export const SYNC_CONFLICT_CODES = {
   // Patient identity
-  DUPLICATE_NATIONAL_ID: code('patient', true),
-  PATIENT_MERGED: code('patient', true),
-  PATIENT_NATIONAL_ID_REQUIRED: code('patient'),
+  DUPLICATE_NATIONAL_ID: code('patient', terminal),
+  PATIENT_MERGED: code('patient', terminal),
+  PATIENT_NATIONAL_ID_REQUIRED: code('patient', { retryable: false }),
 
   // Locked records
-  CONFLICT_FINALIZED: code('locked', true),
-  UNSUPPORTED_STATUS_TRANSITION: code('locked', true),
+  CONFLICT_FINALIZED: code('locked', terminal),
+  UNSUPPORTED_STATUS_TRANSITION: code('locked', terminal),
   MEDICAL_HISTORY_TERMINAL: code('locked'),
 
   // Changed elsewhere since this device last synced
-  MEDICAL_HISTORY_CONFLICT: code('stale', true),
+  MEDICAL_HISTORY_CONFLICT: code('stale', terminal),
   STALE_MEDICAL_HISTORY_REVISION: code('stale'),
   MEDICAL_HISTORY_MISSING_CURRENT_REVISION: code('stale'),
   MEDICAL_HISTORY_RECORD_EXISTS: code('stale'),
@@ -91,7 +108,9 @@ export const SYNC_CONFLICT_CODES = {
   FORBIDDEN: code('permission'),
   CLASSIFICATION_OVERRIDE_FORBIDDEN: code('permission'),
 
-  // Everything else
+  // Everything else. A missing reference stays retryable: the patient or encounter it points at
+  // may simply not have reached the server yet.
+  RECORD_NOT_FOUND: code('unexpected'),
   APPLICATION_ERROR: code('unexpected'),
 } as const satisfies Record<string, SyncConflictCodeDefinition>;
 
@@ -122,4 +141,19 @@ export function syncConflictCategory(
 ): SyncConflictCategory {
   if (isKnownSyncConflictCode(conflictType)) return SYNC_CONFLICT_CODES[conflictType].category;
   return status === 'CONFLICT' ? 'stale' : 'unexpected';
+}
+
+/**
+ * The retry hint for any outcome, including a code this build does not know yet.
+ *
+ * An unknown code falls back on its category, so a newer server's validation refusal is still not
+ * re-sent forever by an older client.
+ */
+export function isRetryableSyncOutcome(
+  status: string,
+  conflictType: string | null | undefined,
+): boolean {
+  if (status === 'APPLIED') return false;
+  if (isKnownSyncConflictCode(conflictType)) return SYNC_CONFLICT_CODES[conflictType].retryable;
+  return syncConflictCategory(conflictType, status) !== 'validation';
 }

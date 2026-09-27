@@ -26,6 +26,12 @@ export type SyncVitalsRecord = Vitals & {
   heartRate: number | null;
 };
 
+/** A chart a merge retired, and the chart that survived it. */
+export interface SyncMergedPatientRecord {
+  id: string;
+  mergedIntoPatientId: string;
+}
+
 export interface SyncPullResponseDto {
   cursor: string;
   /**
@@ -33,6 +39,11 @@ export interface SyncPullResponseDto {
    * as the whole Prisma row is what let every new column reach the browser automatically.
    */
   patients: SyncPatientProjection[];
+  /**
+   * Charts retired by a merge since the cursor. `patients` excludes them, so without this a device
+   * kept its copy of a merged chart indefinitely and went on queueing changes against it.
+   */
+  mergedPatients: SyncMergedPatientRecord[];
   encounters: Encounter[];
   vitals: SyncVitalsRecord[];
   tobaccoScreenings: TobaccoScreening[];

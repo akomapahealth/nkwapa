@@ -1,5 +1,80 @@
-import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { classifySyncFailure, isTerminalOutcome, safeConflictDetails } from './sync-outcome';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
+import { DETERMINISTIC_SYNC_CONFLICT_CODES, SYNC_CONFLICT_CODES } from '@nkwapa/db';
+import {
+  DETERMINISTIC_CONFLICT_TYPES,
+  classifySyncFailure,
+  isTerminalOutcome,
+  safeConflictDetails,
+  syncRefusal,
+} from './sync-outcome';
+
+/**
+ * Every literal code a module can put in front of a client: thrown `{ code }` bodies and the
+ * refusals a handler builds itself.
+ */
+function emittedCodes(relativePath: string): string[] {
+  const source = readFileSync(join(__dirname, '..', relativePath), 'utf8');
+  const codes = new Set<string>();
+  for (const pattern of [
+    /code: '([A-Z][A-Z0-9_]+)'/g,
+    /SYNC_MUTATION_RESULT_STATUS\.(?:CONFLICT|ERROR),\s*'([A-Z][A-Z0-9_]+)'/g,
+  ]) {
+    for (const match of source.matchAll(pattern)) codes.add(match[1]);
+  }
+  return [...codes].sort();
+}
+
+/** The modules an offline replay dispatches into. */
+const SYNC_HANDLER_MODULES = [
+  'sync/sync.service.ts',
+  'sync/clinical-measurements.service.ts',
+  'medical-history/medical-history.service.ts',
+  'medication-reconciliation/medication-reconciliation.service.ts',
+  'diabetes-screening/diabetes-screening.service.ts',
+  'hypertension-assessment/hypertension-assessment.service.ts',
+  'medication-adherence/medication-adherence.service.ts',
+  'prescriptions/prescription.service.ts',
+];
+
+describe('sync conflict code consistency', () => {
+  it('caches exactly the codes the shared catalog calls deterministic', () => {
+    expect([...DETERMINISTIC_CONFLICT_TYPES].sort()).toEqual(
+      [...DETERMINISTIC_SYNC_CONFLICT_CODES].sort(),
+    );
+  });
+
+  // A handler that starts throwing a new code must add it to the catalog, or the web app has no
+  // plain-language message for it and the API no retry policy.
+  it.each(SYNC_HANDLER_MODULES)('catalogs every code %s can report', (modulePath) => {
+    const emitted = emittedCodes(modulePath);
+    expect(emitted.length).toBeGreaterThan(0);
+    expect(emitted.filter((code) => !(code in SYNC_CONFLICT_CODES))).toEqual([]);
+  });
+
+  it.each([
+    'APPLICATION_CONFLICT',
+    'FORBIDDEN',
+    'RECORD_NOT_FOUND',
+    'APPLICATION_REJECTED',
+    'APPLICATION_ERROR',
+    'MEDICAL_HISTORY_CONFLICT',
+  ])('catalogs the fallback code %s', (code) => {
+    expect(code in SYNC_CONFLICT_CODES).toBe(true);
+  });
+
+  it('always states retryable on a refusal a handler builds itself', () => {
+    expect(syncRefusal('m-1', 'CONFLICT', 'DUPLICATE_NATIONAL_ID', {}).retryable).toBe(false);
+    expect(syncRefusal('m-1', 'ERROR', 'DELETE_NOT_SUPPORTED', {}).retryable).toBe(false);
+    expect(syncRefusal('m-1', 'ERROR', 'FORBIDDEN', {}).retryable).toBe(true);
+  });
+});
 
 describe('sync failure classification', () => {
   describe('what a replay may skip', () => {
@@ -43,7 +118,35 @@ describe('sync failure classification', () => {
     });
 
     it('keeps a missing reference retryable, since a later pull may supply it', () => {
-      expect(classifySyncFailure(new NotFoundException('gone'), 'vitals').retryable).toBe(true);
+      const outcome = classifySyncFailure(new NotFoundException('gone'), 'vitals');
+      expect(outcome.conflictType).toBe('RECORD_NOT_FOUND');
+      expect(outcome.retryable).toBe(true);
+    });
+
+    it('does not re-send content the server refuses, since the payload cannot change', () => {
+      const outcome = classifySyncFailure(
+        new BadRequestException({ code: 'VALIDATION_ERROR', message: 'bad' }),
+        'vitals',
+      );
+      expect(outcome.status).toBe('ERROR');
+      expect(outcome.retryable).toBe(false);
+    });
+
+    it('points a merged chart at its survivor without leaking anything else', () => {
+      const outcome = classifySyncFailure(
+        new ConflictException({
+          code: 'PATIENT_MERGED',
+          message: 'merged',
+          canonicalPatientId: 'canonical-1',
+          patientCode: 'NKP-1',
+        }),
+        'encounter',
+      );
+      expect(outcome).toMatchObject({
+        status: 'CONFLICT',
+        retryable: false,
+        conflictDetails: { canonicalPatientId: 'canonical-1', patientCode: 'NKP-1' },
+      });
     });
 
     it('keeps an unexpected failure retryable', () => {

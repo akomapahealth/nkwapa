@@ -26,7 +26,12 @@ import {
 import { assertPermissionAtClinic, type ScopedRole } from '../auth/clinic-roles';
 import type { EntityType as SyncEntityType } from './entity-types';
 import { SYNC_ENTITY_PERMISSIONS, isSyncEntityType } from './sync-permissions';
-import { classifySyncFailure, isTerminalOutcome } from './sync-outcome';
+import {
+  classifySyncFailure,
+  isTerminalOutcome,
+  syncRefusal,
+  type SyncOutcome,
+} from './sync-outcome';
 import {
   SYNC_DIABETES_SCREENING_SELECT,
   SYNC_ENCOUNTER_MEDICATION_ADHERENCE_SELECT,
@@ -99,12 +104,11 @@ export class SyncService {
 
     for (const mut of mutations) {
       if (mut.clinicId !== clinicId) {
-        results.push({
-          id: mut.id,
-          status: SYNC_MUTATION_RESULT_STATUS.ERROR,
-          conflictType: 'CLINIC_MISMATCH',
-          conflictDetails: { message: 'Mutation clinicId does not match query' },
-        });
+        results.push(
+          syncRefusal(mut.id, SYNC_MUTATION_RESULT_STATUS.ERROR, 'CLINIC_MISMATCH', {
+            message: 'Mutation clinicId does not match query',
+          }),
+        );
         continue;
       }
 
@@ -148,35 +152,52 @@ export class SyncService {
         results.push(result);
       } catch (err) {
         const outcome = classifySyncFailure(err, mut.entityType);
-        results.push({
-          id: mut.id,
-          status: outcome.status,
-          conflictType: outcome.conflictType,
-          conflictDetails: outcome.conflictDetails,
-          retryable: outcome.retryable,
-        });
-
-        // Every refusal is recorded so an operator can see what a client tried to replay. Only a
-        // terminal one is allowed to short-circuit the next attempt; see isTerminalOutcome.
-        await this.prisma.syncMutation.create({
-          data: {
-            clinicId,
-            entityType: mut.entityType,
-            entityId: mut.entityId,
-            operation: mut.operation === 'UPSERT' ? SyncOperation.UPSERT : SyncOperation.DELETE,
-            idempotencyKey: mut.idempotencyKey,
-            status:
-              outcome.status === SYNC_MUTATION_RESULT_STATUS.CONFLICT
-                ? SyncMutationStatus.CONFLICT
-                : SyncMutationStatus.ERROR,
-            conflictType: outcome.conflictType,
-            conflictDetailsJson: JSON.stringify(outcome.conflictDetails),
-          },
-        });
+        results.push({ id: mut.id, ...outcome });
+        await this.recordRefusal(clinicId, mut, outcome);
       }
     }
 
     return results;
+  }
+
+  /**
+   * Record a refusal so an operator can see what a client tried to replay.
+   *
+   * Only a terminal one is allowed to short-circuit the next attempt; see isTerminalOutcome.
+   */
+  private async recordRefusal(
+    clinicId: string,
+    mut: SyncMutationDto,
+    outcome: SyncOutcome,
+  ): Promise<void> {
+    await this.prisma.syncMutation.create({
+      data: {
+        clinicId,
+        entityType: mut.entityType,
+        entityId: mut.entityId,
+        operation: mut.operation === 'UPSERT' ? SyncOperation.UPSERT : SyncOperation.DELETE,
+        idempotencyKey: mut.idempotencyKey,
+        status:
+          outcome.status === SYNC_MUTATION_RESULT_STATUS.CONFLICT
+            ? SyncMutationStatus.CONFLICT
+            : SyncMutationStatus.ERROR,
+        conflictType: outcome.conflictType,
+        conflictDetailsJson: JSON.stringify(outcome.conflictDetails),
+      },
+    });
+  }
+
+  /** Refuse a mutation a handler detected itself, recorded the same way as a thrown refusal. */
+  private async refuse(
+    clinicId: string,
+    mut: SyncMutationDto,
+    status: Exclude<SyncMutationResultDto['status'], 'APPLIED'>,
+    conflictType: string,
+    conflictDetails: Record<string, unknown>,
+  ): Promise<SyncMutationResultDto> {
+    const result = syncRefusal(mut.id, status, conflictType, conflictDetails);
+    await this.recordRefusal(clinicId, mut, result);
+    return result;
   }
 
   /**
@@ -412,36 +433,52 @@ export class SyncService {
     metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
     const nationalId = payload.nationalId as string | undefined;
-    if (!nationalId) {
-      throw new Error('Patient payload must include nationalId');
-    }
-    const hash = hashNationalId(nationalId);
-    const existingByHash = await this.patientRepository.findByNationalIdHash(hash);
     const existingById = await this.patientRepository.findById(mut.entityId);
 
-    if (existingByHash && existingByHash.id !== mut.entityId) {
-      const conflictDetails = {
-        existingPatientId: existingByHash.id,
-        patientCode: existingByHash.patientCode,
-      };
-      await this.prisma.syncMutation.create({
-        data: {
-          clinicId,
-          entityType: 'patient',
-          entityId: mut.entityId,
-          operation: SyncOperation.UPSERT,
-          idempotencyKey,
-          status: SyncMutationStatus.CONFLICT,
-          conflictType: 'DUPLICATE_NATIONAL_ID',
-          conflictDetailsJson: JSON.stringify(conflictDetails),
-        },
+    // The chart id comes from the device. Without this, a queued edit could rewrite a patient at a
+    // clinic the request was never scoped to, simply by naming its id.
+    if (existingById && existingById.primaryClinicId !== clinicId) {
+      throw new NotFoundException('Patient not found in the active clinic');
+    }
+
+    // A merge retires a chart for good. Writing to it would put demographics on a tombstone no
+    // screen shows, so the edit is refused and the clinician is pointed at the surviving chart.
+    if (existingById?.mergedIntoPatientId) {
+      const canonical = await this.patientRepository.findById(existingById.mergedIntoPatientId, {
+        resolveMerged: true,
       });
-      return {
-        id: mut.id,
-        status: SYNC_MUTATION_RESULT_STATUS.CONFLICT,
-        conflictType: 'DUPLICATE_NATIONAL_ID',
-        conflictDetails: conflictDetails,
-      };
+      return this.refuse(clinicId, mut, SYNC_MUTATION_RESULT_STATUS.CONFLICT, 'PATIENT_MERGED', {
+        message: 'This chart was merged into another chart.',
+        canonicalPatientId: canonical?.id ?? existingById.mergedIntoPatientId,
+        ...(canonical?.patientCode ? { patientCode: canonical.patientCode } : {}),
+      });
+    }
+
+    // The device stopped keeping national IDs (Dexie v8), so an offline edit of an existing chart
+    // never carries one. It used to be refused with a plain Error, which classified as retryable
+    // and re-sent forever. An edit leaves the stored identifier alone; only a new chart needs one.
+    if (!nationalId && !existingById) {
+      throw new BadRequestException({
+        code: 'PATIENT_NATIONAL_ID_REQUIRED',
+        message: 'A new patient needs a national ID before the chart can sync.',
+      });
+    }
+
+    const hash = nationalId ? hashNationalId(nationalId) : null;
+    const existingByHash = hash ? await this.patientRepository.findByNationalIdHash(hash) : null;
+
+    if (existingByHash && existingByHash.id !== mut.entityId) {
+      return this.refuse(
+        clinicId,
+        mut,
+        SYNC_MUTATION_RESULT_STATUS.CONFLICT,
+        'DUPLICATE_NATIONAL_ID',
+        {
+          message: 'Another chart already uses this national ID.',
+          existingPatientId: existingByHash.id,
+          patientCode: existingByHash.patientCode,
+        },
+      );
     }
 
     const patientCode =
@@ -468,36 +505,33 @@ export class SyncService {
     });
 
     const before = existingById ? JSON.stringify(existingById) : null;
-    const patient = await this.prisma.patient.upsert({
-      where: { id: mut.entityId },
-      create: {
-        id: mut.entityId,
-        patientCode,
-        primaryClinic: { connect: { id: primaryClinicId } },
-        firstName: payload.firstName as string,
-        lastName: payload.lastName as string,
-        dob: payload.dob ? new Date(payload.dob as string) : null,
-        sex: (payload.sex as Sex) ?? 'UNKNOWN',
-        phoneE164,
-        email: (payload.email as string) ?? null,
-        nationalIdType: (payload.nationalIdType as NationalIdType) ?? 'OTHER',
-        nationalIdCiphertext: encryptNationalId(nationalId),
-        nationalIdHash: hash,
-        nationalIdLast4: nationalIdLast4(nationalId),
-        createdBy: createdByUserId ? { connect: { id: createdByUserId } } : undefined,
-        ...location,
-      },
-      update: {
-        patientCode,
-        firstName: payload.firstName as string,
-        lastName: payload.lastName as string,
-        dob: payload.dob ? new Date(payload.dob as string) : null,
-        sex: (payload.sex as Sex) ?? 'UNKNOWN',
-        phoneE164,
-        email: (payload.email as string) ?? null,
-        ...location,
-      },
-    });
+    const demographics = {
+      patientCode,
+      firstName: payload.firstName as string,
+      lastName: payload.lastName as string,
+      dob: payload.dob ? new Date(payload.dob as string) : null,
+      sex: (payload.sex as Sex) ?? 'UNKNOWN',
+      phoneE164,
+      email: (payload.email as string) ?? null,
+      ...location,
+    };
+    const patient =
+      nationalId && hash
+        ? await this.prisma.patient.upsert({
+            where: { id: mut.entityId },
+            create: {
+              id: mut.entityId,
+              ...demographics,
+              primaryClinic: { connect: { id: primaryClinicId } },
+              nationalIdType: (payload.nationalIdType as NationalIdType) ?? 'OTHER',
+              nationalIdCiphertext: encryptNationalId(nationalId),
+              nationalIdHash: hash,
+              nationalIdLast4: nationalIdLast4(nationalId),
+              createdBy: createdByUserId ? { connect: { id: createdByUserId } } : undefined,
+            },
+            update: demographics,
+          })
+        : await this.prisma.patient.update({ where: { id: mut.entityId }, data: demographics });
 
     await this.auditService.logWrite({
       clinicId: patient.primaryClinicId,
@@ -539,28 +573,16 @@ export class SyncService {
   ): Promise<SyncMutationResultDto> {
     const existing = await this.encounterRepository.findById(mut.entityId);
     if (existing && existing.status === EncounterStatus.FINALIZED) {
-      const conflictDetails = {
-        message: 'Cannot edit finalized encounter',
-        existingStatus: existing.status,
-      };
-      await this.prisma.syncMutation.create({
-        data: {
-          clinicId,
-          entityType: 'encounter',
-          entityId: mut.entityId,
-          operation: SyncOperation.UPSERT,
-          idempotencyKey,
-          status: SyncMutationStatus.CONFLICT,
-          conflictType: 'CONFLICT_FINALIZED',
-          conflictDetailsJson: JSON.stringify(conflictDetails),
+      return this.refuse(
+        clinicId,
+        mut,
+        SYNC_MUTATION_RESULT_STATUS.CONFLICT,
+        'CONFLICT_FINALIZED',
+        {
+          message: 'Cannot edit finalized encounter',
+          existingStatus: existing.status,
         },
-      });
-      return {
-        id: mut.id,
-        status: SYNC_MUTATION_RESULT_STATUS.CONFLICT,
-        conflictType: 'CONFLICT_FINALIZED',
-        conflictDetails: conflictDetails,
-      };
+      );
     }
 
     const before = existing ? JSON.stringify(existing) : null;
@@ -642,10 +664,23 @@ export class SyncService {
     if (!patientId) throw new BadRequestException(`${entityLabel} payload must include patientId`);
     const patient = await this.prisma.patient.findFirst({
       where: { id: patientId, primaryClinicId: clinicId },
-      select: { id: true },
+      select: { id: true, mergedIntoPatientId: true },
     });
     if (!patient) {
       throw new NotFoundException(`${entityLabel} patient not found in the active clinic`);
+    }
+    // A change queued against a chart that has since been merged would otherwise attach to the
+    // retired record, invisible from the surviving chart. The clinician re-enters it there.
+    if (patient.mergedIntoPatientId) {
+      const canonical = await this.patientRepository.findById(patient.mergedIntoPatientId, {
+        resolveMerged: true,
+      });
+      throw new ConflictException({
+        code: 'PATIENT_MERGED',
+        message: `${entityLabel} belongs to a chart that was merged into another chart.`,
+        canonicalPatientId: canonical?.id ?? patient.mergedIntoPatientId,
+        ...(canonical?.patientCode ? { patientCode: canonical.patientCode } : {}),
+      });
     }
   }
 
@@ -1343,25 +1378,9 @@ export class SyncService {
       'prescription',
     ];
     if (!deletableTypes.includes(entityType)) {
-      const msg = `DELETE not supported for entity type: ${entityType}`;
-      await this.prisma.syncMutation.create({
-        data: {
-          clinicId,
-          entityType: mut.entityType,
-          entityId: mut.entityId,
-          operation: SyncOperation.DELETE,
-          idempotencyKey,
-          status: SyncMutationStatus.ERROR,
-          conflictType: 'DELETE_NOT_SUPPORTED',
-          conflictDetailsJson: JSON.stringify({ message: msg }),
-        },
+      return this.refuse(clinicId, mut, SYNC_MUTATION_RESULT_STATUS.ERROR, 'DELETE_NOT_SUPPORTED', {
+        message: `DELETE not supported for entity type: ${entityType}`,
       });
-      return {
-        id: mut.id,
-        status: SYNC_MUTATION_RESULT_STATUS.ERROR,
-        conflictType: 'DELETE_NOT_SUPPORTED',
-        conflictDetails: { message: msg },
-      };
     }
 
     if (entityType === 'vitals') {
@@ -1473,6 +1492,7 @@ export class SyncService {
 
     const [
       patients,
+      mergedPatientRows,
       encounters,
       vitalsRows,
       tobaccoScreenings,
@@ -1498,6 +1518,14 @@ export class SyncService {
           ...updatedAtFilter,
         },
         select: SYNC_PATIENT_SELECT,
+      }),
+      this.prisma.patient.findMany({
+        where: {
+          primaryClinicId: clinicId,
+          mergedIntoPatientId: { not: null },
+          ...updatedAtFilter,
+        },
+        select: { id: true, mergedIntoPatientId: true, updatedAt: true },
       }),
       this.prisma.encounter.findMany({
         where: { ...where, ...updatedAtFilter },
@@ -1563,6 +1591,7 @@ export class SyncService {
 
     const allRows = [
       ...patients.map((p) => ({ updatedAt: p.updatedAt, id: p.id })),
+      ...mergedPatientRows.map((p) => ({ updatedAt: p.updatedAt, id: p.id })),
       ...encounters.map((e) => ({ updatedAt: e.updatedAt, id: e.id })),
       ...vitals.map((v) => ({ updatedAt: v.updatedAt, id: v.id })),
       ...tobaccoScreenings.map((t) => ({ updatedAt: t.updatedAt, id: t.id })),
@@ -1613,6 +1642,11 @@ export class SyncService {
     return {
       cursor: nextCursor,
       patients,
+      mergedPatients: mergedPatientRows.flatMap((row) =>
+        row.mergedIntoPatientId
+          ? [{ id: row.id, mergedIntoPatientId: row.mergedIntoPatientId }]
+          : [],
+      ),
       encounters,
       vitals,
       tobaccoScreenings,

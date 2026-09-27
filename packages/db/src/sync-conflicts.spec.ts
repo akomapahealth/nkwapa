@@ -3,6 +3,7 @@ import {
   SYNC_CONFLICT_CATEGORIES,
   SYNC_CONFLICT_CODES,
   isKnownSyncConflictCode,
+  isRetryableSyncOutcome,
   syncConflictCategory,
   type SyncConflictCode,
 } from './sync-conflicts';
@@ -48,6 +49,12 @@ describe('sync conflict catalog', () => {
     expect(DETERMINISTIC_SYNC_CONFLICT_CODES.has(key)).toBe(false);
   });
 
+  it('never marks a deterministic code retryable', () => {
+    for (const key of DETERMINISTIC_SYNC_CONFLICT_CODES) {
+      expect(SYNC_CONFLICT_CODES[key].retryable).toBe(false);
+    }
+  });
+
   it('recognizes only catalog codes', () => {
     expect(isKnownSyncConflictCode('PATIENT_MERGED')).toBe(true);
     expect(isKnownSyncConflictCode('toString')).toBe(false);
@@ -59,5 +66,25 @@ describe('sync conflict catalog', () => {
     expect(syncConflictCategory('SOMETHING_NEW', 'CONFLICT')).toBe('stale');
     expect(syncConflictCategory('SOMETHING_NEW', 'ERROR')).toBe('unexpected');
     expect(syncConflictCategory(undefined)).toBe('unexpected');
+  });
+
+  describe('retry policy', () => {
+    it('never retries a deterministic conflict', () => {
+      expect(isRetryableSyncOutcome('CONFLICT', 'PATIENT_MERGED')).toBe(false);
+      expect(isRetryableSyncOutcome('CONFLICT', 'CONFLICT_FINALIZED')).toBe(false);
+    });
+
+    it('never retries content the server refuses, since the payload cannot change by itself', () => {
+      expect(isRetryableSyncOutcome('ERROR', 'VALIDATION_ERROR')).toBe(false);
+      expect(isRetryableSyncOutcome('ERROR', 'PATIENT_NATIONAL_ID_REQUIRED')).toBe(false);
+      expect(isRetryableSyncOutcome('ERROR', 'DELETE_NOT_SUPPORTED')).toBe(false);
+    });
+
+    it('retries what a grant, a later pull, or a recovered server can fix', () => {
+      expect(isRetryableSyncOutcome('ERROR', 'FORBIDDEN')).toBe(true);
+      expect(isRetryableSyncOutcome('ERROR', 'RECORD_NOT_FOUND')).toBe(true);
+      expect(isRetryableSyncOutcome('ERROR', 'APPLICATION_ERROR')).toBe(true);
+      expect(isRetryableSyncOutcome('CONFLICT', 'STALE_MEDICAL_HISTORY_REVISION')).toBe(true);
+    });
   });
 });

@@ -153,6 +153,7 @@ export {
   SYNC_CONFLICT_CATEGORIES,
   SYNC_CONFLICT_CODES,
   isKnownSyncConflictCode,
+  isRetryableSyncOutcome,
   syncConflictCategory,
   type SyncConflictCategory,
   type SyncConflictCode,
