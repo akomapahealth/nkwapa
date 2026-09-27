@@ -88,18 +88,32 @@ const TABLES = [
   'patient_pharmacy_preferences',
 ] as const;
 
-export type FakeSyncDb = Record<(typeof TABLES)[number], FakeTable> & {
-  sync_state: FakeTable;
+type TableName = (typeof TABLES)[number] | 'sync_state';
+
+export type FakeSyncDb = Record<TableName, FakeTable> & {
+  table: (name: string) => FakeTable;
 };
 
 export function createFakeSyncDb(): FakeSyncDb {
-  const db = Object.fromEntries(TABLES.map((name) => [name, new FakeTable()])) as FakeSyncDb;
-  db.sync_state = new FakeTable('clinicId');
-  return db;
+  const tables = Object.fromEntries(TABLES.map((name) => [name, new FakeTable()])) as Record<
+    TableName,
+    FakeTable
+  >;
+  tables.sync_state = new FakeTable('clinicId');
+  return {
+    ...tables,
+    table: (name: string) => {
+      const table = tables[name as TableName];
+      if (!table) throw new Error(`No fake table ${name}`);
+      return table;
+    },
+  };
 }
 
 export function reset(db: FakeSyncDb) {
-  Object.values(db).forEach((table) => table.rows.clear());
+  Object.values(db).forEach((table) => {
+    if (table instanceof FakeTable) table.rows.clear();
+  });
 }
 
 export const EMPTY_PULL = {

@@ -162,3 +162,47 @@ export function outboxFailureUpdate(
     lastFailure: { ...failure, at },
   };
 }
+
+/**
+ * Put a blocked or retrying change back in line for the next pass. The last failure is kept so
+ * the card can still say what happened until the server answers again.
+ */
+export async function retryOutboxMutation(dbInstance: NkwapaDb, id: string): Promise<void> {
+  await dbInstance.outbox.update(id, { syncState: 'pending' });
+}
+
+/**
+ * The local store each outbox entity is optimistically written to. Only one-row-per-id entities
+ * are listed; the rest are corrected by the full pull that follows a discard.
+ */
+const LOCAL_TABLE_BY_ENTITY: Partial<Record<string, string>> = {
+  patient: 'patients',
+  encounter: 'encounters',
+  vitals: 'vitals',
+  encounter_vitals_bundle: 'vitals',
+  diabetes_screening: 'diabetes_screenings',
+  hypertension_assessment: 'hypertension_assessments',
+  care_plan: 'care_plans',
+  patient_consent: 'patient_consents',
+  prescription: 'prescriptions',
+};
+
+/**
+ * Throw away this device's queued copy of a change. Server data is never touched.
+ *
+ * Forms write optimistically, so the device may still be showing the discarded values. The local
+ * row is removed and the pull cursor reset, so the next sync restores whatever the server holds;
+ * a row that never reached the server simply stays gone. The caller should sync straight after,
+ * which is why the sync center only offers this while online.
+ */
+export async function discardOutboxMutation(
+  dbInstance: NkwapaDb,
+  row: Pick<OutboxRecord, 'id' | 'clinicId' | 'entityType' | 'entityId'>,
+): Promise<void> {
+  await dbInstance.outbox.delete(row.id);
+  const localTable = LOCAL_TABLE_BY_ENTITY[row.entityType];
+  if (localTable) {
+    await dbInstance.table(localTable).delete(row.entityId);
+  }
+  await dbInstance.sync_state.delete(row.clinicId);
+}

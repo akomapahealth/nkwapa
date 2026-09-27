@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -30,21 +29,12 @@ import { useTheme, type ThemePreference } from '@/lib/theme-context';
 import { AppNavList } from '@/components/app-shell/AppNavList';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { formatRoleLabel, getVisibleRoleLabels } from '@/lib/ops';
-import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { useKeycloak } from '@/app/KeycloakProvider';
-import { db } from '@/lib/db';
 import { getActiveBootstrapClinic, getSwitchableClinics } from '@/lib/bootstrap-clinics';
 import { setStoredActiveClinicId } from '@/lib/bootstrap-storage';
 import { useToast } from '@/components/ui/toast';
-import {
-  LogOut,
-  Menu,
-  PanelLeft,
-  PanelLeftClose,
-  RefreshCw,
-  ShieldCheck,
-  User,
-} from 'lucide-react';
+import { SyncStatusBar } from '@/components/sync/SyncStatusBar';
+import { LogOut, Menu, PanelLeft, PanelLeftClose, ShieldCheck, User } from 'lucide-react';
 
 export function Header({
   sidebarCollapsed = false,
@@ -61,11 +51,9 @@ export function Header({
   const bootstrapCtx = useBootstrap();
   const bootstrap = bootstrapCtx?.bootstrap ?? null;
   const { activeClinicId: contextActiveClinicId, setActiveClinicId } = bootstrapCtx ?? {};
-  const { isOnline, syncStatus, syncError, syncNow } = useSync();
   const { logout } = useKeycloak() ?? {};
   const { showToast } = useToast();
   const { preference: themePreference, setPreference: setThemePreference } = useTheme();
-  const [pendingCount, setPendingCount] = useState(0);
   const router = useRouter();
 
   const clinicId = contextActiveClinicId ?? null;
@@ -74,26 +62,9 @@ export function Header({
   const activeClinic = getActiveBootstrapClinic(bootstrap, clinicId);
   const activeMembership = memberships.find((membership) => membership.clinicId === clinicId);
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
-  const canSync =
-    (perms.includes('*') || perms.includes('SYNC.PUSH')) &&
-    (perms.includes('*') || perms.includes('SYNC.PULL'));
+  const hasPermission = (permission: string) => perms.includes('*') || perms.includes(permission);
+  const canSync = hasPermission('SYNC.PUSH') && hasPermission('SYNC.PULL');
   const roleLabels = getVisibleRoleLabels(activeMembership?.roles, bootstrap?.globalRoles);
-
-  useEffect(() => {
-    if (!clinicId) {
-      setPendingCount(0);
-      return;
-    }
-
-    const updateCount = async () => {
-      const count = await db.outbox.where('clinicId').equals(clinicId).count();
-      setPendingCount(count);
-    };
-
-    void updateCount();
-    const interval = window.setInterval(updateCount, 2500);
-    return () => window.clearInterval(interval);
-  }, [clinicId]);
 
   const handleClinicChange = (value: string) => {
     const nextClinic = switchableClinics.find((clinic) => clinic.clinicId === value);
@@ -117,12 +88,6 @@ export function Header({
       */
       router.push('/dashboard');
       router.refresh();
-    }
-  };
-
-  const handleSync = () => {
-    if (clinicId) {
-      syncNow(clinicId);
     }
   };
 
@@ -274,26 +239,11 @@ export function Header({
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="hidden items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm md:flex">
-            {/* Was `bg-emerald-500`, a raw palette colour sitting in the same ternary as a token.
-                Colour is never the only signal here: the adjacent label says Online or Offline. */}
-            <span
-              aria-hidden="true"
-              className={`h-2.5 w-2.5 rounded-full ${isOnline ? 'bg-success' : 'bg-destructive'}`}
-            />
-            <span className="text-muted-foreground">{isOnline ? 'Online' : 'Offline'}</span>
-            <span className="text-muted-foreground">Pending {pendingCount}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSync}
-              disabled={!isOnline || syncStatus === 'syncing' || !canSync}
-              className="h-8 border-border"
-            >
-              <RefreshCw className={syncStatus === 'syncing' ? 'animate-spin' : ''} />
-              {syncStatus === 'syncing' ? 'Syncing' : 'Sync'}
-            </Button>
-          </div>
+          <SyncStatusBar
+            clinicId={clinicId}
+            canSync={canSync}
+            canReviewDuplicates={hasPermission('PATIENT.DUPLICATE.REVIEW')}
+          />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -339,12 +289,6 @@ export function Header({
                 <DropdownMenuRadioItem value="system">Match system</DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
               <DropdownMenuSeparator />
-              {syncError ? (
-                <>
-                  <div className="px-2 py-2 text-xs text-destructive">{syncError}</div>
-                  <DropdownMenuSeparator />
-                </>
-              ) : null}
               <DropdownMenuItem
                 onClick={logout}
                 className="text-destructive focus:text-destructive"

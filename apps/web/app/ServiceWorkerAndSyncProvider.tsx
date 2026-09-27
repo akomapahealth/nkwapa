@@ -1,13 +1,19 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { syncNow, onSyncStatusChange, type SyncResult, type SyncStatus } from '@/lib/sync';
 
 interface SyncContextValue {
   isOnline: boolean;
   syncStatus: SyncStatus;
+  /** Plain-language summary of the last pass, when it needs saying. */
   syncError?: string;
+  /** Raw response or error text behind `syncError`, for the support view only. */
+  syncErrorDetail?: string;
   syncNow: (clinicId: string) => Promise<SyncResult>;
+  /** The sync center is one sheet for the whole workspace, so any screen can open it. */
+  syncCenterOpen: boolean;
+  setSyncCenterOpen: (open: boolean) => void;
 }
 
 const SyncContext = createContext<SyncContextValue | null>(null);
@@ -34,6 +40,8 @@ export function ServiceWorkerAndSyncProvider({
   );
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const [syncError, setSyncError] = useState<string | undefined>();
+  const [syncErrorDetail, setSyncErrorDetail] = useState<string | undefined>();
+  const [syncCenterOpen, setSyncCenterOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -57,9 +65,12 @@ export function ServiceWorkerAndSyncProvider({
   }, []);
 
   useEffect(() => {
-    const unsub = onSyncStatusChange((status, error) => {
+    const unsub = onSyncStatusChange((status, message, detail) => {
       setSyncStatus(status);
-      setSyncError(error);
+      // A pass in progress keeps the last message on screen rather than blanking it mid-read.
+      if (status === 'syncing') return;
+      setSyncError(message);
+      setSyncErrorDetail(detail);
     });
     return unsub;
   }, []);
@@ -79,16 +90,18 @@ export function ServiceWorkerAndSyncProvider({
     void doSyncNow(activeClinicId);
   }, [activeClinicId, doSyncNow, isOnline]);
 
-  return (
-    <SyncContext.Provider
-      value={{
-        isOnline,
-        syncStatus,
-        syncError,
-        syncNow: doSyncNow,
-      }}
-    >
-      {children}
-    </SyncContext.Provider>
+  const value = useMemo(
+    () => ({
+      isOnline,
+      syncStatus,
+      syncError,
+      syncErrorDetail,
+      syncNow: doSyncNow,
+      syncCenterOpen,
+      setSyncCenterOpen,
+    }),
+    [doSyncNow, isOnline, syncCenterOpen, syncError, syncErrorDetail, syncStatus],
   );
+
+  return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>;
 }

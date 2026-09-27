@@ -32,6 +32,7 @@ import {
 } from '@/lib/clinical-measurements';
 import { cn } from '@/lib/utils';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { isFullySynced } from '@/lib/sync';
 import { FieldError, fieldErrorProps, focusFirstInvalid } from '@/components/ui/field';
 
 const NONE_VALUE = '__NONE__';
@@ -394,7 +395,7 @@ export function VitalsForm({
         if (isOnline) {
           const syncResult = await syncNow(clinicId);
           setStatus(
-            syncResult.success
+            isFullySynced(syncResult)
               ? markTobaccoReviewed
                 ? 'Tobacco screening reviewed and synced.'
                 : 'Measurements saved and synced.'

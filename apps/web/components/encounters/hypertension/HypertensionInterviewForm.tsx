@@ -63,6 +63,7 @@ import { FormSectionCard } from '@/components/app-shell/FormSectionCard';
 import { FieldLabel, RequiredLegend, focusFirstInvalid } from '@/components/ui/field';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { isFullySynced } from '@/lib/sync';
 import { db, type HypertensionAssessmentRecord } from '@/lib/db';
 import { SYNC_OPERATION, enqueueOutboxMutation } from '@/lib/outbox';
 import { claimEncounterRecord } from '@/lib/encounter-record';
@@ -383,7 +384,7 @@ export function HypertensionInterviewForm({
       await adherence.save();
       const synced = isOnline ? await syncNow(clinicId) : null;
       setSaveMessage(
-        synced?.success
+        isFullySynced(synced)
           ? 'Hypertension assessment saved and synced.'
           : 'Hypertension assessment saved on this device and pending sync.',
       );
