@@ -25,6 +25,12 @@ import { PatientMergeService } from '../patients/patient-merge.service';
 import { ListDuplicateCandidatesQueryDto } from '../patients/dto/list-duplicate-candidates.query.dto';
 import { ReviewDuplicatePairDto } from '../patients/dto/review-duplicate-pair.dto';
 import type { ReqUserWithRoles } from '../auth/guards/rbac.guard';
+import { Track } from '../telemetry/track.decorator';
+import {
+  mergePreviewClinic,
+  mergePreviewShape,
+  mergeResultClinic,
+} from '../telemetry/track-descriptors';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RbacGuard)
@@ -142,6 +148,7 @@ export class AdminController {
    * knowing which clinic owns the pair.
    */
   @Get('patients/merge/preview')
+  @Track('patient.merge.preview', { describe: mergePreviewShape, clinicId: mergePreviewClinic })
   @RequirePermission(PERMISSIONS.PATIENT_MERGE)
   async previewMerge(
     @Query() query: AdminMergePreviewQueryDto,
@@ -165,6 +172,7 @@ export class AdminController {
    * blocker, so a client that skips the preview is held to exactly the same safety checks.
    */
   @Post('patients/merge')
+  @Track('patient.merge.execute', { clinicId: mergeResultClinic })
   @RequirePermission(PERMISSIONS.PATIENT_MERGE)
   async mergePatients(
     @Body() dto: MergePatientsDto,

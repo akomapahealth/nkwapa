@@ -128,7 +128,19 @@ export const TELEMETRY_EVENTS = {
   'portal.invite.create': event({
     category: 'invites',
     description: 'Staff invited a patient to the portal.',
-    properties: { delivered: flag, accountCreated: flag },
+    properties: {
+      /** Whether an account was created for the invitee, from PortalInviteIdentityStatus. */
+      identity: oneOf(
+        'NOT_REQUESTED',
+        'PROVISIONED',
+        'EXISTING_PENDING',
+        'ALREADY_ACTIVE',
+        'SKIPPED',
+        'FAILED',
+      ),
+      /** What happened to the invitation email, from ReminderStatus, or NOT_SENT. */
+      delivery: oneOf('QUEUED', 'SENT', 'DELIVERED', 'FAILED', 'NOT_SENT'),
+    },
   }),
   'portal.invite.resend': event({
     category: 'invites',

@@ -24,6 +24,20 @@ import { SyncService } from './sync.service';
 import { SyncMutationDto } from './dto/sync-mutation.dto';
 import { RateLimit } from '../common/rate-limit.decorator';
 import { flattenValidationErrors } from '../common/validation';
+import { Track } from '../telemetry/track.decorator';
+import type { SyncMutationResultDto } from './dto/sync-push-response.dto';
+
+/** How a push went, as counts; the catalog bounds each one. */
+function describeSyncPush(result: unknown): Record<string, unknown> {
+  const results = (result as { results?: SyncMutationResultDto[] })?.results ?? [];
+  return {
+    mutations: results.length,
+    applied: results.filter((row) => row.status === 'APPLIED').length,
+    conflicts: results.filter((row) => row.status === 'CONFLICT').length,
+    errors: results.filter((row) => row.status === 'ERROR').length,
+    retryable: results.filter((row) => row.status !== 'APPLIED' && row.retryable === true).length,
+  };
+}
 
 /**
  * Nest cannot infer an element type from an array annotation, so the global ValidationPipe skipped
@@ -67,6 +81,7 @@ export class SyncController {
   constructor(private readonly syncService: SyncService) {}
 
   @Post('push')
+  @Track('sync.push', { describe: describeSyncPush })
   @HttpCode(HttpStatus.OK)
   @RequirePermission(PERMISSIONS.SYNC_PUSH)
   @ClinicScoped({ type: 'query', queryKey: 'clinicId' })

@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PatientPortalService } from './patient-portal.service';
 import { ClaimPatientRecordDto } from './dto/claim-record.dto';
 import { RateLimit } from '../common/rate-limit.decorator';
+import { Track } from '../telemetry/track.decorator';
 
 @Controller('patients/me')
 @UseGuards(JwtAuthGuard)
@@ -11,6 +12,9 @@ export class PatientClaimController {
   constructor(private readonly patientPortalService: PatientPortalService) {}
 
   @Post('claim-record')
+  @Track('portal.claim', {
+    clinicId: (result) => (result as { clinicId?: string } | undefined)?.clinicId,
+  })
   @RateLimit({ key: 'claim_record', limit: 10, windowSeconds: 600, scope: 'user-or-ip' })
   async claimRecord(
     @Body() dto: ClaimPatientRecordDto,

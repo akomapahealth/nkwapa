@@ -142,6 +142,8 @@ export interface PatientMergePreview {
 
 export interface PatientMergeResult {
   success: true;
+  /** The surviving chart's clinic, which is also where the merge is counted. */
+  clinicId: string;
   canonicalPatientId: string;
   canonicalPatientCode: string;
   mergedPatientId: string;
@@ -503,6 +505,7 @@ export class PatientMergeService {
 
     return {
       success: true,
+      clinicId: canonical.primaryClinicId,
       canonicalPatientId: canonical.id,
       canonicalPatientCode: canonical.patientCode,
       mergedPatientId: source.id,

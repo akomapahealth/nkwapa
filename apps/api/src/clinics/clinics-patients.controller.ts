@@ -40,6 +40,8 @@ import {
 } from '../common/request-dto';
 import { ToOptionalNumber, ToSanitizedString } from '../common/validation';
 import type { ReqUserWithRoles } from '../auth/guards/rbac.guard';
+import { Track } from '../telemetry/track.decorator';
+import { mergePreviewShape, portalInviteShape } from '../telemetry/track-descriptors';
 
 class SearchPatientsQueryDto {
   @IsOptional()
@@ -161,6 +163,7 @@ export class ClinicsPatientsController {
    * looking at, so the request carries the clinic and `ClinicScopeGuard` can narrow it.
    */
   @Get(':patientId/merge-preview')
+  @Track('patient.merge.preview', { describe: mergePreviewShape })
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.PATIENT_MERGE)
   async previewMerge(
@@ -241,6 +244,7 @@ export class ClinicsPatientsController {
   }
 
   @Post(':patientId/portal-invite')
+  @Track('portal.invite.create', { describe: portalInviteShape })
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.PATIENT_PORTAL_LINK)
   async createPortalInvite(
@@ -258,6 +262,7 @@ export class ClinicsPatientsController {
   }
 
   @Post(':patientId/portal-invite/:inviteId/resend')
+  @Track('portal.invite.resend')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.PATIENT_PORTAL_LINK)
   @RateLimit({ key: 'portal_invite_resend', limit: 5, windowSeconds: 600, scope: 'user' })
@@ -275,6 +280,7 @@ export class ClinicsPatientsController {
   }
 
   @Delete(':patientId/portal-invite/:inviteId')
+  @Track('portal.invite.cancel')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.PATIENT_PORTAL_LINK)
   async cancelPortalInvite(

@@ -31,6 +31,7 @@ import {
 } from './dto/appointment-requests.dto';
 import { PatientIdParamDto } from '../common/request-dto';
 import { RateLimit } from '../common/rate-limit.decorator';
+import { Track } from '../telemetry/track.decorator';
 
 type RequestWithUser = {
   clinicId?: string;
@@ -99,6 +100,7 @@ export class PatientApiController {
   }
 
   @Post('me/appointment-requests')
+  @Track('appointment.request.submit', { properties: { kind: 'NEW' } })
   @ClinicScoped({ type: 'header', headerKey: 'x-clinic-id' })
   @RequirePermission(PERMISSIONS.PATIENT_PORTAL_WRITE_SELF_REPORT)
   @RateLimit({
@@ -157,6 +159,7 @@ export class PatientApiController {
   }
 
   @Post('me/appointments/:appointmentId/cancel-request')
+  @Track('appointment.request.submit', { properties: { kind: 'CANCEL' } })
   @ClinicScoped({ type: 'header', headerKey: 'x-clinic-id' })
   @RequirePermission(PERMISSIONS.PATIENT_PORTAL_WRITE_SELF_REPORT)
   @RateLimit({
@@ -183,6 +186,7 @@ export class PatientApiController {
   }
 
   @Post('me/appointments/:appointmentId/reschedule-request')
+  @Track('appointment.request.submit', { properties: { kind: 'RESCHEDULE' } })
   @ClinicScoped({ type: 'header', headerKey: 'x-clinic-id' })
   @RequirePermission(PERMISSIONS.PATIENT_PORTAL_WRITE_SELF_REPORT)
   @RateLimit({

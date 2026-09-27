@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import {
   SyncOperation,
@@ -39,6 +40,7 @@ import {
   SYNC_PATIENT_SELECT,
 } from './sync-projection';
 import { PrismaService } from '../prisma/prisma.service';
+import { TelemetryService } from '../telemetry/telemetry.service';
 import { AuditService } from '../audit/audit.service';
 import { PatientRepository } from '../patients/patient.repository';
 import { resolveResidentialLocation } from '../patients/residential-location.util';
@@ -91,6 +93,7 @@ export class SyncService {
     private readonly hypertensionAssessmentService: HypertensionAssessmentService,
     private readonly medicationAdherenceService: MedicationAdherenceService,
     private readonly prescriptionService: PrescriptionService,
+    @Optional() private readonly telemetry?: TelemetryService,
   ) {}
 
   async applyMutations(
@@ -157,7 +160,31 @@ export class SyncService {
       }
     }
 
+    this.recordRefusalTelemetry(clinicId, mutations, results);
     return results;
+  }
+
+  /**
+   * One event per refused change: its code, its entity type and whether it will be retried. The
+   * batch's totals are recorded by the push route itself; this is what explains them.
+   */
+  private recordRefusalTelemetry(
+    clinicId: string,
+    mutations: SyncMutationDto[],
+    results: SyncMutationResultDto[],
+  ): void {
+    if (!this.telemetry) return;
+    const entityTypes = new Map(mutations.map((mut) => [mut.id, mut.entityType]));
+    for (const result of results) {
+      if (result.status === SYNC_MUTATION_RESULT_STATUS.APPLIED) continue;
+      const entityType = entityTypes.get(result.id);
+      this.telemetry.record('sync.mutation.refuse', {
+        clinicId,
+        reason: result.conflictType,
+        entityType: entityType && isSyncEntityType(entityType) ? entityType : 'other',
+        retryable: result.retryable === true,
+      });
+    }
   }
 
   /**

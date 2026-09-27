@@ -1,5 +1,7 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Global, Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { TelemetryInterceptor } from './telemetry.interceptor';
 import { MetricsController } from './metrics.controller';
 import { MetricsService } from './metrics.service';
 import { TelemetryService } from './telemetry.service';
@@ -13,7 +15,12 @@ import {
 @Module({
   imports: [BullModule.registerQueue({ name: TELEMETRY_MAINTENANCE_QUEUE })],
   controllers: [MetricsController],
-  providers: [TelemetryService, MetricsService, TelemetryRetentionProcessor],
+  providers: [
+    TelemetryService,
+    MetricsService,
+    TelemetryRetentionProcessor,
+    { provide: APP_INTERCEPTOR, useClass: TelemetryInterceptor },
+  ],
   exports: [TelemetryService],
 })
 export class TelemetryModule {}
