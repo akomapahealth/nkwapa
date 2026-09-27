@@ -21,24 +21,29 @@ test.use({ storageState: storageStateFor('staff') });
  * sequence and each step only makes sense after the one before it. The steps are separate
  * tests rather than one long one so a failure names the stage that broke.
  *
- * Acts on the seeded "E2E Signup" chart, which exists for this file alone and is seeded with
- * no invitation, because the invitation is what this test creates. The other portal charts
- * are relied on by notifications-email.spec.js and portal-invite-lifecycle.spec.js; the
- * suites share one database, so each owns its own chart.
+ * Registers its own chart on every run. It used to act on the seeded "E2E Signup" chart, but
+ * this journey ends with that chart linked to a portal account for good, and the seed never
+ * unlinks it, so on any database the suite had already run against the first step was refused
+ * with "already has a linked portal account". The other portal charts are relied on by
+ * notifications-email.spec.js and portal-invite-lifecycle.spec.js; the suites share one
+ * database, so each owns its own chart.
  */
 test.describe.configure({ mode: 'serial' });
 
-// The DOB seeded for this chart. Changing it in seed.ts breaks this file and nothing else.
+// Typed at registration and again at the claim, which checks the two agree.
 const SIGNUP_DOB = '1981-06-24';
 const PASSWORD = 'NkwapaSignup!2026';
 
 // Unique per run, so the identity is genuinely new every time. A fixed address would already
 // hold a password on the second run and the journey being tested would never happen.
-const INVITE_EMAIL = `e2e.signup.${Date.now()}@nkwapa.local`;
+const RUN_ID = Date.now();
+const INVITE_EMAIL = `e2e.signup.${RUN_ID}@nkwapa.local`;
+const SIGNUP_LAST_NAME = `Signup ${RUN_ID}`;
 
 let patientContext;
 let patientPage;
 let patientCode;
+let chartPath;
 
 test.beforeAll(async ({ browser }) => {
   await clearMailpitInbox(INVITE_EMAIL);
@@ -59,18 +64,23 @@ test.afterAll(async () => {
   await clearMailpitInbox(INVITE_EMAIL);
 });
 
+async function registerSignupChart(page) {
+  await page.goto('/patients/new');
+  await page.getByLabel('First name', { exact: true }).fill('E2E');
+  await page.getByLabel('Last name', { exact: true }).fill(SIGNUP_LAST_NAME);
+  await page.getByLabel('Date of birth').fill(SIGNUP_DOB);
+  await page.getByLabel('National ID', { exact: true }).fill(`E2E-SIGNUP-${RUN_ID}`);
+  await page.getByRole('button', { name: 'Create patient' }).click();
+  await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 30_000 });
+  chartPath = new URL(page.url()).pathname;
+}
+
 async function openSignupChart(page) {
-  await page.goto('/patients');
-  await expect(page.locator('#main-content')).toBeVisible({ timeout: 30_000 });
-
-  await page.getByPlaceholder(/search by name, patient code/i).fill('Signup');
-  // Matched by name, not position: the search is debounced, so the first row can still be
-  // the unfiltered one when the fill resolves.
-  const row = page.getByRole('row', { name: /Signup/i });
-  await expect(row).toBeVisible({ timeout: 30_000 });
-  await row.getByRole('link', { name: /view/i }).click();
-
-  await expect(page.getByRole('heading', { name: /E2E Signup/i })).toBeVisible({ timeout: 30_000 });
+  if (!chartPath) await registerSignupChart(page);
+  else await page.goto(chartPath);
+  await expect(page.getByRole('heading', { name: SIGNUP_LAST_NAME })).toBeVisible({
+    timeout: 30_000,
+  });
 }
 
 test('staff invite a patient who has no account, and an account is created', async ({ page }) => {
