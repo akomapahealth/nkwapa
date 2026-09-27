@@ -84,6 +84,8 @@ Server responsibilities:
 
 - return changes after the provided cursor
 - scope results to the allowed clinic context
+- report charts a merge retired since the cursor (`mergedPatients`), so a device drops its copy
+  instead of keeping a chart nobody can open and queueing changes against it
 
 ---
 
@@ -94,14 +96,29 @@ Current important rules:
 - national ID collisions surface duplicate suspicion instead of silent merge
 - finalized encounter-linked data is treated as canonical, and a write against a finalized
   encounter is reported as a conflict for every entity type
-- merged patients resolve toward the canonical chart
+- merged patients resolve toward the canonical chart. Any patient-scoped change queued against a
+  merged chart is refused with `PATIENT_MERGED` and the surviving chart's id; it is never written
+  to the retired record
+- an offline edit of an existing chart needs no national ID, because the device does not keep one;
+  only a new chart does (`PATIENT_NATIONAL_ID_REQUIRED`)
 - sync mutations preserve applied, conflict, and error state
 - an outcome short-circuits a later replay of the same idempotency key only when replaying the
   identical mutation is guaranteed to reach the same answer: applied, or a conflict arising from
   server state a replay cannot change. Anything else is recorded and genuinely re-attempted, so a
   repaired payload, a granted permission, or a fixed server can drain the queue
-- results carry `retryable`, and the client keeps a retryable change queued while continuing to the
-  pull rather than halting the pass
+- every code a push can report is catalogued once in `packages/db/src/sync-conflicts.ts`, with its
+  recovery category, whether it is deterministic, and whether it is retryable. The API derives its
+  cacheable set and every `retryable` flag from it; the web derives its plain-language copy and safe
+  recovery actions from it. A spec fails if a sync handler emits a code the catalog does not know
+- results always carry `retryable`. A content refusal is not retryable, because the queued payload
+  cannot change by itself
+- the client records each refusal on its outbox row (`syncState`, `attempts`, `lastFailure`), so it
+  survives a refresh. A conflict, or a refusal not marked retryable, is `blocked`: kept, shown in the
+  sync center, and not re-sent until the clinician retries it. A retryable one is re-sent each pass
+- a refused change never stops the pass: the pull always runs, and pushes go in batches no larger
+  than the server's per-request limit
+- the client never merges or overwrites to resolve a conflict. Discarding a change removes only the
+  device's copy and resets the pull cursor so the server's version is restored
 - conflict detail is built from an allow-list with its message redacted
 - medical-history creates and revisions use client-generated IDs for replay idempotency
 - stale medical-history revisions and no-known-allergies conflicts remain queued for user-visible
@@ -131,13 +148,14 @@ Current important rules:
 - most admin and research management pages
 - patient portal claim flow
 - patient portal self-service submissions
-- richer retry/conflict UI for every newer surface
+- in-form conflict prompts; recovery happens in the sync center rather than on the form that
+  queued the change
 
 ---
 
 ## Recommended Next Additions
 
 1. Extend outbox coverage to the highest-value ops mutations.
-2. Add better conflict UI for duplicate and canonical-chart resolution.
+2. Offer offline patient registration, now that duplicate conflicts have a recovery path.
 3. Support more stale-while-refresh behavior on list-heavy pages.
 4. Re-evaluate which patient portal writes are safe and useful to queue offline.

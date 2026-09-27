@@ -159,7 +159,8 @@ clinical one.
 
 Three files were worth naming while it was happening, and are worth naming now that it is done:
 `components/ui/badge.tsx` (broadest reach), `app/SyncStatusBar.tsx` (deleted -- it had no importers
-and duplicated the header's sync pill), and `components/patients/AllergySummaryBanner.tsx`, the one
+and duplicated the header's sync pill; the pill itself now lives in
+`components/sync/SyncStatusBar.tsx` with the sync center it opens), and `components/patients/AllergySummaryBanner.tsx`, the one
 a clinician reads before prescribing.
 
 ### Lines
