@@ -645,6 +645,10 @@ role only, not as the multi-role staff account.
 - [ ] register a patient, including residential location
 - [ ] record expanded vitals and a tobacco screening in an encounter
 - [ ] record a diabetes screening and read it back on the chart
+- [ ] record a hypertension assessment and read it back on the chart's Hypertension tab and on
+      the overview's latest-assessment card
+- [ ] open the chart's Diabetes and Hypertension tabs offline and confirm each says it is showing
+      records saved on this device
 - [ ] add a medical history entry and revise it, and confirm the earlier revision is still visible
 - [ ] record a patient-reported medication and reconcile it
 - [ ] author a clinical note and submit it for cosign
