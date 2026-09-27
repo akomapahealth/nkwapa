@@ -286,3 +286,66 @@ export function sanitizeTelemetry(
 
   return { event: name, category: definition.category, reason, bucket, properties, dropped };
 }
+
+export interface TelemetryFunnel {
+  id: string;
+  label: string;
+  description: string;
+  /** Ordered steps; each counts the step's successful events in the window. */
+  steps: ReadonlyArray<{ event: TelemetryEventName; label: string }>;
+}
+
+/**
+ * The conversions the product and operations teams asked to measure.
+ *
+ * Counted per window rather than per person, deliberately: following one patient from request to
+ * visit would need an identifier in every event, which is exactly what telemetry must not hold. A
+ * window's step-to-step ratio is the honest measure that needs none.
+ */
+export const TELEMETRY_FUNNELS: readonly TelemetryFunnel[] = [
+  {
+    id: 'appointment-requests',
+    label: 'Appointment requests',
+    description: 'Patient requests submitted, and how many staff confirmed.',
+    steps: [
+      { event: 'appointment.request.submit', label: 'Requested' },
+      { event: 'appointment.request.confirm', label: 'Confirmed' },
+    ],
+  },
+  {
+    id: 'appointments',
+    label: 'Visits',
+    description: 'Confirmed requests, and how the visits ended.',
+    steps: [
+      { event: 'appointment.request.confirm', label: 'Booked' },
+      { event: 'appointment.complete', label: 'Completed' },
+    ],
+  },
+  {
+    id: 'patient-merges',
+    label: 'Chart merges',
+    description: 'Merge previews, and how many became merges.',
+    steps: [
+      { event: 'patient.merge.preview', label: 'Previewed' },
+      { event: 'patient.merge.execute', label: 'Merged' },
+    ],
+  },
+  {
+    id: 'portal-invites',
+    label: 'Portal invitations',
+    description: 'Patients invited, and how many claimed their record.',
+    steps: [
+      { event: 'portal.invite.create', label: 'Invited' },
+      { event: 'portal.claim', label: 'Claimed' },
+    ],
+  },
+  {
+    id: 'staff-invites',
+    label: 'Staff invitations',
+    description: 'Staff invited, and how many accepted.',
+    steps: [
+      { event: 'staff.invite.create', label: 'Invited' },
+      { event: 'staff.invite.accept', label: 'Accepted' },
+    ],
+  },
+];

@@ -1,6 +1,7 @@
 import {
   TELEMETRY_CATEGORIES,
   TELEMETRY_EVENTS,
+  TELEMETRY_FUNNELS,
   isTelemetryEventName,
   isTelemetryReasonCode,
   sanitizeTelemetry,
@@ -31,6 +32,19 @@ describe('telemetry event catalog', () => {
         expect(key).not.toMatch(forbidden);
       }
     }
+  });
+
+  it('builds every funnel from server events in the catalog', () => {
+    for (const funnel of TELEMETRY_FUNNELS) {
+      expect(funnel.steps.length).toBeGreaterThanOrEqual(2);
+      for (const step of funnel.steps) {
+        expect(isTelemetryEventName(step.event)).toBe(true);
+        expect(TELEMETRY_EVENTS[step.event]).not.toHaveProperty('client', true);
+      }
+    }
+    expect(new Set(TELEMETRY_FUNNELS.map((funnel) => funnel.id)).size).toBe(
+      TELEMETRY_FUNNELS.length,
+    );
   });
 
   it('recognises only catalog events', () => {

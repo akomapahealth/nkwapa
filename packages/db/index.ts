@@ -151,6 +151,7 @@ export {
 export {
   TELEMETRY_CATEGORIES,
   TELEMETRY_EVENTS,
+  TELEMETRY_FUNNELS,
   TELEMETRY_OUTCOMES,
   isTelemetryEventName,
   isTelemetryReasonCode,
@@ -159,6 +160,7 @@ export {
   type TelemetryCategory,
   type TelemetryEventDefinition,
   type TelemetryEventName,
+  type TelemetryFunnel,
   type TelemetryOutcome,
   type TelemetryProperties,
   type TelemetryPropertyValue,
