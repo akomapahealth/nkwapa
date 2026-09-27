@@ -41,6 +41,7 @@ describe('SyncService', () => {
         delete: jest.fn().mockResolvedValue({}),
       },
       patient: {
+        findFirst: jest.fn().mockResolvedValue(null),
         upsert: jest.fn().mockResolvedValue({
           id: 'patient-1',
           patientCode: 'NKP-2025-000001',
@@ -1007,6 +1008,44 @@ describe('SyncService', () => {
           }),
         }),
       );
+    });
+  });
+
+  describe('changes queued against a merged chart', () => {
+    it('points a medical history change at the surviving chart instead of retrying it forever', async () => {
+      (prisma.patient.findFirst as jest.Mock).mockResolvedValue({
+        id: 'retired-1',
+        mergedIntoPatientId: 'canonical-1',
+      });
+      (patientRepo.findById as jest.Mock).mockResolvedValue({
+        id: 'canonical-1',
+        patientCode: 'NKP-2025-000011',
+      });
+
+      const results = await service.applyMutations(
+        'clinic-1',
+        { user: { id: 'user-1' }, roles: [{ clinicId: 'clinic-1', role: 'DOCTOR' }] } as never,
+        [
+          {
+            id: 'mut-history',
+            entityType: 'medical_history_revision',
+            entityId: '55555555-5555-4555-8555-555555555555',
+            operation: 'UPSERT',
+            clinicId: 'clinic-1',
+            payloadJson: { patientId: 'retired-1', revisionId: 'rev-1', status: 'ACTIVE' },
+            idempotencyKey: 'idem-history-merged',
+          } as SyncMutationDto,
+        ],
+      );
+
+      expect(results[0]).toMatchObject({
+        status: SYNC_MUTATION_RESULT_STATUS.CONFLICT,
+        conflictType: 'PATIENT_MERGED',
+        retryable: false,
+        conflictDetails: { canonicalPatientId: 'canonical-1' },
+      });
+      expect(medicalHistoryService.create).not.toHaveBeenCalled();
+      expect(medicalHistoryService.revise).not.toHaveBeenCalled();
     });
   });
 

@@ -212,6 +212,8 @@ export interface SyncFailureDescription extends SyncFailureCopy {
   serverDetail?: string;
   /** Primary action first. Only actions that are safe for this failure are listed. */
   actions: SyncRecoveryAction[];
+  /** Where this failure words an action better than the default label. */
+  actionLabels: Partial<Record<SyncRecoveryAction, string>>;
   patientHref?: string;
   canonicalPatientHref?: string;
   encounterHref?: string;
@@ -273,6 +275,8 @@ export function describeSyncFailure(
     category,
     serverDetail: category === 'validation' ? serverDetailFor(failure) : undefined,
     actions: [],
+    // After a merge the surviving chart is the patient's only chart, not an "existing" one.
+    actionLabels: targetIsRetired ? { 'open-canonical-patient': 'Open current chart' } : {},
   };
 
   if (canonicalPatientId) {

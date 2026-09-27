@@ -145,7 +145,7 @@ export function SyncMutationCard({
 
       <div className="mt-3 flex flex-wrap gap-2 sm:pl-8">
         {actions.map((action) => {
-          const label = syncRecoveryActionLabel(action);
+          const label = description?.actionLabels[action] ?? syncRecoveryActionLabel(action);
           const variant = action === primary ? 'default' : 'outline';
           if (action === 'discard') {
             return (

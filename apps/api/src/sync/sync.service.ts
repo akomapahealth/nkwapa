@@ -273,6 +273,18 @@ export class SyncService {
 
     await this.assertMutationPermitted(clinicId, user, mut);
 
+    // Every patient-scoped change, not only the ones whose handler looks the chart up itself: a
+    // medical history or medication change queued against a chart that has since been merged
+    // would otherwise come back as "not found" and be retried forever.
+    if (
+      mut.operation === SYNC_OPERATION.UPSERT &&
+      mut.entityType !== 'patient' &&
+      mut.entityType !== 'encounter' &&
+      typeof payload.patientId === 'string'
+    ) {
+      await this.assertPatientNotMerged(payload.patientId, clinicId, 'This change');
+    }
+
     if (mut.operation === SYNC_OPERATION.DELETE) {
       return this.applyDelete(clinicId, actorUserId, user, mut, metadata);
     }
@@ -444,14 +456,10 @@ export class SyncService {
     // A merge retires a chart for good. Writing to it would put demographics on a tombstone no
     // screen shows, so the edit is refused and the clinician is pointed at the surviving chart.
     if (existingById?.mergedIntoPatientId) {
-      const canonical = await this.patientRepository.findById(existingById.mergedIntoPatientId, {
-        resolveMerged: true,
-      });
-      return this.refuse(clinicId, mut, SYNC_MUTATION_RESULT_STATUS.CONFLICT, 'PATIENT_MERGED', {
-        message: 'This chart was merged into another chart.',
-        canonicalPatientId: canonical?.id ?? existingById.mergedIntoPatientId,
-        ...(canonical?.patientCode ? { patientCode: canonical.patientCode } : {}),
-      });
+      throw await this.patientMergedConflict(
+        existingById.mergedIntoPatientId,
+        'This chart was merged into another chart.',
+      );
     }
 
     // The device stopped keeping national IDs (Dexie v8), so an offline edit of an existing chart
@@ -662,26 +670,51 @@ export class SyncService {
     entityLabel: string,
   ): Promise<void> {
     if (!patientId) throw new BadRequestException(`${entityLabel} payload must include patientId`);
+    const merged = await this.assertPatientNotMerged(patientId, clinicId, entityLabel);
+    if (!merged) {
+      throw new NotFoundException(`${entityLabel} patient not found in the active clinic`);
+    }
+  }
+
+  /**
+   * Refuse a change queued against a chart that has since been merged. It would otherwise attach
+   * to the retired record, invisible from the surviving chart; the clinician re-enters it there.
+   *
+   * Resolves to whether the chart exists at this clinic at all, so a caller that needs it can say
+   * so without a second query.
+   */
+  private async assertPatientNotMerged(
+    patientId: string,
+    clinicId: string,
+    entityLabel: string,
+  ): Promise<boolean> {
     const patient = await this.prisma.patient.findFirst({
       where: { id: patientId, primaryClinicId: clinicId },
       select: { id: true, mergedIntoPatientId: true },
     });
-    if (!patient) {
-      throw new NotFoundException(`${entityLabel} patient not found in the active clinic`);
+    if (patient?.mergedIntoPatientId) {
+      throw await this.patientMergedConflict(
+        patient.mergedIntoPatientId,
+        `${entityLabel} belongs to a chart that was merged into another chart.`,
+      );
     }
-    // A change queued against a chart that has since been merged would otherwise attach to the
-    // retired record, invisible from the surviving chart. The clinician re-enters it there.
-    if (patient.mergedIntoPatientId) {
-      const canonical = await this.patientRepository.findById(patient.mergedIntoPatientId, {
-        resolveMerged: true,
-      });
-      throw new ConflictException({
-        code: 'PATIENT_MERGED',
-        message: `${entityLabel} belongs to a chart that was merged into another chart.`,
-        canonicalPatientId: canonical?.id ?? patient.mergedIntoPatientId,
-        ...(canonical?.patientCode ? { patientCode: canonical.patientCode } : {}),
-      });
-    }
+    return Boolean(patient);
+  }
+
+  /** PATIENT_MERGED, pointing at the chart at the end of the merge chain. */
+  private async patientMergedConflict(
+    mergedIntoPatientId: string,
+    message: string,
+  ): Promise<ConflictException> {
+    const canonical = await this.patientRepository.findById(mergedIntoPatientId, {
+      resolveMerged: true,
+    });
+    return new ConflictException({
+      code: 'PATIENT_MERGED',
+      message,
+      canonicalPatientId: canonical?.id ?? mergedIntoPatientId,
+      ...(canonical?.patientCode ? { patientCode: canonical.patientCode } : {}),
+    });
   }
 
   /**

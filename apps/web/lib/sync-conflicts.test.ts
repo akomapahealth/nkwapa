@@ -90,6 +90,7 @@ describe('describeSyncFailure', () => {
       expect(description.canonicalPatientHref).toBe('/clinics/clinic-1/patients/canonical-1');
       expect(description.patientHref).toBeUndefined();
       expect(description.actions).toEqual(['open-canonical-patient', 'discard']);
+      expect(description.actionLabels['open-canonical-patient']).toBe('Open current chart');
     });
   });
 
