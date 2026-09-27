@@ -1,4 +1,4 @@
-import { shouldSeedFormValues } from './form-seeding';
+import { mergeSeededValues, shouldSeedFormValues } from './form-seeding';
 
 const unseeded = { hasSeeded: false, seededRecordId: undefined };
 
@@ -55,5 +55,36 @@ describe('shouldSeedFormValues', () => {
         seededRecordId: undefined,
       }),
     ).toBe(false);
+  });
+});
+
+describe('mergeSeededValues', () => {
+  const symptoms: string[] = [];
+  const defaults = { notes: '', glucose: '', symptoms };
+
+  it('takes the record for every field nobody touched', () => {
+    const incoming = { notes: 'Saved', glucose: '126', symptoms: ['FATIGUE'] };
+    expect(mergeSeededValues(defaults, defaults, incoming)).toEqual(incoming);
+  });
+
+  /*
+    The offline diabetes edit that replayed old answers: the first seed of a new encounter arrives
+    with the refetch after the first save, while the clinician is already typing the next change.
+  */
+  it('keeps what the user typed while the record was on its way', () => {
+    const typing = { ...defaults, notes: 'Updated while the refetch was in flight' };
+    const incoming = { notes: 'Saved', glucose: '126', symptoms: ['FATIGUE'] };
+
+    expect(mergeSeededValues(defaults, typing, incoming)).toEqual({
+      notes: 'Updated while the refetch was in flight',
+      glucose: '126',
+      symptoms: ['FATIGUE'],
+    });
+  });
+
+  it('treats an edited list as edited even when it holds the same items', () => {
+    const typing = { ...defaults, symptoms: [] as string[] };
+    const merged = mergeSeededValues(defaults, typing, { ...defaults, symptoms: ['FATIGUE'] });
+    expect(merged.symptoms).toBe(typing.symptoms);
   });
 });

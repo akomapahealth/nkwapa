@@ -29,3 +29,30 @@ export function shouldSeedFormValues({
   if (!hasSeeded) return true;
   return recordId !== seededRecordId;
 }
+
+/**
+ * The values a form should hold once a record seeds it, given what the user has done meanwhile.
+ *
+ * Seeding once per record was not enough on a new encounter. The form mounts with no record, so
+ * its first seed arrives with the refetch that follows the first save -- and by then the clinician
+ * may already be typing the next change. Replacing the values outright threw that typing away, and
+ * the next save, online or queued offline, sent the previous answers while reporting success.
+ *
+ * So a field the user changed since the last seed keeps what they typed, and every other field
+ * takes the record's value. Untouched fields still fill in, which is what #91 needed: a form that
+ * mounted before its record loaded must not save blanks over a real interview.
+ *
+ * Fields are compared by identity, which is how React state changes: an edited array or object is
+ * a new reference, an untouched one is the same reference it was seeded with.
+ */
+export function mergeSeededValues<TValues extends object>(
+  baseline: TValues,
+  current: TValues,
+  incoming: TValues,
+): TValues {
+  const merged = { ...incoming };
+  for (const key of Object.keys(current) as Array<keyof TValues>) {
+    if (!Object.is(current[key], baseline[key])) merged[key] = current[key];
+  }
+  return merged;
+}

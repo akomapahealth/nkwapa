@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { shouldSeedFormValues } from '@/lib/form-seeding';
+import { mergeSeededValues, shouldSeedFormValues } from '@/lib/form-seeding';
 
 /**
  * Hold a form's values, seeding them from a record that arrives after the form mounts.
@@ -14,12 +14,15 @@ import { shouldSeedFormValues } from '@/lib/form-seeding';
  * one: the clinician plan is a projection of its assessment's columns and is identified by the
  * encounter it belongs to.
  */
-export function useSeededFormValues<TRecord, TValues>(
+export function useSeededFormValues<TRecord, TValues extends object>(
   recordId: string | null | undefined,
   record: TRecord,
   fromRecord: (record: TRecord) => TValues,
 ): [TValues, React.Dispatch<React.SetStateAction<TValues>>] {
   const [values, setValues] = useState<TValues>(() => fromRecord(record));
+  // What the form was last seeded with -- at first, its empty defaults -- so a later seed can tell
+  // the user's edits apart from values nobody has touched.
+  const baseline = useRef<TValues>(values);
   const hasSeeded = useRef(false);
   const seededRecordId = useRef<string | null | undefined>(undefined);
 
@@ -35,7 +38,10 @@ export function useSeededFormValues<TRecord, TValues>(
     if (!seed) return;
     hasSeeded.current = true;
     seededRecordId.current = recordId;
-    setValues(fromRecord(record));
+    const incoming = fromRecord(record);
+    const previousBaseline = baseline.current;
+    setValues((current) => mergeSeededValues(previousBaseline, current, incoming));
+    baseline.current = incoming;
   }, [record, recordId, fromRecord]);
 
   return [values, setValues];
