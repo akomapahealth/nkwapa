@@ -34,6 +34,7 @@ test.describe('doctor', () => {
     await expect(page.getByRole('tab', { name: 'Notes', exact: true })).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Medications', exact: true })).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Diabetes', exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Hypertension', exact: true })).toBeVisible();
   });
 });
 
@@ -45,7 +46,14 @@ test.describe('volunteer', () => {
     await page.goto(`/clinics/${clinicId}/patients/${patientId}`);
 
     // A volunteer records screenings, history and medications, so must be able to read them back.
-    for (const tab of ['Vitals', 'Diabetes', 'Medical History', 'Medications', 'Notes']) {
+    for (const tab of [
+      'Vitals',
+      'Diabetes',
+      'Hypertension',
+      'Medical History',
+      'Medications',
+      'Notes',
+    ]) {
       await expect(page.getByRole('tab', { name: tab, exact: true })).toBeVisible();
     }
   });

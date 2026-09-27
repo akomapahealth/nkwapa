@@ -33,6 +33,7 @@ import { ArrowLeft, ClipboardPlus, HeartPulse, ShieldCheck } from 'lucide-react'
 import { PrescriptionPanel } from '@/components/patients/PrescriptionPanel';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 import { DiabetesHistoryPanel } from '@/components/patients/DiabetesHistoryPanel';
+import { HypertensionHistoryPanel } from '@/components/patients/HypertensionHistoryPanel';
 import { ClinicalNotePanel } from '@/components/clinical-notes/ClinicalNotePanel';
 
 function hasPermission(permissions: string[], perm: string): boolean {
@@ -442,9 +443,10 @@ export default function EncounterDetailPage() {
                 clinicId={clinicId}
                 patientId={encounter.patientId}
                 currentEncounterId={encounterId}
+                refreshKey={diabetes?.updatedAt ?? null}
               />
             </TabsContent>
-            <TabsContent value="hypertension">
+            <TabsContent value="hypertension" className="space-y-4">
               {/*
                 The guided interview replaces the four-field form behind a flag, as clinical notes
                 did. Both write the same record, so a clinic can be switched back mid-rollout
@@ -486,6 +488,15 @@ export default function EncounterDetailPage() {
                   saveRef={hypertensionSaveRef}
                 />
               )}
+              {/* The same longitudinal view the diabetes tab has always had beside its form. */}
+              <HypertensionHistoryPanel
+                clinicId={clinicId}
+                patientId={encounter.patientId}
+                currentEncounterId={encounterId}
+                refreshKey={
+                  typeof hypertension?.updatedAt === 'string' ? hypertension.updatedAt : null
+                }
+              />
             </TabsContent>
             {canFinalize && (
               <TabsContent value="careplan">

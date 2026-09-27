@@ -99,6 +99,7 @@ describe('patient chart tab registry', () => {
         'vitals',
         'medications',
         'diabetes',
+        'hypertension',
         'medical-history',
         'notes',
         'visits',
@@ -118,6 +119,16 @@ describe('patient chart tab registry', () => {
     it('shows the diabetes tab to a volunteer now that they hold SCREENING.READ', () => {
       expect(sectionIdsFor('VOLUNTEER')).toContain('diabetes');
     });
+
+    // The chart had no hypertension section, so what a volunteer recorded on the encounter's
+    // Hypertension tab could not be read back from the chart at all.
+    it.each(['DIRECTOR', 'MANAGER', 'DOCTOR', 'VOLUNTEER'])(
+      'shows hypertension wherever diabetes is shown, for a %s',
+      (role) => {
+        const ids = sectionIdsFor(role);
+        expect(ids.includes('hypertension')).toBe(ids.includes('diabetes'));
+      },
+    );
 
     it('shows the consent tab only to a consent recorder', () => {
       expect(sectionIdsFor('VOLUNTEER')).toContain('consent');

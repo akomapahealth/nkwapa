@@ -66,6 +66,7 @@ function createPrismaMock() {
       findMany: jest.fn().mockResolvedValue([]),
     },
     diabetesScreening: { findFirst: jest.fn().mockResolvedValue(null) },
+    hypertensionAssessment: { findFirst: jest.fn().mockResolvedValue(null) },
     patientMedicationRecord: { count: jest.fn().mockResolvedValue(0) },
     medicationReconciliationEvent: { findFirst: jest.fn().mockResolvedValue(null) },
     clinicalNote: { count: jest.fn().mockResolvedValue(0) },
@@ -194,6 +195,56 @@ describe('PatientChartService', () => {
       expect(kinds).toContain('AWAITING_REVIEW');
       const open = summary.pendingActions.find((a) => a.kind === 'OPEN_VISIT');
       expect(open?.encounterId).toBe('enc-draft');
+    });
+  });
+
+  describe('hypertension summary', () => {
+    it('reports the latest assessment with the reading it classified', async () => {
+      prisma.hypertensionAssessment.findFirst.mockResolvedValue({
+        id: 'htn-1',
+        collectedAt: new Date('2026-09-20T10:00:00.000Z'),
+        classification: 'STAGE2',
+        suspected: true,
+        confirmed: false,
+        hypertensionStatus: 'NEWLY_ELEVATED_BP',
+        urgentReviewRequired: true,
+        clinicianReviewRequested: false,
+        encounter: {
+          id: 'enc-1',
+          status: EncounterStatus.DRAFT,
+          createdAt: new Date('2026-09-20T09:00:00.000Z'),
+          clinic: { id: CLINIC, name: 'Clinic' },
+          createdBy: { id: 'user-1', displayName: 'Ama Volunteer' },
+          vitals: { systolicBp: 162, diastolicBp: 101 },
+        },
+      });
+
+      const summary = await service.getSummary(CLINIC, PATIENT, actor(UserRole.VOLUNTEER));
+
+      expect(summary.sections.map((s) => s.id)).toContain('hypertension');
+      expect(summary.hypertension?.latest).toMatchObject({
+        id: 'htn-1',
+        classification: 'STAGE2',
+        urgentReviewRequired: true,
+        systolicBp: 162,
+        diastolicBp: 101,
+        encounterId: 'enc-1',
+        locked: false,
+      });
+      expect(prisma.hypertensionAssessment.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { clinicId: CLINIC, encounter: { patientId: PATIENT } } }),
+      );
+    });
+
+    it('keeps the section without the guided-interview flag, since the records exist either way', async () => {
+      process.env.FEATURE_GUIDED_CHRONIC_TABS_ENABLED = 'false';
+      const summary = await service.getSummary(CLINIC, PATIENT, actor(UserRole.DOCTOR));
+      delete process.env.FEATURE_GUIDED_CHRONIC_TABS_ENABLED;
+
+      expect(summary.sections.map((s) => s.id)).toEqual(
+        expect.arrayContaining(['diabetes', 'hypertension']),
+      );
+      expect(summary.hypertension).toEqual({ latest: null });
     });
   });
 

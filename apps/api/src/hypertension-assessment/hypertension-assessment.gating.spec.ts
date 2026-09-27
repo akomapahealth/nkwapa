@@ -27,21 +27,32 @@ describe('guided chronic interview API gating', () => {
       process.env.FEATURE_GUIDED_CHRONIC_TABS_ENABLED = 'false';
     });
 
-    it('refuses every hypertension route, because the whole module is new', () => {
+    it('refuses the hypertension writes, because the REST write surface is new', () => {
       const service = { list: jest.fn(), upsert: jest.fn(), upsertClinicianPlan: jest.fn() };
       const controller = new HypertensionAssessmentController(service as never);
 
-      expect(() =>
-        controller.list({ clinicId: 'clinic-1', patientId: 'p1' } as never, {} as never, request),
-      ).toThrow(NotFoundException);
       expect(() => controller.upsert(params, {} as never, request)).toThrow(NotFoundException);
       expect(() => controller.upsertClinicianPlan(params, {} as never, request)).toThrow(
         NotFoundException,
       );
 
-      expect(service.list).not.toHaveBeenCalled();
       expect(service.upsert).not.toHaveBeenCalled();
       expect(service.upsertClinicianPlan).not.toHaveBeenCalled();
+    });
+
+    it('still serves hypertension history, which the patient chart shows either way', async () => {
+      // The four-field form and the offline replay write this table with the flag off. Gating the
+      // read hid those records: the chart had no Hypertension section to put them in.
+      const service = { list: jest.fn() };
+      const controller = new HypertensionAssessmentController(service as never);
+
+      await controller.list(
+        { clinicId: 'clinic-1', patientId: 'p1' } as never,
+        {} as never,
+        request,
+      );
+
+      expect(service.list).toHaveBeenCalled();
     });
 
     it('refuses the diabetes clinician plan, which the interview introduced', () => {

@@ -1,25 +1,22 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
-import { AlertTriangle, CalendarClock, Droplets, ExternalLink, UserRound } from 'lucide-react';
+import { AlertTriangle, Droplets } from 'lucide-react';
 import { DIABETES_SYMPTOM_LABELS, type DiabetesSymptom } from '@nkwapa/db';
-import { useAuth } from '@/lib/auth-context';
-import { apiFetch, readApiError } from '@/lib/api';
 import { db, type DiabetesScreeningRecord } from '@/lib/db';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import {
-  ChartSectionEmpty,
-  ChartSectionError,
-  ChartSectionLoading,
-  ChartSectionOffline,
-} from '@/components/patients/chart/ChartSectionState';
+  ScreeningHistoryCard,
+  ScreeningRecordFrame,
+  type ScreeningHistoryCopy,
+} from '@/components/patients/ScreeningHistoryCard';
+import {
+  useScreeningHistory,
+  type LocalScreeningContext,
+  type ScreeningHistoryItemBase,
+} from '@/lib/use-screening-history';
 
-interface DiabetesHistoryItem {
-  id: string;
+interface DiabetesHistoryItem extends ScreeningHistoryItemBase {
   clinicId: string;
   patientId: string;
   glucoseMgDl: number | null;
@@ -27,12 +24,25 @@ interface DiabetesHistoryItem {
   hba1cPercent: number | null;
   symptoms: DiabetesSymptom[];
   notes: string | null;
-  collectedAt: string;
   author: { id: string; displayName: string } | null;
-  sourceEncounter: { id: string; createdAt: string; status: string };
   legacySymptomsUnmapped: boolean;
   isEditable: boolean;
 }
+
+const COPY: ScreeningHistoryCopy = {
+  title: 'Longitudinal diabetes history',
+  description:
+    'Staff-recorded screenings remain linked to their source visits. Patient-entered portal measurements are unchanged and stay in Trends.',
+  noun: 'diabetes history',
+  historyHeading: 'Screening history',
+  previousHeading: 'Previous screenings',
+  noCurrentRecord: 'No diabetes screening has been saved for this encounter.',
+  emptyTitle: 'No previous diabetes screenings',
+  emptyDescription:
+    'A chronological history will appear after staff save screenings in encounters.',
+  offlineDescription:
+    'This history could not be refreshed from the server, so it may be missing recent screenings recorded elsewhere.',
+};
 
 function contextLabel(value: DiabetesHistoryItem['glucoseType']): string {
   if (value === 'FASTING') return 'Fasting';
@@ -42,7 +52,7 @@ function contextLabel(value: DiabetesHistoryItem['glucoseType']): string {
 
 function fromLocal(
   record: DiabetesScreeningRecord,
-  encounterStatus = 'DRAFT',
+  { encounterStatus }: LocalScreeningContext,
 ): DiabetesHistoryItem {
   return {
     id: record.id,
@@ -69,83 +79,39 @@ export function DiabetesHistoryPanel({
   clinicId,
   patientId,
   currentEncounterId,
+  refreshKey,
 }: {
   clinicId: string;
   patientId: string;
   currentEncounterId?: string;
+  /** See `useScreeningHistory`. */
+  refreshKey?: string | number | null;
 }) {
-  const getToken = useAuth();
-  const [items, setItems] = useState<DiabetesHistoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  // Whether what is on screen came from this device rather than the server. Falling back to the
-  // cache silently made stale screenings indistinguishable from current ones.
-  const [servedFromCache, setServedFromCache] = useState(false);
+  const history = useScreeningHistory<DiabetesHistoryItem, DiabetesScreeningRecord>({
+    clinicId,
+    patientId,
+    resource: 'diabetes-screenings',
+    refreshKey,
+    localTable: db.diabetes_screenings,
+    fromLocal,
+    failureMessage: 'Unable to load diabetes history.',
+  });
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    setServedFromCache(false);
-    try {
-      const response = await apiFetch(
-        `/clinics/${encodeURIComponent(clinicId)}/patients/${encodeURIComponent(patientId)}/diabetes-screenings?limit=100`,
-        { getToken, activeClinicId: clinicId },
-      );
-      if (!response.ok) throw await readApiError(response);
-      const payload = (await response.json()) as { items: DiabetesHistoryItem[] };
-      setItems(payload.items);
-    } catch (loadError) {
-      const encounters = await db.encounters.where('patientId').equals(patientId).toArray();
-      const statusByEncounter = new Map(
-        encounters.map((encounter) => [encounter.id, encounter.status]),
-      );
-      const encounterIds = new Set(
-        encounters
-          .filter((encounter) => encounter.clinicId === clinicId)
-          .map((encounter) => encounter.id),
-      );
-      const cached = (await db.diabetes_screenings.where('clinicId').equals(clinicId).toArray())
-        .filter((record) => encounterIds.has(record.encounterId))
-        .map((record) => fromLocal(record, statusByEncounter.get(record.encounterId)))
-        .sort(
-          (left, right) =>
-            new Date(right.collectedAt).getTime() - new Date(left.collectedAt).getTime(),
-        );
-      setItems(cached);
-      if (cached.length === 0) {
-        setError(
-          loadError instanceof Error ? loadError.message : 'Unable to load diabetes history.',
-        );
-      } else {
-        setServedFromCache(true);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [clinicId, getToken, patientId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const current = currentEncounterId
-    ? items.find((item) => item.sourceEncounter.id === currentEncounterId)
-    : undefined;
-  const history = currentEncounterId
-    ? items.filter((item) => item.sourceEncounter.id !== currentEncounterId)
-    : items;
-
-  const renderRecord = (item: DiabetesHistoryItem, currentRecord = false) => (
-    <li key={item.id} className="rounded-lg border border-border bg-background p-4 sm:p-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0 space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            {currentRecord ? <Badge>Current encounter</Badge> : null}
-            <Badge variant="outline">{contextLabel(item.glucoseType)}</Badge>
-            <Badge variant={item.sourceEncounter.status === 'FINALIZED' ? 'default' : 'secondary'}>
-              {item.sourceEncounter.status.replaceAll('_', ' ')}
-            </Badge>
-          </div>
+  return (
+    <ScreeningHistoryCard
+      icon={Droplets}
+      copy={COPY}
+      history={history}
+      currentEncounterId={currentEncounterId}
+      renderRecord={(item, current) => (
+        <ScreeningRecordFrame
+          key={item.id}
+          clinicId={clinicId}
+          item={item}
+          author={item.author}
+          current={current}
+          badges={<Badge variant="outline">{contextLabel(item.glucoseType)}</Badge>}
+        >
           <div className="flex flex-wrap gap-x-6 gap-y-2">
             <p className="text-lg font-semibold">
               {item.glucoseMgDl == null ? 'No glucose value' : `${item.glucoseMgDl} mg/dL`}
@@ -153,16 +119,6 @@ export function DiabetesHistoryPanel({
             <p className="text-lg font-semibold">
               {item.hba1cPercent == null ? 'No HbA1c value' : `HbA1c ${item.hba1cPercent}%`}
             </p>
-          </div>
-          <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
-            <span className="inline-flex items-center gap-2">
-              <CalendarClock className="h-4 w-4" aria-hidden="true" />
-              <time dateTime={item.collectedAt}>{new Date(item.collectedAt).toLocaleString()}</time>
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <UserRound className="h-4 w-4" aria-hidden="true" />
-              {item.author?.displayName ?? 'Author unavailable offline'}
-            </span>
           </div>
           {item.symptoms.length ? (
             <div className="flex flex-wrap gap-2" aria-label="Recorded symptoms">
@@ -184,71 +140,8 @@ export function DiabetesHistoryPanel({
               Some legacy symptom content could not be mapped. The original content is preserved.
             </InlineNotice>
           ) : null}
-        </div>
-        <Button asChild variant="outline" className="shrink-0">
-          <Link href={`/clinics/${clinicId}/encounters/${item.sourceEncounter.id}`}>
-            Open source visit <ExternalLink className="h-4 w-4" aria-hidden="true" />
-          </Link>
-        </Button>
-      </div>
-    </li>
-  );
-
-  return (
-    <Card>
-      <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
-        <div>
-          <h2 className="text-lg font-semibold">Longitudinal diabetes history</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Staff-recorded screenings remain linked to their source visits. Patient-entered portal
-            measurements are unchanged and stay in Trends.
-          </p>
-        </div>
-        <Droplets className="h-6 w-6 shrink-0 text-primary" aria-hidden="true" />
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {error ? (
-          <ChartSectionError
-            title="Unable to load diabetes history"
-            description={error}
-            onRetry={load}
-          />
-        ) : null}
-        {servedFromCache ? (
-          <ChartSectionOffline
-            title="Showing screenings saved on this device"
-            description="This history could not be refreshed from the server, so it may be missing recent screenings recorded elsewhere."
-          />
-        ) : null}
-        {loading ? <ChartSectionLoading label="diabetes history" /> : null}
-        {!loading && currentEncounterId ? (
-          <section aria-labelledby="current-diabetes-record" className="space-y-3">
-            <h3 id="current-diabetes-record" className="text-eyebrow text-muted-foreground">
-              Current encounter
-            </h3>
-            {current ? (
-              <ul>{renderRecord(current, true)}</ul>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No diabetes screening has been saved for this encounter.
-              </p>
-            )}
-          </section>
-        ) : null}
-        <section aria-labelledby="previous-diabetes-records" className="space-y-3">
-          <h3 id="previous-diabetes-records" className="text-eyebrow text-muted-foreground">
-            {currentEncounterId ? 'Previous screenings' : 'Screening history'}
-          </h3>
-          {!loading && history.length === 0 ? (
-            <ChartSectionEmpty
-              title="No previous diabetes screenings"
-              description="A chronological history will appear after staff save screenings in encounters."
-            />
-          ) : (
-            <ol className="space-y-3">{history.map((item) => renderRecord(item))}</ol>
-          )}
-        </section>
-      </CardContent>
-    </Card>
+        </ScreeningRecordFrame>
+      )}
+    />
   );
 }

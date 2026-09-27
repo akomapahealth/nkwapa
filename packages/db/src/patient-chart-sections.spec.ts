@@ -24,6 +24,7 @@ describe('patient chart sections', () => {
       'vitals',
       'medications',
       'diabetes',
+      'hypertension',
       'medical-history',
       'notes',
       'visits',
@@ -63,10 +64,15 @@ describe('patient chart sections', () => {
         'overview',
         'vitals',
         'diabetes',
+        'hypertension',
         'visits',
         'self-reports',
         'consent',
       ]);
+    });
+
+    it('shows diabetes and hypertension history together to a screening reader', () => {
+      expect(ids(['SCREENING.READ'])).toEqual(['diabetes', 'hypertension']);
     });
 
     it('exposes notes only to a CLINICAL_NOTE.READ holder', () => {

@@ -31,6 +31,7 @@ import { PortalAccessCard } from '@/components/patients/PortalAccessCard';
 import type { PortalAccess } from '@/lib/portal-invite';
 import { MedicationReconciliationPanel } from '@/components/patients/MedicationReconciliationPanel';
 import { DiabetesHistoryPanel } from '@/components/patients/DiabetesHistoryPanel';
+import { HypertensionHistoryPanel } from '@/components/patients/HypertensionHistoryPanel';
 import { ResidentialLocationSummary } from '@/components/patients/ResidentialLocationSummary';
 import { MergePatientDialog } from '@/components/patients/MergePatientDialog';
 import { PatientClinicalNotesPanel } from '@/components/clinical-notes/PatientClinicalNotesPanel';
@@ -916,6 +917,8 @@ function PatientChartWorkspace() {
               return <PatientVitalsPanel clinicId={clinicId} patientId={patientId} />;
             case 'diabetes':
               return <DiabetesHistoryPanel clinicId={clinicId} patientId={patientId} />;
+            case 'hypertension':
+              return <HypertensionHistoryPanel clinicId={clinicId} patientId={patientId} />;
             case 'visits':
               return <PatientVisitsPanel clinicId={clinicId} patientId={patientId} />;
             case 'medical-history':

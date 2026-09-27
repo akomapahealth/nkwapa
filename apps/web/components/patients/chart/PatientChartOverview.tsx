@@ -9,6 +9,7 @@ import {
   HeartPulse,
   Pill,
   ShieldCheck,
+  Gauge,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -16,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { EmptyStateCard } from '@/components/ops/OpsShared';
 import { formatOpsDateTime } from '@/lib/ops';
+import { HYPERTENSION_LABELS, type HypertensionClassification } from '@/lib/hypertension';
 import {
   buildChartHref,
   buildEncounterHref,
@@ -171,6 +173,7 @@ export function PatientChartOverview({
 
   const latestVitals = summary?.vitals?.latest ?? null;
   const latestDiabetes = summary?.diabetes?.latest ?? null;
+  const latestHypertension = summary?.hypertension?.latest ?? null;
   const allergies = summary?.allergies ?? null;
   const medications = summary?.medications ?? null;
   const pendingActions = summary?.pendingActions ?? [];
@@ -287,6 +290,47 @@ export function PatientChartOverview({
               </div>
             ) : (
               <NotRecorded>No screening recorded yet.</NotRecorded>
+            )}
+          </SummaryCard>
+        ) : null}
+
+        {summary?.hypertension ? (
+          <SummaryCard
+            icon={Gauge}
+            title="Latest hypertension assessment"
+            action={
+              <SectionLink
+                clinicId={clinicId}
+                patientId={patientId}
+                section="hypertension"
+                onNavigate={onNavigate}
+              >
+                View
+              </SectionLink>
+            }
+          >
+            {latestHypertension ? (
+              <div className="space-y-1">
+                <p className="text-sm">
+                  {HYPERTENSION_LABELS[
+                    (latestHypertension.classification ?? 'UNKNOWN') as HypertensionClassification
+                  ] ?? 'Not classified'}
+                  {latestHypertension.systolicBp !== null && latestHypertension.diastolicBp !== null
+                    ? ` · ${latestHypertension.systolicBp}/${latestHypertension.diastolicBp} mmHg`
+                    : ''}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {formatOpsDateTime(latestHypertension.collectedAt)}
+                  {latestHypertension.recordedBy
+                    ? ` · ${latestHypertension.recordedBy.displayName}`
+                    : ''}
+                </p>
+                {latestHypertension.urgentReviewRequired ? (
+                  <p className="text-xs font-medium text-destructive">Urgent clinician review</p>
+                ) : null}
+              </div>
+            ) : (
+              <NotRecorded>No assessment recorded yet.</NotRecorded>
             )}
           </SummaryCard>
         ) : null}

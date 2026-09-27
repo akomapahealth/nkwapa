@@ -14,6 +14,7 @@ const ALL_TABS = [
   'Vitals',
   'Medications',
   'Diabetes',
+  'Hypertension',
   'Medical History',
   'Notes',
   'Visits',
@@ -112,7 +113,9 @@ test('an inactive tab does not fetch its longitudinal data until it is opened', 
 
   await page.getByRole('tab', { name: 'Visits', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Visit history' })).toBeVisible();
-  expect(chartRequests.some((p) => p.endsWith('/chart/visits'))).toBeTruthy();
+  // Polled: the section's heading renders before its fetch is issued, so reading the request log
+  // the moment the heading appears raced the effect and failed intermittently.
+  await expect.poll(() => chartRequests.some((p) => p.endsWith('/chart/visits'))).toBeTruthy();
   expect(chartRequests.some((p) => p.endsWith('/chart/vitals'))).toBeFalsy();
 });
 

@@ -56,7 +56,9 @@ export class HypertensionAssessmentController {
     @Query() query: CursorLimitQueryDto,
     @Request() request: HypertensionRequest,
   ) {
-    this.assertEnabled();
+    // Reading history is not gated. The records exist whichever form wrote them -- the four-field
+    // form and the offline replay both write this table with the flag off -- and the patient chart
+    // shows this history as its Hypertension section, exactly as it shows diabetes.
     return this.hypertensionAssessmentService.list(
       params.clinicId,
       params.patientId,
@@ -111,8 +113,8 @@ export class HypertensionAssessmentController {
   /**
    * 404 rather than 403 while the feature is off, matching `clinical-note.controller.ts`.
    *
-   * The whole controller is gated because the whole controller is new: hypertension had no REST
-   * surface before the guided interview, so nothing else can be reaching it. The offline sync
+   * The writes are gated because they are new: hypertension had no REST write surface before the
+   * guided interview, so nothing else can be reaching them. The offline sync
    * handler is deliberately not gated - it writes rows a device queued earlier, and refusing to
    * replay them would lose clinical work that was already recorded.
    */
