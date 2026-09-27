@@ -71,61 +71,75 @@ const SYNC_ENTITY = oneOf(
 
 export interface TelemetryEventDefinition {
   category: TelemetryCategory;
+  /** What the dashboard calls it. Plain language, no system vocabulary. */
+  label: string;
   /** Emitted by the browser rather than the API. */
   client?: boolean;
   description: string;
   properties?: Record<string, PropertyRule>;
 }
 
-const event = (definition: TelemetryEventDefinition) => definition;
+// A const type parameter keeps each definition's literals (`client: true`, the property rules), so
+// the browser's list of sendable events can be derived from this object by type alone.
+const event = <const T extends TelemetryEventDefinition>(definition: T): T => definition;
 
 export const TELEMETRY_EVENTS = {
   // Appointments: the request-to-visit funnel and the lifecycle after it.
   'appointment.request.submit': event({
+    label: 'Appointment requests',
     category: 'appointments',
     description: 'A patient asked for a new visit, a reschedule, or a cancellation.',
     properties: { kind: APPOINTMENT_REQUEST_KIND },
   }),
   'appointment.request.confirm': event({
+    label: 'Requests confirmed',
     category: 'appointments',
     description: 'Staff confirmed a patient request, booking or changing the visit.',
     properties: { kind: APPOINTMENT_REQUEST_KIND },
   }),
   'appointment.request.reject': event({
+    label: 'Requests declined',
     category: 'appointments',
     description: 'Staff declined a patient request.',
     properties: { kind: APPOINTMENT_REQUEST_KIND },
   }),
   'appointment.reschedule': event({
+    label: 'Appointments rescheduled',
     category: 'appointments',
     description: 'Staff moved a confirmed appointment.',
   }),
   'appointment.cancel': event({
+    label: 'Appointments cancelled',
     category: 'appointments',
     description: 'Staff cancelled an appointment.',
   }),
   'appointment.complete': event({
+    label: 'Appointments completed',
     category: 'appointments',
     description: 'An appointment was marked completed.',
   }),
   'appointment.no_show': event({
+    label: 'No-shows',
     category: 'appointments',
     description: 'An appointment was marked as a no-show.',
   }),
 
   // Patient identity: duplicate resolution.
   'patient.merge.preview': event({
+    label: 'Merge previews',
     category: 'identity',
     description: 'Staff previewed merging two charts.',
     properties: { blocked: flag, blockerCount: count(50), warningCount: count(50) },
   }),
   'patient.merge.execute': event({
+    label: 'Charts merged',
     category: 'identity',
     description: 'Staff merged two charts.',
   }),
 
   // Invitations: the invite-to-claim funnel for patients and staff.
   'portal.invite.create': event({
+    label: 'Portal invitations sent',
     category: 'invites',
     description: 'Staff invited a patient to the portal.',
     properties: {
@@ -143,28 +157,34 @@ export const TELEMETRY_EVENTS = {
     },
   }),
   'portal.invite.resend': event({
+    label: 'Portal invitations resent',
     category: 'invites',
     description: 'Staff resent a portal invitation.',
   }),
   'portal.invite.cancel': event({
+    label: 'Portal invitations cancelled',
     category: 'invites',
     description: 'Staff cancelled a portal invitation.',
   }),
   'portal.claim': event({
+    label: 'Record claims',
     category: 'invites',
     description: 'A patient tried to claim their record with an invitation.',
   }),
   'staff.invite.create': event({
+    label: 'Staff invitations sent',
     category: 'invites',
     description: 'A director or manager invited a staff member.',
   }),
   'staff.invite.accept': event({
+    label: 'Staff invitations accepted',
     category: 'invites',
     description: 'An invited staff member tried to accept.',
   }),
 
   // Offline sync.
   'sync.push': event({
+    label: 'Sync pushes',
     category: 'sync',
     description: 'A device pushed a batch of offline changes.',
     properties: {
@@ -176,22 +196,26 @@ export const TELEMETRY_EVENTS = {
     },
   }),
   'sync.mutation.refuse': event({
+    label: 'Offline changes refused',
     category: 'sync',
     description: 'The server refused one offline change.',
     properties: { entityType: SYNC_ENTITY, retryable: flag },
   }),
   'sync.center.open': event({
+    label: 'Sync center opened',
     category: 'sync',
     client: true,
     description: 'A clinician opened the sync center.',
     properties: { blocked: count(500), queued: count(500) },
   }),
   'sync.change.retry': event({
+    label: 'Offline changes retried',
     category: 'sync',
     client: true,
     description: 'A clinician retried a refused offline change.',
   }),
   'sync.change.discard': event({
+    label: 'Offline changes discarded',
     category: 'sync',
     client: true,
     description: 'A clinician discarded a refused offline change.',
@@ -199,6 +223,7 @@ export const TELEMETRY_EVENTS = {
 
   // Security.
   'security.rate_limit': event({
+    label: 'Requests throttled',
     category: 'security',
     description: 'A request was refused for exceeding a rate limit.',
     properties: { scope: oneOf('user', 'ip', 'user-or-ip') },
@@ -206,11 +231,13 @@ export const TELEMETRY_EVENTS = {
 
   // Public site engagement.
   'landing.page.view': event({
+    label: 'Landing page views',
     category: 'engagement',
     client: true,
     description: 'The public landing page was viewed.',
   }),
   'landing.cta.click': event({
+    label: 'Landing page actions',
     category: 'engagement',
     client: true,
     description: 'A landing page call to action was used.',

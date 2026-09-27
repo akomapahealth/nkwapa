@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import {
+  BarChart3,
   Bell,
   Building2,
   CalendarDays,
@@ -110,6 +111,14 @@ const NAV_SECTIONS: AppNavSection[] = [
         description: 'Activity history.',
         icon: Shield,
         permission: 'AUDIT.READ',
+        requiresClinic: true,
+      },
+      {
+        href: '/metrics',
+        label: 'Metrics',
+        description: 'Workflow conversion and failures.',
+        icon: BarChart3,
+        permission: 'METRICS.READ',
         requiresClinic: true,
       },
       {

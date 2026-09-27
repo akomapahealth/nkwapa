@@ -5,6 +5,7 @@ import {
   isTelemetryEventName,
   isTelemetryReasonCode,
   sanitizeTelemetry,
+  type TelemetryEventDefinition,
   type TelemetryEventName,
 } from './telemetry-events';
 
@@ -21,6 +22,7 @@ describe('telemetry event catalog', () => {
     for (const name of names) {
       expect(TELEMETRY_CATEGORIES).toContain(TELEMETRY_EVENTS[name].category);
       expect(TELEMETRY_EVENTS[name].description.length).toBeGreaterThan(10);
+      expect(TELEMETRY_EVENTS[name].label).toMatch(/^[A-Z][a-z-]*( [a-z-]+)*$/);
     }
   });
 
@@ -28,7 +30,9 @@ describe('telemetry event catalog', () => {
   it('declares no property that could identify a person', () => {
     const forbidden = /name|email|phone|dob|birth|national|address|patientId|userId|note|message/i;
     for (const name of names) {
-      for (const key of Object.keys(TELEMETRY_EVENTS[name].properties ?? {})) {
+      for (const key of Object.keys(
+        (TELEMETRY_EVENTS[name] as TelemetryEventDefinition).properties ?? {},
+      )) {
         expect(key).not.toMatch(forbidden);
       }
     }

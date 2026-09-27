@@ -11,6 +11,7 @@ import { DEFAULT_METRICS_WINDOW_DAYS } from './dto/metrics-query.dto';
 export interface MetricsEventTotal {
   event: TelemetryEventName;
   category: TelemetryCategory;
+  label: string;
   description: string;
   succeeded: number;
   failed: number;
@@ -118,6 +119,7 @@ export class MetricsService {
       return {
         event,
         category: TELEMETRY_EVENTS[event].category,
+        label: TELEMETRY_EVENTS[event].label,
         description: TELEMETRY_EVENTS[event].description,
         ...entry,
         total: entry.succeeded + entry.failed + entry.other,

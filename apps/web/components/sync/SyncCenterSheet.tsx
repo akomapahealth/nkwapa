@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CheckCircle2, CloudOff, RefreshCw, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,6 +14,7 @@ import { EmptyState } from '@/components/feedback/AppState';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { db } from '@/lib/db';
 import { discardOutboxMutation, retryOutboxMutation } from '@/lib/outbox';
+import { trackEvent } from '@/lib/analytics';
 import type { OutboxQueue, OutboxQueueItem } from '@/lib/use-outbox-queue';
 import { DiscardMutationDialog } from './DiscardMutationDialog';
 import { SyncMutationCard } from './SyncMutationCard';
@@ -60,8 +61,21 @@ export function SyncCenterSheet({
   const [discarding, setDiscarding] = useState<OutboxQueueItem | null>(null);
   const syncing = syncStatus === 'syncing';
 
+  // Counts only: how much was waiting when someone looked, never what it was.
+  useEffect(() => {
+    if (syncCenterOpen) {
+      trackEvent('sync.center.open', {
+        blocked: queue.blocked.length,
+        queued: queue.retrying.length + queue.pending.length,
+      });
+    }
+    // Once per opening, not on every queue change while it is open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncCenterOpen]);
+
   const handleRetry = async (item: OutboxQueueItem) => {
     setBusyId(item.row.id);
+    trackEvent('sync.change.retry');
     try {
       await retryOutboxMutation(db, item.row.id);
       await syncNow(clinicId);
@@ -72,6 +86,7 @@ export function SyncCenterSheet({
 
   const handleDiscard = async (item: OutboxQueueItem) => {
     await discardOutboxMutation(db, item.row);
+    trackEvent('sync.change.discard');
     await syncNow(clinicId);
   };
 
