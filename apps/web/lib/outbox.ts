@@ -1,4 +1,4 @@
-import type { NkwapaDb } from './db';
+import type { NkwapaDb, OutboxFailure, OutboxRecord, OutboxSyncState } from './db';
 
 export const SYNC_OPERATION = {
   UPSERT: 'UPSERT',
@@ -131,4 +131,34 @@ export async function enqueueOutboxMutation(
   const record = buildOutboxMutation(params);
   await dbInstance.outbox.add(record);
   return record;
+}
+
+/** A row written before sync states existed has never been refused, so it is pending. */
+export function outboxSyncState(row: Pick<OutboxRecord, 'syncState'>): OutboxSyncState {
+  return row.syncState ?? 'pending';
+}
+
+/**
+ * Whether a refusal needs a person before the change can go anywhere.
+ *
+ * A conflict always does: the server's copy disagrees with this device's, and only a clinician
+ * can say which is right. So does any refusal the server does not explicitly call retryable; an
+ * older server that omits the flag must not have its silence read as optimism.
+ */
+export function isBlockingFailure(failure: Pick<OutboxFailure, 'status' | 'retryable'>): boolean {
+  return failure.status === 'CONFLICT' || failure.retryable !== true;
+}
+
+/** The outbox fields that record one refused attempt. */
+export function outboxFailureUpdate(
+  row: Pick<OutboxRecord, 'attempts'>,
+  failure: Omit<OutboxFailure, 'at'>,
+  at: string = new Date().toISOString(),
+): Pick<OutboxRecord, 'syncState' | 'attempts' | 'lastAttemptAt' | 'lastFailure'> {
+  return {
+    syncState: isBlockingFailure(failure) ? 'blocked' : 'retrying',
+    attempts: (row.attempts ?? 0) + 1,
+    lastAttemptAt: at,
+    lastFailure: { ...failure, at },
+  };
 }

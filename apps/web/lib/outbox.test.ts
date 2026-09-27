@@ -4,6 +4,9 @@ import {
   buildMedicationRevisionOutboxPayload,
   buildOutboxMutation,
   buildPharmacyPreferenceOutboxPayload,
+  isBlockingFailure,
+  outboxFailureUpdate,
+  outboxSyncState,
   SYNC_OPERATION,
 } from './outbox';
 
@@ -138,5 +141,39 @@ describe('medication reconciliation outbox payloads', () => {
         pharmacyRecordId: 'pharmacy-1',
       }),
     ).toEqual({ patientId: 'patient-1', action: 'SET', pharmacyRecordId: 'pharmacy-1' });
+  });
+});
+
+describe('outbox sync state', () => {
+  it('reads a row written before sync states existed as pending', () => {
+    expect(outboxSyncState({})).toBe('pending');
+    expect(outboxSyncState({ syncState: 'blocked' })).toBe('blocked');
+  });
+
+  it('blocks on any conflict and on any refusal not explicitly retryable', () => {
+    expect(isBlockingFailure({ status: 'CONFLICT', retryable: true })).toBe(true);
+    expect(isBlockingFailure({ status: 'ERROR', retryable: false })).toBe(true);
+    expect(isBlockingFailure({ status: 'ERROR' })).toBe(true);
+    expect(isBlockingFailure({ status: 'ERROR', retryable: true })).toBe(false);
+  });
+
+  it('counts attempts and keeps the server answer verbatim', () => {
+    const update = outboxFailureUpdate(
+      { attempts: 2 },
+      { status: 'ERROR', conflictType: 'FORBIDDEN', retryable: true, conflictDetails: { a: 1 } },
+      '2026-09-27T00:00:00.000Z',
+    );
+    expect(update).toEqual({
+      syncState: 'retrying',
+      attempts: 3,
+      lastAttemptAt: '2026-09-27T00:00:00.000Z',
+      lastFailure: {
+        status: 'ERROR',
+        conflictType: 'FORBIDDEN',
+        retryable: true,
+        conflictDetails: { a: 1 },
+        at: '2026-09-27T00:00:00.000Z',
+      },
+    });
   });
 });

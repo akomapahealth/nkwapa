@@ -1,19 +1,31 @@
 'use client';
 
-import { db } from './db';
+import type { Table } from 'dexie';
+import { db, type OutboxRecord } from './db';
 import type { SyncPullResponseDto } from './sync-types';
 import { applyAdherencePull } from './medication-adherence';
+import { outboxFailureUpdate, outboxSyncState } from './outbox';
+import { describeSyncTransportFailure, type SyncTransportFailure } from './sync-conflicts';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
 
 /**
- * `retrying` means the pass completed but some changes stayed queued because the server said they
- * could still succeed later. It is deliberately distinct from `error`: nothing needs the
- * clinician's attention, and the pass did not stop.
+ * Kept in step with SYNC_PUSH_MAX_MUTATIONS on the API. The whole outbox used to go in one request,
+ * so a device that had queued more than the server accepts was refused with a 413 on every pass
+ * and could never drain.
  */
-export type SyncStatus = 'idle' | 'syncing' | 'success' | 'retrying' | 'error';
+export const SYNC_PUSH_BATCH_SIZE = 200;
 
-export type SyncStatusListener = (status: SyncStatus, error?: string) => void;
+/**
+ * - `retrying`: the pass completed, but some changes stayed queued because the server said they
+ *   could still succeed later. Nothing needs the clinician.
+ * - `attention`: the pass completed, but some changes are blocked until the clinician retries,
+ *   opens the record, or discards them. Inbound data still arrived.
+ * - `error`: the pass itself failed, so nothing was confirmed either way.
+ */
+export type SyncStatus = 'idle' | 'syncing' | 'success' | 'retrying' | 'attention' | 'error';
+
+export type SyncStatusListener = (status: SyncStatus, message?: string, detail?: string) => void;
 
 const listeners: Set<SyncStatusListener> = new Set();
 const inFlightByClinic = new Map<string, Promise<SyncResult>>();
@@ -24,8 +36,8 @@ export function onSyncStatusChange(listener: SyncStatusListener): () => void {
   return () => listeners.delete(listener);
 }
 
-function notifyStatus(status: SyncStatus, error?: string) {
-  listeners.forEach((fn) => fn(status, error));
+function notifyStatus(status: SyncStatus, message?: string, detail?: string) {
+  listeners.forEach((fn) => fn(status, message, detail));
 }
 
 export interface SyncNowOptions {
@@ -33,22 +45,148 @@ export interface SyncNowOptions {
   getAccessToken?: () => Promise<string | null>;
 }
 
+export interface SyncMutationFailure {
+  id: string;
+  conflictType?: string;
+  conflictDetails?: Record<string, unknown>;
+}
+
 export interface SyncResult {
   success: boolean;
   error?: string;
-  conflicts?: Array<{
-    id: string;
-    conflictType?: string;
-    conflictDetails?: Record<string, unknown>;
-  }>;
-  /** Mutations the server refused outright, e.g. a payload it will never accept. */
-  rejected?: Array<{
-    id: string;
-    conflictType?: string;
-    conflictDetails?: Record<string, unknown>;
-  }>;
+  /** Changes the server answered with a conflict during this call. */
+  conflicts?: SyncMutationFailure[];
+  /** Changes the server refused outright during this call, e.g. a payload it will never accept. */
+  rejected?: SyncMutationFailure[];
+  /** Every change for the clinic now waiting on the clinician, including earlier passes. */
+  blockedCount?: number;
+  /** Every change for the clinic that will be re-sent automatically. */
+  retryingCount?: number;
 }
 
+/** True when the call finished and nothing for the clinic is still waiting. */
+export function isFullySynced(result: SyncResult | null | undefined): boolean {
+  return Boolean(result?.success && !result.blockedCount && !result.retryingCount);
+}
+
+interface PushResultRow {
+  id: string;
+  status: string;
+  conflictType?: string;
+  conflictDetails?: Record<string, unknown>;
+  retryable?: boolean;
+}
+
+class SyncTransportError extends Error {
+  constructor(readonly failure: SyncTransportFailure) {
+    super(failure.message);
+  }
+}
+
+async function fetchOrThrow(url: string, init: RequestInit): Promise<Response> {
+  let response: Response;
+  try {
+    response = await fetch(url, init);
+  } catch (err) {
+    throw new SyncTransportError(
+      describeSyncTransportFailure(null, err instanceof Error ? err.message : String(err)),
+    );
+  }
+  if (!response.ok) {
+    throw new SyncTransportError(
+      describeSyncTransportFailure(response.status, await response.text()),
+    );
+  }
+  return response;
+}
+
+function toFailure(row: PushResultRow): SyncMutationFailure {
+  return { id: row.id, conflictType: row.conflictType, conflictDetails: row.conflictDetails };
+}
+
+/**
+ * Send every queued change that is not waiting on the clinician, and record each answer on its
+ * row so it survives a refresh.
+ *
+ * A blocked row is skipped: the server has already said a replay cannot change its answer, and
+ * re-sending it every pass only spends the rate limit. The clinician's Retry puts it back.
+ */
+async function pushOutbox(
+  clinicId: string,
+  headers: Record<string, string>,
+): Promise<Pick<SyncResult, 'conflicts' | 'rejected'>> {
+  const queued = await db.outbox.where('clinicId').equals(clinicId).sortBy('createdAt');
+  const sendable = queued.filter((row) => outboxSyncState(row) !== 'blocked');
+  const conflicts: SyncMutationFailure[] = [];
+  const rejected: SyncMutationFailure[] = [];
+
+  for (let start = 0; start < sendable.length; start += SYNC_PUSH_BATCH_SIZE) {
+    const batch = sendable.slice(start, start + SYNC_PUSH_BATCH_SIZE);
+    const response = await fetchOrThrow(
+      `${API_BASE}/sync/push?clinicId=${encodeURIComponent(clinicId)}`,
+      { method: 'POST', headers, body: JSON.stringify(batch.map(toPushMutation)) },
+    );
+    const { results } = (await response.json()) as { results: PushResultRow[] };
+    const rowsById = new Map(batch.map((row) => [row.id, row]));
+
+    for (const result of results) {
+      const row = rowsById.get(result.id);
+      if (!row) continue;
+      if (result.status === 'APPLIED') {
+        await db.outbox.delete(row.id);
+        continue;
+      }
+      // The row is always kept so a clinician's entry is never silently discarded.
+      const update = outboxFailureUpdate(row, {
+        status: result.status,
+        conflictType: result.conflictType,
+        conflictDetails: result.conflictDetails,
+        retryable: result.retryable,
+      });
+      await db.outbox.update(row.id, update);
+      if (result.status === 'CONFLICT') conflicts.push(toFailure(result));
+      else if (update.syncState === 'blocked') rejected.push(toFailure(result));
+    }
+  }
+
+  return {
+    ...(conflicts.length ? { conflicts } : {}),
+    ...(rejected.length ? { rejected } : {}),
+  };
+}
+
+function toPushMutation(row: OutboxRecord) {
+  return {
+    id: row.id,
+    entityType: row.entityType,
+    entityId: row.entityId,
+    operation: row.operation,
+    clinicId: row.clinicId,
+    payloadJson: JSON.parse(row.payloadJson) as Record<string, unknown>,
+    idempotencyKey: row.idempotencyKey,
+    createdAt: row.createdAt,
+  };
+}
+
+async function countOutstanding(clinicId: string) {
+  const rows = await db.outbox.where('clinicId').equals(clinicId).toArray();
+  return {
+    blockedCount: rows.filter((row) => outboxSyncState(row) === 'blocked').length,
+    retryingCount: rows.filter((row) => outboxSyncState(row) === 'retrying').length,
+  };
+}
+
+function plural(count: number, one: string, many: string) {
+  return count === 1 ? one : many.replace('{n}', String(count));
+}
+
+/**
+ * Push, then always pull.
+ *
+ * A conflict or refusal used to end the pass before the pull, so one queued change the server
+ * would never accept cut the device off from every inbound update until someone intervened. A
+ * refused row stays queued and visible instead, and the rest of the sync carries on.
+ */
 async function performSync(options: SyncNowOptions): Promise<SyncResult> {
   const { clinicId, getAccessToken } = options;
   notifyStatus('syncing');
@@ -62,244 +200,104 @@ async function performSync(options: SyncNowOptions): Promise<SyncResult> {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const syncState = await db.sync_state.get(clinicId);
-    const cursor = syncState?.cursor ?? '';
-    const pending = await db.outbox.where('clinicId').equals(clinicId).sortBy('createdAt');
+    const pushed = await pushOutbox(clinicId, headers);
+    await pullIntoLocalStore(clinicId, headers);
+    const outstanding = await countOutstanding(clinicId);
 
-    if (pending.length > 0) {
-      const mutations = pending.map((m) => ({
-        id: m.id,
-        entityType: m.entityType,
-        entityId: m.entityId,
-        operation: m.operation,
-        clinicId: m.clinicId,
-        payloadJson: JSON.parse(m.payloadJson) as Record<string, unknown>,
-        idempotencyKey: m.idempotencyKey,
-        createdAt: m.createdAt,
-      }));
-
-      const pushRes = await fetch(
-        `${API_BASE}/sync/push?clinicId=${encodeURIComponent(clinicId)}`,
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(mutations),
-        },
+    if (outstanding.blockedCount > 0) {
+      notifyStatus(
+        'attention',
+        plural(
+          outstanding.blockedCount,
+          'An offline change needs your attention.',
+          '{n} offline changes need your attention.',
+        ),
       );
-
-      if (!pushRes.ok) {
-        const errText = await pushRes.text();
-        notifyStatus('error', errText);
-        return { success: false, error: errText };
-      }
-
-      const pushJson = (await pushRes.json()) as {
-        results: Array<{
-          id: string;
-          status: string;
-          conflictType?: string;
-          conflictDetails?: Record<string, unknown>;
-          retryable?: boolean;
-        }>;
-      };
-
-      const appliedIds = new Set(
-        pushJson.results.filter((r) => r.status === 'APPLIED').map((r) => r.id),
+    } else if (outstanding.retryingCount > 0) {
+      notifyStatus(
+        'retrying',
+        plural(
+          outstanding.retryingCount,
+          'A pending change will be retried.',
+          '{n} pending changes will be retried.',
+        ),
       );
-      const conflicts = pushJson.results.filter((r) => r.status === 'CONFLICT');
-
-      // A failure the server says could still succeed -- a permission not yet granted, a
-      // referenced record that has not arrived, a transient error. The row stays queued and the
-      // pass continues, so one such change cannot hold back everything behind it or block the
-      // inbound half of the sync.
-      const retryable = pushJson.results.filter(
-        (r) => r.status !== 'APPLIED' && r.status !== 'CONFLICT' && r.retryable === true,
-      );
-
-      // A failure that replaying will not resolve. The row is deliberately kept so a clinician's
-      // entry is never silently discarded, but it must be surfaced: these were once invisible and
-      // re-pushed forever, leaving a pending counter that never cleared.
-      const rejected = pushJson.results.filter(
-        (r) => r.status !== 'APPLIED' && r.status !== 'CONFLICT' && r.retryable !== true,
-      );
-
-      for (const m of pending) {
-        if (appliedIds.has(m.id)) {
-          await db.outbox.delete(m.id);
-        }
-      }
-
-      if (rejected.length > 0) {
-        const detail =
-          rejected
-            .map((r) => {
-              const fieldErrors = (
-                r.conflictDetails as { fieldErrors?: Array<{ message?: string }> } | undefined
-              )?.fieldErrors;
-              return fieldErrors?.[0]?.message ?? r.conflictType;
-            })
-            .find((message): message is string => Boolean(message)) ?? 'Unknown validation error';
-        const message =
-          rejected.length === 1
-            ? `A pending change could not be synced: ${detail}`
-            : `${rejected.length} pending changes could not be synced: ${detail}`;
-        notifyStatus('error', message);
-        return {
-          success: false,
-          error: message,
-          rejected: rejected.map((r) => ({
-            id: r.id,
-            conflictType: r.conflictType,
-            conflictDetails: r.conflictDetails,
-          })),
-        };
-      }
-
-      if (retryable.length > 0) {
-        notifyStatus(
-          'retrying',
-          retryable.length === 1
-            ? 'A pending change will be retried.'
-            : `${retryable.length} pending changes will be retried.`,
-        );
-      }
-
-      if (conflicts.length > 0) {
-        notifyStatus('success');
-        return {
-          success: true,
-          conflicts: conflicts.map((c) => ({
-            id: c.id,
-            conflictType: c.conflictType,
-            conflictDetails: c.conflictDetails,
-          })),
-        };
-      }
+    } else {
+      notifyStatus('success');
     }
 
-    const pullUrl = `${API_BASE}/sync/pull?clinicId=${encodeURIComponent(clinicId)}${cursor ? `&since=${encodeURIComponent(cursor)}` : ''}`;
-    const pullRes = await fetch(pullUrl, { headers });
+    return { success: true, ...pushed, ...outstanding };
+  } catch (err) {
+    const failure =
+      err instanceof SyncTransportError
+        ? err.failure
+        : describeSyncTransportFailure(null, err instanceof Error ? err.message : String(err));
+    notifyStatus('error', failure.message, failure.detail);
+    return { success: false, error: failure.message };
+  }
+}
 
-    if (!pullRes.ok) {
-      const errText = await pullRes.text();
-      notifyStatus('error', errText);
-      return { success: false, error: errText };
-    }
+function toLocalRecord(row: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(row).map(([key, value]) => [
+      key,
+      value instanceof Date ? value.toISOString() : value,
+    ]),
+  );
+}
 
-    const pull = (await pullRes.json()) as SyncPullResponseDto;
+async function pullIntoLocalStore(clinicId: string, headers: Record<string, string>) {
+  const syncState = await db.sync_state.get(clinicId);
+  const cursor = syncState?.cursor ?? '';
+  const pullUrl = `${API_BASE}/sync/pull?clinicId=${encodeURIComponent(clinicId)}${cursor ? `&since=${encodeURIComponent(cursor)}` : ''}`;
+  const pullRes = await fetchOrThrow(pullUrl, { headers });
+  const pull = (await pullRes.json()) as SyncPullResponseDto;
 
-    const toRecord = (r: Record<string, unknown>) =>
-      Object.fromEntries(
-        Object.entries(r).map(([k, v]) => [k, v instanceof Date ? v.toISOString() : v]),
-      );
+  // Each store is written in one bulk call rather than a put per row; a first sync of a busy clinic
+  // is thousands of rows.
+  const putAll = async <T>(table: Table<T, string>, rows: Array<Record<string, unknown>> = []) => {
+    if (rows.length > 0) await table.bulkPut(rows.map(toLocalRecord) as unknown as T[]);
+  };
 
-    for (const p of pull.patients) {
-      await db.patients.put(toRecord(p) as unknown as Parameters<typeof db.patients.put>[0]);
-    }
-    for (const e of pull.encounters) {
-      await db.encounters.put(toRecord(e) as unknown as Parameters<typeof db.encounters.put>[0]);
-    }
-    for (const v of pull.vitals) {
-      const record = toRecord(v);
+  await putAll(db.patients, pull.patients);
+  await putAll(db.encounters, pull.encounters);
+  await putAll(
+    db.vitals,
+    pull.vitals.map((row) => {
+      const record = { ...row };
       if (record.pulseBpm == null && record.heartRate != null) record.pulseBpm = record.heartRate;
       delete record.heartRate;
-      await db.vitals.put(record as unknown as Parameters<typeof db.vitals.put>[0]);
-    }
-    for (const tobacco of pull.tobaccoScreenings ?? []) {
-      await db.tobacco_screenings.put(
-        toRecord(tobacco) as unknown as Parameters<typeof db.tobacco_screenings.put>[0],
-      );
-    }
-    for (const d of pull.diabetesScreenings) {
-      await db.diabetes_screenings.put(
-        toRecord(d) as unknown as Parameters<typeof db.diabetes_screenings.put>[0],
-      );
-    }
-    for (const h of pull.hypertensionAssessments) {
-      await db.hypertension_assessments.put(
-        toRecord(h) as unknown as Parameters<typeof db.hypertension_assessments.put>[0],
-      );
-    }
-    await applyAdherencePull(db, pull.medicationAdherence ?? []);
-    for (const c of pull.carePlans) {
-      await db.care_plans.put(toRecord(c) as unknown as Parameters<typeof db.care_plans.put>[0]);
-    }
-    for (const pc of pull.patientConsents) {
-      await db.patient_consents.put(
-        toRecord(pc) as unknown as Parameters<typeof db.patient_consents.put>[0],
-      );
-    }
-    if (pull.prescriptions) {
-      for (const rx of pull.prescriptions) {
-        await db.prescriptions.put(
-          toRecord(rx) as unknown as Parameters<typeof db.prescriptions.put>[0],
-        );
-      }
-    }
-    if (pull.medicalHistoryRecords) {
-      for (const historyRecord of pull.medicalHistoryRecords) {
-        await db.medical_history_records.put(
-          toRecord(historyRecord) as unknown as Parameters<
-            typeof db.medical_history_records.put
-          >[0],
-        );
-      }
-    }
-    if (pull.medicalHistoryRevisions) {
-      for (const historyRevision of pull.medicalHistoryRevisions) {
-        await db.medical_history_revisions.put(
-          toRecord(historyRevision) as unknown as Parameters<
-            typeof db.medical_history_revisions.put
-          >[0],
-        );
-      }
-    }
-    for (const record of pull.patientMedicationRecords ?? []) {
-      await db.patient_medication_records.put(
-        toRecord(record) as unknown as Parameters<typeof db.patient_medication_records.put>[0],
-      );
-    }
-    for (const revision of pull.patientMedicationRevisions ?? []) {
-      await db.patient_medication_revisions.put(
-        toRecord(revision) as unknown as Parameters<typeof db.patient_medication_revisions.put>[0],
-      );
-    }
-    for (const event of pull.medicationReconciliationEvents ?? []) {
-      await db.medication_reconciliation_events.put(
-        toRecord(event) as unknown as Parameters<typeof db.medication_reconciliation_events.put>[0],
-      );
-    }
-    for (const record of pull.patientPharmacyRecords ?? []) {
-      await db.patient_pharmacy_records.put(
-        toRecord(record) as unknown as Parameters<typeof db.patient_pharmacy_records.put>[0],
-      );
-    }
-    for (const revision of pull.patientPharmacyRevisions ?? []) {
-      await db.patient_pharmacy_revisions.put(
-        toRecord(revision) as unknown as Parameters<typeof db.patient_pharmacy_revisions.put>[0],
-      );
-    }
-    for (const preference of pull.patientPharmacyPreferences ?? []) {
-      await db.patient_pharmacy_preferences.put(
-        toRecord(preference) as unknown as Parameters<
-          typeof db.patient_pharmacy_preferences.put
-        >[0],
-      );
-    }
+      return record;
+    }),
+  );
+  await putAll(db.tobacco_screenings, pull.tobaccoScreenings);
+  await putAll(db.diabetes_screenings, pull.diabetesScreenings);
+  await putAll(db.hypertension_assessments, pull.hypertensionAssessments);
+  await applyAdherencePull(db, pull.medicationAdherence ?? []);
+  await putAll(db.care_plans, pull.carePlans);
+  await putAll(db.patient_consents, pull.patientConsents);
+  await putAll(db.prescriptions, pull.prescriptions);
+  await putAll(db.medical_history_records, pull.medicalHistoryRecords);
+  await putAll(db.medical_history_revisions, pull.medicalHistoryRevisions);
+  await putAll(db.patient_medication_records, pull.patientMedicationRecords);
+  await putAll(db.patient_medication_revisions, pull.patientMedicationRevisions);
+  await putAll(db.medication_reconciliation_events, pull.medicationReconciliationEvents);
+  await putAll(db.patient_pharmacy_records, pull.patientPharmacyRecords);
+  await putAll(db.patient_pharmacy_revisions, pull.patientPharmacyRevisions);
+  await putAll(db.patient_pharmacy_preferences, pull.patientPharmacyPreferences);
 
-    await db.sync_state.put({
-      clinicId,
-      cursor: pull.cursor,
-      updatedAt: new Date().toISOString(),
-    });
-
-    notifyStatus('success');
-    return { success: true };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    notifyStatus('error', msg);
-    return { success: false, error: msg };
+  // Charts a merge retired. The server stopped sending them, so without this the device kept its
+  // copy indefinitely and went on queueing changes against a chart no one can open.
+  const retiredPatientIds = (pull.mergedPatients ?? []).map((merged) => merged.id);
+  if (retiredPatientIds.length > 0) {
+    await db.patients.bulkDelete(retiredPatientIds);
   }
+
+  await db.sync_state.put({
+    clinicId,
+    cursor: pull.cursor,
+    updatedAt: new Date().toISOString(),
+  });
 }
 
 /**
@@ -314,16 +312,22 @@ export function syncNow(options: SyncNowOptions): Promise<SyncResult> {
   }
 
   const request = (async () => {
-    const conflicts: NonNullable<SyncResult['conflicts']> = [];
+    const conflicts: SyncMutationFailure[] = [];
+    const rejected: SyncMutationFailure[] = [];
     let result: SyncResult;
 
     do {
       rerunRequestedByClinic.delete(options.clinicId);
       result = await performSync(options);
       if (result.conflicts) conflicts.push(...result.conflicts);
+      if (result.rejected) rejected.push(...result.rejected);
     } while (result.success && rerunRequestedByClinic.has(options.clinicId));
 
-    return conflicts.length ? { ...result, conflicts } : result;
+    return {
+      ...result,
+      ...(conflicts.length ? { conflicts } : {}),
+      ...(rejected.length ? { rejected } : {}),
+    };
   })().finally(() => {
     rerunRequestedByClinic.delete(options.clinicId);
     if (inFlightByClinic.get(options.clinicId) === request) {

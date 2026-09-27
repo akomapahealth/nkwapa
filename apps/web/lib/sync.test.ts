@@ -1,68 +1,23 @@
-const emptyPull = {
-  cursor: 'cursor-1',
-  patients: [],
-  encounters: [],
-  vitals: [],
-  tobaccoScreenings: [],
-  diabetesScreenings: [],
-  hypertensionAssessments: [],
-  carePlans: [],
-  patientConsents: [],
-  prescriptions: [],
-  medicalHistoryRecords: [],
-  medicalHistoryRevisions: [],
-  patientMedicationRecords: [],
-  patientMedicationRevisions: [],
-  medicationReconciliationEvents: [],
-  patientPharmacyRecords: [],
-  patientPharmacyRevisions: [],
-  patientPharmacyPreferences: [],
-};
+import {
+  EMPTY_PULL,
+  mockSyncFetch,
+  pushBodies,
+  queuedRow,
+  reset,
+  type FakeSyncDb,
+} from './testing/fake-sync-db';
 
-const mutation = {
-  id: 'mutation-1',
-  clinicId: 'clinic-1',
-  entityType: 'diabetes_screening',
-  entityId: 'screening-1',
-  operation: 'UPSERT',
-  payloadJson: JSON.stringify({ encounterId: 'encounter-1' }),
-  idempotencyKey: 'idempotency-1',
-  createdAt: '2026-08-12T12:00:00.000Z',
-};
+jest.mock('./db', () => ({
+  db: jest.requireActual('./testing/fake-sync-db').createFakeSyncDb(),
+}));
 
-jest.mock('./db', () => {
-  const put = jest.fn();
-  const mockSortBy = jest.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([mutation]);
-  const table = { put };
-  return {
-    db: {
-      outbox: {
-        where: jest.fn(() => ({ equals: jest.fn(() => ({ sortBy: mockSortBy })) })),
-        delete: jest.fn(),
-      },
-      sync_state: { get: jest.fn(), put },
-      patients: table,
-      encounters: table,
-      vitals: table,
-      tobacco_screenings: table,
-      diabetes_screenings: table,
-      hypertension_assessments: table,
-      care_plans: table,
-      patient_consents: table,
-      prescriptions: table,
-      medical_history_records: table,
-      medical_history_revisions: table,
-      patient_medication_records: table,
-      patient_medication_revisions: table,
-      medication_reconciliation_events: table,
-      patient_pharmacy_records: table,
-      patient_pharmacy_revisions: table,
-      patient_pharmacy_preferences: table,
-    },
-  };
-});
+import { db as mockedDb } from './db';
+import { isFullySynced, onSyncStatusChange, SYNC_PUSH_BATCH_SIZE, syncNow } from './sync';
 
-import { syncNow } from './sync';
+const db = mockedDb as unknown as FakeSyncDb;
+const mutation = queuedRow({ entityType: 'diabetes_screening', entityId: 'screening-1' });
+
+beforeEach(() => reset(db));
 
 describe('sync coordinator', () => {
   it('runs a follow-up pass when a mutation is queued during an active sync', async () => {
@@ -79,7 +34,7 @@ describe('sync coordinator', () => {
       })
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ ...emptyPull, cursor: 'cursor-2' }),
+        json: async () => ({ ...EMPTY_PULL, cursor: 'cursor-2' }),
       });
     global.fetch = fetchMock as unknown as typeof fetch;
 
@@ -87,10 +42,114 @@ describe('sync coordinator', () => {
     const concurrent = syncNow({ clinicId: mutation.clinicId });
     expect(concurrent).toBe(first);
 
-    resolveFirstPull({ ok: true, json: async () => emptyPull });
+    await db.outbox.put(mutation);
+    resolveFirstPull({ ok: true, json: async () => EMPTY_PULL });
 
-    await expect(first).resolves.toEqual({ success: true });
+    await expect(first).resolves.toMatchObject({ success: true, blockedCount: 0 });
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls[1]?.[0]).toContain('/sync/push');
+  });
+});
+
+describe('push batching', () => {
+  it('sends a long offline queue in batches the server accepts', async () => {
+    // The whole outbox used to go in one request. Past the server's limit it was refused with a
+    // 413 on every pass, so a device that had been offline long enough could never drain.
+    const total = SYNC_PUSH_BATCH_SIZE * 2 + 5;
+    const rows = Array.from({ length: total }, (_, index) =>
+      queuedRow({
+        id: `m-${String(index).padStart(4, '0')}`,
+        idempotencyKey: `k-${index}`,
+        createdAt: new Date(Date.UTC(2026, 7, 1, 0, 0, index)).toISOString(),
+      }),
+    );
+    await db.outbox.bulkPut(rows);
+    const applied = (batch: typeof rows) => batch.map((row) => ({ id: row.id, status: 'APPLIED' }));
+    const fetchMock = mockSyncFetch([
+      applied(rows.slice(0, SYNC_PUSH_BATCH_SIZE)),
+      applied(rows.slice(SYNC_PUSH_BATCH_SIZE, SYNC_PUSH_BATCH_SIZE * 2)),
+      applied(rows.slice(SYNC_PUSH_BATCH_SIZE * 2)),
+    ]);
+
+    const result = await syncNow({ clinicId: 'clinic-1' });
+
+    expect(pushBodies(fetchMock).map((batch) => batch.length)).toEqual([
+      SYNC_PUSH_BATCH_SIZE,
+      SYNC_PUSH_BATCH_SIZE,
+      5,
+    ]);
+    expect(pushBodies(fetchMock).flat()[0]?.id).toBe('m-0000');
+    expect(isFullySynced(result)).toBe(true);
+    expect(await db.outbox.toArray()).toEqual([]);
+  });
+});
+
+describe('merged charts', () => {
+  it('drops the local copy of a chart a merge retired', async () => {
+    await db.patients.bulkPut([{ id: 'retired-1' }, { id: 'canonical-1' }]);
+    mockSyncFetch([], {
+      ...EMPTY_PULL,
+      mergedPatients: [{ id: 'retired-1', mergedIntoPatientId: 'canonical-1' }],
+    });
+
+    await syncNow({ clinicId: 'clinic-1' });
+
+    expect(await db.patients.get('retired-1')).toBeUndefined();
+    expect(await db.patients.get('canonical-1')).toBeDefined();
+  });
+});
+
+describe('status reporting', () => {
+  it('says the pass finished but a change needs attention', async () => {
+    await db.outbox.put(mutation);
+    mockSyncFetch([
+      [{ id: mutation.id, status: 'CONFLICT', conflictType: 'PATIENT_MERGED', retryable: false }],
+    ]);
+    const statuses: string[] = [];
+    const unsubscribe = onSyncStatusChange((status) => statuses.push(status));
+
+    const result = await syncNow({ clinicId: 'clinic-1' });
+    unsubscribe();
+
+    expect(statuses).toEqual(['syncing', 'attention']);
+    expect(isFullySynced(result)).toBe(false);
+  });
+
+  it('turns a failed request into plain language and keeps the raw text for support', async () => {
+    await db.outbox.put(mutation);
+    global.fetch = jest.fn(async () => ({
+      ok: false,
+      status: 429,
+      text: async () => '{"code":"RATE_LIMITED","message":"Too many requests"}',
+    })) as unknown as typeof fetch;
+    const events: Array<[string, string | undefined, string | undefined]> = [];
+    const unsubscribe = onSyncStatusChange((status, message, detail) =>
+      events.push([status, message, detail]),
+    );
+
+    const result = await syncNow({ clinicId: 'clinic-1' });
+    unsubscribe();
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/paused for a minute/);
+    expect(result.error).not.toContain('{');
+    expect(events.at(-1)).toEqual([
+      'error',
+      expect.stringMatching(/saved on this device/),
+      expect.stringContaining('RATE_LIMITED'),
+    ]);
+    // Nothing was confirmed, so the queued change is untouched.
+    expect((await db.outbox.get(mutation.id))?.syncState).toBeUndefined();
+  });
+
+  it('reports an unreachable server without claiming anything was lost', async () => {
+    global.fetch = jest.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    }) as unknown as typeof fetch;
+
+    const result = await syncNow({ clinicId: 'clinic-1' });
+
+    expect(result).toMatchObject({ success: false });
+    expect(result.error).toMatch(/Could not reach the server/);
   });
 });

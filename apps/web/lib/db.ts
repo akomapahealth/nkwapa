@@ -414,6 +414,28 @@ export interface PatientPharmacyPreferenceRecord {
   updatedAt?: string;
 }
 
+/**
+ * Where a queued change stands.
+ *
+ * - `pending`: not yet sent, or sent and waiting on the next pass.
+ * - `retrying`: the server refused it for a reason that may clear by itself, so it is re-sent.
+ * - `blocked`: the server refused it for a reason a replay cannot fix. It is kept, never re-sent
+ *   automatically, and waits for the clinician to retry, open the record, or discard it.
+ *
+ * None of these fields are indexed, so adding them needed no schema version: a row written before
+ * they existed simply reads as `pending`.
+ */
+export type OutboxSyncState = 'pending' | 'retrying' | 'blocked';
+
+/** The server's last answer for a queued change, kept verbatim for the support view. */
+export interface OutboxFailure {
+  status: string;
+  conflictType?: string;
+  conflictDetails?: Record<string, unknown>;
+  retryable?: boolean;
+  at: string;
+}
+
 export interface OutboxRecord {
   id: string;
   clinicId: string;
@@ -423,6 +445,10 @@ export interface OutboxRecord {
   payloadJson: string;
   idempotencyKey: string;
   createdAt: string;
+  syncState?: OutboxSyncState;
+  attempts?: number;
+  lastAttemptAt?: string;
+  lastFailure?: OutboxFailure;
 }
 
 export interface SyncStateRecord {
