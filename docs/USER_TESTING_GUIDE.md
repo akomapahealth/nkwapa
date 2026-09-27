@@ -847,6 +847,48 @@ open.onsuccess = () => {
 
 ---
 
+## 17c. Metrics And Telemetry Matrix
+
+Telemetry records counts and failure codes for high-value workflows; see
+`docs/specs/15_TELEMETRY_AND_METRICS.md`. Events are written about five seconds after they happen.
+
+### Dashboard
+
+- [ ] a director or manager sees **Metrics** under Oversight; a doctor or volunteer does not, and
+      opening `/metrics` directly shows the no-access state
+- [ ] switching between 7, 30 and 90 days reloads the figures without blanking the page
+- [ ] confirm a patient appointment request, then refresh: **Appointment requests** gains a step and
+      the conversion changes
+- [ ] preview a merge, then cancel: **Merge previews** rises and **Charts merged** does not
+- [ ] claim a record with a wrong date of birth: **Record claims** shows a failure, and **Most common
+      failure reasons** names it
+- [ ] a clinic with no activity shows zeros and "Nothing failed in this window", not an error
+- [ ] offline, the page says metrics need a connection
+- [ ] no name, email, phone number, patient code or note text appears anywhere on the page
+
+### Recording on and off
+
+- [ ] with `TELEMETRY_ENABLED=true`, API logs contain `"type":"telemetry"` lines with counts and
+      codes only
+- [ ] with `TELEMETRY_ENABLED=false`, workflows behave identically and no telemetry lines or rows
+      are written
+- [ ] with the database stopped briefly, clinical saves still succeed; telemetry catches up once
+      it is back
+
+### Browser analytics
+
+- [ ] with `NEXT_PUBLIC_ANALYTICS_ENABLED=false` (the default), no analytics calls leave the browser
+- [ ] with it `true` and a provider loaded, opening the sync center sends `sync.center.open` with
+      counts only
+
+### Widths and keyboard
+
+- [ ] the dashboard has no horizontal overflow at 375, 768, 1024 and 1440 pixels, in light and dark
+      themes; wide tables scroll inside their card
+- [ ] every help hint and the time-window control work from the keyboard
+
+---
+
 ## 18. Partial Areas To Test Carefully
 
 These areas are implemented but still worth extra regression attention:

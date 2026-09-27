@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   TELEMETRY_CATEGORIES,
   TELEMETRY_EVENTS,
@@ -49,6 +51,19 @@ describe('telemetry event catalog', () => {
     expect(new Set(TELEMETRY_FUNNELS.map((funnel) => funnel.id)).size).toBe(
       TELEMETRY_FUNNELS.length,
     );
+  });
+
+  // The issue's first acceptance criterion: the taxonomy is documented. It stays documented.
+  it('documents every event in the telemetry spec', () => {
+    const doc = readFileSync(
+      resolve(__dirname, '../../../docs/specs/15_TELEMETRY_AND_METRICS.md'),
+      'utf8',
+    );
+    for (const name of names) {
+      // Table cells are padded by the formatter, so the name is matched with any spacing.
+      const cell = new RegExp(`\\|\\s*\`${name.replace(/\./g, '\\.')}\`\\s*\\|`);
+      expect(doc).toMatch(cell);
+    }
   });
 
   it('recognises only catalog events', () => {
