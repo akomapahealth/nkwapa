@@ -50,7 +50,8 @@ export const METRICS_SECTIONS: ReadonlyArray<{
   },
   {
     category: 'identity',
-    title: 'Chart merges',
+    // Not "Chart merges": the conversion card above already carries that name.
+    title: 'Patient identity',
     description: 'Duplicate charts reviewed and combined.',
   },
   {

@@ -6,6 +6,8 @@ export const TRACK_TELEMETRY_KEY = 'telemetry:track';
 /** The parts of the request a `describe` callback may read. Deliberately narrow. */
 export interface TrackRequestView {
   params: Record<string, string | undefined>;
+  /** Only `clinicId` is read from the query, for routes such as `/sync/push?clinicId=`. */
+  queryClinicId?: string;
   /** The clinic ClinicScopeGuard resolved, for routes that take it from a header or query. */
   clinicId?: string;
 }

@@ -61,6 +61,8 @@ function MetricsContent() {
             value={window}
             options={METRICS_WINDOWS}
             onChange={setWindow}
+            // Wide enough for the three windows on one row; the grid wraps only on a phone.
+            className="sm:w-[24rem]"
           />
         }
       />

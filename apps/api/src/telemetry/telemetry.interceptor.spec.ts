@@ -87,9 +87,20 @@ describe('TelemetryInterceptor', () => {
       }),
     );
 
+    await lastValueFrom(
+      interceptor.intercept(
+        contextFor('confirm', { params: {}, query: { clinicId: 'clinic-5' } }),
+        {
+          handle: () => of({}),
+        },
+      ),
+    );
+
+    // The last is /sync/push, which names its clinic in the query string.
     expect(telemetry.record.mock.calls.map(([, input]) => input.clinicId)).toEqual([
       'clinic-9',
       'clinic-3',
+      'clinic-5',
     ]);
   });
 

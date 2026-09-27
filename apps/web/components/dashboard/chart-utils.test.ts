@@ -2,6 +2,7 @@ import {
   hasRenderableDistributionData,
   hasRenderableTrendData,
   toDistributionChartData,
+  parseChartDate,
 } from './chart-utils';
 
 describe('dashboard chart utilities', () => {
@@ -34,5 +35,18 @@ describe('dashboard chart utilities', () => {
     ]);
     expect(hasRenderableDistributionData(chartData)).toBe(true);
     expect(hasRenderableDistributionData(toDistributionChartData({ Flagged: 0 }))).toBe(false);
+  });
+});
+
+describe('parseChartDate', () => {
+  it('reads a date-only string as that calendar day, whatever the time zone', () => {
+    const day = parseChartDate('2026-09-27');
+    expect([day.getFullYear(), day.getMonth() + 1, day.getDate()]).toEqual([2026, 9, 27]);
+  });
+
+  it('parses a full timestamp as given', () => {
+    expect(parseChartDate('2026-09-27T10:00:00.000Z').toISOString()).toBe(
+      '2026-09-27T10:00:00.000Z',
+    );
   });
 });

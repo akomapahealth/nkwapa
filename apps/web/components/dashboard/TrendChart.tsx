@@ -13,7 +13,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/feedback/AppState';
 import { InfoHint } from '@/components/ui/info-hint';
 import { Activity } from 'lucide-react';
-import { hasRenderableTrendData, type TrendDatum } from './chart-utils';
+import { hasRenderableTrendData, parseChartDate, type TrendDatum } from './chart-utils';
 
 interface TrendChartProps {
   title: string;
@@ -60,13 +60,13 @@ export function TrendChart({
                   dataKey="date"
                   tick={TICK}
                   tickFormatter={(v) => {
-                    const d = new Date(v);
+                    const d = parseChartDate(v);
                     return `${d.getMonth() + 1}/${d.getDate()}`;
                   }}
                 />
                 <YAxis tick={TICK} allowDecimals={false} />
                 <Tooltip
-                  labelFormatter={(v) => new Date(v as string).toLocaleDateString()}
+                  labelFormatter={(v) => parseChartDate(v as string).toLocaleDateString()}
                   contentStyle={{
                     backgroundColor: 'hsl(var(--card))',
                     border: '1px solid hsl(var(--border))',

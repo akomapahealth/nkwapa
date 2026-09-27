@@ -30,18 +30,23 @@ export class TelemetryInterceptor implements NestInterceptor {
     );
     if (!meta || context.getType() !== 'http') return next.handle();
 
-    const request = context
-      .switchToHttp()
-      .getRequest<{ params?: Record<string, string>; clinicId?: string }>();
+    const request = context.switchToHttp().getRequest<{
+      params?: Record<string, string>;
+      query?: Record<string, unknown>;
+      clinicId?: string;
+    }>();
+    const queryClinicId = request.query?.clinicId;
     const view: TrackRequestView = {
       params: { ...(request.params ?? {}) },
+      queryClinicId: typeof queryClinicId === 'string' ? queryClinicId : undefined,
       clinicId: typeof request.clinicId === 'string' ? request.clinicId : undefined,
     };
     const started = Date.now();
     const clinicOf = (result: unknown) =>
       (meta.clinicId ? safely(() => meta.clinicId?.(result, view)) : undefined) ??
       view.params.clinicId ??
-      view.clinicId;
+      view.clinicId ??
+      view.queryClinicId;
 
     return next.handle().pipe(
       tap({
