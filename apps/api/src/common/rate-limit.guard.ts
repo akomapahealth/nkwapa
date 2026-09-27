@@ -5,6 +5,7 @@ import {
   HttpStatus,
   Injectable,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import Redis from 'ioredis';
@@ -12,6 +13,7 @@ import { getRateLimitValue } from './api-config';
 import { RATE_LIMIT_METADATA_KEY, type RateLimitConfig } from './rate-limit.decorator';
 import { getRequestId, getRequestIp } from './request-context';
 import { redactLogValue, redactUrl } from './redaction';
+import { TelemetryService } from '../telemetry/telemetry.service';
 
 type RequestWithUser = {
   user?: { user?: { id?: string } };
@@ -19,6 +21,7 @@ type RequestWithUser = {
   method: string;
   originalUrl?: string;
   ip?: string;
+  params?: Record<string, string | undefined>;
 };
 
 @Injectable()
@@ -30,7 +33,10 @@ export class RateLimitGuard implements CanActivate {
   });
   private redisReady = false;
 
-  constructor(private readonly reflector: Reflector) {}
+  constructor(
+    private readonly reflector: Reflector,
+    @Optional() private readonly telemetry?: TelemetryService,
+  ) {}
 
   async canActivate(context: ExecutionContext) {
     const config = this.reflector.getAllAndOverride<RateLimitConfig | undefined>(
@@ -70,6 +76,13 @@ export class RateLimitGuard implements CanActivate {
       }
 
       if (usage > limit) {
+        // The bucket and its scope only. The identity the bucket is keyed on is a user id or an
+        // address, and neither belongs in telemetry.
+        this.telemetry?.record('security.rate_limit', {
+          bucket: config.key,
+          scope: config.scope ?? 'user-or-ip',
+          clinicId: request.params?.clinicId ?? null,
+        });
         throw new HttpException(
           {
             code: 'RATE_LIMITED',

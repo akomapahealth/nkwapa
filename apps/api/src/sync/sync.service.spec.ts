@@ -1049,6 +1049,33 @@ describe('SyncService', () => {
     });
   });
 
+  describe('telemetry', () => {
+    it('records one event per refused change, with its code and entity type only', async () => {
+      const telemetry = { record: jest.fn() };
+      (service as unknown as { telemetry: unknown }).telemetry = telemetry;
+
+      await service.applyMutations('clinic-1', mockUser as never, [
+        {
+          id: 'mut-mismatch',
+          entityType: 'encounter',
+          entityId: 'enc-1',
+          operation: 'UPSERT',
+          clinicId: 'clinic-2',
+          payloadJson: { notes: 'Ama Mensah' },
+          idempotencyKey: 'idem-telemetry',
+        } as SyncMutationDto,
+      ]);
+
+      expect(telemetry.record).toHaveBeenCalledWith('sync.mutation.refuse', {
+        clinicId: 'clinic-1',
+        reason: 'CLINIC_MISMATCH',
+        entityType: 'encounter',
+        retryable: false,
+      });
+      expect(JSON.stringify(telemetry.record.mock.calls)).not.toContain('Ama');
+    });
+  });
+
   describe('conflict code consistency', () => {
     it('tells the client whether every refusal is retryable, whichever path produced it', async () => {
       (encounterRepo.findById as jest.Mock).mockResolvedValue({

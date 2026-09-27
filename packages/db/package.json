@@ -13,6 +13,10 @@
       "types": "./dist/src/clinic-metadata.d.ts",
       "default": "./dist/src/clinic-metadata.js"
     },
+    "./telemetry-events": {
+      "types": "./dist/src/telemetry-events.d.ts",
+      "default": "./dist/src/telemetry-events.js"
+    },
     "./sync-conflicts": {
       "types": "./dist/src/sync-conflicts.d.ts",
       "default": "./dist/src/sync-conflicts.js"

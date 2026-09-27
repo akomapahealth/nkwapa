@@ -14,6 +14,7 @@ import {
   MarkNoShowAppointmentDto,
   RescheduleAppointmentDto,
 } from './dto/appointment-requests.dto';
+import { Track } from '../telemetry/track.decorator';
 
 @Controller('clinics/:clinicId/appointments')
 @UseGuards(JwtAuthGuard, ClinicScopeGuard, RbacGuard)
@@ -38,6 +39,7 @@ export class ClinicAppointmentsController {
   }
 
   @Post(':appointmentId/reschedule')
+  @Track('appointment.reschedule')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.APPOINTMENT_WRITE)
   async rescheduleAppointment(
@@ -56,6 +58,7 @@ export class ClinicAppointmentsController {
   }
 
   @Post(':appointmentId/cancel')
+  @Track('appointment.cancel')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.APPOINTMENT_WRITE)
   async cancelAppointment(
@@ -74,6 +77,7 @@ export class ClinicAppointmentsController {
   }
 
   @Post(':appointmentId/complete')
+  @Track('appointment.complete')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.APPOINTMENT_WRITE)
   async completeAppointment(
@@ -92,6 +96,7 @@ export class ClinicAppointmentsController {
   }
 
   @Post(':appointmentId/no-show')
+  @Track('appointment.no_show')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.APPOINTMENT_WRITE)
   async markAppointmentNoShow(

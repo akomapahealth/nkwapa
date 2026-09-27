@@ -231,3 +231,45 @@ and the portal.
 See `docs/specs/11_CLINICAL_RECORDS_RELEASE_GATE.md`. The most significant is that production
 continues to connect as the table owner until `APP_DATABASE_URL` is set there; the service reports
 this on every start.
+
+## Follow-up Hardening - 2026-09-27: Telemetry
+
+### Scope reviewed
+
+Product and operational instrumentation added for #29: the shared event catalog
+(`packages/db/src/telemetry-events.ts`), `TelemetryService` and its interceptor, the
+`TelemetryEvent` table, the metrics endpoint and dashboard, and browser analytics.
+
+### Controls
+
+- **No personal data by construction.** Payloads are built from a per-event allow-list of
+  enumerated values, bounded counts and booleans. A failure reason must be a machine code, so a
+  free-text exception message cannot be recorded. Names, contact details, dates of birth, national
+  IDs, clinical values, and patient or user identifiers are not expressible. Refused keys are logged
+  by name only.
+- **Defence in depth.** `CHECK` constraints on `TelemetryEvent` repeat the outcome, reason-code and
+  bucket rules, so a writer that bypasses the sanitizer still cannot store free text in them.
+- **Tenant isolation.** The table has forced row level security through `app.can_access_clinic()`.
+  Rows without a clinic are visible to system administrators only. The endpoint is clinic-scoped
+  and requires `METRICS.READ`, and it returns aggregates, never rows.
+- **Rate limiting.** Throttling events record the rate-limit key and scope, never the user id or
+  address the bucket is keyed on.
+- **Availability.** Recording is synchronous and cannot throw; writes are batched off the request
+  path under a named system context. A database outage delays metrics and cannot fail a workflow.
+- **Retention.** Rows are deleted after `TELEMETRY_RETENTION_DAYS` (default 180) by a daily job.
+- **Browser analytics.** Off unless `NEXT_PUBLIC_ANALYTICS_ENABLED` is `true`; limited to catalog
+  browser events through the same sanitizer.
+- **Audit log unchanged.** Telemetry is not a compliance record and is never consulted for one.
+
+### Verification
+
+Unit specs cover sanitization of hostile inputs, reason-code extraction, buffering and retry,
+retention bounds, interceptor outcomes, rate-limit redaction, and that every catalogued server event
+is emitted and documented. The RLS coverage spec includes the new table.
+
+### Residual risks
+
+Clinic ids are recorded; they identify an organisational unit, and a clinic with very little
+activity could make a single event recognisable to someone who already knows what happened there.
+The dashboard shows only counts over at least a 7-day window, and retention bounds how long such
+detail exists.

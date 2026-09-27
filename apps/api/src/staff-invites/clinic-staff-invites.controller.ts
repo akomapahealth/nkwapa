@@ -10,6 +10,7 @@ import { RateLimit } from '../common/rate-limit.decorator';
 import { ClinicIdParamDto } from '../common/request-dto';
 import { StaffInviteService } from './staff-invite.service';
 import { ClinicStaffInviteParamsDto, CreateStaffInviteDto } from './dto/staff-invite.dto';
+import { Track } from '../telemetry/track.decorator';
 
 type InviteRequest = { user: ReqUserWithRoles; headers?: { 'x-request-id'?: string } };
 
@@ -33,6 +34,7 @@ export class ClinicStaffInvitesController {
   }
 
   @Post()
+  @Track('staff.invite.create')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.CLINIC_STAFF_INVITE)
   @RateLimit({ key: 'staff_invite_create', limit: 30, windowSeconds: 600, scope: 'user' })

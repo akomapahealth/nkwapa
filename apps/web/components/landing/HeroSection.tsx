@@ -124,7 +124,7 @@ export function HeroSection() {
                 size="lg"
                 className="cursor-pointer gap-2 rounded-full px-8 font-landing-nav font-semibold shadow-lg shadow-primary/20"
                 onClick={() => {
-                  trackEvent({ name: 'landing_scroll_workflow', properties: { source: 'hero' } });
+                  trackEvent('landing.cta.click', { target: 'workflow' });
                   scrollTo('workflow');
                 }}
               >
@@ -136,7 +136,7 @@ export function HeroSection() {
                 size="lg"
                 className="cursor-pointer rounded-full border-2 px-8 font-landing-nav font-medium"
                 onClick={() => {
-                  trackEvent({ name: 'landing_scroll_product', properties: {} });
+                  trackEvent('landing.cta.click', { target: 'product' });
                   scrollTo('product');
                 }}
               >

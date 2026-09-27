@@ -796,6 +796,7 @@ model Clinic {
   appointments              Appointment[]
   patientPortalInvites      PatientPortalInvite[]
   staffInvites              StaffInvite[]
+  telemetryEvents           TelemetryEvent[]
   conversations             Conversation[]
   chatMessages              Message[]
   medicalHistoryRecords     MedicalHistoryRecord[]
@@ -2299,4 +2300,32 @@ model Message {
 model PatientCodeSequence {
   year       Int @id // e.g. 2025
   lastNumber Int @default(0)
+}
+
+/// Product and operational telemetry: how often a workflow runs, how it ends, and why it fails.
+///
+/// Built from the allow-list in packages/db/src/telemetry-events.ts, so a row can hold only an
+/// event name, a clinic, an outcome, a machine reason code and bounded counts. It never holds a
+/// person's identifiers, contact details, or clinical values, and it is not a compliance record:
+/// the audit log stays the source of truth for who did what. Rows are purged after the retention
+/// window the API enforces.
+///
+/// `clinicId` is null for events that belong to no clinic, such as a throttled anonymous request;
+/// row level security then limits those rows to system administrators.
+model TelemetryEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  event      String   @db.VarChar(64)
+  category   String   @db.VarChar(32)
+  clinicId   String?  @db.Uuid
+  outcome    String?  @db.VarChar(16)
+  reason     String?  @db.VarChar(64)
+  bucket     String?  @db.VarChar(48)
+  properties Json     @default("{}")
+  occurredAt DateTime @default(now())
+
+  clinic Clinic? @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([event, occurredAt])
+  @@index([clinicId, occurredAt])
+  @@index([occurredAt])
 }

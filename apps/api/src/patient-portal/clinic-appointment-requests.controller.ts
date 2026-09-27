@@ -12,6 +12,8 @@ import {
   ListAppointmentRequestsQueryDto,
   RejectAppointmentRequestDto,
 } from './dto/appointment-requests.dto';
+import { Track } from '../telemetry/track.decorator';
+import { appointmentRequestKind } from '../telemetry/track-descriptors';
 
 @Controller('clinics/:clinicId/appointment-requests')
 @UseGuards(JwtAuthGuard, ClinicScopeGuard, RbacGuard)
@@ -36,6 +38,7 @@ export class ClinicAppointmentRequestsController {
   }
 
   @Post(':requestId/confirm')
+  @Track('appointment.request.confirm', { describe: appointmentRequestKind })
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.APPOINTMENT_WRITE)
   async confirmAppointmentRequest(
@@ -54,6 +57,7 @@ export class ClinicAppointmentRequestsController {
   }
 
   @Post(':requestId/reject')
+  @Track('appointment.request.reject', { describe: appointmentRequestKind })
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.APPOINTMENT_WRITE)
   async rejectAppointmentRequest(

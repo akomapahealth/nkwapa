@@ -138,6 +138,8 @@ export const RESEARCH_OUT_OF_SCOPE_MODELS: Record<string, string> = {
   UserClinicRole: 'Which staff hold which seat at which clinic.',
   PatientAccountLink: 'Links a chart to a portal login, which is an authentication fact.',
   PatientPortalInvite: 'An invitation to a login, carrying an email address and a token.',
+  TelemetryEvent:
+    'Operational counts about how the product is used, not research data about patients; it holds no clinical values and is purged after its retention window.',
   StaffInvite:
     'An offer of a staff role to an email address. Operational, and about staff, not patients.',
   PatientCodeAlias: 'Retired patient codes, which are identifiers by construction.',

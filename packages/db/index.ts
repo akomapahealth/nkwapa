@@ -149,6 +149,23 @@ export {
   type MergeWarningCode,
 } from './src/patient-merge';
 export {
+  TELEMETRY_CATEGORIES,
+  TELEMETRY_EVENTS,
+  TELEMETRY_FUNNELS,
+  TELEMETRY_OUTCOMES,
+  isTelemetryEventName,
+  isTelemetryReasonCode,
+  sanitizeTelemetry,
+  type SanitizedTelemetry,
+  type TelemetryCategory,
+  type TelemetryEventDefinition,
+  type TelemetryEventName,
+  type TelemetryFunnel,
+  type TelemetryOutcome,
+  type TelemetryProperties,
+  type TelemetryPropertyValue,
+} from './src/telemetry-events';
+export {
   DETERMINISTIC_SYNC_CONFLICT_CODES,
   SYNC_CONFLICT_CATEGORIES,
   SYNC_CONFLICT_CODES,

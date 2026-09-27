@@ -5,6 +5,7 @@ import { RateLimit } from '../common/rate-limit.decorator';
 import { StaffInviteService } from './staff-invite.service';
 import { StaffInviteIdParamDto } from './dto/staff-invite.dto';
 import { IncludeStaffInviteScope } from './staff-invite-scope.decorator';
+import { Track } from '../telemetry/track.decorator';
 
 /**
  * The invitee's side: see what you have been invited to, and accept it.
@@ -26,6 +27,9 @@ export class StaffInviteAcceptanceController {
   }
 
   @Post(':inviteId/accept')
+  @Track('staff.invite.accept', {
+    clinicId: (result) => (result as { clinicId?: string } | undefined)?.clinicId,
+  })
   @RateLimit({ key: 'staff_invite_accept', limit: 10, windowSeconds: 600, scope: 'user-or-ip' })
   async accept(
     @Param() params: StaffInviteIdParamDto,
