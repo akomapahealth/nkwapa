@@ -54,6 +54,7 @@ import { FormSectionCard } from '@/components/app-shell/FormSectionCard';
 import { FieldLabel, RequiredLegend, focusFirstInvalid } from '@/components/ui/field';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { isFullySynced } from '@/lib/sync';
 import { db, type DiabetesScreeningRecord } from '@/lib/db';
 import { SYNC_OPERATION, enqueueOutboxMutation } from '@/lib/outbox';
 import { claimEncounterRecord } from '@/lib/encounter-record';
@@ -252,7 +253,7 @@ export function DiabetesInterviewForm({
       await adherence.save();
       const synced = isOnline ? await syncNow(clinicId) : null;
       setSaveMessage(
-        synced?.success
+        isFullySynced(synced)
           ? 'Diabetes screening saved and synced.'
           : 'Diabetes screening saved on this device and pending sync.',
       );

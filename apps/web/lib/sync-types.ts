@@ -1,6 +1,8 @@
 export interface SyncPullResponseDto {
   cursor: string;
   patients: Array<Record<string, unknown>>;
+  /** Charts a merge retired since the cursor; the device drops its copy of each. */
+  mergedPatients?: Array<{ id: string; mergedIntoPatientId: string }>;
   encounters: Array<Record<string, unknown>>;
   vitals: Array<Record<string, unknown>>;
   tobaccoScreenings: Array<Record<string, unknown>>;

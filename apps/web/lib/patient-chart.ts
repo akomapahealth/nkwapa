@@ -125,6 +125,22 @@ export interface PatientChartSummary {
         })
       | null;
   } | null;
+  hypertension: {
+    latest:
+      | (ChartRecordSource & {
+          id: string;
+          collectedAt: string;
+          classification: string | null;
+          suspected: boolean;
+          confirmed: boolean;
+          hypertensionStatus: string;
+          urgentReviewRequired: boolean;
+          clinicianReviewRequested: boolean;
+          systolicBp: number | null;
+          diastolicBp: number | null;
+        })
+      | null;
+  } | null;
   allergies: ChartAllergySummary | null;
   medications: {
     currentCount: number;

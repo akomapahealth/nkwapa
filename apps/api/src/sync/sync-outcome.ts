@@ -1,4 +1,10 @@
-import { ConflictException, ForbiddenException, HttpException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  HttpException,
+  NotFoundException,
+} from '@nestjs/common';
+import { DETERMINISTIC_SYNC_CONFLICT_CODES, isRetryableSyncOutcome } from '@nkwapa/db';
 import { redactLogValue } from '../common/redaction';
 import { SYNC_MUTATION_RESULT_STATUS } from './dto/sync-push-response.dto';
 import type { SyncMutationResultDto } from './dto/sync-push-response.dto';
@@ -12,12 +18,7 @@ import type { SyncMutationResultDto } from './dto/sync-push-response.dto';
  * that may arrive in a later pull, a transient database error -- must stay retryable, or a client
  * that keeps its outbox row can never drain it even after the cause is fixed.
  */
-export const DETERMINISTIC_CONFLICT_TYPES: ReadonlySet<string> = new Set([
-  'CONFLICT_FINALIZED',
-  'DUPLICATE_NATIONAL_ID',
-  'MEDICAL_HISTORY_CONFLICT',
-  'UNSUPPORTED_STATUS_TRANSITION',
-]);
+export const DETERMINISTIC_CONFLICT_TYPES: ReadonlySet<string> = DETERMINISTIC_SYNC_CONFLICT_CODES;
 
 export interface SyncOutcome {
   status: SyncMutationResultDto['status'];
@@ -35,6 +36,7 @@ const ALLOWED_CONFLICT_KEYS = [
   'currentRevisionId',
   'expectedRevisionId',
   'existingPatientId',
+  'canonicalPatientId',
   'patientCode',
 ] as const;
 
@@ -91,20 +93,42 @@ export function classifySyncFailure(err: unknown, entityType: string): SyncOutco
         ? 'APPLICATION_CONFLICT'
         : err instanceof ForbiddenException
           ? 'FORBIDDEN'
-          : err instanceof HttpException
-            ? 'APPLICATION_REJECTED'
-            : 'APPLICATION_ERROR';
+          : err instanceof NotFoundException
+            ? 'RECORD_NOT_FOUND'
+            : err instanceof HttpException
+              ? 'APPLICATION_REJECTED'
+              : 'APPLICATION_ERROR';
 
+  const status = isConflict
+    ? SYNC_MUTATION_RESULT_STATUS.CONFLICT
+    : SYNC_MUTATION_RESULT_STATUS.ERROR;
   return {
-    status: isConflict ? SYNC_MUTATION_RESULT_STATUS.CONFLICT : SYNC_MUTATION_RESULT_STATUS.ERROR,
+    status,
     conflictType,
     conflictDetails: safeConflictDetails(response, fallbackMessage),
-    retryable: !isTerminalConflictType(conflictType, isConflict),
+    retryable: isRetryableSyncOutcome(status, conflictType),
   };
 }
 
-function isTerminalConflictType(conflictType: string, isConflict: boolean): boolean {
-  return isConflict && DETERMINISTIC_CONFLICT_TYPES.has(conflictType);
+/**
+ * The one way a handler reports a refusal it detected itself, rather than by throwing.
+ *
+ * Several handlers used to build these results by hand and each forgot `retryable`, so whether a
+ * client treated the same code as permanent depended on which code path produced it.
+ */
+export function syncRefusal(
+  mutationId: string,
+  status: Exclude<SyncMutationResultDto['status'], 'APPLIED'>,
+  conflictType: string,
+  conflictDetails: Record<string, unknown>,
+): SyncMutationResultDto & SyncOutcome {
+  return {
+    id: mutationId,
+    status,
+    conflictType,
+    conflictDetails,
+    retryable: isRetryableSyncOutcome(status, conflictType),
+  };
 }
 
 /** Whether a recorded outcome may short-circuit a later replay of the same idempotency key. */

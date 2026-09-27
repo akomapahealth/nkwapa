@@ -1,4 +1,4 @@
-import type { NkwapaDb } from './db';
+import type { NkwapaDb, OutboxFailure, OutboxRecord, OutboxSyncState } from './db';
 
 export const SYNC_OPERATION = {
   UPSERT: 'UPSERT',
@@ -131,4 +131,78 @@ export async function enqueueOutboxMutation(
   const record = buildOutboxMutation(params);
   await dbInstance.outbox.add(record);
   return record;
+}
+
+/** A row written before sync states existed has never been refused, so it is pending. */
+export function outboxSyncState(row: Pick<OutboxRecord, 'syncState'>): OutboxSyncState {
+  return row.syncState ?? 'pending';
+}
+
+/**
+ * Whether a refusal needs a person before the change can go anywhere.
+ *
+ * A conflict always does: the server's copy disagrees with this device's, and only a clinician
+ * can say which is right. So does any refusal the server does not explicitly call retryable; an
+ * older server that omits the flag must not have its silence read as optimism.
+ */
+export function isBlockingFailure(failure: Pick<OutboxFailure, 'status' | 'retryable'>): boolean {
+  return failure.status === 'CONFLICT' || failure.retryable !== true;
+}
+
+/** The outbox fields that record one refused attempt. */
+export function outboxFailureUpdate(
+  row: Pick<OutboxRecord, 'attempts'>,
+  failure: Omit<OutboxFailure, 'at'>,
+  at: string = new Date().toISOString(),
+): Pick<OutboxRecord, 'syncState' | 'attempts' | 'lastAttemptAt' | 'lastFailure'> {
+  return {
+    syncState: isBlockingFailure(failure) ? 'blocked' : 'retrying',
+    attempts: (row.attempts ?? 0) + 1,
+    lastAttemptAt: at,
+    lastFailure: { ...failure, at },
+  };
+}
+
+/**
+ * Put a blocked or retrying change back in line for the next pass. The last failure is kept so
+ * the card can still say what happened until the server answers again.
+ */
+export async function retryOutboxMutation(dbInstance: NkwapaDb, id: string): Promise<void> {
+  await dbInstance.outbox.update(id, { syncState: 'pending' });
+}
+
+/**
+ * The local store each outbox entity is optimistically written to. Only one-row-per-id entities
+ * are listed; the rest are corrected by the full pull that follows a discard.
+ */
+const LOCAL_TABLE_BY_ENTITY: Partial<Record<string, string>> = {
+  patient: 'patients',
+  encounter: 'encounters',
+  vitals: 'vitals',
+  encounter_vitals_bundle: 'vitals',
+  diabetes_screening: 'diabetes_screenings',
+  hypertension_assessment: 'hypertension_assessments',
+  care_plan: 'care_plans',
+  patient_consent: 'patient_consents',
+  prescription: 'prescriptions',
+};
+
+/**
+ * Throw away this device's queued copy of a change. Server data is never touched.
+ *
+ * Forms write optimistically, so the device may still be showing the discarded values. The local
+ * row is removed and the pull cursor reset, so the next sync restores whatever the server holds;
+ * a row that never reached the server simply stays gone. The caller should sync straight after,
+ * which is why the sync center only offers this while online.
+ */
+export async function discardOutboxMutation(
+  dbInstance: NkwapaDb,
+  row: Pick<OutboxRecord, 'id' | 'clinicId' | 'entityType' | 'entityId'>,
+): Promise<void> {
+  await dbInstance.outbox.delete(row.id);
+  const localTable = LOCAL_TABLE_BY_ENTITY[row.entityType];
+  if (localTable) {
+    await dbInstance.table(localTable).delete(row.entityId);
+  }
+  await dbInstance.sync_state.delete(row.clinicId);
 }

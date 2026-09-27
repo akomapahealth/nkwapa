@@ -15,15 +15,23 @@ import { cn } from '@/lib/utils';
 
 type ToastTone = 'info' | 'success' | 'warning' | 'error' | 'loading';
 
+interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface ToastInput {
   title: string;
   description?: string;
   tone?: ToastTone;
   durationMs?: number;
+  /** One follow-up, e.g. opening the screen the toast is about. Choosing it dismisses the toast. */
+  action?: ToastAction;
 }
 
-interface ToastItem extends Required<ToastInput> {
+interface ToastItem extends Required<Omit<ToastInput, 'action'>> {
   id: string;
+  action?: ToastAction;
 }
 
 interface ToastContextValue {
@@ -85,9 +93,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const showToast = useCallback(
-    ({ title, description = '', tone = 'info', durationMs = 4200 }: ToastInput) => {
+    ({ title, description = '', tone = 'info', durationMs = 4200, action }: ToastInput) => {
       const id = createToastId();
-      const nextToast: ToastItem = { id, title, description, tone, durationMs };
+      const nextToast: ToastItem = { id, title, description, tone, durationMs, action };
       setToasts((current) => [nextToast, ...current].slice(0, 4));
 
       if (durationMs > 0) {
@@ -125,6 +133,20 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                   <p className="text-sm font-semibold leading-5">{toast.title}</p>
                   {toast.description ? (
                     <p className="mt-1 text-sm leading-5 text-current/75">{toast.description}</p>
+                  ) : null}
+                  {toast.action ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-3 bg-background/60"
+                      onClick={() => {
+                        toast.action?.onClick();
+                        dismissToast(toast.id);
+                      }}
+                    >
+                      {toast.action.label}
+                    </Button>
                   ) : null}
                 </div>
                 <Button

@@ -4,8 +4,15 @@ import {
   buildMedicationRevisionOutboxPayload,
   buildOutboxMutation,
   buildPharmacyPreferenceOutboxPayload,
+  discardOutboxMutation,
+  isBlockingFailure,
+  retryOutboxMutation,
+  outboxFailureUpdate,
+  outboxSyncState,
   SYNC_OPERATION,
 } from './outbox';
+import type { NkwapaDb } from './db';
+import { createFakeSyncDb, queuedRow } from './testing/fake-sync-db';
 
 describe('buildOutboxMutation', () => {
   it('produces objects with all required fields', () => {
@@ -138,5 +145,81 @@ describe('medication reconciliation outbox payloads', () => {
         pharmacyRecordId: 'pharmacy-1',
       }),
     ).toEqual({ patientId: 'patient-1', action: 'SET', pharmacyRecordId: 'pharmacy-1' });
+  });
+});
+
+describe('outbox sync state', () => {
+  it('reads a row written before sync states existed as pending', () => {
+    expect(outboxSyncState({})).toBe('pending');
+    expect(outboxSyncState({ syncState: 'blocked' })).toBe('blocked');
+  });
+
+  it('blocks on any conflict and on any refusal not explicitly retryable', () => {
+    expect(isBlockingFailure({ status: 'CONFLICT', retryable: true })).toBe(true);
+    expect(isBlockingFailure({ status: 'ERROR', retryable: false })).toBe(true);
+    expect(isBlockingFailure({ status: 'ERROR' })).toBe(true);
+    expect(isBlockingFailure({ status: 'ERROR', retryable: true })).toBe(false);
+  });
+
+  it('counts attempts and keeps the server answer verbatim', () => {
+    const update = outboxFailureUpdate(
+      { attempts: 2 },
+      { status: 'ERROR', conflictType: 'FORBIDDEN', retryable: true, conflictDetails: { a: 1 } },
+      '2026-09-27T00:00:00.000Z',
+    );
+    expect(update).toEqual({
+      syncState: 'retrying',
+      attempts: 3,
+      lastAttemptAt: '2026-09-27T00:00:00.000Z',
+      lastFailure: {
+        status: 'ERROR',
+        conflictType: 'FORBIDDEN',
+        retryable: true,
+        conflictDetails: { a: 1 },
+        at: '2026-09-27T00:00:00.000Z',
+      },
+    });
+  });
+});
+
+describe('outbox recovery actions', () => {
+  it('puts a blocked change back in line and keeps what went wrong last time', async () => {
+    const fake = createFakeSyncDb();
+    const failure = { status: 'CONFLICT', conflictType: 'STALE_MEDICAL_HISTORY_REVISION', at: 't' };
+    await fake.outbox.put(queuedRow({ syncState: 'blocked', lastFailure: failure }));
+
+    await retryOutboxMutation(fake as unknown as NkwapaDb, 'mutation-1');
+
+    expect(await fake.outbox.get('mutation-1')).toMatchObject({
+      syncState: 'pending',
+      lastFailure: failure,
+    });
+  });
+
+  it('discards only the local copy and makes the next sync restore the server version', async () => {
+    const fake = createFakeSyncDb();
+    const row = queuedRow({ entityType: 'patient', entityId: 'patient-1' });
+    await fake.outbox.put(row);
+    await fake.outbox.put(queuedRow({ id: 'other', entityId: 'patient-2' }));
+    await fake.patients.put({ id: 'patient-1', firstName: 'Edited offline' });
+    await fake.sync_state.put({ clinicId: 'clinic-1', cursor: 'c-9' });
+
+    await discardOutboxMutation(fake as unknown as NkwapaDb, row);
+
+    expect(await fake.outbox.get('mutation-1')).toBeUndefined();
+    expect(await fake.outbox.get('other')).toBeDefined();
+    expect(await fake.patients.get('patient-1')).toBeUndefined();
+    expect(await fake.sync_state.get('clinic-1')).toBeUndefined();
+  });
+
+  it('leaves local stores alone for a change it cannot map to one row', async () => {
+    const fake = createFakeSyncDb();
+    const row = queuedRow({ entityType: 'medication_reconciliation', entityId: 'patient-1' });
+    await fake.outbox.put(row);
+    await fake.patients.put({ id: 'patient-1' });
+
+    await discardOutboxMutation(fake as unknown as NkwapaDb, row);
+
+    expect(await fake.patients.get('patient-1')).toBeDefined();
   });
 });

@@ -118,6 +118,23 @@ export interface PatientChartSummary {
         })
       | null;
   } | null;
+  hypertension: {
+    latest:
+      | (ChartRecordSource & {
+          id: string;
+          collectedAt: Date;
+          classification: string | null;
+          suspected: boolean;
+          confirmed: boolean;
+          hypertensionStatus: string;
+          urgentReviewRequired: boolean;
+          clinicianReviewRequested: boolean;
+          /** The encounter's own reading, so the summary can show the numbers it classified. */
+          systolicBp: number | null;
+          diastolicBp: number | null;
+        })
+      | null;
+  } | null;
   allergies: unknown | null;
   medications: {
     currentCount: number;

@@ -137,6 +137,7 @@ export class PatientChartService {
       sections: sections.map(({ id, label, description }) => ({ id, label, description })),
       vitals: null,
       diabetes: null,
+      hypertension: null,
       allergies: null,
       medications: null,
       noteActivity: null,
@@ -170,6 +171,38 @@ export class PatientChartService {
               hba1cPercent: latest.hba1cPercent,
               symptoms: latest.symptoms,
               notes: latest.notes,
+              ...toRecordSource(latest.encounter),
+            }
+          : null,
+      };
+    }
+
+    if (has('hypertension')) {
+      const latest = await this.prisma.hypertensionAssessment.findFirst({
+        where: { clinicId, encounter: { patientId } },
+        include: {
+          encounter: {
+            select: {
+              ...ENCOUNTER_CONTEXT_SELECT,
+              vitals: { select: { systolicBp: true, diastolicBp: true } },
+            },
+          },
+        },
+        orderBy: [{ collectedAt: 'desc' }, { id: 'desc' }],
+      });
+      summary.hypertension = {
+        latest: latest
+          ? {
+              id: latest.id,
+              collectedAt: latest.collectedAt,
+              classification: latest.classification,
+              suspected: latest.suspected,
+              confirmed: latest.confirmed,
+              hypertensionStatus: latest.hypertensionStatus,
+              urgentReviewRequired: latest.urgentReviewRequired,
+              clinicianReviewRequested: latest.clinicianReviewRequested,
+              systolicBp: latest.encounter.vitals?.systolicBp ?? null,
+              diastolicBp: latest.encounter.vitals?.diastolicBp ?? null,
               ...toRecordSource(latest.encounter),
             }
           : null,

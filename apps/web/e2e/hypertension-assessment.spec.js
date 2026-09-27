@@ -212,3 +212,73 @@ test('an urgent symptom raises the escalation notice and offers the review reaso
   await page.getByRole('checkbox', { name: 'Concerning symptoms' }).uncheck();
   await expect(page.getByRole('checkbox', { name: 'Concerning symptoms' })).not.toBeChecked();
 });
+
+/**
+ * What a volunteer records on the encounter's Hypertension tab can be read back from the chart.
+ *
+ * Found in a demo: Vitals, Diabetes and Hypertension all saved, but the chart had no Hypertension
+ * section at all, so the assessment was only reachable by opening the visit again.
+ */
+test.describe('as a volunteer', () => {
+  test.use({ storageState: storageStateFor('volunteer') });
+
+  test('a saved hypertension assessment appears on the chart and beside the form', async ({
+    page,
+    context,
+  }) => {
+    test.setTimeout(120_000);
+
+    const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
+    await page.goto('/patients/new');
+    await page.getByLabel('First name', { exact: true }).fill('Chart');
+    await page.getByLabel('Last name', { exact: true }).fill(`HTN-${suffix}`);
+    await page.getByLabel('National ID', { exact: true }).fill(`E2E-HTNCHART-${suffix}`);
+    await page.getByRole('button', { name: 'Create patient' }).click();
+    await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
+    const chartUrl = new URL(page.url()).pathname;
+    const patientId = chartUrl.split('/').at(-1);
+
+    const created = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/clinics\/[^/]+\/encounters$/.test(new URL(response.url()).pathname),
+    );
+    await page.goto(`/patients/${patientId}/encounters/new`);
+    const encounterId = (await (await created).json()).id;
+
+    await page.goto(`/encounters/${encounterId}`);
+    await recordVitals(page, 162, 98);
+    await page.getByRole('tab', { name: 'Hypertension' }).click();
+    await chooseStatus(page, 'Newly elevated BP');
+    await page.getByRole('button', { name: 'Save assessment' }).click();
+    await expect(page.getByRole('button', { name: 'Save assessment' })).toBeEnabled();
+
+    // Beside the form, as diabetes has always had.
+    const history = page.getByRole('heading', { name: 'Longitudinal hypertension history' });
+    await expect(history).toBeVisible();
+    // And it already includes what was just saved, without a reload: the section heading plus the
+    // record's own badge. With nothing saved only the heading is there.
+    await expect(page.getByText('Current encounter', { exact: true })).toHaveCount(2);
+
+    await page.goto(chartUrl);
+    await expect(page.getByRole('tab', { name: 'Hypertension', exact: true })).toBeVisible();
+    await expect(page.getByText('Latest hypertension assessment')).toBeVisible();
+
+    await page.getByRole('tab', { name: 'Hypertension', exact: true }).click();
+    await expect(page).toHaveURL(/\?tab=hypertension/);
+    await expect(history).toBeVisible();
+    await expect(page.getByText('Newly elevated BP').first()).toBeVisible();
+    await expect(page.getByText('162/98 mmHg').first()).toBeVisible();
+    await expect(page.getByRole('link', { name: /Open source visit/ }).first()).toBeVisible();
+
+    // Offline, the section falls back to what this device synced, and says so.
+    await page.goto(chartUrl);
+    await expect(page.getByRole('heading', { name: 'Pending clinical actions' })).toBeVisible();
+    await context.setOffline(true);
+    await page.getByRole('tab', { name: 'Hypertension', exact: true }).click();
+    await expect(page.getByText('Showing records saved on this device')).toBeVisible();
+    await expect(page.getByText('Newly elevated BP').first()).toBeVisible();
+    await expect(page.getByText('162/98 mmHg').first()).toBeVisible();
+    await context.setOffline(false);
+  });
+});

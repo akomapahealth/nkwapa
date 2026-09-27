@@ -15,6 +15,7 @@ export const PATIENT_CHART_SECTION_IDS = [
   'vitals',
   'medications',
   'diabetes',
+  'hypertension',
   'medical-history',
   'notes',
   'visits',
@@ -69,6 +70,19 @@ export const PATIENT_CHART_SECTIONS: readonly PatientChartSection[] = [
     id: 'diabetes',
     label: 'Diabetes',
     description: 'Glucose and HbA1c screening history with suspicion status.',
+    requiredPermission: 'SCREENING.READ',
+  },
+  /*
+    Hypertension was recorded at every encounter and never shown on the chart: the section list
+    simply had no entry for it, so a clinician could read a patient's diabetes history but had to
+    open visits one by one to see their blood-pressure assessments. Unflagged, like diabetes: the
+    records exist whichever interview wrote them, so hiding the history behind the guided-interview
+    flag would hide clinical data, not a feature.
+  */
+  {
+    id: 'hypertension',
+    label: 'Hypertension',
+    description: 'Blood-pressure assessment history with classification and follow-up signals.',
     requiredPermission: 'SCREENING.READ',
   },
   {

@@ -149,6 +149,17 @@ export {
   type MergeWarningCode,
 } from './src/patient-merge';
 export {
+  DETERMINISTIC_SYNC_CONFLICT_CODES,
+  SYNC_CONFLICT_CATEGORIES,
+  SYNC_CONFLICT_CODES,
+  isKnownSyncConflictCode,
+  isRetryableSyncOutcome,
+  syncConflictCategory,
+  type SyncConflictCategory,
+  type SyncConflictCode,
+  type SyncConflictCodeDefinition,
+} from './src/sync-conflicts';
+export {
   PATIENT_CHART_SECTION_IDS,
   PATIENT_CHART_SECTIONS,
   canAccessPatientChartSection,

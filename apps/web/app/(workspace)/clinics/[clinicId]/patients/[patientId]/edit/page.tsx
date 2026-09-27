@@ -62,6 +62,7 @@ function EditPatientForm() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savedOffline, setSavedOffline] = useState(false);
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -132,6 +133,7 @@ function EditPatientForm() {
     if (!patient) return;
     setSaving(true);
     setError(null);
+    setSavedOffline(false);
 
     const body: Record<string, unknown> = {};
     if (firstName !== patient.firstName) body.firstName = firstName;
@@ -177,22 +179,38 @@ function EditPatientForm() {
     } catch {
       try {
         const now = new Date().toISOString();
-        const existing = await db.patients.get(patientId);
-        if (existing) {
-          const updated = { ...existing, ...body, updatedAt: now };
-          await db.patients.put(updated);
-          await enqueueOutboxMutation(db, {
-            clinicId,
-            entityType: 'patient',
-            entityId: patientId,
-            operation: SYNC_OPERATION.UPSERT,
-            payloadJson: {
-              ...updated,
-              nationalId: undefined,
-            },
-          });
+        // A chart opened online may never have reached this device's store, and the edit used to
+        // be dropped without a word in that case. The chart already on screen is the base instead.
+        const existing = (await db.patients.get(patientId)) ?? {
+          id: patient.id,
+          primaryClinicId: clinicId,
+          patientCode: patient.patientCode,
+          firstName: patient.firstName,
+          lastName: patient.lastName,
+          dob: patient.dob ?? undefined,
+          sex: patient.sex,
+          phoneE164: patient.phoneE164 ?? undefined,
+          email: patient.email ?? undefined,
+        };
+        const updated = { ...existing, ...body, updatedAt: now };
+        await db.patients.put(updated);
+        // No national ID: the device does not keep one, and the server leaves the stored
+        // identifier alone on an edit.
+        await enqueueOutboxMutation(db, {
+          clinicId,
+          entityType: 'patient',
+          entityId: patientId,
+          operation: SYNC_OPERATION.UPSERT,
+          payloadJson: updated,
+        });
+        // Offline, a client navigation to a chart this device has not loaded becomes a full page
+        // load the service worker cannot serve. The clinician stays here and is told where the
+        // change went instead.
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          setSavedOffline(true);
+        } else {
+          router.push(`/clinics/${clinicId}/patients/${patientId}`);
         }
-        router.push(`/clinics/${clinicId}/patients/${patientId}`);
       } catch (offlineErr) {
         setError(offlineErr instanceof Error ? offlineErr.message : 'Failed to save changes');
       }
@@ -262,6 +280,12 @@ function EditPatientForm() {
       </div>
 
       {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
+      {savedOffline ? (
+        <InlineNotice tone="success">
+          Saved on this device. The change will sync when the connection returns; the sync status in
+          the header shows its progress.
+        </InlineNotice>
+      ) : null}
 
       <div className="max-w-5xl space-y-4">
         <ProgressiveHelp title="What stays protected">

@@ -1,206 +1,162 @@
-const emptyPull = {
-  cursor: 'cursor-1',
-  patients: [],
-  encounters: [],
-  vitals: [],
-  tobaccoScreenings: [],
-  diabetesScreenings: [],
-  hypertensionAssessments: [],
-  carePlans: [],
-  patientConsents: [],
-  prescriptions: [],
-  medicalHistoryRecords: [],
-  medicalHistoryRevisions: [],
-  patientMedicationRecords: [],
-  patientMedicationRevisions: [],
-  medicationReconciliationEvents: [],
-  patientPharmacyRecords: [],
-  patientPharmacyRevisions: [],
-  patientPharmacyPreferences: [],
-};
+import {
+  mockSyncFetch,
+  pulled,
+  pushBodies,
+  queuedRow,
+  reset,
+  type FakeSyncDb,
+} from './testing/fake-sync-db';
 
-const bundle = {
-  id: 'mutation-bundle',
-  clinicId: 'clinic-1',
-  entityType: 'encounter_vitals_bundle',
-  entityId: 'vitals-1',
-  operation: 'UPSERT',
-  payloadJson: JSON.stringify({ encounterId: 'encounter-1' }),
-  idempotencyKey: 'idempotency-1',
-  createdAt: '2026-08-20T12:00:00.000Z',
-};
+jest.mock('./db', () => ({
+  db: jest.requireActual('./testing/fake-sync-db').createFakeSyncDb(),
+}));
 
-const mockDelete = jest.fn();
-
-jest.mock('./db', () => {
-  const put = jest.fn();
-  const table = { put };
-  return {
-    db: {
-      outbox: {
-        where: jest.fn(() => ({
-          equals: jest.fn(() => ({ sortBy: jest.fn().mockResolvedValue([bundle]) })),
-        })),
-        delete: mockDelete,
-      },
-      sync_state: { get: jest.fn(), put },
-      patients: table,
-      encounters: table,
-      vitals: table,
-      tobacco_screenings: table,
-      diabetes_screenings: table,
-      hypertension_assessments: table,
-      care_plans: table,
-      patient_consents: table,
-      prescriptions: table,
-      medical_history_records: table,
-      medical_history_revisions: table,
-      patient_medication_records: table,
-      patient_medication_revisions: table,
-      medication_reconciliation_events: table,
-      patient_pharmacy_records: table,
-      patient_pharmacy_revisions: table,
-      patient_pharmacy_preferences: table,
-    },
-  };
-});
-
+import { db as mockedDb } from './db';
 import { syncNow } from './sync';
 
+const db = mockedDb as unknown as FakeSyncDb;
+const bundle = queuedRow();
+
+beforeEach(async () => {
+  reset(db);
+  await db.outbox.put(bundle);
+});
+
 /**
- * A mutation the server refuses outright used to be invisible: it was neither applied nor
- * treated as a conflict, so it stayed queued and was re-pushed on every sync forever while
- * the pending counter never cleared and nothing told the user why.
+ * A mutation the server refuses outright used to be invisible: it was neither applied nor treated
+ * as a conflict, so it stayed queued and was re-pushed on every sync forever while the pending
+ * counter never cleared and nothing told the user why.
  */
 describe('sync push rejections', () => {
-  beforeEach(() => {
-    mockDelete.mockClear();
-  });
-
-  const pushResponding = (results: unknown) => {
-    const fetchMock = jest
-      .fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => results })
-      .mockResolvedValueOnce({ ok: true, json: async () => emptyPull });
-    global.fetch = fetchMock as unknown as typeof fetch;
-    return fetchMock;
-  };
-
-  it('surfaces a rejected mutation instead of retrying it silently', async () => {
-    pushResponding({
-      results: [
+  const validationFailure = {
+    id: bundle.id,
+    status: 'ERROR',
+    conflictType: 'VALIDATION_ERROR',
+    retryable: false,
+    conflictDetails: {
+      code: 'VALIDATION_ERROR',
+      fieldErrors: [
         {
-          id: bundle.id,
-          status: 'ERROR',
-          conflictType: 'VALIDATION_ERROR',
-          conflictDetails: {
-            code: 'VALIDATION_ERROR',
-            fieldErrors: [
-              {
-                field: 'vitals.temperatureValue',
-                message: 'Temperature value, unit, and source are required together',
-              },
-            ],
-          },
+          field: 'vitals.temperatureValue',
+          message: 'Temperature value, unit, and source are required together',
         },
       ],
-    });
+    },
+  };
+
+  it('keeps the refused row and records why, so the reason survives a refresh', async () => {
+    mockSyncFetch([[validationFailure]]);
 
     const result = await syncNow({ clinicId: bundle.clinicId });
 
-    expect(result.success).toBe(false);
-    expect(result.error).toContain('could not be synced');
-    expect(result.error).toContain('Temperature value, unit, and source are required together');
-    expect(result.rejected).toHaveLength(1);
-    expect(result.rejected?.[0]?.id).toBe(bundle.id);
-  });
-
-  it('keeps the queued row so a clinician entry is never silently discarded', async () => {
-    pushResponding({
-      results: [{ id: bundle.id, status: 'ERROR', conflictType: 'VALIDATION_ERROR' }],
+    expect(result.rejected).toEqual([
+      expect.objectContaining({ id: bundle.id, conflictType: 'VALIDATION_ERROR' }),
+    ]);
+    expect(result.blockedCount).toBe(1);
+    const stored = await db.outbox.get(bundle.id);
+    expect(stored).toMatchObject({
+      syncState: 'blocked',
+      attempts: 1,
+      lastFailure: {
+        status: 'ERROR',
+        conflictType: 'VALIDATION_ERROR',
+        retryable: false,
+        conflictDetails: validationFailure.conflictDetails,
+      },
     });
-
-    await syncNow({ clinicId: bundle.clinicId });
-
-    expect(mockDelete).not.toHaveBeenCalled();
+    expect(stored?.lastFailure).toHaveProperty('at');
   });
 
-  it('still removes rows the server applied', async () => {
-    pushResponding({ results: [{ id: bundle.id, status: 'APPLIED' }] });
+  it('still pulls, so one refused change cannot cut the device off from inbound data', async () => {
+    const fetchMock = mockSyncFetch([[validationFailure]]);
 
     const result = await syncNow({ clinicId: bundle.clinicId });
 
     expect(result.success).toBe(true);
-    expect(mockDelete).toHaveBeenCalledWith(bundle.id);
+    expect(pulled(fetchMock)).toBe(true);
+    expect((await db.sync_state.get(bundle.clinicId))?.cursor).toBe('cursor-1');
+  });
+
+  it('does not re-send a blocked change until the clinician asks', async () => {
+    mockSyncFetch([[validationFailure]]);
+    await syncNow({ clinicId: bundle.clinicId });
+
+    const second = mockSyncFetch();
+    await syncNow({ clinicId: bundle.clinicId });
+
+    expect(pushBodies(second)).toEqual([]);
+    expect(await db.outbox.get(bundle.id)).toBeDefined();
+  });
+
+  it('still removes rows the server applied', async () => {
+    mockSyncFetch([[{ id: bundle.id, status: 'APPLIED' }]]);
+
+    const result = await syncNow({ clinicId: bundle.clinicId });
+
+    expect(result.success).toBe(true);
+    expect(await db.outbox.get(bundle.id)).toBeUndefined();
   });
 
   it('reports a conflict as a conflict, not as a rejection', async () => {
-    pushResponding({
-      results: [{ id: bundle.id, status: 'CONFLICT', conflictType: 'CONFLICT_FINALIZED' }],
-    });
+    mockSyncFetch([
+      [{ id: bundle.id, status: 'CONFLICT', conflictType: 'CONFLICT_FINALIZED', retryable: false }],
+    ]);
 
     const result = await syncNow({ clinicId: bundle.clinicId });
 
     expect(result.success).toBe(true);
     expect(result.conflicts).toHaveLength(1);
     expect(result.rejected).toBeUndefined();
+    expect((await db.outbox.get(bundle.id))?.syncState).toBe('blocked');
+  });
+
+  it('blocks even a conflict the server calls retryable, since only a person can pick a side', async () => {
+    mockSyncFetch([
+      [
+        {
+          id: bundle.id,
+          status: 'CONFLICT',
+          conflictType: 'STALE_MEDICAL_HISTORY_REVISION',
+          retryable: true,
+        },
+      ],
+    ]);
+
+    await syncNow({ clinicId: bundle.clinicId });
+
+    expect((await db.outbox.get(bundle.id))?.syncState).toBe('blocked');
   });
 });
 
 describe('a retryable failure does not stop the pass', () => {
-  beforeEach(() => {
-    mockDelete.mockClear();
-  });
-
-  const pushResponding = (results: unknown) => {
-    const fetchMock = jest
-      .fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => results })
-      .mockResolvedValueOnce({ ok: true, json: async () => emptyPull });
-    global.fetch = fetchMock as unknown as typeof fetch;
-    return fetchMock;
-  };
-
-  it('keeps the row queued and still runs the pull', async () => {
+  it('keeps the row queued for the next pass and still runs the pull', async () => {
     // A permission not yet granted, a referenced record not yet pulled, a transient failure. The
     // server says the same push could succeed later, so nothing here needs a clinician, and one
     // queued change must not cut the clinic off from inbound data.
-    const fetchMock = pushResponding({
-      results: [{ id: bundle.id, status: 'ERROR', conflictType: 'FORBIDDEN', retryable: true }],
-    });
+    const fetchMock = mockSyncFetch([
+      [{ id: bundle.id, status: 'ERROR', conflictType: 'FORBIDDEN', retryable: true }],
+    ]);
 
     const result = await syncNow({ clinicId: bundle.clinicId });
 
-    expect(result.success).toBe(true);
+    expect(result).toMatchObject({ success: true, retryingCount: 1, blockedCount: 0 });
     expect(result.rejected).toBeUndefined();
-    expect(mockDelete).not.toHaveBeenCalled();
-    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/sync/pull'))).toBe(true);
+    expect((await db.outbox.get(bundle.id))?.syncState).toBe('retrying');
+    expect(pulled(fetchMock)).toBe(true);
+
+    const next = mockSyncFetch([[{ id: bundle.id, status: 'APPLIED' }]]);
+    await syncNow({ clinicId: bundle.clinicId });
+    expect(pushBodies(next)[0]?.map((row) => row.id)).toEqual([bundle.id]);
+    expect(await db.outbox.get(bundle.id)).toBeUndefined();
   });
 
-  it('treats a failure the server will not reconsider as a rejection', async () => {
-    const fetchMock = pushResponding({
-      results: [
-        { id: bundle.id, status: 'ERROR', conflictType: 'VALIDATION_ERROR', retryable: false },
-      ],
-    });
-
-    const result = await syncNow({ clinicId: bundle.clinicId });
-
-    expect(result.success).toBe(false);
-    expect(result.rejected).toHaveLength(1);
-    expect(mockDelete).not.toHaveBeenCalled();
-    // A rejection still halts the pass, because it needs the clinician before anything else helps.
-    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/sync/pull'))).toBe(false);
-  });
-
-  it('treats an unlabelled failure as a rejection rather than assuming it will pass', async () => {
+  it('treats an unlabelled failure as blocked rather than assuming it will pass', async () => {
     // An older server that does not send `retryable` must not have its silence read as optimism.
-    pushResponding({
-      results: [{ id: bundle.id, status: 'ERROR', conflictType: 'APPLICATION_ERROR' }],
-    });
+    mockSyncFetch([[{ id: bundle.id, status: 'ERROR', conflictType: 'APPLICATION_ERROR' }]]);
 
     const result = await syncNow({ clinicId: bundle.clinicId });
 
-    expect(result.success).toBe(false);
+    expect(result.rejected).toHaveLength(1);
+    expect((await db.outbox.get(bundle.id))?.syncState).toBe('blocked');
   });
 });

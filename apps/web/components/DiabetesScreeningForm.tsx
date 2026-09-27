@@ -28,6 +28,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { isFullySynced } from '@/lib/sync';
 import { db, type DiabetesScreeningRecord } from '@/lib/db';
 import { enqueueOutboxMutation, SYNC_OPERATION } from '@/lib/outbox';
 
@@ -190,7 +191,7 @@ export function DiabetesScreeningForm({
       const syncResult = isOnline ? await syncNow(clinicId) : null;
       setMessage({
         tone: 'success',
-        text: syncResult?.success
+        text: isFullySynced(syncResult)
           ? 'Diabetes screening saved and synced.'
           : 'Diabetes screening saved on this device and pending sync.',
       });

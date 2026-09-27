@@ -92,24 +92,28 @@ is the part that genuinely needs a person.
 
 ### Automated — do not re-do these by hand
 
-| Check                                                           | Where                                                               |
-| --------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Every route at 375 / 640 / 768 / 1024 / 1440, no overflow       | `e2e/responsive-migration.spec.js` (staff + portal)                 |
-| Patient portal renders, per route, signed in as a patient       | `e2e/portal.spec.js`                                                |
-| A patient is refused every staff surface                        | `e2e/portal.spec.js`                                                |
-| Dark mode renders and passes axe on staff and portal routes     | `e2e/dark-mode.spec.js`                                             |
-| Dark mode survives navigation without flashing light            | `e2e/dark-mode.spec.js`                                             |
-| Automatable WCAG rules on the chart and the portal              | `accessibility.spec.js`, `portal.spec.js`                           |
-| Focus is visible on every control the keyboard reaches          | `accessibility.spec.js`, `portal.spec.js`, `login-theme.spec.js`    |
-| Login theme: typeface, brand fill, radius, no third-party fonts | `e2e/login-theme.spec.js`                                           |
-| Loading / empty / error / retry on the three #22 routes         | `e2e/route-fallbacks.spec.js`                                       |
-| Chart series palette, contrast and colour-blind separation      | `npm run design:check-charts`                                       |
-| Every duplicate rule, exact and fuzzy, reaching the queue       | `patients/patient-duplicate.service.spec.ts`                        |
-| Every merge refusal and warning, and both merge strategies      | `patients/patient-merge.service.spec.ts`                            |
-| Every way a claim is refused, and the four ways it is accepted  | `patient-portal/patient-claim.spec.ts`                              |
-| Canonical chart redirects, including a merge chain and a cycle  | `patients/patient.repository.spec.ts`                               |
-| A refused merge, and the redirect banner, in a browser          | `e2e/patient-identity.spec.js`, `e2e/patient-merge-preview.spec.js` |
-| Claiming a record, refused and accepted, as the patient         | `e2e/patient-claim.spec.js`                                         |
+| Check                                                             | Where                                                                                               |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Every route at 375 / 640 / 768 / 1024 / 1440, no overflow         | `e2e/responsive-migration.spec.js` (staff + portal)                                                 |
+| Patient portal renders, per route, signed in as a patient         | `e2e/portal.spec.js`                                                                                |
+| A patient is refused every staff surface                          | `e2e/portal.spec.js`                                                                                |
+| Dark mode renders and passes axe on staff and portal routes       | `e2e/dark-mode.spec.js`                                                                             |
+| Dark mode survives navigation without flashing light              | `e2e/dark-mode.spec.js`                                                                             |
+| Automatable WCAG rules on the chart and the portal                | `accessibility.spec.js`, `portal.spec.js`                                                           |
+| Focus is visible on every control the keyboard reaches            | `accessibility.spec.js`, `portal.spec.js`, `login-theme.spec.js`                                    |
+| Login theme: typeface, brand fill, radius, no third-party fonts   | `e2e/login-theme.spec.js`                                                                           |
+| Loading / empty / error / retry on the three #22 routes           | `e2e/route-fallbacks.spec.js`                                                                       |
+| Chart series palette, contrast and colour-blind separation        | `npm run design:check-charts`                                                                       |
+| Every duplicate rule, exact and fuzzy, reaching the queue         | `patients/patient-duplicate.service.spec.ts`                                                        |
+| Every merge refusal and warning, and both merge strategies        | `patients/patient-merge.service.spec.ts`                                                            |
+| Every way a claim is refused, and the four ways it is accepted    | `patient-portal/patient-claim.spec.ts`                                                              |
+| Canonical chart redirects, including a merge chain and a cycle    | `patients/patient.repository.spec.ts`                                                               |
+| A refused merge, and the redirect banner, in a browser            | `e2e/patient-identity.spec.js`, `e2e/patient-merge-preview.spec.js`                                 |
+| Claiming a record, refused and accepted, as the patient           | `e2e/patient-claim.spec.js`                                                                         |
+| Every sync conflict code catalogued, worded, and retry-classified | `packages/db/src/sync-conflicts.spec.ts`, `sync/sync-outcome.spec.ts`, `lib/sync-conflicts.test.ts` |
+| Refused changes persist, are not re-sent, and never stop the pull | `lib/sync.test.ts`, `lib/sync-rejected.test.ts`                                                     |
+| A duplicate-patient conflict, recovered in a browser              | `e2e/sync-recovery.spec.js`                                                                         |
+| An offline patient edit drains on reconnect                       | `e2e/sync-recovery.spec.js`                                                                         |
 
 640 is in the width list because it is what 1280 becomes at 200% zoom.
 
@@ -641,6 +645,10 @@ role only, not as the multi-role staff account.
 - [ ] register a patient, including residential location
 - [ ] record expanded vitals and a tobacco screening in an encounter
 - [ ] record a diabetes screening and read it back on the chart
+- [ ] record a hypertension assessment and read it back on the chart's Hypertension tab and on
+      the overview's latest-assessment card
+- [ ] open the chart's Diabetes and Hypertension tabs offline and confirm each says it is showing
+      records saved on this device
 - [ ] add a medical history entry and revise it, and confirm the earlier revision is still visible
 - [ ] record a patient-reported medication and reconcile it
 - [ ] author a clinical note and submit it for cosign
@@ -741,6 +749,101 @@ the four supported widths. These are the parts a person still has to judge.
 - [ ] the schedule, the request panel, and every dialog have no horizontal overflow at 375, 768,
       1024, and 1440 pixels
 - [ ] every dialog can be completed and dismissed at 375 pixels
+
+---
+
+## 17b. Offline Sync Recovery Matrix
+
+Changes saved offline wait in the device outbox. When the server refuses one, the clinician
+should be able to see which change failed, why, and what to do next without opening DevTools.
+The sync center is where that happens: the sync pill in the header opens it at every width.
+
+### What each group means
+
+| Group            | What it holds                                                                                      | Sent again automatically? |
+| ---------------- | -------------------------------------------------------------------------------------------------- | ------------------------- |
+| Needs attention  | A conflict, or a refusal that resending the same change cannot fix                                 | No, only after Retry      |
+| Waiting to retry | A refusal that may clear on its own: a role not yet granted, a record still queued, a server error | Yes, every pass           |
+| Queued           | Saved on this device and not yet sent                                                              | Yes                       |
+
+The state lives in IndexedDB on the outbox row, so it survives a refresh and a browser restart
+until the change is applied or discarded. Nothing is merged or overwritten automatically.
+**Discard** removes only this device's copy. It never changes server data, and it asks for
+confirmation first because an offline entry that never reached the server cannot be recovered.
+
+### Simulating a duplicate patient conflict
+
+Offline registration is not offered in the UI, so queue the conflicting change by hand. Register
+a patient online and note their national ID, then open any chart for the same clinic and run this
+in the browser console, replacing the national ID:
+
+```js
+const clinicId = location.pathname.split('/')[2];
+const open = indexedDB.open('NkwapaDb');
+open.onsuccess = () => {
+  const tx = open.result.transaction('outbox', 'readwrite');
+  tx.objectStore('outbox').put({
+    id: crypto.randomUUID(),
+    clinicId,
+    entityType: 'patient',
+    entityId: crypto.randomUUID(),
+    operation: 'UPSERT',
+    payloadJson: JSON.stringify({
+      nationalId: 'REPLACE-WITH-EXISTING-ID',
+      primaryClinicId: clinicId,
+      firstName: 'Offline',
+      lastName: 'Duplicate',
+    }),
+    idempotencyKey: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
+  });
+  // Reload so the app reads a row written outside it; opening the app syncs by itself.
+  tx.oncomplete = () => location.reload();
+};
+```
+
+- [ ] a toast says an offline change needs attention, and its **Review** button opens the sync center
+- [ ] the pill reads "1 needs attention" and uses the warning colour; on a phone it shows a count
+- [ ] the card is titled "Patient details · Offline Duplicate" and says another chart already uses
+      this national ID, in plain language, with a next step
+- [ ] **Open existing chart** opens the chart that already has the ID
+- [ ] **Review duplicates** appears for a manager or director and is absent for a volunteer
+- [ ] **Retry** is not offered, because the server would give the same answer
+- [ ] **Technical details** shows the code, status, attempts, and ids, and **Copy for support**
+      copies them without any names or clinical values
+- [ ] after a refresh the card is still there
+- [ ] **Discard** asks for confirmation, names the change, and afterwards the sync center reads
+      "Everything is synced"
+
+### Merged chart
+
+- [ ] on device A, open chart B's edit page, go offline, and save a change; the page says it is
+      saved on this device
+- [ ] on device B, merge chart B into chart A
+- [ ] reconnect device A: the card says the chart was merged, and **Open current chart** opens A
+- [ ] chart B no longer appears in device A's offline patient list after that sync
+
+### Locked encounter
+
+- [ ] queue a vitals change offline, finalize the encounter from another device, then reconnect:
+      the card says the record is locked and **Open visit** opens the encounter
+- [ ] other queued changes still sync, and new server data still arrives, while that card waits
+
+### Connection problems
+
+- [ ] offline, the pill reads "Offline" and the sync center says saved work is safe
+- [ ] navigating offline to a page this device has never loaded shows the offline page, not the
+      marketing home page
+- [ ] with the API stopped, **Sync now** reports a server problem in plain language, with the raw
+      response under Technical details rather than on screen
+
+### Widths and keyboard
+
+- [ ] the pill, sheet, cards, and discard dialog have no horizontal overflow at 375, 768, 1024, and
+      1440 pixels, in light and dark themes
+- [ ] the sheet and the discard dialog can be opened, used, and closed with the keyboard alone,
+      and focus returns to the pill
+- [ ] a screen reader announces the online and sync status when it changes
 
 ---
 
