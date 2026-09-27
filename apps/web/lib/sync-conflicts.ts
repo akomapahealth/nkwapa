@@ -287,19 +287,21 @@ export function describeSyncFailure(
     description.encounterHref = encounterHref(encounterId);
     description.actions.push('open-encounter');
   }
-  // A new chart that never reached the server has nothing to open.
-  const chartExists = !(row.entityType === 'patient' && code === 'PATIENT_NATIONAL_ID_REQUIRED');
-  if (patientId && !targetIsRetired && patientId !== canonicalPatientId && chartExists) {
+  // A patient-identity refusal of the chart itself means that chart is not the one to open: it is
+  // retired, or it is a new chart the server declined to create.
+  const ownChartIsSuspect = category === 'patient' && row.entityType === 'patient';
+  if (patientId && !targetIsRetired && patientId !== canonicalPatientId && !ownChartIsSuspect) {
     description.patientHref = patientChartHref(context.clinicId, patientId);
     description.actions.push('open-patient');
   }
 
   // Retrying is offered only where it can change the answer. A deterministic conflict would come
   // back the same, and offering the button anyway teaches people that sync buttons do nothing.
+  // For a blocked change it goes after the record links, because looking at the record is the
+  // better first move and Retry only helps once something has changed.
   const deterministic = isKnownSyncConflictCode(code) && SYNC_CONFLICT_CODES[code].deterministic;
-  if (state === 'retrying' || (state === 'blocked' && !deterministic)) {
-    description.actions.unshift('retry');
-  }
+  if (state === 'retrying') description.actions.unshift('retry');
+  else if (state === 'blocked' && !deterministic) description.actions.push('retry');
   description.actions.push('discard');
   return description;
 }

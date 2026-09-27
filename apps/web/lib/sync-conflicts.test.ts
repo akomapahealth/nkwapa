@@ -124,7 +124,7 @@ describe('describeSyncFailure', () => {
 
     expect(description.category).toBe('validation');
     expect(description.serverDetail).toBe('Temperature unit is required');
-    expect(description.actions).toContain('retry');
+    expect(description.actions).toEqual(['open-patient', 'retry', 'discard']);
   });
 
   it('offers retry on a change that is already being retried', () => {
@@ -135,6 +135,15 @@ describe('describeSyncFailure', () => {
 
     expect(description.actions[0]).toBe('retry');
     expect(description.tone).toBe('warning');
+  });
+
+  it('does not link a refused new chart, only the one that already exists', () => {
+    const description = describeSyncFailure(
+      failed('DUPLICATE_NATIONAL_ID', { existingPatientId: 'existing-1' }, { entityId: 'new-1' }),
+      context,
+    );
+    expect(description.patientHref).toBeUndefined();
+    expect(description.actions).toEqual(['open-canonical-patient', 'review-duplicates', 'discard']);
   });
 
   it('has nothing to open for a new chart that never reached the server', () => {

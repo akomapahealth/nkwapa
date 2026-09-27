@@ -27,13 +27,22 @@ export type SyncStatus = 'idle' | 'syncing' | 'success' | 'retrying' | 'attentio
 
 export type SyncStatusListener = (status: SyncStatus, message?: string, detail?: string) => void;
 
+/** Told once per `syncNow` call, with everything that call pushed and refused. */
+export type SyncPassListener = (clinicId: string, result: SyncResult) => void;
+
 const listeners: Set<SyncStatusListener> = new Set();
+const passListeners: Set<SyncPassListener> = new Set();
 const inFlightByClinic = new Map<string, Promise<SyncResult>>();
 const rerunRequestedByClinic = new Set<string>();
 
 export function onSyncStatusChange(listener: SyncStatusListener): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
+}
+
+export function onSyncPassComplete(listener: SyncPassListener): () => void {
+  passListeners.add(listener);
+  return () => passListeners.delete(listener);
 }
 
 function notifyStatus(status: SyncStatus, message?: string, detail?: string) {
@@ -323,11 +332,13 @@ export function syncNow(options: SyncNowOptions): Promise<SyncResult> {
       if (result.rejected) rejected.push(...result.rejected);
     } while (result.success && rerunRequestedByClinic.has(options.clinicId));
 
-    return {
+    const merged: SyncResult = {
       ...result,
       ...(conflicts.length ? { conflicts } : {}),
       ...(rejected.length ? { rejected } : {}),
     };
+    passListeners.forEach((fn) => fn(options.clinicId, merged));
+    return merged;
   })().finally(() => {
     rerunRequestedByClinic.delete(options.clinicId);
     if (inFlightByClinic.get(options.clinicId) === request) {

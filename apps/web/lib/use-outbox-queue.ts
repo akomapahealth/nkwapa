@@ -4,7 +4,12 @@ import { liveQuery } from 'dexie';
 import { useEffect, useState } from 'react';
 import { db, type OutboxRecord, type OutboxSyncState } from './db';
 import { outboxSyncState } from './outbox';
-import { outboxEncounterId, outboxPatientId, syncEntityLabel } from './sync-conflicts';
+import {
+  outboxEncounterId,
+  outboxPatientId,
+  parseOutboxPayload,
+  syncEntityLabel,
+} from './sync-conflicts';
 
 export interface OutboxQueueItem {
   row: OutboxRecord;
@@ -53,9 +58,13 @@ async function loadOutboxQueue(clinicId: string): Promise<OutboxQueueItem[]> {
         patientId = encounterId ? (await db.encounters.get(encounterId))?.patientId : undefined;
       }
       const patient = patientId ? await db.patients.get(patientId) : undefined;
-      const patientName = patient
-        ? [patient.firstName, patient.lastName].filter(Boolean).join(' ') || patient.patientCode
-        : undefined;
+      // A chart registered offline and refused is not in the local store; its own change still
+      // carries the name that was typed.
+      const named = patient ?? (row.entityType === 'patient' ? parseOutboxPayload(row) : undefined);
+      const patientName =
+        [named?.firstName, named?.lastName]
+          .filter((part) => typeof part === 'string' && part)
+          .join(' ') || (typeof named?.patientCode === 'string' ? named.patientCode : undefined);
       return {
         row,
         state: outboxSyncState(row),

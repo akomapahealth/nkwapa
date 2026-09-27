@@ -126,6 +126,7 @@ export function SyncMutationCard({
               <p className="text-sm text-muted-foreground">{description.explanation}</p>
               {description.serverDetail ? (
                 <p className="rounded-md bg-background/70 px-3 py-2 text-sm text-foreground">
+                  <span className="text-muted-foreground">The server said: </span>
                   {description.serverDetail}
                 </p>
               ) : null}

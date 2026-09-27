@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { AlertTriangle, CheckCircle2, CloudOff, RefreshCw, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { onSyncPassComplete } from '@/lib/sync';
 import { useOutboxQueue } from '@/lib/use-outbox-queue';
 import { cn } from '@/lib/utils';
 import { SyncCenterSheet } from './SyncCenterSheet';
@@ -24,8 +25,9 @@ const PILL = {
  * The header's sync pill and the sync center it opens.
  *
  * The pill was `hidden md:flex`, so on a phone there was no way to see whether anything was
- * queued, let alone why something had failed. It now shows at every width: a compact icon and
- * count on a phone, the full label from `sm` up. The whole pill opens the sync center.
+ * queued, let alone why something had failed. It now shows at every width: one compact control
+ * with a count on a phone, where Sync now lives inside the sheet, and the full label plus a Sync
+ * button from `sm` up. The whole pill opens the sync center.
  */
 export function SyncStatusBar({
   clinicId,
@@ -42,24 +44,29 @@ export function SyncStatusBar({
   const blocked = queue.blocked.length;
   const waiting = queue.retrying.length + queue.pending.length;
 
-  // Toast only when something newly needs attention, not for what was already there on load.
-  const seenBlocked = useRef<number | null>(null);
-  useEffect(() => {
-    if (!queue.loaded) return;
-    const previous = seenBlocked.current;
-    seenBlocked.current = blocked;
-    if (previous === null || blocked <= previous) return;
-    showToast({
-      tone: 'warning',
-      title:
-        blocked - previous === 1
-          ? 'An offline change needs your attention'
-          : `${blocked - previous} offline changes need your attention`,
-      description: 'The server could not accept it. Nothing has been lost.',
-      durationMs: 9000,
-      action: { label: 'Review', onClick: () => setSyncCenterOpen(true) },
-    });
-  }, [blocked, queue.loaded, setSyncCenterOpen, showToast]);
+  // Toast when a pass newly blocks a change, not for what was already waiting when the app opened:
+  // the pill already says that, and repeating it on every page load is noise.
+  useEffect(
+    () =>
+      onSyncPassComplete((passClinicId, result) => {
+        const newlyBlocked = (result.conflicts?.length ?? 0) + (result.rejected?.length ?? 0);
+        if (passClinicId !== clinicId || newlyBlocked === 0) return;
+        showToast({
+          tone: 'warning',
+          title:
+            newlyBlocked === 1
+              ? 'An offline change needs your attention'
+              : `${newlyBlocked} offline changes need your attention`,
+          description:
+            newlyBlocked === 1
+              ? 'The server could not accept it. Nothing has been lost.'
+              : 'The server could not accept them. Nothing has been lost.',
+          durationMs: 9000,
+          action: { label: 'Review', onClick: () => setSyncCenterOpen(true) },
+        });
+      }),
+    [clinicId, setSyncCenterOpen, showToast],
+  );
 
   if (!clinicId || (!canSync && queue.total === 0)) return null;
 
@@ -96,7 +103,7 @@ export function SyncStatusBar({
         <button
           type="button"
           onClick={() => setSyncCenterOpen(true)}
-          className="relative flex h-11 min-w-11 items-center gap-2 rounded-l-lg px-3 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="relative flex h-11 min-w-11 items-center gap-2 rounded-lg px-3 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:rounded-r-none"
           aria-label={`Offline changes: ${label}. Open sync center.`}
           data-testid="sync-status"
           data-state={state}
@@ -129,7 +136,7 @@ export function SyncStatusBar({
           size="icon"
           onClick={() => void syncNow(clinicId)}
           disabled={!isOnline || syncStatus === 'syncing' || !canSync}
-          className="rounded-l-none border-l border-border"
+          className="hidden rounded-l-none border-l border-border sm:inline-flex"
           aria-label="Sync now"
         >
           <RefreshCw

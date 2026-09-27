@@ -12,7 +12,13 @@ jest.mock('./db', () => ({
 }));
 
 import { db as mockedDb } from './db';
-import { isFullySynced, onSyncStatusChange, SYNC_PUSH_BATCH_SIZE, syncNow } from './sync';
+import {
+  isFullySynced,
+  onSyncPassComplete,
+  onSyncStatusChange,
+  SYNC_PUSH_BATCH_SIZE,
+  syncNow,
+} from './sync';
 
 const db = mockedDb as unknown as FakeSyncDb;
 const mutation = queuedRow({ entityType: 'diabetes_screening', entityId: 'screening-1' });
@@ -113,6 +119,28 @@ describe('status reporting', () => {
 
     expect(statuses).toEqual(['syncing', 'attention']);
     expect(isFullySynced(result)).toBe(false);
+  });
+
+  it('tells pass listeners which changes this call newly blocked', async () => {
+    await db.outbox.put(mutation);
+    mockSyncFetch([
+      [{ id: mutation.id, status: 'CONFLICT', conflictType: 'PATIENT_MERGED', retryable: false }],
+    ]);
+    const passes: Array<[string, number]> = [];
+    const unsubscribe = onSyncPassComplete((clinicId, result) =>
+      passes.push([clinicId, result.conflicts?.length ?? 0]),
+    );
+
+    await syncNow({ clinicId: 'clinic-1' });
+    // The blocked row is not re-sent, so a second pass reports nothing new.
+    mockSyncFetch();
+    await syncNow({ clinicId: 'clinic-1' });
+    unsubscribe();
+
+    expect(passes).toEqual([
+      ['clinic-1', 1],
+      ['clinic-1', 0],
+    ]);
   });
 
   it('turns a failed request into plain language and keeps the raw text for support', async () => {
