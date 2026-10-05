@@ -27,6 +27,7 @@ import {
 import { assertPermissionAtClinic, type ScopedRole } from '../auth/clinic-roles';
 import type { EntityType as SyncEntityType } from './entity-types';
 import { SYNC_ENTITY_PERMISSIONS, isSyncEntityType } from './sync-permissions';
+import { recordAppliedSyncMutation } from './applied-sync-mutation';
 import {
   classifySyncFailure,
   isTerminalOutcome,
@@ -1406,15 +1407,10 @@ export class SyncService {
     mut: SyncMutationDto,
     idempotencyKey: string,
   ) {
-    await this.prisma.syncMutation.create({
-      data: {
-        clinicId,
-        entityType: mut.entityType,
-        entityId: mut.entityId,
-        operation: SyncOperation.UPSERT,
-        idempotencyKey,
-        status: SyncMutationStatus.APPLIED,
-      },
+    await recordAppliedSyncMutation(this.prisma, clinicId, {
+      entityType: mut.entityType,
+      entityId: mut.entityId,
+      idempotencyKey,
     });
     return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
   }

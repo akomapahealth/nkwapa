@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   decodeJsonKeysetCursor,
@@ -25,14 +26,21 @@ export interface LogWriteParams {
 export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async logWrite(params: LogWriteParams): Promise<void> {
+  /**
+   * Record a write. Pass the transaction the write ran in so the event commits with it; without
+   * one the event is written on its own, after the fact.
+   */
+  async logWrite(
+    params: LogWriteParams,
+    client: Pick<Prisma.TransactionClient, 'auditEvent'> = this.prisma,
+  ): Promise<void> {
     // Fall back to the ambient request rather than a fresh id: an invented id looks like a
     // correlation and is not one, which is worse than an honest absence.
     const ambient = getRequestContext();
     const requestId = params.requestId ?? ambient?.requestId ?? randomUUID();
     const ipAddress = params.ipAddress ?? ambient?.ipAddress ?? undefined;
     const userAgent = params.userAgent ?? ambient?.userAgent ?? undefined;
-    await this.prisma.auditEvent.create({
+    await client.auditEvent.create({
       data: {
         clinicId: params.clinicId,
         actorUserId: params.actorUserId,

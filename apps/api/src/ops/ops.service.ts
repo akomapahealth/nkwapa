@@ -6,9 +6,20 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { AssignmentStatus, CheckInStatus, Prisma, ShiftRole, UserRole } from '@prisma/client';
-import { CLINIC_DEFAULT_TIMEZONE, clinicDayWindow, type ClinicDayWindow } from '@nkwapa/db';
+import {
+  CLINIC_DEFAULT_TIMEZONE,
+  clinicDayWindow,
+  todayInTimeZone,
+  type ClinicDayWindow,
+} from '@nkwapa/db';
 import { PrismaService } from '../prisma/prisma.service';
-import { AuditService } from '../audit/audit.service';
+import { AuditService, type LogWriteParams } from '../audit/audit.service';
+import { isUniqueViolation } from '../common/prisma-errors';
+import {
+  recordAppliedSyncMutation,
+  type AppliedSyncMutationRef,
+} from '../sync/applied-sync-mutation';
+import { resolveReplayTime } from './ops-replay';
 import {
   CreateAssignmentDto,
   CreatePatientCheckInDto,
@@ -19,6 +30,30 @@ import {
 } from './dto/ops.dto';
 
 type TxClient = Prisma.TransactionClient;
+
+/** A check-in still in the queue or being seen. A patient has at most one of these per day. */
+const OPEN_CHECK_IN_STATUSES: CheckInStatus[] = ['WAITING', 'ASSIGNED', 'IN_PROGRESS'];
+
+const PATIENT_SUMMARY_SELECT = {
+  id: true,
+  patientCode: true,
+  firstName: true,
+  lastName: true,
+} satisfies Prisma.PatientSelect;
+
+/** An offline action being replayed through sync, rather than a live request. */
+export interface OpsReplay {
+  /** When the action happened on the device. */
+  occurredAt: Date;
+  syncMutation: AppliedSyncMutationRef;
+  ipAddress?: string;
+  userAgent?: string;
+}
+
+export interface OpsWriteContext {
+  requestId?: string;
+  replay?: OpsReplay;
+}
 
 type PatientAssignmentSummaryPayload = Prisma.PatientAssignmentGetPayload<{
   include: {
@@ -59,56 +94,89 @@ export class OpsService {
     private readonly auditService: AuditService,
   ) {}
 
-  async checkIn(clinicId: string, actorUserId: string, dto: ShiftCheckInDto, requestId?: string) {
+  /**
+   * Start the actor's shift.
+   *
+   * A caller may supply the shift's id. The web generates it once per tap, so a request cut off
+   * mid-flight can be queued offline under the same id and its replay finds the shift instead of
+   * starting a second one. Repeating a check-in that already applied returns that shift.
+   */
+  async checkIn(
+    clinicId: string,
+    actorUserId: string,
+    dto: ShiftCheckInDto,
+    context: OpsWriteContext = {},
+  ) {
     await this.assertActiveClinic(clinicId);
     await this.assertShiftRoleMembership(clinicId, actorUserId, dto.roleAtShift);
 
-    const existing = await this.prisma.staffShift.findFirst({
-      where: { clinicId, userId: actorUserId, status: 'ACTIVE' },
-      include: { user: { select: { id: true, displayName: true } } },
-    });
-    if (existing) {
-      throw new ConflictException({
-        message: 'User already has an active shift in this clinic',
-        existingShift: this.toActiveShift(existing),
+    const applied = await this.findOwnShift(dto.id, clinicId, actorUserId);
+    if (applied) return this.alreadyApplied(clinicId, context, this.toShiftDetail(applied));
+    const checkedInAt = await this.writeTime(clinicId, context);
+
+    try {
+      const created = await this.prisma.$transaction(async (tx) => {
+        const active = await tx.staffShift.findFirst({
+          where: { clinicId, userId: actorUserId, status: 'ACTIVE' },
+          include: { user: { select: { id: true, displayName: true } } },
+        });
+        if (active) throw this.shiftAlreadyActive(active);
+
+        const shift = await tx.staffShift.create({
+          data: {
+            ...(dto.id ? { id: dto.id } : {}),
+            clinicId,
+            userId: actorUserId,
+            roleAtShift: dto.roleAtShift,
+            checkedInAt,
+            status: 'ACTIVE',
+            notes: dto.notes ?? null,
+          },
+          include: { user: { select: { id: true, displayName: true } } },
+        });
+        await this.recordWrite(tx, clinicId, actorUserId, context, {
+          action: 'SHIFT.CHECKIN',
+          entityType: 'StaffShift',
+          entityId: shift.id,
+          afterJson: JSON.stringify(shift),
+        });
+        return shift;
       });
+      return this.toShiftDetail(created);
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error;
+      // Two check-ins raced past the read above; the partial unique index on active shifts let
+      // exactly one through. If it was this same id, the check-in applied; otherwise it lost.
+      const raced = await this.findOwnShift(dto.id, clinicId, actorUserId);
+      if (raced) return this.alreadyApplied(clinicId, context, this.toShiftDetail(raced));
+      const active = await this.prisma.staffShift.findFirst({
+        where: { clinicId, userId: actorUserId, status: 'ACTIVE' },
+        include: { user: { select: { id: true, displayName: true } } },
+      });
+      throw this.shiftAlreadyActive(active);
     }
-
-    const created = await this.prisma.staffShift.create({
-      data: {
-        clinicId,
-        userId: actorUserId,
-        roleAtShift: dto.roleAtShift,
-        checkedInAt: new Date(),
-        status: 'ACTIVE',
-        notes: dto.notes ?? null,
-      },
-      include: { user: { select: { id: true, displayName: true } } },
-    });
-
-    await this.auditService.logWrite({
-      clinicId,
-      actorUserId,
-      action: 'SHIFT.CHECKIN',
-      entityType: 'StaffShift',
-      entityId: created.id,
-      afterJson: JSON.stringify(created),
-      requestId,
-    });
-
-    return this.toShiftDetail(created);
   }
 
-  async checkOut(clinicId: string, shiftId: string, actorUserId: string, requestId?: string) {
+  /**
+   * End a shift.
+   *
+   * Online, ending a shift that is already closed is refused with `SHIFT_ALREADY_CLOSED`: the
+   * person tapping it is looking at a stale board and should know. A replay is different. The
+   * device queued "end this shift", and a closed shift is exactly that outcome, whoever closed
+   * it, so a replay reports it as applied rather than leaving an unresolvable conflict queued.
+   */
+  async checkOut(
+    clinicId: string,
+    shiftId: string,
+    actorUserId: string,
+    context: OpsWriteContext = {},
+  ) {
     const existing = await this.prisma.staffShift.findUnique({
       where: { id: shiftId },
       include: { user: { select: { id: true, displayName: true } } },
     });
     if (!existing || existing.clinicId !== clinicId) {
-      throw new NotFoundException('Shift not found');
-    }
-    if (existing.status !== 'ACTIVE') {
-      throw new ConflictException('Shift is already checked out');
+      throw new NotFoundException({ code: 'SHIFT_NOT_FOUND', message: 'Shift not found' });
     }
 
     const canManage = await this.canManageClinicShift(clinicId, actorUserId);
@@ -118,24 +186,38 @@ export class OpsService {
       );
     }
 
-    const updated = await this.prisma.staffShift.update({
-      where: { id: shiftId },
-      data: {
-        status: 'CLOSED',
-        checkedOutAt: new Date(),
-      },
-      include: { user: { select: { id: true, displayName: true } } },
-    });
+    if (existing.status !== 'ACTIVE') {
+      if (context.replay) {
+        return this.alreadyApplied(clinicId, context, this.toShiftDetail(existing));
+      }
+      throw new ConflictException({
+        code: 'SHIFT_ALREADY_CLOSED',
+        message: 'Shift is already checked out',
+      });
+    }
 
-    await this.auditService.logWrite({
-      clinicId,
-      actorUserId,
-      action: 'SHIFT.CHECKOUT',
-      entityType: 'StaffShift',
-      entityId: updated.id,
-      beforeJson: JSON.stringify(existing),
-      afterJson: JSON.stringify(updated),
-      requestId,
+    const checkedOutAt = await this.writeTime(clinicId, context);
+    if (checkedOutAt.getTime() < existing.checkedInAt.getTime()) {
+      throw new BadRequestException({
+        code: 'INVALID_OPS_TIME_ORDER',
+        message: 'A shift cannot end before it started.',
+      });
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const shift = await tx.staffShift.update({
+        where: { id: shiftId },
+        data: { status: 'CLOSED', checkedOutAt },
+        include: { user: { select: { id: true, displayName: true } } },
+      });
+      await this.recordWrite(tx, clinicId, actorUserId, context, {
+        action: 'SHIFT.CHECKOUT',
+        entityType: 'StaffShift',
+        entityId: shift.id,
+        beforeJson: JSON.stringify(existing),
+        afterJson: JSON.stringify(shift),
+      });
+      return shift;
     });
 
     return this.toShiftDetail(updated);
@@ -162,58 +244,91 @@ export class OpsService {
     };
   }
 
+  /**
+   * Record a patient's arrival.
+   *
+   * A patient has at most one open check-in (waiting, assigned or in progress) per clinic day. A
+   * second tap, a second device, or an offline replay of a check-in someone already made online
+   * would otherwise put the same person in the queue twice and invite two volunteers to start two
+   * visits. The check and the insert are serialized per patient, so two concurrent requests
+   * cannot both pass the check.
+   */
   async createCheckIn(
     clinicId: string,
     actorUserId: string,
     dto: CreatePatientCheckInDto,
-    requestId?: string,
+    context: OpsWriteContext = {},
   ) {
     await this.assertActiveClinic(clinicId);
+    const applied = await this.findOwnCheckIn(dto.id, clinicId, dto.patientId);
+    if (applied) return this.alreadyApplied(clinicId, context, this.toCheckInSummary(applied));
+
     const patient = await this.prisma.patient.findFirst({
       where: { id: dto.patientId, primaryClinicId: clinicId },
-      select: {
-        id: true,
-        patientCode: true,
-        firstName: true,
-        lastName: true,
-      },
+      select: { id: true, mergedIntoPatientId: true },
     });
     if (!patient) {
       throw new NotFoundException('Patient not found for this clinic');
     }
+    if (patient.mergedIntoPatientId) {
+      throw new ConflictException({
+        code: 'PATIENT_MERGED',
+        message: 'This chart was merged into another chart. Check in the current chart instead.',
+        canonicalPatientId: patient.mergedIntoPatientId,
+      });
+    }
 
-    const created = await this.prisma.patientCheckIn.create({
-      data: {
-        clinicId,
-        patientId: dto.patientId,
-        checkedInAt: new Date(),
-        source: dto.source ?? 'STAFF',
-        status: 'WAITING',
-        notes: dto.notes ?? null,
-      },
-      include: {
-        patient: {
-          select: {
-            id: true,
-            patientCode: true,
-            firstName: true,
-            lastName: true,
+    const checkedInAt = await this.writeTime(clinicId, context);
+    const day = await this.getDayRangeAt(clinicId, checkedInAt);
+    try {
+      const created = await this.prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`patient-check-in:${clinicId}:${dto.patientId}`}, 0))`;
+        const open = await tx.patientCheckIn.findFirst({
+          where: {
+            clinicId,
+            patientId: dto.patientId,
+            status: { in: OPEN_CHECK_IN_STATUSES },
+            checkedInAt: { gte: day.start, lte: day.end },
           },
-        },
-      },
-    });
+          select: { id: true, status: true },
+        });
+        if (open) {
+          throw new ConflictException({
+            code: 'PATIENT_ALREADY_CHECKED_IN',
+            message: 'This patient is already checked in today.',
+            existingCheckInId: open.id,
+            existingStatus: open.status,
+          });
+        }
 
-    await this.auditService.logWrite({
-      clinicId,
-      actorUserId,
-      action: 'CHECKIN.CREATE',
-      entityType: 'PatientCheckIn',
-      entityId: created.id,
-      afterJson: JSON.stringify(created),
-      requestId,
-    });
-
-    return this.toCheckInSummary(created);
+        const checkIn = await tx.patientCheckIn.create({
+          data: {
+            ...(dto.id ? { id: dto.id } : {}),
+            clinicId,
+            patientId: dto.patientId,
+            checkedInAt,
+            source: dto.source ?? 'STAFF',
+            status: 'WAITING',
+            notes: dto.notes ?? null,
+          },
+          include: { patient: { select: PATIENT_SUMMARY_SELECT } },
+        });
+        await this.recordWrite(tx, clinicId, actorUserId, context, {
+          action: 'CHECKIN.CREATE',
+          entityType: 'PatientCheckIn',
+          entityId: checkIn.id,
+          afterJson: JSON.stringify(checkIn),
+        });
+        return checkIn;
+      });
+      return this.toCheckInSummary(created);
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error;
+      // The same id arrived twice at once and the primary key let one through.
+      const raced = await this.findOwnCheckIn(dto.id, clinicId, dto.patientId);
+      if (raced) return this.alreadyApplied(clinicId, context, this.toCheckInSummary(raced));
+      throw error;
+    }
   }
 
   async listCheckIns(clinicId: string, query: ListCheckInsQueryDto) {
@@ -725,11 +840,110 @@ export class OpsService {
    * the two layers agree about which day they are talking about.
    */
   private async getDayRange(clinicId: string, date?: string): Promise<ClinicDayWindow> {
+    return clinicDayWindow(date, await this.clinicTimeZone(clinicId));
+  }
+
+  /** The clinic day containing `instant`. */
+  private async getDayRangeAt(clinicId: string, instant: Date): Promise<ClinicDayWindow> {
+    const timeZone = await this.clinicTimeZone(clinicId);
+    return clinicDayWindow(todayInTimeZone(timeZone, instant), timeZone);
+  }
+
+  private async clinicTimeZone(clinicId: string): Promise<string> {
     const clinic = await this.prisma.clinic.findUnique({
       where: { id: clinicId },
       select: { timezone: true },
     });
-    return clinicDayWindow(date, clinic?.timezone ?? CLINIC_DEFAULT_TIMEZONE);
+    return clinic?.timezone ?? CLINIC_DEFAULT_TIMEZONE;
+  }
+
+  /** When an online write happens now; when a replayed one happened on the device. */
+  private async writeTime(clinicId: string, context: OpsWriteContext): Promise<Date> {
+    const now = new Date();
+    if (!context.replay) return now;
+    return resolveReplayTime(context.replay.occurredAt, now, await this.clinicTimeZone(clinicId));
+  }
+
+  /**
+   * The shift a client-supplied id already names, if its check-in already applied.
+   *
+   * An id that names someone else's shift is not a replay of this request, and is refused rather
+   * than returned: returning it would hand one user another user's shift.
+   */
+  private async findOwnShift(id: string | undefined, clinicId: string, userId: string) {
+    if (!id) return null;
+    const shift = await this.prisma.staffShift.findUnique({
+      where: { id },
+      include: { user: { select: { id: true, displayName: true } } },
+    });
+    if (!shift) return null;
+    if (shift.clinicId !== clinicId || shift.userId !== userId) {
+      throw new ConflictException({
+        code: 'APPLICATION_CONFLICT',
+        message: 'This shift id is already in use.',
+      });
+    }
+    return shift;
+  }
+
+  /** The check-in a client-supplied id already names, if it already applied. */
+  private async findOwnCheckIn(id: string | undefined, clinicId: string, patientId: string) {
+    if (!id) return null;
+    const checkIn = await this.prisma.patientCheckIn.findUnique({
+      where: { id },
+      include: { patient: { select: PATIENT_SUMMARY_SELECT } },
+    });
+    if (!checkIn) return null;
+    if (checkIn.clinicId !== clinicId || checkIn.patientId !== patientId) {
+      throw new ConflictException({
+        code: 'APPLICATION_CONFLICT',
+        message: 'This check-in id is already in use.',
+      });
+    }
+    return checkIn;
+  }
+
+  private shiftAlreadyActive(active: ShiftWithUser | null) {
+    return new ConflictException({
+      code: 'SHIFT_ALREADY_ACTIVE',
+      message: 'User already has an active shift in this clinic',
+      ...(active ? { existingShiftId: active.id, existingShift: this.toActiveShift(active) } : {}),
+    });
+  }
+
+  /**
+   * A write that had already applied before this request. A replay still leaves its idempotency
+   * record, so the next replay of the same key is answered without reaching this service.
+   */
+  private async alreadyApplied<T>(clinicId: string, context: OpsWriteContext, result: T) {
+    if (context.replay) {
+      await recordAppliedSyncMutation(this.prisma, clinicId, context.replay.syncMutation);
+    }
+    return result;
+  }
+
+  /** The audit event, and for a replay its idempotency record, committed with the write. */
+  private async recordWrite(
+    tx: TxClient,
+    clinicId: string,
+    actorUserId: string,
+    context: OpsWriteContext,
+    event: Pick<LogWriteParams, 'action' | 'entityType' | 'entityId' | 'beforeJson' | 'afterJson'>,
+  ) {
+    await this.auditService.logWrite(
+      {
+        ...event,
+        clinicId,
+        actorUserId,
+        requestId: context.requestId,
+        ipAddress: context.replay?.ipAddress,
+        userAgent: context.replay?.userAgent,
+      },
+      tx,
+    );
+    if (context.replay) {
+      await recordAppliedSyncMutation(tx, clinicId, context.replay.syncMutation);
+    }
   }
 
   private toUserRole(roleAtShift: ShiftRole): UserRole {

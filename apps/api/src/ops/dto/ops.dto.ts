@@ -5,6 +5,14 @@ import { ToSanitizedString } from '../../common/validation';
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export class ShiftCheckInDto {
+  /**
+   * Optional client-generated id. The web generates one per action, so a request cut off
+   * mid-flight can be replayed from the offline queue without creating a second record.
+   */
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
   @IsEnum(ShiftRole)
   roleAtShift!: ShiftRole;
 
@@ -22,6 +30,14 @@ export class ActiveShiftsQueryDto {
 }
 
 export class CreatePatientCheckInDto {
+  /**
+   * Optional client-generated id. The web generates one per action, so a request cut off
+   * mid-flight can be replayed from the offline queue without creating a second record.
+   */
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
   @IsUUID()
   patientId!: string;
 

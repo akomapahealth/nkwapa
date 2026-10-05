@@ -5,6 +5,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Clinic, Prisma, UserRole } from '@prisma/client';
+import { isUniqueViolation } from '../common/prisma-errors';
 import {
   CLINIC_DEFAULT_COUNTRY_CODE,
   CLINIC_DEFAULT_ORGANIZATION_NAME,
@@ -466,7 +467,7 @@ export class ClinicService {
     try {
       return await write();
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      if (isUniqueViolation(error)) {
         throw this.locationCodeConflict(locationCode);
       }
       throw error;

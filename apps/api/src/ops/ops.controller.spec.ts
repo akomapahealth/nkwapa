@@ -76,6 +76,7 @@ describe('OpsController', () => {
     createAssignment: jest.Mock;
     listMyAssignments: jest.Mock;
     checkOut: jest.Mock;
+    createCheckIn: jest.Mock;
   };
   let clinicScopeGuard: ClinicScopeGuard;
   let rbacGuard: RbacGuard;
@@ -85,6 +86,7 @@ describe('OpsController', () => {
       createAssignment: jest.fn().mockResolvedValue({ id: 'assignment-1' }),
       listMyAssignments: jest.fn().mockResolvedValue({ items: [] }),
       checkOut: jest.fn().mockResolvedValue({ id: 'shift-1' }),
+      createCheckIn: jest.fn().mockResolvedValue({ id: 'checkin-1' }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -227,5 +229,18 @@ describe('OpsController', () => {
         headers: {},
       }),
     ).rejects.toThrow(NotFoundException);
+  });
+
+  it('passes the client id through so a cut-off request can be replayed under it', async () => {
+    const body = { id: '0b9a4a8e-4c1f-4c38-9b2d-6f1f8f0a1c02', patientId: 'patient-1' };
+
+    await controller.createCheckIn('clinic-1', body, {
+      user: managerUser,
+      headers: { 'x-request-id': 'req-9' },
+    });
+
+    expect(opsService.createCheckIn).toHaveBeenCalledWith('clinic-1', expect.any(String), body, {
+      requestId: 'req-9',
+    });
   });
 });
