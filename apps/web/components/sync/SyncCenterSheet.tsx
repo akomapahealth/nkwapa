@@ -15,6 +15,7 @@ import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { db } from '@/lib/db';
 import { discardOutboxMutation, retryOutboxMutation } from '@/lib/outbox';
 import { trackEvent } from '@/lib/analytics';
+import type { SyncRecoveryAccess } from '@/lib/sync-conflicts';
 import type { OutboxQueue, OutboxQueueItem } from '@/lib/use-outbox-queue';
 import { DiscardMutationDialog } from './DiscardMutationDialog';
 import { SyncMutationCard } from './SyncMutationCard';
@@ -41,12 +42,12 @@ export function SyncCenterSheet({
   clinicId,
   queue,
   canSync,
-  canReviewDuplicates,
+  recoveryAccess,
 }: {
   clinicId: string;
   queue: OutboxQueue;
   canSync: boolean;
-  canReviewDuplicates: boolean;
+  recoveryAccess: SyncRecoveryAccess;
 }) {
   const {
     isOnline,
@@ -186,7 +187,7 @@ export function SyncCenterSheet({
                       <SyncMutationCard
                         item={item}
                         clinicId={clinicId}
-                        canReviewDuplicates={canReviewDuplicates}
+                        recoveryAccess={recoveryAccess}
                         isOnline={isOnline && canSync}
                         busy={busyId === item.row.id || syncing}
                         onRetry={(target) => void handleRetry(target)}

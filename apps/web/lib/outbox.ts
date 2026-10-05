@@ -1,4 +1,10 @@
-import type { NkwapaDb, OutboxFailure, OutboxRecord, OutboxSyncState } from './db';
+import type {
+  NkwapaDb,
+  OutboxFailure,
+  OutboxLocalContext,
+  OutboxRecord,
+  OutboxSyncState,
+} from './db';
 
 export const SYNC_OPERATION = {
   UPSERT: 'UPSERT',
@@ -14,6 +20,7 @@ export interface OutboxMutationParams {
   operation: SyncOperationType;
   payloadJson: Record<string, unknown>;
   idempotencyKey?: string;
+  localContext?: OutboxLocalContext;
 }
 
 export interface OutboxRecordShape {
@@ -25,6 +32,7 @@ export interface OutboxRecordShape {
   payloadJson: string;
   idempotencyKey: string;
   createdAt: string;
+  localContext?: OutboxLocalContext;
 }
 
 export interface MedicalHistoryOutboxPayload {
@@ -117,17 +125,29 @@ export function buildOutboxMutation(params: OutboxMutationParams): OutboxRecordS
     payloadJson: JSON.stringify(params.payloadJson),
     idempotencyKey,
     createdAt,
+    ...(params.localContext ? { localContext: params.localContext } : {}),
   };
 }
 
 /**
  * Enqueues an outbox mutation to IndexedDB.
  * Writes to db.outbox and returns the created record.
+ *
+ * A caller that names its own idempotency key is saying "this is one action", so a second enqueue
+ * under the same key returns the row already queued instead of adding another. A double tap on a
+ * check-in button would otherwise queue two rows that the server has to deduplicate.
  */
 export async function enqueueOutboxMutation(
   dbInstance: NkwapaDb,
   params: OutboxMutationParams,
 ): Promise<OutboxRecordShape> {
+  if (params.idempotencyKey) {
+    const queued = await dbInstance.outbox
+      .where('idempotencyKey')
+      .equals(params.idempotencyKey)
+      .first();
+    if (queued) return queued;
+  }
   const record = buildOutboxMutation(params);
   await dbInstance.outbox.add(record);
   return record;

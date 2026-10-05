@@ -19,6 +19,7 @@ import {
   syncRecoveryActionLabel,
   type SyncFailureDescription,
   type SyncFailureTone,
+  type SyncRecoveryAccess,
   type SyncRecoveryAction,
 } from '@/lib/sync-conflicts';
 import type { OutboxQueueItem } from '@/lib/use-outbox-queue';
@@ -43,6 +44,8 @@ function actionHref(description: SyncFailureDescription, action: SyncRecoveryAct
       return description.duplicatesHref;
     case 'open-encounter':
       return description.encounterHref;
+    case 'open-ops-board':
+      return description.opsBoardHref;
     default:
       return undefined;
   }
@@ -77,7 +80,7 @@ function supportSnapshot(item: OutboxQueueItem) {
 export function SyncMutationCard({
   item,
   clinicId,
-  canReviewDuplicates,
+  recoveryAccess,
   isOnline,
   busy,
   onRetry,
@@ -86,7 +89,7 @@ export function SyncMutationCard({
 }: {
   item: OutboxQueueItem;
   clinicId: string;
-  canReviewDuplicates: boolean;
+  recoveryAccess: SyncRecoveryAccess;
   isOnline: boolean;
   busy: boolean;
   onRetry: (item: OutboxQueueItem) => void;
@@ -96,7 +99,7 @@ export function SyncMutationCard({
   const { row } = item;
   const { state: copyState, copy } = useCopyToClipboard();
   const description = row.lastFailure
-    ? describeSyncFailure(row, { clinicId, canReviewDuplicates, patientId: item.patientId })
+    ? describeSyncFailure(row, { ...recoveryAccess, clinicId, patientId: item.patientId })
     : null;
   const tone = TONE[description?.tone ?? 'info'];
   const Icon = tone.icon;

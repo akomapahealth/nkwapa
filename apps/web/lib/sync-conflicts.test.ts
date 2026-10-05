@@ -238,3 +238,79 @@ describe('describeSyncTransportFailure', () => {
     expect(failure.detail).toHaveLength(2000);
   });
 });
+
+describe('clinic operations in the sync center', () => {
+  const checkIn = (conflictType: string, conflictDetails: Record<string, unknown> = {}) =>
+    failed(conflictType, conflictDetails, {
+      entityType: 'patient_check_in',
+      entityId: 'checkin-1',
+      payloadJson: JSON.stringify({ schemaVersion: 1, patientId: 'patient-1' }),
+    });
+
+  it('names each queued operation in the product’s words', () => {
+    expect(syncEntityLabel('shift_check_in')).toBe('Shift start');
+    expect(syncEntityLabel('shift_check_out')).toBe('Shift end');
+    expect(syncEntityLabel('patient_check_in')).toBe('Patient check-in');
+  });
+
+  // Retry stays: once the earlier check-in is completed or cancelled, a new one is allowed.
+  it('sends a duplicate arrival to the board and the chart first', () => {
+    const description = describeSyncFailure(checkIn('PATIENT_ALREADY_CHECKED_IN'), context);
+
+    expect(description.title).toBe('This patient is already checked in today');
+    expect(description.opsBoardHref).toBe('/today');
+    expect(description.patientHref).toBe('/clinics/clinic-1/patients/patient-1');
+    expect(description.actions).toEqual(['open-ops-board', 'open-patient', 'retry', 'discard']);
+  });
+
+  it('sends someone without the Today board to their own assignments instead', () => {
+    const description = describeSyncFailure(checkIn('PATIENT_ALREADY_CHECKED_IN'), {
+      ...context,
+      opsBoardHref: '/my/assigned',
+    });
+
+    expect(description.opsBoardHref).toBe('/my/assigned');
+    expect(description.actionLabels['open-ops-board']).toBe('Open my assignments');
+  });
+
+  it('offers no board link to someone who has no board', () => {
+    const description = describeSyncFailure(checkIn('PATIENT_ALREADY_CHECKED_IN'), {
+      ...context,
+      opsBoardHref: null,
+    });
+
+    expect(description.actions).not.toContain('open-ops-board');
+  });
+
+  it('lets a clinician retry a shift that collided once the other one is ended', () => {
+    const description = describeSyncFailure(
+      failed(
+        'SHIFT_ALREADY_ACTIVE',
+        { existingShiftId: 'shift-2' },
+        {
+          entityType: 'shift_check_in',
+          payloadJson: JSON.stringify({ schemaVersion: 1, roleAtShift: 'VOLUNTEER' }),
+        },
+      ),
+      context,
+    );
+
+    expect(description.title).toBe('You already have a shift running');
+    expect(description.actions).toEqual(['open-ops-board', 'retry', 'discard']);
+  });
+
+  it('does not offer a retry for a day that has passed', () => {
+    const description = describeSyncFailure(
+      failed(
+        'OPS_REPLAY_EXPIRED',
+        {},
+        { entityType: 'shift_check_out', payloadJson: '{"schemaVersion":1}' },
+        'ERROR',
+      ),
+      context,
+    );
+
+    expect(description.title).toBe('This was saved on an earlier clinic day');
+    expect(description.actions).not.toContain('retry');
+  });
+});
