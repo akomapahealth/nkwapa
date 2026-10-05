@@ -40,8 +40,7 @@
     "recharts": "^3.7.0",
     "sharp": "^0.35.3",
     "socket.io-client": "^4.8.3",
-    "tailwind-merge": "^3.5.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
@@ -61,6 +60,7 @@
     "jest-environment-jsdom": "^29.7.0",
     "postcss": "^8.5.25",
     "tailwindcss": "^3.4.19",
+    "tailwindcss-animate": "^1.0.7",
     "ts-jest": "^29.4.11",
     "typescript": "^5.3.3"
   }

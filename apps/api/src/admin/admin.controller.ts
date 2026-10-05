@@ -23,10 +23,12 @@ import { AdminMergePreviewQueryDto } from '../patients/dto/merge-preview.query.d
 import { PatientDuplicateService } from '../patients/patient-duplicate.service';
 import { PatientMergeService } from '../patients/patient-merge.service';
 import { ListDuplicateCandidatesQueryDto } from '../patients/dto/list-duplicate-candidates.query.dto';
+import { CrossClinicInvestigationQueryDto } from '../patients/dto/cross-clinic-investigation.query.dto';
 import { ReviewDuplicatePairDto } from '../patients/dto/review-duplicate-pair.dto';
 import type { ReqUserWithRoles } from '../auth/guards/rbac.guard';
 import { Track } from '../telemetry/track.decorator';
 import {
+  crossClinicInvestigationShape,
   mergePreviewClinic,
   mergePreviewShape,
   mergeResultClinic,
@@ -123,6 +125,28 @@ export class AdminController {
       { userId: req.user.user.id, roles: req.user.roles },
       { clinicId: null },
       query,
+    );
+  }
+
+  /**
+   * Likely duplicates spanning two active clinics, and how many there are per clinic pair.
+   *
+   * Investigation only: nothing on this route writes to a chart, and merge still refuses every
+   * pair it returns. Declared before any `patients/duplicates/:param` route could shadow it.
+   * Three layers hold the line -- the permission here, the system-admin assertion in the service,
+   * and row level security -- because each is one refactor from being the only one.
+   */
+  @Get('patients/duplicates/cross-clinic')
+  @Track('patient.duplicate.investigate', { describe: crossClinicInvestigationShape })
+  @RequirePermission(PERMISSIONS.PATIENT_DUPLICATE_REVIEW)
+  async investigateCrossClinicDuplicates(
+    @Query() query: CrossClinicInvestigationQueryDto,
+    @Request() req: { user: ReqUserWithRoles; headers?: { 'x-request-id'?: string } },
+  ) {
+    return this.patientDuplicateService.investigateCrossClinic(
+      { userId: req.user.user.id, roles: req.user.roles },
+      query,
+      req.headers?.['x-request-id'] ?? randomUUID(),
     );
   }
 

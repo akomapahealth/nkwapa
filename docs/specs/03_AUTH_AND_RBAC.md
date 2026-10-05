@@ -137,6 +137,28 @@ independently, by row level security. A review decision about a pair spanning tw
 with a null `clinicId`, which the `PatientDuplicateReview` policy reads as system administrators
 only.
 
+The cross-clinic investigation, `GET /admin/patients/duplicates/cross-clinic`, is the one view
+that puts two clinics' identity data side by side, so it is held at three layers:
+
+1. `RbacGuard` requires `PATIENT.DUPLICATE.REVIEW`, which turns doctors and volunteers away before
+   anything is read.
+2. `PatientDuplicateService` refuses anyone without a global `SYSTEM_ADMIN` role. A director or
+   manager holds the permission at their own clinic and passes the guard; they are refused here,
+   and a `SYSTEM_ADMIN` row scoped to a clinic does not count.
+3. Row level security limits a non-system-admin context to its own clinics regardless.
+
+The web page repeats the system-admin check so a director meets an explanation rather than a failed
+request, and its navigation entry is `systemAdminOnly`. Every successful load writes an
+`AuditEvent` with action `PATIENT.DUPLICATE.CROSS_CLINIC.VIEW`, entity type
+`PatientDuplicateInvestigation`, a null `clinicId`, and only the filters used and the counts
+returned. No patient identifier or search text is recorded, so the audit trail shows that someone
+looked without becoming a copy of what they saw. The route also emits the
+`patient.duplicate.investigate` telemetry event with counts only.
+
+The investigation is read-only. Future org-level roles can be granted access by widening the
+service check, which is the single place it is decided; merging across clinics stays refused until
+a consolidation policy exists (see `02_DOMAIN_MODEL_AND_DATA_DICTIONARY.md`).
+
 ---
 
 ## Zone Model

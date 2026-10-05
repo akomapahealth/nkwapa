@@ -13,6 +13,7 @@ import {
   isMergeBlocked,
   mergeFinding,
   mergePreviewFingerprint,
+  structuralMergeFindings,
   type DuplicateConfidence,
   type DuplicateMatchReason,
   type MergeFinding,
@@ -594,21 +595,7 @@ export class PatientMergeService {
       toDuplicateInput(source),
     );
 
-    const findings: MergeFinding[] = [];
-
-    if (canonical.mergedIntoPatientId) findings.push(mergeFinding('CANONICAL_ALREADY_MERGED'));
-    if (source.mergedIntoPatientId) findings.push(mergeFinding('SOURCE_ALREADY_MERGED'));
-
-    if (canonical.primaryClinicId !== source.primaryClinicId) {
-      findings.push(
-        mergeFinding(
-          'CROSS_CLINIC',
-          `${canonical.primaryClinic.name} and ${source.primaryClinic.name}`,
-        ),
-      );
-    } else if (!canonical.primaryClinic.isActive) {
-      findings.push(mergeFinding('CLINIC_INACTIVE', canonical.primaryClinic.name));
-    }
+    const findings: MergeFinding[] = structuralMergeFindings(canonical, source);
 
     if (aliasCollisions.length > 0) {
       findings.push(

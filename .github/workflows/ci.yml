@@ -249,6 +249,9 @@ jobs:
       # The duplicate review queue has no populated state without these. Patient.nationalIdHash
       # is globally unique, so no other seeded chart can ever collide with another.
       SEED_SAMPLE_DUPLICATES: 'true'
+      # The cross-clinic investigation needs a second active clinic and an inactive one, with
+      # charts that match across them. No staff seat is granted there, so switchers are unchanged.
+      SEED_SAMPLE_CROSS_CLINIC: 'true'
       # A merge cannot be undone, so canonical-redirect coverage needs a chart that arrives
       # already merged rather than one the suite merges and destroys.
       SEED_SAMPLE_IDENTITY: 'true'
@@ -360,6 +363,7 @@ jobs:
         env:
           SEED_SAMPLE_APPOINTMENTS: ${{ env.SEED_SAMPLE_APPOINTMENTS }}
           SEED_SAMPLE_DUPLICATES: ${{ env.SEED_SAMPLE_DUPLICATES }}
+          SEED_SAMPLE_CROSS_CLINIC: ${{ env.SEED_SAMPLE_CROSS_CLINIC }}
           SEED_SAMPLE_IDENTITY: ${{ env.SEED_SAMPLE_IDENTITY }}
           # No SEED_E2E_CLAIMANT_SUB on purpose. Keycloak does not always honour the requested
           # user id, so the provisioning step writes the real one back over E2E_CLAIMANT_SUB

@@ -77,23 +77,30 @@ operator inferred it from a disabled button further down.
 
 ## Coverage
 
-| Surface                                                                    | Where                                                                                 |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Duplicate rules, exact and fuzzy, through the queue                        | `apps/api/src/patients/patient-duplicate.service.spec.ts`                             |
-| Blocking SQL: five branches, tombstone exclusion, clinic scope, ceiling    | `apps/api/src/patients/patient-duplicate.repository.spec.ts`                          |
-| Every merge refusal and warning, both strategies, the commit-time re-check | `apps/api/src/patients/patient-merge.service.spec.ts`                                 |
-| Canonical redirects: chains, cycles, aliases, the `includeMerged` scope    | `apps/api/src/patients/patient.repository.spec.ts`                                    |
-| The chart route, and which record it authorises                            | `apps/api/src/patients/patients.controller.spec.ts`                                   |
-| Every claim refusal and acceptance                                         | `apps/api/src/patient-portal/patient-claim.spec.ts`                                   |
-| The claim endpoint's guards and rate limit                                 | `apps/api/src/patient-portal/patient-claim.controller.spec.ts`                        |
-| Claim onboarding in `whoami`                                               | `apps/api/src/auth/auth.controller.spec.ts`                                           |
-| The table against the code and the published matrix                        | `apps/api/src/patients/patient-identity-matrix.spec.ts`                               |
-| A refused merge and the redirect banner, in a browser                      | `apps/web/e2e/patient-identity.spec.js`, `apps/web/e2e/patient-merge-preview.spec.js` |
-| Claiming a record in a browser, refused and accepted                       | `apps/web/e2e/patient-claim.spec.js`                                                  |
+| Surface                                                                    | Where                                                                                                                            |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Duplicate rules, exact and fuzzy, through the queue                        | `apps/api/src/patients/patient-duplicate.service.spec.ts`                                                                        |
+| Blocking SQL: five branches, tombstone exclusion, clinic scope, ceiling    | `apps/api/src/patients/patient-duplicate.repository.spec.ts`                                                                     |
+| Every merge refusal and warning, both strategies, the commit-time re-check | `apps/api/src/patients/patient-merge.service.spec.ts`                                                                            |
+| Canonical redirects: chains, cycles, aliases, the `includeMerged` scope    | `apps/api/src/patients/patient.repository.spec.ts`                                                                               |
+| The chart route, and which record it authorises                            | `apps/api/src/patients/patients.controller.spec.ts`                                                                              |
+| Every claim refusal and acceptance                                         | `apps/api/src/patient-portal/patient-claim.spec.ts`                                                                              |
+| The claim endpoint's guards and rate limit                                 | `apps/api/src/patient-portal/patient-claim.controller.spec.ts`                                                                   |
+| Claim onboarding in `whoami`                                               | `apps/api/src/auth/auth.controller.spec.ts`                                                                                      |
+| The table against the code and the published matrix                        | `apps/api/src/patients/patient-identity-matrix.spec.ts`                                                                          |
+| A refused merge and the redirect banner, in a browser                      | `apps/web/e2e/patient-identity.spec.js`, `apps/web/e2e/patient-merge-preview.spec.js`                                            |
+| Claiming a record in a browser, refused and accepted                       | `apps/web/e2e/patient-claim.spec.js`                                                                                             |
+| Cross-clinic investigation: scope, burden, audit, refusals                 | `apps/api/src/patients/patient-duplicate.service.spec.ts`, `apps/api/src/patients/cross-clinic-investigation.controller.spec.ts` |
+| Cross-clinic investigation in a browser, and refusal for clinical roles    | `apps/web/e2e/cross-clinic-investigation.spec.js`                                                                                |
 
 ## Test data requirements
 
 `SEED_SAMPLE_DUPLICATES=true` stages two duplicate pairs, one obvious and one ambiguous.
+
+`SEED_SAMPLE_CROSS_CLINIC=true` stages an active "Nkwapa Clinic - Kumasi" and an inactive
+"Nkwapa Clinic - Tamale" beside the demo clinic, with Efua Asante (very likely) and Yaw / Yao Darko
+(possible) across demo and Kumasi, and Abena Sarpong across Kumasi and the inactive clinic, which
+the investigation must not show. No staff seat is granted at either new clinic.
 
 `SEED_SAMPLE_IDENTITY=true` stages what using the product cannot produce:
 
@@ -115,8 +122,10 @@ hash, so re-seeding is a no-op.
   order, four widths, axe, and a real claim. The states one account cannot reach -- a phone-only
   match, a lapsed or cancelled invitation, a record already linked elsewhere -- stay in section 6b
   as manual checks and are covered at the service level.
-- **Cross-clinic consolidation is still refused outright**, and the queue marks such pairs as not
-  mergeable. That is the next ticket, not a gap here.
+- **Cross-clinic consolidation is still refused outright.** Such pairs can now be investigated
+  and counted at `/admin/duplicates/cross-clinic`, and every pair says why it cannot be merged;
+  building consolidation waits on the ownership and consent policy described in
+  `02_DOMAIN_MODEL_AND_DATA_DICTIONARY.md`.
 - **`listPendingInvitesForUser` has no route and no test.** It duplicates the onboarding query with
   a slightly different shape, so the two can drift. Wire it or delete it.
 - **`getPortalAccessSummary`'s merged branch is unreachable** from its only production caller,
@@ -128,7 +137,8 @@ hash, so re-seeding is a no-op.
 
 ## Operator steps before enablement
 
-1. Seed with `SEED_SAMPLE_DUPLICATES=true` and `SEED_SAMPLE_IDENTITY=true`.
+1. Seed with `SEED_SAMPLE_DUPLICATES=true`, `SEED_SAMPLE_CROSS_CLINIC=true` and
+   `SEED_SAMPLE_IDENTITY=true`.
 2. Run `npm run test --workspace=@nkwapa/api` and `npm run typecheck`.
 3. Regenerate the matrix with `npm run docs:identity-matrix --workspace=@nkwapa/api` and confirm it
    produces no diff.

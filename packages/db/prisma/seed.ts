@@ -633,6 +633,167 @@ const SEED_VARIABLE_FOR_FIELD: Record<string, string> = {
  * Only errors stop the seed. A missing zone code is a warning by design -- zoneCode stays
  * optional until zone RBAC exists, and a demo environment should not need one.
  */
+/** A synthetic chart for the duplicate fixtures, identified by a national ID that ends in digits. */
+interface FixtureChart {
+  firstName: string;
+  lastName: string;
+  dob: Date;
+  sex: Sex;
+  phoneE164: string | null;
+  email: string | null;
+  nationalId: string;
+}
+
+/**
+ * Create one fixture chart unless it already exists, reporting whether it did.
+ *
+ * Guarded on the national ID hash rather than the name, because the whole point of these fixtures
+ * is that two of them share a name.
+ */
+async function ensureFixtureChart(
+  prisma: PrismaClient,
+  clinicId: string,
+  chart: FixtureChart,
+): Promise<boolean> {
+  const existing = await prisma.patient.findUnique({
+    where: { nationalIdHash: hashNationalId(chart.nationalId) },
+  });
+  if (existing) return false;
+
+  await prisma.patient.create({
+    data: {
+      patientCode: await generatePatientCode(prisma),
+      primaryClinicId: clinicId,
+      firstName: chart.firstName,
+      lastName: chart.lastName,
+      dob: chart.dob,
+      sex: chart.sex,
+      phoneE164: chart.phoneE164,
+      email: chart.email,
+      nationalIdType: NationalIdType.NATIONAL_ID,
+      nationalIdCiphertext: encryptNationalId(chart.nationalId),
+      nationalIdHash: hashNationalId(chart.nationalId),
+      nationalIdLast4: nationalIdLast4(chart.nationalId),
+    },
+  });
+  return true;
+}
+
+/** Find a fixture clinic by its location code, creating it, and holding it to `isActive`. */
+async function ensureFixtureClinic(
+  prisma: PrismaClient,
+  params: {
+    organizationId: string;
+    name: string;
+    region: string;
+    timezone: string;
+    isActive: boolean;
+  },
+) {
+  const locationCode = toLocationCode(params.name);
+  const data = {
+    organizationId: params.organizationId,
+    name: params.name,
+    region: params.region,
+    countryCode: CLINIC_DEFAULT_COUNTRY_CODE,
+    timezone: params.timezone,
+    locationCode,
+    isActive: params.isActive,
+  };
+  const existing = await prisma.clinic.findFirst({
+    where: { organizationId: params.organizationId, locationCode },
+  });
+  return existing
+    ? prisma.clinic.update({ where: { id: existing.id }, data })
+    : prisma.clinic.create({ data });
+}
+
+/*
+  Charts that look like the same person but sit in different clinics.
+
+  The cross-clinic investigation has nothing to show on a one-clinic seed, so this stages a second,
+  active clinic and a third, inactive one, and three pairs across them:
+
+    - Efua Asante, demo clinic and Kumasi: same name, birthday and phone -> HIGH
+    - Yaw / Yao Darko, demo clinic and Kumasi: similar name, same birthday and email -> MEDIUM
+    - Abena Sarpong, Kumasi and the closed Tamale clinic: same name, birthday and phone, but one
+      clinic is inactive, so the investigation must not show it at all
+
+  No staff seat is granted at either new clinic, so every clinic switcher and roster stays as it
+  was; only a system administrator's all-clinics views see them. Both names also sort after
+  "Nkwapa Clinic - Demo", so a system administrator's fallback active clinic -- the first by name
+  -- stays the demo clinic every other spec expects to land in.
+*/
+async function seedCrossClinicFixtures(
+  prisma: PrismaClient,
+  params: { organizationId: string; homeClinicId: string; timezone: string },
+) {
+  const kumasi = await ensureFixtureClinic(prisma, {
+    organizationId: params.organizationId,
+    name: 'Nkwapa Clinic - Kumasi',
+    region: 'Ashanti',
+    timezone: params.timezone,
+    isActive: true,
+  });
+  const tamale = await ensureFixtureClinic(prisma, {
+    organizationId: params.organizationId,
+    name: 'Nkwapa Clinic - Tamale',
+    region: 'Northern',
+    timezone: params.timezone,
+    isActive: false,
+  });
+
+  const efua = {
+    firstName: 'Efua',
+    lastName: 'Asante',
+    dob: new Date('1985-02-11'),
+    sex: Sex.FEMALE,
+    phoneE164: '+233241110001',
+    email: null,
+  };
+  const darko = {
+    lastName: 'Darko',
+    dob: new Date('1979-09-23'),
+    sex: Sex.MALE,
+    phoneE164: null,
+    email: 'yaw.darko@nkwapa.local',
+  };
+  const abena = {
+    firstName: 'Abena',
+    lastName: 'Sarpong',
+    dob: new Date('1993-12-02'),
+    sex: Sex.FEMALE,
+    phoneE164: '+233241110003',
+    email: null,
+  };
+
+  const fixtures: { clinicId: string; chart: FixtureChart }[] = [
+    { clinicId: params.homeClinicId, chart: { ...efua, nationalId: 'GH-XC-EFUA-207741' } },
+    { clinicId: kumasi.id, chart: { ...efua, nationalId: 'GH-XC-EFUA-207742' } },
+    {
+      clinicId: params.homeClinicId,
+      chart: { ...darko, firstName: 'Yaw', nationalId: 'GH-XC-DARKO-319951' },
+    },
+    {
+      clinicId: kumasi.id,
+      chart: { ...darko, firstName: 'Yao', nationalId: 'GH-XC-DARKO-319952' },
+    },
+    { clinicId: kumasi.id, chart: { ...abena, nationalId: 'GH-XC-ABENA-428861' } },
+    { clinicId: tamale.id, chart: { ...abena, nationalId: 'GH-XC-ABENA-428862' } },
+  ];
+
+  let seeded = 0;
+  for (const { clinicId, chart } of fixtures) {
+    if (await ensureFixtureChart(prisma, clinicId, chart)) seeded += 1;
+  }
+
+  console.log(
+    seeded === 0
+      ? 'Sample cross-clinic charts already exist; skipping.'
+      : `Seeded ${seeded} sample cross-clinic chart(s) across Kumasi and the inactive Tamale clinic.`,
+  );
+}
+
 function assertSeedMetadataIsValid(input: Parameters<typeof evaluateClinicMetadata>[0]) {
   const blocking = evaluateClinicMetadata(input).filter((issue) => issue.severity === 'error');
   if (blocking.length === 0) return;
@@ -923,30 +1084,7 @@ async function main() {
 
     let seededDuplicates = 0;
     for (const chart of duplicateCharts) {
-      // Guarded on the national ID hash rather than the name, because the whole point of these
-      // fixtures is that two of them share a name.
-      const existing = await prisma.patient.findUnique({
-        where: { nationalIdHash: hashNationalId(chart.nationalId) },
-      });
-      if (existing) continue;
-
-      await prisma.patient.create({
-        data: {
-          patientCode: await generatePatientCode(prisma),
-          primaryClinicId: clinic.id,
-          firstName: chart.firstName,
-          lastName: chart.lastName,
-          dob: chart.dob,
-          sex: chart.sex,
-          phoneE164: chart.phoneE164,
-          email: chart.email,
-          nationalIdType: NationalIdType.NATIONAL_ID,
-          nationalIdCiphertext: encryptNationalId(chart.nationalId),
-          nationalIdHash: hashNationalId(chart.nationalId),
-          nationalIdLast4: nationalIdLast4(chart.nationalId),
-        },
-      });
-      seededDuplicates += 1;
+      if (await ensureFixtureChart(prisma, clinic.id, chart)) seededDuplicates += 1;
     }
 
     console.log(
@@ -957,6 +1095,19 @@ async function main() {
   } else if (seedSampleDuplicates && !hasEncryptionKey()) {
     console.warn(
       'SEED_SAMPLE_DUPLICATES=true but NATIONAL_ID_ENCRYPTION_KEY not set; skipping duplicates.',
+    );
+  }
+
+  const seedSampleCrossClinic = process.env.SEED_SAMPLE_CROSS_CLINIC === 'true';
+  if (seedSampleCrossClinic && hasEncryptionKey()) {
+    await seedCrossClinicFixtures(prisma, {
+      organizationId: organization.id,
+      homeClinicId: clinic.id,
+      timezone: clinicTimezone,
+    });
+  } else if (seedSampleCrossClinic && !hasEncryptionKey()) {
+    console.warn(
+      'SEED_SAMPLE_CROSS_CLINIC=true but NATIONAL_ID_ENCRYPTION_KEY not set; skipping cross-clinic charts.',
     );
   }
 

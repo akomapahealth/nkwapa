@@ -232,6 +232,27 @@ for (const breakpoint of BREAKPOINTS) {
   });
 }
 
+test('the cross-clinic investigation and its comparison panel survive an axe sweep', async ({
+  page,
+}) => {
+  await page.goto('/admin/duplicates/cross-clinic');
+  await expect(
+    page.locator('#main-content').getByRole('heading', { name: /cross-clinic duplicates/i }),
+  ).toBeVisible({ timeout: 30_000 });
+  await expect(
+    page
+      .getByRole('grid')
+      .getByText(/Efua Asante/)
+      .first(),
+  ).toBeVisible({ timeout: 20_000 });
+
+  expect(describeViolations((await analyze(page)).violations), 'investigation').toBe('');
+
+  await page.getByRole('grid').getByRole('button', { name: 'Compare' }).first().click();
+  await expect(page.getByRole('dialog').getByRole('heading', { name: /compare/i })).toBeVisible();
+  expect(describeViolations((await analyze(page)).violations), 'comparison panel').toBe('');
+});
+
 test('the clinic registry, its filters, its dialog, and its combobox survive an axe sweep', async ({
   page,
 }) => {

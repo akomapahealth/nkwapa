@@ -35,6 +35,7 @@ function chart(overrides: Partial<DuplicatePatientRecord> = {}): DuplicatePatien
     primaryClinic: {
       id: CLINIC_A,
       name: 'Nkwapa Clinic - Demo',
+      isActive: true,
       organizationId: 'org-1',
       organization: { name: 'Nkwapa Health' },
     },
@@ -172,6 +173,7 @@ describe('PatientDuplicateService.listCandidates', () => {
       primaryClinic: {
         id: CLINIC_B,
         name: 'Nkwapa Clinic - Kumasi',
+        isActive: true,
         organizationId: 'org-1',
         organization: { name: 'Nkwapa Health' },
       },
@@ -428,6 +430,7 @@ describe('PatientDuplicateService.recordReview', () => {
           primaryClinic: {
             id: CLINIC_B,
             name: 'Nkwapa Clinic - Kumasi',
+            isActive: true,
             organizationId: 'org-1',
             organization: { name: 'Nkwapa Health' },
           },
@@ -760,5 +763,261 @@ describe('PatientDuplicateService.recordReview - revisiting a decision', () => {
     );
 
     expect(logWrite.mock.calls[0][0].beforeJson).toBeNull();
+  });
+});
+
+describe('PatientDuplicateService.investigateCrossClinic', () => {
+  const CLINIC_C = '33333333-3333-4333-8333-333333333333';
+
+  function inClinic(
+    id: string,
+    clinicId: string,
+    name: string,
+    overrides: Partial<DuplicatePatientRecord> = {},
+    organization = { id: 'org-1', name: 'Nkwapa Health' },
+  ) {
+    return chart({
+      id,
+      patientCode: `NKP-2026-${id.slice(-6).padStart(6, '0')}`,
+      primaryClinicId: clinicId,
+      primaryClinic: {
+        id: clinicId,
+        name,
+        isActive: true,
+        organizationId: organization.id,
+        organization: { name: organization.name },
+      },
+      ...overrides,
+    });
+  }
+
+  const director: DuplicateReviewActor = {
+    userId: 'user-director',
+    roles: [
+      { clinicId: CLINIC_A, role: UserRole.DIRECTOR },
+      { clinicId: CLINIC_B, role: UserRole.DIRECTOR },
+    ],
+  };
+  const doctor: DuplicateReviewActor = {
+    userId: 'user-doctor',
+    roles: [{ clinicId: CLINIC_A, role: UserRole.DOCTOR }],
+  };
+
+  it.each([
+    ['a director at both clinics', director],
+    ['a clinic manager', clinicManager],
+    ['a doctor', doctor],
+  ])('refuses %s without reading or auditing anything', async (_label, actor) => {
+    const { service, findCandidatePairs, logWrite } = createService();
+
+    await expect(service.investigateCrossClinic(actor)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(findCandidatePairs).not.toHaveBeenCalled();
+    expect(logWrite).not.toHaveBeenCalled();
+  });
+
+  it('asks the scan for cross-clinic pairs in active clinics only', async () => {
+    const { service, findCandidatePairs } = createService();
+
+    await service.investigateCrossClinic(systemAdmin);
+
+    expect(findCandidatePairs).toHaveBeenCalledWith({ clinicId: null, crossClinicOnly: true });
+  });
+
+  it('shows both clinics, both codes, the reasons, and why merge is refused', async () => {
+    const { service } = createService({
+      pairs: [{ patientAId: 'p-000001', patientBId: 'p-000002' }],
+      patients: [inClinic('p-000001', CLINIC_A, 'Accra'), inClinic('p-000002', CLINIC_B, 'Kumasi')],
+    });
+
+    const result = await service.investigateCrossClinic(systemAdmin);
+
+    expect(result.items).toHaveLength(1);
+    const [candidate] = result.items;
+    expect(candidate.patients.map((patient) => patient.clinic.name)).toEqual(['Accra', 'Kumasi']);
+    expect(candidate.patients.map((patient) => patient.patientCode)).toEqual([
+      'NKP-2026-000001',
+      'NKP-2026-000002',
+    ]);
+    expect(candidate.reasons).toContain('NAME_AND_DOB');
+    expect(candidate.crossClinic).toBe(true);
+    expect(candidate.mergeEligible).toBe(false);
+    expect(candidate.mergeBlockers).toEqual([
+      expect.objectContaining({
+        code: 'CROSS_CLINIC',
+        severity: 'BLOCK',
+        detail: 'Accra and Kumasi',
+      }),
+    ]);
+  });
+
+  it('never lets a same-clinic pair onto the cross-clinic screen', async () => {
+    const { service } = createService({
+      pairs: [{ patientAId: 'p-000001', patientBId: 'p-000002' }],
+      patients: [inClinic('p-000001', CLINIC_A, 'Accra'), inClinic('p-000002', CLINIC_A, 'Accra')],
+    });
+
+    const result = await service.investigateCrossClinic(systemAdmin);
+
+    expect(result.items).toEqual([]);
+    expect(result.burden.totalPairs).toBe(0);
+  });
+
+  it('adds the burden up per clinic pair, by confidence and by decision', async () => {
+    const reviewed = duplicatePairKey('p-000003', 'p-000004');
+    const { service } = createService({
+      pairs: [
+        { patientAId: 'p-000001', patientBId: 'p-000002' },
+        { patientAId: 'p-000003', patientBId: 'p-000004' },
+        { patientAId: 'p-000005', patientBId: 'p-000006' },
+      ],
+      patients: [
+        inClinic('p-000001', CLINIC_A, 'Accra', { phoneE164: '+233200000001' }),
+        inClinic('p-000002', CLINIC_B, 'Kumasi', { phoneE164: '+233200000001' }),
+        inClinic('p-000003', CLINIC_B, 'Kumasi'),
+        inClinic('p-000004', CLINIC_A, 'Accra'),
+        inClinic('p-000005', CLINIC_A, 'Accra', {}),
+        inClinic('p-000006', CLINIC_C, 'Lomé', {}, { id: 'org-2', name: 'Partner Health' }),
+      ],
+      reviews: [
+        {
+          pairKey: reviewed,
+          status: PatientDuplicateReviewStatus.DISMISSED,
+          note: null,
+          reviewedAt: new Date('2026-03-01T00:00:00.000Z'),
+          reviewedBy: null,
+        },
+      ],
+    });
+
+    const { burden } = await service.investigateCrossClinic(systemAdmin, { status: 'ALL' });
+
+    expect(burden).toMatchObject({
+      totalPairs: 3,
+      openPairs: 2,
+      highConfidencePairs: 1,
+      clinicsAffected: 3,
+      organizationsAffected: 2,
+      crossOrganizationPairs: 1,
+    });
+    const accraKumasi = burden.clinicPairs.find(
+      (row) => row.key === [CLINIC_A, CLINIC_B].sort().join(':'),
+    );
+    expect(accraKumasi).toMatchObject({
+      sameOrganization: true,
+      total: 2,
+      open: 1,
+      dismissed: 1,
+      high: 1,
+      medium: 1,
+    });
+    // Busiest open clinic pair first: that is the conversation leadership has to have first.
+    expect(burden.clinicPairs[0].open).toBeGreaterThanOrEqual(burden.clinicPairs[1].open);
+    expect(burden.reasons).toEqual(
+      expect.arrayContaining([
+        { reason: 'NAME_AND_DOB', count: 3 },
+        { reason: 'PHONE', count: 1 },
+      ]),
+    );
+  });
+
+  it('narrows the list to one clinic pair without changing the burden', async () => {
+    const { service } = createService({
+      pairs: [
+        { patientAId: 'p-000001', patientBId: 'p-000002' },
+        { patientAId: 'p-000003', patientBId: 'p-000004' },
+      ],
+      patients: [
+        inClinic('p-000001', CLINIC_A, 'Accra'),
+        inClinic('p-000002', CLINIC_B, 'Kumasi'),
+        inClinic('p-000003', CLINIC_A, 'Accra'),
+        inClinic('p-000004', CLINIC_C, 'Tamale'),
+      ],
+    });
+
+    const result = await service.investigateCrossClinic(systemAdmin, {
+      clinicPair: [CLINIC_C, CLINIC_A].sort().join(':'),
+    });
+
+    expect(result.items.map((candidate) => candidate.pairKey)).toEqual([
+      duplicatePairKey('p-000003', 'p-000004'),
+    ]);
+    expect(result.total).toBe(1);
+    expect(result.burden.totalPairs).toBe(2);
+    expect(result.summary.crossClinic).toBe(2);
+  });
+
+  it('audits the view with counts and filters, and no patient identity', async () => {
+    const { service, logWrite } = createService({
+      pairs: [{ patientAId: 'p-000001', patientBId: 'p-000002' }],
+      patients: [
+        inClinic('p-000001', CLINIC_A, 'Accra', { phoneE164: '+233200000001' }),
+        inClinic('p-000002', CLINIC_B, 'Kumasi', { phoneE164: '+233200000001' }),
+      ],
+    });
+
+    await service.investigateCrossClinic(systemAdmin, { q: 'Mensah' }, 'req-9');
+
+    expect(logWrite).toHaveBeenCalledTimes(1);
+    const event = logWrite.mock.calls[0][0];
+    expect(event).toMatchObject({
+      clinicId: null,
+      actorUserId: systemAdmin.userId,
+      action: 'PATIENT.DUPLICATE.CROSS_CLINIC.VIEW',
+      entityType: 'PatientDuplicateInvestigation',
+      requestId: 'req-9',
+    });
+    const after = JSON.parse(event.afterJson);
+    expect(after).toMatchObject({ matched: 1, totalPairs: 1, clinicPairs: 1, truncated: false });
+    expect(after.filters.searched).toBe(true);
+    // Nothing that identifies a patient, including the search text a person typed.
+    expect(event.afterJson).not.toMatch(/Mensah|Ama|NKP-|p-00000|\+233/);
+  });
+
+  it('says when the scan hit its ceiling', async () => {
+    const pairs = Array.from({ length: DUPLICATE_PAIR_SCAN_LIMIT }, (_, index) => ({
+      patientAId: `a-${index}`,
+      patientBId: `b-${index}`,
+    }));
+    const { service } = createService({ pairs });
+
+    const result = await service.investigateCrossClinic(systemAdmin);
+
+    expect(result.truncated).toBe(true);
+  });
+});
+
+describe('PatientDuplicateService - merge blockers on the queue', () => {
+  it('marks a same-clinic pair in an inactive clinic as not mergeable, and says why', async () => {
+    const inactive = {
+      id: CLINIC_A,
+      name: 'Closed clinic',
+      isActive: false,
+      organizationId: 'org-1',
+      organization: { name: 'Nkwapa Health' },
+    };
+    const { service } = createService({
+      pairs: [{ patientAId: 'p-a', patientBId: 'p-b' }],
+      patients: [
+        chart({ id: 'p-a', primaryClinic: inactive }),
+        chart({ id: 'p-b', primaryClinic: inactive }),
+      ],
+    });
+
+    const page = await service.listCandidates(clinicManager, { clinicId: CLINIC_A });
+
+    expect(page.items[0].mergeEligible).toBe(false);
+    expect(page.items[0].mergeBlockers.map((finding) => finding.code)).toEqual(['CLINIC_INACTIVE']);
+  });
+
+  it('reports no blockers for a mergeable pair', async () => {
+    const { service } = createService({
+      pairs: [{ patientAId: 'p-a', patientBId: 'p-b' }],
+      patients: [chart({ id: 'p-a' }), chart({ id: 'p-b' })],
+    });
+
+    const page = await service.listCandidates(clinicManager, { clinicId: CLINIC_A });
+
+    expect(page.items[0].mergeEligible).toBe(true);
+    expect(page.items[0].mergeBlockers).toEqual([]);
   });
 });

@@ -170,6 +170,44 @@ export function isMergeBlocked(findings: readonly MergeFinding[]): boolean {
   return findings.some((finding) => finding.severity === 'BLOCK');
 }
 
+/** One side of a pair, reduced to what the structural merge rules read. */
+export interface MergeStructuralChart {
+  primaryClinicId: string;
+  mergedIntoPatientId: string | null;
+  primaryClinic: { name: string; isActive: boolean };
+}
+
+/**
+ * The refusals that follow from where the two charts sit, rather than from what they hold.
+ *
+ * The merge preview and the duplicate queue both answer "could these two be merged today?", and
+ * they must give the same answer: a queue that offers a merge the preview then refuses teaches an
+ * operator to distrust both. Everything here is decidable from the two chart rows alone, which is
+ * what lets the queue ask it of every candidate pair without the preview's thirty extra queries.
+ */
+export function structuralMergeFindings(
+  canonical: MergeStructuralChart,
+  source: MergeStructuralChart,
+): MergeFinding[] {
+  const findings: MergeFinding[] = [];
+
+  if (canonical.mergedIntoPatientId) findings.push(mergeFinding('CANONICAL_ALREADY_MERGED'));
+  if (source.mergedIntoPatientId) findings.push(mergeFinding('SOURCE_ALREADY_MERGED'));
+
+  if (canonical.primaryClinicId !== source.primaryClinicId) {
+    findings.push(
+      mergeFinding(
+        'CROSS_CLINIC',
+        `${canonical.primaryClinic.name} and ${source.primaryClinic.name}`,
+      ),
+    );
+  } else if (!canonical.primaryClinic.isActive) {
+    findings.push(mergeFinding('CLINIC_INACTIVE', canonical.primaryClinic.name));
+  }
+
+  return findings;
+}
+
 /**
  * The state of both charts, reduced to the things a merge decision depends on.
  *

@@ -141,11 +141,13 @@ export {
   isMergeBlockerCode,
   mergeFinding,
   mergePreviewFingerprint,
+  structuralMergeFindings,
   type MergeBlockerCode,
   type MergeFinding,
   type MergeFindingCode,
   type MergeFingerprintInput,
   type MergeRelationKey,
+  type MergeStructuralChart,
   type MergeWarningCode,
 } from './src/patient-merge';
 export {

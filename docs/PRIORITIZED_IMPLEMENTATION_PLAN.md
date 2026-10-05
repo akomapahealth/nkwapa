@@ -160,6 +160,8 @@ Make chart identity safer and easier to manage as portal use and multi-clinic sc
   - organization-aware admin context from Phase 3 can deepen this later
 - Done when:
   - operators can at least identify likely duplicates across clinic boundaries
+- Delivered: read-only investigation at `/admin/duplicates/cross-clinic` (system admin only,
+  audited) with burden per clinic pair, active clinics only; consolidation remains out of scope
 
 #### `PH2-ID-04` Portal invite delivery and expiry improvements
 

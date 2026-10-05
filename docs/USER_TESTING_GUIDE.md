@@ -209,6 +209,7 @@ Run once per environment, before enabling clinical records there. See
 - [ ] user deactivation works
 - [ ] self-deactivation is blocked
 - [ ] duplicate patient merge succeeds for same-clinic charts (section 6b covers the rest)
+- [ ] `/admin/duplicates/cross-clinic` loads and is read-only (section 6b)
 
 ---
 
@@ -240,6 +241,31 @@ reach is naming the same chart twice.
       mergeable rather than offering a button that can only fail
 - [ ] dismissing a pair hides it, the filter brings it back, and undoing it is possible
 - [ ] the queue never changes a chart: after any decision, both patient records are untouched
+
+### Investigating duplicates across clinics
+
+**Fixtures:** `SEED_SAMPLE_CROSS_CLINIC=true` adds "Nkwapa Clinic - Kumasi" (active) and
+"Nkwapa Clinic - Tamale" (inactive), with matching charts across them. To run this with your own
+data instead, register the same person (same name, date of birth and phone) at two active clinics.
+
+- [ ] `/admin/duplicates/cross-clinic` appears in the navigation for a system administrator, and
+      not for a director, manager, doctor or volunteer
+- [ ] a director who types the address sees a no-access explanation with a link back to Duplicate
+      review, and no patient data
+- [ ] the clinic pair "Nkwapa Clinic - Demo and Nkwapa Clinic - Kumasi" shows 2 pairs: 1 very
+      likely, 1 possible
+- [ ] Abena Sarpong does not appear anywhere: one of her charts is in an inactive clinic
+- [ ] each pair names both clinics and both chart codes, says why it matched, and says merge is
+      not allowed because the charts belong to different clinics
+- [ ] the page and the comparison panel offer no decision, no merge and no merge preview; the
+      panel says "Investigation only" and links to the review queue
+- [ ] choosing a clinic pair narrows the list, and the totals and the clinic-pair card do not change
+- [ ] "Export counts" downloads a CSV of clinic pairs and counts with no patient names or codes
+- [ ] the `AuditEvent` table holds a `PATIENT.DUPLICATE.CROSS_CLINIC.VIEW` row per load, with a
+      null clinic, filters and counts, and no patient identifiers (the clinic-scoped `/audit`
+      screen does not list unowned events)
+- [ ] the review queue's "All clinics" view links to the investigation
+- [ ] 375 / 768 / 1024 / 1440: the page never scrolls sideways, and pairs are cards below 1024
 
 ### Previewing a merge
 

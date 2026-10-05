@@ -131,6 +131,12 @@ export const TELEMETRY_EVENTS = {
     description: 'Staff previewed merging two charts.',
     properties: { blocked: flag, blockerCount: count(50), warningCount: count(50) },
   }),
+  'patient.duplicate.investigate': event({
+    label: 'Cross-clinic duplicate investigations',
+    category: 'identity',
+    description: 'A system administrator looked at likely duplicates spanning two clinics.',
+    properties: { pairCount: count(500), clinicPairCount: count(500), truncated: flag },
+  }),
   'patient.merge.execute': event({
     label: 'Charts merged',
     category: 'identity',
