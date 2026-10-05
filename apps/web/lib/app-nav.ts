@@ -8,6 +8,7 @@ import {
   CopyCheck,
   FileEdit,
   LayoutDashboard,
+  Network,
   Settings,
   Shield,
   Stethoscope,
@@ -26,6 +27,12 @@ export interface AppNavItem {
   anyOf?: string[];
   requiresClinic?: boolean;
   directorOrSystemAdminOnly?: boolean;
+  /**
+   * Visible to a global system administrator only, whatever permissions the active clinic grants.
+   * For views that span clinics: a director holds the item's permission at their own clinic, but
+   * the API refuses them anything wider, so showing the link would only lead to a refusal.
+   */
+  systemAdminOnly?: boolean;
 }
 
 export interface AppNavSection {
@@ -165,6 +172,14 @@ const NAV_SECTIONS: AppNavSection[] = [
         icon: CopyCheck,
         permission: 'PATIENT.DUPLICATE.REVIEW',
       },
+      {
+        href: '/admin/duplicates/cross-clinic',
+        label: 'Cross-clinic duplicates',
+        description: 'How many charts may be duplicated across clinics.',
+        icon: Network,
+        permission: 'PATIENT.DUPLICATE.REVIEW',
+        systemAdminOnly: true,
+      },
     ],
   },
 ];
@@ -189,6 +204,9 @@ export function getAccessibleNavSections(bootstrap: WhoAmIResponse | null): AppN
   return NAV_SECTIONS.map((section) => ({
     ...section,
     items: section.items.filter((item) => {
+      if (item.systemAdminOnly && !isSystemAdmin) {
+        return false;
+      }
       if (item.directorOrSystemAdminOnly && !canAccessClinicAdmin) {
         return false;
       }
@@ -213,12 +231,30 @@ export function getNavItemHref(item: AppNavItem, clinicId: string | null) {
   return item.href;
 }
 
+function pathMatches(pathname: string, href: string): boolean {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+const ALL_NAV_ITEMS = NAV_SECTIONS.flatMap((section) => section.items);
+
+/**
+ * Whether an item is the current page.
+ *
+ * A nested destination owns its own highlight. Without that, `/admin/duplicates/cross-clinic`
+ * lit up both itself and the review queue above it, and `/patients/new` both itself and Patients:
+ * two links announced as the current page, which tells a screen reader user nothing.
+ */
 export function isNavItemActive(pathname: string, item: AppNavItem, clinicId: string | null) {
-  const resolvedHref = getNavItemHref(item, clinicId);
-  return (
-    pathname === resolvedHref ||
-    pathname.startsWith(`${resolvedHref}/`) ||
-    pathname === item.href ||
-    pathname.startsWith(`${item.href}/`)
+  const hrefs = (navItem: AppNavItem) => [getNavItemHref(navItem, clinicId), navItem.href];
+  const own = hrefs(item);
+  if (!own.some((href) => pathMatches(pathname, href))) return false;
+
+  return !ALL_NAV_ITEMS.some(
+    (other) =>
+      other !== item &&
+      hrefs(other).some(
+        (otherHref) =>
+          own.some((href) => otherHref.startsWith(`${href}/`)) && pathMatches(pathname, otherHref),
+      ),
   );
 }
