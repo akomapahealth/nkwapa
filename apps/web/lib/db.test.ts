@@ -26,4 +26,12 @@ describe('NkwapaDb longitudinal clinical schema', () => {
     const indexNames = patients?.schema.indexes.map((index) => index.name) ?? [];
     expect(indexNames).toContain('residentialRegion');
   });
+
+  it('keeps one offline copy per clinic view, keyed by clinic and view (v12)', () => {
+    const cache = db.tables.find((table) => table.name === 'ops_cache');
+    expect(cache?.schema.primKey.name).toBe('key');
+    expect(cache?.schema.indexes.map((index) => index.name)).toEqual(
+      expect.arrayContaining(['clinicId', 'updatedAt']),
+    );
+  });
 });

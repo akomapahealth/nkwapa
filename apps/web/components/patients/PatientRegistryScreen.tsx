@@ -2,24 +2,23 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Box } from '@mui/material';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { Search, Stethoscope, UserPlus, Users } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
-import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { dataGridSx } from '@/lib/datagrid-theme';
-import { getOpsDestination, hasPermission, readApiError } from '@/lib/ops';
+import { hasPermission, readApiError } from '@/lib/ops';
 import { GHANA_REGION_LABELS, PATIENT_LOCATION_STATUS_LABELS } from '@/lib/residential-location';
 import { useAsyncResource } from '@/lib/use-async-resource';
+import { usePatientCheckIn } from '@/lib/use-patient-check-in';
 import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { FormSectionCard } from '@/components/app-shell/FormSectionCard';
 import { SectionSkeleton } from '@/components/feedback/AppState';
 import { ResourceState } from '@/components/feedback/ResourceState';
-import { InlineNotice } from '@/components/ops/OpsShared';
+import { OpsFeedbackNotice } from '@/components/ops/OpsShared';
 import {
   EMPTY_LOCATION_FILTER,
   ResidentialLocationFilters,
@@ -57,12 +56,9 @@ const SEARCH_DEBOUNCE_MS = 300;
  * them kept missing the other.
  */
 export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
-  const router = useRouter();
-  const getToken = useAuth();
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
   const canCreateOpsCheckIn = hasPermission(perms, 'OPS.CHECKIN.CREATE');
-  const opsDestination = getOpsDestination(perms);
 
   const [q, setQ] = useState('');
   const [locationFilter, setLocationFilter] =
@@ -132,45 +128,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
     with the search made a failed check-in render as "we couldn't load this view" with a
     "Reload patients" retry, which is the wrong offer for the thing that actually failed.
   */
-  const [checkInBusy, setCheckInBusy] = useState(false);
-  const [checkInError, setCheckInError] = useState<string | null>(null);
-  const [checkInSuccess, setCheckInSuccess] = useState<string | null>(null);
-
-  const handleCheckIn = async (patient: PatientSummary) => {
-    if (!getToken) {
-      return;
-    }
-
-    setCheckInBusy(true);
-    setCheckInError(null);
-    setCheckInSuccess(null);
-
-    try {
-      const response = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}/checkins`, {
-        method: 'POST',
-        body: JSON.stringify({ patientId: patient.id }),
-        getToken,
-        activeClinicId: clinicId,
-      });
-      if (!response.ok) {
-        throw new Error(await readApiError(response));
-      }
-
-      setCheckInSuccess(
-        opsDestination
-          ? `${patient.firstName} ${patient.lastName} is now on the clinic board.`
-          : `${patient.firstName} ${patient.lastName} has been checked in successfully.`,
-      );
-
-      if (opsDestination === '/today') {
-        router.prefetch('/today');
-      }
-    } catch (requestError) {
-      setCheckInError(requestError instanceof Error ? requestError.message : String(requestError));
-    } finally {
-      setCheckInBusy(false);
-    }
-  };
+  const checkIn = usePatientCheckIn(clinicId);
 
   const patientHref = (patientId: string) => `/clinics/${clinicId}/patients/${patientId}`;
 
@@ -214,8 +172,8 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
           {canCreateOpsCheckIn ? (
             <button
               type="button"
-              onClick={() => void handleCheckIn(params.row as PatientSummary)}
-              disabled={checkInBusy}
+              onClick={() => void checkIn.checkIn(params.row as PatientSummary)}
+              disabled={checkIn.isBusy || !checkIn.canSubmit}
               className="rounded-sm text-sm text-success-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
             >
               Check-in
@@ -312,20 +270,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
         </div>
       </FormSectionCard>
 
-      {checkInError ? <InlineNotice tone="error">{checkInError}</InlineNotice> : null}
-      {checkInSuccess ? (
-        <InlineNotice tone="success">
-          <span>{checkInSuccess}</span>
-          {opsDestination ? (
-            <>
-              {' '}
-              <Link href={opsDestination} className="font-medium underline underline-offset-4">
-                Open OPS view
-              </Link>
-            </>
-          ) : null}
-        </InlineNotice>
-      ) : null}
+      <OpsFeedbackNotice feedback={checkIn.feedback} />
 
       <Card>
         <CardHeader className="space-y-3">
@@ -389,10 +334,10 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
                         {canCreateOpsCheckIn ? (
                           <Button
                             className="flex-1"
-                            disabled={checkInBusy}
-                            onClick={() => void handleCheckIn(row)}
+                            disabled={checkIn.isBusy || !checkIn.canSubmit}
+                            onClick={() => void checkIn.checkIn(row)}
                           >
-                            Check-in
+                            {checkIn.busyPatientId === row.id ? 'Checking in...' : 'Check-in'}
                           </Button>
                         ) : null}
                       </div>

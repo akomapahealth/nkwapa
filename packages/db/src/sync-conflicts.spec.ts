@@ -80,6 +80,13 @@ describe('sync conflict catalog', () => {
       expect(isRetryableSyncOutcome('ERROR', 'DELETE_NOT_SUPPORTED')).toBe(false);
     });
 
+    it('blocks clinic-operations conflicts until someone looks at them', () => {
+      expect(isRetryableSyncOutcome('CONFLICT', 'SHIFT_ALREADY_ACTIVE')).toBe(false);
+      expect(isRetryableSyncOutcome('CONFLICT', 'PATIENT_ALREADY_CHECKED_IN')).toBe(false);
+      expect(isRetryableSyncOutcome('ERROR', 'OPS_REPLAY_EXPIRED')).toBe(false);
+      expect(isRetryableSyncOutcome('ERROR', 'SHIFT_NOT_FOUND')).toBe(true);
+    });
+
     it('retries what a grant, a later pull, or a recovered server can fix', () => {
       expect(isRetryableSyncOutcome('ERROR', 'FORBIDDEN')).toBe(true);
       expect(isRetryableSyncOutcome('ERROR', 'RECORD_NOT_FOUND')).toBe(true);

@@ -75,7 +75,12 @@ Body:
 Rules:
 • Creates PatientCheckIn status WAITING at checkedInAt = now().
 • Does NOT create Encounter.
-• For “one per day” you chose allow multiple; if same patient already checked-in today, return 200 with warning field or 201 anyway. (Default: allow and return 201.)
+• ~~For “one per day” you chose allow multiple.~~ Superseded by #17: a patient has at most one
+open check-in (WAITING, ASSIGNED or IN_PROGRESS) per clinic day. A second is refused with 409
+`PATIENT_ALREADY_CHECKED_IN`. A completed or cancelled check-in does not block a new one.
+• The body may carry a client-generated `id`; repeating a check-in under the same id returns it.
+• A merged chart is refused with `PATIENT_MERGED` and `canonicalPatientId`.
+• Replayed offline through `/sync/push` as `patient_check_in` with the device's `occurredAt`.
 
 Audit:
 • CHECKIN.CREATE

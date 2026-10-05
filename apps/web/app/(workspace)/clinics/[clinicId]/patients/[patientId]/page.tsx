@@ -4,9 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
+import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { apiFetch } from '@/lib/api';
-import { getOpsDestination, hasPermission, readApiError } from '@/lib/ops';
+import { hasPermission, readApiError } from '@/lib/ops';
+import { usePatientCheckIn } from '@/lib/use-patient-check-in';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { db } from '@/lib/db';
@@ -49,7 +51,7 @@ import {
 } from '@/lib/patient-chart';
 import { getErrorMessage } from '@/lib/api';
 import { useChartTabs } from '@/lib/use-chart-tabs';
-import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
+import { EmptyStateCard, InlineNotice, OpsFeedbackNotice } from '@/components/ops/OpsShared';
 import {
   Dialog,
   DialogContent,
@@ -107,6 +109,7 @@ function PatientChartWorkspace() {
   const clinicId = params.clinicId as string;
   const patientId = params.patientId as string;
   const getToken = useAuth();
+  const { isOnline } = useSync();
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const perms = useMemo(() => bootstrap?.effectivePermissionsForActiveClinic ?? [], [bootstrap]);
   const isSystemAdmin = bootstrap?.globalRoles?.includes('SYSTEM_ADMIN') ?? false;
@@ -127,7 +130,7 @@ function PatientChartWorkspace() {
   const canReadPrescriptions = hasPermission(perms, 'PRESCRIPTION.READ');
   const userId = bootstrap?.userId ?? '';
   const canCreateOpsCheckIn = hasPermission(perms, 'OPS.CHECKIN.CREATE');
-  const opsDestination = getOpsDestination(perms);
+  const patientCheckIn = usePatientCheckIn(clinicId);
 
   const [data, setData] = useState<PatientWithEncounters | null>(null);
   const [portalLinkOpen, setPortalLinkOpen] = useState(false);
@@ -382,7 +385,10 @@ function PatientChartWorkspace() {
             consentStatus,
           });
         } else {
-          setData(null);
+          // A chart already on screen stays there when a refetch cannot reach the server and
+          // this device holds no copy of it. Blanking it would turn a dropped connection into
+          // "patient not found" in the middle of a visit.
+          setData((current) => (current?.patient.id === patientId ? current : null));
         }
       } catch (localErr) {
         setError(localErr instanceof Error ? localErr.message : 'Failed to load patient');
@@ -506,35 +512,6 @@ function PatientChartWorkspace() {
     }
   };
 
-  const handleCheckIn = async () => {
-    if (!getToken) return;
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      const res = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}/checkins`, {
-        method: 'POST',
-        body: JSON.stringify({ patientId }),
-        getToken,
-        activeClinicId: clinicId,
-      });
-      if (!res.ok) throw new Error(await readApiError(res));
-
-      setSuccess(
-        opsDestination
-          ? 'Patient added to the clinic board successfully.'
-          : 'Patient checked in successfully.',
-      );
-      if (opsDestination === '/today') {
-        router.prefetch('/today');
-      }
-    } catch (checkInErr) {
-      setError(checkInErr instanceof Error ? checkInErr.message : 'Failed to check in patient');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   if (loading && !data) {
     return (
       <div className="space-y-6" role="status" aria-live="polite" aria-busy="true">
@@ -565,10 +542,18 @@ function PatientChartWorkspace() {
   if (!data) {
     return (
       <div className="space-y-4">
-        <InlineErrorState
-          title="Patient not found"
-          description="This chart does not exist in the active clinic, or it has been merged into another chart."
-        />
+        {isOnline ? (
+          <InlineErrorState
+            title="Patient not found"
+            description="This chart does not exist in the active clinic, or it has been merged into another chart."
+          />
+        ) : (
+          <InlineErrorState
+            title="This chart is not on this device yet"
+            description="It has not been synced to this device. Reconnect to open it; it will be kept here for next time."
+            onRetry={() => void fetchPatient()}
+          />
+        )}
         <Button asChild variant="outline">
           <Link href={`/clinics/${clinicId}/patients`}>
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -624,9 +609,19 @@ function PatientChartWorkspace() {
               </Button>
             ) : null}
             {canCreateOpsCheckIn ? (
-              <Button onClick={() => void handleCheckIn()} disabled={loading}>
+              <Button
+                onClick={() =>
+                  void patientCheckIn.checkIn({
+                    id: patient.id,
+                    patientCode: patient.patientCode,
+                    firstName: patient.firstName,
+                    lastName: patient.lastName,
+                  })
+                }
+                disabled={loading || patientCheckIn.isBusy || !patientCheckIn.canSubmit}
+              >
                 <Stethoscope className="h-4 w-4" />
-                Check In Patient
+                {patientCheckIn.isBusy ? 'Checking in...' : 'Check In Patient'}
               </Button>
             ) : null}
           </>
@@ -674,19 +669,10 @@ function PatientChartWorkspace() {
           </span>
         </InlineNotice>
       ) : null}
-      {success ? (
-        <InlineNotice tone="success">
-          <span>{success}</span>
-          {opsDestination ? (
-            <>
-              {' '}
-              <Link href={opsDestination} className="font-medium underline underline-offset-4">
-                Open OPS view
-              </Link>
-            </>
-          ) : null}
-        </InlineNotice>
-      ) : null}
+      {/* Other actions on this chart report here too, so the OPS link belongs to the check-in
+          notice alone rather than to every success message. */}
+      {success ? <InlineNotice tone="success">{success}</InlineNotice> : null}
+      <OpsFeedbackNotice feedback={patientCheckIn.feedback} />
 
       <PatientChartTabs
         sections={chartSections}

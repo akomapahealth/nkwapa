@@ -45,12 +45,9 @@ export class OpsController {
       headers?: { 'x-request-id'?: string };
     },
   ) {
-    return this.opsService.checkIn(
-      clinicId,
-      req.user.user.id,
-      body,
-      req.headers?.['x-request-id'] ?? randomUUID(),
-    );
+    return this.opsService.checkIn(clinicId, req.user.user.id, body, {
+      requestId: req.headers?.['x-request-id'] ?? randomUUID(),
+    });
   }
 
   @Post('shifts/:shiftId/check-out')
@@ -65,12 +62,9 @@ export class OpsController {
       headers?: { 'x-request-id'?: string };
     },
   ) {
-    return this.opsService.checkOut(
-      clinicId,
-      shiftId,
-      req.user.user.id,
-      req.headers?.['x-request-id'] ?? randomUUID(),
-    );
+    return this.opsService.checkOut(clinicId, shiftId, req.user.user.id, {
+      requestId: req.headers?.['x-request-id'] ?? randomUUID(),
+    });
   }
 
   @Get('shifts/active')
@@ -92,12 +86,9 @@ export class OpsController {
       headers?: { 'x-request-id'?: string };
     },
   ) {
-    return this.opsService.createCheckIn(
-      clinicId,
-      req.user.user.id,
-      body,
-      req.headers?.['x-request-id'] ?? randomUUID(),
-    );
+    return this.opsService.createCheckIn(clinicId, req.user.user.id, body, {
+      requestId: req.headers?.['x-request-id'] ?? randomUUID(),
+    });
   }
 
   @Get('checkins')

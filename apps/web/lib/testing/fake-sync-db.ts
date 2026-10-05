@@ -58,6 +58,7 @@ export class FakeTable<T extends Row = Row> {
     return {
       equals: (value: unknown) => ({
         toArray: async () => matching(value),
+        first: async () => matching(value)[0],
         count: async () => matching(value).length,
         sortBy: async (sortField: keyof T & string) =>
           matching(value).sort((a, b) => String(a[sortField]).localeCompare(String(b[sortField]))),
@@ -88,7 +89,7 @@ const TABLES = [
   'patient_pharmacy_preferences',
 ] as const;
 
-type TableName = (typeof TABLES)[number] | 'sync_state';
+type TableName = (typeof TABLES)[number] | 'sync_state' | 'ops_cache';
 
 export type FakeSyncDb = Record<TableName, FakeTable> & {
   table: (name: string) => FakeTable;
@@ -100,6 +101,7 @@ export function createFakeSyncDb(): FakeSyncDb {
     FakeTable
   >;
   tables.sync_state = new FakeTable('clinicId');
+  tables.ops_cache = new FakeTable('key');
   return {
     ...tables,
     table: (name: string) => {

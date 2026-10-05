@@ -23,6 +23,7 @@ export type SyncRecoveryAction =
   | 'open-canonical-patient'
   | 'review-duplicates'
   | 'open-encounter'
+  | 'open-ops-board'
   | 'discard';
 
 export type SyncFailureTone = 'danger' | 'warning' | 'info';
@@ -127,6 +128,42 @@ const CODE_COPY: Partial<Record<SyncConflictCode, Partial<SyncFailureCopy>>> = {
     explanation: 'A prescription cannot sync until the patient’s allergies have been reviewed.',
     nextStep: 'Open the chart, review allergies, then prescribe again.',
   },
+  SHIFT_ALREADY_ACTIVE: {
+    title: 'You already have a shift running',
+    explanation:
+      'A shift for you was started at this clinic, probably on another device, before this one could sync.',
+    nextStep:
+      'Check the Today board. If that shift is yours, discard this copy; if it should not be running, end it and retry.',
+  },
+  SHIFT_ALREADY_CLOSED: {
+    title: 'This shift has already ended',
+    explanation: 'Someone ended the shift before this change reached the server.',
+    nextStep: 'Nothing is lost. Discard this copy.',
+  },
+  SHIFT_NOT_FOUND: {
+    title: 'Waiting for the start of this shift',
+    explanation:
+      'Ending this shift is queued behind starting it, and the start has not reached the server yet.',
+    nextStep: 'Resolve the shift start under “Needs attention” first. This will sync once it does.',
+  },
+  PATIENT_ALREADY_CHECKED_IN: {
+    title: 'This patient is already checked in today',
+    explanation:
+      'Someone checked the patient in before this device synced, so a second check-in was not created.',
+    nextStep: 'Find the patient on the Today board. If they are in the queue, discard this copy.',
+  },
+  OPS_REPLAY_EXPIRED: {
+    title: 'This was saved on an earlier clinic day',
+    explanation:
+      'Check-ins and shift changes only sync on the day they happened, so the board stays accurate.',
+    nextStep: 'Record it again if it still matters today, then discard this copy.',
+  },
+  INVALID_OPS_TIME_ORDER: {
+    title: 'The time on this change does not add up',
+    explanation: 'The device clock may be wrong, or the shift would end before it started.',
+    nextStep:
+      'Check the device’s date and time, then record the change again and discard this copy.',
+  },
 };
 
 const ACTION_LABELS: Record<SyncRecoveryAction, string> = {
@@ -135,6 +172,7 @@ const ACTION_LABELS: Record<SyncRecoveryAction, string> = {
   'open-canonical-patient': 'Open existing chart',
   'review-duplicates': 'Review duplicates',
   'open-encounter': 'Open visit',
+  'open-ops-board': 'Open Today board',
   discard: 'Discard',
 };
 
@@ -159,6 +197,9 @@ const ENTITY_LABELS: Record<string, string> = {
   medication_reconciliation: 'Medication reconciliation',
   patient_pharmacy_revision: 'Pharmacy details',
   patient_pharmacy_preference: 'Preferred pharmacy',
+  shift_check_in: 'Shift start',
+  shift_check_out: 'Shift end',
+  patient_check_in: 'Patient check-in',
 };
 
 export function syncEntityLabel(entityType: string): string {
@@ -197,10 +238,19 @@ export function outboxEncounterId(
   return stringField(parseOutboxPayload(row), 'encounterId');
 }
 
-export interface SyncFailureContext {
-  clinicId: string;
+/** What this account may open from the sync center, decided once from its permissions. */
+export interface SyncRecoveryAccess {
   /** Holds PATIENT.DUPLICATE.REVIEW at this clinic. */
   canReviewDuplicates: boolean;
+  /**
+   * Where this account sees clinic operations: the Today board, or its own assignments. `null`
+   * when it has neither, so no link is offered. Defaults to the Today board.
+   */
+  opsBoardHref?: string | null;
+}
+
+export interface SyncFailureContext extends SyncRecoveryAccess {
+  clinicId: string;
   /** The patient resolved by the caller when the change only names a visit. */
   patientId?: string;
 }
@@ -218,9 +268,18 @@ export interface SyncFailureDescription extends SyncFailureCopy {
   canonicalPatientHref?: string;
   encounterHref?: string;
   duplicatesHref?: string;
+  opsBoardHref?: string;
 }
 
 export const DUPLICATE_REVIEW_HREF = '/admin/duplicates';
+export const TODAY_BOARD_HREF = '/today';
+
+/** Changes whose effect is seen on an operations board rather than on a chart. */
+const OPS_BOARD_ENTITIES: ReadonlySet<string> = new Set([
+  'shift_check_in',
+  'shift_check_out',
+  'patient_check_in',
+]);
 
 export function patientChartHref(clinicId: string, patientId: string): string {
   return `/clinics/${encodeURIComponent(clinicId)}/patients/${encodeURIComponent(patientId)}`;
@@ -286,6 +345,14 @@ export function describeSyncFailure(
   if (code === 'DUPLICATE_NATIONAL_ID' && context.canReviewDuplicates) {
     description.duplicatesHref = DUPLICATE_REVIEW_HREF;
     description.actions.push('review-duplicates');
+  }
+  const opsBoardHref = context.opsBoardHref === undefined ? TODAY_BOARD_HREF : context.opsBoardHref;
+  if (OPS_BOARD_ENTITIES.has(row.entityType) && opsBoardHref) {
+    description.opsBoardHref = opsBoardHref;
+    description.actions.push('open-ops-board');
+    if (opsBoardHref !== TODAY_BOARD_HREF) {
+      description.actionLabels['open-ops-board'] = 'Open my assignments';
+    }
   }
   if (encounterId && category !== 'patient') {
     description.encounterHref = encounterHref(encounterId);

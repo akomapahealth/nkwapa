@@ -84,6 +84,23 @@ export const SYNC_ENTITY_PERMISSIONS: Record<EntityType, SyncEntityPermission> =
   medication_reconciliation: medicationReconciliation(),
   patient_pharmacy_revision: medicationReconciliation(),
   patient_pharmacy_preference: medicationReconciliation(),
+  // The same permissions as the REST routes. A director holds neither SHIFT.WRITE nor a reason to
+  // start a shift offline, and nothing here widens that.
+  shift_check_in: {
+    create: PERMISSIONS.OPS_SHIFT_WRITE,
+    update: PERMISSIONS.OPS_SHIFT_WRITE,
+    delete: null,
+  },
+  shift_check_out: {
+    create: PERMISSIONS.OPS_SHIFT_WRITE,
+    update: PERMISSIONS.OPS_SHIFT_WRITE,
+    delete: null,
+  },
+  patient_check_in: {
+    create: PERMISSIONS.OPS_CHECKIN_CREATE,
+    update: PERMISSIONS.OPS_CHECKIN_CREATE,
+    delete: null,
+  },
 };
 
 /** Runtime list of replayable entity types, so the DTO can reject anything unrecognised. */

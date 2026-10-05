@@ -114,6 +114,7 @@ is the part that genuinely needs a person.
 | Refused changes persist, are not re-sent, and never stop the pull | `lib/sync.test.ts`, `lib/sync-rejected.test.ts`                                                     |
 | A duplicate-patient conflict, recovered in a browser              | `e2e/sync-recovery.spec.js`                                                                         |
 | An offline patient edit drains on reconnect                       | `e2e/sync-recovery.spec.js`                                                                         |
+| Offline shift start and patient check-in replay exactly once      | `ops/ops.service.spec.ts`, `sync/sync.service.spec.ts`, `e2e/today-offline.spec.js`                 |
 
 640 is in the width list because it is what 1280 becomes at 200% zoom.
 
@@ -342,6 +343,16 @@ link, the role, the `portalUserId` and the settled invitation on every seed, so 
 - [ ] patient check-ins group correctly by status
 - [ ] assignment modal only shows active eligible staff
 - [ ] reassignment works
+- [ ] **Offline floor (#17).** DevTools → Network → `Offline` on `/today`:
+  - [ ] the board stays on screen, and the banner says when it was loaded
+  - [ ] starting a shift shows _On Duty_ with **Pending sync**
+  - [ ] checking a patient in from `/patients` puts them in _Waiting_ with **Pending sync**
+  - [ ] Assign, Reassign and Refresh are disabled, and say why on hover
+  - [ ] back online: the badges clear on their own, each person and patient appears once, and
+        the sync center is empty
+  - [ ] start a shift online in a second browser while the first is offline, then start one in
+        the first and reconnect: it shows **Needs attention**, and the sync center explains it
+- [ ] checking in a patient already in today's queue says so, with a link to the board
 - [ ] clinic user lifecycle actions work within allowed scope
 - [ ] dashboard and audit views load
 
@@ -357,6 +368,8 @@ link, the role, the `portalUserId` and the settled invitation on every seed, so 
 - [ ] consent grant and revoke work
 - [ ] `/my/assigned` loads
 - [ ] start intake from assigned patient works
+- [ ] offline, the shift card still starts and ends a shift (pending sync), and Start intake is
+      disabled with the reason
 
 ---
 

@@ -27,6 +27,7 @@ import {
 import { assertPermissionAtClinic, type ScopedRole } from '../auth/clinic-roles';
 import type { EntityType as SyncEntityType } from './entity-types';
 import { SYNC_ENTITY_PERMISSIONS, isSyncEntityType } from './sync-permissions';
+import { recordAppliedSyncMutation } from './applied-sync-mutation';
 import {
   classifySyncFailure,
   isTerminalOutcome,
@@ -65,6 +66,13 @@ import { DiabetesScreeningService } from '../diabetes-screening/diabetes-screeni
 import { HypertensionAssessmentService } from '../hypertension-assessment/hypertension-assessment.service';
 import { PrescriptionService } from '../prescriptions/prescription.service';
 import { MedicationAdherenceService } from '../medication-adherence/medication-adherence.service';
+import { OpsService, type OpsWriteContext } from '../ops/ops.service';
+import {
+  PatientCheckInReplayPayload,
+  ShiftCheckInReplayPayload,
+  ShiftCheckOutReplayPayload,
+} from '../ops/dto/ops-replay.dto';
+import { validatePayload } from '../common/validation';
 import { serializeLegacyDiabetesSymptoms } from '@nkwapa/db';
 
 export type { EntityType } from './entity-types';
@@ -93,6 +101,7 @@ export class SyncService {
     private readonly hypertensionAssessmentService: HypertensionAssessmentService,
     private readonly medicationAdherenceService: MedicationAdherenceService,
     private readonly prescriptionService: PrescriptionService,
+    private readonly opsService: OpsService,
     @Optional() private readonly telemetry?: TelemetryService,
   ) {}
 
@@ -458,9 +467,76 @@ export class SyncService {
           payload,
           idempotencyKey,
         );
+      case 'shift_check_in':
+      case 'shift_check_out':
+      case 'patient_check_in':
+        return this.applyOpsReplay(clinicId, actorUserId, mut, payload, metadata);
       default:
         throw new Error(`Unknown entity type: ${mut.entityType}`);
     }
+  }
+
+  /**
+   * Replay a clinic-operations action through the same service the REST route uses.
+   *
+   * The service writes the record, its audit event and the idempotency record in one transaction,
+   * and treats a write that already applied under this id as applied. A check-in that reached the
+   * server online before the connection dropped therefore comes back as applied, not duplicated.
+   */
+  private async applyOpsReplay(
+    clinicId: string,
+    actorUserId: string,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+    metadata?: RequestMetadata,
+  ): Promise<SyncMutationResultDto> {
+    const context = (occurredAt: string): OpsWriteContext => ({
+      requestId: mut.idempotencyKey,
+      replay: {
+        occurredAt: new Date(occurredAt),
+        syncMutation: {
+          entityType: mut.entityType,
+          entityId: mut.entityId,
+          idempotencyKey: mut.idempotencyKey,
+        },
+        ipAddress: metadata?.ipAddress,
+        userAgent: metadata?.userAgent,
+      },
+    });
+    const invalid = 'Queued clinic operation failed validation';
+
+    switch (mut.entityType as SyncEntityType) {
+      case 'shift_check_in': {
+        const dto = await validatePayload(ShiftCheckInReplayPayload, payload, invalid);
+        await this.opsService.checkIn(
+          clinicId,
+          actorUserId,
+          { id: mut.entityId, roleAtShift: dto.roleAtShift, notes: dto.notes },
+          context(dto.occurredAt),
+        );
+        break;
+      }
+      case 'shift_check_out': {
+        const dto = await validatePayload(ShiftCheckOutReplayPayload, payload, invalid);
+        await this.opsService.checkOut(
+          clinicId,
+          mut.entityId,
+          actorUserId,
+          context(dto.occurredAt),
+        );
+        break;
+      }
+      default: {
+        const dto = await validatePayload(PatientCheckInReplayPayload, payload, invalid);
+        await this.opsService.createCheckIn(
+          clinicId,
+          actorUserId,
+          { id: mut.entityId, patientId: dto.patientId, source: dto.source, notes: dto.notes },
+          context(dto.occurredAt),
+        );
+      }
+    }
+    return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
   }
 
   private async applyPatientUpsert(
@@ -1406,15 +1482,10 @@ export class SyncService {
     mut: SyncMutationDto,
     idempotencyKey: string,
   ) {
-    await this.prisma.syncMutation.create({
-      data: {
-        clinicId,
-        entityType: mut.entityType,
-        entityId: mut.entityId,
-        operation: SyncOperation.UPSERT,
-        idempotencyKey,
-        status: SyncMutationStatus.APPLIED,
-      },
+    await recordAppliedSyncMutation(this.prisma, clinicId, {
+      entityType: mut.entityType,
+      entityId: mut.entityId,
+      idempotencyKey,
     });
     return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
   }

@@ -5,6 +5,7 @@ import {
   buildOutboxMutation,
   buildPharmacyPreferenceOutboxPayload,
   discardOutboxMutation,
+  enqueueOutboxMutation,
   isBlockingFailure,
   retryOutboxMutation,
   outboxFailureUpdate,
@@ -179,6 +180,48 @@ describe('outbox sync state', () => {
         at: '2026-09-27T00:00:00.000Z',
       },
     });
+  });
+});
+
+describe('enqueueOutboxMutation', () => {
+  const params = {
+    clinicId: 'clinic-1',
+    entityType: 'patient_check_in',
+    entityId: 'checkin-1',
+    operation: SYNC_OPERATION.UPSERT,
+    payloadJson: { patientId: 'patient-1' },
+  };
+
+  it('queues one row for one action, however many times it is submitted', async () => {
+    const fake = createFakeSyncDb();
+    const outboxDb = fake as unknown as NkwapaDb;
+
+    const first = await enqueueOutboxMutation(outboxDb, { ...params, idempotencyKey: 'ops:k' });
+    const second = await enqueueOutboxMutation(outboxDb, { ...params, idempotencyKey: 'ops:k' });
+
+    expect(second.id).toBe(first.id);
+    expect(fake.outbox.rows.size).toBe(1);
+  });
+
+  it('still queues every save that draws its own key', async () => {
+    const fake = createFakeSyncDb();
+
+    await enqueueOutboxMutation(fake as unknown as NkwapaDb, params);
+    await enqueueOutboxMutation(fake as unknown as NkwapaDb, params);
+
+    expect(fake.outbox.rows.size).toBe(2);
+  });
+
+  it('keeps the device-only context on the row and off the payload', async () => {
+    const fake = createFakeSyncDb();
+
+    const row = await enqueueOutboxMutation(fake as unknown as NkwapaDb, {
+      ...params,
+      localContext: { patientName: 'Ama Mensah' },
+    });
+
+    expect(row.localContext).toEqual({ patientName: 'Ama Mensah' });
+    expect(JSON.parse(row.payloadJson)).toEqual({ patientId: 'patient-1' });
   });
 });
 

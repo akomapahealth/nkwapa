@@ -436,6 +436,21 @@ export interface OutboxFailure {
   at: string;
 }
 
+/**
+ * What a queued change is about, in words a person recognises, for showing it before it syncs.
+ *
+ * Device-only: it is never sent, because the server validates the payload strictly and has its
+ * own copy of every name. A patient check-in carries the chart code and name here so the Today
+ * board can list the arrival while offline, even for a chart this device never pulled.
+ */
+export interface OutboxLocalContext {
+  patientCode?: string;
+  patientName?: string;
+  /** Who queued the change. Devices are shared on a clinic floor; a queued shift is one person's. */
+  actorUserId?: string;
+  actorName?: string;
+}
+
 export interface OutboxRecord {
   id: string;
   clinicId: string;
@@ -445,6 +460,7 @@ export interface OutboxRecord {
   payloadJson: string;
   idempotencyKey: string;
   createdAt: string;
+  localContext?: OutboxLocalContext;
   syncState?: OutboxSyncState;
   attempts?: number;
   lastAttemptAt?: string;
@@ -454,6 +470,26 @@ export interface OutboxRecord {
 export interface SyncStateRecord {
   clinicId: string;
   cursor: string;
+  updatedAt: string;
+}
+
+/** The clinic-operations views a device keeps its last good copy of. */
+export type OpsCacheKind = 'today-board' | 'my-assigned';
+
+/**
+ * The last copy of a clinic-operations view this device loaded, so it still renders offline.
+ *
+ * One row per clinic and view, replaced on every successful load, so the store never grows past a
+ * handful of rows and never holds more than one day of a clinic's floor.
+ */
+export interface OpsCacheRecord<T = unknown> {
+  /** `${clinicId}|${kind}`. */
+  key: string;
+  clinicId: string;
+  kind: OpsCacheKind;
+  /** The clinic day the copy is for, `YYYY-MM-DD`. */
+  date: string;
+  data: T;
   updatedAt: string;
 }
 
@@ -478,6 +514,7 @@ export class NkwapaDb extends Dexie {
   patient_pharmacy_preferences!: Table<PatientPharmacyPreferenceRecord, string>;
   outbox!: Table<OutboxRecord, string>;
   sync_state!: Table<SyncStateRecord, string>;
+  ops_cache!: Table<OpsCacheRecord, string>;
 
   constructor() {
     super('NkwapaDb');
@@ -596,6 +633,16 @@ export class NkwapaDb extends Dexie {
     */
     this.version(11).stores({
       medication_adherence: 'id, clinicId, encounterId, context, [encounterId+context], updatedAt',
+    });
+    /*
+      v12 keeps the last loaded Today board and My Assigned list per clinic (#17).
+
+      A new store with nothing to migrate. It exists so the clinic floor still sees who is on duty
+      and who is waiting when the connection drops; pending shift and check-in changes are drawn
+      on top of it from the outbox, never written into it.
+    */
+    this.version(12).stores({
+      ops_cache: 'key, clinicId, updatedAt',
     });
   }
 }

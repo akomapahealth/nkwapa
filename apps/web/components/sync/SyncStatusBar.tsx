@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { onSyncPassComplete } from '@/lib/sync';
+import type { SyncRecoveryAccess } from '@/lib/sync-conflicts';
 import { useOutboxQueue } from '@/lib/use-outbox-queue';
 import { cn } from '@/lib/utils';
 import { SyncCenterSheet } from './SyncCenterSheet';
@@ -32,11 +33,11 @@ const PILL = {
 export function SyncStatusBar({
   clinicId,
   canSync,
-  canReviewDuplicates,
+  recoveryAccess,
 }: {
   clinicId: string | null;
   canSync: boolean;
-  canReviewDuplicates: boolean;
+  recoveryAccess: SyncRecoveryAccess;
 }) {
   const { isOnline, syncStatus, syncNow, setSyncCenterOpen } = useSync();
   const { showToast } = useToast();
@@ -149,7 +150,7 @@ export function SyncStatusBar({
         clinicId={clinicId}
         queue={queue}
         canSync={canSync}
-        canReviewDuplicates={canReviewDuplicates}
+        recoveryAccess={recoveryAccess}
       />
     </>
   );

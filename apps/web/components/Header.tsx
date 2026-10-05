@@ -28,7 +28,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useTheme, type ThemePreference } from '@/lib/theme-context';
 import { AppNavList } from '@/components/app-shell/AppNavList';
 import { useBootstrap } from '@/lib/bootstrap-context';
-import { formatRoleLabel, getVisibleRoleLabels } from '@/lib/ops';
+import { formatRoleLabel, getOpsDestination, getVisibleRoleLabels } from '@/lib/ops';
 import { useKeycloak } from '@/app/KeycloakProvider';
 import { getActiveBootstrapClinic, getSwitchableClinics } from '@/lib/bootstrap-clinics';
 import { setStoredActiveClinicId } from '@/lib/bootstrap-storage';
@@ -64,6 +64,10 @@ export function Header({
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
   const hasPermission = (permission: string) => perms.includes('*') || perms.includes(permission);
   const canSync = hasPermission('SYNC.PUSH') && hasPermission('SYNC.PULL');
+  const recoveryAccess = {
+    canReviewDuplicates: hasPermission('PATIENT.DUPLICATE.REVIEW'),
+    opsBoardHref: getOpsDestination(perms),
+  };
   const roleLabels = getVisibleRoleLabels(activeMembership?.roles, bootstrap?.globalRoles);
 
   const handleClinicChange = (value: string) => {
@@ -239,11 +243,7 @@ export function Header({
         </div>
 
         <div className="flex items-center gap-2">
-          <SyncStatusBar
-            clinicId={clinicId}
-            canSync={canSync}
-            canReviewDuplicates={hasPermission('PATIENT.DUPLICATE.REVIEW')}
-          />
+          <SyncStatusBar clinicId={clinicId} canSync={canSync} recoveryAccess={recoveryAccess} />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

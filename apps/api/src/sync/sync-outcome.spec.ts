@@ -41,6 +41,8 @@ const SYNC_HANDLER_MODULES = [
   'hypertension-assessment/hypertension-assessment.service.ts',
   'medication-adherence/medication-adherence.service.ts',
   'prescriptions/prescription.service.ts',
+  'ops/ops.service.ts',
+  'ops/ops-replay.ts',
 ];
 
 describe('sync conflict code consistency', () => {
@@ -182,6 +184,21 @@ describe('sync failure classification', () => {
         currentRevisionId: 'rev-9',
         existingStatus: 'FINALIZED',
       });
+    });
+
+    it('names the existing shift or check-in an ops conflict collided with, and nothing else', () => {
+      const details = safeConflictDetails(
+        {
+          code: 'SHIFT_ALREADY_ACTIVE',
+          message: 'User already has an active shift in this clinic',
+          existingShiftId: 'shift-1',
+          existingCheckInId: 'checkin-1',
+          existingShift: { id: 'shift-1', notes: 'free text' },
+        },
+        'fallback',
+      );
+      expect(details).toMatchObject({ existingShiftId: 'shift-1', existingCheckInId: 'checkin-1' });
+      expect(details).not.toHaveProperty('existingShift');
     });
 
     it('drops anything not on the allow-list', () => {

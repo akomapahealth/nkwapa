@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { MedicationReconciliationOutcome, PatientMedicationStatus, Prisma } from '@prisma/client';
+import { isUniqueViolation } from '../common/prisma-errors';
 import { randomUUID } from 'node:crypto';
 import { normalizePhoneToE164 } from '@nkwapa/db';
 import { AuditService } from '../audit/audit.service';
@@ -642,7 +643,7 @@ export class MedicationReconciliationService {
     });
   }
   private isUniqueConflict(error: unknown) {
-    return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+    return isUniqueViolation(error);
   }
 
   private async log(

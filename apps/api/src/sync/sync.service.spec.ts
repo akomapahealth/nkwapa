@@ -8,13 +8,19 @@ import { EncounterStatus } from '@prisma/client';
 import { SYNC_MUTATION_RESULT_STATUS } from './dto/sync-push-response.dto';
 import type { SyncMutationDto } from './dto/sync-mutation.dto';
 import { MedicalHistoryService } from '../medical-history/medical-history.service';
-import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ClinicalMeasurementsService } from './clinical-measurements.service';
 import { MedicationReconciliationService } from '../medication-reconciliation/medication-reconciliation.service';
 import { DiabetesScreeningService } from '../diabetes-screening/diabetes-screening.service';
 import { HypertensionAssessmentService } from '../hypertension-assessment/hypertension-assessment.service';
 import { MedicationAdherenceService } from '../medication-adherence/medication-adherence.service';
 import { PrescriptionService } from '../prescriptions/prescription.service';
+import { OpsService } from '../ops/ops.service';
 
 const mockUser = {
   user: { id: 'user-1' },
@@ -33,6 +39,7 @@ describe('SyncService', () => {
   let hypertensionAssessmentService: jest.Mocked<HypertensionAssessmentService>;
   let medicationAdherenceService: jest.Mocked<MedicationAdherenceService>;
   let prescriptionService: jest.Mocked<PrescriptionService>;
+  let opsService: jest.Mocked<OpsService>;
   beforeEach(async () => {
     const mockPrisma = {
       syncMutation: {
@@ -160,6 +167,14 @@ describe('SyncService', () => {
             upsertFromSync: jest.fn().mockResolvedValue({ id: 'prescription-1' }),
           },
         },
+        {
+          provide: OpsService,
+          useValue: {
+            checkIn: jest.fn().mockResolvedValue({ id: 'shift-1' }),
+            checkOut: jest.fn().mockResolvedValue({ id: 'shift-1' }),
+            createCheckIn: jest.fn().mockResolvedValue({ id: 'checkin-1' }),
+          },
+        },
       ],
     }).compile();
 
@@ -174,6 +189,235 @@ describe('SyncService', () => {
     hypertensionAssessmentService = module.get(HypertensionAssessmentService);
     medicationAdherenceService = module.get(MedicationAdherenceService);
     prescriptionService = module.get(PrescriptionService);
+    opsService = module.get(OpsService);
+  });
+
+  describe('clinic operations replay', () => {
+    const SHIFT_ID = '0b9a4a8e-4c1f-4c38-9b2d-6f1f8f0a1c01';
+    const CHECKIN_ID = '0b9a4a8e-4c1f-4c38-9b2d-6f1f8f0a1c02';
+    const PATIENT_ID = '0b9a4a8e-4c1f-4c38-9b2d-6f1f8f0a1c03';
+    const occurredAt = '2026-03-21T08:15:00.000Z';
+    const opsMutation = (
+      entityType: string,
+      entityId: string,
+      payloadJson: Record<string, unknown>,
+      idempotencyKey = `ops:${entityType}:${entityId}`,
+    ): SyncMutationDto =>
+      ({
+        id: `mut-${entityType}`,
+        entityType,
+        entityId,
+        operation: 'UPSERT',
+        clinicId: 'clinic-1',
+        payloadJson: { schemaVersion: 1, occurredAt, ...payloadJson },
+        idempotencyKey,
+      }) as SyncMutationDto;
+    const push = (mutation: SyncMutationDto, user: unknown = mockUser) =>
+      service.applyMutations('clinic-1', user as never, [mutation]);
+
+    it('replays a shift check-in under its client id at the device time', async () => {
+      const [result] = await push(
+        opsMutation('shift_check_in', SHIFT_ID, { roleAtShift: 'VOLUNTEER' }),
+      );
+
+      expect(result).toMatchObject({ status: 'APPLIED' });
+      expect(opsService.checkIn).toHaveBeenCalledWith(
+        'clinic-1',
+        'user-1',
+        { id: SHIFT_ID, roleAtShift: 'VOLUNTEER', notes: undefined },
+        expect.objectContaining({
+          requestId: `ops:shift_check_in:${SHIFT_ID}`,
+          replay: expect.objectContaining({
+            occurredAt: new Date(occurredAt),
+            syncMutation: {
+              entityType: 'shift_check_in',
+              entityId: SHIFT_ID,
+              idempotencyKey: `ops:shift_check_in:${SHIFT_ID}`,
+            },
+          }),
+        }),
+      );
+      // The ops service commits the idempotency record with the write; sync must not add another.
+      expect(prisma.syncMutation.create).not.toHaveBeenCalled();
+    });
+
+    it('replays a shift check-out against the shift the entity id names', async () => {
+      const [result] = await push(opsMutation('shift_check_out', SHIFT_ID, {}));
+
+      expect(result.status).toBe('APPLIED');
+      expect(opsService.checkOut).toHaveBeenCalledWith(
+        'clinic-1',
+        SHIFT_ID,
+        'user-1',
+        expect.objectContaining({ replay: expect.any(Object) }),
+      );
+    });
+
+    it('replays a patient check-in under its client id', async () => {
+      const [result] = await push(
+        opsMutation('patient_check_in', CHECKIN_ID, { patientId: PATIENT_ID }),
+      );
+
+      expect(result.status).toBe('APPLIED');
+      expect(opsService.createCheckIn).toHaveBeenCalledWith(
+        'clinic-1',
+        'user-1',
+        expect.objectContaining({ id: CHECKIN_ID, patientId: PATIENT_ID }),
+        expect.objectContaining({ replay: expect.any(Object) }),
+      );
+    });
+
+    it('answers a duplicate replay from the idempotency record without a second write', async () => {
+      (prisma.syncMutation.findUnique as jest.Mock).mockResolvedValueOnce({
+        status: 'APPLIED',
+        conflictType: null,
+        conflictDetailsJson: null,
+      });
+
+      const [result] = await push(
+        opsMutation('patient_check_in', CHECKIN_ID, { patientId: PATIENT_ID }),
+      );
+
+      expect(result.status).toBe('APPLIED');
+      expect(opsService.createCheckIn).not.toHaveBeenCalled();
+    });
+
+    it('blocks a check-in that collides with another active shift and names it', async () => {
+      opsService.checkIn.mockRejectedValueOnce(
+        new ConflictException({
+          code: 'SHIFT_ALREADY_ACTIVE',
+          message: 'User already has an active shift in this clinic',
+          existingShiftId: 'shift-other',
+          existingShift: { notes: 'not for the client' },
+        }),
+      );
+
+      const [result] = await push(
+        opsMutation('shift_check_in', SHIFT_ID, { roleAtShift: 'VOLUNTEER' }),
+      );
+
+      expect(result).toMatchObject({
+        status: 'CONFLICT',
+        conflictType: 'SHIFT_ALREADY_ACTIVE',
+        retryable: false,
+        conflictDetails: expect.objectContaining({ existingShiftId: 'shift-other' }),
+      });
+      expect(result.conflictDetails).not.toHaveProperty('existingShift');
+      // Not cached: once the other shift is closed, a retry by the clinician should run again.
+      expect(prisma.syncMutation.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ status: 'CONFLICT', conflictType: 'SHIFT_ALREADY_ACTIVE' }),
+      });
+    });
+
+    it('blocks a second open check-in for the same patient and links the existing one', async () => {
+      opsService.createCheckIn.mockRejectedValueOnce(
+        new ConflictException({
+          code: 'PATIENT_ALREADY_CHECKED_IN',
+          message: 'This patient is already checked in today.',
+          existingCheckInId: 'checkin-open',
+        }),
+      );
+
+      const [result] = await push(
+        opsMutation('patient_check_in', CHECKIN_ID, { patientId: PATIENT_ID }),
+      );
+
+      expect(result).toMatchObject({
+        status: 'CONFLICT',
+        conflictType: 'PATIENT_ALREADY_CHECKED_IN',
+        retryable: false,
+        conflictDetails: expect.objectContaining({ existingCheckInId: 'checkin-open' }),
+      });
+    });
+
+    it('reports an expired replay as a refusal that will not clear by itself', async () => {
+      opsService.checkIn.mockRejectedValueOnce(
+        new BadRequestException({
+          code: 'OPS_REPLAY_EXPIRED',
+          message: 'This action was recorded on an earlier clinic day.',
+        }),
+      );
+
+      const [result] = await push(
+        opsMutation('shift_check_in', SHIFT_ID, { roleAtShift: 'VOLUNTEER' }),
+      );
+
+      expect(result).toMatchObject({
+        status: 'ERROR',
+        conflictType: 'OPS_REPLAY_EXPIRED',
+        retryable: false,
+      });
+    });
+
+    it('keeps a check-out that arrived before its check-in retryable', async () => {
+      opsService.checkOut.mockRejectedValueOnce(
+        new NotFoundException({ code: 'SHIFT_NOT_FOUND', message: 'Shift not found' }),
+      );
+
+      const [result] = await push(opsMutation('shift_check_out', SHIFT_ID, {}));
+
+      expect(result).toMatchObject({ conflictType: 'SHIFT_NOT_FOUND', retryable: true });
+    });
+
+    it.each([
+      ['an unknown key', { roleAtShift: 'VOLUNTEER', shiftId: 'someone-elses' }],
+      ['a missing time', { roleAtShift: 'VOLUNTEER', occurredAt: undefined }],
+      ['a role that does not exist', { roleAtShift: 'SYSTEM_ADMIN' }],
+      ['a future schema', { roleAtShift: 'VOLUNTEER', schemaVersion: 2 }],
+    ])('refuses a payload with %s before reaching the ops service', async (_label, payload) => {
+      const [result] = await push(opsMutation('shift_check_in', SHIFT_ID, payload));
+
+      expect(result).toMatchObject({ conflictType: 'VALIDATION_ERROR', retryable: false });
+      expect(opsService.checkIn).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['shift_check_in', { roleAtShift: 'DOCTOR' }],
+      ['shift_check_out', {}],
+    ])('refuses %s from a director, as the REST route does', async (entityType, payload) => {
+      const director = {
+        user: { id: 'user-1' },
+        roles: [{ clinicId: 'clinic-1', role: 'DIRECTOR' }],
+      };
+
+      const [result] = await push(opsMutation(entityType, SHIFT_ID, payload), director);
+
+      expect(result).toMatchObject({ conflictType: 'FORBIDDEN' });
+      expect(opsService.checkIn).not.toHaveBeenCalled();
+      expect(opsService.checkOut).not.toHaveBeenCalled();
+    });
+
+    it('lets a director replay a patient check-in, as the REST route does', async () => {
+      const director = {
+        user: { id: 'user-1' },
+        roles: [{ clinicId: 'clinic-1', role: 'DIRECTOR' }],
+      };
+
+      const [result] = await push(
+        opsMutation('patient_check_in', CHECKIN_ID, { patientId: PATIENT_ID }),
+        director,
+      );
+
+      expect(result.status).toBe('APPLIED');
+    });
+
+    it('refuses a patient check-in queued against a merged chart', async () => {
+      (prisma.patient.findFirst as jest.Mock).mockResolvedValueOnce({
+        id: PATIENT_ID,
+        mergedIntoPatientId: 'patient-canonical',
+      });
+      (prisma.patient.findFirst as jest.Mock).mockResolvedValueOnce({
+        id: 'patient-canonical',
+        patientCode: 'NKP-1',
+      });
+
+      const [result] = await push(
+        opsMutation('patient_check_in', CHECKIN_ID, { patientId: PATIENT_ID }),
+      );
+
+      expect(result).toMatchObject({ status: 'CONFLICT', conflictType: 'PATIENT_MERGED' });
+      expect(opsService.createCheckIn).not.toHaveBeenCalled();
+    });
   });
 
   describe('replay recovery', () => {
