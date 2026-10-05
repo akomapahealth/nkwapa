@@ -1,6 +1,6 @@
 import { ApiError } from './api';
 import type { OutboxMutationParams } from './outbox';
-import { submitOpsWrite, type OpsWriteDeps } from './ops-writes';
+import { opsWriteFeedback, submitOpsWrite, type OpsWriteDeps } from './ops-writes';
 
 jest.mock('./db', () => ({ db: jest.requireActual('./testing/fake-sync-db').createFakeSyncDb() }));
 
@@ -140,5 +140,36 @@ describe('submitOpsWrite', () => {
       'bug',
     );
     expect(enqueued).toEqual([]);
+  });
+});
+
+describe('opsWriteFeedback', () => {
+  const copy = {
+    applied: { tone: 'success' as const, message: 'Done.' },
+    queued: 'Saved on this device.',
+  };
+
+  it('says a queued action is saved, not failed', () => {
+    expect(opsWriteFeedback({ outcome: 'queued' }, copy)).toEqual({
+      tone: 'info',
+      message: 'Saved on this device.',
+    });
+  });
+
+  it('uses the caller’s wording for a refusal it expects, and the server’s otherwise', () => {
+    const duplicate = new ApiError('already', { code: 'PATIENT_ALREADY_CHECKED_IN' });
+    const other = new ApiError('Clinic not found', { code: 'NOT_FOUND' });
+    const refused = (error: ApiError) =>
+      error.code === 'PATIENT_ALREADY_CHECKED_IN'
+        ? { tone: 'warning' as const, message: 'Already in the queue.' }
+        : null;
+
+    expect(
+      opsWriteFeedback({ outcome: 'refused', error: duplicate }, { ...copy, refused }),
+    ).toEqual({ tone: 'warning', message: 'Already in the queue.' });
+    expect(opsWriteFeedback({ outcome: 'refused', error: other }, { ...copy, refused })).toEqual({
+      tone: 'error',
+      message: 'Clinic not found',
+    });
   });
 });

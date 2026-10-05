@@ -36,6 +36,7 @@ import {
   EmptyStateCard,
   InlineNotice,
   OfflineOpsBanner,
+  OpsFeedbackNotice,
   ShiftControlCard,
   opsOfflineHint,
 } from '@/components/ops/OpsShared';
@@ -362,11 +363,7 @@ export default function MyAssignedPage() {
           />
         ) : null}
         {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
-        {shiftControls.feedback ? (
-          <InlineNotice tone={shiftControls.feedback.tone}>
-            {shiftControls.feedback.message}
-          </InlineNotice>
-        ) : null}
+        <OpsFeedbackNotice feedback={shiftControls.feedback} />
 
         {view.isInitialLoading ? (
           <div className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">

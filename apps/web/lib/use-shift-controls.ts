@@ -4,10 +4,9 @@ import { useEffect, useState } from 'react';
 import { getErrorMessage } from './api';
 import { formatRoleLabel, type ActiveShift, type ShiftRole } from './ops';
 import type { WithPendingSync } from './ops-offline';
+import { opsWriteFeedback, type OpsFeedback, type OpsWrite } from './ops-writes';
 import { generateClientId } from './outbox';
 import { useOpsWrite } from './use-ops-write';
-
-export type OpsFeedback = { tone: 'success' | 'info' | 'error'; message: string } | null;
 
 /**
  * Starting and ending your own shift, shared by every page that shows the shift card.
@@ -33,7 +32,7 @@ export function useShiftControls({
   const submit = useOpsWrite(clinicId);
   const [selectedRole, setSelectedRole] = useState<ShiftRole | ''>('');
   const [busy, setBusy] = useState(false);
-  const [feedback, setFeedback] = useState<OpsFeedback>(null);
+  const [feedback, setFeedback] = useState<OpsFeedback | null>(null);
 
   // Default to the first role the person can take, and drop a role they no longer hold.
   const rolesKey = eligibleRoles.join('|');
@@ -46,25 +45,19 @@ export function useShiftControls({
 
   const currentShift = shifts.find((shift) => shift.userId === userId) ?? null;
 
-  async function run(
-    action: () => Promise<{ outcome: string; error?: unknown }>,
-    done: {
-      applied: string;
-      queued: string;
-    },
-  ) {
+  async function run(write: OpsWrite, copy: { applied: string; queued: string }) {
+    if (!submit) return;
     setBusy(true);
     setFeedback(null);
     try {
-      const result = await action();
-      if (result.outcome === 'applied') {
-        setFeedback({ tone: 'success', message: done.applied });
-        onApplied();
-      } else if (result.outcome === 'queued') {
-        setFeedback({ tone: 'info', message: done.queued });
-      } else {
-        setFeedback({ tone: 'error', message: getErrorMessage(result.error) });
-      }
+      const result = await submit(write);
+      setFeedback(
+        opsWriteFeedback(result, {
+          applied: { tone: 'success', message: copy.applied },
+          queued: copy.queued,
+        }),
+      );
+      if (result.outcome === 'applied') onApplied();
     } catch (error) {
       setFeedback({ tone: 'error', message: getErrorMessage(error) });
     } finally {
@@ -76,8 +69,7 @@ export function useShiftControls({
     if (!submit || !selectedRole) return;
     const role = formatRoleLabel(selectedRole);
     void run(
-      () =>
-        submit({ kind: 'shiftCheckIn', shiftId: generateClientId(), roleAtShift: selectedRole }),
+      { kind: 'shiftCheckIn', shiftId: generateClientId(), roleAtShift: selectedRole },
       {
         applied: `Shift started as ${role}.`,
         queued: `Shift start saved on this device as ${role}. It will sync when the connection returns.`,
@@ -88,12 +80,11 @@ export function useShiftControls({
   function checkOut() {
     if (!submit || !currentShift || currentShift.pendingCheckOut) return;
     void run(
-      () =>
-        submit({
-          kind: 'shiftCheckOut',
-          shiftId: currentShift.shiftId,
-          afterQueuedStart: currentShift.pendingSync !== undefined,
-        }),
+      {
+        kind: 'shiftCheckOut',
+        shiftId: currentShift.shiftId,
+        afterQueuedStart: currentShift.pendingSync !== undefined,
+      },
       {
         applied: 'Shift ended.',
         queued: 'Shift end saved on this device. It will sync when the connection returns.',

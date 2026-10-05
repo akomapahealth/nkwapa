@@ -1,4 +1,4 @@
-import { ApiError, apiFetch, readApiError, type GetToken } from './api';
+import { ApiError, apiFetch, getErrorMessage, readApiError, type GetToken } from './api';
 import { db } from './db';
 import {
   buildPatientCheckInMutation,
@@ -129,4 +129,36 @@ export async function submitOpsWrite(write: OpsWrite, deps: OpsWriteDeps): Promi
 
   await enqueue(outboxMutation(write, deps, occurredAt));
   return { outcome: 'queued' };
+}
+
+/** What to tell someone after an operations write, and where to go next if anywhere. */
+export interface OpsFeedback {
+  tone: 'success' | 'info' | 'warning' | 'error';
+  message: string;
+  link?: { href: string; label: string };
+}
+
+/**
+ * The message for each outcome. Queued is said plainly as saved, not failed: the action is safe
+ * on the device, and the board already shows it as pending.
+ */
+export function opsWriteFeedback(
+  result: OpsWriteResult,
+  copy: {
+    applied: OpsFeedback;
+    queued: string;
+    /** A clearer message for a refusal the caller expects, or null to use the server's. */
+    refused?: (error: ApiError) => OpsFeedback | null;
+  },
+): OpsFeedback {
+  switch (result.outcome) {
+    case 'applied':
+      return copy.applied;
+    case 'queued':
+      return { tone: 'info', message: copy.queued };
+    case 'refused':
+      return (
+        copy.refused?.(result.error) ?? { tone: 'error', message: getErrorMessage(result.error) }
+      );
+  }
 }

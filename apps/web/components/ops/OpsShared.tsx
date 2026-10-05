@@ -21,7 +21,9 @@ import {
   type OpsAction,
   type WithPendingSync,
 } from '@/lib/ops-offline';
+import type { OpsFeedback } from '@/lib/ops-writes';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
 import {
   type ActiveShift,
   type CheckInStatus,
@@ -203,6 +205,26 @@ export function PendingSyncBadge({
       />
       {text}
     </span>
+  );
+}
+
+/** The result of an operations write, with its next step when there is one. */
+export function OpsFeedbackNotice({ feedback }: { feedback: OpsFeedback | null }) {
+  if (!feedback) return null;
+  return (
+    <InlineNotice tone={feedback.tone}>
+      <span data-testid="ops-feedback" data-tone={feedback.tone}>
+        {feedback.message}
+      </span>
+      {feedback.link ? (
+        <>
+          {' '}
+          <Link href={feedback.link.href} className="font-medium underline underline-offset-4">
+            {feedback.link.label}
+          </Link>
+        </>
+      ) : null}
+    </InlineNotice>
   );
 }
 

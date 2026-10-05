@@ -6,7 +6,8 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { apiFetch } from '@/lib/api';
-import { getOpsDestination, hasPermission, readApiError } from '@/lib/ops';
+import { hasPermission, readApiError } from '@/lib/ops';
+import { usePatientCheckIn } from '@/lib/use-patient-check-in';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { db } from '@/lib/db';
@@ -49,7 +50,7 @@ import {
 } from '@/lib/patient-chart';
 import { getErrorMessage } from '@/lib/api';
 import { useChartTabs } from '@/lib/use-chart-tabs';
-import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
+import { EmptyStateCard, InlineNotice, OpsFeedbackNotice } from '@/components/ops/OpsShared';
 import {
   Dialog,
   DialogContent,
@@ -127,7 +128,7 @@ function PatientChartWorkspace() {
   const canReadPrescriptions = hasPermission(perms, 'PRESCRIPTION.READ');
   const userId = bootstrap?.userId ?? '';
   const canCreateOpsCheckIn = hasPermission(perms, 'OPS.CHECKIN.CREATE');
-  const opsDestination = getOpsDestination(perms);
+  const patientCheckIn = usePatientCheckIn(clinicId);
 
   const [data, setData] = useState<PatientWithEncounters | null>(null);
   const [portalLinkOpen, setPortalLinkOpen] = useState(false);
@@ -506,35 +507,6 @@ function PatientChartWorkspace() {
     }
   };
 
-  const handleCheckIn = async () => {
-    if (!getToken) return;
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      const res = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}/checkins`, {
-        method: 'POST',
-        body: JSON.stringify({ patientId }),
-        getToken,
-        activeClinicId: clinicId,
-      });
-      if (!res.ok) throw new Error(await readApiError(res));
-
-      setSuccess(
-        opsDestination
-          ? 'Patient added to the clinic board successfully.'
-          : 'Patient checked in successfully.',
-      );
-      if (opsDestination === '/today') {
-        router.prefetch('/today');
-      }
-    } catch (checkInErr) {
-      setError(checkInErr instanceof Error ? checkInErr.message : 'Failed to check in patient');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   if (loading && !data) {
     return (
       <div className="space-y-6" role="status" aria-live="polite" aria-busy="true">
@@ -624,9 +596,19 @@ function PatientChartWorkspace() {
               </Button>
             ) : null}
             {canCreateOpsCheckIn ? (
-              <Button onClick={() => void handleCheckIn()} disabled={loading}>
+              <Button
+                onClick={() =>
+                  void patientCheckIn.checkIn({
+                    id: patient.id,
+                    patientCode: patient.patientCode,
+                    firstName: patient.firstName,
+                    lastName: patient.lastName,
+                  })
+                }
+                disabled={loading || patientCheckIn.isBusy || !patientCheckIn.canSubmit}
+              >
                 <Stethoscope className="h-4 w-4" />
-                Check In Patient
+                {patientCheckIn.isBusy ? 'Checking in...' : 'Check In Patient'}
               </Button>
             ) : null}
           </>
@@ -674,19 +656,10 @@ function PatientChartWorkspace() {
           </span>
         </InlineNotice>
       ) : null}
-      {success ? (
-        <InlineNotice tone="success">
-          <span>{success}</span>
-          {opsDestination ? (
-            <>
-              {' '}
-              <Link href={opsDestination} className="font-medium underline underline-offset-4">
-                Open OPS view
-              </Link>
-            </>
-          ) : null}
-        </InlineNotice>
-      ) : null}
+      {/* Other actions on this chart report here too, so the OPS link belongs to the check-in
+          notice alone rather than to every success message. */}
+      {success ? <InlineNotice tone="success">{success}</InlineNotice> : null}
+      <OpsFeedbackNotice feedback={patientCheckIn.feedback} />
 
       <PatientChartTabs
         sections={chartSections}

@@ -43,6 +43,7 @@ import {
   EmptyStateCard,
   InlineNotice,
   OfflineOpsBanner,
+  OpsFeedbackNotice,
   PendingSyncBadge,
   ShiftControlCard,
   ShiftRoleBadge,
@@ -380,11 +381,7 @@ export default function TodayBoardPage() {
         ) : null}
         {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
         {notice ? <InlineNotice tone="success">{notice}</InlineNotice> : null}
-        {shiftControls.feedback ? (
-          <InlineNotice tone={shiftControls.feedback.tone}>
-            {shiftControls.feedback.message}
-          </InlineNotice>
-        ) : null}
+        <OpsFeedbackNotice feedback={shiftControls.feedback} />
 
         {board.isInitialLoading ? (
           <div
