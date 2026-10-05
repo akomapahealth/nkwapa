@@ -38,6 +38,8 @@ const ALLOWED_CONFLICT_KEYS = [
   'existingPatientId',
   'canonicalPatientId',
   'patientCode',
+  'existingShiftId',
+  'existingCheckInId',
 ] as const;
 
 /**

@@ -82,6 +82,10 @@ export const SYNC_CONFLICT_CODES = {
   ACTIVE_ALLERGIES_PREVENT_NKA: code('stale'),
   CURRENT_MEDICATIONS_PREVENT_NO_KNOWN: code('stale'),
   APPLICATION_CONFLICT: code('stale'),
+  // Clinic operations. Neither clears by itself in a way that should replay silently: re-sending a
+  // check-in the moment the other shift closes would start a shift nobody asked for.
+  SHIFT_ALREADY_ACTIVE: code('stale', { retryable: false }),
+  PATIENT_ALREADY_CHECKED_IN: code('stale', { retryable: false }),
 
   // Content the server will not accept
   VALIDATION_ERROR: code('validation'),
@@ -103,6 +107,10 @@ export const SYNC_CONFLICT_CODES = {
   NO_CURRENT_MEDICATIONS: code('validation'),
   RESOLVED_DATE_REQUIRED: code('validation'),
   SOURCE_ENCOUNTER_MISMATCH: code('validation'),
+  // A queued clinic-operations action is only replayed on the clinic day it happened; the day
+  // cannot come back, so no replay will ever be accepted.
+  OPS_REPLAY_EXPIRED: code('validation', terminal),
+  INVALID_OPS_TIME_ORDER: code('validation'),
 
   // Access
   FORBIDDEN: code('permission'),
@@ -111,6 +119,8 @@ export const SYNC_CONFLICT_CODES = {
   // Everything else. A missing reference stays retryable: the patient or encounter it points at
   // may simply not have reached the server yet.
   RECORD_NOT_FOUND: code('unexpected'),
+  // A check-out queued after an offline check-in can arrive before that check-in has drained.
+  SHIFT_NOT_FOUND: code('unexpected'),
   APPLICATION_ERROR: code('unexpected'),
 } as const satisfies Record<string, SyncConflictCodeDefinition>;
 

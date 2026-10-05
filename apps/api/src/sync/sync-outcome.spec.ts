@@ -184,6 +184,21 @@ describe('sync failure classification', () => {
       });
     });
 
+    it('names the existing shift or check-in an ops conflict collided with, and nothing else', () => {
+      const details = safeConflictDetails(
+        {
+          code: 'SHIFT_ALREADY_ACTIVE',
+          message: 'User already has an active shift in this clinic',
+          existingShiftId: 'shift-1',
+          existingCheckInId: 'checkin-1',
+          existingShift: { id: 'shift-1', notes: 'free text' },
+        },
+        'fallback',
+      );
+      expect(details).toMatchObject({ existingShiftId: 'shift-1', existingCheckInId: 'checkin-1' });
+      expect(details).not.toHaveProperty('existingShift');
+    });
+
     it('drops anything not on the allow-list', () => {
       // The raw exception response used to be echoed verbatim and persisted. A handler that began
       // including patient detail in its response would have leaked it without touching sync code.
