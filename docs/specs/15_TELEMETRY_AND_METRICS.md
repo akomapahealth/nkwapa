@@ -86,10 +86,11 @@ Names follow `domain.object.action`. Every event may also carry `outcome`, `dura
 
 ### Identity
 
-| Event                   | Label          | Source | Properties                                                                         | Meaning                             |
-| ----------------------- | -------------- | ------ | ---------------------------------------------------------------------------------- | ----------------------------------- |
-| `patient.merge.preview` | Merge previews | API    | `blocked`: boolean<br>`blockerCount`: count (0-50)<br>`warningCount`: count (0-50) | Staff previewed merging two charts. |
-| `patient.merge.execute` | Charts merged  | API    | none                                                                               | Staff merged two charts.            |
+| Event                           | Label                                 | Source | Properties                                                                             | Meaning                                                                  |
+| ------------------------------- | ------------------------------------- | ------ | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `patient.merge.preview`         | Merge previews                        | API    | `blocked`: boolean<br>`blockerCount`: count (0-50)<br>`warningCount`: count (0-50)     | Staff previewed merging two charts.                                      |
+| `patient.merge.execute`         | Charts merged                         | API    | none                                                                                   | Staff merged two charts.                                                 |
+| `patient.duplicate.investigate` | Cross-clinic duplicate investigations | API    | `pairCount`: count (0-500)<br>`clinicPairCount`: count (0-500)<br>`truncated`: boolean | A system administrator looked at likely duplicates spanning two clinics. |
 
 ### Invites
 

@@ -1,10 +1,14 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { PatientDuplicateReviewStatus, UserRole } from '@prisma/client';
 import {
+  DUPLICATE_MATCH_REASONS,
   duplicatePairKey,
   evaluateDuplicatePair,
+  isMergeBlocked,
+  structuralMergeFindings,
   type DuplicateConfidence,
   type DuplicateMatchReason,
+  type MergeFinding,
 } from '@nkwapa/db';
 import { isSystemAdmin } from '../auth/clinic-roles';
 import { AuditService } from '../audit/audit.service';
@@ -41,6 +45,18 @@ export interface ListDuplicateCandidatesFilters {
   pageSize?: number;
 }
 
+export interface CrossClinicInvestigationFilters extends ListDuplicateCandidatesFilters {
+  /** A clinic pair key, as `burden.clinicPairs[].key` reports it, to narrow the list to. */
+  clinicPair?: string;
+}
+
+export interface DuplicateCandidateClinic {
+  id: string;
+  name: string;
+  organizationId: string;
+  organizationName: string;
+}
+
 export interface DuplicateCandidatePatient {
   id: string;
   patientCode: string;
@@ -55,12 +71,7 @@ export interface DuplicateCandidatePatient {
   portalLinked: boolean;
   createdAt: string;
   updatedAt: string;
-  clinic: {
-    id: string;
-    name: string;
-    organizationId: string;
-    organizationName: string;
-  };
+  clinic: DuplicateCandidateClinic;
 }
 
 export interface DuplicateCandidateReview {
@@ -85,6 +96,11 @@ export interface DuplicateCandidate {
    * can only fail.
    */
   mergeEligible: boolean;
+  /**
+   * Why not, when `mergeEligible` is false: the structural refusals the merge preview would
+   * report, from the same rule, so the queue and the preview cannot disagree.
+   */
+  mergeBlockers: MergeFinding[];
   /** The more recent of the two charts' `updatedAt`. */
   lastUpdatedAt: string;
   review: DuplicateCandidateReview | null;
@@ -105,6 +121,43 @@ export interface DuplicateCandidatePage {
     crossClinic: number;
     dismissed: number;
   };
+}
+
+/** How many cross-clinic pairs one clinic pair holds, by confidence and by review status. */
+export interface CrossClinicBurdenRow {
+  /** The two clinic ids, sorted and joined with a colon. Also the `clinicPair` filter value. */
+  key: string;
+  clinics: [DuplicateCandidateClinic, DuplicateCandidateClinic];
+  sameOrganization: boolean;
+  total: number;
+  open: number;
+  confirmed: number;
+  dismissed: number;
+  high: number;
+  medium: number;
+  low: number;
+}
+
+/**
+ * The cross-clinic picture, before any filter is applied.
+ *
+ * Filters narrow the list a person is reading; they must not change the numbers leadership is
+ * quoting. So the burden always describes the whole scan, and `truncated` says when even that is
+ * a lower bound.
+ */
+export interface CrossClinicBurden {
+  totalPairs: number;
+  openPairs: number;
+  highConfidencePairs: number;
+  clinicsAffected: number;
+  organizationsAffected: number;
+  crossOrganizationPairs: number;
+  clinicPairs: CrossClinicBurdenRow[];
+  reasons: { reason: DuplicateMatchReason; count: number }[];
+}
+
+export interface CrossClinicInvestigation extends DuplicateCandidatePage {
+  burden: CrossClinicBurden;
 }
 
 const DEFAULT_PAGE_SIZE = 25;
@@ -131,8 +184,84 @@ export class PatientDuplicateService {
     this.assertScopeAllowed(actor, scope);
 
     const pairs = await this.repository.findCandidatePairs({ clinicId: scope.clinicId });
+    const candidates = await this.buildCandidates(pairs);
+
+    return this.toPage(candidates, filters, pairs.length >= DUPLICATE_PAIR_SCAN_LIMIT);
+  }
+
+  /**
+   * Likely duplicates whose two charts sit in different active clinics, with the burden they add
+   * up to.
+   *
+   * Read-only, like the queue. It exists because consolidation across clinics is not built and
+   * not yet a policy: before anyone decides whether to build it, leadership needs to know how
+   * much of the problem there is and where. Every view is audited, because this is the one screen
+   * that puts two clinics' identity data side by side.
+   */
+  async investigateCrossClinic(
+    actor: DuplicateReviewActor,
+    filters: CrossClinicInvestigationFilters = {},
+    requestId?: string,
+  ): Promise<CrossClinicInvestigation> {
+    this.assertScopeAllowed(actor, { clinicId: null });
+
+    const pairs = await this.repository.findCandidatePairs({
+      clinicId: null,
+      crossClinicOnly: true,
+    });
+    // The scan already excludes same-clinic pairs; the filter here is a second statement of the
+    // contract rather than the thing enforcing it, so a regression in the SQL cannot leak a
+    // same-clinic pair into a screen that says every row spans two clinics.
+    const candidates = (await this.buildCandidates(pairs)).filter(
+      (candidate) => candidate.crossClinic,
+    );
     const truncated = pairs.length >= DUPLICATE_PAIR_SCAN_LIMIT;
 
+    const inPair = filters.clinicPair
+      ? candidates.filter((candidate) => this.clinicPairKey(candidate) === filters.clinicPair)
+      : candidates;
+
+    const result: CrossClinicInvestigation = {
+      ...this.toPage(inPair, filters, truncated),
+      // The summary describes the whole scan, like the burden, not the clinic pair in view.
+      summary: this.summarize(candidates),
+      burden: this.burdenOf(candidates),
+    };
+
+    await this.auditService.logWrite({
+      clinicId: null,
+      actorUserId: actor.userId,
+      action: 'PATIENT.DUPLICATE.CROSS_CLINIC.VIEW',
+      entityType: 'PatientDuplicateInvestigation',
+      entityId: 'cross-clinic',
+      beforeJson: null,
+      // What was asked and how much came back -- never which patients. The audit trail has to say
+      // that someone looked without becoming a second copy of what they saw.
+      afterJson: JSON.stringify({
+        filters: {
+          status: filters.status ?? PatientDuplicateReviewStatus.OPEN,
+          confidence: filters.confidence ?? 'ALL',
+          reason: filters.reason ?? null,
+          searched: Boolean(filters.q?.trim()),
+          clinicPair: filters.clinicPair ?? null,
+          page: result.page,
+        },
+        returned: result.items.length,
+        matched: result.total,
+        totalPairs: result.burden.totalPairs,
+        clinicPairs: result.burden.clinicPairs.length,
+        truncated,
+      }),
+      requestId,
+    });
+
+    return result;
+  }
+
+  /** Score each blocked pair, drop the ones the rules do not endorse, and attach any decision. */
+  private async buildCandidates(
+    pairs: { patientAId: string; patientBId: string }[],
+  ): Promise<DuplicateCandidate[]> {
     const patientIds = [...new Set(pairs.flatMap((pair) => [pair.patientAId, pair.patientBId]))];
     const patients = await this.repository.findPatientsByIds(patientIds);
     const byId = new Map(patients.map((patient) => [patient.id, patient]));
@@ -157,18 +286,19 @@ export class PatientDuplicateService {
     );
     const reviewByPairKey = new Map(reviews.map((review) => [review.pairKey, review]));
 
-    const candidates: DuplicateCandidate[] = scored.map(({ left, right, evaluation }) => {
+    return scored.map(({ left, right, evaluation }) => {
       const pairKey = duplicatePairKey(left.id, right.id);
       const review = reviewByPairKey.get(pairKey);
-      const crossClinic = left.primaryClinicId !== right.primaryClinicId;
+      const mergeBlockers = structuralMergeFindings(left, right);
 
       return {
         pairKey,
         score: evaluation.score,
         confidence: evaluation.confidence,
         reasons: evaluation.reasons,
-        crossClinic,
-        mergeEligible: !crossClinic,
+        crossClinic: left.primaryClinicId !== right.primaryClinicId,
+        mergeEligible: !isMergeBlocked(mergeBlockers),
+        mergeBlockers,
         lastUpdatedAt: (left.updatedAt > right.updatedAt
           ? left.updatedAt
           : right.updatedAt
@@ -186,16 +316,14 @@ export class PatientDuplicateService {
         patients: [this.toCandidatePatient(left), this.toCandidatePatient(right)],
       };
     });
+  }
 
-    const summary = {
-      open: candidates.filter((candidate) => this.statusOf(candidate) === 'OPEN').length,
-      high: candidates.filter(
-        (candidate) => candidate.confidence === 'HIGH' && this.statusOf(candidate) === 'OPEN',
-      ).length,
-      crossClinic: candidates.filter((candidate) => candidate.crossClinic).length,
-      dismissed: candidates.filter((candidate) => this.statusOf(candidate) === 'DISMISSED').length,
-    };
-
+  /** Filter, order and slice one page, keeping the unfiltered summary alongside it. */
+  private toPage(
+    candidates: DuplicateCandidate[],
+    filters: ListDuplicateCandidatesFilters,
+    truncated: boolean,
+  ): DuplicateCandidatePage {
     const filtered = candidates
       .filter((candidate) => this.matchesFilters(candidate, filters))
       // Strongest first, then most recently touched: an operator working top-down should meet the
@@ -213,8 +341,91 @@ export class PatientDuplicateService {
       pageSize,
       generatedAt: new Date().toISOString(),
       truncated,
-      summary,
+      summary: this.summarize(candidates),
     };
+  }
+
+  private summarize(candidates: DuplicateCandidate[]): DuplicateCandidatePage['summary'] {
+    return {
+      open: candidates.filter((candidate) => this.statusOf(candidate) === 'OPEN').length,
+      high: candidates.filter(
+        (candidate) => candidate.confidence === 'HIGH' && this.statusOf(candidate) === 'OPEN',
+      ).length,
+      crossClinic: candidates.filter((candidate) => candidate.crossClinic).length,
+      dismissed: candidates.filter((candidate) => this.statusOf(candidate) === 'DISMISSED').length,
+    };
+  }
+
+  private burdenOf(candidates: DuplicateCandidate[]): CrossClinicBurden {
+    const rows = new Map<string, CrossClinicBurdenRow>();
+    const reasonCounts = new Map<DuplicateMatchReason, number>();
+    const clinics = new Set<string>();
+    const organizations = new Set<string>();
+
+    for (const candidate of candidates) {
+      const key = this.clinicPairKey(candidate);
+      const [first, second] = [...candidate.patients]
+        .map((patient) => patient.clinic)
+        .sort((a, b) => a.id.localeCompare(b.id));
+      const row = rows.get(key) ?? {
+        key,
+        clinics: [first, second],
+        sameOrganization: first.organizationId === second.organizationId,
+        total: 0,
+        open: 0,
+        confirmed: 0,
+        dismissed: 0,
+        high: 0,
+        medium: 0,
+        low: 0,
+      };
+
+      row.total += 1;
+      const status = this.statusOf(candidate);
+      if (status === 'OPEN') row.open += 1;
+      if (status === 'CONFIRMED') row.confirmed += 1;
+      if (status === 'DISMISSED') row.dismissed += 1;
+      if (candidate.confidence === 'HIGH') row.high += 1;
+      if (candidate.confidence === 'MEDIUM') row.medium += 1;
+      if (candidate.confidence === 'LOW') row.low += 1;
+      rows.set(key, row);
+
+      for (const reason of candidate.reasons) {
+        reasonCounts.set(reason, (reasonCounts.get(reason) ?? 0) + 1);
+      }
+      for (const clinic of [first, second]) {
+        clinics.add(clinic.id);
+        organizations.add(clinic.organizationId);
+      }
+    }
+
+    const clinicPairs = [...rows.values()].sort(
+      (a, b) => b.open - a.open || b.total - a.total || a.key.localeCompare(b.key),
+    );
+
+    return {
+      totalPairs: candidates.length,
+      openPairs: candidates.filter((candidate) => this.statusOf(candidate) === 'OPEN').length,
+      highConfidencePairs: candidates.filter((candidate) => candidate.confidence === 'HIGH').length,
+      clinicsAffected: clinics.size,
+      organizationsAffected: organizations.size,
+      crossOrganizationPairs: clinicPairs
+        .filter((row) => !row.sameOrganization)
+        .reduce((sum, row) => sum + row.total, 0),
+      clinicPairs,
+      // In the catalog's own order, strongest rule first, and only the rules that fired.
+      reasons: DUPLICATE_MATCH_REASONS.flatMap((reason) => {
+        const count = reasonCounts.get(reason) ?? 0;
+        return count > 0 ? [{ reason, count }] : [];
+      }),
+    };
+  }
+
+  private clinicPairKey(candidate: DuplicateCandidate): string {
+    return candidate.patients
+      .map((patient) => patient.clinic.id)
+      .sort()
+      .join(':');
   }
 
   /**

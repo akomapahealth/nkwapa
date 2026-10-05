@@ -86,7 +86,29 @@ describe('PatientDuplicateRepository.findCandidatePairs', () => {
     await repository.findCandidatePairs({});
 
     expect(boundValues()).toContain(null);
-    expect(sql()).toContain('IS NULL OR "primaryClinicId"');
+    expect(sql()).toContain('IS NULL OR p."primaryClinicId"');
+  });
+
+  it('keeps every pair, in any clinic, unless asked for cross-clinic pairs', async () => {
+    await repository.findCandidatePairs({});
+
+    // Both filters are bound off: the queue still shows an inactive clinic's pairs, where the
+    // merge blocker explains why they cannot be consolidated.
+    expect(boundValues().filter((value) => value === false)).toHaveLength(2);
+  });
+
+  /*
+    The cross-clinic investigation filters inside the scan, so the ceiling is spent on the pairs
+    it reports. Filtering after `LIMIT` would let one busy clinic's same-clinic pairs crowd every
+    cross-clinic pair out, and the burden would be under-reported without saying so.
+  */
+  it('narrows to two different, active clinics before the ceiling applies', async () => {
+    await repository.findCandidatePairs({ crossClinicOnly: true });
+
+    expect(boundValues().filter((value) => value === true)).toHaveLength(2);
+    expect(sql()).toContain('c."isActive"');
+    expect(sql()).toContain('a."primaryClinicId" <> b."primaryClinicId"');
+    expect(sql().indexOf('<> b."primaryClinicId"')).toBeLessThan(sql().indexOf('LIMIT'));
   });
 
   it('stops at the scan ceiling by default', async () => {

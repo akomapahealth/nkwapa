@@ -39,6 +39,7 @@ export type DuplicatePatientRecord = Prisma.PatientGetPayload<{
       select: {
         id: true;
         name: true;
+        isActive: true;
         organizationId: true;
         organization: { select: { name: true } };
       };
@@ -67,6 +68,7 @@ const DUPLICATE_PATIENT_SELECT = {
     select: {
       id: true,
       name: true,
+      isActive: true,
       organizationId: true,
       organization: { select: { name: true } },
     },
@@ -102,26 +104,39 @@ export class PatientDuplicateRepository {
    */
   async findCandidatePairs(params: {
     clinicId?: string | null;
+    /**
+     * Keep only pairs whose charts sit in two different, active clinics.
+     *
+     * Applied inside the scan rather than after it, so the ceiling is spent on cross-clinic pairs
+     * alone. Filtering afterwards would let a busy clinic's same-clinic pairs crowd every
+     * cross-clinic one out of the first `limit` rows, and the investigation would under-report
+     * exactly the burden it exists to measure.
+     */
+    crossClinicOnly?: boolean;
     limit?: number;
   }): Promise<DuplicatePairRow[]> {
     const clinicId = params.clinicId ?? null;
+    const crossClinicOnly = params.crossClinicOnly ?? false;
     const limit = params.limit ?? DUPLICATE_PAIR_SCAN_LIMIT;
 
     return this.prisma.$queryRaw<DuplicatePairRow[]>`
       WITH scope AS (
         SELECT
-          "id",
-          "firstName",
-          "lastName",
-          "dob",
-          "phoneE164",
-          "email",
-          "nationalIdHash",
-          "nationalIdType",
-          "nationalIdLast4"
-        FROM "Patient"
-        WHERE "mergedIntoPatientId" IS NULL
-          AND (${clinicId}::uuid IS NULL OR "primaryClinicId" = ${clinicId}::uuid)
+          p."id",
+          p."primaryClinicId",
+          p."firstName",
+          p."lastName",
+          p."dob",
+          p."phoneE164",
+          p."email",
+          p."nationalIdHash",
+          p."nationalIdType",
+          p."nationalIdLast4"
+        FROM "Patient" p
+        JOIN "Clinic" c ON c."id" = p."primaryClinicId"
+        WHERE p."mergedIntoPatientId" IS NULL
+          AND (${clinicId}::uuid IS NULL OR p."primaryClinicId" = ${clinicId}::uuid)
+          AND (NOT ${crossClinicOnly}::boolean OR c."isActive")
       ),
       pairs AS (
         SELECT a."id" AS "patientAId", b."id" AS "patientBId"
@@ -164,9 +179,12 @@ export class PatientDuplicateRepository {
          AND a."id" < b."id"
         WHERE a."dob" IS NOT NULL
       )
-      SELECT "patientAId", "patientBId"
+      SELECT pairs."patientAId", pairs."patientBId"
       FROM pairs
-      ORDER BY "patientAId", "patientBId"
+      JOIN scope a ON a."id" = pairs."patientAId"
+      JOIN scope b ON b."id" = pairs."patientBId"
+      WHERE NOT ${crossClinicOnly}::boolean OR a."primaryClinicId" <> b."primaryClinicId"
+      ORDER BY pairs."patientAId", pairs."patientBId"
       LIMIT ${limit}
     `;
   }

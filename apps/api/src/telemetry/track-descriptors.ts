@@ -28,6 +28,16 @@ export function mergePreviewShape(result: unknown): Record<string, unknown> {
   };
 }
 
+/** How large the cross-clinic duplicate picture was when someone looked at it, as counts. */
+export function crossClinicInvestigationShape(result: unknown): Record<string, unknown> {
+  const burden = (result as { burden?: { totalPairs?: unknown; clinicPairs?: unknown[] } })?.burden;
+  return {
+    pairCount: typeof burden?.totalPairs === 'number' ? burden.totalPairs : 0,
+    clinicPairCount: Array.isArray(burden?.clinicPairs) ? burden.clinicPairs.length : 0,
+    truncated: (result as { truncated?: unknown })?.truncated === true,
+  };
+}
+
 /** Whether a portal invitation reached an account and an inbox. */
 export function portalInviteShape(result: unknown): Record<string, unknown> {
   const invite = result as {
