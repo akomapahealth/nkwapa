@@ -242,13 +242,13 @@ export function opsOfflineHint(action: OpsAction, isOnline: boolean): string | u
  * now queue, so saying nothing works would teach people not to try the things that do.
  */
 export function OfflineOpsBanner({
-  savedCopyAt,
+  dataAsOf,
   timeZone,
   unavailable,
   className,
 }: {
-  /** When the copy on screen was loaded, if it is this device's saved copy. */
-  savedCopyAt: string | null;
+  /** When what is on screen was loaded, or null when nothing is. */
+  dataAsOf: string | null;
   timeZone: string;
   /** The actions on this screen that need a connection. */
   unavailable: string;
@@ -264,8 +264,8 @@ export function OfflineOpsBanner({
           device and sync automatically. {unavailable} need a connection.
         </p>
         <p className="text-xs text-current/70">
-          {savedCopyAt
-            ? `Showing this device’s copy from ${formatOpsDateTime(savedCopyAt, timeZone)}.`
+          {dataAsOf
+            ? `Showing what this device last loaded, at ${formatOpsDateTime(dataAsOf, timeZone)}.`
             : 'No saved copy of this day on this device yet.'}
         </p>
       </div>

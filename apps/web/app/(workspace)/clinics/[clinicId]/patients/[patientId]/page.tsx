@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
+import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { apiFetch } from '@/lib/api';
 import { hasPermission, readApiError } from '@/lib/ops';
@@ -108,6 +109,7 @@ function PatientChartWorkspace() {
   const clinicId = params.clinicId as string;
   const patientId = params.patientId as string;
   const getToken = useAuth();
+  const { isOnline } = useSync();
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const perms = useMemo(() => bootstrap?.effectivePermissionsForActiveClinic ?? [], [bootstrap]);
   const isSystemAdmin = bootstrap?.globalRoles?.includes('SYSTEM_ADMIN') ?? false;
@@ -383,7 +385,10 @@ function PatientChartWorkspace() {
             consentStatus,
           });
         } else {
-          setData(null);
+          // A chart already on screen stays there when a refetch cannot reach the server and
+          // this device holds no copy of it. Blanking it would turn a dropped connection into
+          // "patient not found" in the middle of a visit.
+          setData((current) => (current?.patient.id === patientId ? current : null));
         }
       } catch (localErr) {
         setError(localErr instanceof Error ? localErr.message : 'Failed to load patient');
@@ -537,10 +542,18 @@ function PatientChartWorkspace() {
   if (!data) {
     return (
       <div className="space-y-4">
-        <InlineErrorState
-          title="Patient not found"
-          description="This chart does not exist in the active clinic, or it has been merged into another chart."
-        />
+        {isOnline ? (
+          <InlineErrorState
+            title="Patient not found"
+            description="This chart does not exist in the active clinic, or it has been merged into another chart."
+          />
+        ) : (
+          <InlineErrorState
+            title="This chart is not on this device yet"
+            description="It has not been synced to this device. Reconnect to open it; it will be kept here for next time."
+            onRetry={() => void fetchPatient()}
+          />
+        )}
         <Button asChild variant="outline">
           <Link href={`/clinics/${clinicId}/patients`}>
             <ArrowLeft className="mr-2 h-4 w-4" />

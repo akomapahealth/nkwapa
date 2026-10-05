@@ -362,7 +362,7 @@ export default function TodayBoardPage() {
 
         {!isOnline ? (
           <OfflineOpsBanner
-            savedCopyAt={board.savedCopyAt}
+            dataAsOf={board.dataAsOf}
             timeZone={timezone}
             unavailable="Assigning patients and refreshing the board"
           />

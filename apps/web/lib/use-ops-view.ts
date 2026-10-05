@@ -11,6 +11,8 @@ export interface OpsViewState<T> {
   data: T | null;
   /** When the copy on screen was loaded, if it is this device's saved copy rather than live. */
   savedCopyAt: string | null;
+  /** When whatever is on screen was loaded, live or saved. Null when nothing is. */
+  dataAsOf: string | null;
   isInitialLoading: boolean;
   isRefreshing: boolean;
   /** Set only when there is nothing at all to show for the day. */
@@ -44,11 +46,11 @@ export function useOpsView<T>({
   errorMessage: string;
   pendingIds?: readonly string[];
 }): OpsViewState<T> {
-  const live = useAsyncResource<{ date: string; data: T }>({
+  const live = useAsyncResource<{ date: string; data: T; loadedAt: string }>({
     fetcher: async (getToken, signal) => {
       const data = await fetcher(getToken, signal);
       if (clinicId) void writeOpsCache(db, { clinicId, kind, date, data });
-      return { date, data };
+      return { date, data, loadedAt: new Date().toISOString() };
     },
     resourceKey: `${clinicId}:${kind}:${date}`,
     errorMessage,
@@ -93,6 +95,8 @@ export function useOpsView<T>({
   return {
     data: liveForDay ?? savedForDay?.data ?? null,
     savedCopyAt: showingSaved ? savedForDay.updatedAt : null,
+    dataAsOf:
+      liveForDay !== null ? (live.data?.loadedAt ?? null) : (savedForDay?.updatedAt ?? null),
     isInitialLoading: nothingYet && (loadPending || (Boolean(clinicId) && checkedKey !== cacheKey)),
     isRefreshing: live.status === 'loading' && !nothingYet,
     error: nothingYet ? live.error : null,

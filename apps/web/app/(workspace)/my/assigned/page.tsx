@@ -345,7 +345,7 @@ export default function MyAssignedPage() {
 
         {!isOnline ? (
           <OfflineOpsBanner
-            savedCopyAt={view.savedCopyAt}
+            dataAsOf={view.dataAsOf}
             timeZone={timezone}
             unavailable="Starting intake and refreshing your list"
           />
