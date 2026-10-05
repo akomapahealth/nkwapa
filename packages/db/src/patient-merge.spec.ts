@@ -12,8 +12,10 @@ import {
   isMergeBlockerCode,
   mergeFinding,
   mergePreviewFingerprint,
+  structuralMergeFindings,
   type MergeFindingCode,
   type MergeFingerprintInput,
+  type MergeStructuralChart,
 } from './patient-merge';
 
 const ALL_CODES: MergeFindingCode[] = [...MERGE_BLOCKER_CODES, ...MERGE_WARNING_CODES];
@@ -66,6 +68,63 @@ describe('merge findings', () => {
     expect(isMergeBlocked(warnings)).toBe(false);
     expect(isMergeBlocked([...warnings, mergeFinding('CROSS_CLINIC')])).toBe(true);
     expect(isMergeBlocked([])).toBe(false);
+  });
+});
+
+function structuralChart(overrides: Partial<MergeStructuralChart> = {}): MergeStructuralChart {
+  return {
+    primaryClinicId: 'clinic-accra',
+    mergedIntoPatientId: null,
+    primaryClinic: { name: 'Accra', isActive: true },
+    ...overrides,
+  };
+}
+
+describe('structural merge findings', () => {
+  const codes = (canonical: MergeStructuralChart, source: MergeStructuralChart) =>
+    structuralMergeFindings(canonical, source).map((finding) => finding.code);
+
+  it('finds nothing for two live charts in one active clinic', () => {
+    expect(structuralMergeFindings(structuralChart(), structuralChart())).toEqual([]);
+  });
+
+  it('refuses a pair spanning two clinics, naming both', () => {
+    const findings = structuralMergeFindings(
+      structuralChart(),
+      structuralChart({
+        primaryClinicId: 'clinic-kumasi',
+        primaryClinic: { name: 'Kumasi', isActive: true },
+      }),
+    );
+    expect(findings.map((finding) => finding.code)).toEqual(['CROSS_CLINIC']);
+    expect(findings[0].detail).toBe('Accra and Kumasi');
+    expect(isMergeBlocked(findings)).toBe(true);
+  });
+
+  it('refuses an inactive clinic only when both charts share it', () => {
+    const inactive = { name: 'Accra', isActive: false };
+    expect(
+      codes(
+        structuralChart({ primaryClinic: inactive }),
+        structuralChart({ primaryClinic: inactive }),
+      ),
+    ).toEqual(['CLINIC_INACTIVE']);
+    // Across clinics the cross-clinic refusal already says everything an operator can act on.
+    expect(
+      codes(
+        structuralChart({ primaryClinic: inactive }),
+        structuralChart({ primaryClinicId: 'clinic-kumasi' }),
+      ),
+    ).toEqual(['CROSS_CLINIC']);
+  });
+
+  it('reports a tombstone on either side', () => {
+    expect(
+      codes(
+        structuralChart({ mergedIntoPatientId: 'p-1' }),
+        structuralChart({ mergedIntoPatientId: 'p-2' }),
+      ),
+    ).toEqual(['CANONICAL_ALREADY_MERGED', 'SOURCE_ALREADY_MERGED']);
   });
 });
 
