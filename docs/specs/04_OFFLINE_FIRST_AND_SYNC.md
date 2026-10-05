@@ -4,7 +4,7 @@
 
 Current with follow-on work.
 
-Offline support is strong for the original EMR capture flow, but the newer operations, admin, and patient portal features are still mostly online-first.
+Offline support is strong for the original EMR capture flow and covers the clinic floor's essential operations (shift start and end, patient check-in). Assignment, admin and patient portal features are still online-first.
 
 ---
 
@@ -29,6 +29,7 @@ The local Dexie store currently covers the core EMR workflow:
 - medical-history records and append-only revisions
 - outbox
 - sync state
+- the last loaded Today board and My Assigned list, one copy per clinic (`ops_cache`, v12)
 
 This lets the app preserve the most important intake and clinical documentation path even when the network is unstable.
 
@@ -89,6 +90,45 @@ Server responsibilities:
 
 ---
 
+## Clinic Operations Offline (#17)
+
+Each Today board action was evaluated for whether a replay can ever apply it twice, and whether
+applying it late is still honest. Only the first three are replayable.
+
+| Action           | Entity type        | Permission           | Why a replay is safe                                                                | Conflicts a replay can report                                      |
+| ---------------- | ------------------ | -------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Start a shift    | `shift_check_in`   | `OPS.SHIFT.WRITE`    | The shift's id is made on the device; a second arrival finds it and applies nothing | `SHIFT_ALREADY_ACTIVE` (another shift, e.g. from another device)   |
+| End a shift      | `shift_check_out`  | `OPS.SHIFT.WRITE`    | Ending a closed shift is the outcome asked for, so a replay reports it as applied   | `SHIFT_NOT_FOUND` (its start is still queued: retried), time order |
+| Check in patient | `patient_check_in` | `OPS.CHECKIN.CREATE` | The check-in's id is made on the device, and a patient has one open check-in a day  | `PATIENT_ALREADY_CHECKED_IN`, `PATIENT_MERGED`                     |
+| Assign/reassign  | not replayable     |                      | Depends on who is on duty at that moment; a manager's choice against a stale roster |                                                                    |
+| Start intake     | not replayable     |                      | Opens a visit on the server and navigates into it                                   |                                                                    |
+
+Rules:
+
+- **One code path.** The sync handlers call the same `OpsService` methods as the REST routes. Each
+  write, its audit event, and its `SyncMutation` idempotency record commit in one transaction.
+- **Device ids, online too.** The web makes the record's id before sending. Online it goes to REST
+  with that id; if the request gets no answer it is queued under the same id, so a request that
+  did land before the drop is not applied twice. The queue key is `ops:<entityType>:<id>`, so a
+  double tap queues one row.
+- **Device time, same clinic day.** A replay carries `occurredAt`, so an arrival is recorded when
+  the patient arrived. It is accepted only on the clinic-timezone day it happened, and at most
+  5 minutes ahead of the server (closer is clamped to now). Otherwise `OPS_REPLAY_EXPIRED` or
+  `INVALID_OPS_TIME_ORDER`, and the sync center asks for it to be recorded again.
+- **One open check-in per patient per clinic day**, online and offline. The check and the insert
+  are serialized per patient with a transaction-scoped advisory lock. A completed or cancelled
+  check-in does not count, so a retry can succeed once the earlier visit ends.
+- **Reconciliation metadata.** The audit event's `requestId` is the idempotency key, the record
+  keeps the device time, and the audit event's own timestamp is when the server applied it.
+  Display context (patient code and name, who queued it) lives on the outbox row as
+  `localContext`, which is never sent.
+- **Pull is unchanged.** The board reloads over REST when a queued change leaves the queue; shifts
+  and check-ins are not part of `/sync/pull`. Offline, the board shows the last copy for the same
+  clinic day with queued changes drawn on top, labelled _Pending sync_, _Retrying sync_ or _Needs
+  attention_ (which opens the sync center).
+
+---
+
 ## Conflict Handling
 
 Current important rules:
@@ -144,7 +184,7 @@ Current important rules:
 
 ## What Is Not Yet Fully Offline
 
-- Today board and assignment operations
+- assigning and reassigning patients, and starting intake (see Clinic Operations Offline)
 - most admin and research management pages
 - patient portal claim flow
 - patient portal self-service submissions
@@ -155,7 +195,6 @@ Current important rules:
 
 ## Recommended Next Additions
 
-1. Extend outbox coverage to the highest-value ops mutations.
-2. Offer offline patient registration, now that duplicate conflicts have a recovery path.
-3. Support more stale-while-refresh behavior on list-heavy pages.
-4. Re-evaluate which patient portal writes are safe and useful to queue offline.
+1. Offer offline patient registration, now that duplicate conflicts have a recovery path.
+2. Support more stale-while-refresh behavior on list-heavy pages.
+3. Re-evaluate which patient portal writes are safe and useful to queue offline.

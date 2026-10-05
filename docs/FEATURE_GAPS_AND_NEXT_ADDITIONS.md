@@ -19,7 +19,7 @@ For the delivery-ready version of this roadmap, see `docs/PRIORITIZED_IMPLEMENTA
 | Appointments           | Full workflow ships: requests, staff triage, calendar, lifecycle, reminders      | Resolve the clinic/browser/UTC timezone split; paginate the week view; make TRIAGED reachable |
 | Patient portal         | Claim, measurements, self-reports, trends, overview, appointment change requests | Add richer self-service history, better invite delivery, patient messaging                    |
 | Operations             | Shifts, check-ins, assignments, Today board, My Assigned are live                | Add wait-time analytics, room/resource capacity, richer staffing and queue metrics            |
-| Offline                | Core EMR sync is implemented                                                     | Extend safe offline coverage to high-value ops and portal writes                              |
+| Offline                | Core EMR sync, plus shift start/end and patient check-in on the Today board      | Extend safe offline coverage to portal writes                                                 |
 | Analytics              | Role-aware dashboard baseline exists                                             | Add org rollups, drilldowns, cohort views, and appointment/ops analytics                      |
 | RLS adoption           | HTTP request paths are covered                                                   | Add explicit tenant-context patterns for jobs, maintenance scripts, and one-off tools         |
 | UX resilience          | Shared boundaries, skeletons, retry states, and API error normalization are live | Finish route-by-route stale-refresh and optimistic update polish                              |
@@ -65,7 +65,7 @@ Why next:
 
 Suggested additions:
 
-- high-value Today board mutations
+- ~~high-value Today board mutations~~ done in #17: shift start/end and patient check-in
 - safer offline read caches for portal history views
 - clearer conflict resolution UI
 

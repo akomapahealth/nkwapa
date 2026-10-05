@@ -64,6 +64,15 @@ Rules:
 Audit:
 • SHIFT.CHECKIN (entityType StaffShift)
 
+Offline and replay (#17):
+• The body may carry a client-generated `id`. Repeating a check-in that already applied under that
+id returns the existing shift instead of a 409.
+• A second active shift is refused with code `SHIFT_ALREADY_ACTIVE` and `existingShiftId`, including
+when two requests race past the check and the partial unique index decides.
+• Replayed through `/sync/push` as `shift_check_in` / `shift_check_out`; see
+docs/specs/04_OFFLINE_FIRST_AND_SYNC.md.
+• Online, checking out a closed shift is `SHIFT_ALREADY_CLOSED`; a replay reports it as applied.
+
 POST /clinics/:clinicId/shifts/:shiftId/check-out
 
 Rules:
