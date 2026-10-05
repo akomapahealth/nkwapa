@@ -86,6 +86,9 @@ export const SYNC_CONFLICT_CODES = {
   // check-in the moment the other shift closes would start a shift nobody asked for.
   SHIFT_ALREADY_ACTIVE: code('stale', { retryable: false }),
   PATIENT_ALREADY_CHECKED_IN: code('stale', { retryable: false }),
+  // Only reachable online: a replayed check-out of a closed shift has reached its end state and is
+  // reported as applied. Catalogued because the ops service is a sync handler module.
+  SHIFT_ALREADY_CLOSED: code('stale', { retryable: false }),
 
   // Content the server will not accept
   VALIDATION_ERROR: code('validation'),

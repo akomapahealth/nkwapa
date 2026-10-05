@@ -41,6 +41,8 @@ const SYNC_HANDLER_MODULES = [
   'hypertension-assessment/hypertension-assessment.service.ts',
   'medication-adherence/medication-adherence.service.ts',
   'prescriptions/prescription.service.ts',
+  'ops/ops.service.ts',
+  'ops/ops-replay.ts',
 ];
 
 describe('sync conflict code consistency', () => {

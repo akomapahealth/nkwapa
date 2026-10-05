@@ -11,6 +11,7 @@ import { DiabetesScreeningModule } from '../diabetes-screening/diabetes-screenin
 import { HypertensionAssessmentModule } from '../hypertension-assessment/hypertension-assessment.module';
 import { MedicationAdherenceModule } from '../medication-adherence/medication-adherence.module';
 import { PrescriptionModule } from '../prescriptions/prescription.module';
+import { OpsModule } from '../ops/ops.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { PrescriptionModule } from '../prescriptions/prescription.module';
     HypertensionAssessmentModule,
     MedicationAdherenceModule,
     PrescriptionModule,
+    OpsModule,
   ],
   controllers: [SyncController],
   providers: [SyncService, ClinicalMeasurementsService],

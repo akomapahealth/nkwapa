@@ -22,4 +22,9 @@ export type EntityType =
   | 'patient_medication_revision'
   | 'medication_reconciliation'
   | 'patient_pharmacy_revision'
-  | 'patient_pharmacy_preference';
+  | 'patient_pharmacy_preference'
+  // Clinic operations. Only the actions that can be replayed idempotently; assigning patients and
+  // starting a visit stay online. See docs/specs/04_OFFLINE_FIRST_AND_SYNC.md.
+  | 'shift_check_in'
+  | 'shift_check_out'
+  | 'patient_check_in';

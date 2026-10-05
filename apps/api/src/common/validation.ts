@@ -1,5 +1,6 @@
-import type { ValidationError } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { BadRequestException } from '@nestjs/common';
+import { validate, type ValidationError } from 'class-validator';
+import { Transform, plainToInstance, type ClassConstructor } from 'class-transformer';
 
 const MULTI_SPACE_RE = /\s+/g;
 
@@ -152,4 +153,30 @@ export function flattenValidationErrors(
       : [];
     return [...ownErrors, ...childErrors];
   });
+}
+
+/**
+ * Validate an untyped payload against a DTO with the same strictness as the global pipe: unknown
+ * keys are refused rather than ignored. For bodies that arrive inside another request, such as a
+ * queued offline change inside a sync push, which the global pipe never sees.
+ */
+export async function validatePayload<T extends object>(
+  dtoClass: ClassConstructor<T>,
+  payload: Record<string, unknown>,
+  message: string,
+): Promise<T> {
+  const dto = plainToInstance(dtoClass, payload);
+  const errors = await validate(dto, {
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    forbidUnknownValues: true,
+  });
+  if (errors.length) {
+    throw new BadRequestException({
+      code: 'VALIDATION_ERROR',
+      message,
+      fieldErrors: flattenValidationErrors(errors),
+    });
+  }
+  return dto;
 }
