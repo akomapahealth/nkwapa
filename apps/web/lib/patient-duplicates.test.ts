@@ -1,5 +1,13 @@
+import { mergeFinding } from '@nkwapa/db';
 import {
   buildComparisonRows,
+  buildDuplicateQuery,
+  burdenTableRows,
+  clinicPairLabel,
+  DEFAULT_DUPLICATE_FILTERS,
+  describeMergeAvailability,
+  duplicateFiltersAreDefault,
+  type CrossClinicBurden,
   candidateStatus,
   confidenceBadgeVariant,
   describeMatchPrecision,
@@ -248,5 +256,146 @@ describe('describeMatchPrecision', () => {
 
   it('says nothing about a pair with no reasons at all', () => {
     expect(describeMatchPrecision([])).toBeNull();
+  });
+});
+
+function candidate(overrides: Partial<DuplicateCandidate> = {}): DuplicateCandidate {
+  return {
+    pairKey: 'patient-1:patient-2',
+    score: 85,
+    confidence: 'HIGH',
+    reasons: ['NAME_AND_DOB', 'PHONE'],
+    crossClinic: false,
+    mergeEligible: true,
+    mergeBlockers: [],
+    lastUpdatedAt: '2026-02-01T00:00:00.000Z',
+    review: null,
+    patients: [patient(), patient({ id: 'patient-2', patientCode: 'NKP-2026-000002' })],
+    ...overrides,
+  };
+}
+
+describe('buildDuplicateQuery', () => {
+  it('always sends the decision, since leaving it out means open only', () => {
+    const params = new URLSearchParams(buildDuplicateQuery(DEFAULT_DUPLICATE_FILTERS, 0, 10));
+    expect(params.get('status')).toBe('OPEN');
+    expect(params.has('confidence')).toBe(false);
+    expect(params.has('reason')).toBe(false);
+    expect(params.has('q')).toBe(false);
+  });
+
+  it('turns the zero-based grid page into the one-based API page', () => {
+    const params = new URLSearchParams(buildDuplicateQuery(DEFAULT_DUPLICATE_FILTERS, 2, 25));
+    expect(params.get('page')).toBe('3');
+    expect(params.get('pageSize')).toBe('25');
+  });
+
+  it('sends a filter only when it narrows, and trims the search', () => {
+    const params = new URLSearchParams(
+      buildDuplicateQuery(
+        { status: 'ALL', confidence: 'HIGH', reason: 'PHONE', q: '  Mensah ' },
+        0,
+        10,
+        { clinicPair: 'a:b', unused: null },
+      ),
+    );
+    expect(Object.fromEntries(params)).toEqual({
+      status: 'ALL',
+      confidence: 'HIGH',
+      reason: 'PHONE',
+      q: 'Mensah',
+      clinicPair: 'a:b',
+      page: '1',
+      pageSize: '10',
+    });
+  });
+
+  it('treats a whitespace-only search as no search', () => {
+    expect(duplicateFiltersAreDefault({ ...DEFAULT_DUPLICATE_FILTERS, q: '   ' })).toBe(true);
+    expect(duplicateFiltersAreDefault({ ...DEFAULT_DUPLICATE_FILTERS, status: 'ALL' })).toBe(false);
+  });
+});
+
+describe('describeMergeAvailability', () => {
+  it('says nothing is in the way of a mergeable pair', () => {
+    expect(describeMergeAvailability(candidate())).toEqual({
+      available: true,
+      label: 'Can be merged',
+      reason: null,
+      recovery: null,
+    });
+  });
+
+  it('names the refusal and its detail, from the merge rule itself', () => {
+    const availability = describeMergeAvailability(
+      candidate({
+        crossClinic: true,
+        mergeEligible: false,
+        mergeBlockers: [mergeFinding('CROSS_CLINIC', 'Accra and Kumasi')],
+      }),
+    );
+    expect(availability.available).toBe(false);
+    expect(availability.reason).toBe('These charts belong to different clinics: Accra and Kumasi.');
+    expect(availability.recovery).toMatch(/only be merged inside one clinic/i);
+  });
+
+  it('explains an inactive clinic, which the old cross-clinic flag could not', () => {
+    const availability = describeMergeAvailability(
+      candidate({
+        mergeEligible: false,
+        mergeBlockers: [mergeFinding('CLINIC_INACTIVE', 'Tamale')],
+      }),
+    );
+    expect(availability.reason).toMatch(/no longer active: Tamale/);
+  });
+
+  it('still explains a cross-clinic pair from an API that sends no blockers', () => {
+    const availability = describeMergeAvailability(
+      candidate({ crossClinic: true, mergeEligible: false, mergeBlockers: undefined }),
+    );
+    expect(availability.reason).toBe('These charts belong to different clinics.');
+  });
+});
+
+describe('the cross-clinic burden', () => {
+  const clinic = (id: string, name: string) => ({
+    id,
+    name,
+    organizationId: 'org-1',
+    organizationName: 'Nkwapa Health',
+  });
+  const burden: CrossClinicBurden = {
+    totalPairs: 3,
+    openPairs: 2,
+    highConfidencePairs: 1,
+    clinicsAffected: 2,
+    organizationsAffected: 1,
+    crossOrganizationPairs: 0,
+    reasons: [{ reason: 'NAME_AND_DOB', count: 3 }],
+    clinicPairs: [
+      {
+        key: 'a:b',
+        clinics: [clinic('a', 'Accra'), clinic('b', '=Kumasi')],
+        sameOrganization: true,
+        total: 3,
+        open: 2,
+        confirmed: 0,
+        dismissed: 1,
+        high: 1,
+        medium: 2,
+        low: 0,
+      },
+    ],
+  };
+
+  it('names a clinic pair in the order the API sorted it', () => {
+    expect(clinicPairLabel(burden.clinicPairs[0])).toBe('Accra and =Kumasi');
+  });
+
+  it('exports counts and clinic names only, one row per clinic pair', () => {
+    const rows = burdenTableRows(burden);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toContain('Needs review');
+    expect(rows[1]).toEqual(['Accra', '=Kumasi', 'Yes', 3, 2, 0, 1, 1, 2, 0]);
   });
 });

@@ -6,14 +6,13 @@ import { Box } from '@mui/material';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import {
   AlertTriangle,
+  ArrowRight,
   Building2,
   CopyCheck,
-  ExternalLink,
   RefreshCw,
   ShieldCheck,
   Users,
 } from 'lucide-react';
-import { DUPLICATE_MATCH_REASONS } from '@nkwapa/db';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
@@ -22,22 +21,18 @@ import { dataGridSx } from '@/lib/datagrid-theme';
 import { readApiError } from '@/lib/ops';
 import { useAsyncResource } from '@/lib/use-async-resource';
 import {
-  candidateStatus,
+  buildDuplicateQuery,
   confidenceBadgeVariant,
+  DEFAULT_DUPLICATE_FILTERS,
   DUPLICATE_CONFIDENCE_LABELS,
   DUPLICATE_MATCH_REASON_LABELS,
-  DUPLICATE_REVIEW_STATUS_LABELS,
-  describeMatchPrecision,
-  formatReasons,
-  patientChartHref,
+  duplicateFiltersAreDefault,
   patientDisplayName,
-  reviewStatusBadgeVariant,
   type DuplicateCandidate,
   type DuplicateCandidatePage,
+  type DuplicateFilters,
   type DuplicateReviewStatus,
 } from '@/lib/patient-duplicates';
-import { PatientComparisonTable } from '@/components/patients/PatientComparisonTable';
-import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
@@ -55,44 +50,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ProgressiveHelp } from '@/components/ui/progressive-help';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
 import { Textarea } from '@/components/ui/textarea';
+import { DuplicateComparisonSheet } from './duplicates/DuplicateComparisonSheet';
+import { DuplicateFilterFields } from './duplicates/DuplicateFilterFields';
+import { DuplicatePairCard } from './duplicates/DuplicatePairCard';
+import { MergeUnavailableBadge } from './duplicates/MergeAvailability';
 
 type ScopeMode = 'clinic' | 'all';
-type StatusFilter = DuplicateReviewStatus | 'ALL';
-type ConfidenceFilter = 'HIGH' | 'MEDIUM' | 'LOW' | 'ALL';
-type ReasonFilter = (typeof DUPLICATE_MATCH_REASONS)[number] | 'ALL';
-
-const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
-  { value: 'OPEN', label: DUPLICATE_REVIEW_STATUS_LABELS.OPEN },
-  { value: 'CONFIRMED', label: DUPLICATE_REVIEW_STATUS_LABELS.CONFIRMED },
-  { value: 'DISMISSED', label: DUPLICATE_REVIEW_STATUS_LABELS.DISMISSED },
-  { value: 'ALL', label: 'Every candidate' },
-];
-
-const CONFIDENCE_OPTIONS: { value: ConfidenceFilter; label: string }[] = [
-  { value: 'ALL', label: 'Any strength' },
-  { value: 'HIGH', label: DUPLICATE_CONFIDENCE_LABELS.HIGH },
-  { value: 'MEDIUM', label: DUPLICATE_CONFIDENCE_LABELS.MEDIUM },
-  { value: 'LOW', label: DUPLICATE_CONFIDENCE_LABELS.LOW },
-];
-
 /**
  * What each decision says, in one place.
  *
@@ -127,13 +93,6 @@ const DECISION_COPY: Record<
   },
 };
 
-const DEFAULT_FILTERS = {
-  status: 'OPEN' as StatusFilter,
-  confidence: 'ALL' as ConfidenceFilter,
-  reason: 'ALL' as ReasonFilter,
-  q: '',
-};
-
 /**
  * The suspected duplicate review queue.
  *
@@ -149,7 +108,7 @@ export function DuplicateReviewScreen() {
   const isSystemAdmin = bootstrap?.globalRoles?.includes('SYSTEM_ADMIN') ?? false;
 
   const [scope, setScope] = useState<ScopeMode>('clinic');
-  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [filters, setFilters] = useState<DuplicateFilters>(DEFAULT_DUPLICATE_FILTERS);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [selected, setSelected] = useState<DuplicateCandidate | null>(null);
@@ -171,16 +130,10 @@ export function DuplicateReviewScreen() {
     [effectiveScope, clinicId],
   );
 
-  const query = useMemo(() => {
-    const params = new URLSearchParams();
-    params.set('status', filters.status);
-    if (filters.confidence !== 'ALL') params.set('confidence', filters.confidence);
-    if (filters.reason !== 'ALL') params.set('reason', filters.reason);
-    if (filters.q.trim()) params.set('q', filters.q.trim());
-    params.set('page', String(page + 1));
-    params.set('pageSize', String(pageSize));
-    return params.toString();
-  }, [filters, page, pageSize]);
+  const query = useMemo(
+    () => buildDuplicateQuery(filters, page, pageSize),
+    [filters, page, pageSize],
+  );
 
   const queue = useAsyncResource<DuplicateCandidatePage>({
     resourceKey: [basePath, query, scopeReady].join('|'),
@@ -318,8 +271,10 @@ export function DuplicateReviewScreen() {
         renderCell: (params) =>
           params.row.crossClinic ? (
             <Badge variant="warning">Across clinics</Badge>
-          ) : (
+          ) : params.row.mergeEligible ? (
             <span className="text-muted-foreground">This clinic</span>
+          ) : (
+            <MergeUnavailableBadge candidate={params.row} />
           ),
       },
       {
@@ -349,11 +304,7 @@ export function DuplicateReviewScreen() {
     [],
   );
 
-  const filtersAreDefault =
-    filters.status === DEFAULT_FILTERS.status &&
-    filters.confidence === DEFAULT_FILTERS.confidence &&
-    filters.reason === DEFAULT_FILTERS.reason &&
-    filters.q.trim() === '';
+  const filtersAreDefault = duplicateFiltersAreDefault(filters);
 
   return (
     <div className="space-y-6">
@@ -456,6 +407,32 @@ export function DuplicateReviewScreen() {
       ) : null}
 
       {/*
+        Pairs across clinics are listed here so they can be decided on, but this queue cannot
+        say how big the cross-clinic problem is. The investigation can, so it is one click away
+        whenever this view could be showing such a pair.
+      */}
+      {effectiveScope === 'all' ? (
+        <div className="flex flex-col gap-3 rounded-lg border border-border/70 bg-card/90 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <Building2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+            <p className="text-sm leading-5 text-muted-foreground">
+              <span className="font-medium text-foreground">
+                Sizing up duplicates across clinics?
+              </span>{' '}
+              The cross-clinic investigation counts them per clinic pair and explains why they
+              cannot be merged yet.
+            </p>
+          </div>
+          <Button asChild variant="outline" className="shrink-0">
+            <Link href="/admin/duplicates/cross-clinic">
+              Open investigation
+              <ArrowRight aria-hidden="true" className="ml-2 h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
+      ) : null}
+
+      {/*
         min-w-0 on both columns. A CSS grid track defaults to min-width:auto, so a wide table in
         the right column pushes the whole grid past the viewport at 768 and 1024 instead of
         scrolling inside its own container.
@@ -467,118 +444,17 @@ export function DuplicateReviewScreen() {
             <CardDescription>Narrow the queue to the work in front of you.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="duplicate-status">Decision</Label>
-              <Select
-                value={filters.status}
-                onValueChange={(value) => {
-                  setFilters((current) => ({ ...current, status: value as StatusFilter }));
-                  setPage(0);
-                }}
-              >
-                <SelectTrigger id="duplicate-status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="duplicate-confidence">Match strength</Label>
-              <Select
-                value={filters.confidence}
-                onValueChange={(value) => {
-                  setFilters((current) => ({ ...current, confidence: value as ConfidenceFilter }));
-                  setPage(0);
-                }}
-              >
-                <SelectTrigger id="duplicate-confidence">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CONFIDENCE_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="duplicate-reason">Why it matched</Label>
-              <Select
-                value={filters.reason}
-                onValueChange={(value) => {
-                  setFilters((current) => ({ ...current, reason: value as ReasonFilter }));
-                  setPage(0);
-                }}
-              >
-                <SelectTrigger id="duplicate-reason">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">Any reason</SelectItem>
-                  {DUPLICATE_MATCH_REASONS.map((reason) => (
-                    <SelectItem key={reason} value={reason}>
-                      {DUPLICATE_MATCH_REASON_LABELS[reason]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="duplicate-search">Name or chart code</Label>
-              <Input
-                id="duplicate-search"
-                value={filters.q}
-                placeholder="Mensah, or NKP-2026-000001"
-                onChange={(event) => {
-                  setFilters((current) => ({ ...current, q: event.target.value }));
-                  setPage(0);
-                }}
-              />
-            </div>
-
-            <Button
-              variant="outline"
-              className="w-full"
-              disabled={filtersAreDefault}
-              onClick={() => {
-                setFilters(DEFAULT_FILTERS);
+            <DuplicateFilterFields
+              idPrefix="duplicate"
+              filters={filters}
+              onChange={(next) => {
+                setFilters(next);
                 setPage(0);
               }}
-            >
-              Reset filters
-            </Button>
-
-            <ActiveFilterSummary
-              items={[
-                {
-                  label: 'Decision',
-                  value: STATUS_OPTIONS.find((o) => o.value === filters.status)?.label,
-                },
-                {
-                  label: 'Strength',
-                  value:
-                    filters.confidence === 'ALL'
-                      ? null
-                      : DUPLICATE_CONFIDENCE_LABELS[filters.confidence],
-                },
-                {
-                  label: 'Reason',
-                  value:
-                    filters.reason === 'ALL' ? null : DUPLICATE_MATCH_REASON_LABELS[filters.reason],
-                },
-                { label: 'Search', value: filters.q.trim() || null },
-              ]}
+              onReset={() => {
+                setFilters(DEFAULT_DUPLICATE_FILTERS);
+                setPage(0);
+              }}
               emptyLabel="Showing every open candidate"
             />
 
@@ -652,50 +528,11 @@ export function DuplicateReviewScreen() {
                     */}
                     <div className="space-y-3 lg:hidden">
                       {data.items.map((candidate) => (
-                        <article
+                        <DuplicatePairCard
                           key={candidate.pairKey}
-                          className="rounded-lg border border-border/80 bg-background/80 p-4 shadow-sm"
-                        >
-                          <div className="flex flex-wrap items-start justify-between gap-2">
-                            <Badge variant={confidenceBadgeVariant(candidate.confidence)}>
-                              {DUPLICATE_CONFIDENCE_LABELS[candidate.confidence]}
-                            </Badge>
-                            {candidate.crossClinic ? (
-                              <Badge variant="warning">Across clinics</Badge>
-                            ) : null}
-                          </div>
-                          <h3 className="mt-3 text-base font-semibold text-foreground">
-                            {patientDisplayName(candidate.patients[0])}
-                          </h3>
-                          <p className="text-sm text-muted-foreground">
-                            {candidate.patients[0].patientCode}
-                          </p>
-                          <p className="mt-2 text-base font-semibold text-foreground">
-                            {patientDisplayName(candidate.patients[1])}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {candidate.patients[1].patientCode}
-                          </p>
-                          <p className="mt-3 text-sm leading-5 text-muted-foreground">
-                            {formatReasons(candidate.reasons)}
-                          </p>
-                          {/* An approximate name match reads like any other reason in that list. */}
-                          {describeMatchPrecision(candidate.reasons) ? (
-                            <p className="mt-1 text-sm leading-5 text-warning-ink">
-                              {describeMatchPrecision(candidate.reasons)}
-                            </p>
-                          ) : null}
-                          <p className="mt-2 text-sm tabular-nums text-muted-foreground">
-                            Last updated {candidate.lastUpdatedAt.slice(0, 10)}
-                          </p>
-                          <Button
-                            variant="outline"
-                            className="mt-4 w-full"
-                            onClick={() => setSelected(candidate)}
-                          >
-                            Compare charts
-                          </Button>
-                        </article>
+                          candidate={candidate}
+                          onCompare={setSelected}
+                        />
                       ))}
                     </div>
 
@@ -822,123 +659,5 @@ export function DuplicateReviewScreen() {
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-function DuplicateComparisonSheet({
-  candidate,
-  onClose,
-  onDecide,
-}: {
-  candidate: DuplicateCandidate | null;
-  onClose: () => void;
-  onDecide: (status: DuplicateReviewStatus) => void;
-}) {
-  // Nothing selected renders nothing. Keeping a closed Sheet mounted would leave an empty
-  // dialog in the accessibility tree for every page view that never opens one.
-  if (!candidate) return null;
-
-  const [left, right] = candidate.patients;
-  const status = candidateStatus(candidate);
-
-  return (
-    <Sheet open onOpenChange={(open) => (open ? undefined : onClose())}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl">
-        <SheetHeader>
-          <SheetTitle>Compare two charts</SheetTitle>
-          <SheetDescription>
-            {formatReasons(candidate.reasons)}. Nothing on this panel changes either record.
-          </SheetDescription>
-        </SheetHeader>
-
-        <div className="mt-5 space-y-5">
-          <div className="flex flex-wrap gap-2">
-            <Badge variant={confidenceBadgeVariant(candidate.confidence)}>
-              {DUPLICATE_CONFIDENCE_LABELS[candidate.confidence]}
-            </Badge>
-            <Badge variant={reviewStatusBadgeVariant(status)}>
-              {DUPLICATE_REVIEW_STATUS_LABELS[status]}
-            </Badge>
-            {candidate.crossClinic ? <Badge variant="warning">Across clinics</Badge> : null}
-          </div>
-
-          {candidate.review?.note ? (
-            <InlineNotice tone="info">
-              &ldquo;{candidate.review.note}&rdquo;
-              {candidate.review.reviewedBy ? ` — ${candidate.review.reviewedBy.displayName}` : null}
-            </InlineNotice>
-          ) : null}
-
-          {candidate.crossClinic ? (
-            <InlineNotice tone="warning">
-              These charts belong to different clinics, so they cannot be merged yet. Record what
-              you found here, and raise it with the clinics that own the two records.
-            </InlineNotice>
-          ) : null}
-
-          <PatientComparisonTable
-            left={left}
-            right={right}
-            caption="Field by field comparison of the two patient charts"
-          />
-
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Button asChild variant="outline">
-              <Link href={patientChartHref(left)}>
-                <ExternalLink aria-hidden="true" className="mr-2 h-4 w-4" />
-                Open {left.patientCode}
-              </Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link href={patientChartHref(right)}>
-                <ExternalLink aria-hidden="true" className="mr-2 h-4 w-4" />
-                Open {right.patientCode}
-              </Link>
-            </Button>
-          </div>
-
-          <div className="space-y-3 rounded-lg border border-border/70 bg-background/70 p-4">
-            <h3 className="text-base font-semibold text-foreground">Record your decision</h3>
-            <p className="text-sm leading-5 text-muted-foreground">
-              Neither option changes a patient record. Merging is a separate, irreversible step on
-              the chart itself.
-            </p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <Button variant="outline" onClick={() => onDecide('DISMISSED')}>
-                Not a duplicate
-              </Button>
-              <Button onClick={() => onDecide('CONFIRMED')}>Confirm duplicate</Button>
-            </div>
-            {/*
-              A decision has to be reversible. Without this, one mis-click hides a genuine
-              duplicate from the queue permanently and the only way back is the database.
-            */}
-            {status !== 'OPEN' ? (
-              <Button variant="ghost" className="w-full" onClick={() => onDecide('OPEN')}>
-                Move back to review
-              </Button>
-            ) : null}
-            {/*
-              Deliberately not the destructive treatment. This link navigates to the patient
-              chart; it does not merge anything. Dressing it in the same red as the control that
-              irreversibly consolidates two records would teach an operator to expect a
-              confirmation step this button does not have.
-            */}
-            {candidate.mergeEligible ? (
-              <Button asChild variant="outline" className="w-full">
-                {/*
-                  Carries the pair, so the chart opens straight into the merge preview rather
-                  than asking an operator to search again for the chart they were just reading.
-                  The preview is read-only; the merge still has its own confirmation there.
-                */}
-                <Link href={`${patientChartHref(left)}?merge=${encodeURIComponent(right.id)}`}>
-                  Preview merging {right.patientCode} into {left.patientCode}
-                </Link>
-              </Button>
-            ) : null}
-          </div>
-        </div>
-      </SheetContent>
-    </Sheet>
   );
 }
