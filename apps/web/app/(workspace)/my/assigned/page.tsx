@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { CalendarDays, ClipboardList, RefreshCw, Stethoscope } from 'lucide-react';
 import { Box } from '@mui/material';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
@@ -12,18 +12,20 @@ import { apiFetch } from '@/lib/api';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import {
   OPS_DEFAULT_TIMEZONE,
-  type ActiveShift,
   type ActiveShiftsResponse,
   type MyAssignmentSummary,
   type MyAssignmentsResponse,
-  type ShiftRole,
   formatOpsDate,
   formatOpsDateTime,
   getEligibleShiftRoles,
   getTodayInTimeZone,
   readApiError,
 } from '@/lib/ops';
-import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { fetchActiveShifts, fetchMyAssignments } from '@/lib/ops-api';
+import { OPS_OFFLINE_SUPPORT, overlayPendingShifts } from '@/lib/ops-offline';
+import { useOpsView } from '@/lib/use-ops-view';
+import { usePendingOpsWrites } from '@/lib/use-pending-ops-writes';
+import { useShiftControls } from '@/lib/use-shift-controls';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
@@ -33,8 +35,9 @@ import {
   CheckInStatusBadge,
   EmptyStateCard,
   InlineNotice,
-  OnlineOnlyBanner,
+  OfflineOpsBanner,
   ShiftControlCard,
+  opsOfflineHint,
 } from '@/components/ops/OpsShared';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,8 +47,9 @@ import { dataGridSx } from '@/lib/datagrid-theme';
 
 type StaffFilter = 'ALL' | 'ASSIGNED' | 'IN_PROGRESS' | 'COMPLETED';
 
-function activeShiftForUser(items: ActiveShift[], userId?: string | null) {
-  return items.find((item) => item.userId === userId) ?? null;
+interface MyAssignedView {
+  assignments: MyAssignmentsResponse;
+  shifts: ActiveShiftsResponse;
 }
 
 export default function MyAssignedPage() {
@@ -53,7 +57,6 @@ export default function MyAssignedPage() {
   const bootstrapCtx = useBootstrap();
   const bootstrap = bootstrapCtx?.bootstrap ?? null;
   const getToken = useAuth();
-  const { isOnline } = useSync();
 
   const clinicId = getBootstrapActiveClinicId(bootstrap);
   const activeMembership = bootstrap?.memberships?.find(
@@ -69,91 +72,48 @@ export default function MyAssignedPage() {
   );
 
   const [selectedDate, setSelectedDate] = useState(getTodayInTimeZone());
-  const [selectedShiftRole, setSelectedShiftRole] = useState<ShiftRole | ''>('');
   const [statusFilter, setStatusFilter] = useState<StaffFilter>('ALL');
-  const [assignmentsData, setAssignmentsData] = useState<MyAssignmentsResponse | null>(null);
-  const [shiftsData, setShiftsData] = useState<ActiveShiftsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [updatingShift, setUpdatingShift] = useState(false);
   const [startingIntakeId, setStartingIntakeId] = useState<string | null>(null);
-  const [pageError, setPageError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!selectedShiftRole || eligibleShiftRoles.includes(selectedShiftRole)) {
-      if (selectedShiftRole || eligibleShiftRoles.length === 0) {
-        return;
-      }
-    }
-
-    setSelectedShiftRole(eligibleShiftRoles[0] ?? '');
-  }, [eligibleShiftRoles, selectedShiftRole]);
-
-  const loadAssignments = useCallback(
-    async (options?: { background?: boolean }) => {
-      if (!clinicId || !getToken) {
-        return;
-      }
-
-      if (options?.background) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
-
-      setPageError(null);
-
-      try {
-        const [assignmentsResponse, shiftsResponse] = await Promise.all([
-          apiFetch(
-            `/clinics/${encodeURIComponent(clinicId)}/my/assignments?date=${encodeURIComponent(selectedDate)}`,
-            { getToken, activeClinicId: clinicId },
-          ),
-          apiFetch(
-            `/clinics/${encodeURIComponent(clinicId)}/shifts/active?date=${encodeURIComponent(selectedDate)}`,
-            { getToken, activeClinicId: clinicId },
-          ),
-        ]);
-
-        if (!assignmentsResponse.ok) {
-          throw new Error(await readApiError(assignmentsResponse));
-        }
-        if (!shiftsResponse.ok) {
-          throw new Error(await readApiError(shiftsResponse));
-        }
-
-        setAssignmentsData((await assignmentsResponse.json()) as MyAssignmentsResponse);
-        setShiftsData((await shiftsResponse.json()) as ActiveShiftsResponse);
-      } catch (error) {
-        setPageError(error instanceof Error ? error.message : String(error));
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
+  const pendingWrites = usePendingOpsWrites(clinicId);
+  const pendingIds = useMemo(() => pendingWrites.map((write) => write.entityId), [pendingWrites]);
+  const view = useOpsView<MyAssignedView>({
+    clinicId,
+    kind: 'my-assigned',
+    date: selectedDate,
+    errorMessage: 'Your assignments could not be loaded.',
+    pendingIds,
+    fetcher: async (token, signal) => {
+      const options = { clinicId: clinicId ?? '', date: selectedDate, getToken: token, signal };
+      const [assignments, shifts] = await Promise.all([
+        fetchMyAssignments(options),
+        fetchActiveShifts(options),
+      ]);
+      return { assignments, shifts };
     },
-    [clinicId, getToken, selectedDate],
+  });
+  const { isOnline } = view;
+
+  const assignments = view.data?.assignments.items ?? [];
+  const timezone =
+    view.data?.assignments.timezone ?? view.data?.shifts.timezone ?? OPS_DEFAULT_TIMEZONE;
+  const isToday = selectedDate === getTodayInTimeZone(timezone);
+  const shifts = useMemo(
+    () =>
+      overlayPendingShifts(view.data?.shifts.items ?? [], isToday ? pendingWrites : [], {
+        userId: bootstrap?.userId,
+        displayName: bootstrap?.displayName,
+      }),
+    [view.data, isToday, pendingWrites, bootstrap?.userId, bootstrap?.displayName],
   );
-
-  useEffect(() => {
-    if (!clinicId || !getToken) {
-      setLoading(false);
-      return;
-    }
-
-    if (!isOnline) {
-      setLoading(false);
-      return;
-    }
-
-    void loadAssignments();
-  }, [clinicId, getToken, isOnline, loadAssignments]);
-
-  const assignments = assignmentsData?.items ?? [];
-  const shifts = shiftsData?.items ?? [];
-  const timezone = assignmentsData?.timezone ?? shiftsData?.timezone ?? OPS_DEFAULT_TIMEZONE;
-  const currentShift = activeShiftForUser(shifts, bootstrap?.userId);
+  const shiftControls = useShiftControls({
+    clinicId,
+    userId: bootstrap?.userId,
+    shifts,
+    eligibleRoles: eligibleShiftRoles,
+    onApplied: view.refresh,
+  });
 
   const filteredAssignments = assignments.filter((assignment) => {
     if (statusFilter === 'ALL') {
@@ -163,68 +123,6 @@ export default function MyAssignedPage() {
     return assignment.checkInStatus === statusFilter;
   });
 
-  async function handleShiftCheckIn() {
-    if (!clinicId || !getToken || !selectedShiftRole) {
-      return;
-    }
-
-    setUpdatingShift(true);
-    setActionError(null);
-    setNotice(null);
-
-    try {
-      const response = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}/shifts/check-in`, {
-        method: 'POST',
-        body: JSON.stringify({ roleAtShift: selectedShiftRole }),
-        getToken,
-        activeClinicId: clinicId,
-      });
-
-      if (!response.ok) {
-        throw new Error(await readApiError(response));
-      }
-
-      setNotice('Shift started successfully.');
-      await loadAssignments({ background: true });
-    } catch (error) {
-      setActionError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setUpdatingShift(false);
-    }
-  }
-
-  async function handleShiftCheckOut() {
-    if (!clinicId || !getToken || !currentShift) {
-      return;
-    }
-
-    setUpdatingShift(true);
-    setActionError(null);
-    setNotice(null);
-
-    try {
-      const response = await apiFetch(
-        `/clinics/${encodeURIComponent(clinicId)}/shifts/${encodeURIComponent(currentShift.shiftId)}/check-out`,
-        {
-          method: 'POST',
-          getToken,
-          activeClinicId: clinicId,
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error(await readApiError(response));
-      }
-
-      setNotice('Shift ended successfully.');
-      await loadAssignments({ background: true });
-    } catch (error) {
-      setActionError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setUpdatingShift(false);
-    }
-  }
-
   async function handleStartIntake(assignment: MyAssignmentSummary) {
     if (!clinicId || !getToken) {
       return;
@@ -232,7 +130,6 @@ export default function MyAssignedPage() {
 
     setStartingIntakeId(assignment.id);
     setActionError(null);
-    setNotice(null);
 
     try {
       const response = await apiFetch(
@@ -329,6 +226,7 @@ export default function MyAssignedPage() {
               size="sm"
               onClick={() => void handleStartIntake(assignment)}
               disabled={!isOnline || startingIntakeId === assignment.id}
+              title={opsOfflineHint('startIntake', isOnline)}
             >
               {startingIntakeId === assignment.id ? 'Starting...' : 'Start intake'}
             </Button>
@@ -393,12 +291,13 @@ export default function MyAssignedPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => void loadAssignments({ background: true })}
-                disabled={!isOnline || refreshing || loading}
+                onClick={view.refresh}
+                disabled={!isOnline || view.isRefreshing || view.isInitialLoading}
+                title={isOnline ? undefined : 'Refreshing needs a connection.'}
               >
                 <RefreshCw
                   aria-hidden="true"
-                  className={refreshing ? 'animate-spin motion-reduce:animate-none' : ''}
+                  className={view.isRefreshing ? 'animate-spin motion-reduce:animate-none' : ''}
                 />
                 Refresh
               </Button>
@@ -443,18 +342,33 @@ export default function MyAssignedPage() {
           />
         </div>
 
-        {!isOnline ? <OnlineOnlyBanner /> : null}
-        {pageError ? (
+        {!isOnline ? (
+          <OfflineOpsBanner
+            savedCopyAt={view.savedCopyAt}
+            timeZone={timezone}
+            unavailable="Starting intake and refreshing your list"
+          />
+        ) : view.savedCopyAt ? (
+          <InlineNotice tone="warning" live={false}>
+            Your live list could not be reached. Showing this device’s copy from{' '}
+            {formatOpsDateTime(view.savedCopyAt, timezone)}.
+          </InlineNotice>
+        ) : null}
+        {view.error ? (
           <InlineErrorState
             title="Your assignments could not be loaded"
-            description={pageError}
-            onRetry={() => void loadAssignments()}
+            description={view.error}
+            onRetry={view.refresh}
           />
         ) : null}
         {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
-        {notice ? <InlineNotice tone="success">{notice}</InlineNotice> : null}
+        {shiftControls.feedback ? (
+          <InlineNotice tone={shiftControls.feedback.tone}>
+            {shiftControls.feedback.message}
+          </InlineNotice>
+        ) : null}
 
-        {loading ? (
+        {view.isInitialLoading ? (
           <div className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
             <div className="min-w-0 space-y-6">
               <SectionSkeleton lines={2} />
@@ -466,15 +380,16 @@ export default function MyAssignedPage() {
           <div className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
             <div className="min-w-0 space-y-6">
               <ShiftControlCard
-                currentShift={currentShift}
-                selectedRole={selectedShiftRole}
+                currentShift={shiftControls.currentShift}
+                selectedRole={shiftControls.selectedRole}
                 availableRoles={eligibleShiftRoles}
                 isOnline={isOnline}
-                busy={updatingShift}
+                busy={shiftControls.busy}
+                disabled={!shiftControls.canSubmit}
                 timezone={timezone}
-                onSelectedRoleChange={setSelectedShiftRole}
-                onCheckIn={() => void handleShiftCheckIn()}
-                onCheckOut={() => void handleShiftCheckOut()}
+                onSelectedRoleChange={shiftControls.setSelectedRole}
+                onCheckIn={shiftControls.checkIn}
+                onCheckOut={shiftControls.checkOut}
               />
 
               <Card>
@@ -494,8 +409,8 @@ export default function MyAssignedPage() {
                     pair.
                   </p>
                   <p>
-                    Intake and assignment actions require connectivity in this release, even if the
-                    main clinical chart still has offline support elsewhere in the app.
+                    Your shift can be started or ended offline; it syncs when the connection
+                    returns. {OPS_OFFLINE_SUPPORT.startIntake.offlineHint}
                   </p>
                 </CardContent>
               </Card>

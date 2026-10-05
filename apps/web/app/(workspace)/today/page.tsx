@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ArrowRight, CalendarDays, RefreshCw, Users } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
@@ -13,7 +13,6 @@ import {
   type ActiveShift,
   type ActiveShiftsResponse,
   type CheckInStatus,
-  type CheckInSummary,
   type CheckInsResponse,
   type ShiftRole,
   formatOpsDate,
@@ -25,7 +24,16 @@ import {
   hasPermission,
   readApiError,
 } from '@/lib/ops';
-import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { fetchActiveShifts, fetchCheckIns } from '@/lib/ops-api';
+import {
+  overlayPendingCheckIns,
+  overlayPendingShifts,
+  type WithPendingSync,
+} from '@/lib/ops-offline';
+import type { CheckInSummary } from '@/lib/ops';
+import { useOpsView } from '@/lib/use-ops-view';
+import { usePendingOpsWrites } from '@/lib/use-pending-ops-writes';
+import { useShiftControls } from '@/lib/use-shift-controls';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
@@ -34,9 +42,11 @@ import {
   CheckInStatusBadge,
   EmptyStateCard,
   InlineNotice,
-  OnlineOnlyBanner,
+  OfflineOpsBanner,
+  PendingSyncBadge,
   ShiftControlCard,
   ShiftRoleBadge,
+  opsOfflineHint,
 } from '@/components/ops/OpsShared';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -59,10 +69,17 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 
+type BoardCheckIn = WithPendingSync<CheckInSummary>;
+
 type AssignmentDialogState = {
   mode: 'assign' | 'reassign';
-  checkIn: CheckInSummary;
+  checkIn: BoardCheckIn;
 } | null;
+
+interface TodayBoard {
+  shifts: ActiveShiftsResponse;
+  checkIns: CheckInsResponse;
+}
 
 const SHIFT_FILTERS: Array<'ALL' | ShiftRole> = ['ALL', 'VOLUNTEER', 'DOCTOR', 'MANAGER'];
 
@@ -74,7 +91,6 @@ export default function TodayBoardPage() {
   const bootstrapCtx = useBootstrap();
   const bootstrap = bootstrapCtx?.bootstrap ?? null;
   const getToken = useAuth();
-  const { isOnline } = useSync();
 
   const clinicId = getBootstrapActiveClinicId(bootstrap);
   const activeMembership = bootstrap?.memberships?.find(
@@ -92,14 +108,7 @@ export default function TodayBoardPage() {
 
   const [selectedDate, setSelectedDate] = useState(getTodayInTimeZone());
   const [shiftRoleFilter, setShiftRoleFilter] = useState<ShiftRole | 'ALL'>('ALL');
-  const [selectedShiftRole, setSelectedShiftRole] = useState<ShiftRole | ''>('');
-  const [shiftsData, setShiftsData] = useState<ActiveShiftsResponse | null>(null);
-  const [checkinsData, setCheckinsData] = useState<CheckInsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [updatingShift, setUpdatingShift] = useState(false);
   const [savingAssignment, setSavingAssignment] = useState(false);
-  const [pageError, setPageError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [assignmentDialog, setAssignmentDialog] = useState<AssignmentDialogState>(null);
@@ -107,90 +116,66 @@ export default function TodayBoardPage() {
   const [selectedDoctorId, setSelectedDoctorId] = useState('');
   const [reassignReason, setReassignReason] = useState('');
 
-  useEffect(() => {
-    if (!selectedShiftRole || eligibleShiftRoles.includes(selectedShiftRole)) {
-      if (selectedShiftRole || eligibleShiftRoles.length === 0) {
-        return;
-      }
-    }
-
-    setSelectedShiftRole(eligibleShiftRoles[0] ?? '');
-  }, [eligibleShiftRoles, selectedShiftRole]);
-
-  const loadBoard = useCallback(
-    async (options?: { background?: boolean }) => {
-      if (!clinicId || !getToken) {
-        return;
-      }
-
-      if (options?.background) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
-
-      setPageError(null);
-
-      try {
-        const [shiftsResponse, checkinsResponse] = await Promise.all([
-          apiFetch(
-            `/clinics/${encodeURIComponent(clinicId)}/shifts/active?date=${encodeURIComponent(selectedDate)}`,
-            { getToken, activeClinicId: clinicId },
-          ),
-          apiFetch(
-            `/clinics/${encodeURIComponent(clinicId)}/checkins?date=${encodeURIComponent(selectedDate)}`,
-            { getToken, activeClinicId: clinicId },
-          ),
-        ]);
-
-        if (!shiftsResponse.ok) {
-          throw new Error(await readApiError(shiftsResponse));
-        }
-        if (!checkinsResponse.ok) {
-          throw new Error(await readApiError(checkinsResponse));
-        }
-
-        const nextShifts = (await shiftsResponse.json()) as ActiveShiftsResponse;
-        const nextCheckins = (await checkinsResponse.json()) as CheckInsResponse;
-
-        setShiftsData(nextShifts);
-        setCheckinsData(nextCheckins);
-      } catch (error) {
-        setPageError(error instanceof Error ? error.message : String(error));
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
+  const pendingWrites = usePendingOpsWrites(clinicId);
+  const pendingIds = useMemo(() => pendingWrites.map((write) => write.entityId), [pendingWrites]);
+  const board = useOpsView<TodayBoard>({
+    clinicId,
+    kind: 'today-board',
+    date: selectedDate,
+    errorMessage: 'The board could not be loaded.',
+    pendingIds,
+    fetcher: async (token, signal) => {
+      const options = { clinicId: clinicId ?? '', date: selectedDate, getToken: token, signal };
+      const [shifts, checkIns] = await Promise.all([
+        fetchActiveShifts(options),
+        fetchCheckIns(options),
+      ]);
+      return { shifts, checkIns };
     },
-    [clinicId, getToken, selectedDate],
+  });
+  const { isOnline } = board;
+
+  const timezone =
+    board.data?.checkIns.timezone ?? board.data?.shifts.timezone ?? OPS_DEFAULT_TIMEZONE;
+  // Queued shift changes are about today; drawing them on another day's roster would be wrong.
+  const isToday = selectedDate === getTodayInTimeZone(timezone);
+  const shifts = useMemo(
+    () =>
+      overlayPendingShifts(board.data?.shifts.items ?? [], isToday ? pendingWrites : [], {
+        userId: bootstrap?.userId,
+        displayName: bootstrap?.displayName,
+      }),
+    [board.data, isToday, pendingWrites, bootstrap?.userId, bootstrap?.displayName],
+  );
+  const checkins: BoardCheckIn[] = useMemo(
+    () =>
+      overlayPendingCheckIns(board.data?.checkIns.items ?? [], pendingWrites, {
+        clinicId: clinicId ?? '',
+        date: selectedDate,
+        timezone,
+      }),
+    [board.data, pendingWrites, clinicId, selectedDate, timezone],
   );
 
-  useEffect(() => {
-    if (!clinicId || !getToken) {
-      setLoading(false);
-      return;
-    }
+  const shiftControls = useShiftControls({
+    clinicId,
+    userId: bootstrap?.userId,
+    shifts,
+    eligibleRoles: eligibleShiftRoles,
+    onApplied: board.refresh,
+  });
 
-    if (!isOnline) {
-      setLoading(false);
-      return;
-    }
-
-    void loadBoard();
-  }, [clinicId, getToken, isOnline, loadBoard]);
-
-  const shifts = shiftsData?.items ?? [];
-  const timezone = checkinsData?.timezone ?? shiftsData?.timezone ?? OPS_DEFAULT_TIMEZONE;
-  const checkins = checkinsData?.items ?? [];
+  const onDuty = shifts.filter((shift) => !shift.pendingCheckOut);
   const filteredShifts =
     shiftRoleFilter === 'ALL'
       ? shifts
       : shifts.filter((shift) => shift.roleAtShift === shiftRoleFilter);
-  const currentShift = shifts.find((shift) => shift.userId === bootstrap?.userId) ?? null;
-  const volunteerOptions = shifts.filter((shift) => shift.roleAtShift === 'VOLUNTEER');
-  const doctorOptions = shifts.filter((shift) => shift.roleAtShift === 'DOCTOR');
+  // Only shifts the server knows about can be assigned; a queued one would be refused.
+  const assignable = shifts.filter((shift) => !shift.pendingSync && !shift.pendingCheckOut);
+  const volunteerOptions = assignable.filter((shift) => shift.roleAtShift === 'VOLUNTEER');
+  const doctorOptions = assignable.filter((shift) => shift.roleAtShift === 'DOCTOR');
 
-  const groupedCheckins = CHECKIN_STATUS_ORDER.reduce<Record<CheckInStatus, CheckInSummary[]>>(
+  const groupedCheckins = CHECKIN_STATUS_ORDER.reduce<Record<CheckInStatus, BoardCheckIn[]>>(
     (accumulator, status) => {
       accumulator[status] = checkins.filter((item) => item.status === status);
       return accumulator;
@@ -208,7 +193,7 @@ export default function TodayBoardPage() {
     (status) => status !== 'CANCELLED' || groupedCheckins.CANCELLED.length > 0,
   );
 
-  function openAssignmentDialog(mode: 'assign' | 'reassign', checkIn: CheckInSummary) {
+  function openAssignmentDialog(mode: 'assign' | 'reassign', checkIn: BoardCheckIn) {
     setActionError(null);
     setNotice(null);
     setAssignmentDialog({ mode, checkIn });
@@ -219,68 +204,6 @@ export default function TodayBoardPage() {
       checkIn.assignmentSummary?.assignedDoctor.id ?? doctorOptions[0]?.userId ?? '',
     );
     setReassignReason('');
-  }
-
-  async function handleShiftCheckIn() {
-    if (!clinicId || !getToken || !selectedShiftRole) {
-      return;
-    }
-
-    setUpdatingShift(true);
-    setActionError(null);
-    setNotice(null);
-
-    try {
-      const response = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}/shifts/check-in`, {
-        method: 'POST',
-        body: JSON.stringify({ roleAtShift: selectedShiftRole }),
-        getToken,
-        activeClinicId: clinicId,
-      });
-
-      if (!response.ok) {
-        throw new Error(await readApiError(response));
-      }
-
-      setNotice(`Shift started as ${formatRoleLabel(selectedShiftRole)}.`);
-      await loadBoard({ background: true });
-    } catch (error) {
-      setActionError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setUpdatingShift(false);
-    }
-  }
-
-  async function handleShiftCheckOut() {
-    if (!clinicId || !getToken || !currentShift) {
-      return;
-    }
-
-    setUpdatingShift(true);
-    setActionError(null);
-    setNotice(null);
-
-    try {
-      const response = await apiFetch(
-        `/clinics/${encodeURIComponent(clinicId)}/shifts/${encodeURIComponent(currentShift.shiftId)}/check-out`,
-        {
-          method: 'POST',
-          getToken,
-          activeClinicId: clinicId,
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error(await readApiError(response));
-      }
-
-      setNotice('Shift ended successfully.');
-      await loadBoard({ background: true });
-    } catch (error) {
-      setActionError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setUpdatingShift(false);
-    }
   }
 
   async function handleAssignmentSave() {
@@ -341,7 +264,7 @@ export default function TodayBoardPage() {
       );
       setAssignmentDialog(null);
       setReassignReason('');
-      await loadBoard({ background: true });
+      board.refresh();
     } catch (error) {
       setActionError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -399,12 +322,13 @@ export default function TodayBoardPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => void loadBoard({ background: true })}
-                disabled={!isOnline || refreshing || loading}
+                onClick={board.refresh}
+                disabled={!isOnline || board.isRefreshing || board.isInitialLoading}
+                title={isOnline ? undefined : 'Refreshing needs a connection.'}
               >
                 <RefreshCw
                   aria-hidden="true"
-                  className={refreshing ? 'animate-spin motion-reduce:animate-none' : ''}
+                  className={board.isRefreshing ? 'animate-spin motion-reduce:animate-none' : ''}
                 />
                 Refresh
               </Button>
@@ -425,8 +349,8 @@ export default function TodayBoardPage() {
           />
           <AppMetricCard
             title="Staff on duty"
-            value={shifts.length}
-            detail={`${countByRole(shifts, 'VOLUNTEER')} volunteers, ${countByRole(shifts, 'DOCTOR')} doctors`}
+            value={onDuty.length}
+            detail={`${countByRole(onDuty, 'VOLUNTEER')} volunteers, ${countByRole(onDuty, 'DOCTOR')} doctors`}
           />
           <AppMetricCard
             title="Completed today"
@@ -435,18 +359,34 @@ export default function TodayBoardPage() {
           />
         </div>
 
-        {!isOnline ? <OnlineOnlyBanner /> : null}
-        {pageError ? (
+        {!isOnline ? (
+          <OfflineOpsBanner
+            savedCopyAt={board.savedCopyAt}
+            timeZone={timezone}
+            unavailable="Assigning patients and refreshing the board"
+          />
+        ) : board.savedCopyAt ? (
+          <InlineNotice tone="warning" live={false}>
+            The live board could not be reached. Showing this device’s copy from{' '}
+            {formatOpsDateTime(board.savedCopyAt, timezone)}.
+          </InlineNotice>
+        ) : null}
+        {board.error ? (
           <InlineErrorState
             title="The board could not be loaded"
-            description={pageError}
-            onRetry={() => void loadBoard()}
+            description={board.error}
+            onRetry={board.refresh}
           />
         ) : null}
         {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
         {notice ? <InlineNotice tone="success">{notice}</InlineNotice> : null}
+        {shiftControls.feedback ? (
+          <InlineNotice tone={shiftControls.feedback.tone}>
+            {shiftControls.feedback.message}
+          </InlineNotice>
+        ) : null}
 
-        {loading ? (
+        {board.isInitialLoading ? (
           <div
             className="grid gap-6 xl:grid-cols-[360px,minmax(0,1fr)]"
             role="status"
@@ -464,15 +404,16 @@ export default function TodayBoardPage() {
           <div className="grid gap-6 xl:grid-cols-[360px,minmax(0,1fr)]">
             <div className="min-w-0 space-y-6">
               <ShiftControlCard
-                currentShift={currentShift}
-                selectedRole={selectedShiftRole}
+                currentShift={shiftControls.currentShift}
+                selectedRole={shiftControls.selectedRole}
                 availableRoles={eligibleShiftRoles}
                 isOnline={isOnline}
-                busy={updatingShift}
+                busy={shiftControls.busy}
+                disabled={!shiftControls.canSubmit}
                 timezone={timezone}
-                onSelectedRoleChange={setSelectedShiftRole}
-                onCheckIn={() => void handleShiftCheckIn()}
-                onCheckOut={() => void handleShiftCheckOut()}
+                onSelectedRoleChange={shiftControls.setSelectedRole}
+                onCheckIn={shiftControls.checkIn}
+                onCheckOut={shiftControls.checkOut}
               />
 
               <Card>
@@ -489,7 +430,7 @@ export default function TodayBoardPage() {
                     </div>
                     <div className="rounded-lg border border-border bg-background px-3 py-2 text-right">
                       <p className="text-eyebrow text-muted-foreground">Total</p>
-                      <p className="text-lg font-semibold">{shifts.length}</p>
+                      <p className="text-lg font-semibold">{onDuty.length}</p>
                     </div>
                   </div>
 
@@ -497,17 +438,17 @@ export default function TodayBoardPage() {
                     <div className="rounded-lg border border-border bg-background p-3">
                       <p className="text-eyebrow text-muted-foreground">Volunteers</p>
                       <p className="mt-2 text-2xl font-semibold">
-                        {countByRole(shifts, 'VOLUNTEER')}
+                        {countByRole(onDuty, 'VOLUNTEER')}
                       </p>
                     </div>
                     <div className="rounded-lg border border-border bg-background p-3">
                       <p className="text-eyebrow text-muted-foreground">Doctors</p>
-                      <p className="mt-2 text-2xl font-semibold">{countByRole(shifts, 'DOCTOR')}</p>
+                      <p className="mt-2 text-2xl font-semibold">{countByRole(onDuty, 'DOCTOR')}</p>
                     </div>
                     <div className="rounded-lg border border-border bg-background p-3">
                       <p className="text-eyebrow text-muted-foreground">Managers</p>
                       <p className="mt-2 text-2xl font-semibold">
-                        {countByRole(shifts, 'MANAGER')}
+                        {countByRole(onDuty, 'MANAGER')}
                       </p>
                     </div>
                   </div>
@@ -541,12 +482,28 @@ export default function TodayBoardPage() {
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="font-medium text-foreground">{shift.displayName}</p>
+                            <p className="truncate font-medium text-foreground">
+                              {shift.displayName}
+                            </p>
                             <p className="mt-1 text-sm text-muted-foreground">
                               Checked in at {formatOpsTime(shift.checkedInAt, timezone)}
                             </p>
                           </div>
-                          <ShiftRoleBadge role={shift.roleAtShift} />
+                          <div className="flex shrink-0 flex-col items-end gap-1.5">
+                            <ShiftRoleBadge role={shift.roleAtShift} />
+                            {shift.pendingSync ? (
+                              <PendingSyncBadge state={shift.pendingSync} />
+                            ) : shift.pendingCheckOut ? (
+                              <PendingSyncBadge
+                                state={shift.pendingCheckOut}
+                                label={
+                                  shift.pendingCheckOut === 'blocked'
+                                    ? 'Shift end needs attention'
+                                    : 'Ending · pending sync'
+                                }
+                              />
+                            ) : null}
+                          </div>
                         </div>
                       </div>
                     ))
@@ -608,7 +565,12 @@ export default function TodayBoardPage() {
                           groupedCheckins[status].map((checkIn) => (
                             <article
                               key={checkIn.id}
-                              className="rounded-lg border border-border bg-background p-4"
+                              className={
+                                checkIn.pendingSync
+                                  ? 'rounded-lg border border-dashed border-info/40 bg-info/5 p-4'
+                                  : 'rounded-lg border border-border bg-background p-4'
+                              }
+                              data-pending-sync={checkIn.pendingSync}
                             >
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
@@ -622,7 +584,12 @@ export default function TodayBoardPage() {
                                     Checked in at {formatOpsDateTime(checkIn.checkedInAt, timezone)}
                                   </p>
                                 </div>
-                                <CheckInStatusBadge status={checkIn.status} />
+                                <div className="flex shrink-0 flex-col items-end gap-1.5">
+                                  <CheckInStatusBadge status={checkIn.status} />
+                                  {checkIn.pendingSync ? (
+                                    <PendingSyncBadge state={checkIn.pendingSync} />
+                                  ) : null}
+                                </div>
                               </div>
 
                               {checkIn.assignmentSummary ? (
@@ -654,7 +621,12 @@ export default function TodayBoardPage() {
                                     type="button"
                                     size="sm"
                                     onClick={() => openAssignmentDialog('assign', checkIn)}
-                                    disabled={!isOnline}
+                                    disabled={!isOnline || Boolean(checkIn.pendingSync)}
+                                    title={
+                                      checkIn.pendingSync
+                                        ? 'This check-in can be assigned once it has synced.'
+                                        : opsOfflineHint('assign', isOnline)
+                                    }
                                   >
                                     Assign
                                   </Button>
@@ -669,6 +641,7 @@ export default function TodayBoardPage() {
                                     variant="outline"
                                     onClick={() => openAssignmentDialog('reassign', checkIn)}
                                     disabled={!isOnline}
+                                    title={opsOfflineHint('reassign', isOnline)}
                                   >
                                     Reassign
                                   </Button>

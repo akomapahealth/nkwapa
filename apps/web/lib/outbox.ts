@@ -97,7 +97,8 @@ export function buildPharmacyPreferenceOutboxPayload(
   return withoutUndefined(payload);
 }
 
-function generateId(): string {
+/** A v4 UUID for a record created on this device, so the server and the outbox share one id. */
+export function generateClientId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
   }
@@ -113,8 +114,8 @@ function generateId(): string {
  * Does not write to IndexedDB.
  */
 export function buildOutboxMutation(params: OutboxMutationParams): OutboxRecordShape {
-  const id = generateId();
-  const idempotencyKey = params.idempotencyKey ?? generateId();
+  const id = generateClientId();
+  const idempotencyKey = params.idempotencyKey ?? generateClientId();
   const createdAt = new Date().toISOString();
   return {
     id,
