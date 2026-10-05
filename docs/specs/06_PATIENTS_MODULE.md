@@ -222,6 +222,7 @@ and Consent.
 ## Current Gaps
 
 - no full cross-clinic patient consolidation workflow yet; the preview reports a cross-clinic
-  pair as blocked and points at the review queue instead
+  pair as blocked and points at the review queue instead, and system administrators can size the
+  cross-clinic burden at `/admin/duplicates/cross-clinic` without changing any chart
 - portal invites reach patients by email only; SMS delivery of an invitation is not wired,
   so a phone-only invite is passed on by hand from the copyable instructions on the chart

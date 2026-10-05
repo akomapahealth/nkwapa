@@ -128,6 +128,40 @@ Use:
 
 - lets operators resolve historical references to the canonical chart
 
+### Duplicates across clinics
+
+A chart belongs to exactly one clinic through `primaryClinicId`, so two charts for the same person
+registered at two clinics are two records with no link between them. The duplicate rules in
+`packages/db/src/patient-duplicates.ts` match them like any other pair; what differs is what can be
+done about it.
+
+Investigation (`GET /admin/patients/duplicates/cross-clinic`, `/admin/duplicates/cross-clinic`):
+
+- considers only pairs whose two charts sit in different clinics, and only **active** clinics; an
+  inactive clinic's charts are not part of the burden anyone could act on
+- filters to cross-clinic pairs inside the blocking scan, before its 500-pair ceiling, so a busy
+  clinic's same-clinic pairs cannot crowd them out; `truncated` still says when the result is a
+  lower bound
+- reports the burden per clinic pair (total, by confidence, by review decision, and whether the two
+  clinics share an organization), per match rule, and the clinics and organizations affected; the
+  burden always covers the whole scan, whatever filter narrows the list
+- writes nothing to a chart; a decision about a pair is recorded through the review queue as a
+  `PatientDuplicateReview` with a null `clinicId`
+
+Current merge limitation. `PatientMergeService` refuses every cross-clinic pair (`CROSS_CLINIC`),
+and the duplicate queue reports the same refusal per pair as `mergeBlockers`, from the shared
+`structuralMergeFindings` rule. The refusal is structural rather than a missing button:
+
+- `PatientMergeRecord.clinicId` is non-null and its row-level-security policy is clinic-scoped, so
+  a merge must belong to one clinic
+- every relation the merge repoints (visits, notes, prescriptions, consent, appointments) carries
+  clinic-scoped meaning, and two clinics may hold conflicting consent for the same person
+- nothing yet decides which clinic owns the surviving chart, or how the losing clinic's staff keep
+  access to the history they recorded
+
+Building consolidation therefore needs a policy decision first (ownership, consent and access),
+then a migration of the merge record's scope. The investigation exists to size that decision.
+
 ### PatientAccountLink
 
 Direct patient-to-Keycloak-sub link used by the patient portal.
