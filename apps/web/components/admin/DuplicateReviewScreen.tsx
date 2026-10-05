@@ -27,6 +27,7 @@ import {
   DUPLICATE_CONFIDENCE_LABELS,
   DUPLICATE_MATCH_REASON_LABELS,
   duplicateFiltersAreDefault,
+  formatReasons,
   patientDisplayName,
   type DuplicateCandidate,
   type DuplicateCandidatePage,
@@ -250,8 +251,8 @@ export function DuplicateReviewScreen() {
         // The strongest reason in full, with a count for the rest. The joined list ran to three
         // wrapped lines in a 64px row and clipped; the comparison sheet spells all of them out.
         renderCell: (params) => (
-          <div className="py-2 text-sm leading-5">
-            <p className="whitespace-normal text-foreground">
+          <div className="min-w-0 py-2 text-sm leading-5">
+            <p className="truncate text-foreground" title={formatReasons(params.row.reasons)}>
               {DUPLICATE_MATCH_REASON_LABELS[params.row.reasons[0]]}
             </p>
             {params.row.reasons.length > 1 ? (

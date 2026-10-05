@@ -34,6 +34,7 @@ const STAFF_ROUTES = [
   '/queues',
   '/admin/users',
   '/admin/duplicates',
+  '/admin/duplicates/cross-clinic',
   '/audit',
 ];
 

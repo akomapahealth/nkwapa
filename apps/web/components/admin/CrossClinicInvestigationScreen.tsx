@@ -27,6 +27,7 @@ import {
   describeMergeAvailability,
   DUPLICATE_CONFIDENCE_LABELS,
   DUPLICATE_MATCH_REASON_LABELS,
+  formatReasons,
   patientDisplayName,
   type CrossClinicBurden,
   type CrossClinicBurdenRow,
@@ -140,13 +141,17 @@ export function CrossClinicInvestigationScreen() {
       {
         field: 'patients',
         headerName: 'Charts and clinics',
-        flex: 2,
-        minWidth: 260,
+        flex: 2.4,
+        minWidth: 300,
         sortable: false,
         renderCell: (params) => (
           <div className="py-2 text-sm leading-5">
             {params.row.patients.map((patient) => (
-              <p key={patient.id} className="truncate">
+              <p
+                key={patient.id}
+                className="truncate"
+                title={`${patientDisplayName(patient)} · ${patient.patientCode} · ${patient.clinic.name}`}
+              >
                 <span className="font-medium text-foreground">{patientDisplayName(patient)}</span>
                 <span className="text-muted-foreground">
                   {' '}
@@ -161,11 +166,12 @@ export function CrossClinicInvestigationScreen() {
         field: 'reasons',
         headerName: 'Why it matched',
         flex: 1,
-        minWidth: 170,
+        minWidth: 150,
         sortable: false,
+        // One line each, so a long first reason cannot push "and N more" out of a 64px row.
         renderCell: (params) => (
-          <div className="py-2 text-sm leading-5">
-            <p className="whitespace-normal text-foreground">
+          <div className="min-w-0 py-2 text-sm leading-5">
+            <p className="truncate text-foreground" title={formatReasons(params.row.reasons)}>
               {DUPLICATE_MATCH_REASON_LABELS[params.row.reasons[0]]}
             </p>
             {params.row.reasons.length > 1 ? (
@@ -177,7 +183,7 @@ export function CrossClinicInvestigationScreen() {
       {
         field: 'mergeEligible',
         headerName: 'Merge',
-        width: 128,
+        width: 108,
         sortable: false,
         // Spelled out on every row rather than implied by the screen, because "can I just merge
         // these?" is the first thing anyone looking at a likely duplicate will ask.
@@ -199,7 +205,7 @@ export function CrossClinicInvestigationScreen() {
       {
         field: 'actions',
         headerName: 'Actions',
-        width: 100,
+        width: 96,
         sortable: false,
         filterable: false,
         renderCell: (params) => (
