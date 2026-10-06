@@ -118,7 +118,7 @@ Scenarios: CLN-05.
 
 - **Today:** Signing out clears the active clinic and the portal cache, not the outbox. The next account to open the same clinic on that device sends the earlier account’s queued changes under its own identity.
 - **Why it is tolerated:** Deliberate for now: an entry that never reached the server cannot be recovered, so it is not deleted on sign-out. Authorization is not weakened: the server checks every replay against the sending account’s own roles at the clinic, so it is never more powerful than that account. Attribution is what is wrong.
-- **Next:** [follow-up] Stamp the owner on outbox rows and hold other accounts’ rows in the sync center.
+- **Next:** #162: Stamp the owner on outbox rows and hold other accounts’ rows in the sync center.
 
 ### Work queued for a clinic the account can no longer open is not shown
 
@@ -126,7 +126,7 @@ Scenarios: CLN-06.
 
 - **Today:** The outbox, the pill and the sync center are all scoped to the active clinic. If an account loses its seat at a clinic entirely, that clinic is never offered as active again, so changes queued under it stay on the device and appear nowhere.
 - **Why it is tolerated:** Nothing is deleted, and nothing is sent to a clinic the account cannot write to. Restoring the seat, or signing in as someone who holds one, drains them.
-- **Next:** [follow-up] List queued work for clinics other than the active one in the sync center.
+- **Next:** #163: List queued work for clinics other than the active one in the sync center.
 
 ### External calls run inside the job transaction
 
@@ -134,7 +134,7 @@ Scenarios: JOB-09.
 
 - **Today:** Each job runs in one interactive Prisma transaction with the default 5 second timeout. The SMS or email send, and the research pack build plus GitHub push, happen inside it. A slow provider can expire the transaction after the message or commit has already gone out.
 - **Why it is tolerated:** Sends and exports are claimed with an advisory lock, so two deliveries never run at the same time. That does not cover this case: if the transaction expires after the provider accepted the message, the SENT or COMPLETED write rolls back and the retry sends or pushes again. Typical sends finish well inside the window; watch for expired-transaction errors in the worker log.
-- **Next:** [follow-up] Move provider calls and the GitHub push outside the tenant transaction.
+- **Next:** #164: Move provider calls and the GitHub push outside the tenant transaction.
 
 ### A reminder job that fires early completes without sending
 
@@ -142,7 +142,7 @@ Scenarios: JOB-04.
 
 - **Today:** A reminder job delivered before its scheduled time (clock skew between the API and Redis) finds the row not yet due, returns, and completes. Nothing re-queues it, so the row stays QUEUED.
 - **Why it is tolerated:** Delays are computed from the same scheduledAt the check reads, so this needs skew larger than the gap between them. The reminders page shows a QUEUED row past its time, which is the signal to look.
-- **Next:** [follow-up] Re-queue a reminder that is not yet due for the remaining delay.
+- **Next:** #165: Re-queue a reminder that is not yet due for the remaining delay.
 
 ## Automated coverage
 

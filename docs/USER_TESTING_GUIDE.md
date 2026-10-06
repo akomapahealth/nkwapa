@@ -1039,11 +1039,10 @@ Needs an account with seats at two clinics (the cross-clinic fixtures from
 - [ ] **CLN-05** _Known risk._ Queue a change as account A with `*/sync/push*` blocked, sign out, and
       sign in as account B at the same clinic. Unblock the URL. Today the change is sent under B, and
       the audit entry names B. B's own permissions are checked, so B cannot write anything B could
-      not write directly. Record what you see; do not file it as a new bug. The follow-up is in the
-      matrix.
+      not write directly. Record what you see; do not file it as a new bug. It is tracked in #162.
 - [ ] **CLN-06** _Known risk._ Queue a change at clinic A, then remove the account's only role at A.
       After a refresh, clinic A is no longer offered, and the change is kept in IndexedDB but shown
-      nowhere. Restoring the role brings it back and it drains.
+      nowhere. Restoring the role brings it back and it drains. Tracked in #163.
 
 ### Background jobs
 
@@ -1065,7 +1064,7 @@ Needs an account with seats at two clinics (the cross-clinic fixtures from
       last attempt. Refresh the page after it fails, to confirm it is still **Failed**.
 - [ ] **JOB-09** _Known risk._ During the release smoke, search the API log for "Transaction already
       closed" or "expired transaction" from the reminder or research workers. Any hit means a send or
-      push outlasted the job transaction. Note which one; the follow-up is in the matrix.
+      push outlasted the job transaction. Note which one; it is tracked in #164.
 
 ---
 

@@ -97,9 +97,9 @@ describe('offline and job execution matrix', () => {
     expect(named.filter((id) => !known.has(id))).toEqual([]);
   });
 
-  it('gives every known risk a follow-up and at least one scenario', () => {
+  it('gives every known risk a filed follow-up issue and at least one scenario', () => {
     for (const [id, risk] of Object.entries(KNOWN_RISKS)) {
-      expect(risk.followUp).toMatch(/^\[follow-up\]|#\d+/);
+      expect(risk.followUp).toMatch(/^#\d+: /);
       expect(OFFLINE_JOB_SCENARIOS.some((scenario) => scenario.knownRisk === id)).toBe(true);
     }
   });

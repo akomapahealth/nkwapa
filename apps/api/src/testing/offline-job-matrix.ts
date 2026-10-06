@@ -101,7 +101,7 @@ export const KNOWN_RISKS = {
     mitigation:
       'Deliberate for now: an entry that never reached the server cannot be recovered, so it is not deleted on sign-out. Authorization is not weakened: the server checks every replay against the sending account’s own roles at the clinic, so it is never more powerful than that account. Attribution is what is wrong.',
     followUp:
-      '[follow-up] Stamp the owner on outbox rows and hold other accounts’ rows in the sync center.',
+      '#162: Stamp the owner on outbox rows and hold other accounts’ rows in the sync center.',
   },
   'stranded-clinic': {
     title: 'Work queued for a clinic the account can no longer open is not shown',
@@ -109,8 +109,7 @@ export const KNOWN_RISKS = {
       'The outbox, the pill and the sync center are all scoped to the active clinic. If an account loses its seat at a clinic entirely, that clinic is never offered as active again, so changes queued under it stay on the device and appear nowhere.',
     mitigation:
       'Nothing is deleted, and nothing is sent to a clinic the account cannot write to. Restoring the seat, or signing in as someone who holds one, drains them.',
-    followUp:
-      '[follow-up] List queued work for clinics other than the active one in the sync center.',
+    followUp: '#163: List queued work for clinics other than the active one in the sync center.',
   },
   'job-transaction': {
     title: 'External calls run inside the job transaction',
@@ -118,7 +117,7 @@ export const KNOWN_RISKS = {
       'Each job runs in one interactive Prisma transaction with the default 5 second timeout. The SMS or email send, and the research pack build plus GitHub push, happen inside it. A slow provider can expire the transaction after the message or commit has already gone out.',
     mitigation:
       'Sends and exports are claimed with an advisory lock, so two deliveries never run at the same time. That does not cover this case: if the transaction expires after the provider accepted the message, the SENT or COMPLETED write rolls back and the retry sends or pushes again. Typical sends finish well inside the window; watch for expired-transaction errors in the worker log.',
-    followUp: '[follow-up] Move provider calls and the GitHub push outside the tenant transaction.',
+    followUp: '#164: Move provider calls and the GitHub push outside the tenant transaction.',
   },
   'early-reminder': {
     title: 'A reminder job that fires early completes without sending',
@@ -126,7 +125,7 @@ export const KNOWN_RISKS = {
       'A reminder job delivered before its scheduled time (clock skew between the API and Redis) finds the row not yet due, returns, and completes. Nothing re-queues it, so the row stays QUEUED.',
     mitigation:
       'Delays are computed from the same scheduledAt the check reads, so this needs skew larger than the gap between them. The reminders page shows a QUEUED row past its time, which is the signal to look.',
-    followUp: '[follow-up] Re-queue a reminder that is not yet due for the remaining delay.',
+    followUp: '#165: Re-queue a reminder that is not yet due for the remaining delay.',
   },
 } as const satisfies Record<string, KnownRisk>;
 export type KnownRiskId = keyof typeof KNOWN_RISKS;
