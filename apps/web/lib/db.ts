@@ -493,6 +493,31 @@ export interface OpsCacheRecord<T = unknown> {
   updatedAt: string;
 }
 
+/** The patient-portal reads a device keeps its last good copy of (#18). */
+export type PortalCacheView = 'overview' | 'health' | 'appointments';
+
+/**
+ * The last copy of a patient's own portal view, so recent history survives a dropped connection.
+ *
+ * Keyed by the signed-in account, never by clinic alone: a family phone is a shared device, and
+ * the only safe answer to "whose copy is this?" is one the key itself gives. Rows are replaced on
+ * every successful load, expire after a week, and are cleared on sign-out and on account change.
+ * Nothing here is ever written by a write action; portal writes stay online-only.
+ */
+export interface PortalCacheRecord<T = unknown> {
+  /** `${userId}|${clinicId}|${view}|${variant}`. */
+  key: string;
+  userId: string;
+  clinicId: string;
+  /** The patient record the copy belongs to, as the server reported it. */
+  patientId: string;
+  view: PortalCacheView;
+  /** What else shapes the view, e.g. the Health time window. Empty when nothing does. */
+  variant: string;
+  data: T;
+  updatedAt: string;
+}
+
 export class NkwapaDb extends Dexie {
   patients!: Table<PatientRecord, string>;
   encounters!: Table<EncounterRecord, string>;
@@ -515,6 +540,7 @@ export class NkwapaDb extends Dexie {
   outbox!: Table<OutboxRecord, string>;
   sync_state!: Table<SyncStateRecord, string>;
   ops_cache!: Table<OpsCacheRecord, string>;
+  portal_cache!: Table<PortalCacheRecord, string>;
 
   constructor() {
     super('NkwapaDb');
@@ -643,6 +669,15 @@ export class NkwapaDb extends Dexie {
     */
     this.version(12).stores({
       ops_cache: 'key, clinicId, updatedAt',
+    });
+    /*
+      v13 keeps a patient's last loaded portal history (#18).
+
+      A new store with nothing to migrate. `userId` is indexed because every purge asks the same
+      question -- "rows that are not this account's" -- and must answer it without reading data.
+    */
+    this.version(13).stores({
+      portal_cache: 'key, userId, updatedAt',
     });
   }
 }

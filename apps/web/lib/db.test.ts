@@ -34,4 +34,12 @@ describe('NkwapaDb longitudinal clinical schema', () => {
       expect.arrayContaining(['clinicId', 'updatedAt']),
     );
   });
+
+  it('keeps portal copies keyed by account, with the account indexed for purges (v13)', () => {
+    const cache = db.tables.find((table) => table.name === 'portal_cache');
+    expect(cache?.schema.primKey.name).toBe('key');
+    expect(cache?.schema.indexes.map((index) => index.name)).toEqual(
+      expect.arrayContaining(['userId', 'updatedAt']),
+    );
+  });
 });
