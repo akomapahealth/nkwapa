@@ -31,6 +31,7 @@ import { recordAppliedSyncMutation } from './applied-sync-mutation';
 import {
   classifySyncFailure,
   isTerminalOutcome,
+  replayStoredOutcome,
   syncRefusal,
   type SyncOutcome,
 } from './sync-outcome';
@@ -41,6 +42,7 @@ import {
   SYNC_PATIENT_SELECT,
 } from './sync-projection';
 import { PrismaService } from '../prisma/prisma.service';
+import { lockForTransaction } from '../prisma/transaction-lock';
 import { TelemetryService } from '../telemetry/telemetry.service';
 import { AuditService } from '../audit/audit.service';
 import { PatientRepository } from '../patients/patient.repository';
@@ -124,6 +126,13 @@ export class SyncService {
         continue;
       }
 
+      // Two pushes of the same change (two tabs, or a retried request that had in fact landed)
+      // used to both find no record, both apply, and then collide on the record's unique key,
+      // which aborted the request's transaction and failed the whole push with a 500. Holding the
+      // key until this request commits makes the second one wait and then read the first's
+      // answer, so a change applies once and both callers are told the same thing.
+      await lockForTransaction(this.prisma, `sync-mutation:${clinicId}:${mut.idempotencyKey}`);
+
       const existing = await this.prisma.syncMutation.findUnique({
         where: {
           clinicId_idempotencyKey: {
@@ -134,18 +143,7 @@ export class SyncService {
       });
 
       if (existing && isTerminalOutcome(existing.status, existing.conflictType)) {
-        const replayed: SyncMutationResultDto = {
-          id: mut.id,
-          status: existing.status as SyncMutationResultDto['status'],
-        };
-        if (existing.conflictType) {
-          replayed.conflictType = existing.conflictType;
-          replayed.conflictDetails = existing.conflictDetailsJson
-            ? (JSON.parse(existing.conflictDetailsJson) as Record<string, unknown>)
-            : undefined;
-          replayed.retryable = false;
-        }
-        results.push(replayed);
+        results.push(replayStoredOutcome(mut.id, existing));
         continue;
       }
 

@@ -139,3 +139,33 @@ export function isTerminalOutcome(status: string, conflictType: string | null): 
   if (status !== SYNC_MUTATION_RESULT_STATUS.CONFLICT) return false;
   return conflictType !== null && DETERMINISTIC_CONFLICT_TYPES.has(conflictType);
 }
+
+/** The fields of a stored idempotency record a replay answers from. */
+export interface StoredSyncOutcome {
+  status: string;
+  conflictType: string | null;
+  conflictDetailsJson: string | null;
+}
+
+/**
+ * Answer a replay from the outcome its idempotency key already recorded, without running the
+ * handler again. Only called for a terminal outcome, which a replay cannot change, so a stored
+ * conflict is never retryable.
+ */
+export function replayStoredOutcome(
+  mutationId: string,
+  stored: StoredSyncOutcome,
+): SyncMutationResultDto {
+  const replayed: SyncMutationResultDto = {
+    id: mutationId,
+    status: stored.status as SyncMutationResultDto['status'],
+  };
+  if (stored.conflictType) {
+    replayed.conflictType = stored.conflictType;
+    replayed.conflictDetails = stored.conflictDetailsJson
+      ? (JSON.parse(stored.conflictDetailsJson) as Record<string, unknown>)
+      : undefined;
+    replayed.retryable = false;
+  }
+  return replayed;
+}

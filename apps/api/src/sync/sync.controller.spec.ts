@@ -1,4 +1,9 @@
-import { BadRequestException, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ExecutionContext,
+  ForbiddenException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserRole } from '@prisma/client';
@@ -8,6 +13,16 @@ import { RbacGuard } from '../auth/guards/rbac.guard';
 import { SYNC_MUTATION_RESULT_STATUS } from './dto/sync-push-response.dto';
 import { SYNC_PUSH_BODY_PIPE, SyncController } from './sync.controller';
 import { SyncService } from './sync.service';
+import {
+  CLINIC_A1,
+  CLINIC_B1,
+  OUTSIDER,
+  PORTAL_PATIENT,
+  buildRequest,
+  createExecutionContext as createHarnessContext,
+  inClinic,
+  type TestActor,
+} from '../testing/rbac-harness';
 
 type RequestShape = {
   query?: Record<string, string>;
@@ -304,5 +319,58 @@ describe('sync push body validation', () => {
         fieldErrors: expect.arrayContaining([expect.objectContaining({ field: 'clinicId' })]),
       },
     });
+  });
+});
+
+/**
+ * A device keeps a clinic's queue after the account loses its seat there, or after the active
+ * clinic changes underneath it. Whatever the device still holds, the route decides on the roles
+ * the account has now, at the clinic the push names.
+ */
+describe('SyncController stale clinic scope', () => {
+  let controller: SyncController;
+  let clinicScopeGuard: ClinicScopeGuard;
+  let rbacGuard: RbacGuard;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [SyncController],
+      providers: [
+        Reflector,
+        ClinicScopeGuard,
+        RbacGuard,
+        { provide: SyncService, useValue: { applyMutations: jest.fn(), pull: jest.fn() } },
+      ],
+    }).compile();
+    controller = module.get(SyncController);
+    clinicScopeGuard = module.get(ClinicScopeGuard);
+    rbacGuard = module.get(RbacGuard);
+  });
+
+  const admits = (user: TestActor, handler: 'push' | 'pull', clinicId: string) => {
+    const context = createHarnessContext(
+      controller,
+      handler,
+      buildRequest(user, { params: {}, query: { clinicId } }),
+    );
+    return clinicScopeGuard.canActivate(context) && rbacGuard.canActivate(context);
+  };
+
+  it.each(['push', 'pull'] as const)(
+    'refuses a %s for a clinic the account holds no seat at',
+    (handler) => {
+      expect(() => admits(OUTSIDER, handler, CLINIC_A1)).toThrow(ForbiddenException);
+    },
+  );
+
+  it('refuses a push for the other clinic of an account that holds a seat at only one', () => {
+    expect(admits(inClinic(UserRole.VOLUNTEER, CLINIC_A1), 'push', CLINIC_A1)).toBe(true);
+    expect(() => admits(inClinic(UserRole.VOLUNTEER, CLINIC_A1), 'push', CLINIC_B1)).toThrow(
+      ForbiddenException,
+    );
+  });
+
+  it('refuses a push from a portal patient, even at their own clinic', () => {
+    expect(() => admits(PORTAL_PATIENT, 'push', CLINIC_A1)).toThrow(ForbiddenException);
   });
 });

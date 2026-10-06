@@ -12,6 +12,7 @@ import {
   todayInTimeZone,
   type ClinicDayWindow,
 } from '@nkwapa/db';
+import { lockForTransaction } from '../prisma/transaction-lock';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService, type LogWriteParams } from '../audit/audit.service';
 import { isUniqueViolation } from '../common/prisma-errors';
@@ -282,7 +283,7 @@ export class OpsService {
     const day = await this.getDayRangeAt(clinicId, checkedInAt);
     try {
       const created = await this.prisma.$transaction(async (tx) => {
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`patient-check-in:${clinicId}:${dto.patientId}`}, 0))`;
+        await lockForTransaction(tx, `patient-check-in:${clinicId}:${dto.patientId}`);
         const open = await tx.patientCheckIn.findFirst({
           where: {
             clinicId,
