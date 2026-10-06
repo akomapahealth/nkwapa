@@ -3,6 +3,7 @@ import type { AppointmentRequestRecord, PortalMeResponse } from './patient-porta
 import {
   PORTAL_CACHE_MAX_AGE_MS,
   clearPortalCache,
+  forgetPortalCache,
   minimiseAppointmentRequests,
   minimisePortalMe,
   portalCacheKey,
@@ -67,7 +68,6 @@ describe('portal cache', () => {
   });
 
   it('does not write a copy that cannot say whose it is', async () => {
-    await writePortalCache(cacheDb, { ...alice, view: 'overview', patientId: null, data: {} });
     await writePortalCache(cacheDb, {
       ...alice,
       userId: '',
@@ -76,7 +76,22 @@ describe('portal cache', () => {
       data: {},
     });
 
+    await writePortalCache(cacheDb, {
+      ...alice,
+      clinicId: '',
+      view: 'overview',
+      patientId: 'p',
+      data: {},
+    });
     expect(fake.portal_cache.rows.size).toBe(0);
+  });
+
+  it('keeps an empty view, which names no patient, under the account alone', async () => {
+    await writePortalCache(cacheDb, { ...alice, view: 'appointments', patientId: null, data: [] });
+
+    await expect(
+      readPortalCache(cacheDb, { ...alice, view: 'appointments' }),
+    ).resolves.toMatchObject({ patientId: null, data: [] });
   });
 
   it('expires a copy older than a week and removes it', async () => {
@@ -97,6 +112,17 @@ describe('portal cache', () => {
 
     expect([...fake.portal_cache.rows.keys()]).toEqual([
       portalCacheKey({ ...alice, view: 'overview' }),
+    ]);
+  });
+
+  it('forgets one view without touching the account’s others', async () => {
+    await writePortalCache(cacheDb, { ...alice, view: 'overview', patientId: 'p-a', data: 1 });
+    await writePortalCache(cacheDb, { ...alice, view: 'appointments', patientId: 'p-a', data: 2 });
+
+    await forgetPortalCache(cacheDb, { ...alice, view: 'overview' });
+
+    expect([...fake.portal_cache.rows.keys()]).toEqual([
+      portalCacheKey({ ...alice, view: 'appointments' }),
     ]);
   });
 

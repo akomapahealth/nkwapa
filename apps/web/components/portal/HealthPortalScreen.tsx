@@ -43,7 +43,9 @@ import {
   PortalPanel,
 } from '@/components/portal/PortalPanels';
 import { PortalLinkRequiredState } from '@/components/portal/PortalLinkRequiredState';
+import { PORTAL_NO_SAVED_COPY, PORTAL_OFFLINE_DETAIL } from '@/components/portal/PortalWriteGate';
 import { usePortalResource } from '@/components/portal/use-portal-resource';
+import { minimisePortalMe } from '@/lib/portal-cache';
 import { RouteGuard } from '@/components/RouteGuard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -124,6 +126,12 @@ export function HealthPortalScreen() {
       ]);
       return { me, measurements, history, trends };
     },
+    cache: {
+      view: 'health',
+      variant: String(rangeDays),
+      patientIdOf: (data) => data.me.patient.id,
+      minimise: (data) => ({ ...data, me: minimisePortalMe(data.me) }),
+    },
   });
 
   if (health.isLinkMissing && !health.isInitialLoading) {
@@ -186,6 +194,8 @@ export function HealthPortalScreen() {
           state={health}
           skeleton={<SectionSkeleton lines={3} className="p-6" />}
           errorTitle="Your health history could not be loaded"
+          offlineDescription={PORTAL_NO_SAVED_COPY}
+          offlineDetail={PORTAL_OFFLINE_DETAIL}
         >
           {({ me, measurements, history, trends }) => {
             const latestBp = getLatestBloodPressureTrend(trends.bp ?? []);

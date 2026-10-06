@@ -26,7 +26,15 @@ import {
   PortalPanel,
 } from '@/components/portal/PortalPanels';
 import { PortalLinkRequiredState } from '@/components/portal/PortalLinkRequiredState';
+import {
+  PORTAL_NO_SAVED_COPY,
+  PORTAL_OFFLINE_DETAIL,
+  PortalWriteGateNotice,
+  usePortalWriteGate,
+  type PortalWriteGate,
+} from '@/components/portal/PortalWriteGate';
 import { usePortalResource } from '@/components/portal/use-portal-resource';
+import { minimiseAppointmentRequests } from '@/lib/portal-cache';
 import { RouteGuard } from '@/components/RouteGuard';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -153,13 +161,18 @@ function addDaysToDateInput(value: string, days: number) {
 function AppointmentRow({
   appointment,
   pendingChangeRequest,
+  writeGate,
   onAction,
 }: {
   appointment: AppointmentSummary;
   pendingChangeRequest?: AppointmentRequestRecord;
+  writeGate: PortalWriteGate;
   onAction: (action: ChangeAction, appointment: AppointmentSummary) => void;
 }) {
-  const actionable = isPatientAppointmentActionable(appointment) && !pendingChangeRequest;
+  const changeable = isPatientAppointmentActionable(appointment) && !pendingChangeRequest;
+  const actionable = changeable && writeGate.canWrite;
+  const heldBack = changeable && !writeGate.canWrite;
+  const hintId = `appointment-${appointment.id}-hint`;
 
   return (
     <article className="rounded-lg border border-border bg-background p-4 transition-colors hover:bg-accent">
@@ -194,13 +207,14 @@ function AppointmentRow({
           ) : null}
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row lg:flex-col">
+        <div className="flex flex-col gap-2 sm:flex-row lg:max-w-56 lg:flex-col">
           <Button
             type="button"
             variant="outline"
             size="sm"
             className="cursor-pointer justify-start"
             disabled={!actionable}
+            aria-describedby={heldBack ? hintId : undefined}
             onClick={() => onAction('reschedule', appointment)}
           >
             <RotateCcw aria-hidden="true" className="h-4 w-4" />
@@ -212,11 +226,17 @@ function AppointmentRow({
             size="sm"
             className="cursor-pointer justify-start text-destructive hover:text-destructive"
             disabled={!actionable}
+            aria-describedby={heldBack ? hintId : undefined}
             onClick={() => onAction('cancel', appointment)}
           >
             <XCircle aria-hidden="true" className="h-4 w-4" />
             Request cancellation
           </Button>
+          {heldBack ? (
+            <p id={hintId} className="text-xs leading-5 text-muted-foreground">
+              {writeGate.reason}
+            </p>
+          ) : null}
         </div>
       </div>
     </article>
@@ -318,7 +338,13 @@ export function AppointmentsPortalScreen() {
       ]);
       return { requests, appointments: appointmentResponse.items };
     },
+    cache: {
+      view: 'appointments',
+      patientIdOf: (data) => data.appointments[0]?.patientId ?? data.requests[0]?.patientId,
+      minimise: (data) => ({ ...data, requests: minimiseAppointmentRequests(data.requests) }),
+    },
   });
+  const writeGate = usePortalWriteGate(schedule);
 
   function openChangeDialog(action: ChangeAction, appointment: AppointmentSummary) {
     setChangeDialog({ action, appointment });
@@ -339,7 +365,7 @@ export function AppointmentsPortalScreen() {
   }
 
   async function submitChangeRequest() {
-    if (!clinicId || !getToken || !changeDialog) return;
+    if (!clinicId || !getToken || !changeDialog || !writeGate.canWrite) return;
 
     setActionError(null);
     setSubmittingAction(true);
@@ -438,7 +464,8 @@ export function AppointmentsPortalScreen() {
               variant="outline"
               className="cursor-pointer"
               onClick={() => schedule.refresh()}
-              disabled={busy}
+              disabled={busy || !schedule.isOnline}
+              title={schedule.isOnline ? undefined : 'Refreshing needs a connection.'}
             >
               <RefreshCw
                 className={cn(
@@ -480,11 +507,17 @@ export function AppointmentsPortalScreen() {
                   variant="outline"
                   className="w-full cursor-pointer justify-between"
                   onClick={() => openChangeDialog('reschedule', nextAppointment)}
-                  disabled={Boolean(pendingChangeRequestsByAppointment.get(nextAppointment.id))}
+                  disabled={
+                    !writeGate.canWrite ||
+                    Boolean(pendingChangeRequestsByAppointment.get(nextAppointment.id))
+                  }
                 >
                   Request a change
                   <ArrowRight aria-hidden="true" className="h-4 w-4" />
                 </Button>
+                {writeGate.canWrite ? null : (
+                  <p className="text-xs leading-5 text-muted-foreground">{writeGate.reason}</p>
+                )}
               </div>
             ) : (
               <EmptyState
@@ -536,6 +569,8 @@ export function AppointmentsPortalScreen() {
         <ResourceState
           state={schedule}
           errorTitle="Appointments could not load"
+          offlineDescription={PORTAL_NO_SAVED_COPY}
+          offlineDetail={PORTAL_OFFLINE_DETAIL}
           skeleton={
             <div className="grid gap-4 lg:grid-cols-2">
               {Array.from({ length: 4 }).map((_, index) => (
@@ -587,6 +622,7 @@ export function AppointmentsPortalScreen() {
                           pendingChangeRequest={pendingChangeRequestsByAppointment.get(
                             appointment.id,
                           )}
+                          writeGate={writeGate}
                           onAction={openChangeDialog}
                         />
                       ))}
@@ -737,6 +773,8 @@ export function AppointmentsPortalScreen() {
             </div>
           ) : null}
 
+          <PortalWriteGateNotice gate={writeGate} />
+
           {actionError ? (
             <div role="alert">
               <InlineErrorState title="This request was not sent" description={actionError} />
@@ -755,7 +793,7 @@ export function AppointmentsPortalScreen() {
             <Button
               type="button"
               onClick={() => void submitChangeRequest()}
-              disabled={submittingAction}
+              disabled={submittingAction || !writeGate.canWrite}
               variant={changeDialog?.action === 'cancel' ? 'destructive' : 'default'}
             >
               {submittingAction ? 'Sending...' : 'Send request'}

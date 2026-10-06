@@ -509,8 +509,11 @@ export interface PortalCacheRecord<T = unknown> {
   key: string;
   userId: string;
   clinicId: string;
-  /** The patient record the copy belongs to, as the server reported it. */
-  patientId: string;
+  /**
+   * The patient record the copy belongs to, as the server reported it. Null when the view held no
+   * row naming one (an empty appointment list); the account in `userId` is what scopes the copy.
+   */
+  patientId: string | null;
   view: PortalCacheView;
   /** What else shapes the view, e.g. the Health time window. Empty when nothing does. */
   variant: string;

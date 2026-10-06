@@ -36,8 +36,8 @@ function isExpired(record: Pick<PortalCacheRecord, 'updatedAt'>, now: Date): boo
 /**
  * Keep the copy of a view that just loaded, replacing the previous one.
  *
- * Nothing is written without both the account and the patient record it belongs to: a copy that
- * cannot say whose it is cannot be safely shown to anyone. A failure to write is swallowed, as in
+ * Nothing is written without the account and clinic it belongs to: a copy that cannot say whose it
+ * is cannot be safely shown to anyone. A failure to write is swallowed, as in
  * the ops cache; a full or blocked IndexedDB must not turn a successful load into an error.
  */
 export async function writePortalCache<T>(
@@ -46,12 +46,12 @@ export async function writePortalCache<T>(
   now: Date = new Date(),
 ): Promise<void> {
   const { userId, clinicId, patientId, view, variant = '', data } = entry;
-  if (!userId || !clinicId || !patientId) return;
+  if (!userId || !clinicId) return;
   const record: PortalCacheRecord<T> = {
     key: portalCacheKey({ userId, clinicId, view, variant }),
     userId,
     clinicId,
-    patientId,
+    patientId: patientId ?? null,
     view,
     variant,
     data,
@@ -85,6 +85,18 @@ export async function readPortalCache<T>(
     return record;
   } catch {
     return null;
+  }
+}
+
+/** Drop one view's copy, when the server has refused this account the read it stands in for. */
+export async function forgetPortalCache(
+  dbInstance: PortalCacheTable,
+  query: PortalCacheQuery,
+): Promise<void> {
+  try {
+    await dbInstance.portal_cache.delete(portalCacheKey(query));
+  } catch (error) {
+    console.warn('Could not clear a saved portal copy', error);
   }
 }
 

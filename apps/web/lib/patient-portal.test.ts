@@ -1,4 +1,6 @@
+import { ApiError } from '@/lib/api';
 import {
+  PortalApiError,
   cancelStaffAppointment,
   completeStaffAppointment,
   fetchAppointmentStaffOptions,
@@ -6,6 +8,7 @@ import {
   fetchPatientTrends,
   fetchStaffAppointments,
   fetchStaffPatientTrends,
+  isTransientPortalFailure,
   markStaffAppointmentNoShow,
   requestPatientAppointmentCancellation,
   requestPatientAppointmentReschedule,
@@ -368,5 +371,23 @@ describe('patient portal trend fetch helpers', () => {
       expect(headers.get('Authorization')).toBe('Bearer token-123');
       expect(headers.get('X-Clinic-Id')).toBe('clinic-2');
     }
+  });
+});
+
+describe('isTransientPortalFailure', () => {
+  it('treats no answer, server errors and rate limiting as transient', () => {
+    expect(isTransientPortalFailure(new ApiError("We couldn't reach the server."))).toBe(true);
+    expect(isTransientPortalFailure(new TypeError('Failed to fetch'))).toBe(true);
+    expect(isTransientPortalFailure(new PortalApiError('down', 503))).toBe(true);
+    expect(isTransientPortalFailure(new PortalApiError('slow', 408))).toBe(true);
+    expect(isTransientPortalFailure(new PortalApiError('busy', 429))).toBe(true);
+  });
+
+  it('treats the server refusing the read as final', () => {
+    expect(isTransientPortalFailure(new PortalApiError('expired', 401))).toBe(false);
+    expect(isTransientPortalFailure(new PortalApiError('forbidden', 403))).toBe(false);
+    expect(
+      isTransientPortalFailure(new PortalApiError('unlinked', 404, 'PATIENT_PORTAL_LINK_MISSING')),
+    ).toBe(false);
   });
 });
