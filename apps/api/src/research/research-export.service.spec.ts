@@ -48,6 +48,7 @@ describe('ResearchExportService', () => {
     listByClinic: jest.Mock;
   };
   let prisma: {
+    $queryRaw: jest.Mock;
     clinicResearchSettings: { findUnique: jest.Mock };
   };
   let auditService: { logWrite: jest.Mock };
@@ -64,6 +65,7 @@ describe('ResearchExportService', () => {
       listByClinic: jest.fn(),
     };
     prisma = {
+      $queryRaw: jest.fn().mockResolvedValue([{ locked: true }]),
       clinicResearchSettings: { findUnique: jest.fn() },
     };
     auditService = { logWrite: jest.fn() };
@@ -156,7 +158,7 @@ describe('ResearchExportService', () => {
     );
   });
 
-  it('retries a failed export by re-queueing it', async () => {
+  it('retries a failed export under a job id the queue has not already used', async () => {
     const failed = makeExportRecord({
       status: 'FAILED' as ResearchExportStatus,
       failureReason: 'GitHub sync failed',
@@ -186,8 +188,11 @@ describe('ResearchExportService', () => {
         clinicId,
         userId,
       },
-      expect.objectContaining({ jobId: 'exp-1' }),
+      expect.objectContaining({ jobId: expect.stringMatching(/^exp-1-retry-\d+$/) }),
     );
+    // BullMQ keeps the first run's job under 'exp-1' and silently ignores an add that reuses it,
+    // which is how Retry once queued nothing at all.
+    expect(exportQueue.add.mock.calls[0][2].jobId).not.toBe('exp-1');
   });
 
   it('marks a queued export completed after transform and sync succeed', async () => {
@@ -253,7 +258,7 @@ describe('ResearchExportService', () => {
 
     const result = await service.processQueuedExport('exp-1');
 
-    expect(result.status).toBe('COMPLETED');
+    expect(result?.status).toBe('COMPLETED');
     expect(transformService.generatePack).toHaveBeenCalledWith(
       clinicId,
       '2026-03-01',
@@ -264,34 +269,101 @@ describe('ResearchExportService', () => {
     expect(repoSyncService.sync).toHaveBeenCalled();
   });
 
-  it('marks a queued export failed when transform or sync throws', async () => {
-    const approved = makeExportRecord({
-      status: 'APPROVED' as ResearchExportStatus,
-    });
+  describe('a run that fails', () => {
+    const approved = makeExportRecord({ status: 'APPROVED' as ResearchExportStatus });
     const processing = makeExportRecord({
       status: 'PROCESSING' as ResearchExportStatus,
       startedAt: new Date('2026-03-21T12:20:00.000Z'),
     });
     const failed = makeExportRecord({
       status: 'FAILED' as ResearchExportStatus,
-      failureReason: 'missing RESEARCH_GITHUB_TOKEN',
+      failureReason: 'RESEARCH_EXPORT_FAILED',
       startedAt: new Date('2026-03-21T12:20:00.000Z'),
     });
 
-    repo.findById.mockResolvedValueOnce(approved);
-    repo.update.mockResolvedValueOnce(processing).mockResolvedValueOnce(failed);
-    transformService.generatePack.mockRejectedValue(
-      new BadRequestException('missing RESEARCH_GITHUB_TOKEN'),
-    );
+    beforeEach(() => {
+      repo.findById.mockResolvedValueOnce(approved);
+      repo.update.mockResolvedValueOnce(processing).mockResolvedValueOnce(failed);
+      transformService.generatePack.mockRejectedValue(
+        new BadRequestException('missing RESEARCH_GITHUB_TOKEN'),
+      );
+    });
 
-    await expect(service.processQueuedExport('exp-1')).rejects.toThrow(BadRequestException);
-    expect(repo.update).toHaveBeenLastCalledWith(
-      'exp-1',
-      expect.objectContaining({
-        status: 'FAILED',
-        failureReason: 'RESEARCH_EXPORT_FAILED',
-      }),
-    );
+    it('records a failed export on its last attempt instead of throwing the record away', async () => {
+      // A throw here rolled the job transaction back, so FAILED and its audit entry were never
+      // committed and the export read APPROVED forever.
+      const result = await service.processQueuedExport('exp-1', {
+        attemptsMade: 2,
+        maxAttempts: 3,
+      });
+
+      expect(result?.status).toBe('FAILED');
+      expect(repo.update).toHaveBeenLastCalledWith(
+        'exp-1',
+        expect.objectContaining({
+          status: 'FAILED',
+          failureReason: 'RESEARCH_EXPORT_FAILED',
+        }),
+      );
+      expect(auditService.logWrite).toHaveBeenLastCalledWith(
+        expect.objectContaining({ action: 'RESEARCH_EXPORT.FAIL', entityId: 'exp-1' }),
+      );
+    });
+
+    it('hands a failure with attempts left back to the queue without recording it', async () => {
+      await expect(
+        service.processQueuedExport('exp-1', { attemptsMade: 0, maxAttempts: 3 }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(repo.update).toHaveBeenCalledTimes(1);
+      expect(repo.update).not.toHaveBeenCalledWith(
+        'exp-1',
+        expect.objectContaining({ status: 'FAILED' }),
+      );
+      expect(auditService.logWrite).not.toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'RESEARCH_EXPORT.FAIL' }),
+      );
+    });
+  });
+
+  describe('a duplicate delivery', () => {
+    it('stands down while another delivery of the same export is running', async () => {
+      prisma.$queryRaw.mockResolvedValue([{ locked: false }]);
+
+      await expect(service.processQueuedExport('exp-1')).resolves.toBeNull();
+
+      expect(repo.findById).not.toHaveBeenCalled();
+      expect(transformService.generatePack).not.toHaveBeenCalled();
+      expect(repoSyncService.sync).not.toHaveBeenCalled();
+    });
+
+    it('claims the export before it reads it', async () => {
+      repo.findById.mockResolvedValue(
+        makeExportRecord({ status: 'COMPLETED' as ResearchExportStatus }),
+      );
+
+      await service.processQueuedExport('exp-1');
+
+      const [sql, key] = prisma.$queryRaw.mock.calls[0] as [TemplateStringsArray, string];
+      expect(sql.join('?')).toContain('pg_try_advisory_xact_lock');
+      expect(key).toBe('research-export:exp-1');
+      expect(prisma.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        repo.findById.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('does nothing for a delivery that arrives after the export completed', async () => {
+      repo.findById.mockResolvedValue(
+        makeExportRecord({ status: 'COMPLETED' as ResearchExportStatus }),
+      );
+
+      const result = await service.processQueuedExport('exp-1');
+
+      expect(result?.status).toBe('COMPLETED');
+      expect(repo.update).not.toHaveBeenCalled();
+      expect(transformService.generatePack).not.toHaveBeenCalled();
+      expect(repoSyncService.sync).not.toHaveBeenCalled();
+    });
   });
 
   it('throws when a queued export cannot be found', async () => {

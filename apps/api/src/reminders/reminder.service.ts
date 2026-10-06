@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { tryLockForTransaction } from '../prisma/transaction-lock';
 import { AuditService } from '../audit/audit.service';
 import { redactLogValue } from '../common/redaction';
+import { SINGLE_FINAL_ATTEMPT, hasAttemptsLeft, type JobAttempt } from '../common/job-attempt';
 import {
   buildKeysetWhere,
   decodeJsonKeysetCursor,
@@ -577,7 +578,7 @@ export class ReminderService {
    */
   async processReminder(
     reminderId: string,
-    attempt: { attemptsMade: number; maxAttempts: number } = { attemptsMade: 0, maxAttempts: 1 },
+    attempt: JobAttempt = SINGLE_FINAL_ATTEMPT,
   ): Promise<void> {
     // A job redelivered while its first run is still sending (a stalled worker, or two workers
     // picking up one id) used to read the same QUEUED row and send a second message. The send is
@@ -677,9 +678,8 @@ export class ReminderService {
           );
         }
         const failureReason = this.normalizeFailureReason(result.error);
-        const attemptsLeft = attempt.attemptsMade + 1 < attempt.maxAttempts;
 
-        if (result.retryable && attemptsLeft) {
+        if (result.retryable && hasAttemptsLeft(attempt)) {
           /*
             Leave the row QUEUED and throw, so BullMQ schedules the next attempt and the guard at
             the top of this method lets it through. Nothing is written here on purpose: a row that

@@ -39,7 +39,30 @@ describe('ResearchExportProcessor tenant context', () => {
       expect.any(Function),
     );
     expect(researchExportService.findExportJobTenant).not.toHaveBeenCalled();
-    expect(researchExportService.processQueuedExport).toHaveBeenCalledWith('export-1');
+    // A job queued before retries were configured reads as one, final attempt.
+    expect(researchExportService.processQueuedExport).toHaveBeenCalledWith('export-1', {
+      attemptsMade: 0,
+      maxAttempts: 1,
+    });
+  });
+
+  it("hands the service the job's place in its retry budget", async () => {
+    const processor = new ResearchExportProcessor(
+      researchExportService as never,
+      tenantContext as never,
+    );
+
+    await processor.process({
+      id: 'job-1',
+      attemptsMade: 2,
+      opts: { attempts: 3 },
+      data: { exportId: 'export-1', clinicId: 'clinic-1', userId: 'director-1' },
+    } as never);
+
+    expect(researchExportService.processQueuedExport).toHaveBeenCalledWith('export-1', {
+      attemptsMade: 2,
+      maxAttempts: 3,
+    });
   });
 
   it('declares failure and resolves the full legacy export tenant context', async () => {

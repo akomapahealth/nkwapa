@@ -1,5 +1,6 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
+import { jobAttempt } from '../common/job-attempt';
 import { JobTenantContextRunner } from '../prisma/job-tenant-context.runner';
 import { reminderRetryDelay } from './reminder-retry';
 import { ReminderService } from './reminder.service';
@@ -56,14 +57,7 @@ export class ReminderProcessor extends WorkerHost {
 
   async process(job: Job<ReminderJobData>): Promise<void> {
     const { reminderId, clinicId, userId, scope } = job.data;
-    // `attempts` is absent on jobs queued before a retry budget was set; one attempt is the
-    // honest reading of that, and matches how those jobs already behave. Read defensively for
-    // the same reason the scope field is: this worker outlives the shape of what is already
-    // queued, and a missing option should not crash the job that carries it.
-    const attempt = {
-      attemptsMade: job.attemptsMade ?? 0,
-      maxAttempts: job.opts?.attempts ?? 1,
-    };
+    const attempt = jobAttempt(job);
 
     if (scope === 'global') {
       await this.tenantContext.runSystemJob(
