@@ -3,6 +3,7 @@
 import { WifiOff } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { EmptyState, InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
+import { StaleDataNotice } from '@/components/feedback/StaleDataNotice';
 import type { AsyncResourceState } from '@/lib/use-async-resource';
 import { cn } from '@/lib/utils';
 
@@ -21,12 +22,14 @@ export interface ResourceEmptyCopy {
  * had, is how the product ended up with four loading treatments and two error treatments. The
  * order lives here instead:
  *
- *   1. offline, when the read genuinely cannot work without a connection
+ *   1. offline, when the read genuinely cannot work without a connection and nothing is on
+ *      screen to keep showing
  *   2. nothing yet and still loading  -> skeleton
  *   3. nothing yet and failed         -> error with retry
  *   4. loaded but empty               -> empty state, which is not an error
  *   5. loaded                         -> the content, with a stale banner above it if the most
- *                                        recent refresh failed
+ *                                        recent refresh failed, the device went offline, or
+ *                                        the content is a copy saved on this device
  *
  * Step 5 is the point of the component. A poll that times out on clinic wifi must not blank a
  * screen someone is reading a measurement off; it says so, above data that is still there.
@@ -37,6 +40,7 @@ export function ResourceState<T>({
   isEmpty,
   skeleton,
   offlineDescription = 'This view needs a connection. It will load as soon as the device is back online.',
+  offlineDetail,
   errorTitle,
   className,
   children,
@@ -48,11 +52,14 @@ export function ResourceState<T>({
   isEmpty?: (data: T) => boolean;
   skeleton?: React.ReactNode;
   offlineDescription?: string;
+  /** What still needs a connection on this screen, said above data kept while offline. */
+  offlineDetail?: string;
   errorTitle?: string;
   className?: string;
   children: (data: T) => React.ReactNode;
 }) {
-  if (state.isOfflineBlocked) {
+  // Going offline is not a reason to blank data that is already here; step 5 says it instead.
+  if (state.isOfflineBlocked && state.data === null) {
     return (
       <div
         className={cn(
@@ -120,7 +127,15 @@ export function ResourceState<T>({
         The refresh failed but the previous result is still on screen. Say so, and say how old it
         is not -- claiming a timestamp we do not have would be worse than admitting the gap.
       */}
-      {state.isStale ? (
+      {state.savedCopyAt || state.isOfflineBlocked ? (
+        <StaleDataNotice
+          savedAt={state.savedCopyAt}
+          isOnline={state.isOnline}
+          onRefresh={state.retry}
+          isRefreshing={state.isRefreshing}
+          offlineDetail={offlineDetail}
+        />
+      ) : state.isStale ? (
         <InlineErrorState
           title="Showing the last version that loaded"
           description={state.error ?? 'The most recent refresh did not complete.'}
