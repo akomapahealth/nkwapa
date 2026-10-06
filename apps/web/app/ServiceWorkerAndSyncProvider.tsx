@@ -1,9 +1,18 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { db } from '@/lib/db';
 import { purgePortalCacheExcept } from '@/lib/portal-cache';
 import { syncNow, onSyncStatusChange, type SyncResult, type SyncStatus } from '@/lib/sync';
+import { automaticSyncRetryDelay } from '@/lib/sync-retry';
 
 interface SyncContextValue {
   isOnline: boolean;
@@ -106,6 +115,25 @@ export function ServiceWorkerAndSyncProvider({
     if (!isOnline || !activeClinicId) return;
     void doSyncNow(activeClinicId);
   }, [activeClinicId, doSyncNow, isOnline]);
+
+  /*
+    Follow a failed or partly refused pass with another, backing off, so the queue drains on its
+    own once the server recovers. Any pass that leaves nothing to retry resets the schedule, and a
+    new pass (manual or otherwise) clears the pending timer through this effect's cleanup.
+  */
+  const automaticRetries = useRef(0);
+  useEffect(() => {
+    if (syncStatus === 'syncing') return;
+    const delay = automaticSyncRetryDelay(syncStatus, automaticRetries.current);
+    if (delay === null) automaticRetries.current = 0;
+    if (delay === null || !isOnline || !activeClinicId) return;
+
+    const timer = window.setTimeout(() => {
+      automaticRetries.current += 1;
+      void doSyncNow(activeClinicId);
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [activeClinicId, doSyncNow, isOnline, syncStatus]);
 
   const value = useMemo(
     () => ({
