@@ -21,6 +21,7 @@ import { HypertensionAssessmentService } from '../hypertension-assessment/hypert
 import { MedicationAdherenceService } from '../medication-adherence/medication-adherence.service';
 import { PrescriptionService } from '../prescriptions/prescription.service';
 import { OpsService } from '../ops/ops.service';
+import { createSyncMutationStore } from '../testing/sync-mutation-store';
 
 const mockUser = {
   user: { id: 'user-1' },
@@ -42,6 +43,7 @@ describe('SyncService', () => {
   let opsService: jest.Mocked<OpsService>;
   beforeEach(async () => {
     const mockPrisma = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
       syncMutation: {
         findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({}),
@@ -495,6 +497,148 @@ describe('SyncService', () => {
       });
       expect(diabetesScreeningService.upsert).toHaveBeenCalledTimes(1);
       expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.APPLIED);
+    });
+  });
+
+  describe('idempotent replay against the recorded outcome', () => {
+    const ENCOUNTER_ID = '55555555-5555-4555-8555-555555555555';
+    let store: ReturnType<typeof createSyncMutationStore>;
+
+    const encounterChange = (
+      overrides: Partial<SyncMutationDto> = {},
+      payload: Record<string, unknown> = {},
+    ): SyncMutationDto =>
+      ({
+        id: 'mut-encounter',
+        entityType: 'encounter',
+        entityId: ENCOUNTER_ID,
+        operation: 'UPSERT',
+        clinicId: 'clinic-1',
+        idempotencyKey: 'idem-encounter',
+        payloadJson: { patientId: 'patient-1', status: 'DRAFT', ...payload },
+        ...overrides,
+      }) as SyncMutationDto;
+
+    const pushAt = (
+      clinicId: string,
+      mutations: SyncMutationDto[],
+      roles: Array<{ clinicId: string; role: string }> = mockUser.roles,
+    ) => service.applyMutations(clinicId, { user: { id: 'user-1' }, roles } as never, mutations);
+
+    beforeEach(() => {
+      store = createSyncMutationStore();
+      Object.assign(prisma.syncMutation, store.syncMutation);
+      (prisma.patient.findFirst as jest.Mock).mockResolvedValue({ id: 'patient-1' });
+    });
+
+    it("answers a second push of the same change with the first push's outcome, without writing again", async () => {
+      const [first] = await pushAt('clinic-1', [encounterChange()]);
+      const [second] = await pushAt('clinic-1', [encounterChange()]);
+
+      expect(first.status).toBe(SYNC_MUTATION_RESULT_STATUS.APPLIED);
+      expect(second).toEqual(first);
+      expect(prisma.encounter.upsert).toHaveBeenCalledTimes(1);
+      expect(store.records.size).toBe(1);
+    });
+
+    it('replays a deterministic conflict with the details it was first refused with', async () => {
+      (encounterRepo.findById as jest.Mock).mockResolvedValue({
+        id: ENCOUNTER_ID,
+        status: EncounterStatus.FINALIZED,
+      });
+      const [first] = await pushAt('clinic-1', [encounterChange()]);
+
+      // Whatever the server holds now, a refusal a replay cannot change is answered from the record.
+      (encounterRepo.findById as jest.Mock).mockResolvedValue(null);
+      const [second] = await pushAt('clinic-1', [encounterChange()]);
+
+      expect(first).toMatchObject({ status: 'CONFLICT', conflictType: 'CONFLICT_FINALIZED' });
+      expect(second).toEqual({ ...first, retryable: false });
+      expect(second.conflictDetails).toEqual(first.conflictDetails);
+      expect(prisma.encounter.upsert).not.toHaveBeenCalled();
+    });
+
+    it('applies a change once when it appears twice in one push', async () => {
+      const results = await pushAt('clinic-1', [
+        encounterChange({ id: 'mut-first' }),
+        encounterChange({ id: 'mut-again' }),
+      ]);
+
+      expect(results.map((result) => [result.id, result.status])).toEqual([
+        ['mut-first', 'APPLIED'],
+        ['mut-again', 'APPLIED'],
+      ]);
+      expect(prisma.encounter.upsert).toHaveBeenCalledTimes(1);
+    });
+
+    it('holds the idempotency key for the rest of the request before reading its record', async () => {
+      await pushAt('clinic-1', [encounterChange()]);
+
+      const lock = prisma.$executeRaw as unknown as jest.Mock;
+      expect(lock).toHaveBeenCalledTimes(1);
+      const [sql, key] = lock.mock.calls[0] as [TemplateStringsArray, string];
+      expect(sql.join('?')).toContain('pg_advisory_xact_lock');
+      expect(key).toBe('sync-mutation:clinic-1:idem-encounter');
+      // The lock must come first, or a concurrent push could read "no record" before this one
+      // writes it.
+      expect(lock.mock.invocationCallOrder[0]).toBeLessThan(
+        store.syncMutation.findUnique.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('keeps the same idempotency key at two clinics as two changes', async () => {
+      const bothClinics = [
+        { clinicId: 'clinic-1', role: 'VOLUNTEER' },
+        { clinicId: 'clinic-2', role: 'VOLUNTEER' },
+      ];
+      await pushAt('clinic-1', [encounterChange()], bothClinics);
+      const [atB] = await pushAt(
+        'clinic-2',
+        [encounterChange({ clinicId: 'clinic-2' })],
+        bothClinics,
+      );
+
+      expect(atB.status).toBe(SYNC_MUTATION_RESULT_STATUS.APPLIED);
+      expect(prisma.encounter.upsert).toHaveBeenCalledTimes(2);
+      expect([...store.records.keys()].sort()).toEqual([
+        'clinic-1|idem-encounter',
+        'clinic-2|idem-encounter',
+      ]);
+    });
+
+    it('refuses a change queued under another clinic without recording it, and applies the rest', async () => {
+      const results = await pushAt('clinic-1', [
+        encounterChange({ id: 'mut-stale', clinicId: 'clinic-2', idempotencyKey: 'idem-stale' }),
+        encounterChange({ id: 'mut-here' }),
+      ]);
+
+      expect(results[0]).toMatchObject({
+        id: 'mut-stale',
+        status: SYNC_MUTATION_RESULT_STATUS.ERROR,
+        conflictType: 'CLINIC_MISMATCH',
+      });
+      expect(results[1]).toMatchObject({ id: 'mut-here', status: 'APPLIED' });
+      // Nothing is written under this clinic for a change that belongs to another, so it stays
+      // free to apply when the device sends it to the right one.
+      expect(store.records.has('clinic-1|idem-stale')).toBe(false);
+      expect(prisma.encounter.upsert).toHaveBeenCalledTimes(1);
+    });
+
+    it('lets a change refused for a lost role through once the role is restored', async () => {
+      const [refused] = await pushAt(
+        'clinic-1',
+        [encounterChange()],
+        [{ clinicId: 'clinic-1', role: 'DIRECTOR' }],
+      );
+      const [restored] = await pushAt('clinic-1', [encounterChange()]);
+
+      expect(refused).toMatchObject({
+        status: 'ERROR',
+        conflictType: 'FORBIDDEN',
+        retryable: true,
+      });
+      expect(restored.status).toBe(SYNC_MUTATION_RESULT_STATUS.APPLIED);
+      expect(store.records.get('clinic-1|idem-encounter')?.status).toBe('APPLIED');
     });
   });
 

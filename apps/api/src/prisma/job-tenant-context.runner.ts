@@ -100,18 +100,23 @@ export class JobTenantContextRunner {
     );
   }
 
+  /**
+   * A job's data is whatever JSON was in Redis when it was queued, not what the type says. A blank
+   * or non-string clinic id is treated as absent, so the job resolves its tenant from its record
+   * (or meets its unresolved policy) instead of crashing on `.trim()` and burning its retries.
+   */
   private normalizeTenant(tenant: JobTenant | null | undefined): JobTenant | null {
     if (!tenant) {
       return null;
     }
 
-    const clinicId = tenant.clinicId.trim();
+    const clinicId = trimmedString(tenant.clinicId);
     if (!clinicId) {
       return null;
     }
     return {
       clinicId,
-      userId: tenant.userId?.trim() || null,
+      userId: trimmedString(tenant.userId),
     };
   }
 
@@ -134,4 +139,8 @@ export class JobTenantContextRunner {
       }),
     );
   }
+}
+
+function trimmedString(value: unknown): string | null {
+  return typeof value === 'string' ? value.trim() || null : null;
 }

@@ -1,6 +1,8 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
+import { jobAttempt } from '../common/job-attempt';
 import { JobTenantContextRunner } from '../prisma/job-tenant-context.runner';
+import { reminderRetryDelay } from './reminder-retry';
 import { ReminderService } from './reminder.service';
 
 export type ReminderJobData = {
@@ -40,23 +42,10 @@ export type ReminderJobData = {
 const REMINDER_CONCURRENCY = 5;
 const REMINDER_RATE_LIMIT = { max: 5, duration: 1_000 };
 
-/*
-  First retry fast, later retries patient.
-
-  BullMQ's exponential backoff from 60s made the first retry the dominant delay after a blip that
-  had already resolved. A transient failure is usually over in seconds, so try again in five; if it
-  is still failing after that, it is not a blip and the longer wait is the right one.
-*/
-const FIRST_RETRY_DELAY_MS = 5_000;
-const LATER_RETRY_DELAY_MS = 60_000;
-
 @Processor('reminders', {
   concurrency: REMINDER_CONCURRENCY,
   limiter: REMINDER_RATE_LIMIT,
-  settings: {
-    backoffStrategy: (attemptsMade: number) =>
-      attemptsMade <= 1 ? FIRST_RETRY_DELAY_MS : LATER_RETRY_DELAY_MS,
-  },
+  settings: { backoffStrategy: reminderRetryDelay },
 })
 export class ReminderProcessor extends WorkerHost {
   constructor(
@@ -68,14 +57,7 @@ export class ReminderProcessor extends WorkerHost {
 
   async process(job: Job<ReminderJobData>): Promise<void> {
     const { reminderId, clinicId, userId, scope } = job.data;
-    // `attempts` is absent on jobs queued before a retry budget was set; one attempt is the
-    // honest reading of that, and matches how those jobs already behave. Read defensively for
-    // the same reason the scope field is: this worker outlives the shape of what is already
-    // queued, and a missing option should not crash the job that carries it.
-    const attempt = {
-      attemptsMade: job.attemptsMade ?? 0,
-      maxAttempts: job.opts?.attempts ?? 1,
-    };
+    const attempt = jobAttempt(job);
 
     if (scope === 'global') {
       await this.tenantContext.runSystemJob(

@@ -17,6 +17,8 @@ import { RequestExportDto } from './dto/request-export.dto';
 import { ResearchTransformService } from './research-transform.service';
 import { ResearchRepoSyncService } from './research-repo-sync.service';
 import { redactLogValue } from '../common/redaction';
+import { SINGLE_FINAL_ATTEMPT, hasAttemptsLeft, type JobAttempt } from '../common/job-attempt';
+import { tryLockForTransaction } from '../prisma/transaction-lock';
 
 export interface ExportAuditContext {
   clinicId: string;
@@ -231,11 +233,30 @@ export class ResearchExportService {
       });
     }
 
-    await this.queueExport(updated, userId, auditCtx);
+    // A fresh job id, because BullMQ keeps a finished job under its id and silently ignores an
+    // add that reuses it. Retry used to re-add under the export's own id, so the row went back to
+    // APPROVED while nothing was queued to run it.
+    await this.queueExport(updated, userId, auditCtx, `${exportId}-retry-${Date.now()}`);
     return this.toExportView(updated);
   }
 
-  async processQueuedExport(exportId: string): Promise<ResearchExportView> {
+  /**
+   * @param attempt Where this run sits in the job's retry budget. A failure with attempts left is
+   * thrown back to the queue and nothing is recorded, because the job transaction rolls back
+   * whatever this run wrote and the export is still being worked on. Only the last attempt records
+   * FAILED, and it returns instead of throwing so that record commits.
+   */
+  async processQueuedExport(
+    exportId: string,
+    attempt: JobAttempt = SINGLE_FINAL_ATTEMPT,
+  ): Promise<ResearchExportView | null> {
+    // Two deliveries of one export (a stalled job, or a retry queued while the first still runs)
+    // would otherwise both build the pack and both push it to the research repository. The second
+    // stands down while the first holds the export, and one that arrives after it reads COMPLETED.
+    if (!(await tryLockForTransaction(this.prisma, `research-export:${exportId}`))) {
+      return null;
+    }
+
     const existing = await this.repo.findById(exportId);
     if (!existing) {
       throw new NotFoundException('Export not found');
@@ -312,14 +333,21 @@ export class ResearchExportService {
       return this.toExportView(completed);
     } catch (error) {
       const failureReason = 'RESEARCH_EXPORT_FAILED';
+      const willRetry = hasAttemptsLeft(attempt);
       this.logger.warn(
         JSON.stringify({
-          message: 'Research export processing failed',
+          message: willRetry
+            ? 'Research export processing failed and will be retried'
+            : 'Research export processing failed',
           exportId,
           clinicId: processing.clinicId,
+          attemptsMade: attempt.attemptsMade,
           error: redactLogValue(error),
         }),
       );
+      if (willRetry) {
+        throw error;
+      }
       const failed = await this.repo.update(exportId, {
         status: 'FAILED',
         failureReason,
@@ -350,7 +378,10 @@ export class ResearchExportService {
         requestId: exportId,
       });
 
-      throw error;
+      // Recorded, not thrown: a throw here would roll the job transaction back and erase the
+      // FAILED row and its audit entry, leaving an export that reads APPROVED forever and that
+      // Retry refuses because it is not FAILED.
+      return this.toExportView(failed);
     }
   }
 
@@ -385,6 +416,7 @@ export class ResearchExportService {
     exportRecord: ResearchExportRecord,
     actorUserId: string,
     auditCtx?: ExportAuditContext,
+    jobId: string = exportRecord.id,
   ) {
     try {
       await this.exportQueue.add(
@@ -395,7 +427,7 @@ export class ResearchExportService {
           userId: actorUserId,
         },
         {
-          jobId: exportRecord.id,
+          jobId,
           attempts: 3,
           backoff: { type: 'exponential', delay: 60_000 },
           removeOnComplete: 50,

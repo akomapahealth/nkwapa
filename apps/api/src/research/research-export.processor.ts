@@ -1,5 +1,6 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
+import { jobAttempt } from '../common/job-attempt';
 import { JobTenantContextRunner } from '../prisma/job-tenant-context.runner';
 import { ResearchExportService } from './research-export.service';
 import { RESEARCH_EXPORT_QUEUE_NAME } from './research-policy';
@@ -33,7 +34,7 @@ export class ResearchExportProcessor extends WorkerHost {
         },
         unresolvedTenant: 'fail',
       },
-      () => this.researchExportService.processQueuedExport(exportId),
+      () => this.researchExportService.processQueuedExport(exportId, jobAttempt(job)),
     );
   }
 }

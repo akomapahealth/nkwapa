@@ -9,7 +9,7 @@
  * Reading the queue directly answers the question the tests actually mean: is this change still
  * waiting to be sent?
  */
-async function readOutbox(page, clinicId) {
+async function readOutboxRows(page, clinicId) {
   return page.evaluate(
     ({ clinic }) =>
       new Promise((resolve, reject) => {
@@ -30,15 +30,50 @@ async function readOutbox(page, clinicId) {
           };
           all.onsuccess = () => {
             db.close();
-            resolve(
-              all.result
-                .filter((row) => !clinic || row.clinicId === clinic)
-                .map((row) => ({ id: row.id, entityType: row.entityType, entityId: row.entityId })),
-            );
+            resolve(all.result.filter((row) => !clinic || row.clinicId === clinic));
           };
         };
       }),
     { clinic: clinicId ?? null },
+  );
+}
+
+/** What is queued, by identity only. `clinicId` narrows it to one clinic. */
+async function readOutbox(page, clinicId) {
+  return (await readOutboxRows(page, clinicId)).map((row) => ({
+    id: row.id,
+    entityType: row.entityType,
+    entityId: row.entityId,
+  }));
+}
+
+async function outboxCount(page, clinicId) {
+  return (await readOutboxRows(page, clinicId)).length;
+}
+
+/** Write straight into the device outbox, as an older client or a long offline session would. */
+async function queueOfflineChange(page, row) {
+  await page.evaluate(
+    (record) =>
+      new Promise((resolve, reject) => {
+        const request = indexedDB.open('NkwapaDb');
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const transaction = request.result.transaction('outbox', 'readwrite');
+          transaction.objectStore('outbox').put(record);
+          transaction.oncomplete = () => resolve(undefined);
+          transaction.onerror = () => reject(transaction.error);
+        };
+      }),
+    row,
+  );
+}
+
+/** The next `/sync/push` response. Pair with `waitForOutboxDrain` when the change itself matters. */
+function waitForPush(page) {
+  return page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' && new URL(response.url()).pathname === '/sync/push',
   );
 }
 
@@ -62,4 +97,11 @@ async function waitForOutboxDrain(page, expect, { entityType, clinicId, timeout 
     .toBe(0);
 }
 
-module.exports = { readOutbox, waitForOutboxDrain };
+module.exports = {
+  outboxCount,
+  queueOfflineChange,
+  readOutbox,
+  readOutboxRows,
+  waitForOutboxDrain,
+  waitForPush,
+};

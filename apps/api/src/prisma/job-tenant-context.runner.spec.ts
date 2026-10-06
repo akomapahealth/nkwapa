@@ -168,4 +168,55 @@ describe('JobTenantContextRunner', () => {
     expect(prisma.withSystemContext).not.toHaveBeenCalled();
     expect(prisma.withClinicContext).toHaveBeenCalledTimes(1);
   });
+
+  describe('a tenant the job data cannot be trusted for', () => {
+    const resolveTenant = jest.fn();
+    const runWith = (tenant: unknown) =>
+      runner.runClinicJob(
+        {
+          queueName: 'reminders',
+          jobId: 'job-1',
+          resourceId: 'reminder-1',
+          tenant: tenant as never,
+          legacy: { resolveTenant, systemReason: 'Resolve tenant for a legacy reminder payload' },
+          unresolvedTenant: 'discard',
+        },
+        jest.fn(),
+      );
+
+    beforeEach(() => {
+      resolveTenant.mockReset().mockResolvedValue({ clinicId: 'clinic-from-row', userId: null });
+    });
+
+    it.each([
+      ['blank', '   '],
+      ['a number', 42],
+      ['null', null],
+    ])(
+      'treats a clinic id that is %s as missing and resolves it from the record',
+      async (_label, clinicId) => {
+        await runWith({ clinicId, userId: 'user-1' });
+
+        expect(resolveTenant).toHaveBeenCalledTimes(1);
+        // Never a clinic made up from a bad payload: only the one the record belongs to.
+        expect(prisma.withClinicContext).toHaveBeenCalledTimes(1);
+        expect(prisma.withClinicContext).toHaveBeenCalledWith(
+          'clinic-from-row',
+          { requestId: 'job-1', userId: null },
+          expect.any(Function),
+        );
+      },
+    );
+
+    it('drops a user id that is not a string rather than carrying it into the context', async () => {
+      await runWith({ clinicId: 'clinic-1', userId: { id: 'user-1' } });
+
+      expect(resolveTenant).not.toHaveBeenCalled();
+      expect(prisma.withClinicContext).toHaveBeenCalledWith(
+        'clinic-1',
+        { requestId: 'job-1', userId: null },
+        expect.any(Function),
+      );
+    });
+  });
 });

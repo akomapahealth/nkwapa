@@ -92,14 +92,35 @@ class SyncTransportError extends Error {
   }
 }
 
+/**
+ * How long one push or pull may take before the pass is abandoned.
+ *
+ * Clinic wifi that resolves DNS and then stalls never rejects a fetch. Without a bound the clinic's
+ * in-flight pass stayed pending forever, and every later `syncNow` for that clinic was handed the
+ * same stuck promise, so nothing synced until a reload. Longer than an ordinary request's timeout,
+ * because a full push batch or a first pull of a busy clinic is legitimately slow.
+ */
+export const SYNC_REQUEST_TIMEOUT_MS = 30_000;
+
 async function fetchOrThrow(url: string, init: RequestInit): Promise<Response> {
+  const timeout = new AbortController();
+  const timeoutId = globalThis.setTimeout(() => timeout.abort(), SYNC_REQUEST_TIMEOUT_MS);
   let response: Response;
   try {
-    response = await fetch(url, init);
+    response = await fetch(url, { ...init, signal: timeout.signal });
   } catch (err) {
     throw new SyncTransportError(
-      describeSyncTransportFailure(null, err instanceof Error ? err.message : String(err)),
+      describeSyncTransportFailure(
+        null,
+        timeout.signal.aborted
+          ? `No answer within ${SYNC_REQUEST_TIMEOUT_MS / 1000} seconds`
+          : err instanceof Error
+            ? err.message
+            : String(err),
+      ),
     );
+  } finally {
+    globalThis.clearTimeout(timeoutId);
   }
   if (!response.ok) {
     throw new SyncTransportError(

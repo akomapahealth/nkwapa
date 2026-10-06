@@ -281,6 +281,16 @@ Before adding or changing a processor:
 3. Use the matching runner method and declare the unresolved-tenant policy.
 4. Add tests for direct tenant metadata, any legacy resolver, and the failure/discard decision.
 5. Confirm warnings contain identifiers and static reasons only, never payload data or PHI.
+6. Assume the job will be delivered twice. If it has a side effect (a send, an external push),
+   claim it with `tryLockForTransaction` from `prisma/transaction-lock.ts` before reading its row,
+   and stand down when the claim is held.
+7. Read the retry budget with `jobAttempt(job)` from `common/job-attempt.ts`. With attempts left,
+   throw and record nothing: the job transaction rolls back whatever the run wrote. On the last
+   attempt, record the failure and return instead of throwing, or the rollback erases the record.
+8. Retrying a finished job needs a fresh `jobId`. BullMQ keeps finished jobs under their id and
+   silently ignores an add that reuses one.
+9. Add the processor's duplicate-delivery, retry and tenant scenarios to
+   `apps/api/src/testing/offline-job-matrix.ts`.
 
 ### Standalone script rule
 

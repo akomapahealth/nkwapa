@@ -259,11 +259,27 @@ Current status progression:
 - `FAILED`
 - `REJECTED`
 
+Each run happens inside the job's clinic-scoped transaction, so a failure behaves as follows:
+
+- **Attempts left:** a failed run is thrown back to the queue. The transaction rolls back, the
+  export stays `APPROVED`, and BullMQ runs it again (three attempts, exponential from 60 seconds).
+- **Last attempt:** the run records `FAILED` and its `RESEARCH_EXPORT.FAIL` audit entry, then
+  returns instead of throwing, so that record commits. A throw would roll it back and leave an
+  export that reads `APPROVED` forever.
+- **Two deliveries of one export:** the run takes an advisory lock on the export before reading it.
+  A duplicate that finds the lock held stands down, and one that arrives after completion finds
+  `COMPLETED` and does nothing. The pack is built and pushed to the research repository once.
+
 ### 4. Retry failures
 
 Route:
 
 - `PATCH /clinics/:clinicId/research/exports/:exportId/retry`
+
+Retry is offered only for a `FAILED` export. It puts the export back to `APPROVED` and queues it
+under a new job id (`<exportId>-retry-<timestamp>`). BullMQ keeps a finished job under its id and
+ignores an add that reuses one, so re-queueing under the export's own id once left the export
+`APPROVED` with nothing queued to run it.
 
 ### 5. Download
 

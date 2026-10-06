@@ -22,3 +22,8 @@ docs/security/appointment-lifecycle-matrix.md
 # `npm run docs:identity-matrix --workspace=@nkwapa/api`. A test asserts it matches byte for
 # byte, so reformatting it here would put the two checks permanently at odds.
 docs/security/patient-identity-matrix.md
+
+# Generated from apps/api/src/testing/offline-job-matrix.ts by
+# `npm run docs:offline-job-matrix --workspace=@nkwapa/api`. A test asserts it matches byte for
+# byte, so reformatting it here would put the two checks permanently at odds.
+docs/security/offline-job-execution-matrix.md

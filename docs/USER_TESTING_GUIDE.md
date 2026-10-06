@@ -92,29 +92,34 @@ is the part that genuinely needs a person.
 
 ### Automated — do not re-do these by hand
 
-| Check                                                             | Where                                                                                               |
-| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Every route at 375 / 640 / 768 / 1024 / 1440, no overflow         | `e2e/responsive-migration.spec.js` (staff + portal)                                                 |
-| Patient portal renders, per route, signed in as a patient         | `e2e/portal.spec.js`                                                                                |
-| A patient is refused every staff surface                          | `e2e/portal.spec.js`                                                                                |
-| Dark mode renders and passes axe on staff and portal routes       | `e2e/dark-mode.spec.js`                                                                             |
-| Dark mode survives navigation without flashing light              | `e2e/dark-mode.spec.js`                                                                             |
-| Automatable WCAG rules on the chart and the portal                | `accessibility.spec.js`, `portal.spec.js`                                                           |
-| Focus is visible on every control the keyboard reaches            | `accessibility.spec.js`, `portal.spec.js`, `login-theme.spec.js`                                    |
-| Login theme: typeface, brand fill, radius, no third-party fonts   | `e2e/login-theme.spec.js`                                                                           |
-| Loading / empty / error / retry on the three #22 routes           | `e2e/route-fallbacks.spec.js`                                                                       |
-| Chart series palette, contrast and colour-blind separation        | `npm run design:check-charts`                                                                       |
-| Every duplicate rule, exact and fuzzy, reaching the queue         | `patients/patient-duplicate.service.spec.ts`                                                        |
-| Every merge refusal and warning, and both merge strategies        | `patients/patient-merge.service.spec.ts`                                                            |
-| Every way a claim is refused, and the four ways it is accepted    | `patient-portal/patient-claim.spec.ts`                                                              |
-| Canonical chart redirects, including a merge chain and a cycle    | `patients/patient.repository.spec.ts`                                                               |
-| A refused merge, and the redirect banner, in a browser            | `e2e/patient-identity.spec.js`, `e2e/patient-merge-preview.spec.js`                                 |
-| Claiming a record, refused and accepted, as the patient           | `e2e/patient-claim.spec.js`                                                                         |
-| Every sync conflict code catalogued, worded, and retry-classified | `packages/db/src/sync-conflicts.spec.ts`, `sync/sync-outcome.spec.ts`, `lib/sync-conflicts.test.ts` |
-| Refused changes persist, are not re-sent, and never stop the pull | `lib/sync.test.ts`, `lib/sync-rejected.test.ts`                                                     |
-| A duplicate-patient conflict, recovered in a browser              | `e2e/sync-recovery.spec.js`                                                                         |
-| An offline patient edit drains on reconnect                       | `e2e/sync-recovery.spec.js`                                                                         |
-| Offline shift start and patient check-in replay exactly once      | `ops/ops.service.spec.ts`, `sync/sync.service.spec.ts`, `e2e/today-offline.spec.js`                 |
+| Check                                                              | Where                                                                                               |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| Every route at 375 / 640 / 768 / 1024 / 1440, no overflow          | `e2e/responsive-migration.spec.js` (staff + portal)                                                 |
+| Patient portal renders, per route, signed in as a patient          | `e2e/portal.spec.js`                                                                                |
+| A patient is refused every staff surface                           | `e2e/portal.spec.js`                                                                                |
+| Dark mode renders and passes axe on staff and portal routes        | `e2e/dark-mode.spec.js`                                                                             |
+| Dark mode survives navigation without flashing light               | `e2e/dark-mode.spec.js`                                                                             |
+| Automatable WCAG rules on the chart and the portal                 | `accessibility.spec.js`, `portal.spec.js`                                                           |
+| Focus is visible on every control the keyboard reaches             | `accessibility.spec.js`, `portal.spec.js`, `login-theme.spec.js`                                    |
+| Login theme: typeface, brand fill, radius, no third-party fonts    | `e2e/login-theme.spec.js`                                                                           |
+| Loading / empty / error / retry on the three #22 routes            | `e2e/route-fallbacks.spec.js`                                                                       |
+| Chart series palette, contrast and colour-blind separation         | `npm run design:check-charts`                                                                       |
+| Every duplicate rule, exact and fuzzy, reaching the queue          | `patients/patient-duplicate.service.spec.ts`                                                        |
+| Every merge refusal and warning, and both merge strategies         | `patients/patient-merge.service.spec.ts`                                                            |
+| Every way a claim is refused, and the four ways it is accepted     | `patient-portal/patient-claim.spec.ts`                                                              |
+| Canonical chart redirects, including a merge chain and a cycle     | `patients/patient.repository.spec.ts`                                                               |
+| A refused merge, and the redirect banner, in a browser             | `e2e/patient-identity.spec.js`, `e2e/patient-merge-preview.spec.js`                                 |
+| Claiming a record, refused and accepted, as the patient            | `e2e/patient-claim.spec.js`                                                                         |
+| Every sync conflict code catalogued, worded, and retry-classified  | `packages/db/src/sync-conflicts.spec.ts`, `sync/sync-outcome.spec.ts`, `lib/sync-conflicts.test.ts` |
+| Refused changes persist, are not re-sent, and never stop the pull  | `lib/sync.test.ts`, `lib/sync-rejected.test.ts`                                                     |
+| A duplicate-patient conflict, recovered in a browser               | `e2e/sync-recovery.spec.js`                                                                         |
+| An offline patient edit drains on reconnect                        | `e2e/sync-recovery.spec.js`                                                                         |
+| Offline shift start and patient check-in replay exactly once       | `ops/ops.service.spec.ts`, `sync/sync.service.spec.ts`, `e2e/today-offline.spec.js`                 |
+| Every automated row of the offline and job execution matrix        | `testing/offline-job-matrix.spec.ts` (fails if a named test disappears)                             |
+| A failed or stalled sync drains by itself; stale-clinic work waits | `lib/sync-replay.test.ts`, `lib/sync-retry.test.ts`, `e2e/offline-replay.spec.js`                   |
+| One change pushed twice applies once, and only at its own clinic   | `sync/sync.service.spec.ts`, `e2e/offline-replay.spec.js`                                           |
+| Reminders and research exports run once, retry, and record failure | `reminders/*.spec.ts`, `research/research-export.*.spec.ts`                                         |
+| Job and replay rows are isolated per clinic by the database        | `packages/db/src/tenant-isolation.integration.spec.ts`                                              |
 
 640 is in the width list because it is what 1280 becomes at 200% zoom.
 
@@ -925,6 +930,141 @@ Telemetry records counts and failure codes for high-value workflows; see
 - [ ] the dashboard has no horizontal overflow at 375, 768, 1024 and 1440 pixels, in light and dark
       themes; wide tables scroll inside their card
 - [ ] every help hint and the time-window control work from the keyboard
+
+---
+
+## 17d. Offline Replay And Background Job Matrix
+
+The full matrix, with every automated test behind it, is
+`docs/security/offline-job-execution-matrix.md`. It is generated, and the suite fails if a scenario
+marked manual there is missing here. These are the rows a person walks before a release. Everything
+else in the matrix runs in CI.
+
+Each item below names its matrix ID. Use the staff identity unless a step says otherwise, keep
+DevTools open on the **Application → IndexedDB → NkwapaDb → outbox** store, and watch the sync
+pill in the header. A change that is still queued is still a row in that store.
+
+### Tools you will need
+
+- **Offline:** DevTools → Network → throttling → _Offline_. It applies to one tab only.
+- **A failing server without going offline:** DevTools → Network → right-click a request →
+  _Block request URL_, using the pattern `*/sync/push*`. The browser reports a network error, which
+  is what a clinic router that drops the API looks like.
+- **A stalled server (local only):** `kill -STOP <api pid>` freezes the API with its port still
+  open, which is the "DNS resolves and then nothing" failure. `kill -CONT <api pid>` resumes it.
+  Find the PID with `lsof -ti :4000`.
+- **Worker logs:** the API log. Reminder and export workers write JSON lines with `reminderId` or
+  `exportId`.
+- **Mail:** Mailpit at `http://localhost:8025` shows every reminder email the worker sent.
+
+### Offline
+
+- [ ] **OFF-01** With a chart open, go offline and save an edit. The form says it is saved on this
+      device, the pill reads "Offline · 1 saved", and the outbox has one row. Go back online: within a
+      few seconds the row is gone, the pill reads "All synced", and the chart shows the edit after a
+      reload. Do the same from the Today board with **Start shift**: the shift is labelled
+      _Pending sync_ until it lands.
+- [ ] **OFF-02** Offline, open a route this browser has never visited. You get the offline page,
+      not the marketing home page and not a blank screen.
+
+### Weak network
+
+- [ ] **NET-01** Queue one change offline. Block `*/sync/push*`, then go back online. The pill
+      reads "Sync failed" and the sync center says your changes are saved on this device. The row in
+      IndexedDB is unchanged: no `attempts`, no `lastFailure`. Unblock the URL and touch nothing else.
+      Within about 10 seconds the change syncs by itself. Leave it blocked for a few minutes instead,
+      and confirm in the Network tab that the retries spread out (10s, 30s, 1m, 2m, then every 5m)
+      rather than hammering the API.
+- [ ] **NET-02** Locally, queue a change, freeze the API with `kill -STOP`, and press **Sync now**.
+      After 30 seconds the pill reads "Sync failed" with "Could not reach the server" and the row is
+      intact. Resume the API with `kill -CONT`: the next automatic retry drains it. Pressing **Sync now**
+      during the freeze must never leave the pill spinning past those 30 seconds.
+
+### Duplicate replay
+
+- [ ] **DUP-01** Offline, save an edit to a chart's first name. In the console, queue the same change
+      again under the same idempotency key with a different name, as a resend would:
+
+  ```js
+  const open = indexedDB.open('NkwapaDb');
+  open.onsuccess = () => {
+    const store = open.result.transaction('outbox', 'readwrite').objectStore('outbox');
+    store.getAll().onsuccess = (event) => {
+      const original = event.target.result.at(-1);
+      const payload = { ...JSON.parse(original.payloadJson), firstName: 'Second copy' };
+      store.put({
+        ...original,
+        id: crypto.randomUUID(),
+        payloadJson: JSON.stringify(payload),
+        createdAt: new Date(Date.parse(original.createdAt) + 1000).toISOString(),
+      });
+    };
+  };
+  ```
+
+  Go online. Both rows leave the outbox, and the chart shows the first name you typed, never "Second
+  copy". The `/sync/push` response answers both as `APPLIED`.
+
+- [ ] **DUP-02** Open the same chart in two tabs. In tab A, go offline and save an edit. In tab B
+      (online), press **Sync now** while, at the same moment, you bring tab A back online. Both pills
+      settle on "All synced", neither shows an error, the API log has no 500 for `/sync/push`, and the
+      chart's audit history shows one edit.
+
+### Conflicts
+
+The conflict cards themselves are walked in section 17b. From the matrix, these are the ones a
+person still checks:
+
+- [ ] **CON-02** A refused change is listed under _Needs attention_ and is not sent again on later
+      passes (watch the Network tab across two **Sync now** presses). **Retry** sends it once.
+- [ ] **CON-04** The duplicate national ID, merged chart, and locked visit cases in section 17b each
+      show their plain-language card and are never written to the server.
+- [ ] **CON-05** **Discard** removes the device copy only. After the next sync the chart shows the
+      server's version.
+
+### Stale active clinic
+
+Needs an account with seats at two clinics (the cross-clinic fixtures from
+`SEED_SAMPLE_CROSS_CLINIC=true`, or any staff account given a second clinic in Admin → Users).
+
+- [ ] **CLN-01** At clinic A, go offline and save an edit. Switch to clinic B and go online. B's pill
+      does not count A's change and reads "All synced". The `/sync/push` requests carry
+      `clinicId=<B>` only, and A's row is still in IndexedDB.
+- [ ] **CLN-02** Switch back to clinic A. The row drains on the first pass, pushed to
+      `clinicId=<A>`.
+- [ ] **CLN-03** Queue a change at clinic A. As an admin in another browser, remove the account's
+      role at A. Back in the first browser, without refreshing (clinic A is still selected), press
+      **Sync now**. It says "This account cannot sync at this clinic", and the row stays in
+      IndexedDB. Nothing is lost.
+- [ ] **CLN-05** _Known risk._ Queue a change as account A with `*/sync/push*` blocked, sign out, and
+      sign in as account B at the same clinic. Unblock the URL. Today the change is sent under B, and
+      the audit entry names B. B's own permissions are checked, so B cannot write anything B could
+      not write directly. Record what you see; do not file it as a new bug. It is tracked in #162.
+- [ ] **CLN-06** _Known risk._ Queue a change at clinic A, then remove the account's only role at A.
+      After a refresh, clinic A is no longer offered, and the change is kept in IndexedDB but shown
+      nowhere. Restoring the role brings it back and it drains. Tracked in #163.
+
+### Background jobs
+
+- [ ] **JOB-01** Run a second API instance against the same Redis and database (`PORT=4001`, same
+      `.env`). Confirm a request whose reminder is due at once (an appointment inside 24 hours, with
+      an email address). Mailpit receives exactly one message, and the reminders page shows one `SENT`
+      row.
+- [ ] **JOB-03** Stop Mailpit (`docker stop nkwapa-mailpit`) and send a reminder. The row stays
+      `QUEUED`, and the API log shows "Reminder send will be retried" about 5 seconds after the first
+      attempt and about 60 seconds after the second. Start Mailpit before the third attempt: one email
+      arrives and the row reads `SENT`. Leave Mailpit stopped through all three: the row reads `FAILED`
+      with the provider's code, not a generic failure.
+- [ ] **JOB-05** With the research repository token removed or wrong, request and approve an export.
+      After its attempts are spent it reads **Failed** on the research page. Fix the token and press
+      **Retry**. The export goes to _Processing_ and then _Completed_ on its own; it does not sit at
+      _Approved_.
+- [ ] **JOB-06** During JOB-05, watch the research page between attempts. The export stays
+      _Approved_ while it is being retried, and reads **Failed**, with an audit entry, only after the
+      last attempt. Refresh the page after it fails, to confirm it is still **Failed**.
+- [ ] **JOB-09** _Known risk._ During the release smoke, search the API log for "Transaction already
+      closed" or "expired transaction" from the reminder or research workers. Any hit means a send or
+      push outlasted the job transaction. Note which one; it is tracked in #164.
 
 ---
 

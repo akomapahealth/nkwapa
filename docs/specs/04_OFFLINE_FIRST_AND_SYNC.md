@@ -170,6 +170,15 @@ Current important rules:
   sync center, and not re-sent until the clinician retries it. A retryable one is re-sent each pass
 - a refused change never stops the pass: the pull always runs, and pushes go in batches no larger
   than the server's per-request limit
+- a request that does not answer within 30 seconds is abandoned as a transport failure, so a
+  stalled connection cannot hold the clinic's sync pass open. A transport failure changes no row
+- a failed pass, or one that leaves changes waiting to retry, is followed by another automatically
+  at 10s, 30s, 1m, 2m and then every 5 minutes, until a pass leaves nothing to retry. Blocked
+  changes wait for the clinician and are never re-sent automatically
+- the server holds each mutation's clinic and idempotency key with a transaction-scoped advisory
+  lock before reading its record, so two pushes of the same change (two tabs, or a resend of a
+  request that had in fact landed) apply it once and get the same answer
+- a client idempotency key is unique per clinic, on the device as on the server
 - the client never merges or overwrites to resolve a conflict. Discarding a change removes only the
   device's copy and resets the pull cursor so the server's version is restored
 - conflict detail is built from an allow-list with its message redacted
@@ -178,6 +187,17 @@ Current important rules:
   recovery instead of overwriting the server record
 - medical-history deletion is not a supported mutation
 - encounter lifecycle transitions are not replayable; an offline push may only write a draft
+
+---
+
+## Regression Matrix (#21)
+
+Replay, conflict, idempotency, stale-clinic and background-job behaviour is listed scenario by
+scenario in `docs/security/offline-job-execution-matrix.md`, generated from
+`apps/api/src/testing/offline-job-matrix.ts`. A spec fails if a test the matrix names disappears,
+or if a manual scenario is missing from section 17d of `docs/USER_TESTING_GUIDE.md`. The matrix
+also records the known risks this design tolerates today, such as an outbox that is not tied to
+the account that queued it.
 
 ---
 
