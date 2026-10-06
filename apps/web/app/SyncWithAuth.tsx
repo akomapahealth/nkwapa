@@ -101,6 +101,7 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
     <ServiceWorkerAndSyncProvider
       getAccessToken={getToken}
       activeClinicId={bootstrapCtx?.activeClinicId}
+      currentUserId={bootstrap?.userId}
     >
       {isDisabledAccount ? (
         <FullscreenStatus

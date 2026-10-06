@@ -48,6 +48,10 @@ export class FakeTable<T extends Row = Row> {
     ids.forEach((id) => this.rows.delete(id));
   }
 
+  async clear() {
+    this.rows.clear();
+  }
+
   async toArray() {
     return [...this.rows.values()];
   }
@@ -89,7 +93,7 @@ const TABLES = [
   'patient_pharmacy_preferences',
 ] as const;
 
-type TableName = (typeof TABLES)[number] | 'sync_state' | 'ops_cache';
+type TableName = (typeof TABLES)[number] | 'sync_state' | 'ops_cache' | 'portal_cache';
 
 export type FakeSyncDb = Record<TableName, FakeTable> & {
   table: (name: string) => FakeTable;
@@ -102,6 +106,7 @@ export function createFakeSyncDb(): FakeSyncDb {
   >;
   tables.sync_state = new FakeTable('clinicId');
   tables.ops_cache = new FakeTable('key');
+  tables.portal_cache = new FakeTable('key');
   return {
     ...tables,
     table: (name: string) => {

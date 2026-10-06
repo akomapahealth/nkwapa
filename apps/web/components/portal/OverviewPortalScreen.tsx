@@ -23,6 +23,8 @@ import {
   type MeasurementRecord,
   type PortalMeResponse,
 } from '@/lib/patient-portal';
+import { getNextConfirmedAppointment } from '@/lib/appointment-status';
+import { readTrendNumber } from '@/lib/patient-trends';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { AppointmentStatusBadge } from '@/components/appointments/AppointmentStatusBadge';
 import { EmptyState, SectionSkeleton } from '@/components/feedback/AppState';
@@ -34,7 +36,9 @@ import {
   PortalPanel,
 } from '@/components/portal/PortalPanels';
 import { PortalLinkRequiredState } from '@/components/portal/PortalLinkRequiredState';
+import { PORTAL_NO_SAVED_COPY, PORTAL_OFFLINE_DETAIL } from '@/components/portal/PortalWriteGate';
 import { usePortalResource } from '@/components/portal/use-portal-resource';
+import { minimiseAppointmentRequests, minimisePortalMe } from '@/lib/portal-cache';
 import { RouteGuard } from '@/components/RouteGuard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -45,34 +49,13 @@ interface OverviewData {
   requests: AppointmentRequestRecord[];
 }
 
-function readNumber(value: unknown) {
-  const parsed =
-    typeof value === 'number'
-      ? value
-      : typeof value === 'string' && value.trim() !== ''
-        ? Number(value)
-        : NaN;
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
 function getLatestMeasurement(measurements: MeasurementRecord[], type: MeasurementRecord['type']) {
   return measurements.find((measurement) => measurement.type === type) ?? null;
 }
 
-function getNextConfirmedAppointment(requests: AppointmentRequestRecord[]) {
-  const now = Date.now();
-  return (
-    requests
-      .filter((request) => request.appointment?.status === 'CONFIRMED')
-      .map((request) => request.appointment)
-      .filter((appointment): appointment is NonNullable<AppointmentRequestRecord['appointment']> =>
-        Boolean(appointment),
-      )
-      .filter((appointment) => new Date(appointment.startsAt).getTime() >= now)
-      .sort(
-        (left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime(),
-      )[0] ?? null
-  );
+/** Visits the clinic confirmed from one of this patient's requests. */
+function getConfirmedVisits(requests: AppointmentRequestRecord[]) {
+  return requests.flatMap((request) => (request.appointment ? [request.appointment] : []));
 }
 
 function getPendingRequestCount(requests: AppointmentRequestRecord[]) {
@@ -99,6 +82,15 @@ export function OverviewPortalScreen() {
         fetchAppointmentRequests(clinicId!, getToken),
       ]);
       return { me, measurements, requests };
+    },
+    cache: {
+      view: 'overview',
+      patientIdOf: (data) => data.me.patient.id,
+      minimise: (data) => ({
+        ...data,
+        me: minimisePortalMe(data.me),
+        requests: minimiseAppointmentRequests(data.requests),
+      }),
     },
   });
 
@@ -152,13 +144,15 @@ export function OverviewPortalScreen() {
         <ResourceState
           state={overview}
           skeleton={<SectionSkeleton lines={3} className="p-6" />}
+          offlineDescription={PORTAL_NO_SAVED_COPY}
+          offlineDetail={PORTAL_OFFLINE_DETAIL}
           errorTitle="Your overview could not be loaded"
         >
           {({ me, measurements, requests }) => {
             const latestBp = getLatestMeasurement(measurements, 'BP');
             const latestGlucose = getLatestMeasurement(measurements, 'GLUCOSE');
             const latestWeight = getLatestMeasurement(measurements, 'WEIGHT');
-            const nextAppointment = getNextConfirmedAppointment(requests);
+            const nextAppointment = getNextConfirmedAppointment(getConfirmedVisits(requests));
             const pendingRequests = getPendingRequestCount(requests);
 
             return (
@@ -189,7 +183,7 @@ export function OverviewPortalScreen() {
                     title="Latest blood pressure"
                     value={
                       latestBp
-                        ? `${readNumber(latestBp.payload.systolic) ?? '—'}/${readNumber(latestBp.payload.diastolic) ?? '—'} mmHg`
+                        ? `${readTrendNumber(latestBp.payload.systolic) ?? '—'}/${readTrendNumber(latestBp.payload.diastolic) ?? '—'} mmHg`
                         : 'No reading yet'
                     }
                     detail={
@@ -203,7 +197,7 @@ export function OverviewPortalScreen() {
                     title="Latest glucose"
                     value={
                       latestGlucose
-                        ? `${readNumber(latestGlucose.payload.value) ?? '—'} mg/dL`
+                        ? `${readTrendNumber(latestGlucose.payload.value) ?? '—'} mg/dL`
                         : 'No reading yet'
                     }
                     detail={
@@ -217,7 +211,7 @@ export function OverviewPortalScreen() {
                     title="Latest weight"
                     value={
                       latestWeight
-                        ? `${readNumber(latestWeight.payload.kg) ?? '—'} kg`
+                        ? `${readTrendNumber(latestWeight.payload.kg) ?? '—'} kg`
                         : 'No reading yet'
                     }
                     detail={

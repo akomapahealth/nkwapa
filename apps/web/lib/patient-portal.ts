@@ -2,6 +2,7 @@ import type { GetToken } from '@/lib/api';
 import { apiFetch } from '@/lib/api';
 import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import type { WhoAmIResponse } from '@/lib/bootstrap-context';
+import { readTrendNumber } from '@/lib/patient-trends';
 
 export const PATIENT_PORTAL_LINK_MISSING = 'PATIENT_PORTAL_LINK_MISSING';
 
@@ -277,6 +278,18 @@ async function parsePortalResponse<T>(response: Response) {
 
 export function isPortalLinkMissingError(error: unknown) {
   return error instanceof PortalApiError && error.code === PATIENT_PORTAL_LINK_MISSING;
+}
+
+/**
+ * Whether a failed portal read may clear by itself, so a saved copy is a fair stand-in.
+ *
+ * No answer at all (offline, a timeout), a server error, or rate limiting: yes. Anything else is
+ * the server saying no -- the session ended, portal access was withdrawn, the record was unlinked
+ * -- and a copy saved before that answer must not keep showing the patient their old record.
+ */
+export function isTransientPortalFailure(error: unknown) {
+  if (!(error instanceof PortalApiError)) return true;
+  return error.status >= 500 || error.status === 408 || error.status === 429;
 }
 
 export function getPortalErrorMessage(error: unknown) {
@@ -703,14 +716,14 @@ export function formatMeasurementLabel(type: MeasurementRecord['type'] | string)
 export function formatMeasurementValue(record: MeasurementRecord | LegacySelfReport) {
   if ('payload' in record) {
     if (record.type === 'BP') {
-      const systolic = readNumber(record.payload.systolic);
-      const diastolic = readNumber(record.payload.diastolic);
+      const systolic = readTrendNumber(record.payload.systolic);
+      const diastolic = readTrendNumber(record.payload.diastolic);
       return systolic != null && diastolic != null
         ? `${systolic}/${diastolic} mmHg`
         : 'Blood pressure';
     }
     if (record.type === 'GLUCOSE') {
-      const value = readNumber(record.payload.value);
+      const value = readTrendNumber(record.payload.value);
       const glucoseType =
         typeof record.payload.glucoseType === 'string'
           ? record.payload.glucoseType.toLowerCase()
@@ -718,7 +731,7 @@ export function formatMeasurementValue(record: MeasurementRecord | LegacySelfRep
       return value != null ? `${value} mg/dL${glucoseType ? ` • ${glucoseType}` : ''}` : 'Glucose';
     }
     if (record.type === 'WEIGHT') {
-      const kg = readNumber(record.payload.kg);
+      const kg = readTrendNumber(record.payload.kg);
       return kg != null ? `${kg} kg` : 'Weight';
     }
   }
@@ -752,14 +765,4 @@ export function measurementTypeFromPreset(value: string | null) {
     default:
       return 'BP' as const;
   }
-}
-
-function readNumber(value: unknown) {
-  const parsed =
-    typeof value === 'number'
-      ? value
-      : typeof value === 'string' && value.trim() !== ''
-        ? Number(value)
-        : NaN;
-  return Number.isFinite(parsed) ? parsed : null;
 }

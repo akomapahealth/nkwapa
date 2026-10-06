@@ -4,7 +4,7 @@
 
 Current with follow-on work.
 
-Offline support is strong for the original EMR capture flow and covers the clinic floor's essential operations (shift start and end, patient check-in). Assignment, admin and patient portal features are still online-first.
+Offline support is strong for the original EMR capture flow and covers the clinic floor's essential operations (shift start and end, patient check-in). Assignment and admin features are still online-first. The patient portal keeps a read-only copy of recent history; its writes stay online-only.
 
 ---
 
@@ -30,6 +30,7 @@ The local Dexie store currently covers the core EMR workflow:
 - outbox
 - sync state
 - the last loaded Today board and My Assigned list, one copy per clinic (`ops_cache`, v12)
+- a patient's last loaded portal Overview, My Health and Appointments, per account (`portal_cache`, v13)
 
 This lets the app preserve the most important intake and clinical documentation path even when the network is unstable.
 
@@ -129,6 +130,18 @@ Rules:
 
 ---
 
+## Patient Portal Read Cache (#18)
+
+Portal history is cached, never queued. Each successful load of Overview, My Health or
+Appointments keeps a minimised copy keyed by `${userId}|${clinicId}|${view}|${variant}`. It is
+shown, with the time it was saved, when the device is offline or the API does not answer, and
+deleted when the API refuses the read. Copies expire after seven days, are cleared on sign-out,
+and copies for any other account are purged whenever an account resolves. Portal writes are
+disabled offline and never enter the outbox. Details and manual QA:
+`docs/clinic-ops/23_PATIENT_PORTAL_MEASUREMENTS_V1.md`.
+
+---
+
 ## Conflict Handling
 
 Current important rules:
@@ -187,7 +200,7 @@ Current important rules:
 - assigning and reassigning patients, and starting intake (see Clinic Operations Offline)
 - most admin and research management pages
 - patient portal claim flow
-- patient portal self-service submissions
+- patient portal self-service submissions (history is readable offline; submissions are not)
 - in-form conflict prompts; recovery happens in the sync center rather than on the form that
   queued the change
 

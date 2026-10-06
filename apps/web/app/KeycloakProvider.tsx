@@ -4,7 +4,9 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { resetBootstrapResolved, type GetToken } from '@/lib/api';
 import { setStoredActiveClinicId } from '@/lib/bootstrap-storage';
 import { FullscreenStatus, PageSkeleton } from '@/components/feedback/AppState';
+import { db } from '@/lib/db';
 import { getKeycloak, initKeycloak, resetKeycloak } from '@/lib/keycloak';
+import { clearPortalCache } from '@/lib/portal-cache';
 import { AuthBootstrapWrapper } from './AuthBootstrapWrapper';
 import { SyncWithAuth } from './SyncWithAuth';
 
@@ -12,9 +14,12 @@ const KeycloakContext = createContext<{
   isReady: boolean;
   isAuthenticated: boolean;
   error: string | null;
-  logout: () => void;
+  logout: () => void | Promise<void>;
   login: () => void;
 } | null>(null);
+
+/** How long sign-out waits for device cleanup before leaving anyway. */
+const SIGN_OUT_CLEANUP_BUDGET_MS = 750;
 
 export function useKeycloak() {
   const ctx = useContext(KeycloakContext);
@@ -40,12 +45,18 @@ export function KeycloakProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
     const kc = getKeycloak();
     if (kc) {
       // Drop per-session client state before leaving, so the next user to sign in on this
-      // device is not bootstrapped with the previous user's clinic selection.
+      // device is not bootstrapped with the previous user's clinic selection, and does not
+      // inherit their saved portal history. A slow IndexedDB must not hold sign-out hostage:
+      // whatever it fails to clear here is purged when the next account resolves.
       setStoredActiveClinicId(null);
+      await Promise.race([
+        clearPortalCache(db),
+        new Promise((resolve) => setTimeout(resolve, SIGN_OUT_CLEANUP_BUDGET_MS)),
+      ]);
       resetBootstrapResolved();
       resetKeycloak();
       kc.logout();

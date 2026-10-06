@@ -28,6 +28,11 @@ export interface AsyncResourceState<T> {
   isOnline: boolean;
   /** True when the read is withheld because the device is offline. */
   isOfflineBlocked: boolean;
+  /**
+   * Set when `data` is a copy saved on this device rather than this session's live result, to
+   * when it was saved. Only resources backed by a device cache set it (see the portal, #18).
+   */
+  savedCopyAt?: string | null;
   refresh: () => void;
   retry: () => void;
   /** For a mutation that already knows the new value; avoids a round trip and a flash. */

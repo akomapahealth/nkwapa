@@ -1,6 +1,8 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { db } from '@/lib/db';
+import { purgePortalCacheExcept } from '@/lib/portal-cache';
 import { syncNow, onSyncStatusChange, type SyncResult, type SyncStatus } from '@/lib/sync';
 
 interface SyncContextValue {
@@ -30,10 +32,13 @@ export function ServiceWorkerAndSyncProvider({
   children,
   getAccessToken,
   activeClinicId,
+  currentUserId,
 }: {
   children: React.ReactNode;
   getAccessToken?: () => Promise<string | null>;
   activeClinicId?: string | null;
+  /** The signed-in account, once bootstrap has resolved it. */
+  currentUserId?: string | null;
 }) {
   const [isOnline, setIsOnline] = useState(
     typeof navigator !== 'undefined' ? navigator.onLine : true,
@@ -63,6 +68,18 @@ export function ServiceWorkerAndSyncProvider({
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
+
+  /*
+    Whatever another account left on this device goes as soon as this one is known (#18).
+
+    Sign-out clears the portal cache too, but a session can also end without it: the token
+    expires, the tab is closed, or someone signs in as another account in a second tab. Reads
+    are keyed by account regardless; this keeps the other account's history off the disk.
+  */
+  useEffect(() => {
+    if (!currentUserId) return;
+    void purgePortalCacheExcept(db, currentUserId);
+  }, [currentUserId]);
 
   useEffect(() => {
     const unsub = onSyncStatusChange((status, message, detail) => {
