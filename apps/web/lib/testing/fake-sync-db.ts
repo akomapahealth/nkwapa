@@ -159,20 +159,75 @@ export function queuedRow(overrides: Row = {}) {
   };
 }
 
+/**
+ * One answer from the network, as the sync engine meets it.
+ *
+ * - an array: a push that the server answered with these per-row results
+ * - `{ status }`: a request that reached the server and was refused as a whole
+ * - `'unreachable'`: a fetch that rejects, as it does offline
+ * - `'stall'`: a fetch that never settles until its signal aborts, as clinic wifi that resolves DNS
+ *   and then hangs does
+ */
+export type NetworkAnswer = unknown[] | NetworkRefusal | 'unreachable' | 'stall';
+
+interface NetworkRefusal {
+  status: number;
+  body?: string;
+}
+
+/** A pull body always carries a cursor; a refusal never does. */
+function isRefusal(step: object): step is NetworkRefusal {
+  return 'status' in step && !('cursor' in step);
+}
+
+function answer(step: NetworkAnswer | Record<string, unknown>, init?: RequestInit) {
+  if (step === 'unreachable') return Promise.reject(new TypeError('Failed to fetch'));
+  if (step === 'stall') {
+    return new Promise((_, reject) => {
+      init?.signal?.addEventListener('abort', () =>
+        reject(new DOMException('The operation was aborted.', 'AbortError')),
+      );
+    });
+  }
+  if (Array.isArray(step)) {
+    return Promise.resolve({ ok: true, json: async () => ({ results: step }) });
+  }
+  if (isRefusal(step)) {
+    return Promise.resolve({ ok: false, status: step.status, text: async () => step.body ?? '' });
+  }
+  return Promise.resolve({ ok: true, json: async () => step });
+}
+
+/**
+ * A fetch that plays a script: each push takes the next of `push`, each pull the next of `pull`.
+ * Once a script runs out, a push answers with no results and a pull with `everyPull`, so a test
+ * only spells out the calls it cares about.
+ */
+export function mockSyncNetwork(
+  script: {
+    push?: NetworkAnswer[];
+    pull?: Array<NetworkAnswer | Record<string, unknown>>;
+    everyPull?: Record<string, unknown>;
+  } = {},
+) {
+  const pushes = [...(script.push ?? [])];
+  const pulls = [...(script.pull ?? [])];
+  const everyPull = script.everyPull ?? EMPTY_PULL;
+  const fetchMock = jest.fn((url: string, init?: RequestInit) =>
+    String(url).includes('/sync/push')
+      ? answer(pushes.shift() ?? [], init)
+      : answer(pulls.shift() ?? everyPull, init),
+  );
+  global.fetch = fetchMock as unknown as typeof fetch;
+  return fetchMock;
+}
+
 /** A fetch that answers push with `pushResults` (one array per batch) and pull with `pull`. */
 export function mockSyncFetch(
   pushResults: unknown[][] = [],
   pull: Record<string, unknown> = EMPTY_PULL,
 ) {
-  const pushes = [...pushResults];
-  const fetchMock = jest.fn(async (url: string) => {
-    if (String(url).includes('/sync/push')) {
-      return { ok: true, json: async () => ({ results: pushes.shift() ?? [] }) };
-    }
-    return { ok: true, json: async () => pull };
-  });
-  global.fetch = fetchMock as unknown as typeof fetch;
-  return fetchMock;
+  return mockSyncNetwork({ push: pushResults, everyPull: pull });
 }
 
 export function pushBodies(fetchMock: jest.Mock): Array<Array<{ id: string }>> {

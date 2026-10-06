@@ -203,6 +203,22 @@ describe('enqueueOutboxMutation', () => {
     expect(fake.outbox.rows.size).toBe(1);
   });
 
+  it('keeps the same key at two clinics as two changes, as the server does', async () => {
+    const fake = createFakeSyncDb();
+    const outboxDb = fake as unknown as NkwapaDb;
+
+    const atA = await enqueueOutboxMutation(outboxDb, { ...params, idempotencyKey: 'ops:k' });
+    const atB = await enqueueOutboxMutation(outboxDb, {
+      ...params,
+      clinicId: 'clinic-2',
+      idempotencyKey: 'ops:k',
+    });
+
+    expect(atB.id).not.toBe(atA.id);
+    expect(atB.clinicId).toBe('clinic-2');
+    expect(fake.outbox.rows.size).toBe(2);
+  });
+
   it('still queues every save that draws its own key', async () => {
     const fake = createFakeSyncDb();
 

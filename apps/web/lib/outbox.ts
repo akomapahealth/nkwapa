@@ -143,10 +143,11 @@ export async function enqueueOutboxMutation(
   params: OutboxMutationParams,
 ): Promise<OutboxRecordShape> {
   if (params.idempotencyKey) {
-    const queued = await dbInstance.outbox
-      .where('idempotencyKey')
-      .equals(params.idempotencyKey)
-      .first();
+    // Matched per clinic, as the server's own idempotency record is. A key that happened to be
+    // queued at another clinic used to swallow this one, and the change never reached anyone.
+    const queued = (
+      await dbInstance.outbox.where('idempotencyKey').equals(params.idempotencyKey).toArray()
+    ).find((row) => row.clinicId === params.clinicId);
     if (queued) return queued;
   }
   const record = buildOutboxMutation(params);
