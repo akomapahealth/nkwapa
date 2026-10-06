@@ -24,7 +24,9 @@ const navItems = [
   {
     href: '/portal/appointments',
     label: 'Appointments',
-    matches: (pathname: string) => pathname.startsWith('/portal/appointments'),
+    // Request Visit lives under this path but has its own pill; lighting both says neither.
+    matches: (pathname: string) =>
+      pathname.startsWith('/portal/appointments') && pathname !== '/portal/appointments/request',
   },
   {
     href: '/portal/appointments/request',
