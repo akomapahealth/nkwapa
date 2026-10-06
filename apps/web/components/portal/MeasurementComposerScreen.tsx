@@ -26,6 +26,7 @@ import {
   PortalHero,
   PortalPanel,
 } from '@/components/portal/PortalPanels';
+import { PortalWriteGateNotice, usePortalWriteGate } from '@/components/portal/PortalWriteGate';
 import { usePortalResource } from '@/components/portal/use-portal-resource';
 import { RouteGuard } from '@/components/RouteGuard';
 import { Badge } from '@/components/ui/badge';
@@ -127,8 +128,13 @@ export function MeasurementComposerScreen() {
     [type],
   );
 
+  // Typing a reading offline is fine; sending it is not. The draft stays in the form until then.
+  const writeGate = usePortalWriteGate();
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!writeGate.canWrite) return;
 
     if (!clinicId || !getToken) {
       setError('An active clinic is required before you can save a reading.');
@@ -454,7 +460,9 @@ export function MeasurementComposerScreen() {
                 </div>
               </div>
 
-              <Button type="submit" disabled={submitting} className="w-full">
+              <PortalWriteGateNotice gate={writeGate} />
+
+              <Button type="submit" disabled={submitting || !writeGate.canWrite} className="w-full">
                 {submitting
                   ? 'Saving measurement...'
                   : `Save ${activeOption.label.toLowerCase()} reading`}
