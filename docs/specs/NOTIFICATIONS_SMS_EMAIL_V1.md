@@ -104,7 +104,14 @@ not, and a row reading `FAILED` mid-retry would show an operator a failure still
 resend they do not need. Three attempts, five seconds before the first retry and sixty before the
 second: a blip is usually over in seconds, and anything still failing after that is not a blip.
 Anything not positively transient — bad credentials, a bad address, a 5xx reply, an unrecognised
-error — stays terminal on the first attempt, as it always was.
+error — stays terminal on the first attempt, as it always was. Jobs are queued with the custom
+`reminder` backoff type from `reminders/reminder-retry.ts`; BullMQ computes a built-in type itself
+and never asks the worker, which is how this schedule once silently became 60 and 120 seconds.
+
+A job delivered twice sends once. Before reading the row, `processReminder` takes a
+transaction-scoped advisory lock on the reminder. A duplicate that finds it held stands down,
+because the holder is already sending, and one that arrives after the first commits reads `SENT`
+and does nothing.
 
 Time to send
 

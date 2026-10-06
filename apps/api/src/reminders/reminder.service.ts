@@ -3,6 +3,7 @@ import { ReminderStatus } from '@prisma/client';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
+import { tryLockForTransaction } from '../prisma/transaction-lock';
 import { AuditService } from '../audit/audit.service';
 import { redactLogValue } from '../common/redaction';
 import {
@@ -13,6 +14,7 @@ import {
 import { EMAIL_PROVIDER } from '../notifications/email/email-provider.token';
 import type { EmailProvider } from '../notifications/email/email-provider.interface';
 import type { SmsProvider } from './sms-provider.interface';
+import { REMINDER_BACKOFF, REMINDER_SEND_ATTEMPTS } from './reminder-retry';
 import {
   isTemplateKey,
   renderMessage,
@@ -577,6 +579,12 @@ export class ReminderService {
     reminderId: string,
     attempt: { attemptsMade: number; maxAttempts: number } = { attemptsMade: 0, maxAttempts: 1 },
   ): Promise<void> {
+    // A job redelivered while its first run is still sending (a stalled worker, or two workers
+    // picking up one id) used to read the same QUEUED row and send a second message. The send is
+    // claimed for this transaction first, and the row is read only after: a duplicate that finds
+    // the claim taken stands down, and one that arrives after the first commits reads SENT.
+    if (!(await tryLockForTransaction(this.prisma, `reminder-send:${reminderId}`))) return;
+
     const reminder = await this.prisma.reminder.findUnique({
       where: { id: reminderId },
       include: { clinic: true, patient: true, appointment: true },
@@ -877,8 +885,8 @@ export class ReminderService {
       {
         jobId: this.getReminderJobId(reminderId),
         delay: delayMs,
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 60_000 },
+        attempts: REMINDER_SEND_ATTEMPTS,
+        backoff: REMINDER_BACKOFF,
       },
     );
   }

@@ -36,6 +36,7 @@ function createReminder(overrides: Record<string, unknown> = {}) {
 
 describe('ReminderService', () => {
   let prisma: {
+    $queryRaw: jest.Mock;
     reminder: {
       create: jest.Mock;
       findMany: jest.Mock;
@@ -53,6 +54,7 @@ describe('ReminderService', () => {
 
   beforeEach(() => {
     prisma = {
+      $queryRaw: jest.fn().mockResolvedValue([{ locked: true }]),
       reminder: {
         create: jest.fn(async ({ data }) => createReminder({ ...data, id: 'reminder-1' })),
         findMany: jest.fn(),

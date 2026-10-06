@@ -1,4 +1,5 @@
 import { AppointmentStatus } from '@prisma/client';
+import { REMINDER_BACKOFF, REMINDER_SEND_ATTEMPTS } from './reminder-retry';
 import { ReminderService } from './reminder.service';
 import {
   APPOINTMENT_TRANSITIONS,
@@ -36,6 +37,7 @@ const SCHEDULE_PARAMS = {
 
 describe('appointment reminders across the lifecycle', () => {
   let prisma: {
+    $queryRaw: jest.Mock;
     reminder: {
       create: jest.Mock;
       findMany: jest.Mock;
@@ -54,6 +56,7 @@ describe('appointment reminders across the lifecycle', () => {
 
   beforeEach(() => {
     prisma = {
+      $queryRaw: jest.fn().mockResolvedValue([{ locked: true }]),
       reminder: {
         create: jest.fn(async ({ data }) =>
           appointmentReminderFixture({ ...data, id: 'reminder-1' }),
@@ -188,6 +191,18 @@ describe('appointment reminders across the lifecycle', () => {
         { reminderId: 'reminder-1', clinicId: FIXTURE_CLINIC_ID, userId: null, scope: 'clinic' },
         expect.objectContaining({ jobId: 'reminder-reminder-1', attempts: 3 }),
       );
+    });
+
+    it('queues retries on the schedule the worker computes', async () => {
+      await service.scheduleAppointmentReminder({
+        ...SCHEDULE_PARAMS,
+        phoneE164: '+233240000000',
+      });
+
+      expect(reminderQueue.add.mock.calls[0][2]).toMatchObject({
+        attempts: REMINDER_SEND_ATTEMPTS,
+        backoff: REMINDER_BACKOFF,
+      });
     });
   });
 
@@ -368,6 +383,32 @@ describe('appointment reminders across the lifecycle', () => {
         }),
       );
       expect(smsProvider.send).not.toHaveBeenCalled();
+    });
+
+    it('stands down when another delivery of the same reminder is already sending it', async () => {
+      prisma.$queryRaw.mockResolvedValue([{ locked: false }]);
+      prisma.reminder.findUnique.mockResolvedValue(appointmentReminderFixture());
+
+      await service.processReminder('reminder-1');
+
+      expect(prisma.reminder.findUnique).not.toHaveBeenCalled();
+      expect(smsProvider.send).not.toHaveBeenCalled();
+      expect(prisma.reminder.update).not.toHaveBeenCalled();
+    });
+
+    it('claims the send before it reads the reminder', async () => {
+      prisma.reminder.findUnique.mockResolvedValue(appointmentReminderFixture());
+
+      await service.processReminder('reminder-1');
+
+      const [sql, key] = prisma.$queryRaw.mock.calls[0] as [TemplateStringsArray, string];
+      expect(sql.join('?')).toContain('pg_try_advisory_xact_lock');
+      expect(key).toBe('reminder-send:reminder-1');
+      // Read after the claim, so a duplicate that waited out the first send sees it as SENT.
+      expect(prisma.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.reminder.findUnique.mock.invocationCallOrder[0],
+      );
+      expect(smsProvider.send).toHaveBeenCalledTimes(1);
     });
 
     it('does nothing for a reminder that is no longer queued', async () => {
