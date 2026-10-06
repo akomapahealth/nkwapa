@@ -1,7 +1,12 @@
 const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
 
-const { readOutbox, waitForOutboxDrain } = require('../playwright/outbox');
+const {
+  queueOfflineChange,
+  readOutbox,
+  waitForOutboxDrain,
+  waitForPush,
+} = require('../playwright/outbox');
 const { storageStateFor } = require('../playwright/roles');
 
 /*
@@ -26,24 +31,6 @@ async function createPatient(page) {
   // The chart must be on screen before a test drops the connection under it.
   await expect(page.getByRole('heading', { name })).toBeVisible({ timeout: 20_000 });
   return { clinicId, patientId, name };
-}
-
-/** Write straight into the device outbox, as a device that queued it in an earlier session. */
-async function queueOfflineChange(page, row) {
-  await page.evaluate(
-    (record) =>
-      new Promise((resolve, reject) => {
-        const request = indexedDB.open('NkwapaDb');
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-          const transaction = request.result.transaction('outbox', 'readwrite');
-          transaction.objectStore('outbox').put(record);
-          transaction.oncomplete = () => resolve(undefined);
-          transaction.onerror = () => reject(transaction.error);
-        };
-      }),
-    row,
-  );
 }
 
 /** Leave the staff identity off duty, so each test starts from the same place. */
@@ -162,10 +149,7 @@ test('replaying the same check-in twice creates one arrival', async ({ page }) =
   await queueOfflineChange(page, row(randomUUID()));
   await queueOfflineChange(page, row(randomUUID()));
 
-  const push = page.waitForResponse(
-    (response) =>
-      response.request().method() === 'POST' && new URL(response.url()).pathname === '/sync/push',
-  );
+  const push = waitForPush(page);
   await page.reload();
   const { results } = await (await push).json();
   expect(results.map((result) => result.status)).toEqual(['APPLIED', 'APPLIED']);

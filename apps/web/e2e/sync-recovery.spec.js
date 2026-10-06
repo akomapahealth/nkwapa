@@ -1,6 +1,7 @@
 const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
 
+const { outboxCount, queueOfflineChange, waitForPush } = require('../playwright/outbox');
 const { storageStateFor } = require('../playwright/roles');
 
 test.use({ storageState: storageStateFor('staff') });
@@ -15,49 +16,6 @@ async function createPatient(page, nationalId) {
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
   const [, , clinicId, , patientId] = new URL(page.url()).pathname.split('/');
   return { clinicId, patientId };
-}
-
-/** Write straight into the device outbox, as an older client or a long offline session would. */
-async function queueOfflineChange(page, row) {
-  await page.evaluate(
-    (record) =>
-      new Promise((resolve, reject) => {
-        const request = indexedDB.open('NkwapaDb');
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-          const transaction = request.result.transaction('outbox', 'readwrite');
-          transaction.objectStore('outbox').put(record);
-          transaction.oncomplete = () => resolve(undefined);
-          transaction.onerror = () => reject(transaction.error);
-        };
-      }),
-    row,
-  );
-}
-
-async function outboxCount(page) {
-  return page.evaluate(
-    () =>
-      new Promise((resolve, reject) => {
-        const request = indexedDB.open('NkwapaDb');
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-          const count = request.result
-            .transaction('outbox', 'readonly')
-            .objectStore('outbox')
-            .count();
-          count.onsuccess = () => resolve(count.result);
-          count.onerror = () => reject(count.error);
-        };
-      }),
-  );
-}
-
-function waitForPush(page) {
-  return page.waitForResponse(
-    (response) =>
-      response.request().method() === 'POST' && new URL(response.url()).pathname === '/sync/push',
-  );
 }
 
 test('a duplicate patient conflict is explained and recoverable without the console', async ({
