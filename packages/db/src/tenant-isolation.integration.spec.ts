@@ -36,6 +36,22 @@ const CLINICAL_TABLES = [
   'ClinicalNote',
 ] as const;
 
+/**
+ * Rows a background job or an offline replay acts on. A worker runs under the clinic its job names,
+ * so these prove the database, not the worker, keeps that job inside its clinic.
+ */
+const JOB_ROWS = {
+  reminderA1: '99000000-0000-4000-8000-0000000000e1',
+  reminderB1: '99000000-0000-4000-8000-0000000000e2',
+  reminderGlobal: '99000000-0000-4000-8000-0000000000e3',
+  exportA1: '99000000-0000-4000-8000-0000000000e4',
+  exportB1: '99000000-0000-4000-8000-0000000000e5',
+  replayA1: '99000000-0000-4000-8000-0000000000e6',
+  replayB1: '99000000-0000-4000-8000-0000000000e7',
+} as const;
+
+const JOB_TABLES = ['Reminder', 'ResearchExport', 'SyncMutation'] as const;
+
 describeIsolation('tenant isolation', () => {
   jest.setTimeout(180_000);
 
@@ -85,6 +101,30 @@ describeIsolation('tenant isolation', () => {
         ('99000000-0000-4000-8000-0000000000d2', NULL, 'cross-clinic-pair',
          '${TENANT_PATIENTS.a1Primary.id}', '${TENANT_PATIENTS.b1Primary.id}', 'OPEN',
          '${TENANT_SYSTEM_ADMIN.id}', CURRENT_TIMESTAMP);
+      INSERT INTO "Reminder"
+        ("id", "clinicId", "recipientType", "recipientUserId", "channel", "toAddress",
+         "templateKey", "payloadJson", "scheduledAt", "updatedAt")
+      VALUES
+        ('${JOB_ROWS.reminderA1}', '${TENANT_CLINICS.a1.id}', 'USER', '${TENANT_SYSTEM_ADMIN.id}',
+         'EMAIL', 'a1@example.test', 'gate.notice', '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('${JOB_ROWS.reminderB1}', '${TENANT_CLINICS.b1.id}', 'USER', '${TENANT_SYSTEM_ADMIN.id}',
+         'EMAIL', 'b1@example.test', 'gate.notice', '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('${JOB_ROWS.reminderGlobal}', NULL, 'USER', '${TENANT_SYSTEM_ADMIN.id}',
+         'EMAIL', 'global@example.test', 'gate.notice', '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+      INSERT INTO "ResearchExport"
+        ("id", "clinicId", "requestedByUserId", "fromDate", "toDate", "status", "policyVersionSnapshot")
+      VALUES
+        ('${JOB_ROWS.exportA1}', '${TENANT_CLINICS.a1.id}', '${TENANT_SYSTEM_ADMIN.id}',
+         '2026-01-01', '2026-01-31', 'APPROVED', 'gate'),
+        ('${JOB_ROWS.exportB1}', '${TENANT_CLINICS.b1.id}', '${TENANT_SYSTEM_ADMIN.id}',
+         '2026-01-01', '2026-01-31', 'APPROVED', 'gate');
+      INSERT INTO "SyncMutation"
+        ("id", "clinicId", "entityType", "entityId", "operation", "idempotencyKey", "status", "updatedAt")
+      VALUES
+        ('${JOB_ROWS.replayA1}', '${TENANT_CLINICS.a1.id}', 'encounter', 'entity-a1', 'UPSERT',
+         'shared-key', 'APPLIED', CURRENT_TIMESTAMP),
+        ('${JOB_ROWS.replayB1}', '${TENANT_CLINICS.b1.id}', 'encounter', 'entity-b1', 'UPSERT',
+         'shared-key', 'APPLIED', CURRENT_TIMESTAMP);
     `);
 
     app = new Client({ connectionString: databaseUrl(appUrl, database) });
@@ -251,6 +291,85 @@ describeIsolation('tenant isolation', () => {
           ),
         ),
       ).rejects.toThrow(/row-level security/i);
+    });
+  });
+
+  describe('background job and replay rows', () => {
+    const ids = async (table: string) =>
+      (await app.query(`SELECT "id" FROM "${table}" ORDER BY "id"`)).rows.map((row) => row.id);
+
+    it("shows a clinic's job context only that clinic's reminders, exports and replay records", async () => {
+      await asClinic([TENANT_CLINICS.a1.id], async () => {
+        expect(await ids('Reminder')).toEqual([JOB_ROWS.reminderA1]);
+        expect(await ids('ResearchExport')).toEqual([JOB_ROWS.exportA1]);
+        expect(await ids('SyncMutation')).toEqual([JOB_ROWS.replayA1]);
+      });
+    });
+
+    it('returns no job rows without a clinic context', async () => {
+      await asClinic([], async () => {
+        for (const table of JOB_TABLES) {
+          expect(await countIn(table)).toBe(0);
+        }
+      });
+    });
+
+    it("cannot finish or send another clinic's job, even by naming its id", async () => {
+      await asClinic([TENANT_CLINICS.a1.id], async () => {
+        const exportUpdate = await app.query(
+          `UPDATE "ResearchExport" SET "status" = 'COMPLETED' WHERE "id" = $1`,
+          [JOB_ROWS.exportB1],
+        );
+        const reminderUpdate = await app.query(
+          `UPDATE "Reminder" SET "status" = 'SENT' WHERE "id" = $1`,
+          [JOB_ROWS.reminderB1],
+        );
+        expect(exportUpdate.rowCount).toBe(0);
+        expect(reminderUpdate.rowCount).toBe(0);
+      });
+    });
+
+    it('refuses to queue a job row or record a replay for a clinic outside the context', async () => {
+      await asClinic([TENANT_CLINICS.a1.id], async () => {
+        await app.query('SAVEPOINT job_insert');
+        await expect(
+          app.query(
+            `INSERT INTO "SyncMutation"
+               ("id", "clinicId", "entityType", "entityId", "operation", "idempotencyKey", "status", "updatedAt")
+             VALUES (gen_random_uuid(), $1, 'encounter', 'entity-b1', 'UPSERT', 'smuggled', 'APPLIED', CURRENT_TIMESTAMP)`,
+            [TENANT_CLINICS.b1.id],
+          ),
+        ).rejects.toThrow(/row-level security/);
+        await app.query('ROLLBACK TO SAVEPOINT job_insert');
+        await expect(
+          app.query(
+            `INSERT INTO "Reminder"
+               ("id", "clinicId", "recipientType", "recipientUserId", "channel", "toAddress",
+                "templateKey", "payloadJson", "scheduledAt", "updatedAt")
+             VALUES (gen_random_uuid(), $1, 'USER', $2, 'EMAIL', 'x@example.test', 'gate.notice',
+                     '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+            [TENANT_CLINICS.b1.id, TENANT_SYSTEM_ADMIN.id],
+          ),
+        ).rejects.toThrow(/row-level security/);
+      });
+    });
+
+    it('keeps the same idempotency key at two clinics as two separate records', async () => {
+      await asClinic([TENANT_CLINICS.b1.id], async () => {
+        const { rows } = await app.query(
+          `SELECT "id" FROM "SyncMutation" WHERE "idempotencyKey" = 'shared-key'`,
+        );
+        expect(rows.map((row) => row.id)).toEqual([JOB_ROWS.replayB1]);
+      });
+    });
+
+    it('shows a notification that belongs to no clinic only to system work', async () => {
+      await asClinic([TENANT_CLINICS.a1.id], async () => {
+        expect(await ids('Reminder')).not.toContain(JOB_ROWS.reminderGlobal);
+      });
+      await asSystemAdmin(async () => {
+        expect(await ids('Reminder')).toContain(JOB_ROWS.reminderGlobal);
+      });
     });
   });
 });
