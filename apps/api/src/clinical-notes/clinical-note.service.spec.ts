@@ -44,6 +44,7 @@ describe('ClinicalNoteService', () => {
     },
     clinicalNoteAddendum: { create: jest.fn() },
     patientAssignment: { findFirst: jest.fn() },
+    patientStationVisit: { findFirst: jest.fn() },
     patient: { findFirst: jest.fn() },
     encounter: { findFirst: jest.fn() },
   };
@@ -168,8 +169,13 @@ describe('ClinicalNoteService', () => {
     prisma.clinicalNote.findFirst.mockResolvedValue(
       note({ status: ClinicalNoteStatus.PENDING_COSIGN, assignedDoctorId: doctorId }),
     );
-    prisma.clinicalNote.update.mockImplementation(({ data }: { data: Record<string, unknown> }) =>
-      Promise.resolve(note({ ...data, status: ClinicalNoteStatus.COSIGNED, version: 2 })),
+    prisma.clinicalNote.updateMany.mockImplementation(
+      ({ data }: { data: Record<string, unknown> }) => {
+        prisma.clinicalNote.findUniqueOrThrow.mockResolvedValue(
+          note({ ...data, status: ClinicalNoteStatus.COSIGNED, version: 2 }),
+        );
+        return Promise.resolve({ count: 1 });
+      },
     );
 
     const signed = await service.cosign(clinicId, encounterId, roles(doctorId, UserRole.DOCTOR));
@@ -346,6 +352,77 @@ describe('ClinicalNoteService', () => {
       await service.seedFromInterviews(clinicId, encounterId, roles(doctorId, UserRole.DOCTOR), {});
 
       expect(seededDraft().history).toContain('No blood-pressure medications were recorded');
+    });
+  });
+  // #167: in the station line no manager assigns a volunteer and doctor to the visit.
+  describe('station workflow', () => {
+    const original = process.env.FEATURE_STATION_WORKFLOW_ENABLED;
+    beforeEach(() => {
+      process.env.FEATURE_STATION_WORKFLOW_ENABLED = 'true';
+    });
+    afterAll(() => {
+      if (original === undefined) delete process.env.FEATURE_STATION_WORKFLOW_ENABLED;
+      else process.env.FEATURE_STATION_WORKFLOW_ENABLED = original;
+    });
+
+    it('lets the review-station volunteer submit without an assignment', async () => {
+      prisma.clinicalNote.findFirst.mockResolvedValue(note());
+      prisma.patientStationVisit.findFirst.mockResolvedValue({
+        id: 'visit-review',
+        claimedAt: new Date('2026-10-07T10:00:00Z'),
+        claimedBy: { displayName: 'Volunteer' },
+        completedBy: null,
+      });
+      prisma.clinicalNote.update.mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+        Promise.resolve(note({ ...data, status: ClinicalNoteStatus.PENDING_COSIGN, version: 2 })),
+      );
+
+      const result = await service.submit(
+        clinicId,
+        encounterId,
+        roles(volunteerId, UserRole.VOLUNTEER),
+      );
+
+      expect(prisma.patientAssignment.findFirst).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        status: ClinicalNoteStatus.PENDING_COSIGN,
+        assignedVolunteerId: volunteerId,
+        assignedVolunteerNameSnapshot: 'Volunteer',
+      });
+      expect(result).not.toHaveProperty('assignedDoctorId');
+    });
+
+    it('refuses a volunteer who was not at the review station', async () => {
+      prisma.clinicalNote.findFirst.mockResolvedValue(note());
+      prisma.patientStationVisit.findFirst.mockResolvedValue(null);
+      await expect(
+        service.submit(clinicId, encounterId, roles(volunteerId, UserRole.VOLUNTEER)),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.clinicalNote.update).not.toHaveBeenCalled();
+    });
+
+    it('lets any doctor at the clinic cosign a note with no assigned doctor, once', async () => {
+      prisma.clinicalNote.findFirst.mockResolvedValue(
+        note({ status: ClinicalNoteStatus.PENDING_COSIGN, assignedDoctorId: null }),
+      );
+      prisma.clinicalNote.updateMany.mockResolvedValueOnce({ count: 1 });
+      prisma.clinicalNote.findUniqueOrThrow.mockResolvedValue(
+        note({ status: ClinicalNoteStatus.COSIGNED, cosignedByUserId: doctorId }),
+      );
+      await expect(
+        service.cosign(clinicId, encounterId, roles(doctorId, UserRole.DOCTOR)),
+      ).resolves.toMatchObject({ cosignedByUserId: doctorId });
+      expect(prisma.clinicalNote.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ status: ClinicalNoteStatus.PENDING_COSIGN }),
+        }),
+      );
+
+      // A second doctor who read the note as pending loses the race.
+      prisma.clinicalNote.updateMany.mockResolvedValueOnce({ count: 0 });
+      await expect(
+        service.cosign(clinicId, encounterId, roles('other-doctor', UserRole.DOCTOR)),
+      ).rejects.toBeInstanceOf(ConflictException);
     });
   });
 });

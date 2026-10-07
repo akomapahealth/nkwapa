@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ClinicalNoteStatus, Prisma, UserRole } from '@prisma/client';
+import { ClinicalNoteStatus, Prisma, StationKind, UserRole } from '@prisma/client';
 import { createHash, randomUUID } from 'node:crypto';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -17,6 +17,7 @@ import {
 import { CLINICAL_NOTE_INCLUDE, ClinicalNoteRepository } from './clinical-note.repository';
 import { PERMISSIONS } from '../auth/constants/permissions';
 import { hasPermissionAtClinic } from '../auth/clinic-roles';
+import { isApiFeatureEnabled } from '../common/feature-flags';
 import { renderHypertensionNarrative } from './narrative/hypertension-narrative';
 import { renderDiabetesNarrative } from './narrative/diabetes-narrative';
 import { renderMedicationLines, type AdherenceNarrativeRow } from './narrative/medication-lines';
@@ -346,6 +347,20 @@ export class ClinicalNoteService {
       }
       this.requireComplete(current);
 
+      const now = new Date();
+      if (isApiFeatureEnabled('stationWorkflow')) {
+        return this.submitFromStation(
+          tx,
+          clinicId,
+          encounterId,
+          current,
+          actor,
+          actorRole,
+          now,
+          metadata,
+        );
+      }
+
       const assignment = await this.activeAssignment(tx, clinicId, encounterId);
       if (actorRole === UserRole.VOLUNTEER) {
         if (!assignment) {
@@ -361,7 +376,6 @@ export class ClinicalNoteService {
         }
       }
 
-      const now = new Date();
       const snapshot = assignment
         ? {
             assignmentId: assignment.id,
@@ -429,13 +443,17 @@ export class ClinicalNoteService {
       if (current.status !== ClinicalNoteStatus.PENDING_COSIGN) {
         throw this.conflict('CLINICAL_NOTE_NOT_PENDING', 'Only pending notes may be cosigned.');
       }
-      if (current.assignedDoctorId !== actor.userId) {
+      // A note submitted from the station line names no doctor: any doctor at the clinic reviews
+      // it (#167), and `cosignedByUserId` records who did. A manager-assigned note still belongs
+      // to its assigned doctor.
+      if (current.assignedDoctorId !== null && current.assignedDoctorId !== actor.userId) {
         throw new ForbiddenException('Only the assigned doctor may cosign this note');
       }
 
       const now = new Date();
-      const note = await tx.clinicalNote.update({
-        where: { id: current.id },
+      // Conditional on the status, so two doctors cosigning at once resolve to one cosigner.
+      const signed = await tx.clinicalNote.updateMany({
+        where: { id: current.id, status: ClinicalNoteStatus.PENDING_COSIGN },
         data: {
           status: ClinicalNoteStatus.COSIGNED,
           signedHistory: current.history,
@@ -446,11 +464,99 @@ export class ClinicalNoteService {
           cosignedAt: now,
           version: { increment: 1 },
         },
+      });
+      if (signed.count === 0) {
+        throw this.conflict('CLINICAL_NOTE_ALREADY_COSIGNED', 'This note is already cosigned.');
+      }
+      const note = await tx.clinicalNote.findUniqueOrThrow({
+        where: { id: current.id },
         include: CLINICAL_NOTE_INCLUDE,
       });
       await this.log(note.id, clinicId, actor.userId, 'CLINICAL_NOTE.COSIGN', note, metadata);
       return note;
     });
+  }
+
+  /**
+   * Submit a note written at the review station (#167).
+   *
+   * There is no manager assignment in the station line. A volunteer may submit only while holding,
+   * or after completing, this encounter's review-station visit: the person who counselled the
+   * patient is the person whose note goes to a doctor. The snapshot names them and no doctor;
+   * whichever doctor cosigns is recorded as the cosigner.
+   */
+  private async submitFromStation(
+    tx: Prisma.TransactionClient,
+    clinicId: string,
+    encounterId: string,
+    current: { id: string; history: string; assessment: string; plan: string },
+    actor: ClinicalActor,
+    actorRole: UserRole,
+    now: Date,
+    metadata: RequestMetadata,
+  ) {
+    let snapshot = {};
+    if (actorRole === UserRole.VOLUNTEER) {
+      const review = await tx.patientStationVisit.findFirst({
+        where: {
+          clinicId,
+          encounterId,
+          station: { kind: StationKind.REVIEW },
+          OR: [
+            { status: 'IN_PROGRESS', claimedByUserId: actor.userId },
+            { status: 'COMPLETED', completedByUserId: actor.userId },
+          ],
+        },
+        include: {
+          claimedBy: { select: { displayName: true } },
+          completedBy: { select: { displayName: true } },
+        },
+      });
+      if (!review) {
+        throw new ForbiddenException({
+          code: 'CLINICAL_NOTE_REVIEW_STATION_REQUIRED',
+          message: 'Only the volunteer at the review station may submit this note.',
+        });
+      }
+      snapshot = {
+        assignedVolunteerId: actor.userId,
+        assignedVolunteerNameSnapshot:
+          review.claimedBy?.displayName ?? review.completedBy?.displayName ?? null,
+        assignmentAssignedAtSnapshot: review.claimedAt,
+      };
+    }
+
+    const doctorSigned = actorRole === UserRole.DOCTOR;
+    const note = await tx.clinicalNote.update({
+      where: { id: current.id },
+      data: {
+        ...snapshot,
+        status: doctorSigned ? ClinicalNoteStatus.COSIGNED : ClinicalNoteStatus.PENDING_COSIGN,
+        submittedByUserId: actor.userId,
+        submittedAt: now,
+        ...(doctorSigned
+          ? {
+              signedHistory: current.history,
+              signedAssessment: current.assessment,
+              signedPlan: current.plan,
+              signedContentHash: this.contentHash(current),
+              cosignedByUserId: actor.userId,
+              cosignedAt: now,
+            }
+          : {}),
+        version: { increment: 1 },
+      },
+      include: CLINICAL_NOTE_INCLUDE,
+    });
+    await this.log(
+      note.id,
+      clinicId,
+      actor.userId,
+      doctorSigned ? 'CLINICAL_NOTE.AUTHOR_SIGN' : 'CLINICAL_NOTE.SUBMIT',
+      note,
+      metadata,
+    );
+    return note;
   }
 
   async addAddendum(

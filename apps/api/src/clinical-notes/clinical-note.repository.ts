@@ -50,7 +50,9 @@ export class ClinicalNoteRepository {
       where: {
         clinicId,
         status: ClinicalNoteStatus.PENDING_COSIGN,
-        assignedDoctorId: doctorUserId,
+        // A note from the station line names no doctor (#167): every doctor at the clinic sees
+        // it, and the first to cosign takes it.
+        OR: [{ assignedDoctorId: doctorUserId }, { assignedDoctorId: null }],
       },
       select: {
         id: true,
