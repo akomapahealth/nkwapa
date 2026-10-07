@@ -5,6 +5,7 @@ import { AlertTriangle, Bell, CheckCheck, Clock3, SendHorizontal, Timer } from '
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
+import { readApiError } from '@/lib/ops';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
@@ -56,6 +57,8 @@ interface ReminderRow {
   status: string;
   providerMessageId: string | null;
   failureReason: string | null;
+  /** Set only on a reminder a staff member scheduled directly, the only kind staff can cancel. */
+  createdByUserId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -75,6 +78,15 @@ export default function RemindersPage() {
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const getToken = useAuth();
   const clinicId = getBootstrapActiveClinicId(bootstrap);
+  // Staff lifecycle notices are withheld by the server from anyone without this (#116).
+  const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
+  const seesStaffNotices = perms.includes('*') || perms.includes('REMINDER.READ_STAFF_NOTICES');
+  const canCancelAny = perms.includes('*') || perms.includes('REMINDER.CANCEL_ANY');
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const typeFilters = NOTIFICATION_TYPE_FILTERS.filter(
+    (option) => seesStaffNotices || option.value !== 'STAFF',
+  );
 
   const [status, setStatus] = useState('');
   const [channel, setChannel] = useState('');
@@ -166,6 +178,30 @@ export default function RemindersPage() {
     if (clinicId) fetchReminders();
   }, [fetchReminders, clinicId]);
 
+  /** A queued reminder this person scheduled, or anyone's for a manager (#116). */
+  const canCancel = (row: ReminderRow) =>
+    row.status === 'QUEUED' &&
+    row.createdByUserId !== null &&
+    (canCancelAny || row.createdByUserId === bootstrap?.userId);
+
+  const cancelReminder = async (row: ReminderRow) => {
+    if (!clinicId || !getToken) return;
+    setCancellingId(row.id);
+    setCancelError(null);
+    try {
+      const res = await apiFetch(
+        `/clinics/${encodeURIComponent(clinicId)}/reminders/${encodeURIComponent(row.id)}/cancel`,
+        { method: 'POST', getToken },
+      );
+      if (!res.ok) throw new Error(await readApiError(res));
+      await fetchReminders();
+    } catch (e) {
+      setCancelError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
   const columns: GridColDef[] = [
     {
       field: 'createdAt',
@@ -247,6 +283,26 @@ export default function RemindersPage() {
       width: 160,
       valueFormatter: (v) => (v ? new Date(v as string).toLocaleString() : ''),
     },
+    {
+      field: 'actions',
+      headerName: '',
+      width: 110,
+      sortable: false,
+      renderCell: (params) => {
+        const row = params.row as ReminderRow;
+        if (!canCancel(row)) return null;
+        return (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={cancellingId !== null}
+            onClick={() => void cancelReminder(row)}
+          >
+            {cancellingId === row.id ? 'Cancelling…' : 'Cancel'}
+          </Button>
+        );
+      },
+    },
   ];
 
   if (!clinicId) {
@@ -272,10 +328,16 @@ export default function RemindersPage() {
         <AppPageHeader
           eyebrow="Message delivery"
           title="Notifications"
-          description="Review every message the clinic has sent: reminders, portal invites, appointment updates, and staff access notices."
+          description={
+            seesStaffNotices
+              ? 'Review every message the clinic has sent: reminders, portal invites, appointment updates, and staff access notices.'
+              : 'Review the messages the clinic has sent to patients: reminders, portal invites and appointment updates.'
+          }
           helpTitle="How message delivery works"
           helpText="Filter by status, channel, type, or date, then inspect queued, sent, delivered, or failed messages. Failed rows explain what went wrong and what to do about it."
         />
+
+        {cancelError ? <InlineNotice tone="error">{cancelError}</InlineNotice> : null}
 
         {emailNotice ? (
           <InlineNotice tone={emailNotice.tone} live={false}>
@@ -374,7 +436,7 @@ export default function RemindersPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">All types</SelectItem>
-                    {NOTIFICATION_TYPE_FILTERS.map((option) => (
+                    {typeFilters.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
                       </SelectItem>

@@ -108,6 +108,20 @@ whatever classification they liked.
 
 Duplicate review separates looking from acting:
 
+Reminders (#116):
+
+- `REMINDER.READ`: director, manager, doctor, and volunteer. A volunteer who may schedule a
+  reminder may read it back, on the same principle as screening.
+- `REMINDER.CREATE`: doctor and volunteer. The only staff-initiated reminder is the registered
+  follow-up template for a date; there is no free-text outbound route.
+- `REMINDER.READ_STAFF_NOTICES`: director, manager, and doctor. Without it the ledger shows only
+  patient reminders (`recipientType = PATIENT`); invites, role changes and deactivations are about
+  colleagues and stay with the roles that already saw them.
+- Cancelling a queued staff-scheduled reminder needs only `REMINDER.READ` at the route; the service
+  allows the person who scheduled it, or anyone holding `REMINDER.CANCEL_ANY` (director and
+  manager). Reminders a workflow created (finalize, appointments, invites) are never cancellable
+  here: their workflow owns them.
+
 - `PATIENT.DUPLICATE.REVIEW`: system administrator, director, and manager
 - `PATIENT.MERGE`: system administrator only, and only through the wildcard
 

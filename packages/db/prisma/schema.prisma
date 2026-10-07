@@ -928,6 +928,7 @@ model User {
   assignedDoctorNotes             ClinicalNote[]                  @relation("ClinicalNoteAssignedDoctor")
   authoredClinicalNoteAddenda     ClinicalNoteAddendum[]          @relation("ClinicalNoteAddendumAuthor")
   receivedNotifications           Reminder[]                      @relation("ReminderRecipient")
+  createdReminders                Reminder[]                      @relation("ReminderCreatedBy")
 
   @@index([isActive])
 }
@@ -1775,9 +1776,15 @@ model Reminder {
   providerMessageId String?        @db.VarChar(255)
   failureReason     String?        @db.VarChar(255)
 
+  /// The staff member who scheduled this reminder directly (#116). Null for every reminder that is
+  /// a side effect of something else (finalize, appointments, invites); only these can be cancelled
+  /// by staff, because the others are owned by the workflow that created them.
+  createdByUserId String? @db.Uuid
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  createdBy     User?                @relation("ReminderCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   clinic        Clinic?              @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   patient       Patient?             @relation(fields: [patientId], references: [id], onDelete: Cascade)
   recipientUser User?                @relation("ReminderRecipient", fields: [recipientUserId], references: [id], onDelete: SetNull)
@@ -1787,6 +1794,7 @@ model Reminder {
   appointment   Appointment?         @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
 
   @@index([clinicId, scheduledAt])
+  @@index([createdByUserId])
   @@index([status, scheduledAt])
   @@index([patientId])
   @@index([appointmentId])

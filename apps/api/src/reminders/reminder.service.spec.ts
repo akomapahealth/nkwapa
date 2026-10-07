@@ -37,6 +37,8 @@ function createReminder(overrides: Record<string, unknown> = {}) {
 describe('ReminderService', () => {
   let prisma: {
     $queryRaw: jest.Mock;
+    $executeRaw: jest.Mock;
+    $transaction: jest.Mock;
     reminder: {
       create: jest.Mock;
       findMany: jest.Mock;
@@ -45,6 +47,8 @@ describe('ReminderService', () => {
       update: jest.Mock;
     };
     appointment: { findFirst: jest.Mock };
+    patient: { findFirst: jest.Mock };
+    clinic: { findUnique: jest.Mock };
   };
   let auditService: { logWrite: jest.Mock };
   let smsProvider: { send: jest.Mock };
@@ -55,6 +59,8 @@ describe('ReminderService', () => {
   beforeEach(() => {
     prisma = {
       $queryRaw: jest.fn().mockResolvedValue([{ locked: true }]),
+      $executeRaw: jest.fn().mockResolvedValue(0),
+      $transaction: jest.fn(),
       reminder: {
         create: jest.fn(async ({ data }) => createReminder({ ...data, id: 'reminder-1' })),
         findMany: jest.fn(),
@@ -63,7 +69,14 @@ describe('ReminderService', () => {
         update: jest.fn(async ({ where, data }) => createReminder({ id: where.id, ...data })),
       },
       appointment: { findFirst: jest.fn() },
+      patient: { findFirst: jest.fn() },
+      clinic: {
+        findUnique: jest.fn().mockResolvedValue({ name: 'Clinic One', timezone: 'Africa/Accra' }),
+      },
     };
+    prisma.$transaction.mockImplementation((callback: (tx: typeof prisma) => unknown) =>
+      callback(prisma),
+    );
     auditService = { logWrite: jest.fn().mockResolvedValue(undefined) };
     smsProvider = {
       send: jest.fn().mockResolvedValue({ success: true, providerMessageId: 'sms-1' }),
@@ -501,5 +514,193 @@ describe('ReminderService', () => {
     expect(SYSTEM_ACTOR_USER_ID).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     );
+  });
+  // #116: a follow-up reminder a staff member schedules directly for a patient.
+  describe('scheduleStaffFollowUp', () => {
+    const patient = {
+      id: 'patient-1',
+      patientCode: 'NKP-2026-000001',
+      phoneE164: '+233240000000',
+      email: 'ama@example.org',
+      mergedIntoPatientId: null,
+    };
+    const inDays = (days: number) =>
+      new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const params = (followUpDate = inDays(14)) => ({
+      clinicId: 'clinic-1',
+      patientId: 'patient-1',
+      followUpDate,
+      actorUserId: 'volunteer-1',
+      requestId: 'req-1',
+    });
+
+    it('queues the follow-up template on every channel the chart has, and audits each', async () => {
+      prisma.patient.findFirst.mockResolvedValue(patient);
+      const date = inDays(14);
+      const created = await service.scheduleStaffFollowUp(params(date));
+
+      expect(created).toHaveLength(2);
+      const rows = prisma.reminder.create.mock.calls.map(([{ data }]) => data);
+      expect(rows.map((row) => row.channel).sort()).toEqual(['EMAIL', 'SMS']);
+      for (const row of rows) {
+        expect(row).toMatchObject({
+          templateKey: 'FOLLOWUP_REMINDER_V1',
+          clinicId: 'clinic-1',
+          patientId: 'patient-1',
+          encounterId: null,
+          status: 'QUEUED',
+          scheduledAt: new Date(`${date}T00:00:00.000Z`),
+        });
+      }
+      expect(auditService.logWrite).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'REMINDER.CREATE', actorUserId: 'volunteer-1' }),
+      );
+      expect(reminderQueue.add).toHaveBeenCalledTimes(2);
+    });
+
+    it('records a visible failure when the chart has no contact method', async () => {
+      prisma.patient.findFirst.mockResolvedValue({ ...patient, phoneE164: null, email: null });
+      const [row] = await service.scheduleStaffFollowUp(params());
+      expect(prisma.reminder.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ status: 'FAILED', failureReason: 'NO_CONTACT_METHOD' }),
+      });
+      expect(row).toBeDefined();
+      expect(reminderQueue.add).not.toHaveBeenCalled();
+    });
+
+    it('refuses a patient outside the clinic and a merged chart', async () => {
+      prisma.patient.findFirst.mockResolvedValue(null);
+      await expect(service.scheduleStaffFollowUp(params())).rejects.toThrow(
+        'Patient not found for this clinic',
+      );
+      expect(prisma.patient.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'patient-1', primaryClinicId: 'clinic-1' } }),
+      );
+
+      prisma.patient.findFirst.mockResolvedValue({ ...patient, mergedIntoPatientId: 'patient-2' });
+      await expect(service.scheduleStaffFollowUp(params())).rejects.toMatchObject({
+        response: { code: 'PATIENT_MERGED', canonicalPatientId: 'patient-2' },
+      });
+      expect(prisma.reminder.create).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['a past date', () => inDays(-2)],
+      ['a date more than a year out', () => inDays(400)],
+      ['a date that does not exist', () => '2026-02-30'],
+    ])('refuses %s', async (_label, date) => {
+      prisma.patient.findFirst.mockResolvedValue(patient);
+      await expect(service.scheduleStaffFollowUp(params(date()))).rejects.toMatchObject({
+        response: { code: 'VALIDATION_ERROR' },
+      });
+      expect(prisma.reminder.create).not.toHaveBeenCalled();
+    });
+  });
+
+  it('limits the ledger to patient reminders when asked', async () => {
+    prisma.reminder.findMany.mockResolvedValue([]);
+    await service.list({ clinicId: 'clinic-1', patientRemindersOnly: true });
+    expect(prisma.reminder.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ clinicId: 'clinic-1', recipientType: 'PATIENT' }),
+      }),
+    );
+
+    await service.list({ clinicId: 'clinic-1' });
+    expect(prisma.reminder.findMany.mock.calls[1][0].where).not.toHaveProperty('recipientType');
+  });
+  // #116: staff may cancel a reminder they scheduled, while it is still queued.
+  describe('cancelStaffReminder', () => {
+    const staffReminder = (overrides: Record<string, unknown> = {}) =>
+      createReminder({
+        id: 'reminder-9',
+        templateKey: 'FOLLOWUP_REMINDER_V1',
+        appointmentId: null,
+        appointment: null,
+        createdByUserId: 'volunteer-1',
+        status: 'QUEUED',
+        ...overrides,
+      });
+    const cancel = (actorUserId = 'volunteer-1', canCancelAny = false) =>
+      service.cancelStaffReminder({
+        clinicId: 'clinic-1',
+        reminderId: 'reminder-9',
+        actorUserId,
+        canCancelAny,
+        requestId: 'req-1',
+      });
+
+    it('cancels its own queued reminder under the send lock, audits it and removes the job', async () => {
+      prisma.reminder.findFirst.mockResolvedValue(staffReminder());
+      const job = { remove: jest.fn().mockResolvedValue(undefined) };
+      reminderQueue.getJob.mockResolvedValue(job);
+
+      const result = await cancel();
+
+      expect(prisma.$executeRaw).toHaveBeenCalled();
+      expect(prisma.reminder.update).toHaveBeenCalledWith({
+        where: { id: 'reminder-9' },
+        data: { status: 'FAILED', failureReason: 'CANCELLED_BY_STAFF' },
+      });
+      expect(result).toMatchObject({ status: 'FAILED', failureReason: 'CANCELLED_BY_STAFF' });
+      expect(auditService.logWrite).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'REMINDER.CANCEL', actorUserId: 'volunteer-1' }),
+        prisma,
+      );
+      expect(job.remove).toHaveBeenCalled();
+    });
+
+    it("lets a manager cancel a colleague's, but not a volunteer", async () => {
+      prisma.reminder.findFirst.mockResolvedValue(staffReminder());
+      await expect(cancel('volunteer-2')).rejects.toThrow('Only the person who scheduled');
+      await expect(cancel('manager-1', true)).resolves.toMatchObject({ status: 'FAILED' });
+    });
+
+    it.each([
+      ['a reminder a workflow created', { createdByUserId: null }, 'REMINDER_NOT_CANCELLABLE'],
+      ['a reminder already sent', { status: 'SENT' }, 'REMINDER_NOT_QUEUED'],
+    ])('refuses %s', async (_label, overrides, code) => {
+      prisma.reminder.findFirst.mockResolvedValue(staffReminder(overrides));
+      await expect(cancel('volunteer-1', true)).rejects.toMatchObject({ response: { code } });
+      expect(prisma.reminder.update).not.toHaveBeenCalled();
+    });
+
+    it('does not find a reminder from another clinic', async () => {
+      prisma.reminder.findFirst.mockResolvedValue(null);
+      await expect(cancel()).rejects.toThrow('Reminder not found in this clinic');
+      expect(prisma.reminder.findFirst).toHaveBeenCalledWith({
+        where: { id: 'reminder-9', clinicId: 'clinic-1' },
+      });
+    });
+  });
+
+  it('records who scheduled a staff follow-up, and only that path', async () => {
+    prisma.patient.findFirst.mockResolvedValue({
+      id: 'patient-1',
+      patientCode: 'NKP-2026-000001',
+      phoneE164: '+233240000000',
+      email: null,
+      mergedIntoPatientId: null,
+    });
+    await service.scheduleStaffFollowUp({
+      clinicId: 'clinic-1',
+      patientId: 'patient-1',
+      followUpDate: new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10),
+      actorUserId: 'volunteer-1',
+    });
+    expect(prisma.reminder.create.mock.calls[0][0].data.createdByUserId).toBe('volunteer-1');
+
+    prisma.reminder.create.mockClear();
+    await service.scheduleFollowUpReminder({
+      clinicId: 'clinic-1',
+      clinicName: 'Clinic One',
+      patientId: 'patient-1',
+      patientCode: 'NKP-2026-000001',
+      phoneE164: '+233240000000',
+      encounterId: 'encounter-1',
+      followUpDate: new Date(),
+      actorUserId: 'doctor-1',
+    });
+    expect(prisma.reminder.create.mock.calls[0][0].data.createdByUserId).toBeNull();
   });
 });
