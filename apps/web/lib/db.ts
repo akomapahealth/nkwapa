@@ -474,7 +474,7 @@ export interface SyncStateRecord {
 }
 
 /** The clinic-operations views a device keeps its last good copy of. */
-export type OpsCacheKind = 'today-board' | 'my-assigned';
+export type OpsCacheKind = 'today-board' | 'my-assigned' | 'station-board';
 
 /**
  * The last copy of a clinic-operations view this device loaded, so it still renders offline.

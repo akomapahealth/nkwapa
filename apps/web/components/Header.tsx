@@ -35,6 +35,7 @@ import { setStoredActiveClinicId } from '@/lib/bootstrap-storage';
 import { useToast } from '@/components/ui/toast';
 import { SyncStatusBar } from '@/components/sync/SyncStatusBar';
 import { LogOut, Menu, PanelLeft, PanelLeftClose, ShieldCheck, User } from 'lucide-react';
+import { isWebFeatureEnabled } from '@/lib/feature-flags';
 
 export function Header({
   sidebarCollapsed = false,
@@ -66,7 +67,7 @@ export function Header({
   const canSync = hasPermission('SYNC.PUSH') && hasPermission('SYNC.PULL');
   const recoveryAccess = {
     canReviewDuplicates: hasPermission('PATIENT.DUPLICATE.REVIEW'),
-    opsBoardHref: getOpsDestination(perms),
+    opsBoardHref: getOpsDestination(perms, isWebFeatureEnabled('stationWorkflow')),
   };
   const roleLabels = getVisibleRoleLabels(activeMembership?.roles, bootstrap?.globalRoles);
 
