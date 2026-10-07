@@ -34,6 +34,19 @@ The local Dexie store currently covers the core EMR workflow:
 
 This lets the app preserve the most important intake and clinical documentation path even when the network is unstable.
 
+### Who sends a queued change (#162)
+
+Every outbox row records the account that queued it (`ownerUserId`, Dexie v14). Only that account
+ever sends it: on a shared clinic laptop, a change pushed under the next person's token would be
+audited as theirs. Changes another account left on the device are held, excluded from the pill,
+and listed in the sync center attributed to their owner; they can be discarded after confirming,
+never sent by someone else. The outbox is not cleared on sign-out, because an entry that never
+reached the server cannot be recovered.
+
+Rows from before v14 keep the actor that ops writes already recorded; any other old row has no
+knowable owner and is held until an account confirms it as its own ("This is mine, send it"), with
+a warning that the audit trail will name them, or discards it.
+
 ### Station line (#167)
 
 With `FEATURE_STATION_WORKFLOW_ENABLED` on, station readings stay offline-capable and use two

@@ -94,15 +94,6 @@ export interface KnownRisk {
 }
 
 export const KNOWN_RISKS = {
-  'outbox-owner': {
-    title: 'Queued work is not tied to the account that queued it',
-    behaviour:
-      'Signing out clears the active clinic and the portal cache, not the outbox. The next account to open the same clinic on that device sends the earlier account’s queued changes under its own identity.',
-    mitigation:
-      'Deliberate for now: an entry that never reached the server cannot be recovered, so it is not deleted on sign-out. Authorization is not weakened: the server checks every replay against the sending account’s own roles at the clinic, so it is never more powerful than that account. Attribution is what is wrong.',
-    followUp:
-      '#162: Stamp the owner on outbox rows and hold other accounts’ rows in the sync center.',
-  },
   'stranded-clinic': {
     title: 'Work queued for a clinic the account can no longer open is not shown',
     behaviour:
@@ -627,10 +618,35 @@ export const OFFLINE_JOB_SCENARIOS: readonly MatrixScenario[] = [
     scenario: 'An account signs out with work still queued, and another signs in on the device',
     fixture: 'A queued change from account A; account B signs in at the same clinic',
     expected:
-      'Today: the change survives sign-out and is sent under account B, checked against B’s own permissions. See the known risk.',
-    automated: [],
+      'The change is held, never sent under account B. B sees it in the sync center attributed to A and can discard it after confirming; A signing back in sends it. A change from before owners were recorded is held until an account confirms it as its own (#162).',
+    automated: [
+      ref(
+        `${WEB}/sync-replay.test.ts`,
+        "never sends another account's change, and holds it untouched",
+      ),
+      ref(
+        `${WEB}/sync-replay.test.ts`,
+        'drains the held change once its own account signs back in',
+      ),
+      ref(
+        `${WEB}/sync-replay.test.ts`,
+        'holds a change queued before owners were recorded, for every account',
+      ),
+      ref(
+        `${WEB}/sync-replay.test.ts`,
+        'reruns a pass that began before the account was known as that account',
+      ),
+      ref(
+        `${E2E}/outbox-owner.spec.js`,
+        "another account's queued change is held, attributed, and never sent",
+      ),
+      ref(
+        `${E2E}/outbox-owner.spec.js`,
+        'a change with no recorded owner is sent only after it is claimed',
+      ),
+      ref(`${E2E}/outbox-owner.spec.js`, "the owner's own session sends what it queued"),
+    ],
     manual: true,
-    knownRisk: 'outbox-owner',
   },
 
   {

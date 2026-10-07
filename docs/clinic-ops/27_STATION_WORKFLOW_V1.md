@@ -125,8 +125,9 @@ Counselling is online-only, like clinical notes.
 ## Known limits
 
 - Polling, not push: an open station screen re-reads the line every 12 seconds.
-- Shared station laptops: #162 (tie queued changes to the account that queued them) should land
-  before a real clinic turns the flag on.
+- Shared station laptops: each queued change records the account that saved it and only that
+  account sends it (#162), so a reading left by one volunteer is never sent under the next one's
+  login.
 - Which volunteer may write a station's data is enforced in the UI and recorded by the visit and
   audit trail, not refused by the server, so an offline replay is never refused because a claim
   has since moved on.

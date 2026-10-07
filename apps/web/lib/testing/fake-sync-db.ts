@@ -145,6 +145,9 @@ export const EMPTY_PULL = {
   patientPharmacyPreferences: [],
 };
 
+/** The account the fixtures' queued changes belong to, and the one tests sync as (#162). */
+export const OWNER = 'user-1';
+
 export function queuedRow(overrides: Row = {}) {
   return {
     id: 'mutation-1',
@@ -155,6 +158,7 @@ export function queuedRow(overrides: Row = {}) {
     payloadJson: JSON.stringify({ encounterId: 'encounter-1' }),
     idempotencyKey: 'idempotency-1',
     createdAt: '2026-08-20T12:00:00.000Z',
+    ownerUserId: OWNER,
     ...overrides,
   };
 }

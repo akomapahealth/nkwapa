@@ -1,4 +1,5 @@
 import {
+  OWNER,
   mockSyncFetch,
   pulled,
   pushBodies,
@@ -47,7 +48,7 @@ describe('sync push rejections', () => {
   it('keeps the refused row and records why, so the reason survives a refresh', async () => {
     mockSyncFetch([[validationFailure]]);
 
-    const result = await syncNow({ clinicId: bundle.clinicId });
+    const result = await syncNow({ clinicId: bundle.clinicId, currentUserId: OWNER });
 
     expect(result.rejected).toEqual([
       expect.objectContaining({ id: bundle.id, conflictType: 'VALIDATION_ERROR' }),
@@ -70,7 +71,7 @@ describe('sync push rejections', () => {
   it('still pulls, so one refused change cannot cut the device off from inbound data', async () => {
     const fetchMock = mockSyncFetch([[validationFailure]]);
 
-    const result = await syncNow({ clinicId: bundle.clinicId });
+    const result = await syncNow({ clinicId: bundle.clinicId, currentUserId: OWNER });
 
     expect(result.success).toBe(true);
     expect(pulled(fetchMock)).toBe(true);
@@ -79,10 +80,10 @@ describe('sync push rejections', () => {
 
   it('does not re-send a blocked change until the clinician asks', async () => {
     mockSyncFetch([[validationFailure]]);
-    await syncNow({ clinicId: bundle.clinicId });
+    await syncNow({ clinicId: bundle.clinicId, currentUserId: OWNER });
 
     const second = mockSyncFetch();
-    await syncNow({ clinicId: bundle.clinicId });
+    await syncNow({ clinicId: bundle.clinicId, currentUserId: OWNER });
 
     expect(pushBodies(second)).toEqual([]);
     expect(await db.outbox.get(bundle.id)).toBeDefined();
@@ -91,7 +92,7 @@ describe('sync push rejections', () => {
   it('still removes rows the server applied', async () => {
     mockSyncFetch([[{ id: bundle.id, status: 'APPLIED' }]]);
 
-    const result = await syncNow({ clinicId: bundle.clinicId });
+    const result = await syncNow({ clinicId: bundle.clinicId, currentUserId: OWNER });
 
     expect(result.success).toBe(true);
     expect(await db.outbox.get(bundle.id)).toBeUndefined();
@@ -102,7 +103,7 @@ describe('sync push rejections', () => {
       [{ id: bundle.id, status: 'CONFLICT', conflictType: 'CONFLICT_FINALIZED', retryable: false }],
     ]);
 
-    const result = await syncNow({ clinicId: bundle.clinicId });
+    const result = await syncNow({ clinicId: bundle.clinicId, currentUserId: OWNER });
 
     expect(result.success).toBe(true);
     expect(result.conflicts).toHaveLength(1);
@@ -122,7 +123,7 @@ describe('sync push rejections', () => {
       ],
     ]);
 
-    await syncNow({ clinicId: bundle.clinicId });
+    await syncNow({ clinicId: bundle.clinicId, currentUserId: OWNER });
 
     expect((await db.outbox.get(bundle.id))?.syncState).toBe('blocked');
   });
@@ -137,7 +138,7 @@ describe('a retryable failure does not stop the pass', () => {
       [{ id: bundle.id, status: 'ERROR', conflictType: 'FORBIDDEN', retryable: true }],
     ]);
 
-    const result = await syncNow({ clinicId: bundle.clinicId });
+    const result = await syncNow({ clinicId: bundle.clinicId, currentUserId: OWNER });
 
     expect(result).toMatchObject({ success: true, retryingCount: 1, blockedCount: 0 });
     expect(result.rejected).toBeUndefined();
@@ -145,7 +146,7 @@ describe('a retryable failure does not stop the pass', () => {
     expect(pulled(fetchMock)).toBe(true);
 
     const next = mockSyncFetch([[{ id: bundle.id, status: 'APPLIED' }]]);
-    await syncNow({ clinicId: bundle.clinicId });
+    await syncNow({ clinicId: bundle.clinicId, currentUserId: OWNER });
     expect(pushBodies(next)[0]?.map((row) => row.id)).toEqual([bundle.id]);
     expect(await db.outbox.get(bundle.id)).toBeUndefined();
   });
@@ -154,7 +155,7 @@ describe('a retryable failure does not stop the pass', () => {
     // An older server that does not send `retryable` must not have its silence read as optimism.
     mockSyncFetch([[{ id: bundle.id, status: 'ERROR', conflictType: 'APPLICATION_ERROR' }]]);
 
-    const result = await syncNow({ clinicId: bundle.clinicId });
+    const result = await syncNow({ clinicId: bundle.clinicId, currentUserId: OWNER });
 
     expect(result.rejected).toHaveLength(1);
     expect((await db.outbox.get(bundle.id))?.syncState).toBe('blocked');

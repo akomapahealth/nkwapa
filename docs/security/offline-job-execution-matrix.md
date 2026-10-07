@@ -77,7 +77,7 @@ A device holds work for a clinic other than the one now active, or for a clinic 
 | CLN-02 | The clinician switches back to the clinic the work was queued under | Rows for clinic A and clinic B; B synced first, then A selected | Clinic A’s rows drain on the first pass after it becomes active, pushed to clinic A only. | Web outbox and sync engine (`apps/web/lib/outbox.ts`, `sync.ts`) | high | Unit, Manual |
 | CLN-03 | The account lost its seat at the clinic its queued work belongs to | A push or pull naming a clinic where the account holds no role, or only a patient role | The route refuses it with 403 before the service runs. The device keeps every row and says "This account cannot sync at this clinic". | Sync API (`apps/api/src/sync`) | high | Unit, Manual |
 | CLN-04 | A push carries a change whose own clinic is not the clinic pushed to | One mutation naming clinic B inside a push to clinic A, beside a valid one | CLINIC_MISMATCH for that change, nothing recorded under clinic A, and the rest of the push applies. | Sync API (`apps/api/src/sync`) | high | Unit |
-| CLN-05 | An account signs out with work still queued, and another signs in on the device | A queued change from account A; account B signs in at the same clinic | Today: the change survives sign-out and is sent under account B, checked against B’s own permissions. See the known risk. (Known risk: Queued work is not tied to the account that queued it.) | Web outbox and sync engine (`apps/web/lib/outbox.ts`, `sync.ts`) | high | Manual |
+| CLN-05 | An account signs out with work still queued, and another signs in on the device | A queued change from account A; account B signs in at the same clinic | The change is held, never sent under account B. B sees it in the sync center attributed to A and can discard it after confirming; A signing back in sends it. A change from before owners were recorded is held until an account confirms it as its own (#162). | Web outbox and sync engine (`apps/web/lib/outbox.ts`, `sync.ts`) | high | Unit, E2E, Manual |
 | CLN-06 | The account loses its seat at a clinic entirely while work is queued there | A queued change for clinic A; the account’s only role at A removed by an admin | Clinic A is no longer offered, and its change is kept on the device but not shown. See the known risk. (Known risk: Work queued for a clinic the account can no longer open is not shown.) | Web outbox and sync engine (`apps/web/lib/outbox.ts`, `sync.ts`) | medium | Manual |
 
 ## Cross-tenant isolation
@@ -111,14 +111,6 @@ BullMQ workers: reminders, research exports, and the maintenance sweeps. Each is
 | JOB-09 | A send or export outlasts the job transaction | A slow SMTP relay, or a large clinic export pushed to a slow GitHub | Today the transaction can expire after the external call succeeded; see the known risk. (Known risk: External calls run inside the job transaction.) | Research export worker (`apps/api/src/research`) | high | Manual |
 
 ## Known risks
-
-### Queued work is not tied to the account that queued it
-
-Scenarios: CLN-05.
-
-- **Today:** Signing out clears the active clinic and the portal cache, not the outbox. The next account to open the same clinic on that device sends the earlier account’s queued changes under its own identity.
-- **Why it is tolerated:** Deliberate for now: an entry that never reached the server cannot be recovered, so it is not deleted on sign-out. Authorization is not weakened: the server checks every replay against the sending account’s own roles at the clinic, so it is never more powerful than that account. Attribution is what is wrong.
-- **Next:** #162: Stamp the owner on outbox rows and hold other accounts’ rows in the sync center.
 
 ### Work queued for a clinic the account can no longer open is not shown
 
@@ -211,6 +203,14 @@ The exact tests behind each row.
   - Unit: `apps/web/lib/sync-replay.test.ts` "keeps every change when the server refuses the clinic itself"
 - **CLN-04** A push carries a change whose own clinic is not the clinic pushed to
   - Unit: `apps/api/src/sync/sync.service.spec.ts` "refuses a change queued under another clinic without recording it, and applies the rest"
+- **CLN-05** An account signs out with work still queued, and another signs in on the device
+  - Unit: `apps/web/lib/sync-replay.test.ts` "never sends another account's change, and holds it untouched"
+  - Unit: `apps/web/lib/sync-replay.test.ts` "drains the held change once its own account signs back in"
+  - Unit: `apps/web/lib/sync-replay.test.ts` "holds a change queued before owners were recorded, for every account"
+  - Unit: `apps/web/lib/sync-replay.test.ts` "reruns a pass that began before the account was known as that account"
+  - E2E: `apps/web/e2e/outbox-owner.spec.js` "another account's queued change is held, attributed, and never sent"
+  - E2E: `apps/web/e2e/outbox-owner.spec.js` "a change with no recorded owner is sent only after it is claimed"
+  - E2E: `apps/web/e2e/outbox-owner.spec.js` "the owner's own session sends what it queued"
 - **TEN-01** A replayed payload points at another clinic’s data
   - Unit: `apps/api/src/sync/sync.service.spec.ts` "refuses an encounter payload that names another clinic"
   - Unit: `apps/api/src/sync/sync.service.spec.ts` "refuses an encounter whose patient belongs to another clinic"

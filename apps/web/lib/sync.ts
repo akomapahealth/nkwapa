@@ -4,7 +4,7 @@ import type { Table } from 'dexie';
 import { db, type OutboxRecord } from './db';
 import type { SyncPullResponseDto } from './sync-types';
 import { applyAdherencePull } from './medication-adherence';
-import { outboxFailureUpdate, outboxSyncState } from './outbox';
+import { isOwnedBy, outboxFailureUpdate, outboxSyncState } from './outbox';
 import { describeSyncTransportFailure, type SyncTransportFailure } from './sync-conflicts';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
@@ -34,6 +34,13 @@ const listeners: Set<SyncStatusListener> = new Set();
 const passListeners: Set<SyncPassListener> = new Set();
 const inFlightByClinic = new Map<string, Promise<SyncResult>>();
 const rerunRequestedByClinic = new Set<string>();
+/**
+ * The newest options each clinic's sync was asked for. A rerun uses these, not the first caller's:
+ * on a reload the clinic is known before the account is, so the first pass runs with no account and
+ * the call that arrives with one is coalesced into it (#162). Rerunning with the stale options left
+ * the account's own changes unsent until something else triggered a sync.
+ */
+const latestOptionsByClinic = new Map<string, SyncNowOptions>();
 
 export function onSyncStatusChange(listener: SyncStatusListener): () => void {
   listeners.add(listener);
@@ -51,6 +58,11 @@ function notifyStatus(status: SyncStatus, message?: string, detail?: string) {
 
 export interface SyncNowOptions {
   clinicId: string;
+  /**
+   * The signed-in account (#162). Only its own queued changes are sent; another account's, and
+   * changes with no recorded owner, stay held on the device. Null sends nothing and still pulls.
+   */
+  currentUserId: string | null;
   getAccessToken?: () => Promise<string | null>;
 }
 
@@ -71,6 +83,8 @@ export interface SyncResult {
   blockedCount?: number;
   /** Every change for the clinic that will be re-sent automatically. */
   retryingCount?: number;
+  /** Changes for the clinic held because another account (or no known account) queued them. */
+  heldCount?: number;
 }
 
 /** True when the call finished and nothing for the clinic is still waiting. */
@@ -143,10 +157,14 @@ function toFailure(row: PushResultRow): SyncMutationFailure {
  */
 async function pushOutbox(
   clinicId: string,
+  currentUserId: string | null,
   headers: Record<string, string>,
 ): Promise<Pick<SyncResult, 'conflicts' | 'rejected'>> {
   const queued = await db.outbox.where('clinicId').equals(clinicId).sortBy('createdAt');
-  const sendable = queued.filter((row) => outboxSyncState(row) !== 'blocked');
+  // Another account's change is never sent under this account's token (#162).
+  const sendable = queued.filter(
+    (row) => isOwnedBy(row, currentUserId) && outboxSyncState(row) !== 'blocked',
+  );
   const conflicts: SyncMutationFailure[] = [];
   const rejected: SyncMutationFailure[] = [];
 
@@ -198,11 +216,13 @@ function toPushMutation(row: OutboxRecord) {
   };
 }
 
-async function countOutstanding(clinicId: string) {
+async function countOutstanding(clinicId: string, currentUserId: string | null) {
   const rows = await db.outbox.where('clinicId').equals(clinicId).toArray();
+  const own = rows.filter((row) => isOwnedBy(row, currentUserId));
   return {
-    blockedCount: rows.filter((row) => outboxSyncState(row) === 'blocked').length,
-    retryingCount: rows.filter((row) => outboxSyncState(row) === 'retrying').length,
+    blockedCount: own.filter((row) => outboxSyncState(row) === 'blocked').length,
+    retryingCount: own.filter((row) => outboxSyncState(row) === 'retrying').length,
+    heldCount: rows.length - own.length,
   };
 }
 
@@ -218,7 +238,7 @@ function plural(count: number, one: string, many: string) {
  * refused row stays queued and visible instead, and the rest of the sync carries on.
  */
 async function performSync(options: SyncNowOptions): Promise<SyncResult> {
-  const { clinicId, getAccessToken } = options;
+  const { clinicId, currentUserId, getAccessToken } = options;
   notifyStatus('syncing');
 
   try {
@@ -230,9 +250,9 @@ async function performSync(options: SyncNowOptions): Promise<SyncResult> {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const pushed = await pushOutbox(clinicId, headers);
+    const pushed = await pushOutbox(clinicId, currentUserId, headers);
     await pullIntoLocalStore(clinicId, headers);
-    const outstanding = await countOutstanding(clinicId);
+    const outstanding = await countOutstanding(clinicId, currentUserId);
 
     if (outstanding.blockedCount > 0) {
       notifyStatus(
@@ -335,6 +355,7 @@ async function pullIntoLocalStore(clinicId: string, headers: Record<string, stri
  * A concurrent caller requests one follow-up pass after the current push/pull completes.
  */
 export function syncNow(options: SyncNowOptions): Promise<SyncResult> {
+  latestOptionsByClinic.set(options.clinicId, options);
   const inFlight = inFlightByClinic.get(options.clinicId);
   if (inFlight) {
     rerunRequestedByClinic.add(options.clinicId);
@@ -348,7 +369,7 @@ export function syncNow(options: SyncNowOptions): Promise<SyncResult> {
 
     do {
       rerunRequestedByClinic.delete(options.clinicId);
-      result = await performSync(options);
+      result = await performSync(latestOptionsByClinic.get(options.clinicId) ?? options);
       if (result.conflicts) conflicts.push(...result.conflicts);
       if (result.rejected) rejected.push(...result.rejected);
     } while (result.success && rerunRequestedByClinic.has(options.clinicId));

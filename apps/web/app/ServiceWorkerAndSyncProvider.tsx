@@ -10,6 +10,7 @@ import {
   useState,
 } from 'react';
 import { db } from '@/lib/db';
+import { setOutboxOwner } from '@/lib/outbox';
 import { purgePortalCacheExcept } from '@/lib/portal-cache';
 import { syncNow, onSyncStatusChange, type SyncResult, type SyncStatus } from '@/lib/sync';
 import { automaticSyncRetryDelay } from '@/lib/sync-retry';
@@ -42,12 +43,14 @@ export function ServiceWorkerAndSyncProvider({
   getAccessToken,
   activeClinicId,
   currentUserId,
+  currentUserName,
 }: {
   children: React.ReactNode;
   getAccessToken?: () => Promise<string | null>;
   activeClinicId?: string | null;
   /** The signed-in account, once bootstrap has resolved it. */
   currentUserId?: string | null;
+  currentUserName?: string | null;
 }) {
   const [isOnline, setIsOnline] = useState(
     typeof navigator !== 'undefined' ? navigator.onLine : true,
@@ -90,6 +93,17 @@ export function ServiceWorkerAndSyncProvider({
     void purgePortalCacheExcept(db, currentUserId);
   }, [currentUserId]);
 
+  /*
+    Every change queued from here on is this account's, and only this account sends it (#162).
+    The outbox is deliberately not cleared when the account changes: an entry that never reached
+    the server cannot be recovered. It is held for its owner instead.
+  */
+  useEffect(() => {
+    setOutboxOwner(
+      currentUserId ? { userId: currentUserId, displayName: currentUserName ?? undefined } : null,
+    );
+  }, [currentUserId, currentUserName]);
+
   useEffect(() => {
     const unsub = onSyncStatusChange((status, message, detail) => {
       setSyncStatus(status);
@@ -105,12 +119,14 @@ export function ServiceWorkerAndSyncProvider({
     async (clinicId: string) => {
       return syncNow({
         clinicId,
+        currentUserId: currentUserId ?? null,
         getAccessToken,
       });
     },
-    [getAccessToken],
+    [currentUserId, getAccessToken],
   );
 
+  // Also when the account changes: an owner signing back in drains what they left held.
   useEffect(() => {
     if (!isOnline || !activeClinicId) return;
     void doSyncNow(activeClinicId);
