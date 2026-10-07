@@ -1,5 +1,8 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayNotEmpty,
+  ArrayUnique,
+  IsArray,
   IsBoolean,
   IsEnum,
   IsIn,
@@ -22,6 +25,7 @@ import {
   TemperatureSource,
   TobaccoUseStatus,
 } from '@prisma/client';
+import { VITALS_SECTIONS, type VitalsSection } from '@nkwapa/db';
 import { ToOptionalNumber, ToSanitizedString } from '../../common/validation';
 
 export const TEMPERATURE_UNITS = ['CELSIUS', 'FAHRENHEIT'] as const;
@@ -165,8 +169,20 @@ export class TobaccoScreeningInputDto {
 }
 
 export class EncounterVitalsBundleDto {
-  @IsIn([1])
-  schemaVersion!: 1;
+  /**
+   * 1 replaces the whole Vitals row (and is still what older outboxes hold). 2 writes only the
+   * groups named in `sections`, so two stations can record into the same row without erasing
+   * each other.
+   */
+  @IsIn([1, 2])
+  schemaVersion!: 1 | 2;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayUnique()
+  @IsIn(VITALS_SECTIONS, { each: true })
+  sections?: VitalsSection[];
 
   @IsUUID()
   encounterId!: string;

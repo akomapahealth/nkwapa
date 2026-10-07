@@ -26,6 +26,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { buildKeysetWhere, decodeKeysetCursor, encodeKeysetCursor } from '../common/keyset-cursor';
 import {
+  RecordGlucoseReadingDto,
   UpsertDiabetesClinicianPlanDto,
   UpsertDiabetesScreeningDto,
 } from './dto/diabetes-screening.dto';
@@ -266,6 +267,124 @@ export class DiabetesScreeningService {
     });
 
     return this.toResponse(screening, actor.roles, clinicId);
+  }
+
+  /**
+   * Record today's glucose reading and nothing else.
+   *
+   * Written for the glucose station: the reading, its timing and when it was taken. Every other
+   * interview column is left as it is, so a volunteer who started the guided interview elsewhere
+   * keeps their answers. The derived columns are recomputed from the new reading together with the
+   * stored answers they also depend on (urgent symptoms, a current foot wound), because a reading
+   * can change both whether the screen is suspicious and whether the visit needs a clinician.
+   */
+  async recordGlucoseReading(
+    clinicId: string,
+    encounterId: string,
+    actor: DiabetesActor,
+    dto: RecordGlucoseReadingDto,
+    metadata: DiabetesRequestMetadata = {},
+    screeningId?: string,
+  ) {
+    this.assertWritePermission(actor.roles, clinicId);
+    const collectedAt = this.validateCollectionTime(dto.collectedAt);
+
+    const screening = await this.prisma.$transaction(async (tx) => {
+      const encounter = await tx.encounter.findUnique({
+        where: { id: encounterId },
+        select: { clinicId: true, status: true },
+      });
+      if (!encounter || encounter.clinicId !== clinicId) {
+        throw new NotFoundException('Encounter not found in the active clinic');
+      }
+      if (encounter.status === EncounterStatus.FINALIZED) {
+        throw new ConflictException({
+          code: 'CONFLICT_FINALIZED',
+          message: 'Cannot modify diabetes screening for a finalized encounter',
+          existingStatus: encounter.status,
+        });
+      }
+
+      const existing = await tx.diabetesScreening.findUnique({ where: { encounterId } });
+      const escalation = deriveDiabetesEscalation({
+        urgentSymptoms: existing?.urgentSymptoms ?? [],
+        currentFootWound: existing?.currentFootWound,
+        glucoseMgDl: dto.glucoseMgDl,
+        glucoseContext: dto.glucoseType,
+      });
+      const reading = {
+        glucoseMgDl: dto.glucoseMgDl,
+        glucoseType: dto.glucoseType,
+        collectedAt,
+        derivedSuspicion: evaluateGlucoseSuspicion(dto.glucoseMgDl, dto.glucoseType),
+        urgentReviewRequired: escalation.urgentReviewRequired,
+        urgentReviewReasons: escalation.reasons,
+      };
+
+      const saved = await tx.diabetesScreening.upsert({
+        where: { encounterId },
+        create: {
+          id: screeningId ?? randomUUID(),
+          clinicId,
+          encounterId,
+          authoredByUserId: actor.userId,
+          ...reading,
+        },
+        update: reading,
+        include: this.contextInclude(),
+      });
+
+      await tx.auditEvent.create({
+        data: {
+          clinicId,
+          actorUserId: actor.userId,
+          action: 'DIABETES_SCREENING.GLUCOSE_READING',
+          entityType: 'DiabetesScreening',
+          entityId: saved.id,
+          beforeJson: existing ? JSON.stringify(existing) : undefined,
+          afterJson: JSON.stringify(saved),
+          requestId: metadata.requestId ?? randomUUID(),
+          ipAddress: metadata.ipAddress,
+          userAgent: metadata.userAgent,
+        },
+      });
+      if (metadata.syncMutation) {
+        await tx.syncMutation.create({
+          data: {
+            clinicId,
+            entityType: metadata.syncMutation.entityType,
+            entityId: metadata.syncMutation.entityId,
+            operation: 'UPSERT',
+            idempotencyKey: metadata.syncMutation.idempotencyKey,
+            status: 'APPLIED',
+          },
+        });
+      }
+      return saved;
+    });
+
+    return this.toResponse(screening, actor.roles, clinicId);
+  }
+
+  /** Cherry-picked for the same reason as `validateSyncPayload`: the outbox addresses the write. */
+  async validateGlucoseReadingSyncPayload(
+    payload: Record<string, unknown>,
+    fallbackCollectedAt: string,
+  ): Promise<RecordGlucoseReadingDto> {
+    const dto = plainToInstance(RecordGlucoseReadingDto, {
+      glucoseMgDl: payload.glucoseMgDl ?? null,
+      glucoseType: payload.glucoseType ?? 'UNKNOWN',
+      collectedAt: payload.collectedAt ?? fallbackCollectedAt,
+    });
+    const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
+    if (errors.length) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Glucose reading validation failed',
+        fieldErrors: this.flattenValidationErrors(errors),
+      });
+    }
+    return dto;
   }
 
   /**

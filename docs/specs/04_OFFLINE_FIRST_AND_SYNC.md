@@ -34,6 +34,22 @@ The local Dexie store currently covers the core EMR workflow:
 
 This lets the app preserve the most important intake and clinical documentation path even when the network is unstable.
 
+### Station line (#167)
+
+With `FEATURE_STATION_WORKFLOW_ENABLED` on, station readings stay offline-capable and use two
+write shapes that change only what the station recorded:
+
+- `encounter_vitals_bundle` **schemaVersion 2** names its `sections` (`bloodPressure`,
+  `anthropometry`, `otherVitals`, `notes`) and the server writes only those groups. Two stations
+  record into one Vitals row; a full-row write from either would erase the other's reading, in
+  whichever order the devices replay. Version 1 bundles are still a full replace.
+- `diabetes_glucose_reading` writes today's reading without touching the guided interview.
+
+Claiming, releasing, handing on, moving and cancelling a patient are **online-only**: who holds a
+patient is decided by the server, never by a queued claim. The counselling record is online-only,
+like clinical notes. The station board is cached (`ops_cache` kind `station-board`) so it still
+renders offline. See `docs/clinic-ops/27_STATION_WORKFLOW_V1.md`.
+
 ---
 
 ## Sync Protocol

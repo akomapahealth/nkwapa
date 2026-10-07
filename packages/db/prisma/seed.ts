@@ -42,6 +42,7 @@ import {
   terminalVisitStart,
 } from '../index';
 import { seedDrugs } from './seed-drugs';
+import { DEFAULT_CLINIC_STATIONS } from '../src/clinic-stations';
 
 /**
  * Seeding creates the organization and clinic that a tenant context is later derived from, so it
@@ -808,6 +809,23 @@ function assertSeedMetadataIsValid(input: Parameters<typeof evaluateClinicMetada
   process.exit(1);
 }
 
+/**
+ * Every clinic runs the station line (#167). A reseed must not duplicate stations, and a clinic a
+ * manager has already reshaped keeps its own order: `skipDuplicates` leaves any existing
+ * (clinicId, sortOrder) alone.
+ */
+async function seedClinicStations(prisma: PrismaClient) {
+  const clinics = await prisma.clinic.findMany({ select: { id: true } });
+  for (const clinic of clinics) {
+    const existing = await prisma.clinicStation.count({ where: { clinicId: clinic.id } });
+    if (existing > 0) continue;
+    await prisma.clinicStation.createMany({
+      data: DEFAULT_CLINIC_STATIONS.map((station) => ({ ...station, clinicId: clinic.id })),
+      skipDuplicates: true,
+    });
+  }
+}
+
 async function main() {
   const organizationName = process.env.SEED_ORGANIZATION_NAME ?? CLINIC_DEFAULT_ORGANIZATION_NAME;
   const organizationSlug = process.env.SEED_ORGANIZATION_SLUG ?? CLINIC_DEFAULT_ORGANIZATION_SLUG;
@@ -1398,6 +1416,8 @@ async function main() {
         : 'SEED_SAMPLE_APPOINTMENTS=true but NATIONAL_ID_ENCRYPTION_KEY not set; skipping.',
     );
   }
+
+  await seedClinicStations(prisma);
 
   console.log({
     organizationId: organization.id,

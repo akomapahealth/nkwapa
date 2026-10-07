@@ -1,4 +1,11 @@
-import { computeBmi, toCelsius, type TemperatureUnit } from '@nkwapa/db/clinical-measurements';
+import {
+  computeBmi,
+  toCelsius,
+  VITALS_SECTION_FIELDS,
+  VITALS_SECTION_INPUT_FIELDS,
+  type TemperatureUnit,
+  type VitalsSection,
+} from '@nkwapa/db/clinical-measurements';
 import { db, type TobaccoScreeningRecord, type VitalsRecord } from './db';
 import { buildOutboxMutation, SYNC_OPERATION } from './outbox';
 
@@ -181,8 +188,16 @@ export async function saveClinicalMeasurementsOffline(params: {
   markTobaccoReviewed?: boolean;
   existingVitals?: VitalsRecord | null;
   existingTobacco?: TobaccoScreeningRecord | null;
+  /**
+   * Write only these groups of the Vitals row (a schemaVersion 2 bundle), leaving the rest as the
+   * server has them. A station records only its own measurements; without this, its save would
+   * erase what another station recorded into the same row. Tobacco is not written in this mode.
+   */
+  sections?: VitalsSection[];
 }) {
-  const errors = validateClinicalMeasurements(params.vitals, params.tobacco);
+  const sections = params.sections?.length ? params.sections : null;
+  const allErrors = validateClinicalMeasurements(params.vitals, params.tobacco);
+  const errors = sections ? pickSectionErrors(allErrors, sections) : allErrors;
   if (Object.keys(errors).length) return { errors };
 
   const now = new Date().toISOString();
@@ -199,7 +214,7 @@ export async function saveClinicalMeasurementsOffline(params: {
     params.existingTobacco.readinessToQuit !== params.tobacco.readinessToQuit ||
     params.existingTobacco.counselingGiven !== params.tobacco.counselingGiven;
 
-  const vitalsRecord: VitalsRecord = {
+  const fullVitalsRecord: VitalsRecord = {
     id: params.vitalsId,
     clinicId: params.clinicId,
     encounterId: params.encounterId,
@@ -241,44 +256,64 @@ export async function saveClinicalMeasurementsOffline(params: {
     createdAt: params.existingTobacco?.createdAt ?? now,
     updatedAt: now,
   };
+  const vitalsPayload: Record<string, unknown> = {
+    systolicBp: optionalNumber(params.vitals.systolicBp),
+    diastolicBp: optionalNumber(params.vitals.diastolicBp),
+    bpSite: params.vitals.bpSite || null,
+    bpSiteOther: params.vitals.bpSiteOther.trim() || null,
+    patientPosition: params.vitals.patientPosition || null,
+    patientPositionOther: params.vitals.patientPositionOther.trim() || null,
+    cuffSize: params.vitals.cuffSize || null,
+    cuffSizeOther: params.vitals.cuffSizeOther.trim() || null,
+    pulseBpm: optionalNumber(params.vitals.pulseBpm),
+    temperatureValue,
+    // The unit is meaningless without a reading, and the server requires temperature
+    // value, unit, and source to be all present or all absent. Sending the form's
+    // default unit alongside an empty temperature produced a mutation the server
+    // rejected on every retry, which left the outbox permanently undrainable.
+    temperatureUnit: temperatureValue == null ? null : params.vitals.temperatureUnit,
+    temperatureSource: params.vitals.temperatureSource || null,
+    temperatureSourceOther: params.vitals.temperatureSourceOther.trim() || null,
+    respiratoryRate: optionalNumber(params.vitals.respiratoryRate),
+    spo2Percent: optionalNumber(params.vitals.spo2Percent),
+    weightKg: optionalNumber(params.vitals.weightKg),
+    heightCm: optionalNumber(params.vitals.heightCm),
+    notes: params.vitals.notes.trim() || null,
+  };
+  const vitalsRecord = sections
+    ? mergeSections(params.existingVitals, fullVitalsRecord, sections)
+    : fullVitalsRecord;
   const outbox = buildOutboxMutation({
     clinicId: params.clinicId,
     entityType: 'encounter_vitals_bundle',
     entityId: params.vitalsId,
     operation: SYNC_OPERATION.UPSERT,
-    payloadJson: {
-      schemaVersion: 1,
-      encounterId: params.encounterId,
-      vitalsId: params.vitalsId,
-      tobaccoScreeningId: params.tobaccoScreeningId,
-      vitals: {
-        systolicBp: optionalNumber(params.vitals.systolicBp),
-        diastolicBp: optionalNumber(params.vitals.diastolicBp),
-        bpSite: params.vitals.bpSite || null,
-        bpSiteOther: params.vitals.bpSiteOther.trim() || null,
-        patientPosition: params.vitals.patientPosition || null,
-        patientPositionOther: params.vitals.patientPositionOther.trim() || null,
-        cuffSize: params.vitals.cuffSize || null,
-        cuffSizeOther: params.vitals.cuffSizeOther.trim() || null,
-        pulseBpm: optionalNumber(params.vitals.pulseBpm),
-        temperatureValue,
-        // The unit is meaningless without a reading, and the server requires temperature
-        // value, unit, and source to be all present or all absent. Sending the form's
-        // default unit alongside an empty temperature produced a mutation the server
-        // rejected on every retry, which left the outbox permanently undrainable.
-        temperatureUnit: temperatureValue == null ? null : params.vitals.temperatureUnit,
-        temperatureSource: params.vitals.temperatureSource || null,
-        temperatureSourceOther: params.vitals.temperatureSourceOther.trim() || null,
-        respiratoryRate: optionalNumber(params.vitals.respiratoryRate),
-        spo2Percent: optionalNumber(params.vitals.spo2Percent),
-        weightKg: optionalNumber(params.vitals.weightKg),
-        heightCm: optionalNumber(params.vitals.heightCm),
-        notes: params.vitals.notes.trim() || null,
-      },
-      tobacco: params.tobacco,
-      markTobaccoReviewed: params.markTobaccoReviewed === true,
-    },
+    payloadJson: sections
+      ? {
+          schemaVersion: 2,
+          sections,
+          encounterId: params.encounterId,
+          vitalsId: params.vitalsId,
+          vitals: pickSectionInput(vitalsPayload, sections),
+        }
+      : {
+          schemaVersion: 1,
+          encounterId: params.encounterId,
+          vitalsId: params.vitalsId,
+          tobaccoScreeningId: params.tobaccoScreeningId,
+          vitals: vitalsPayload,
+          tobacco: params.tobacco,
+          markTobaccoReviewed: params.markTobaccoReviewed === true,
+        },
   });
+
+  if (sections) {
+    await db.transaction('rw', db.vitals, db.outbox, async () => {
+      await db.vitals.put(vitalsRecord);
+      await db.outbox.add(outbox);
+    });
+    return { errors: {}, vitalsRecord, tobaccoRecord: null, outbox };
+  }
 
   await db.transaction('rw', db.vitals, db.tobacco_screenings, db.outbox, async () => {
     await db.vitals.put(vitalsRecord);
@@ -286,4 +321,51 @@ export async function saveClinicalMeasurementsOffline(params: {
     await db.outbox.add(outbox);
   });
   return { errors: {}, vitalsRecord, tobaccoRecord, outbox };
+}
+
+function pickSectionErrors(
+  errors: ClinicalFieldErrors,
+  sections: VitalsSection[],
+): ClinicalFieldErrors {
+  const allowed = new Set<string>(
+    sections.flatMap((section) => VITALS_SECTION_INPUT_FIELDS[section]),
+  );
+  return Object.fromEntries(Object.entries(errors).filter(([field]) => allowed.has(field)));
+}
+
+function pickSectionInput(
+  vitals: Record<string, unknown>,
+  sections: VitalsSection[],
+): Record<string, unknown> {
+  const allowed = new Set<string>(
+    sections.flatMap((section) => VITALS_SECTION_INPUT_FIELDS[section]),
+  );
+  // The server derives BMI; sending it in a sectioned bundle would only be ignored.
+  allowed.delete('bmi');
+  return Object.fromEntries(Object.entries(vitals).filter(([field]) => allowed.has(field)));
+}
+
+/** The local copy after a sectioned save: the stored row with only the saved groups replaced. */
+function mergeSections(
+  existing: VitalsRecord | null | undefined,
+  saved: VitalsRecord,
+  sections: VitalsSection[],
+): VitalsRecord {
+  const merged: Record<string, unknown> = { ...(existing ?? {}), ...pickIdentity(saved) };
+  for (const section of sections) {
+    for (const field of VITALS_SECTION_FIELDS[section]) {
+      merged[field] = saved[field as keyof VitalsRecord];
+    }
+  }
+  return merged as unknown as VitalsRecord;
+}
+
+function pickIdentity(record: VitalsRecord) {
+  return {
+    id: record.id,
+    clinicId: record.clinicId,
+    encounterId: record.encounterId,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+  };
 }

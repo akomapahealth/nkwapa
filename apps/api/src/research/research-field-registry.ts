@@ -115,6 +115,8 @@ export const RESEARCH_OUT_OF_SCOPE_MODELS: Record<string, string> = {
   PatientSelfReport: 'Home readings are exported through research_measurements.csv.',
   PatientCheckIn: 'Exported directly into research_ops_checkins.csv.',
   PatientAssignment: 'Exported directly into research_ops_assignments.csv.',
+  CounsellingRecord:
+    'Advice given to one identified patient, mostly free text, with the same audience as clinical note content; not exported in v1 (#167).',
   Appointment: 'Exported directly into research_appointments.csv.',
   AppointmentRequest: 'Exported directly into research_appointments.csv.',
   PatientConsent:
@@ -126,6 +128,9 @@ export const RESEARCH_OUT_OF_SCOPE_MODELS: Record<string, string> = {
   Clinic: 'Programme infrastructure. The clinic reaches the pack as a salted key.',
   Organization: 'Programme infrastructure above the clinic.',
   StaffShift: 'A staff roster, which describes how the clinic runs rather than any patient.',
+  ClinicStation: 'How a clinic lays out its station line, not a record about anyone.',
+  PatientStationVisit:
+    'Where a patient was in the station line and which volunteer held them: queue operations, with staff identifiers throughout.',
   Reminder:
     'Outbound message scheduling. Its clinical driver, the follow-up date, is exported with the plan that set it.',
   Conversation: 'Staff messaging, which carries free text and no subject data by design.',

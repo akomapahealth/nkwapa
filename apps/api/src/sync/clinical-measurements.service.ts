@@ -18,7 +18,13 @@ import {
   TemperatureSource,
   TobaccoUseStatus,
 } from '@prisma/client';
-import { computeBmi, toCelsius } from '@nkwapa/db';
+import {
+  computeBmi,
+  toCelsius,
+  VITALS_SECTION_FIELDS,
+  VITALS_SECTION_INPUT_FIELDS,
+  type VitalsSection,
+} from '@nkwapa/db';
 import { PERMISSIONS } from '../auth/constants/permissions';
 import { assertPermissionAtClinic } from '../auth/clinic-roles';
 import { PrismaService } from '../prisma/prisma.service';
@@ -61,11 +67,14 @@ type NormalizedTobacco = {
 };
 
 export type NormalizedEncounterVitalsBundle = {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   encounterId: string;
   vitalsId: string;
   tobaccoScreeningId?: string;
-  vitals: NormalizedVitals;
+  /** Null replaces the whole row (schemaVersion 1); otherwise only these groups are written. */
+  sections: VitalsSection[] | null;
+  /** Every column for a full replace; only the named groups' columns for a sectioned write. */
+  vitals: Partial<NormalizedVitals>;
   tobacco?: NormalizedTobacco;
   markTobaccoReviewed: boolean;
 };
@@ -220,7 +229,9 @@ export class ClinicalMeasurementsService {
     });
     if (errors.length) this.throwValidationErrors(errors);
 
-    const vitals = this.normalizeVitals(dto.vitals, requireBloodPressureContext);
+    const sections = this.resolveSections(dto);
+    const normalized = this.normalizeVitals(dto.vitals, requireBloodPressureContext);
+    const vitals = sections ? this.pickSections(normalized, sections) : normalized;
     if (dto.markTobaccoReviewed && (!dto.tobacco || !dto.tobaccoScreeningId)) {
       this.throwFieldError('markTobaccoReviewed', 'Tobacco answers are required before review');
     }
@@ -229,14 +240,53 @@ export class ClinicalMeasurementsService {
     }
 
     return {
-      schemaVersion: 1,
+      schemaVersion: dto.schemaVersion,
       encounterId: dto.encounterId,
       vitalsId: dto.vitalsId,
       tobaccoScreeningId: dto.tobaccoScreeningId,
+      sections,
       vitals,
       tobacco: dto.tobacco ? this.normalizeTobacco(dto.tobacco) : undefined,
       markTobaccoReviewed: dto.markTobaccoReviewed === true,
     };
+  }
+
+  /**
+   * A sectioned bundle must name its groups, and must not carry a value for any other group: a
+   * value there would be silently dropped, which is worse for the volunteer than a refusal.
+   */
+  private resolveSections(dto: EncounterVitalsBundleDto): VitalsSection[] | null {
+    if (dto.schemaVersion === 1) {
+      if (dto.sections) {
+        this.throwFieldError('sections', 'sections require schemaVersion 2');
+      }
+      return null;
+    }
+    if (!dto.sections?.length) {
+      this.throwFieldError('sections', 'A schemaVersion 2 bundle must name the sections it writes');
+    }
+    const allowed = new Set<string>(
+      dto.sections.flatMap((section) => VITALS_SECTION_INPUT_FIELDS[section]),
+    );
+    for (const [field, value] of Object.entries(dto.vitals ?? {})) {
+      if (value != null && !allowed.has(field)) {
+        this.throwFieldError(`vitals.${field}`, 'Field is not part of the sections being saved');
+      }
+    }
+    return dto.sections;
+  }
+
+  private pickSections(
+    vitals: NormalizedVitals,
+    sections: VitalsSection[],
+  ): Partial<NormalizedVitals> {
+    const picked: Partial<Record<keyof NormalizedVitals, unknown>> = {};
+    for (const section of sections) {
+      for (const field of VITALS_SECTION_FIELDS[section]) {
+        picked[field] = vitals[field];
+      }
+    }
+    return picked as Partial<NormalizedVitals>;
   }
 
   private normalizeVitals(

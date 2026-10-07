@@ -5,6 +5,7 @@ import {
   Building2,
   CalendarDays,
   ClipboardList,
+  ListOrdered,
   CopyCheck,
   FileEdit,
   LayoutDashboard,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import type { WhoAmIResponse } from '@/lib/bootstrap-context';
+import { isWebFeatureEnabled, type WebFeatureFlag } from '@/lib/feature-flags';
 
 export interface AppNavItem {
   href: string;
@@ -33,6 +35,10 @@ export interface AppNavItem {
    * the API refuses them anything wider, so showing the link would only lead to a refusal.
    */
   systemAdminOnly?: boolean;
+  /** Shown only while this feature flag is on. */
+  featureFlag?: WebFeatureFlag;
+  /** Hidden while this feature flag is on: the surface it replaces. */
+  hiddenWhenFlag?: WebFeatureFlag;
 }
 
 export interface AppNavSection {
@@ -67,12 +73,23 @@ const NAV_SECTIONS: AppNavSection[] = [
         requiresClinic: true,
       },
       {
+        href: '/stations',
+        label: 'Stations',
+        description: 'Take the next patient at your station.',
+        icon: ListOrdered,
+        permission: 'OPS.STATION.WORK',
+        requiresClinic: true,
+        featureFlag: 'stationWorkflow',
+      },
+      {
         href: '/my/assigned',
         label: 'My Assigned',
         description: 'Your next tasks.',
         icon: Stethoscope,
         permission: 'OPS.ASSIGNMENT.READ_SELF',
         requiresClinic: true,
+        // Nobody is assigned a patient in the station line (#167).
+        hiddenWhenFlag: 'stationWorkflow',
       },
       {
         href: '/queues',
@@ -204,6 +221,12 @@ export function getAccessibleNavSections(bootstrap: WhoAmIResponse | null): AppN
   return NAV_SECTIONS.map((section) => ({
     ...section,
     items: section.items.filter((item) => {
+      if (item.featureFlag && !isWebFeatureEnabled(item.featureFlag)) {
+        return false;
+      }
+      if (item.hiddenWhenFlag && isWebFeatureEnabled(item.hiddenWhenFlag)) {
+        return false;
+      }
       if (item.systemAdminOnly && !isSystemAdmin) {
         return false;
       }

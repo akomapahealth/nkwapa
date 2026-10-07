@@ -203,6 +203,7 @@ const LOCAL_TABLE_BY_ENTITY: Partial<Record<string, string>> = {
   vitals: 'vitals',
   encounter_vitals_bundle: 'vitals',
   diabetes_screening: 'diabetes_screenings',
+  diabetes_glucose_reading: 'diabetes_screenings',
   hypertension_assessment: 'hypertension_assessments',
   care_plan: 'care_plans',
   patient_consent: 'patient_consents',

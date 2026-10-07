@@ -8,6 +8,7 @@ import { getOpsDestination } from './ops';
 import { opsWriteFeedback, type OpsFeedback } from './ops-writes';
 import { generateClientId } from './outbox';
 import { useOpsWrite } from './use-ops-write';
+import { isWebFeatureEnabled } from './feature-flags';
 
 export interface CheckInPatient {
   id: string;
@@ -26,7 +27,7 @@ export function usePatientCheckIn(clinicId: string | null) {
   const router = useRouter();
   const submit = useOpsWrite(clinicId);
   const permissions = useBootstrap()?.bootstrap?.effectivePermissionsForActiveClinic ?? [];
-  const opsDestination = getOpsDestination(permissions);
+  const opsDestination = getOpsDestination(permissions, isWebFeatureEnabled('stationWorkflow'));
   const [busyPatientId, setBusyPatientId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<OpsFeedback | null>(null);
 
@@ -36,7 +37,12 @@ export function usePatientCheckIn(clinicId: string | null) {
     const boardLink = opsDestination
       ? {
           href: opsDestination,
-          label: opsDestination === '/today' ? 'Open Today board' : 'Open my assignments',
+          label:
+            opsDestination === '/today'
+              ? 'Open Today board'
+              : opsDestination === '/stations'
+                ? 'Open stations'
+                : 'Open my assignments',
         }
       : undefined;
 

@@ -9,6 +9,7 @@ import { Prisma } from '@prisma/client';
 import { OpsService } from './ops.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { StationService } from './station.service';
 
 function createPrismaMock() {
   const prisma = {
@@ -236,20 +237,89 @@ describe('OpsService', () => {
   let service: OpsService;
   let prisma: ReturnType<typeof createPrismaMock>;
   let auditService: { logWrite: jest.Mock };
+  let stationService: { queueAtFirstStation: jest.Mock; releaseForShiftEnd: jest.Mock };
+  const originalStationFlag = process.env.FEATURE_STATION_WORKFLOW_ENABLED;
 
   beforeEach(async () => {
+    delete process.env.FEATURE_STATION_WORKFLOW_ENABLED;
     prisma = createPrismaMock();
     auditService = { logWrite: jest.fn().mockResolvedValue(undefined) };
+    stationService = {
+      queueAtFirstStation: jest.fn().mockResolvedValue({ id: 'visit-1' }),
+      releaseForShiftEnd: jest.fn().mockResolvedValue(0),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OpsService,
         { provide: PrismaService, useValue: prisma },
         { provide: AuditService, useValue: auditService },
+        { provide: StationService, useValue: stationService },
       ],
     }).compile();
 
     service = module.get(OpsService);
+  });
+
+  afterAll(() => {
+    if (originalStationFlag === undefined) delete process.env.FEATURE_STATION_WORKFLOW_ENABLED;
+    else process.env.FEATURE_STATION_WORKFLOW_ENABLED = originalStationFlag;
+  });
+
+  // #167. The flag decides who owns a checked-in patient: the station line or a manager.
+  describe('station workflow', () => {
+    beforeEach(() => {
+      process.env.FEATURE_STATION_WORKFLOW_ENABLED = 'true';
+    });
+
+    it('queues a new check-in at the first station inside the check-in transaction', async () => {
+      await service.createCheckIn('clinic-1', 'user-1', { patientId: 'patient-1' });
+
+      expect(stationService.queueAtFirstStation).toHaveBeenCalledWith(
+        prisma,
+        expect.objectContaining({ clinicId: 'clinic-1', checkInId: 'checkin-1' }),
+        expect.anything(),
+      );
+    });
+
+    it('refuses manager assignment and assigned intake', async () => {
+      await expect(
+        service.createAssignment('clinic-1', 'manager-1', {
+          patientCheckInId: 'checkin-1',
+          assignedVolunteerId: 'user-1',
+          assignedDoctorId: 'doctor-1',
+        }),
+      ).rejects.toMatchObject({ response: { code: 'STATION_WORKFLOW_ACTIVE' } });
+      await expect(service.startIntake('clinic-1', 'checkin-1', 'user-1')).rejects.toMatchObject({
+        response: { code: 'STATION_WORKFLOW_ACTIVE' },
+      });
+      await expect(
+        service.reassignAssignment('clinic-1', 'assignment-1', 'manager-1', {
+          assignedVolunteerId: 'user-1',
+          assignedDoctorId: 'doctor-1',
+          reason: 'x',
+        }),
+      ).rejects.toMatchObject({ response: { code: 'STATION_WORKFLOW_ACTIVE' } });
+    });
+
+    it('does not queue anyone while the flag is off', async () => {
+      delete process.env.FEATURE_STATION_WORKFLOW_ENABLED;
+      await service.createCheckIn('clinic-1', 'user-1', { patientId: 'patient-1' });
+      expect(stationService.queueAtFirstStation).not.toHaveBeenCalled();
+    });
+  });
+
+  it('releases held station claims and clears the station on shift check-out', async () => {
+    await service.checkOut('clinic-1', 'shift-1', 'user-1');
+
+    expect(prisma.staffShift.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ stationId: null }) }),
+    );
+    expect(stationService.releaseForShiftEnd).toHaveBeenCalledWith(
+      prisma,
+      { clinicId: 'clinic-1', userId: 'user-1', actorUserId: 'user-1' },
+      expect.anything(),
+    );
   });
 
   it('checks staff in and audits the shift', async () => {
@@ -730,7 +800,11 @@ describe('OpsService', () => {
 
         expect(prisma.staffShift.update).toHaveBeenCalledWith(
           expect.objectContaining({
-            data: { status: 'CLOSED', checkedOutAt: new Date('2026-03-21T11:00:00.000Z') },
+            data: {
+              status: 'CLOSED',
+              checkedOutAt: new Date('2026-03-21T11:00:00.000Z'),
+              stationId: null,
+            },
           }),
         );
         expect(prisma.syncMutation.create).toHaveBeenCalledTimes(1);

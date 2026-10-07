@@ -30,6 +30,7 @@ import {
   type TobaccoFormValues,
   type VitalsFormValues,
 } from '@/lib/clinical-measurements';
+import type { VitalsSection } from '@nkwapa/db/clinical-measurements';
 import { cn } from '@/lib/utils';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { isFullySynced } from '@/lib/sync';
@@ -117,6 +118,12 @@ interface VitalsFormProps {
   canEdit?: boolean;
   onSaved?: () => void;
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>;
+  /**
+   * Show and save only these groups (#167). A station records its own measurements into the
+   * encounter's shared Vitals row, so its save must not touch the other groups. Tobacco is a whole
+   * -encounter screen and is left out in this mode.
+   */
+  sections?: VitalsSection[];
 }
 
 function SectionHeading({
@@ -317,7 +324,9 @@ export function VitalsForm({
   canEdit = true,
   onSaved,
   saveRef,
+  sections,
 }: VitalsFormProps) {
+  const shows = (section: VitalsSection) => !sections || sections.includes(section);
   const vitalsId = useRef(initialData?.id ?? generateClinicalId());
   const tobaccoScreeningId = useRef(initialTobaccoData?.id ?? generateClinicalId());
   const [vitals, setVitals] = useState(() => initialVitals(initialData));
@@ -378,6 +387,7 @@ export function VitalsForm({
           markTobaccoReviewed,
           existingVitals: localVitals,
           existingTobacco: localTobacco,
+          sections,
         });
         if (Object.keys(result.errors).length) {
           setErrors(result.errors);
@@ -391,7 +401,7 @@ export function VitalsForm({
         }
         setErrors({});
         setLocalVitals(result.vitalsRecord ?? null);
-        setLocalTobacco(result.tobaccoRecord ?? null);
+        if (!sections) setLocalTobacco(result.tobaccoRecord ?? null);
         if (isOnline) {
           const syncResult = await syncNow(clinicId);
           setStatus(
@@ -423,6 +433,7 @@ export function VitalsForm({
       localTobacco,
       localVitals,
       onSaved,
+      sections,
       syncNow,
       tobacco,
       vitals,
@@ -473,264 +484,281 @@ export function VitalsForm({
   return (
     <Card>
       <CardHeader className="space-y-2">
-        <h2 className="font-heading text-xl font-semibold">Vitals and tobacco screening</h2>
+        <h2 className="font-heading text-xl font-semibold">
+          {sections ? 'Measurements' : 'Vitals and tobacco screening'}
+        </h2>
         <p className="max-w-3xl text-sm text-muted-foreground">
           Units are explicit, BMI is calculated from kilograms and centimeters, and every save is
           available offline.
         </p>
       </CardHeader>
       <CardContent className="space-y-5">
-        <section className="space-y-5 rounded-lg border border-border bg-background p-4 sm:p-6">
-          <SectionHeading
-            icon={HeartPulse}
-            title="Blood Pressure"
-            description="Record the reading and measurement context together."
-          />
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {numberField('systolicBp', 'Systolic BP (mmHg)', { placeholder: '120' })}
-            {numberField('diastolicBp', 'Diastolic BP (mmHg)', { placeholder: '80' })}
-            <SelectField
-              id="bpSite"
-              label="Measurement site"
-              value={vitals.bpSite}
-              options={BP_SITES}
-              onChange={(value) => updateVital('bpSite', value)}
-              error={errors.bpSite}
-              optional
+        {shows('bloodPressure') ? (
+          <section className="space-y-5 rounded-lg border border-border bg-background p-4 sm:p-6">
+            <SectionHeading
+              icon={HeartPulse}
+              title="Blood Pressure"
+              description="Record the reading and measurement context together."
             />
-            {vitals.bpSite === 'OTHER' ? (
-              <div className="space-y-2">
-                <Label htmlFor="bpSiteOther">Other site</Label>
-                <Input
-                  id="bpSiteOther"
-                  value={vitals.bpSiteOther}
-                  onChange={(event) => updateVital('bpSiteOther', event.target.value)}
-                  className="h-11"
-                  aria-invalid={Boolean(errors.bpSiteOther)}
-                />
-                <FieldError id="bpSiteOther-error" message={errors.bpSiteOther} />
-              </div>
-            ) : null}
-            <SelectField
-              id="patientPosition"
-              label="Patient position"
-              value={vitals.patientPosition}
-              options={PATIENT_POSITIONS}
-              onChange={(value) => updateVital('patientPosition', value)}
-              error={errors.patientPosition}
-              optional
-            />
-            {vitals.patientPosition === 'OTHER' ? (
-              <div className="space-y-2">
-                <Label htmlFor="patientPositionOther">Other position</Label>
-                <Input
-                  id="patientPositionOther"
-                  value={vitals.patientPositionOther}
-                  onChange={(event) => updateVital('patientPositionOther', event.target.value)}
-                  className="h-11"
-                  aria-invalid={Boolean(errors.patientPositionOther)}
-                />
-                <FieldError id="patientPositionOther-error" message={errors.patientPositionOther} />
-              </div>
-            ) : null}
-            <SelectField
-              id="cuffSize"
-              label="Cuff size"
-              value={vitals.cuffSize}
-              options={CUFF_SIZES}
-              onChange={(value) => updateVital('cuffSize', value)}
-              error={errors.cuffSize}
-              optional
-            />
-            {vitals.cuffSize === 'OTHER' ? (
-              <div className="space-y-2">
-                <Label htmlFor="cuffSizeOther">Other cuff size</Label>
-                <Input
-                  id="cuffSizeOther"
-                  value={vitals.cuffSizeOther}
-                  onChange={(event) => updateVital('cuffSizeOther', event.target.value)}
-                  className="h-11"
-                  aria-invalid={Boolean(errors.cuffSizeOther)}
-                />
-                <FieldError id="cuffSizeOther-error" message={errors.cuffSizeOther} />
-              </div>
-            ) : null}
-          </div>
-        </section>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {numberField('systolicBp', 'Systolic BP (mmHg)', { placeholder: '120' })}
+              {numberField('diastolicBp', 'Diastolic BP (mmHg)', { placeholder: '80' })}
+              <SelectField
+                id="bpSite"
+                label="Measurement site"
+                value={vitals.bpSite}
+                options={BP_SITES}
+                onChange={(value) => updateVital('bpSite', value)}
+                error={errors.bpSite}
+                optional
+              />
+              {vitals.bpSite === 'OTHER' ? (
+                <div className="space-y-2">
+                  <Label htmlFor="bpSiteOther">Other site</Label>
+                  <Input
+                    id="bpSiteOther"
+                    value={vitals.bpSiteOther}
+                    onChange={(event) => updateVital('bpSiteOther', event.target.value)}
+                    className="h-11"
+                    aria-invalid={Boolean(errors.bpSiteOther)}
+                  />
+                  <FieldError id="bpSiteOther-error" message={errors.bpSiteOther} />
+                </div>
+              ) : null}
+              <SelectField
+                id="patientPosition"
+                label="Patient position"
+                value={vitals.patientPosition}
+                options={PATIENT_POSITIONS}
+                onChange={(value) => updateVital('patientPosition', value)}
+                error={errors.patientPosition}
+                optional
+              />
+              {vitals.patientPosition === 'OTHER' ? (
+                <div className="space-y-2">
+                  <Label htmlFor="patientPositionOther">Other position</Label>
+                  <Input
+                    id="patientPositionOther"
+                    value={vitals.patientPositionOther}
+                    onChange={(event) => updateVital('patientPositionOther', event.target.value)}
+                    className="h-11"
+                    aria-invalid={Boolean(errors.patientPositionOther)}
+                  />
+                  <FieldError
+                    id="patientPositionOther-error"
+                    message={errors.patientPositionOther}
+                  />
+                </div>
+              ) : null}
+              <SelectField
+                id="cuffSize"
+                label="Cuff size"
+                value={vitals.cuffSize}
+                options={CUFF_SIZES}
+                onChange={(value) => updateVital('cuffSize', value)}
+                error={errors.cuffSize}
+                optional
+              />
+              {vitals.cuffSize === 'OTHER' ? (
+                <div className="space-y-2">
+                  <Label htmlFor="cuffSizeOther">Other cuff size</Label>
+                  <Input
+                    id="cuffSizeOther"
+                    value={vitals.cuffSizeOther}
+                    onChange={(event) => updateVital('cuffSizeOther', event.target.value)}
+                    className="h-11"
+                    aria-invalid={Boolean(errors.cuffSizeOther)}
+                  />
+                  <FieldError id="cuffSizeOther-error" message={errors.cuffSizeOther} />
+                </div>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
 
-        <section className="space-y-5 rounded-lg border border-border bg-background p-4 sm:p-6">
-          <SectionHeading
-            icon={Thermometer}
-            title="Other Measurements"
-            description="Capture pulse, breathing, oxygen saturation, and temperature."
-          />
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {numberField('pulseBpm', 'Pulse (bpm)', { placeholder: '72' })}
-            {numberField('respiratoryRate', 'Respiratory rate (/min)', { placeholder: '16' })}
-            {numberField('spo2Percent', 'SpO₂ (%)', { placeholder: '98' })}
-            <div className="space-y-2">
-              <Label htmlFor="temperatureValue">
-                Temperature ({vitals.temperatureUnit === 'CELSIUS' ? '°C' : '°F'})
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="temperatureValue"
-                  type="number"
-                  inputMode="decimal"
-                  step="0.1"
-                  value={vitals.temperatureValue}
-                  onChange={(event) => updateVital('temperatureValue', event.target.value)}
-                  className="h-11 min-w-0"
-                  aria-invalid={Boolean(errors.temperatureValue)}
-                  aria-describedby={errors.temperatureValue ? 'temperatureValue-error' : undefined}
-                />
-                <Select
-                  value={vitals.temperatureUnit}
-                  onValueChange={(value: 'CELSIUS' | 'FAHRENHEIT') =>
-                    setVitals((current) => ({ ...current, temperatureUnit: value }))
-                  }
+        {shows('otherVitals') ? (
+          <section className="space-y-5 rounded-lg border border-border bg-background p-4 sm:p-6">
+            <SectionHeading
+              icon={Thermometer}
+              title="Other Measurements"
+              description="Capture pulse, breathing, oxygen saturation, and temperature."
+            />
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {numberField('pulseBpm', 'Pulse (bpm)', { placeholder: '72' })}
+              {numberField('respiratoryRate', 'Respiratory rate (/min)', { placeholder: '16' })}
+              {numberField('spo2Percent', 'SpO₂ (%)', { placeholder: '98' })}
+              <div className="space-y-2">
+                <Label htmlFor="temperatureValue">
+                  Temperature ({vitals.temperatureUnit === 'CELSIUS' ? '°C' : '°F'})
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="temperatureValue"
+                    type="number"
+                    inputMode="decimal"
+                    step="0.1"
+                    value={vitals.temperatureValue}
+                    onChange={(event) => updateVital('temperatureValue', event.target.value)}
+                    className="h-11 min-w-0"
+                    aria-invalid={Boolean(errors.temperatureValue)}
+                    aria-describedby={
+                      errors.temperatureValue ? 'temperatureValue-error' : undefined
+                    }
+                  />
+                  <Select
+                    value={vitals.temperatureUnit}
+                    onValueChange={(value: 'CELSIUS' | 'FAHRENHEIT') =>
+                      setVitals((current) => ({ ...current, temperatureUnit: value }))
+                    }
+                  >
+                    <SelectTrigger aria-label="Temperature unit" className="h-11 w-24">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CELSIUS">°C</SelectItem>
+                      <SelectItem value="FAHRENHEIT">°F</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <FieldError id="temperatureValue-error" message={errors.temperatureValue} />
+              </div>
+              <SelectField
+                id="temperatureSource"
+                label="Temperature source"
+                value={vitals.temperatureSource}
+                options={TEMPERATURE_SOURCES}
+                onChange={(value) => updateVital('temperatureSource', value)}
+                error={errors.temperatureSource}
+                optional
+              />
+              {vitals.temperatureSource === 'OTHER' ? (
+                <div className="space-y-2">
+                  <Label htmlFor="temperatureSourceOther">Other temperature source</Label>
+                  <Input
+                    id="temperatureSourceOther"
+                    value={vitals.temperatureSourceOther}
+                    onChange={(event) => updateVital('temperatureSourceOther', event.target.value)}
+                    className="h-11"
+                    aria-invalid={Boolean(errors.temperatureSourceOther)}
+                  />
+                  <FieldError
+                    id="temperatureSourceOther-error"
+                    message={errors.temperatureSourceOther}
+                  />
+                </div>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
+
+        {shows('anthropometry') ? (
+          <section className="space-y-5 rounded-lg border border-border bg-background p-4 sm:p-6">
+            <SectionHeading
+              icon={Ruler}
+              title="Anthropometrics"
+              description="BMI is derived from canonical weight and height."
+            />
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {numberField('weightKg', 'Weight (kg)', { step: '0.1', placeholder: '70' })}
+              {numberField('heightCm', 'Height (cm)', { step: '0.1', placeholder: '170' })}
+              <div className="space-y-2">
+                <Label>BMI (kg/m²)</Label>
+                <div
+                  className="flex h-11 items-center rounded-md border bg-muted/40 px-3 text-sm font-medium"
+                  aria-live="polite"
                 >
-                  <SelectTrigger aria-label="Temperature unit" className="h-11 w-24">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="CELSIUS">°C</SelectItem>
-                    <SelectItem value="FAHRENHEIT">°F</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <FieldError id="temperatureValue-error" message={errors.temperatureValue} />
-            </div>
-            <SelectField
-              id="temperatureSource"
-              label="Temperature source"
-              value={vitals.temperatureSource}
-              options={TEMPERATURE_SOURCES}
-              onChange={(value) => updateVital('temperatureSource', value)}
-              error={errors.temperatureSource}
-              optional
-            />
-            {vitals.temperatureSource === 'OTHER' ? (
-              <div className="space-y-2">
-                <Label htmlFor="temperatureSourceOther">Other temperature source</Label>
-                <Input
-                  id="temperatureSourceOther"
-                  value={vitals.temperatureSourceOther}
-                  onChange={(event) => updateVital('temperatureSourceOther', event.target.value)}
-                  className="h-11"
-                  aria-invalid={Boolean(errors.temperatureSourceOther)}
-                />
-                <FieldError
-                  id="temperatureSourceOther-error"
-                  message={errors.temperatureSourceOther}
-                />
-              </div>
-            ) : null}
-          </div>
-        </section>
-
-        <section className="space-y-5 rounded-lg border border-border bg-background p-4 sm:p-6">
-          <SectionHeading
-            icon={Ruler}
-            title="Anthropometrics"
-            description="BMI is derived from canonical weight and height."
-          />
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {numberField('weightKg', 'Weight (kg)', { step: '0.1', placeholder: '70' })}
-            {numberField('heightCm', 'Height (cm)', { step: '0.1', placeholder: '170' })}
-            <div className="space-y-2">
-              <Label>BMI (kg/m²)</Label>
-              <div
-                className="flex h-11 items-center rounded-md border bg-muted/40 px-3 text-sm font-medium"
-                aria-live="polite"
-              >
-                {bmi ?? 'Calculated after weight and height'}
+                  {bmi ?? 'Calculated after weight and height'}
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        ) : null}
 
-        <section className="space-y-5 rounded-lg border border-border bg-background p-4 sm:p-6">
-          <SectionHeading
-            icon={Cigarette}
-            title="Tobacco Use"
-            description="Not assessed remains distinct from a negative response."
-          />
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <SelectField
-              id="smokingStatus"
-              label="Smoking status"
-              value={tobacco.smokingStatus}
-              options={TOBACCO_USE_STATUSES}
-              onChange={(value) => updateTobacco('smokingStatus', value)}
+        {!sections ? (
+          <section className="space-y-5 rounded-lg border border-border bg-background p-4 sm:p-6">
+            <SectionHeading
+              icon={Cigarette}
+              title="Tobacco Use"
+              description="Not assessed remains distinct from a negative response."
             />
-            <SelectField
-              id="smokelessTobaccoStatus"
-              label="Smokeless tobacco"
-              value={tobacco.smokelessTobaccoStatus}
-              options={TOBACCO_USE_STATUSES}
-              onChange={(value) => updateTobacco('smokelessTobaccoStatus', value)}
-            />
-            <SelectField
-              id="passiveExposure"
-              label="Passive exposure"
-              value={tobacco.passiveExposure}
-              options={SCREENING_ANSWERS}
-              onChange={(value) => updateTobacco('passiveExposure', value)}
-            />
-            <SelectField
-              id="readinessToQuit"
-              label="Readiness to quit"
-              value={tobacco.readinessToQuit}
-              options={READINESS_OPTIONS}
-              onChange={(value) => updateTobacco('readinessToQuit', value)}
-            />
-            <SelectField
-              id="counselingGiven"
-              label="Counseling given"
-              value={tobacco.counselingGiven}
-              options={SCREENING_ANSWERS}
-              onChange={(value) => updateTobacco('counselingGiven', value)}
-            />
-          </div>
-          <div
-            className={cn(
-              'rounded-lg border p-4 text-sm',
-              localTobacco?.reviewedAt
-                ? 'border-primary/30 bg-primary/5'
-                : 'border-border/70 bg-muted/30',
-            )}
-          >
-            {localTobacco?.reviewPending
-              ? 'Tobacco review is pending sync.'
-              : localTobacco?.reviewedAt
-                ? `Reviewed ${new Date(localTobacco.reviewedAt).toLocaleString()}.`
-                : 'This tobacco screening has not been explicitly reviewed.'}
-          </div>
-        </section>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <SelectField
+                id="smokingStatus"
+                label="Smoking status"
+                value={tobacco.smokingStatus}
+                options={TOBACCO_USE_STATUSES}
+                onChange={(value) => updateTobacco('smokingStatus', value)}
+              />
+              <SelectField
+                id="smokelessTobaccoStatus"
+                label="Smokeless tobacco"
+                value={tobacco.smokelessTobaccoStatus}
+                options={TOBACCO_USE_STATUSES}
+                onChange={(value) => updateTobacco('smokelessTobaccoStatus', value)}
+              />
+              <SelectField
+                id="passiveExposure"
+                label="Passive exposure"
+                value={tobacco.passiveExposure}
+                options={SCREENING_ANSWERS}
+                onChange={(value) => updateTobacco('passiveExposure', value)}
+              />
+              <SelectField
+                id="readinessToQuit"
+                label="Readiness to quit"
+                value={tobacco.readinessToQuit}
+                options={READINESS_OPTIONS}
+                onChange={(value) => updateTobacco('readinessToQuit', value)}
+              />
+              <SelectField
+                id="counselingGiven"
+                label="Counseling given"
+                value={tobacco.counselingGiven}
+                options={SCREENING_ANSWERS}
+                onChange={(value) => updateTobacco('counselingGiven', value)}
+              />
+            </div>
+            <div
+              className={cn(
+                'rounded-lg border p-4 text-sm',
+                localTobacco?.reviewedAt
+                  ? 'border-primary/30 bg-primary/5'
+                  : 'border-border/70 bg-muted/30',
+              )}
+            >
+              {localTobacco?.reviewPending
+                ? 'Tobacco review is pending sync.'
+                : localTobacco?.reviewedAt
+                  ? `Reviewed ${new Date(localTobacco.reviewedAt).toLocaleString()}.`
+                  : 'This tobacco screening has not been explicitly reviewed.'}
+            </div>
+          </section>
+        ) : null}
 
-        <section className="space-y-2 rounded-lg border border-border bg-background p-4 sm:p-6">
-          <div className="flex items-center gap-2">
-            <Activity className="h-5 w-5 text-primary" aria-hidden="true" />
-            <Label htmlFor="notes" className="text-base font-semibold">
-              Notes
-            </Label>
-          </div>
-          <Textarea
-            id="notes"
-            value={vitals.notes}
-            onChange={(event) => updateVital('notes', event.target.value)}
-            maxLength={2000}
-            rows={4}
-            aria-invalid={Boolean(errors.notes)}
-            aria-describedby={errors.notes ? 'notes-error' : 'notes-help'}
-          />
-          <div id="notes-help" className="flex justify-between text-xs text-muted-foreground">
-            <span>Optional clinical context. No automated diagnosis is generated.</span>
-            <span>{vitals.notes.length}/2000</span>
-          </div>
-          <FieldError id="notes-error" message={errors.notes} />
-        </section>
+        {shows('notes') ? (
+          <section className="space-y-2 rounded-lg border border-border bg-background p-4 sm:p-6">
+            <div className="flex items-center gap-2">
+              <Activity className="h-5 w-5 text-primary" aria-hidden="true" />
+              <Label htmlFor="notes" className="text-base font-semibold">
+                Notes
+              </Label>
+            </div>
+            <Textarea
+              id="notes"
+              value={vitals.notes}
+              onChange={(event) => updateVital('notes', event.target.value)}
+              maxLength={2000}
+              rows={4}
+              aria-invalid={Boolean(errors.notes)}
+              aria-describedby={errors.notes ? 'notes-error' : 'notes-help'}
+            />
+            <div id="notes-help" className="flex justify-between text-xs text-muted-foreground">
+              <span>Optional clinical context. No automated diagnosis is generated.</span>
+              <span>{vitals.notes.length}/2000</span>
+            </div>
+            <FieldError id="notes-error" message={errors.notes} />
+          </section>
+        ) : null}
 
         {status ? (
           <p
@@ -746,14 +774,16 @@ export function VitalsForm({
           </p>
         ) : null}
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => void handleButtonSave(true)}
-            disabled={saving}
-          >
-            Mark tobacco reviewed
-          </Button>
+          {!sections ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void handleButtonSave(true)}
+              disabled={saving}
+            >
+              Mark tobacco reviewed
+            </Button>
+          ) : null}
           <Button type="button" onClick={() => void handleButtonSave(false)} disabled={saving}>
             {saving ? 'Saving…' : 'Save measurements'}
           </Button>

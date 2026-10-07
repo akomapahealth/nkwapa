@@ -54,7 +54,12 @@ export class DashboardService {
     if (isDoctor) {
       const pendingClinicalNoteCosigns = isApiFeatureEnabled('clinicalNotes')
         ? await this.prisma.clinicalNote.count({
-            where: { clinicId, status: 'PENDING_COSIGN', assignedDoctorId: userId },
+            where: {
+              clinicId,
+              status: 'PENDING_COSIGN',
+              // Station-line notes name no doctor and are every doctor's to cosign (#167).
+              OR: [{ assignedDoctorId: userId }, { assignedDoctorId: null }],
+            },
           })
         : undefined;
       response.doctor = {

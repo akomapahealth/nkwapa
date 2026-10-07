@@ -8,12 +8,22 @@ export {
   hasEncryptionKey,
 } from './src/national-id';
 export { generatePatientCode } from './src/patient-code';
+export {
+  DEFAULT_CLINIC_STATIONS,
+  STATION_KIND_LABELS,
+  nextStationId,
+  type StationKindValue,
+} from './src/clinic-stations';
 export { normalizePhoneToE164 } from './src/phone';
 export {
   computeBmi,
   roundClinicalValue,
   toCelsius,
+  VITALS_SECTIONS,
+  VITALS_SECTION_FIELDS,
+  VITALS_SECTION_INPUT_FIELDS,
   type TemperatureUnit,
+  type VitalsSection,
 } from './src/clinical-measurements';
 export {
   DIABETES_GLUCOSE_TYPES,

@@ -69,6 +69,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { StationLineBoard } from '@/components/stations/StationLineBoard';
+import { isWebFeatureEnabled } from '@/lib/feature-flags';
 
 type BoardCheckIn = WithPendingSync<CheckInSummary>;
 
@@ -88,7 +90,22 @@ function countByRole(items: ActiveShift[], role: ShiftRole) {
   return items.filter((item) => item.roleAtShift === role).length;
 }
 
-export default function TodayBoardPage() {
+/**
+ * In the station line (#167) nobody assigns patients; the board shows the line instead. The flag
+ * is inlined at build time, so this choice never changes during a render.
+ */
+export default function TodayPage() {
+  if (isWebFeatureEnabled('stationWorkflow')) {
+    return (
+      <RouteGuard requiredPermission="OPS.STATION.READ" requiresClinic>
+        <StationLineBoard />
+      </RouteGuard>
+    );
+  }
+  return <TodayBoardPage />;
+}
+
+function TodayBoardPage() {
   const bootstrapCtx = useBootstrap();
   const bootstrap = bootstrapCtx?.bootstrap ?? null;
   const getToken = useAuth();

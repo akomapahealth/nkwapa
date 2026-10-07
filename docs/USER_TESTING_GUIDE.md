@@ -1068,6 +1068,31 @@ Needs an account with seats at two clinics (the cross-clinic fixtures from
 
 ---
 
+## 17e. Station Workflow Matrix (#167)
+
+Build and run with `FEATURE_STATION_WORKFLOW_ENABLED=true` and
+`NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED=true`. Use four browsers: two volunteers, a third
+volunteer for review, and a doctor. Every volunteer starts a shift first.
+
+| #   | Step                                                                                      | Expected                                                                                                          |
+| --- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| 1   | Check a patient in from the patient chart                                                 | The patient appears in the first station's queue on `/stations`, with no manager action                           |
+| 2   | Two volunteers at Registration press **Take patient** at the same moment                  | One opens the visit; the other sees "<name> has already taken this patient" and the queue refreshes               |
+| 3   | Record history, hand on with a note                                                       | The patient appears at Blood pressure with the note under "From Registration"                                     |
+| 4   | At Blood pressure, record 150/95 and save, then **Send to Glucose testing**               | Only BP fields and Notes are shown; the hand-off waits until the reading has synced                               |
+| 5   | At Glucose, choose Anthropometry as the next station                                      | Nothing is skipped; choosing Review instead asks for a reason for each skipped station                            |
+| 6   | At Anthropometry, save weight and height                                                  | BMI shows live; reopening the encounter still shows 150/95                                                        |
+| 7   | At Review, press **Complete session** before recording counselling                        | Refused: "Record the counselling given before completing the session."                                            |
+| 8   | Record counselling with a follow-up, submit the HAP note, complete                        | Patient leaves the line; counselling can no longer be edited                                                      |
+| 9   | As the doctor, open the encounter from **Queues → Needs Review**, tab **Station session** | Every result with who recorded it, the route, the counselling, and a reminder to set the care plan follow-up date |
+| 10  | Doctor cosigns the note from **Pending HAP Cosign**                                       | Any doctor at the clinic can cosign; a second doctor gets "already cosigned"                                      |
+| 11  | Take a patient offline, save a reading, try to hand on                                    | The reading saves on the device; hand-off is disabled until the connection returns                                |
+| 12  | End the shift while holding a patient                                                     | The patient goes back to that station's queue                                                                     |
+| 13  | As a manager on `/today`, Move / Release / Left on a patient                              | Each asks for a reason and is reflected on every station screen within ~12 s                                      |
+| 14  | As a manager, try the old Assign flow by API                                              | `409 STATION_WORKFLOW_ACTIVE`                                                                                     |
+
+---
+
 ## 18. Partial Areas To Test Carefully
 
 These areas are implemented but still worth extra regression attention:

@@ -24,6 +24,7 @@ import {
 import { isApiFeatureEnabled } from '../common/feature-flags';
 import { DiabetesScreeningService } from './diabetes-screening.service';
 import {
+  RecordGlucoseReadingDto,
   UpsertDiabetesClinicianPlanDto,
   UpsertDiabetesScreeningDto,
 } from './dto/diabetes-screening.dto';
@@ -64,6 +65,28 @@ export class DiabetesScreeningController {
     @Request() request: DiabetesRequest,
   ) {
     return this.diabetesScreeningService.upsert(
+      params.clinicId,
+      params.encounterId,
+      { userId: request.user.user.id, roles: request.user.roles },
+      dto,
+      {
+        requestId: request.headers?.['x-request-id'],
+        userAgent: request.headers?.['user-agent'],
+        ipAddress: request.ip,
+      },
+    );
+  }
+
+  /** Today's reading alone, without touching the rest of the interview. */
+  @Put('encounters/:encounterId/diabetes-screening/glucose')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.SCREENING_WRITE)
+  recordGlucoseReading(
+    @Param() params: ClinicAndEncounterParamsDto,
+    @Body() dto: RecordGlucoseReadingDto,
+    @Request() request: DiabetesRequest,
+  ) {
+    return this.diabetesScreeningService.recordGlucoseReading(
       params.clinicId,
       params.encounterId,
       { userId: request.user.user.id, roles: request.user.roles },

@@ -50,6 +50,12 @@ export const SYNC_ENTITY_PERMISSIONS: Record<EntityType, SyncEntityPermission> =
   vitals: screening(),
   encounter_vitals_bundle: screening(),
   diabetes_screening: screening(),
+  // Writes into the diabetes screening row; deleting is done through that entity.
+  diabetes_glucose_reading: {
+    create: PERMISSIONS.SCREENING_WRITE,
+    update: PERMISSIONS.SCREENING_WRITE,
+    delete: null,
+  },
   hypertension_assessment: screening(),
   /*
     The observation is the interview's, not the medication list's.

@@ -21,6 +21,9 @@ import {
   type AppliedSyncMutationRef,
 } from '../sync/applied-sync-mutation';
 import { resolveReplayTime } from './ops-replay';
+import { createDraftEncounter } from './draft-encounter';
+import { StationService } from './station.service';
+import { isApiFeatureEnabled } from '../common/feature-flags';
 import {
   CreateAssignmentDto,
   CreatePatientCheckInDto,
@@ -93,6 +96,7 @@ export class OpsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    private readonly stationService: StationService,
   ) {}
 
   /**
@@ -208,9 +212,15 @@ export class OpsService {
     const updated = await this.prisma.$transaction(async (tx) => {
       const shift = await tx.staffShift.update({
         where: { id: shiftId },
-        data: { status: 'CLOSED', checkedOutAt },
+        data: { status: 'CLOSED', checkedOutAt, stationId: null },
         include: { user: { select: { id: true, displayName: true } } },
       });
+      // Nobody stays claimed by someone who has gone home (#167).
+      await this.stationService.releaseForShiftEnd(
+        tx,
+        { clinicId, userId: existing.userId, actorUserId },
+        { requestId: context.requestId },
+      );
       await this.recordWrite(tx, clinicId, actorUserId, context, {
         action: 'SHIFT.CHECKOUT',
         entityType: 'StaffShift',
@@ -320,6 +330,15 @@ export class OpsService {
           entityId: checkIn.id,
           afterJson: JSON.stringify(checkIn),
         });
+        // In the station workflow an arrival joins the first station's queue in the same
+        // transaction, offline replays included, so no checked-in patient is outside the line.
+        if (isApiFeatureEnabled('stationWorkflow')) {
+          await this.stationService.queueAtFirstStation(
+            tx,
+            { clinicId, checkInId: checkIn.id, actorUserId, at: checkedInAt },
+            { requestId: context.requestId },
+          );
+        }
         return checkIn;
       });
       return this.toCheckInSummary(created);
@@ -379,6 +398,7 @@ export class OpsService {
     dto: CreateAssignmentDto,
     requestId?: string,
   ) {
+    this.assertAssignmentWorkflow();
     const { checkIn } = await this.getCheckInForAssignment(clinicId, dto.patientCheckInId);
     if (!['WAITING', 'ASSIGNED'].includes(checkIn.status)) {
       throw new BadRequestException('Check-in must be WAITING or ASSIGNED before assignment');
@@ -438,6 +458,7 @@ export class OpsService {
     dto: ReassignAssignmentDto,
     requestId?: string,
   ) {
+    this.assertAssignmentWorkflow();
     const existing = await this.prisma.patientAssignment.findUnique({
       where: { id: assignmentId },
       include: {
@@ -553,6 +574,7 @@ export class OpsService {
   }
 
   async startIntake(clinicId: string, checkinId: string, actorUserId: string, requestId?: string) {
+    this.assertAssignmentWorkflow();
     const existing = await this.prisma.patientCheckIn.findUnique({
       where: { id: checkinId },
       include: {
@@ -589,7 +611,7 @@ export class OpsService {
     }
 
     const { encounter, checkIn } = await this.prisma.$transaction(async (tx) => {
-      const encounterRecord = await this.createDraftEncounter(tx, {
+      const encounterRecord = await createDraftEncounter(tx, {
         clinicId,
         patientId: existing.patientId,
         createdByUserId: actorUserId,
@@ -697,6 +719,20 @@ export class OpsService {
     assignedBy: { select: { id: true, displayName: true } },
   } satisfies Prisma.PatientAssignmentInclude;
 
+  /**
+   * Manager assignment and the station line are two answers to "who is seeing this patient", and
+   * a check-in must only ever have one. While the station workflow is on, the assignment routes
+   * refuse rather than quietly creating an owner the station line knows nothing about.
+   */
+  private assertAssignmentWorkflow() {
+    if (isApiFeatureEnabled('stationWorkflow')) {
+      throw new ConflictException({
+        code: 'STATION_WORKFLOW_ACTIVE',
+        message: 'This clinic moves patients through stations. Use the station board instead.',
+      });
+    }
+  }
+
   private async assertActiveClinic(clinicId: string) {
     const clinic = await this.prisma.clinic.findFirst({
       where: { id: clinicId, isActive: true },
@@ -796,36 +832,6 @@ export class OpsService {
     if (!shift) {
       throw new BadRequestException('Assigned staff member is not checked in');
     }
-  }
-
-  private async createDraftEncounter(
-    tx: TxClient,
-    data: {
-      clinicId: string;
-      patientId: string;
-      createdByUserId: string;
-    },
-  ) {
-    const [clinic, patient, user] = await Promise.all([
-      tx.clinic.findFirst({ where: { id: data.clinicId, isActive: true } }),
-      tx.patient.findUnique({ where: { id: data.patientId } }),
-      tx.user.findFirst({ where: { id: data.createdByUserId, isActive: true } }),
-    ]);
-
-    if (!clinic) throw new NotFoundException('Clinic not found');
-    if (!patient || patient.primaryClinicId !== data.clinicId) {
-      throw new NotFoundException('Patient not found for this clinic');
-    }
-    if (!user) throw new NotFoundException('User not found');
-
-    return tx.encounter.create({
-      data: {
-        clinicId: data.clinicId,
-        patientId: data.patientId,
-        status: 'DRAFT',
-        createdByUserId: data.createdByUserId,
-      },
-    });
   }
 
   /**

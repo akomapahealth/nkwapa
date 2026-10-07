@@ -33,6 +33,7 @@ import { DiabetesScreeningModule } from './diabetes-screening/diabetes-screening
 import { HypertensionAssessmentModule } from './hypertension-assessment/hypertension-assessment.module';
 import { MedicationAdherenceModule } from './medication-adherence/medication-adherence.module';
 import { ClinicalNoteModule } from './clinical-notes/clinical-note.module';
+import { CounsellingModule } from './counselling/counselling.module';
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
 
@@ -70,6 +71,7 @@ const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
     HypertensionAssessmentModule,
     MedicationAdherenceModule,
     ClinicalNoteModule,
+    CounsellingModule,
   ],
   providers: [RateLimitGuard],
 })

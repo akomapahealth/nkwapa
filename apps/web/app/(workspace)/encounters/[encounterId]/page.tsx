@@ -35,6 +35,7 @@ import { isWebFeatureEnabled } from '@/lib/feature-flags';
 import { DiabetesHistoryPanel } from '@/components/patients/DiabetesHistoryPanel';
 import { HypertensionHistoryPanel } from '@/components/patients/HypertensionHistoryPanel';
 import { ClinicalNotePanel } from '@/components/clinical-notes/ClinicalNotePanel';
+import { StationSessionPanel } from '@/components/stations/StationSessionPanel';
 
 function hasPermission(permissions: string[], perm: string): boolean {
   return permissions.includes('*') || permissions.includes(perm);
@@ -71,6 +72,7 @@ export default function EncounterDetailPage() {
   const medicalHistoryEnabled = isWebFeatureEnabled('medicalHistory');
   const clinicalNotesEnabled = isWebFeatureEnabled('clinicalNotes');
   const guidedChronicTabsEnabled = isWebFeatureEnabled('guidedChronicTabs');
+  const stationWorkflowEnabled = isWebFeatureEnabled('stationWorkflow');
   /*
     Resolved from the clinic-scoped permission rather than from the DOCTOR role.
 
@@ -383,6 +385,11 @@ export default function EncounterDetailPage() {
               aria-label="Encounter clinical sections"
             >
               <TabsList className="w-max justify-start gap-2 rounded-lg border border-border bg-card p-2">
+                {stationWorkflowEnabled && isClinicalUser ? (
+                  <TabsTrigger value="station-session" disabled={savingBeforeSwitch}>
+                    Station session
+                  </TabsTrigger>
+                ) : null}
                 <TabsTrigger value="vitals" disabled={savingBeforeSwitch}>
                   Vitals
                 </TabsTrigger>
@@ -404,6 +411,18 @@ export default function EncounterDetailPage() {
                 ) : null}
               </TabsList>
             </div>
+            {stationWorkflowEnabled && isClinicalUser ? (
+              <TabsContent value="station-session">
+                <StationSessionPanel
+                  clinicId={clinicId}
+                  encounterId={encounterId}
+                  vitals={vitals}
+                  diabetes={diabetes}
+                  canEditCounselling={!isFinalized}
+                  canSetCarePlan={!isFinalized && hasPermission(perms, 'CAREPLAN.WRITE')}
+                />
+              </TabsContent>
+            ) : null}
             <TabsContent value="vitals">
               <VitalsForm
                 clinicId={clinicId}

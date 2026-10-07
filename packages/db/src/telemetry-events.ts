@@ -56,6 +56,7 @@ const SYNC_ENTITY = oneOf(
   'vitals',
   'encounter_vitals_bundle',
   'diabetes_screening',
+  'diabetes_glucose_reading',
   'hypertension_assessment',
   'encounter_medication_adherence',
   'care_plan',

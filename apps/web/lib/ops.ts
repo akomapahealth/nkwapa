@@ -211,9 +211,14 @@ export function hasAnyPermission(permissions: string[], candidates: string[]) {
   return permissions.includes('*') || candidates.some((perm) => permissions.includes(perm));
 }
 
-export function getOpsDestination(permissions: string[]) {
+export function getOpsDestination(permissions: string[], stationWorkflow = false) {
   if (hasAnyPermission(permissions, ['OPS.ASSIGNMENT.MANAGE', 'OPS.CHECKIN.READ'])) {
     return '/today';
+  }
+
+  // In the station line (#167) a volunteer's worklist is their station's queue.
+  if (stationWorkflow && hasPermission(permissions, 'OPS.STATION.WORK')) {
+    return '/stations';
   }
 
   if (hasPermission(permissions, 'OPS.ASSIGNMENT.READ_SELF')) {

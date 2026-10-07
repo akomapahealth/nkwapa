@@ -154,6 +154,14 @@ jobs:
           RUN_STAFF_INVITE_MIGRATION_TESTS: '1'
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
+      # The station line's guarantees (#167): one open station per patient, one winner per claim,
+      # one review station per clinic, and row-level security on the new tables.
+      - name: Verify station workflow safeguards
+        run: npm run test --workspace=@nkwapa/db -- --runInBand src/station-workflow-migration.integration.spec.ts
+        env:
+          RUN_STATION_WORKFLOW_MIGRATION_TESTS: '1'
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
       - name: Verify tenant isolation is enforced by the database
         run: npm run test --workspace=@nkwapa/db -- --runInBand src/tenant-isolation.integration.spec.ts
         env:
@@ -383,6 +391,21 @@ jobs:
 
       - name: Run Playwright smoke suite
         run: npm run e2e --workspace=@nkwapa/web
+
+      # The station line (#167) replaces manager assignment while its flag is on, so it cannot
+      # share a build with the assignment specs above. NEXT_PUBLIC_* flags are inlined at build
+      # time: rebuild the web app with the flag on, then run only the station spec, which skips
+      # itself everywhere else.
+      - name: Build @nkwapa/web with the station workflow on
+        run: npm run build --workspace=@nkwapa/web
+        env:
+          NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED: true
+
+      - name: Run the station workflow spec
+        run: npm run e2e --workspace=@nkwapa/web -- e2e/station-workflow.spec.js
+        env:
+          FEATURE_STATION_WORKFLOW_ENABLED: true
+          NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED: true
 
       - name: Upload Playwright artifacts
         if: always()

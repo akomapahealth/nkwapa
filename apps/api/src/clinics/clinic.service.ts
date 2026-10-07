@@ -11,6 +11,7 @@ import {
   CLINIC_DEFAULT_ORGANIZATION_NAME,
   CLINIC_DEFAULT_ORGANIZATION_SLUG,
   CLINIC_DEFAULT_TIMEZONE,
+  DEFAULT_CLINIC_STATIONS,
   evaluateClinicMetadata,
   normalizeCountryCode,
   normalizeLocationCode,
@@ -252,16 +253,24 @@ export class ClinicService {
     await this.assertLocationCodeIsFree(organizationId, locationCode);
 
     return this.writeMappingConflicts(locationCode, () =>
-      this.prisma.clinic.create({
-        data: {
-          organizationId,
-          name: dto.name,
-          region: dto.region ?? null,
-          countryCode: normalizeCountryCode(dto.countryCode) || CLINIC_DEFAULT_COUNTRY_CODE,
-          timezone: dto.timezone ?? CLINIC_DEFAULT_TIMEZONE,
-          locationCode,
-          zoneCode: normalizeZoneCode(dto.zoneCode),
-        },
+      this.prisma.$transaction(async (tx) => {
+        const clinic = await tx.clinic.create({
+          data: {
+            organizationId,
+            name: dto.name,
+            region: dto.region ?? null,
+            countryCode: normalizeCountryCode(dto.countryCode) || CLINIC_DEFAULT_COUNTRY_CODE,
+            timezone: dto.timezone ?? CLINIC_DEFAULT_TIMEZONE,
+            locationCode,
+            zoneCode: normalizeZoneCode(dto.zoneCode),
+          },
+        });
+        // Every clinic runs the station line (#167); a clinic with no stations has no queue a
+        // checked-in patient could join.
+        await tx.clinicStation.createMany({
+          data: DEFAULT_CLINIC_STATIONS.map((station) => ({ ...station, clinicId: clinic.id })),
+        });
+        return clinic;
       }),
     );
   }
