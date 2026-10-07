@@ -1,4 +1,6 @@
 import {
+  EMPTY_PULL,
+  OWNER,
   mockSyncFetch,
   mockSyncNetwork,
   pulled,
@@ -47,7 +49,7 @@ describe('weak network', () => {
     await db.outbox.put(change);
     mockSyncNetwork({ push: [{ status: 503, body: 'upstream unavailable' }] });
 
-    const failed = await syncNow({ clinicId: CLINIC_A });
+    const failed = await syncNow({ clinicId: CLINIC_A, currentUserId: OWNER });
 
     expect(failed).toMatchObject({ success: false });
     expect(failed.error).toMatch(/saved on this device/);
@@ -55,7 +57,7 @@ describe('weak network', () => {
     expect(await db.outbox.get(change.id)).toEqual(change);
 
     const fetchMock = mockSyncFetch([[{ id: change.id, status: 'APPLIED' }]]);
-    const recovered = await syncNow({ clinicId: CLINIC_A });
+    const recovered = await syncNow({ clinicId: CLINIC_A, currentUserId: OWNER });
 
     expect(recovered).toMatchObject({ success: true, blockedCount: 0, retryingCount: 0 });
     expect(sentIds(fetchMock)).toEqual([change.id]);
@@ -67,7 +69,7 @@ describe('weak network', () => {
     await db.outbox.put(change);
     mockSyncNetwork({ push: ['stall'] });
 
-    const stalled = syncNow({ clinicId: CLINIC_A });
+    const stalled = syncNow({ clinicId: CLINIC_A, currentUserId: OWNER });
     await jest.advanceTimersByTimeAsync(SYNC_REQUEST_TIMEOUT_MS);
     const result = await stalled;
 
@@ -77,7 +79,9 @@ describe('weak network', () => {
 
     // The clinic is free again: a new pass sends instead of joining the abandoned one.
     const fetchMock = mockSyncFetch([[{ id: change.id, status: 'APPLIED' }]]);
-    await expect(syncNow({ clinicId: CLINIC_A })).resolves.toMatchObject({ success: true });
+    await expect(syncNow({ clinicId: CLINIC_A, currentUserId: OWNER })).resolves.toMatchObject({
+      success: true,
+    });
     expect(sentIds(fetchMock)).toEqual([change.id]);
   });
 
@@ -96,7 +100,7 @@ describe('weak network', () => {
       push: [firstBatch.map((row) => ({ id: row.id, status: 'APPLIED' })), 'unreachable'],
     });
 
-    const result = await syncNow({ clinicId: CLINIC_A });
+    const result = await syncNow({ clinicId: CLINIC_A, currentUserId: OWNER });
 
     expect(result).toMatchObject({ success: false });
     expect(db.outbox.rows.size).toBe(1);
@@ -113,9 +117,9 @@ describe('duplicate replay', () => {
     const fetchMock = mockSyncFetch([[{ id: change.id, status: 'APPLIED' }]]);
 
     await Promise.all([
-      syncNow({ clinicId: CLINIC_A }),
-      syncNow({ clinicId: CLINIC_A }),
-      syncNow({ clinicId: CLINIC_A }),
+      syncNow({ clinicId: CLINIC_A, currentUserId: OWNER }),
+      syncNow({ clinicId: CLINIC_A, currentUserId: OWNER }),
+      syncNow({ clinicId: CLINIC_A, currentUserId: OWNER }),
     ]);
 
     expect(sentIds(fetchMock)).toEqual([change.id]);
@@ -134,7 +138,7 @@ describe('duplicate replay', () => {
       ],
     ]);
 
-    const result = await syncNow({ clinicId: CLINIC_A });
+    const result = await syncNow({ clinicId: CLINIC_A, currentUserId: OWNER });
 
     expect(result.success).toBe(true);
     expect(await db.outbox.get(change.id)).toBeUndefined();
@@ -153,7 +157,7 @@ describe('changes the server refused', () => {
     await db.outbox.bulkPut([retrying, blocked]);
     const fetchMock = mockSyncFetch([[{ id: retrying.id, status: 'APPLIED' }]]);
 
-    const result = await syncNow({ clinicId: CLINIC_A });
+    const result = await syncNow({ clinicId: CLINIC_A, currentUserId: OWNER });
 
     expect(sentIds(fetchMock)).toEqual([retrying.id]);
     expect(result).toMatchObject({ blockedCount: 1, retryingCount: 0 });
@@ -168,14 +172,14 @@ describe('changes the server refused', () => {
       retryable: false,
     };
     mockSyncFetch([[conflict]]);
-    await syncNow({ clinicId: CLINIC_A });
+    await syncNow({ clinicId: CLINIC_A, currentUserId: OWNER });
     // A second pass does not spend another attempt on a change the clinician has not looked at.
-    await syncNow({ clinicId: CLINIC_A });
+    await syncNow({ clinicId: CLINIC_A, currentUserId: OWNER });
     expect(await db.outbox.get(change.id)).toMatchObject({ syncState: 'blocked', attempts: 1 });
 
     await retryOutboxMutation(db as unknown as NkwapaDb, change.id);
     const fetchMock = mockSyncFetch([[{ id: change.id, status: 'APPLIED' }]]);
-    const result = await syncNow({ clinicId: CLINIC_A });
+    const result = await syncNow({ clinicId: CLINIC_A, currentUserId: OWNER });
 
     expect(sentIds(fetchMock)).toEqual([change.id]);
     expect(result).toMatchObject({ blockedCount: 0, retryingCount: 0 });
@@ -190,7 +194,7 @@ describe('stale active clinic', () => {
     await db.outbox.bulkPut([change, atB]);
     const fetchMock = mockSyncFetch([[{ id: atB.id, status: 'APPLIED' }]]);
 
-    const result = await syncNow({ clinicId: CLINIC_B });
+    const result = await syncNow({ clinicId: CLINIC_B, currentUserId: OWNER });
 
     expect(sentIds(fetchMock)).toEqual([atB.id]);
     expect(String(fetchMock.mock.calls[0][0])).toContain(`clinicId=${CLINIC_B}`);
@@ -202,10 +206,10 @@ describe('stale active clinic', () => {
   it("drains a clinic's changes once that clinic is active again", async () => {
     await db.outbox.bulkPut([change, atB]);
     mockSyncFetch([[{ id: atB.id, status: 'APPLIED' }]]);
-    await syncNow({ clinicId: CLINIC_B });
+    await syncNow({ clinicId: CLINIC_B, currentUserId: OWNER });
 
     const fetchMock = mockSyncFetch([[{ id: change.id, status: 'APPLIED' }]]);
-    await syncNow({ clinicId: CLINIC_A });
+    await syncNow({ clinicId: CLINIC_A, currentUserId: OWNER });
 
     expect(sentIds(fetchMock)).toEqual([change.id]);
     expect(String(fetchMock.mock.calls[0][0])).toContain(`clinicId=${CLINIC_A}`);
@@ -216,10 +220,108 @@ describe('stale active clinic', () => {
     await db.outbox.put(change);
     mockSyncNetwork({ push: [{ status: 403, body: '{"code":"FORBIDDEN"}' }] });
 
-    const result = await syncNow({ clinicId: CLINIC_A });
+    const result = await syncNow({ clinicId: CLINIC_A, currentUserId: OWNER });
 
     expect(result).toMatchObject({ success: false });
     expect(result.error).toMatch(/cannot sync at this clinic/);
     expect(await db.outbox.get(change.id)).toEqual(change);
+  });
+});
+
+/*
+  CLN-05 (#162). On a shared clinic laptop, one account signs out with work still queued and
+  another signs in. Each change is sent only by the account that queued it: anything else would
+  write the next person's name into the audit trail for an entry they never made.
+*/
+describe('account change on a shared device', () => {
+  const ACCOUNT_B = 'user-2';
+  const byB = queuedRow({
+    id: 'change-by-b',
+    clinicId: CLINIC_A,
+    idempotencyKey: 'key-by-b',
+    ownerUserId: ACCOUNT_B,
+  });
+  const unowned = queuedRow({
+    id: 'change-unowned',
+    clinicId: CLINIC_A,
+    idempotencyKey: 'key-old',
+    ownerUserId: undefined,
+  });
+
+  it("never sends another account's change, and holds it untouched", async () => {
+    await db.outbox.bulkPut([change, byB]);
+    const fetchMock = mockSyncFetch([[{ id: change.id, status: 'APPLIED' }]]);
+
+    const result = await syncNow({ clinicId: CLINIC_A, currentUserId: OWNER });
+
+    expect(sentIds(fetchMock)).toEqual([change.id]);
+    expect(await db.outbox.get(byB.id)).toEqual(byB);
+    expect(result).toMatchObject({ blockedCount: 0, retryingCount: 0, heldCount: 1 });
+  });
+
+  it('drains the held change once its own account signs back in', async () => {
+    await db.outbox.put(byB);
+    mockSyncFetch([]);
+    await syncNow({ clinicId: CLINIC_A, currentUserId: OWNER });
+
+    const fetchMock = mockSyncFetch([[{ id: byB.id, status: 'APPLIED' }]]);
+    const result = await syncNow({ clinicId: CLINIC_A, currentUserId: ACCOUNT_B });
+
+    expect(sentIds(fetchMock)).toEqual([byB.id]);
+    expect(db.outbox.rows.size).toBe(0);
+    expect(result.heldCount).toBe(0);
+  });
+
+  it('holds a change queued before owners were recorded, for every account', async () => {
+    await db.outbox.put(unowned);
+    const fetchMock = mockSyncFetch([]);
+
+    for (const account of [OWNER, ACCOUNT_B]) {
+      const result = await syncNow({ clinicId: CLINIC_A, currentUserId: account });
+      expect(result.heldCount).toBe(1);
+    }
+    expect(sentIds(fetchMock)).toEqual([]);
+    expect(await db.outbox.get(unowned.id)).toEqual(unowned);
+  });
+
+  it('sends nothing while no account is known, but still pulls', async () => {
+    await db.outbox.put(change);
+    const fetchMock = mockSyncFetch([]);
+
+    const result = await syncNow({ clinicId: CLINIC_A, currentUserId: null });
+
+    expect(sentIds(fetchMock)).toEqual([]);
+    expect(pulled(fetchMock)).toBe(true);
+    expect(result).toMatchObject({ success: true, heldCount: 1 });
+  });
+});
+
+describe('account resolving mid-pass', () => {
+  it('reruns a pass that began before the account was known as that account', async () => {
+    await db.outbox.put(change);
+    let releasePull: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => (releasePull = resolve));
+    const fetchMock = jest.fn(async (url: string, init?: RequestInit) => {
+      if (String(url).includes('/sync/push')) {
+        const body = JSON.parse(String(init?.body)) as Array<{ id: string }>;
+        return {
+          ok: true,
+          json: async () => ({ results: body.map((row) => ({ id: row.id, status: 'APPLIED' })) }),
+        };
+      }
+      await gate;
+      return { ok: true, json: async () => EMPTY_PULL };
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    // The clinic is known before the account: the first pass sends nothing.
+    const first = syncNow({ clinicId: CLINIC_A, currentUserId: null });
+    // The account resolves while that pass is still pulling.
+    const second = syncNow({ clinicId: CLINIC_A, currentUserId: OWNER });
+    releasePull?.();
+    await Promise.all([first, second]);
+
+    expect(sentIds(fetchMock)).toEqual([change.id]);
+    expect(db.outbox.rows.size).toBe(0);
   });
 });

@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle2, CloudOff, RefreshCw, WifiOff } from 'lucid
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { useBootstrap } from '@/lib/bootstrap-context';
 import { onSyncPassComplete } from '@/lib/sync';
 import type { SyncRecoveryAccess } from '@/lib/sync-conflicts';
 import { useOutboxQueue } from '@/lib/use-outbox-queue';
@@ -41,7 +42,9 @@ export function SyncStatusBar({
 }) {
   const { isOnline, syncStatus, syncNow, setSyncCenterOpen } = useSync();
   const { showToast } = useToast();
-  const queue = useOutboxQueue(clinicId);
+  const bootstrap = useBootstrap()?.bootstrap ?? null;
+  // Only this account's own changes count here; others' are held and shown in the sync center.
+  const queue = useOutboxQueue(clinicId, bootstrap?.userId ?? null);
   const blocked = queue.blocked.length;
   const waiting = queue.retrying.length + queue.pending.length;
 
@@ -69,7 +72,7 @@ export function SyncStatusBar({
     [clinicId, setSyncCenterOpen, showToast],
   );
 
-  if (!clinicId || (!canSync && queue.total === 0)) return null;
+  if (!clinicId || (!canSync && queue.total === 0 && queue.held.length === 0)) return null;
 
   const state: PillState = !isOnline
     ? 'offline'

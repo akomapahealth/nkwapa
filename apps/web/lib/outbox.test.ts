@@ -4,12 +4,14 @@ import {
   buildMedicationRevisionOutboxPayload,
   buildOutboxMutation,
   buildPharmacyPreferenceOutboxPayload,
+  claimUnownedOutboxMutation,
   discardOutboxMutation,
   enqueueOutboxMutation,
   isBlockingFailure,
   retryOutboxMutation,
   outboxFailureUpdate,
   outboxSyncState,
+  setOutboxOwner,
   SYNC_OPERATION,
 } from './outbox';
 import type { NkwapaDb } from './db';
@@ -280,5 +282,61 @@ describe('outbox recovery actions', () => {
     await discardOutboxMutation(fake as unknown as NkwapaDb, row);
 
     expect(await fake.patients.get('patient-1')).toBeDefined();
+  });
+});
+
+// #162: every queued change records the account that queued it.
+describe('outbox owner', () => {
+  const params = {
+    clinicId: 'clinic-1',
+    entityType: 'shift_check_in',
+    entityId: 'shift-1',
+    operation: SYNC_OPERATION.UPSERT,
+    payloadJson: {},
+  };
+
+  afterEach(() => setOutboxOwner(null));
+
+  it('stamps the signed-in account on every change', () => {
+    setOutboxOwner({ userId: 'user-a', displayName: 'Ama' });
+    expect(buildOutboxMutation(params)).toMatchObject({ ownerUserId: 'user-a', ownerName: 'Ama' });
+  });
+
+  it('leaves a change queued while nobody is known without an owner', () => {
+    expect(buildOutboxMutation(params)).not.toHaveProperty('ownerUserId');
+  });
+
+  it("does not hand one account another account's queued action", async () => {
+    const db = createFakeSyncDb() as unknown as NkwapaDb;
+    setOutboxOwner({ userId: 'user-a' });
+    const fromA = await enqueueOutboxMutation(db, { ...params, idempotencyKey: 'ops:shift:1' });
+    setOutboxOwner({ userId: 'user-b' });
+    const fromB = await enqueueOutboxMutation(db, { ...params, idempotencyKey: 'ops:shift:1' });
+
+    expect(fromB.id).not.toBe(fromA.id);
+    expect(fromB.ownerUserId).toBe('user-b');
+    // The same account repeating its own action still gets its own row back.
+    const again = await enqueueOutboxMutation(db, { ...params, idempotencyKey: 'ops:shift:1' });
+    expect(again.id).toBe(fromB.id);
+  });
+
+  it('lets an account claim only a change with no recorded owner', async () => {
+    const db = createFakeSyncDb();
+    await db.outbox.put(queuedRow({ id: 'old', ownerUserId: undefined, syncState: 'blocked' }));
+    await db.outbox.put(queuedRow({ id: 'theirs', ownerUserId: 'user-a' }));
+    const fake = db as unknown as NkwapaDb;
+
+    await expect(
+      claimUnownedOutboxMutation(fake, 'old', { userId: 'user-b', displayName: 'Kofi' }),
+    ).resolves.toBe(true);
+    expect(await db.outbox.get('old')).toMatchObject({
+      ownerUserId: 'user-b',
+      ownerName: 'Kofi',
+      syncState: 'pending',
+    });
+    await expect(claimUnownedOutboxMutation(fake, 'theirs', { userId: 'user-b' })).resolves.toBe(
+      false,
+    );
+    expect((await db.outbox.get('theirs'))?.ownerUserId).toBe('user-a');
   });
 });

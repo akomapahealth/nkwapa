@@ -1,4 +1,5 @@
 import {
+  OWNER,
   EMPTY_PULL,
   mockSyncFetch,
   pushBodies,
@@ -44,8 +45,8 @@ describe('sync coordinator', () => {
       });
     global.fetch = fetchMock as unknown as typeof fetch;
 
-    const first = syncNow({ clinicId: mutation.clinicId });
-    const concurrent = syncNow({ clinicId: mutation.clinicId });
+    const first = syncNow({ clinicId: mutation.clinicId, currentUserId: OWNER });
+    const concurrent = syncNow({ clinicId: mutation.clinicId, currentUserId: OWNER });
     expect(concurrent).toBe(first);
 
     await db.outbox.put(mutation);
@@ -77,7 +78,7 @@ describe('push batching', () => {
       applied(rows.slice(SYNC_PUSH_BATCH_SIZE * 2)),
     ]);
 
-    const result = await syncNow({ clinicId: 'clinic-1' });
+    const result = await syncNow({ clinicId: 'clinic-1', currentUserId: OWNER });
 
     expect(pushBodies(fetchMock).map((batch) => batch.length)).toEqual([
       SYNC_PUSH_BATCH_SIZE,
@@ -98,7 +99,7 @@ describe('merged charts', () => {
       mergedPatients: [{ id: 'retired-1', mergedIntoPatientId: 'canonical-1' }],
     });
 
-    await syncNow({ clinicId: 'clinic-1' });
+    await syncNow({ clinicId: 'clinic-1', currentUserId: OWNER });
 
     expect(await db.patients.get('retired-1')).toBeUndefined();
     expect(await db.patients.get('canonical-1')).toBeDefined();
@@ -114,7 +115,7 @@ describe('status reporting', () => {
     const statuses: string[] = [];
     const unsubscribe = onSyncStatusChange((status) => statuses.push(status));
 
-    const result = await syncNow({ clinicId: 'clinic-1' });
+    const result = await syncNow({ clinicId: 'clinic-1', currentUserId: OWNER });
     unsubscribe();
 
     expect(statuses).toEqual(['syncing', 'attention']);
@@ -131,10 +132,10 @@ describe('status reporting', () => {
       passes.push([clinicId, result.conflicts?.length ?? 0]),
     );
 
-    await syncNow({ clinicId: 'clinic-1' });
+    await syncNow({ clinicId: 'clinic-1', currentUserId: OWNER });
     // The blocked row is not re-sent, so a second pass reports nothing new.
     mockSyncFetch();
-    await syncNow({ clinicId: 'clinic-1' });
+    await syncNow({ clinicId: 'clinic-1', currentUserId: OWNER });
     unsubscribe();
 
     expect(passes).toEqual([
@@ -155,7 +156,7 @@ describe('status reporting', () => {
       events.push([status, message, detail]),
     );
 
-    const result = await syncNow({ clinicId: 'clinic-1' });
+    const result = await syncNow({ clinicId: 'clinic-1', currentUserId: OWNER });
     unsubscribe();
 
     expect(result.success).toBe(false);
@@ -175,7 +176,7 @@ describe('status reporting', () => {
       throw new TypeError('Failed to fetch');
     }) as unknown as typeof fetch;
 
-    const result = await syncNow({ clinicId: 'clinic-1' });
+    const result = await syncNow({ clinicId: 'clinic-1', currentUserId: OWNER });
 
     expect(result).toMatchObject({ success: false });
     expect(result.error).toMatch(/Could not reach the server/);

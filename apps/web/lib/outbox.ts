@@ -21,6 +21,38 @@ export interface OutboxMutationParams {
   payloadJson: Record<string, unknown>;
   idempotencyKey?: string;
   localContext?: OutboxLocalContext;
+  /** Defaults to the signed-in account (`setOutboxOwner`). */
+  owner?: OutboxOwner | null;
+}
+
+export interface OutboxOwner {
+  userId: string;
+  displayName?: string;
+}
+
+/**
+ * The account every new change is queued under (#162).
+ *
+ * Set by the sync provider once bootstrap names the signed-in account, cleared when it signs out.
+ * Forms queue changes from dozens of places that have no reason to know who is signed in; this is
+ * the one place that does. A change queued while nobody is known gets no owner and is held.
+ */
+let currentOwner: OutboxOwner | null = null;
+
+export function setOutboxOwner(owner: OutboxOwner | null) {
+  currentOwner = owner;
+}
+
+export function getOutboxOwner(): OutboxOwner | null {
+  return currentOwner;
+}
+
+/** Whether `userId` may send this change: only the account that queued it ever does. */
+export function isOwnedBy(
+  row: Pick<OutboxRecord, 'ownerUserId'>,
+  userId: string | null | undefined,
+) {
+  return Boolean(userId) && row.ownerUserId === userId;
 }
 
 export interface OutboxRecordShape {
@@ -33,6 +65,8 @@ export interface OutboxRecordShape {
   idempotencyKey: string;
   createdAt: string;
   localContext?: OutboxLocalContext;
+  ownerUserId?: string;
+  ownerName?: string;
 }
 
 export interface MedicalHistoryOutboxPayload {
@@ -117,6 +151,7 @@ export function buildOutboxMutation(params: OutboxMutationParams): OutboxRecordS
   const id = generateClientId();
   const idempotencyKey = params.idempotencyKey ?? generateClientId();
   const createdAt = new Date().toISOString();
+  const owner = params.owner === undefined ? currentOwner : params.owner;
   return {
     id,
     clinicId: params.clinicId,
@@ -127,6 +162,8 @@ export function buildOutboxMutation(params: OutboxMutationParams): OutboxRecordS
     idempotencyKey,
     createdAt,
     ...(params.localContext ? { localContext: params.localContext } : {}),
+    ...(owner ? { ownerUserId: owner.userId } : {}),
+    ...(owner?.displayName ? { ownerName: owner.displayName } : {}),
   };
 }
 
@@ -145,10 +182,14 @@ export async function enqueueOutboxMutation(
   if (params.idempotencyKey) {
     // Matched per clinic, as the server's own idempotency record is. A key that happened to be
     // queued at another clinic used to swallow this one, and the change never reached anyone.
+    // And per owner: another account's queued action is theirs to send, never this one's to reuse.
+    const record = buildOutboxMutation(params);
     const queued = (
       await dbInstance.outbox.where('idempotencyKey').equals(params.idempotencyKey).toArray()
-    ).find((row) => row.clinicId === params.clinicId);
+    ).find((row) => row.clinicId === params.clinicId && row.ownerUserId === record.ownerUserId);
     if (queued) return queued;
+    await dbInstance.outbox.add(record);
+    return record;
   }
   const record = buildOutboxMutation(params);
   await dbInstance.outbox.add(record);
@@ -191,6 +232,28 @@ export function outboxFailureUpdate(
  */
 export async function retryOutboxMutation(dbInstance: NkwapaDb, id: string): Promise<void> {
   await dbInstance.outbox.update(id, { syncState: 'pending' });
+}
+
+/**
+ * Take a change that has no recorded owner as your own, so it can be sent (#162).
+ *
+ * Only for rows queued before owners were recorded: nobody can say whose they were, so the account
+ * that claims them is the one the server will name. A row another account owns is never claimable;
+ * that account signs back in to send it, or it is discarded.
+ */
+export async function claimUnownedOutboxMutation(
+  dbInstance: NkwapaDb,
+  id: string,
+  owner: OutboxOwner,
+): Promise<boolean> {
+  const row = await dbInstance.outbox.get(id);
+  if (!row || row.ownerUserId) return false;
+  await dbInstance.outbox.update(id, {
+    ownerUserId: owner.userId,
+    ...(owner.displayName ? { ownerName: owner.displayName } : {}),
+    syncState: 'pending',
+  });
+  return true;
 }
 
 /**

@@ -461,6 +461,14 @@ export interface OutboxRecord {
   idempotencyKey: string;
   createdAt: string;
   localContext?: OutboxLocalContext;
+  /**
+   * The account that queued the change (#162). Only that account ever sends it: on a shared clinic
+   * laptop, a change sent under the next account's token would be audited as theirs. Absent on rows
+   * queued before owners were recorded; those are held until someone explicitly claims them.
+   */
+  ownerUserId?: string;
+  /** Shown to other accounts on the device, so they know whose held change it is. */
+  ownerName?: string;
   syncState?: OutboxSyncState;
   attempts?: number;
   lastAttemptAt?: string;
@@ -682,6 +690,28 @@ export class NkwapaDb extends Dexie {
     this.version(13).stores({
       portal_cache: 'key, userId, updatedAt',
     });
+    /*
+      v14 records which account queued each change (#162).
+
+      Ops writes already carried their actor in `localContext`, so those rows get it as their owner.
+      Every other row from before this version has no knowable owner and is left without one: it is
+      held, never sent, until an account on the device explicitly claims or discards it.
+    */
+    this.version(14)
+      .stores({
+        outbox: 'id, clinicId, createdAt, idempotencyKey, ownerUserId',
+      })
+      .upgrade(async (transaction) => {
+        await transaction
+          .table<OutboxRecord, string>('outbox')
+          .toCollection()
+          .modify((row) => {
+            if (!row.ownerUserId && row.localContext?.actorUserId) {
+              row.ownerUserId = row.localContext.actorUserId;
+              row.ownerName = row.localContext.actorName;
+            }
+          });
+      });
   }
 }
 
