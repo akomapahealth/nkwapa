@@ -84,6 +84,11 @@ const FAILURE_EXPLANATIONS: Record<string, FailureExplanation> = {
     detail: 'The appointment moved, so this reminder was replaced by a new one.',
     recovery: null,
   },
+  CANCELLED_BY_STAFF: {
+    label: 'Cancelled',
+    detail: 'A staff member cancelled this reminder before it was sent.',
+    recovery: null,
+  },
   APPOINTMENT_CANCELLED: {
     label: 'Appointment cancelled',
     detail: 'The appointment was cancelled before this reminder was due.',

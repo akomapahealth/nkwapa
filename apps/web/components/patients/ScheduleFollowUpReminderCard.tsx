@@ -48,11 +48,34 @@ export function ScheduleFollowUpReminderCard({
     tone: 'success' | 'warning' | 'error';
     text: string;
   } | null>(null);
+  /** The queued reminders just scheduled here, so a wrong date can be undone straight away. */
+  const [justQueued, setJustQueued] = useState<string[]>([]);
+
+  async function undo() {
+    if (!getToken || justQueued.length === 0) return;
+    setBusy(true);
+    try {
+      for (const id of justQueued) {
+        const response = await apiFetch(
+          `/clinics/${encodeURIComponent(clinicId)}/reminders/${encodeURIComponent(id)}/cancel`,
+          { method: 'POST', getToken, activeClinicId: clinicId },
+        );
+        if (!response.ok) throw new Error(await readApiError(response));
+      }
+      setJustQueued([]);
+      setResult({ tone: 'success', text: 'Reminder cancelled. Nothing will be sent.' });
+    } catch (error) {
+      setResult({ tone: 'error', text: error instanceof Error ? error.message : String(error) });
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function schedule() {
     if (!getToken || !date) return;
     setBusy(true);
     setResult(null);
+    setJustQueued([]);
     try {
       const response = await apiFetch(
         `/clinics/${encodeURIComponent(clinicId)}/patients/${encodeURIComponent(patientId)}/reminders/follow-up`,
@@ -66,6 +89,7 @@ export function ScheduleFollowUpReminderCard({
       if (!response.ok) throw new Error(await readApiError(response));
       const { items } = (await response.json()) as { items: ScheduledReminder[] };
       const queued = items.filter((item) => item.status === 'QUEUED');
+      setJustQueued(queued.map((item) => item.id));
       setResult(
         queued.length
           ? {
@@ -120,7 +144,23 @@ export function ScheduleFollowUpReminderCard({
         {!isOnline ? (
           <p className="text-sm text-muted-foreground">Scheduling a reminder needs a connection.</p>
         ) : null}
-        {result ? <InlineNotice tone={result.tone}>{result.text}</InlineNotice> : null}
+        {result ? (
+          <InlineNotice tone={result.tone}>
+            {result.text}
+            {justQueued.length ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="ml-2"
+                disabled={busy || !isOnline}
+                onClick={() => void undo()}
+              >
+                Undo
+              </Button>
+            ) : null}
+          </InlineNotice>
+        ) : null}
         <p className="text-xs text-muted-foreground">
           Scheduled reminders appear in{' '}
           <Link href="/notifications" className="underline">

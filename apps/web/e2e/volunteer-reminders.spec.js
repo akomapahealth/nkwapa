@@ -86,3 +86,44 @@ test('the reminder route takes a date and nothing that could become a message', 
   );
   expect(elsewhere.status()).toBe(404);
 });
+
+test('a reminder can be cancelled by whoever scheduled it, or a manager, while it waits', async ({
+  page,
+}) => {
+  const patient = await createPatient(page);
+
+  // Undo straight from the chart, for a wrong date.
+  const card = page.getByTestId('schedule-follow-up-reminder');
+  await card.getByLabel('Return on').fill(inDays(10));
+  await card.getByRole('button', { name: 'Schedule reminder' }).click();
+  await expect(card.getByText(/Reminder scheduled by SMS/)).toBeVisible({ timeout: 20_000 });
+  await card.getByRole('button', { name: 'Undo' }).click();
+  await expect(card.getByText('Reminder cancelled. Nothing will be sent.')).toBeVisible();
+
+  const schedule = async () => {
+    const res = await apiRequestAs(
+      'volunteer',
+      'post',
+      `/clinics/${patient.clinicId}/patients/${patient.patientId}/reminders/follow-up`,
+      { clinicId: patient.clinicId, data: { followUpDate: inDays(20) } },
+    );
+    expect(res.ok(), res.text()).toBeTruthy();
+    return res.json().items[0].id;
+  };
+  const cancelAs = (role, id) =>
+    apiRequestAs(role, 'post', `/clinics/${patient.clinicId}/reminders/${id}/cancel`, {
+      clinicId: patient.clinicId,
+    });
+
+  // A doctor who did not schedule it may not cancel it; a manager may.
+  const reminderId = await schedule();
+  expect((await cancelAs('doctor', reminderId)).status()).toBe(403);
+  const byManager = await cancelAs('staff', reminderId);
+  expect(byManager.ok(), byManager.text()).toBeTruthy();
+  expect(byManager.json()).toMatchObject({ status: 'FAILED', failureReason: 'CANCELLED_BY_STAFF' });
+
+  // Once cancelled it is not waiting any more.
+  const again = await cancelAs('volunteer', reminderId);
+  expect(again.status()).toBe(409);
+  expect(again.json().code).toBe('REMINDER_NOT_QUEUED');
+});
