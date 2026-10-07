@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   Logger,
@@ -12,7 +13,7 @@ import { CLINIC_DEFAULT_TIMEZONE, todayInTimeZone } from '@nkwapa/db';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
-import { tryLockForTransaction } from '../prisma/transaction-lock';
+import { lockForTransaction, tryLockForTransaction } from '../prisma/transaction-lock';
 import { AuditService } from '../audit/audit.service';
 import { redactLogValue } from '../common/redaction';
 import { SINGLE_FINAL_ATTEMPT, hasAttemptsLeft, type JobAttempt } from '../common/job-attempt';
@@ -38,6 +39,8 @@ const REMINDER_QUEUE_NAME = 'reminders';
 const FOLLOWUP_TEMPLATE_KEY = 'FOLLOWUP_REMINDER_V1';
 const APPOINTMENT_TEMPLATE_KEY = 'APPOINTMENT_REMINDER_V1';
 const REMINDER_SEND_FAILED = 'SEND_FAILED';
+/** Why a staff-scheduled reminder that never went out is marked FAILED (#116). */
+export const CANCELLED_BY_STAFF = 'CANCELLED_BY_STAFF';
 
 /**
  * Thrown to hand a transient send failure back to BullMQ.
@@ -76,6 +79,8 @@ export interface ScheduleFollowUpParams {
   /** Null for a reminder a staff member scheduled directly, outside any encounter (#116). */
   encounterId: string | null;
   followUpDate: Date;
+  /** Set only when a staff member scheduled it directly; makes it cancellable by staff. */
+  createdByUserId?: string;
   actorUserId: string;
   requestId?: string;
 }
@@ -89,6 +94,8 @@ export interface ScheduleFollowUpEmailParams {
   email: string;
   encounterId: string | null;
   followUpDate: Date;
+  /** Set only when a staff member scheduled it directly; makes it cancellable by staff. */
+  createdByUserId?: string;
   actorUserId: string;
   requestId?: string;
 }
@@ -99,6 +106,8 @@ export interface ScheduleFollowUpNoContactParams {
   patientCode: string;
   encounterId: string | null;
   followUpDate: Date;
+  /** Set only when a staff member scheduled it directly; makes it cancellable by staff. */
+  createdByUserId?: string;
   actorUserId: string;
   requestId?: string;
 }
@@ -112,6 +121,15 @@ export interface ScheduleStaffFollowUpParams {
   /** The clinic-local calendar date the patient should return, `YYYY-MM-DD`. */
   followUpDate: string;
   actorUserId: string;
+  requestId?: string;
+}
+
+export interface CancelStaffReminderParams {
+  clinicId: string;
+  reminderId: string;
+  actorUserId: string;
+  /** Holds REMINDER.CANCEL_ANY: may cancel a colleague's, not only their own. */
+  canCancelAny: boolean;
   requestId?: string;
 }
 
@@ -203,6 +221,7 @@ export interface ListRemindersResult {
     status: string;
     providerMessageId: string | null;
     failureReason: string | null;
+    createdByUserId: string | null;
     createdAt: Date;
     updatedAt: Date;
   }>;
@@ -343,6 +362,7 @@ export class ReminderService {
         clinicId: params.clinicId,
         patientId: params.patientId,
         encounterId: params.encounterId,
+        createdByUserId: params.createdByUserId ?? null,
         channel: 'SMS',
         toAddress: params.phoneE164,
         templateKey: FOLLOWUP_TEMPLATE_KEY,
@@ -372,6 +392,7 @@ export class ReminderService {
         clinicId: params.clinicId,
         patientId: params.patientId,
         encounterId: params.encounterId,
+        createdByUserId: params.createdByUserId ?? null,
         channel: 'EMAIL',
         toAddress: params.email,
         templateKey: FOLLOWUP_TEMPLATE_KEY,
@@ -401,6 +422,7 @@ export class ReminderService {
         clinicId: params.clinicId,
         patientId: params.patientId,
         encounterId: params.encounterId,
+        createdByUserId: params.createdByUserId ?? null,
         channel: 'SMS',
         toAddress: 'N/A',
         templateKey: FOLLOWUP_TEMPLATE_KEY,
@@ -461,6 +483,7 @@ export class ReminderService {
       patientCode: patient.patientCode,
       encounterId: null,
       followUpDate,
+      createdByUserId: params.actorUserId,
       actorUserId: params.actorUserId,
       requestId: params.requestId,
     };
@@ -476,6 +499,70 @@ export class ReminderService {
       created.push(await this.scheduleFollowUpReminderNoContact(base));
     }
     return created;
+  }
+
+  /**
+   * Cancel a staff-scheduled reminder that has not gone out yet (#116).
+   *
+   * Only reminders a staff member scheduled directly: a finalize follow-up, an appointment reminder
+   * or an invite belongs to the workflow that created it, which already cancels or suppresses it.
+   * The person who scheduled it may cancel it; managers may cancel anyone's. The cancel serializes
+   * with the worker's send on the same lock, so a reminder is either sent or cancelled, never both.
+   * It is kept as a FAILED row with its reason, like a suppressed one, so the ledger still shows
+   * that it was scheduled.
+   */
+  async cancelStaffReminder(params: CancelStaffReminderParams): Promise<Reminder> {
+    const updated = await this.prisma.$transaction(async (tx) => {
+      // The worker holds this lock for the length of a send. Waiting on it means a cancel that
+      // arrives mid-send reads the row the send left behind (SENT) and refuses, instead of
+      // reporting a cancellation for a message that went out.
+      await lockForTransaction(tx, `reminder-send:${params.reminderId}`);
+      const reminder = await tx.reminder.findFirst({
+        where: { id: params.reminderId, clinicId: params.clinicId },
+      });
+      if (!reminder) throw new NotFoundException('Reminder not found in this clinic');
+      if (!reminder.createdByUserId) {
+        throw new ConflictException({
+          code: 'REMINDER_NOT_CANCELLABLE',
+          message:
+            'This reminder was created by a visit, appointment or invite, which manages it. It cannot be cancelled here.',
+        });
+      }
+      if (reminder.createdByUserId !== params.actorUserId && !params.canCancelAny) {
+        throw new ForbiddenException(
+          'Only the person who scheduled this reminder, or a manager, can cancel it',
+        );
+      }
+      if (reminder.status !== 'QUEUED') {
+        throw new ConflictException({
+          code: 'REMINDER_NOT_QUEUED',
+          message: 'This reminder is no longer waiting to be sent.',
+          existingStatus: reminder.status,
+        });
+      }
+
+      const cancelled = await tx.reminder.update({
+        where: { id: reminder.id },
+        data: { status: 'FAILED', failureReason: CANCELLED_BY_STAFF },
+      });
+      await this.auditService.logWrite(
+        {
+          clinicId: params.clinicId,
+          actorUserId: params.actorUserId,
+          action: 'REMINDER.CANCEL',
+          entityType: 'Reminder',
+          entityId: reminder.id,
+          beforeJson: JSON.stringify(reminder),
+          afterJson: JSON.stringify(cancelled),
+          requestId: params.requestId,
+        },
+        tx,
+      );
+      return cancelled;
+    });
+    // After commit: a job that fires now finds the row FAILED and stands down even if this fails.
+    await this.removeQueuedReminderJob(updated.id);
+    return updated;
   }
 
   /**
@@ -653,6 +740,7 @@ export class ReminderService {
         status: r.status,
         providerMessageId: r.providerMessageId,
         failureReason: r.failureReason,
+        createdByUserId: r.createdByUserId,
         createdAt: r.createdAt,
         updatedAt: r.updatedAt,
       })),

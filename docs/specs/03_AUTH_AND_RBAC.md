@@ -117,6 +117,10 @@ Reminders (#116):
 - `REMINDER.READ_STAFF_NOTICES`: director, manager, and doctor. Without it the ledger shows only
   patient reminders (`recipientType = PATIENT`); invites, role changes and deactivations are about
   colleagues and stay with the roles that already saw them.
+- Cancelling a queued staff-scheduled reminder needs only `REMINDER.READ` at the route; the service
+  allows the person who scheduled it, or anyone holding `REMINDER.CANCEL_ANY` (director and
+  manager). Reminders a workflow created (finalize, appointments, invites) are never cancellable
+  here: their workflow owns them.
 
 - `PATIENT.DUPLICATE.REVIEW`: system administrator, director, and manager
 - `PATIENT.MERGE`: system administrator only, and only through the wildcard

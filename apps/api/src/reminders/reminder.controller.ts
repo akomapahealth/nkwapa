@@ -45,6 +45,32 @@ export class RemindersController {
     return this.emailStatus.getStatus();
   }
 
+  /**
+   * Cancel a staff-scheduled reminder that has not gone out (#116). Gated on reading the ledger;
+   * the service decides whether this caller may cancel this one (its scheduler, or a manager).
+   */
+  @Post(':reminderId/cancel')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.REMINDER_READ)
+  async cancel(
+    @Request() req: { user: ReqUserWithRoles; headers?: { 'x-request-id'?: string } },
+    @Param('clinicId') clinicId: string,
+    @Param('reminderId', ParseUUIDPipe) reminderId: string,
+  ) {
+    const reminder = await this.reminderService.cancelStaffReminder({
+      clinicId,
+      reminderId,
+      actorUserId: req.user.user.id,
+      canCancelAny: hasPermissionAtClinic(
+        req.user.roles,
+        clinicId,
+        PERMISSIONS.REMINDER_CANCEL_ANY,
+      ),
+      requestId: req.headers?.['x-request-id'] ?? randomUUID(),
+    });
+    return { id: reminder.id, status: reminder.status, failureReason: reminder.failureReason };
+  }
+
   @Get()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.REMINDER_READ)
