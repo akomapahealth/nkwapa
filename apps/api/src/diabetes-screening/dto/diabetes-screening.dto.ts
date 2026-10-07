@@ -279,3 +279,25 @@ export class UpsertDiabetesClinicianPlanDto {
   @MaxLength(2000)
   clinicianComments!: string | null;
 }
+
+/**
+ * Today's glucose reading on its own, as the glucose station records it.
+ *
+ * The full upsert above replaces every interview column. A station that records only the reading
+ * must not erase a guided interview another volunteer has started, so it has its own write.
+ */
+export class RecordGlucoseReadingDto {
+  @IsDefined()
+  @ValidateIf((_, value) => value !== null)
+  @Type(() => Number)
+  @IsInt()
+  @Min(DIABETES_GLUCOSE_MIN_MG_DL)
+  @Max(DIABETES_GLUCOSE_MAX_MG_DL)
+  glucoseMgDl!: number | null;
+
+  @IsEnum(GlucoseType)
+  glucoseType!: GlucoseType;
+
+  @IsDateString({ strict: true })
+  collectedAt!: string;
+}

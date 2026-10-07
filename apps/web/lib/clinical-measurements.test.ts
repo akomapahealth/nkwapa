@@ -177,4 +177,81 @@ describe('clinical measurement offline helpers', () => {
       expect(queued.temperatureSource).toBeNull();
     });
   });
+  // A station records only its own group into the shared Vitals row (#167).
+  describe('sectioned saves', () => {
+    it('queues a schemaVersion 2 bundle carrying only the blood pressure fields', async () => {
+      const result = await saveClinicalMeasurementsOffline({
+        clinicId: 'clinic-1',
+        encounterId: 'encounter-1',
+        vitalsId: 'vitals-1',
+        tobaccoScreeningId: 'tobacco-1',
+        vitals,
+        tobacco,
+        sections: ['bloodPressure'],
+      });
+
+      const payload = JSON.parse(String(result.outbox?.payloadJson)) as Record<string, unknown>;
+      expect(payload).toMatchObject({ schemaVersion: 2, sections: ['bloodPressure'] });
+      expect(payload).not.toHaveProperty('tobacco');
+      expect(Object.keys(payload.vitals as object).sort()).toEqual(
+        [
+          'bpSite',
+          'bpSiteOther',
+          'cuffSize',
+          'cuffSizeOther',
+          'diastolicBp',
+          'patientPosition',
+          'patientPositionOther',
+          'systolicBp',
+        ].sort(),
+      );
+      expect(mockTobaccoPut).not.toHaveBeenCalled();
+    });
+
+    it('keeps the other groups of the local copy when anthropometry is saved', async () => {
+      const result = await saveClinicalMeasurementsOffline({
+        clinicId: 'clinic-1',
+        encounterId: 'encounter-1',
+        vitalsId: 'vitals-1',
+        tobaccoScreeningId: 'tobacco-1',
+        vitals: { ...vitals, systolicBp: '', diastolicBp: '', bpSite: '' },
+        tobacco,
+        sections: ['anthropometry'],
+        existingVitals: {
+          id: 'vitals-1',
+          clinicId: 'clinic-1',
+          encounterId: 'encounter-1',
+          systolicBp: 140,
+          diastolicBp: 90,
+          bpSite: 'LEFT_ARM',
+          createdAt: '2026-10-07T08:00:00.000Z',
+        },
+      });
+
+      expect(result.vitalsRecord).toMatchObject({
+        systolicBp: 140,
+        diastolicBp: 90,
+        weightKg: 70,
+        heightCm: 170,
+        bmi: 24.2,
+      });
+      expect(JSON.parse(String(result.outbox?.payloadJson)).vitals).toEqual({
+        weightKg: 70,
+        heightCm: 170,
+      });
+    });
+
+    it('ignores validation errors from groups it is not saving', async () => {
+      const result = await saveClinicalMeasurementsOffline({
+        clinicId: 'clinic-1',
+        encounterId: 'encounter-1',
+        vitalsId: 'vitals-1',
+        tobaccoScreeningId: 'tobacco-1',
+        vitals: { ...vitals, systolicBp: '120', diastolicBp: '' },
+        tobacco,
+        sections: ['anthropometry'],
+      });
+      expect(result.errors).toEqual({});
+    });
+  });
 });

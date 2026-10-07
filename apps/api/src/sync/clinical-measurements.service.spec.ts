@@ -301,4 +301,147 @@ describe('ClinicalMeasurementsService', () => {
       }),
     );
   });
+  // A station line records BP and anthropometry at different stations, into the same
+  // one-per-encounter Vitals row. A full-row write from either station would erase the other.
+  describe('sectioned writes (schemaVersion 2)', () => {
+    const volunteer = {
+      user: { id: IDS.user },
+      roles: [{ clinicId: IDS.clinic, role: UserRole.VOLUNTEER }],
+    };
+
+    function sectioned(sections: string[], vitals: Record<string, unknown>) {
+      return {
+        schemaVersion: 2,
+        sections,
+        encounterId: IDS.encounter,
+        vitalsId: IDS.vitals,
+        vitals,
+      };
+    }
+
+    function apply(service: ClinicalMeasurementsService, body: Record<string, unknown>) {
+      return service.applyBundle({
+        clinicId: IDS.clinic,
+        actorUserId: IDS.user,
+        user: volunteer,
+        mutation: {
+          id: 'mutation-1',
+          entityType: 'encounter_vitals_bundle',
+          entityId: IDS.vitals,
+          clinicId: IDS.clinic,
+          operation: 'UPSERT',
+          idempotencyKey: 'idempotency-1',
+          payloadJson: body,
+        },
+        payload: body,
+      });
+    }
+
+    it('writes only the blood pressure columns', async () => {
+      const { service, tx } = createHarness();
+      await apply(
+        service,
+        sectioned(['bloodPressure'], {
+          systolicBp: 130,
+          diastolicBp: 85,
+          bpSite: BloodPressureSite.LEFT_ARM,
+        }),
+      );
+
+      const { update } = tx.vitals.upsert.mock.calls[0][0];
+      expect(update).toEqual({
+        systolicBp: 130,
+        diastolicBp: 85,
+        bpSite: BloodPressureSite.LEFT_ARM,
+        bpSiteOther: null,
+        patientPosition: null,
+        patientPositionOther: null,
+        cuffSize: null,
+        cuffSizeOther: null,
+      });
+      expect(update).not.toHaveProperty('weightKg');
+      expect(update).not.toHaveProperty('bmi');
+      expect(tx.tobaccoScreening.upsert).not.toHaveBeenCalled();
+    });
+
+    it('writes anthropometry with a derived BMI and leaves blood pressure alone', async () => {
+      const { service, tx } = createHarness();
+      await apply(service, sectioned(['anthropometry'], { weightKg: 70, heightCm: 170 }));
+
+      const { update } = tx.vitals.upsert.mock.calls[0][0];
+      expect(update).toEqual({ weightKg: 70, heightCm: 170, bmi: 24.2 });
+    });
+
+    it('lets two stations record in either order without erasing each other', async () => {
+      // Replay order is not guaranteed: two devices can drain their outboxes in any order.
+      const bp = sectioned(['bloodPressure'], {
+        systolicBp: 140,
+        diastolicBp: 90,
+        bpSite: BloodPressureSite.RIGHT_ARM,
+      });
+      const anthropometry = sectioned(['anthropometry'], { weightKg: 80, heightCm: 160 });
+
+      for (const order of [
+        [bp, anthropometry],
+        [anthropometry, bp],
+      ]) {
+        const row: Record<string, unknown> = {};
+        const { service, tx } = createHarness();
+        tx.vitals.upsert.mockImplementation(({ update }) => {
+          Object.assign(row, update);
+          return Promise.resolve({ ...row });
+        });
+        for (const body of order) await apply(service, body);
+
+        expect(row).toMatchObject({
+          systolicBp: 140,
+          diastolicBp: 90,
+          weightKg: 80,
+          heightCm: 160,
+          bmi: 31.2,
+        });
+      }
+    });
+
+    it('still applies cross-field rules inside a section', async () => {
+      const { service } = createHarness();
+      await expect(
+        service.validateAndNormalize(sectioned(['bloodPressure'], { systolicBp: 120 })),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(
+        service.validateAndNormalize(
+          sectioned(['otherVitals'], { temperatureValue: 37, temperatureUnit: 'CELSIUS' }),
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it.each([
+      [
+        'no sections',
+        { schemaVersion: 2, encounterId: IDS.encounter, vitalsId: IDS.vitals, vitals: {} },
+      ],
+      ['an unknown section', sectioned(['glucose'], {})],
+      ['a value outside the named sections', sectioned(['bloodPressure'], { weightKg: 70 })],
+      ['sections on a version 1 bundle', { ...payload(), sections: ['bloodPressure'] }],
+    ])('rejects %s', async (_label, body) => {
+      const { service } = createHarness();
+      await expect(service.validateAndNormalize(body)).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('accepts a null for a field outside the named sections', async () => {
+      const { service } = createHarness();
+      const normalized = await service.validateAndNormalize(
+        sectioned(['anthropometry'], { weightKg: 70, heightCm: 170, systolicBp: null }),
+      );
+      expect(normalized.vitals).toEqual({ weightKg: 70, heightCm: 170, bmi: 24.2 });
+    });
+
+    it('keeps version 1 bundles as a full replace', async () => {
+      const { service } = createHarness();
+      const normalized = await service.validateAndNormalize(payload());
+      expect(normalized.sections).toBeNull();
+      expect(normalized.vitals).toHaveProperty('weightKg', 70);
+      expect(normalized.vitals).toHaveProperty('systolicBp', 120);
+    });
+  });
 });

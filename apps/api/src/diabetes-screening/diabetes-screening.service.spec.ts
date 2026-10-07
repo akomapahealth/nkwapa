@@ -349,4 +349,111 @@ describe('DiabetesScreeningService', () => {
       ).rejects.toMatchObject({ status: 404 });
     });
   });
+  // The glucose station records only today's reading. The full upsert above would reset every
+  // interview column, erasing a guided interview another volunteer has already started.
+  describe('recordGlucoseReading', () => {
+    const reading = {
+      glucoseMgDl: 210,
+      glucoseType: 'RANDOM',
+      collectedAt: '2026-08-12T12:00:00.000Z',
+    };
+
+    it('writes only the reading and its derived columns', async () => {
+      const { service, tx } = setup();
+      tx.diabetesScreening.findUnique.mockResolvedValue(
+        saved({ urgentSymptoms: [], currentFootWound: 'NO', diabetesStatus: 'KNOWN' }),
+      );
+      await service.recordGlucoseReading('clinic-1', 'encounter-1', doctor, reading as never);
+
+      const { update } = tx.diabetesScreening.upsert.mock.calls[0][0];
+      expect(Object.keys(update).sort()).toEqual(
+        [
+          'collectedAt',
+          'derivedSuspicion',
+          'glucoseMgDl',
+          'glucoseType',
+          'urgentReviewReasons',
+          'urgentReviewRequired',
+        ].sort(),
+      );
+      expect(update).toMatchObject({ glucoseMgDl: 210, derivedSuspicion: 'SUSPECTED' });
+      expect(tx.auditEvent.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ action: 'DIABETES_SCREENING.GLUCOSE_READING' }),
+      });
+    });
+
+    it('keeps escalation reasons that come from stored interview answers', async () => {
+      const { service, tx } = setup();
+      tx.diabetesScreening.findUnique.mockResolvedValue(
+        saved({ urgentSymptoms: [], currentFootWound: 'YES' }),
+      );
+      await service.recordGlucoseReading('clinic-1', 'encounter-1', doctor, {
+        ...reading,
+        glucoseMgDl: 60,
+      } as never);
+
+      const { update } = tx.diabetesScreening.upsert.mock.calls[0][0];
+      expect(update.urgentReviewRequired).toBe(true);
+      expect(update.urgentReviewReasons).toEqual(
+        expect.arrayContaining(['ACTIVE_FOOT_WOUND', 'HYPOGLYCEMIA']),
+      );
+    });
+
+    it('creates the screening under the client id when none exists yet', async () => {
+      const { service, tx } = setup();
+      await service.recordGlucoseReading(
+        'clinic-1',
+        'encounter-1',
+        doctor,
+        reading as never,
+        {},
+        'client-screening-id',
+      );
+      expect(tx.diabetesScreening.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            id: 'client-screening-id',
+            authoredByUserId: 'user-1',
+            glucoseMgDl: 210,
+          }),
+        }),
+      );
+    });
+
+    it('refuses a finalized encounter and a role without screening write', async () => {
+      const finalized = setup({
+        clinicId: 'clinic-1',
+        patientId: 'patient-1',
+        status: 'FINALIZED',
+      });
+      await expect(
+        finalized.service.recordGlucoseReading('clinic-1', 'encounter-1', doctor, reading as never),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      const { service } = setup();
+      await expect(
+        service.recordGlucoseReading('clinic-1', 'encounter-1', director, reading as never),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('validates a replayed payload without the addressing keys', async () => {
+      const { service } = setup();
+      const dto = await service.validateGlucoseReadingSyncPayload(
+        {
+          encounterId: 'encounter-1',
+          clinicId: 'clinic-1',
+          glucoseMgDl: 95,
+          glucoseType: 'FASTING',
+        },
+        '2026-08-12T12:00:00.000Z',
+      );
+      expect(dto).toMatchObject({ glucoseMgDl: 95, glucoseType: 'FASTING' });
+      await expect(
+        service.validateGlucoseReadingSyncPayload(
+          { glucoseMgDl: 5000, glucoseType: 'FASTING' },
+          '2026-08-12T12:00:00.000Z',
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
 });

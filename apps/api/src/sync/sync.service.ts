@@ -372,6 +372,16 @@ export class SyncService {
           idempotencyKey,
           metadata,
         );
+      case 'diabetes_glucose_reading':
+        return this.applyGlucoseReading(
+          clinicId,
+          actorUserId,
+          user,
+          mut,
+          payload,
+          idempotencyKey,
+          metadata,
+        );
       case 'hypertension_assessment':
         return this.applyHypertensionAssessmentUpsert(
           clinicId,
@@ -938,6 +948,43 @@ export class SyncService {
       },
       mut.entityId,
       normalized.compatibility,
+    );
+
+    return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
+  }
+
+  /** Replay a glucose-station reading. `entityId` is the screening row's id. */
+  private async applyGlucoseReading(
+    clinicId: string,
+    actorUserId: string,
+    user: UserWithId,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+    idempotencyKey: string,
+    metadata?: RequestMetadata,
+  ): Promise<SyncMutationResultDto> {
+    const encounterId = payload.encounterId as string;
+    if (!encounterId) throw new Error('Glucose reading payload must include encounterId');
+    const dto = await this.diabetesScreeningService.validateGlucoseReadingSyncPayload(
+      payload,
+      mut.createdAt ?? new Date().toISOString(),
+    );
+    await this.diabetesScreeningService.recordGlucoseReading(
+      clinicId,
+      encounterId,
+      { userId: actorUserId, roles: user.roles },
+      dto,
+      {
+        requestId: idempotencyKey,
+        ipAddress: metadata?.ipAddress,
+        userAgent: metadata?.userAgent,
+        syncMutation: {
+          entityType: mut.entityType,
+          entityId: mut.entityId,
+          idempotencyKey,
+        },
+      },
+      mut.entityId,
     );
 
     return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };

@@ -187,6 +187,7 @@ const ENTITY_LABELS: Record<string, string> = {
   vitals: 'Vital signs',
   encounter_vitals_bundle: 'Vital signs',
   diabetes_screening: 'Diabetes screening',
+  diabetes_glucose_reading: 'Glucose reading',
   hypertension_assessment: 'Hypertension assessment',
   encounter_medication_adherence: 'Medication adherence',
   care_plan: 'Care plan',

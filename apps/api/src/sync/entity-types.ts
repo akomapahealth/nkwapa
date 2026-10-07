@@ -13,6 +13,8 @@ export type EntityType =
   | 'vitals'
   | 'encounter_vitals_bundle'
   | 'diabetes_screening'
+  // Today's glucose reading alone, as the glucose station records it (#167).
+  | 'diabetes_glucose_reading'
   | 'hypertension_assessment'
   | 'encounter_medication_adherence'
   | 'care_plan'
