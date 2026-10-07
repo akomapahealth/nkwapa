@@ -75,6 +75,12 @@ export default function RemindersPage() {
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const getToken = useAuth();
   const clinicId = getBootstrapActiveClinicId(bootstrap);
+  // Staff lifecycle notices are withheld by the server from anyone without this (#116).
+  const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
+  const seesStaffNotices = perms.includes('*') || perms.includes('REMINDER.READ_STAFF_NOTICES');
+  const typeFilters = NOTIFICATION_TYPE_FILTERS.filter(
+    (option) => seesStaffNotices || option.value !== 'STAFF',
+  );
 
   const [status, setStatus] = useState('');
   const [channel, setChannel] = useState('');
@@ -272,7 +278,11 @@ export default function RemindersPage() {
         <AppPageHeader
           eyebrow="Message delivery"
           title="Notifications"
-          description="Review every message the clinic has sent: reminders, portal invites, appointment updates, and staff access notices."
+          description={
+            seesStaffNotices
+              ? 'Review every message the clinic has sent: reminders, portal invites, appointment updates, and staff access notices.'
+              : 'Review the messages the clinic has sent to patients: reminders, portal invites and appointment updates.'
+          }
           helpTitle="How message delivery works"
           helpText="Filter by status, channel, type, or date, then inspect queued, sent, delivered, or failed messages. Failed rows explain what went wrong and what to do about it."
         />
@@ -374,7 +384,7 @@ export default function RemindersPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">All types</SelectItem>
-                    {NOTIFICATION_TYPE_FILTERS.map((option) => (
+                    {typeFilters.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
                       </SelectItem>

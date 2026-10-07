@@ -29,6 +29,7 @@ import {
   Stethoscope,
 } from 'lucide-react';
 import { MedicalHistoryPanel } from '@/components/patients/MedicalHistoryPanel';
+import { ScheduleFollowUpReminderCard } from '@/components/patients/ScheduleFollowUpReminderCard';
 import { PortalAccessCard } from '@/components/patients/PortalAccessCard';
 import type { PortalAccess } from '@/lib/portal-invite';
 import { MedicationReconciliationPanel } from '@/components/patients/MedicationReconciliationPanel';
@@ -130,6 +131,7 @@ function PatientChartWorkspace() {
   const canReadPrescriptions = hasPermission(perms, 'PRESCRIPTION.READ');
   const userId = bootstrap?.userId ?? '';
   const canCreateOpsCheckIn = hasPermission(perms, 'OPS.CHECKIN.CREATE');
+  const canScheduleReminder = hasPermission(perms, 'REMINDER.CREATE');
   const patientCheckIn = usePatientCheckIn(clinicId);
 
   const [data, setData] = useState<PatientWithEncounters | null>(null);
@@ -897,6 +899,9 @@ function PatientChartWorkspace() {
                       onError={setError}
                     />
                   </div>
+                  {canScheduleReminder ? (
+                    <ScheduleFollowUpReminderCard clinicId={clinicId} patientId={patient.id} />
+                  ) : null}
                 </PatientChartOverview>
               );
             case 'vitals':
