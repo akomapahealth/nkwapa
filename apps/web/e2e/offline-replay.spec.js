@@ -130,7 +130,7 @@ test('a change queued under another clinic is neither sent nor counted while thi
     idempotencyKey: randomUUID(),
     createdAt: new Date().toISOString(),
   };
-  await queueOfflineChange(page, stale);
+  const stored = await queueOfflineChange(page, stale);
 
   const pushed = [];
   page.on('request', (request) => {
@@ -145,7 +145,7 @@ test('a change queued under another clinic is neither sent nor counted while thi
   expect(pushed.join('\n')).not.toContain(stale.id);
   expect(pushed.join('\n')).not.toContain(otherClinicId);
   // Kept for the clinic it belongs to, and not shown as this clinic's work.
-  expect(await readOutboxRows(page, otherClinicId)).toEqual([stale]);
+  expect(await readOutboxRows(page, otherClinicId)).toEqual([stored]);
   const pill = page.getByTestId('sync-status');
   await expect(pill).toHaveAttribute('data-state', 'synced');
   await expect(pill).toHaveAttribute('aria-label', /All synced/);

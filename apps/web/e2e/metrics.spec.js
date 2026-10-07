@@ -1,5 +1,6 @@
 const { test, expect } = require('@playwright/test');
 
+const { queueOfflineChange } = require('../playwright/outbox');
 const { storageStateFor } = require('../playwright/roles');
 
 /**
@@ -42,28 +43,16 @@ test.describe('as staff', () => {
 
     // Make a push happen: queue one change the server will refuse, then sync. That records a push,
     // a refused change and its reason, all of which the dashboard should count.
-    await page.evaluate(
-      (row) =>
-        new Promise((resolve, reject) => {
-          const open = indexedDB.open('NkwapaDb');
-          open.onerror = () => reject(open.error);
-          open.onsuccess = () => {
-            const tx = open.result.transaction('outbox', 'readwrite');
-            tx.objectStore('outbox').put(row);
-            tx.oncomplete = () => resolve(undefined);
-          };
-        }),
-      {
-        id: crypto.randomUUID(),
-        clinicId,
-        entityType: 'encounter',
-        entityId: crypto.randomUUID(),
-        operation: 'UPSERT',
-        payloadJson: JSON.stringify({ clinicId: crypto.randomUUID() }),
-        idempotencyKey: crypto.randomUUID(),
-        createdAt: new Date().toISOString(),
-      },
-    );
+    await queueOfflineChange(page, {
+      id: crypto.randomUUID(),
+      clinicId,
+      entityType: 'encounter',
+      entityId: crypto.randomUUID(),
+      operation: 'UPSERT',
+      payloadJson: JSON.stringify({ clinicId: crypto.randomUUID() }),
+      idempotencyKey: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+    });
     const pushed = page.waitForResponse((response) => response.url().includes('/sync/push'));
     await page.reload();
     await pushed;

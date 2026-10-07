@@ -1036,10 +1036,11 @@ Needs an account with seats at two clinics (the cross-clinic fixtures from
       role at A. Back in the first browser, without refreshing (clinic A is still selected), press
       **Sync now**. It says "This account cannot sync at this clinic", and the row stays in
       IndexedDB. Nothing is lost.
-- [ ] **CLN-05** _Known risk._ Queue a change as account A with `*/sync/push*` blocked, sign out, and
-      sign in as account B at the same clinic. Unblock the URL. Today the change is sent under B, and
-      the audit entry names B. B's own permissions are checked, so B cannot write anything B could
-      not write directly. Record what you see; do not file it as a new bug. It is tracked in #162.
+- [ ] **CLN-05** Queue a change as account A with `*/sync/push*` blocked, sign out, and sign in
+      as account B at the same clinic. Unblock the URL. The change is **not** sent: B's sync pill
+      does not count it, and the sync center lists it under "Saved by another account on this
+      device", attributed to A. B can discard it only after confirming, and has no way to send
+      it. Sign back in as A: it is sent and the audit entry names A (#162).
 - [ ] **CLN-06** _Known risk._ Queue a change at clinic A, then remove the account's only role at A.
       After a refresh, clinic A is no longer offered, and the change is kept in IndexedDB but shown
       nowhere. Restoring the role brings it back and it drains. Tracked in #163.

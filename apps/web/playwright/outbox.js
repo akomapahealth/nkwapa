@@ -51,8 +51,30 @@ async function outboxCount(page, clinicId) {
   return (await readOutboxRows(page, clinicId)).length;
 }
 
-/** Write straight into the device outbox, as an older client or a long offline session would. */
-async function queueOfflineChange(page, row) {
+const { apiRequestAs } = require('./api-client');
+
+const userIds = new Map();
+
+/** The id the API knows an e2e identity by, for stamping it as a queued change's owner. */
+async function userIdFor(role) {
+  if (!userIds.has(role)) {
+    const res = await apiRequestAs(role, 'get', '/auth/whoami');
+    if (!res.ok()) throw new Error(`whoami failed for ${role}: ${res.status()}`);
+    userIds.set(role, res.json().userId);
+  }
+  return userIds.get(role);
+}
+
+/**
+ * Write straight into the device outbox, as an older client or a long offline session would.
+ *
+ * Only the account that queued a change sends it (#162), so a row is stamped as the signed-in
+ * identity's (`owner`, default `staff`) unless it names an owner itself. `owner: null` writes a row
+ * with no owner, as a device would hold from before owners were recorded. Returns the stored row.
+ */
+async function queueOfflineChange(page, row, { owner = 'staff' } = {}) {
+  const record =
+    'ownerUserId' in row || owner === null ? row : { ...row, ownerUserId: await userIdFor(owner) };
   await page.evaluate(
     (record) =>
       new Promise((resolve, reject) => {
@@ -65,8 +87,9 @@ async function queueOfflineChange(page, row) {
           transaction.onerror = () => reject(transaction.error);
         };
       }),
-    row,
+    record,
   );
+  return record;
 }
 
 /** The next `/sync/push` response. Pair with `waitForOutboxDrain` when the change itself matters. */
@@ -98,6 +121,7 @@ async function waitForOutboxDrain(page, expect, { entityType, clinicId, timeout 
 }
 
 module.exports = {
+  userIdFor,
   outboxCount,
   queueOfflineChange,
   readOutbox,
