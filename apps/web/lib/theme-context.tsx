@@ -5,7 +5,9 @@ import { createContext, useContext, useCallback, useEffect, useMemo, useState } 
 export type ThemePreference = 'light' | 'dark' | 'system';
 export type ResolvedTheme = 'light' | 'dark';
 
-export const themeStorageKey = 'nkwapa-theme';
+import { themeStorageKey } from './theme-storage';
+
+export { themeStorageKey };
 
 type ThemeContextValue = {
   /** What the user chose. 'system' follows the OS. */

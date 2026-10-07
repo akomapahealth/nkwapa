@@ -1,7 +1,8 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import { ToastProvider } from '@/components/ui/toast';
-import { ThemeProvider, themeStorageKey } from '@/lib/theme-context';
+import { ThemeProvider } from '@/lib/theme-context';
+import { themeStorageKey } from '@/lib/theme-storage';
 
 /**
  * Runs before first paint so the correct theme is on <html> when the page renders, rather
@@ -11,7 +12,7 @@ import { ThemeProvider, themeStorageKey } from '@/lib/theme-context';
  */
 const themeBootScript = `
 (function(){try{
-var s=localStorage.getItem('${themeStorageKey}');
+var s=localStorage.getItem(${JSON.stringify(themeStorageKey)});
 var d=s==='dark'||(s!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches);
 document.documentElement.classList.toggle('dark',d);
 document.documentElement.style.colorScheme=d?'dark':'light';
