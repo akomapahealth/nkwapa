@@ -89,6 +89,9 @@ export const SYNC_CONFLICT_CODES = {
   // Only reachable online: a replayed check-out of a closed shift has reached its end state and is
   // reported as applied. Catalogued because the ops service is a sync handler module.
   SHIFT_ALREADY_CLOSED: code('stale', { retryable: false }),
+  // Only reachable online: manager assignment is refused while the station workflow is on (#167),
+  // and assignment is never queued. Catalogued because the ops service is a sync handler module.
+  STATION_WORKFLOW_ACTIVE: code('stale', { retryable: false }),
 
   // Content the server will not accept
   VALIDATION_ERROR: code('validation'),
