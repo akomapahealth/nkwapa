@@ -154,6 +154,14 @@ jobs:
           RUN_STAFF_INVITE_MIGRATION_TESTS: '1'
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
+      # The station line's guarantees (#167): one open station per patient, one winner per claim,
+      # one review station per clinic, and row-level security on the new tables.
+      - name: Verify station workflow safeguards
+        run: npm run test --workspace=@nkwapa/db -- --runInBand src/station-workflow-migration.integration.spec.ts
+        env:
+          RUN_STATION_WORKFLOW_MIGRATION_TESTS: '1'
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
       - name: Verify tenant isolation is enforced by the database
         run: npm run test --workspace=@nkwapa/db -- --runInBand src/tenant-isolation.integration.spec.ts
         env:

@@ -8,6 +8,12 @@ export {
   hasEncryptionKey,
 } from './src/national-id';
 export { generatePatientCode } from './src/patient-code';
+export {
+  DEFAULT_CLINIC_STATIONS,
+  STATION_KIND_LABELS,
+  nextStationId,
+  type StationKindValue,
+} from './src/clinic-stations';
 export { normalizePhoneToE164 } from './src/phone';
 export {
   computeBmi,

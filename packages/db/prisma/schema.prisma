@@ -108,6 +108,42 @@ enum AssignmentStatus {
   CANCELLED
 }
 
+/// What a station records, which decides the form it renders (#167). A clinic has exactly one
+/// active REVIEW station, and completing it completes the patient's session.
+enum StationKind {
+  INTAKE
+  BLOOD_PRESSURE
+  GLUCOSE
+  ANTHROPOMETRY
+  REVIEW
+  CUSTOM
+}
+
+enum StationVisitStatus {
+  QUEUED
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+  CANCELLED
+}
+
+enum CounsellingTopic {
+  BLOOD_PRESSURE
+  GLUCOSE_DIABETES
+  WEIGHT_NUTRITION
+  PHYSICAL_ACTIVITY
+  TOBACCO
+  ALCOHOL
+  MEDICATION_ADHERENCE
+  OTHER
+}
+
+enum ReferralUrgency {
+  ROUTINE
+  SOON
+  URGENT
+}
+
 /// BEFORE_MEAL and POST_PRANDIAL_2H are added by the guided interview (#114). Their suspicion
 /// thresholds are provisional: see packages/db/src/diabetes-thresholds.ts.
 enum GlucoseType {
@@ -792,6 +828,9 @@ model Clinic {
   staffShifts               StaffShift[]
   patientCheckIns           PatientCheckIn[]
   patientAssignments        PatientAssignment[]
+  stations                  ClinicStation[]
+  stationVisits             PatientStationVisit[]
+  counsellingRecords        CounsellingRecord[]
   appointmentRequests       AppointmentRequest[]
   appointments              Appointment[]
   patientPortalInvites      PatientPortalInvite[]
@@ -851,6 +890,10 @@ model User {
   volunteerAssignments            PatientAssignment[]             @relation("AssignmentVolunteer")
   doctorAssignments               PatientAssignment[]             @relation("AssignmentDoctor")
   createdAssignments              PatientAssignment[]             @relation("AssignmentAssignedBy")
+  queuedStationVisits             PatientStationVisit[]           @relation("StationVisitQueuedBy")
+  claimedStationVisits            PatientStationVisit[]           @relation("StationVisitClaimedBy")
+  completedStationVisits          PatientStationVisit[]           @relation("StationVisitCompletedBy")
+  counsellingRecords              CounsellingRecord[]             @relation("CounsellingRecordAuthor")
   doctorAppointments              Appointment[]                   @relation("AppointmentAssignedDoctor")
   volunteerAppointments           Appointment[]                   @relation("AppointmentAssignedVolunteer")
   createdPatientPortalInvites     PatientPortalInvite[]           @relation("PatientPortalInviteCreatedBy")
@@ -1050,6 +1093,8 @@ model Encounter {
   sourcedMedicationRevisions PatientMedicationRevision[]     @relation("PatientMedicationRevisionSourceEncounter")
   medicationReconciliations  MedicationReconciliationEvent[] @relation("MedicationReconciliationSourceEncounter")
   clinicalNote               ClinicalNote?
+  counsellingRecord          CounsellingRecord?
+  stationVisits              PatientStationVisit[]
 
   @@index([clinicId, updatedAt])
   @@index([patientId, updatedAt])
@@ -1065,11 +1110,15 @@ model StaffShift {
   checkedOutAt DateTime?
   status       ShiftStatus @default(ACTIVE)
   notes        String?     @db.Text
+  /// The station this person is working right now (#167). Changes during a shift; cleared on
+  /// check-out.
+  stationId    String?     @db.Uuid
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
-  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clinic  Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  station ClinicStation? @relation(fields: [stationId], references: [id], onDelete: SetNull)
 
   @@index([clinicId, status, checkedInAt])
   @@index([userId, checkedInAt])
@@ -1087,10 +1136,11 @@ model PatientCheckIn {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  clinic      Clinic              @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  patient     Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  encounter   Encounter?          @relation(fields: [encounterId], references: [id], onDelete: SetNull)
-  assignments PatientAssignment[]
+  clinic        Clinic                @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient       Patient               @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  encounter     Encounter?            @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+  assignments   PatientAssignment[]
+  stationVisits PatientStationVisit[]
 
   @@index([clinicId, status, checkedInAt])
   @@index([patientId, checkedInAt])
@@ -1118,6 +1168,101 @@ model PatientAssignment {
 
   @@index([clinicId, status, assignedAt])
   @@index([patientCheckInId])
+}
+
+/// A step of a clinic's station line (#167). Seeded per clinic with the UCC template; the order is
+/// the default route, which a volunteer may override when handing a patient on.
+model ClinicStation {
+  id        String      @id @default(uuid()) @db.Uuid
+  clinicId  String      @db.Uuid
+  kind      StationKind
+  name      String      @db.VarChar(120)
+  sortOrder Int
+  active    Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  clinic Clinic                @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  visits PatientStationVisit[]
+  shifts StaffShift[]
+
+  @@unique([clinicId, sortOrder])
+  @@index([clinicId, active, sortOrder])
+}
+
+/// One stop of one check-in at one station (#167). A revisit is a new row, never a reopened one.
+/// A partial unique index in SQL keeps at most one QUEUED or IN_PROGRESS row per check-in, so a
+/// patient is at exactly one station at a time.
+model PatientStationVisit {
+  id               String             @id @default(uuid()) @db.Uuid
+  clinicId         String             @db.Uuid
+  patientCheckInId String             @db.Uuid
+  encounterId      String?            @db.Uuid
+  stationId        String             @db.Uuid
+  status           StationVisitStatus @default(QUEUED)
+
+  queuedAt       DateTime
+  queuedByUserId String   @db.Uuid
+
+  claimedByUserId String?   @db.Uuid
+  claimedAt       DateTime?
+
+  completedByUserId String?   @db.Uuid
+  completedAt       DateTime?
+  /// What the next station should know, written by the volunteer handing the patient on.
+  handoffNote       String?   @db.Text
+  /// Why this stop ended without the station's work: a skip, a release, a manager move.
+  endReason         String?   @db.VarChar(500)
+  releaseCount      Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clinic         Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patientCheckIn PatientCheckIn @relation(fields: [patientCheckInId], references: [id], onDelete: Cascade)
+  encounter      Encounter?     @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+  station        ClinicStation  @relation(fields: [stationId], references: [id], onDelete: Restrict)
+  queuedBy       User           @relation("StationVisitQueuedBy", fields: [queuedByUserId], references: [id], onDelete: Restrict)
+  claimedBy      User?          @relation("StationVisitClaimedBy", fields: [claimedByUserId], references: [id], onDelete: SetNull)
+  completedBy    User?          @relation("StationVisitCompletedBy", fields: [completedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([clinicId, stationId, status, queuedAt])
+  @@index([patientCheckInId, queuedAt])
+  @@index([encounterId])
+  @@index([claimedByUserId, status])
+}
+
+/// What the review station told the patient (#167). Volunteer-writable, unlike `CarePlan`, which
+/// stays doctor-only. Locked when the review station completes; later corrections go through
+/// clinical note addenda.
+model CounsellingRecord {
+  id          String @id @default(uuid()) @db.Uuid
+  clinicId    String @db.Uuid
+  encounterId String @unique @db.Uuid
+
+  topics              CounsellingTopic[] @default([])
+  topicOther          String?            @db.VarChar(200)
+  adviceGiven         String             @default("") @db.Text
+  followUpRecommended Boolean            @default(false)
+  followUpWindow      FollowUpWindow     @default(NOT_ASSESSED)
+  followUpOther       String?            @db.VarChar(120)
+  referralRecommended Boolean            @default(false)
+  referralTo          String?            @db.VarChar(200)
+  referralReason      String?            @db.Text
+  referralUrgency     ReferralUrgency?
+
+  authorUserId String    @db.Uuid
+  version      Int       @default(1)
+  lockedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clinic    Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  encounter Encounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+  author    User      @relation("CounsellingRecordAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+
+  @@index([clinicId, updatedAt])
 }
 
 model ClinicalNote {

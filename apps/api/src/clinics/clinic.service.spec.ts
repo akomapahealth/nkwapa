@@ -27,13 +27,39 @@ function buildService() {
       upsert: jest.fn(),
       create: jest.fn(),
     },
+    clinicStation: { createMany: jest.fn().mockResolvedValue({ count: 5 }) },
+    $transaction: jest.fn(),
   };
+  prisma.$transaction.mockImplementation((callback: (tx: typeof prisma) => unknown) =>
+    callback(prisma),
+  );
   return { prisma, service: new ClinicService(prisma as never) };
 }
 
 const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
 
 describe('ClinicService.create', () => {
+  it('gives a new clinic the default station line in the same transaction', async () => {
+    const { prisma, service } = buildService();
+    prisma.organization.findUnique.mockResolvedValue({ id: ORGANIZATION_ID });
+    prisma.clinic.create.mockResolvedValue({ id: 'clinic-1' });
+
+    await service.create({ name: 'UCC Clinic', organizationId: ORGANIZATION_ID } as never);
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    const { data } = prisma.clinicStation.createMany.mock.calls[0][0];
+    expect(data.map((station: { kind: string }) => station.kind)).toEqual([
+      'INTAKE',
+      'BLOOD_PRESSURE',
+      'GLUCOSE',
+      'ANTHROPOMETRY',
+      'REVIEW',
+    ]);
+    expect(data.every((station: { clinicId: string }) => station.clinicId === 'clinic-1')).toBe(
+      true,
+    );
+  });
+
   it('stores the metadata it was given, normalized', async () => {
     const { prisma, service } = buildService();
     prisma.organization.findUnique.mockResolvedValue({ id: ORGANIZATION_ID });
