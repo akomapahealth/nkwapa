@@ -7,6 +7,15 @@ Goal
 Deliver every outbound message the clinic sends — reminders, portal invites, appointment
 updates, and staff access notices — through one recorded, retryable path.
 
+Staff-scheduled follow-up reminders (#116)
+
+POST /clinics/:clinicId/patients/:patientId/reminders/follow-up, behind REMINDER.CREATE,
+takes a clinic-local date (today to 366 days out) and nothing else. It queues
+FOLLOWUP_REMINDER_V1 on every channel the chart has, exactly as encounter finalize does,
+or records a visible NO_CONTACT_METHOD failure, through the same ledger, queue, retry
+policy and audit (REMINDER.CREATE, actor = the staff member). The patient must belong to
+the clinic and must not be a merged chart. There is no cancel route yet, for any role.
+
 Provider abstraction
 
 Backend defines two interfaces:

@@ -1,9 +1,22 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
+import { randomUUID } from 'crypto';
+import { Matches } from 'class-validator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 import { ClinicScoped } from '../auth/decorators/clinic-scoped.decorator';
 import { ClinicScopeGuard } from '../auth/guards/clinic-scope.guard';
-import { RbacGuard } from '../auth/guards/rbac.guard';
+import { RbacGuard, type ReqUserWithRoles } from '../auth/guards/rbac.guard';
+import { hasPermissionAtClinic } from '../auth/clinic-roles';
 import { ReminderService } from './reminder.service';
 import { EmailStatusService } from '../notifications/email/email-status.service';
 import { PERMISSIONS } from '../auth/constants/permissions';
@@ -36,6 +49,7 @@ export class RemindersController {
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.REMINDER_READ)
   async list(
+    @Request() req: { user: ReqUserWithRoles },
     @Param('clinicId') clinicId: string,
     @Query('status') status?: ReminderStatus,
     @Query('channel') channel?: string,
@@ -47,6 +61,11 @@ export class RemindersController {
   ) {
     return this.reminderService.list({
       clinicId,
+      patientRemindersOnly: !hasPermissionAtClinic(
+        req.user.roles,
+        clinicId,
+        PERMISSIONS.REMINDER_READ_STAFF_NOTICES,
+      ),
       status,
       // Unrecognised values are dropped rather than rejected: a stale bookmark should
       // show the unfiltered ledger, not an error page.
@@ -57,5 +76,48 @@ export class RemindersController {
       cursor,
       limit: limit ? parseInt(limit, 10) : 50,
     });
+  }
+}
+
+export class ScheduleFollowUpReminderDto {
+  /** The clinic-local date the patient should return. */
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'followUpDate must be YYYY-MM-DD' })
+  followUpDate!: string;
+}
+
+/**
+ * Staff-scheduled patient reminders (#116). The only message is the registered follow-up template;
+ * the body carries a date and nothing that could become outbound text.
+ */
+@Controller('clinics/:clinicId/patients/:patientId/reminders')
+@UseGuards(JwtAuthGuard, ClinicScopeGuard, RbacGuard)
+export class PatientRemindersController {
+  constructor(private readonly reminderService: ReminderService) {}
+
+  @Post('follow-up')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.REMINDER_CREATE)
+  async scheduleFollowUp(
+    @Param('clinicId') clinicId: string,
+    @Param('patientId', ParseUUIDPipe) patientId: string,
+    @Body() body: ScheduleFollowUpReminderDto,
+    @Request() req: { user: ReqUserWithRoles; headers?: { 'x-request-id'?: string } },
+  ) {
+    const items = await this.reminderService.scheduleStaffFollowUp({
+      clinicId,
+      patientId,
+      followUpDate: body.followUpDate,
+      actorUserId: req.user.user.id,
+      requestId: req.headers?.['x-request-id'] ?? randomUUID(),
+    });
+    return {
+      items: items.map((reminder) => ({
+        id: reminder.id,
+        channel: reminder.channel,
+        status: reminder.status,
+        scheduledAt: reminder.scheduledAt,
+        failureReason: reminder.failureReason,
+      })),
+    };
   }
 }

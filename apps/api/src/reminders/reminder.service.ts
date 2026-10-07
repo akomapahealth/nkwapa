@@ -1,5 +1,14 @@
-import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { ReminderStatus } from '@prisma/client';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
+import { Reminder, ReminderStatus } from '@prisma/client';
+import { CLINIC_DEFAULT_TIMEZONE, todayInTimeZone } from '@nkwapa/db';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
@@ -64,7 +73,8 @@ export interface ScheduleFollowUpParams {
   patientId: string;
   patientCode: string;
   phoneE164: string;
-  encounterId: string;
+  /** Null for a reminder a staff member scheduled directly, outside any encounter (#116). */
+  encounterId: string | null;
   followUpDate: Date;
   actorUserId: string;
   requestId?: string;
@@ -77,7 +87,7 @@ export interface ScheduleFollowUpEmailParams {
   patientId: string;
   patientCode: string;
   email: string;
-  encounterId: string;
+  encounterId: string | null;
   followUpDate: Date;
   actorUserId: string;
   requestId?: string;
@@ -87,8 +97,20 @@ export interface ScheduleFollowUpNoContactParams {
   clinicId: string;
   patientId: string;
   patientCode: string;
-  encounterId: string;
+  encounterId: string | null;
   followUpDate: Date;
+  actorUserId: string;
+  requestId?: string;
+}
+
+/** The furthest ahead a staff member may schedule a follow-up reminder, in days. */
+export const STAFF_FOLLOW_UP_MAX_DAYS = 366;
+
+export interface ScheduleStaffFollowUpParams {
+  clinicId: string;
+  patientId: string;
+  /** The clinic-local calendar date the patient should return, `YYYY-MM-DD`. */
+  followUpDate: string;
   actorUserId: string;
   requestId?: string;
 }
@@ -150,6 +172,11 @@ export interface SendNotificationParams {
 
 export interface ListRemindersParams {
   clinicId: string;
+  /**
+   * Limit the ledger to patient reminders. Staff lifecycle notices (invites, role changes) are
+   * about colleagues, not patients, and a volunteer reading the ledger has no reason to see them.
+   */
+  patientRemindersOnly?: boolean;
   status?: ReminderStatus;
   channel?: 'SMS' | 'EMAIL';
   /** A message-kind group rather than a raw template key; see NOTIFICATION_TYPE_GROUPS. */
@@ -301,7 +328,7 @@ export class ReminderService {
     return reminder;
   }
 
-  async scheduleFollowUpReminder(params: ScheduleFollowUpParams): Promise<void> {
+  async scheduleFollowUpReminder(params: ScheduleFollowUpParams): Promise<Reminder> {
     const payloadJson = JSON.stringify({
       patientCode: params.patientCode,
       clinicName: params.clinicName,
@@ -327,9 +354,10 @@ export class ReminderService {
 
     await this.auditReminderCreate(params.clinicId, params.actorUserId, reminder, params.requestId);
     await this.queueReminder(reminder.id, params.followUpDate, params.clinicId);
+    return reminder;
   }
 
-  async scheduleFollowUpEmailReminder(params: ScheduleFollowUpEmailParams): Promise<void> {
+  async scheduleFollowUpEmailReminder(params: ScheduleFollowUpEmailParams): Promise<Reminder> {
     const payloadJson = JSON.stringify({
       patientCode: params.patientCode,
       clinicName: params.clinicName,
@@ -355,9 +383,12 @@ export class ReminderService {
 
     await this.auditReminderCreate(params.clinicId, params.actorUserId, reminder, params.requestId);
     await this.queueReminder(reminder.id, params.followUpDate, params.clinicId);
+    return reminder;
   }
 
-  async scheduleFollowUpReminderNoContact(params: ScheduleFollowUpNoContactParams): Promise<void> {
+  async scheduleFollowUpReminderNoContact(
+    params: ScheduleFollowUpNoContactParams,
+  ): Promise<Reminder> {
     const payloadJson = JSON.stringify({
       patientCode: params.patientCode,
       followUpDate: params.followUpDate.toISOString(),
@@ -381,6 +412,95 @@ export class ReminderService {
     });
 
     await this.auditReminderCreate(params.clinicId, params.actorUserId, reminder, params.requestId);
+    return reminder;
+  }
+
+  /**
+   * A follow-up reminder a staff member schedules directly for a patient (#116).
+   *
+   * Before this, every reminder was a side effect of something else (an encounter finalized with
+   * a follow-up date, an appointment, an invite), so a volunteer had no way to set one. The message
+   * is the registered follow-up template and nothing else: there is no free-text outbound channel.
+   * The channel is chosen exactly as encounter finalize chooses it (SMS to a phone, email to an
+   * address, a visible NO_CONTACT_METHOD failure when the chart has neither), and every row goes
+   * through the same ledger, queue, retry policy and audit as any other reminder.
+   */
+  async scheduleStaffFollowUp(params: ScheduleStaffFollowUpParams): Promise<Reminder[]> {
+    const [patient, clinic] = await Promise.all([
+      this.prisma.patient.findFirst({
+        where: { id: params.patientId, primaryClinicId: params.clinicId },
+        select: {
+          id: true,
+          patientCode: true,
+          phoneE164: true,
+          email: true,
+          mergedIntoPatientId: true,
+        },
+      }),
+      this.prisma.clinic.findUnique({
+        where: { id: params.clinicId },
+        select: { name: true, timezone: true },
+      }),
+    ]);
+    if (!patient) throw new NotFoundException('Patient not found for this clinic');
+    if (patient.mergedIntoPatientId) {
+      throw new ConflictException({
+        code: 'PATIENT_MERGED',
+        message: 'This chart was merged into another chart. Schedule the reminder there instead.',
+        canonicalPatientId: patient.mergedIntoPatientId,
+      });
+    }
+
+    const timezone = clinic?.timezone ?? CLINIC_DEFAULT_TIMEZONE;
+    const followUpDate = this.parseStaffFollowUpDate(params.followUpDate, timezone);
+    const base = {
+      clinicId: params.clinicId,
+      clinicName: clinic?.name ?? 'Clinic',
+      clinicTimezone: timezone,
+      patientId: patient.id,
+      patientCode: patient.patientCode,
+      encounterId: null,
+      followUpDate,
+      actorUserId: params.actorUserId,
+      requestId: params.requestId,
+    };
+
+    const created: Reminder[] = [];
+    if (patient.phoneE164) {
+      created.push(await this.scheduleFollowUpReminder({ ...base, phoneE164: patient.phoneE164 }));
+    }
+    if (patient.email) {
+      created.push(await this.scheduleFollowUpEmailReminder({ ...base, email: patient.email }));
+    }
+    if (!patient.phoneE164 && !patient.email) {
+      created.push(await this.scheduleFollowUpReminderNoContact(base));
+    }
+    return created;
+  }
+
+  /**
+   * Today or later in the clinic's own calendar, and not absurdly far out. Stored at UTC midnight
+   * of that date, as a care plan's follow-up date is, so both paths schedule the same way.
+   */
+  private parseStaffFollowUpDate(value: string, timezone: string): Date {
+    const invalid = (message: string) =>
+      new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Reminder validation failed',
+        fieldErrors: [{ field: 'followUpDate', message }],
+      });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw invalid('Use a date in the form YYYY-MM-DD.');
+    const date = new Date(`${value}T00:00:00.000Z`);
+    if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
+      throw invalid('That date does not exist.');
+    }
+    const today = new Date(`${todayInTimeZone(timezone)}T00:00:00.000Z`);
+    if (date.getTime() < today.getTime()) throw invalid('The follow-up date is in the past.');
+    const latest = today.getTime() + STAFF_FOLLOW_UP_MAX_DAYS * 24 * 60 * 60 * 1000;
+    if (date.getTime() > latest) {
+      throw invalid(`Choose a date within ${STAFF_FOLLOW_UP_MAX_DAYS} days.`);
+    }
+    return date;
   }
 
   async scheduleAppointmentReminder(params: ScheduleAppointmentReminderParams): Promise<void> {
@@ -491,6 +611,7 @@ export class ReminderService {
     const reminders = await this.prisma.reminder.findMany({
       where: {
         clinicId: params.clinicId,
+        ...(params.patientRemindersOnly && { recipientType: 'PATIENT' as const }),
         ...(params.status && { status: params.status }),
         ...(params.channel && { channel: params.channel }),
         ...(params.type && {
