@@ -13,11 +13,17 @@ import {
 import { EmptyState } from '@/components/feedback/AppState';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { db } from '@/lib/db';
-import { discardOutboxMutation, retryOutboxMutation } from '@/lib/outbox';
+import { useBootstrap } from '@/lib/bootstrap-context';
+import {
+  claimUnownedOutboxMutation,
+  discardOutboxMutation,
+  retryOutboxMutation,
+} from '@/lib/outbox';
 import { trackEvent } from '@/lib/analytics';
 import type { SyncRecoveryAccess } from '@/lib/sync-conflicts';
 import type { OutboxQueue, OutboxQueueItem } from '@/lib/use-outbox-queue';
 import { DiscardMutationDialog } from './DiscardMutationDialog';
+import { HeldChangesSection } from './HeldChangesSection';
 import { SyncMutationCard } from './SyncMutationCard';
 
 const GROUPS = [
@@ -61,6 +67,7 @@ export function SyncCenterSheet({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [discarding, setDiscarding] = useState<OutboxQueueItem | null>(null);
   const syncing = syncStatus === 'syncing';
+  const bootstrap = useBootstrap()?.bootstrap ?? null;
 
   // Counts only: how much was waiting when someone looked, never what it was.
   useEffect(() => {
@@ -83,6 +90,15 @@ export function SyncCenterSheet({
     } finally {
       setBusyId(null);
     }
+  };
+
+  const handleClaim = async (item: OutboxQueueItem) => {
+    if (!bootstrap?.userId) return;
+    await claimUnownedOutboxMutation(db, item.row.id, {
+      userId: bootstrap.userId,
+      displayName: bootstrap.displayName,
+    });
+    await syncNow(clinicId);
   };
 
   const handleDiscard = async (item: OutboxQueueItem) => {
@@ -161,7 +177,7 @@ export function SyncCenterSheet({
         </div>
 
         <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-5">
-          {queue.loaded && queue.total === 0 ? (
+          {queue.loaded && queue.total === 0 && queue.held.length === 0 ? (
             <EmptyState
               density="compact"
               icon={CheckCircle2}
@@ -200,6 +216,13 @@ export function SyncCenterSheet({
               </section>
             );
           })}
+          <HeldChangesSection
+            items={queue.held}
+            currentUserName={bootstrap?.displayName ?? null}
+            disabled={!isOnline || !canSync || syncing}
+            onDiscard={setDiscarding}
+            onClaim={handleClaim}
+          />
         </div>
       </SheetContent>
       <DiscardMutationDialog
