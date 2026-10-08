@@ -15,6 +15,44 @@ interface GitHubCommitResponse {
 export class ResearchRepoSyncService {
   private readonly logger = new Logger(ResearchRepoSyncService.name);
 
+  /**
+   * Where `sync` will put this pack. Recorded on the export before the push (#164), so that if
+   * the worker loses track of the push, `findPushedCommit` can ask GitHub whether it landed.
+   */
+  plannedRepoPath(
+    exportRecord: Pick<ResearchExport, 'id'>,
+    pack: { manifest: Pick<GeneratedResearchPack['manifest'], 'clinicKey' | 'generatedAt'> },
+  ): string {
+    const config = this.getConfig();
+    const snapshotName = `${pack.manifest.generatedAt.replace(/[:.]/g, '-')}__${exportRecord.id}`;
+    return `${config.basePath}/${pack.manifest.clinicKey}/exports/${snapshotName}`;
+  }
+
+  /**
+   * The commit that put a snapshot at `repoPath` on the export branch, or null if none did.
+   *
+   * The snapshot directory is unique to one run of one export, so a commit touching it is that
+   * run's push. This is how a push whose outcome was lost is settled without pushing again.
+   * Throws if GitHub cannot be asked, which leaves the outcome unknown for a later try.
+   */
+  async findPushedCommit(repoPath: string): Promise<ResearchRepoSyncResult | null> {
+    const config = this.getConfig();
+    const query = new URLSearchParams({ sha: config.branch, path: repoPath, per_page: '1' });
+    const commits = await this.request<
+      Array<{ sha: string; commit: { committer?: { date?: string } } }>
+    >('GET', `/commits?${query.toString()}`);
+    const [commit] = commits ?? [];
+    if (!commit) return null;
+    const committedAt = commit.commit.committer?.date;
+    return {
+      provider: 'GITHUB',
+      repoPath,
+      commitSha: commit.sha,
+      commitUrl: `https://github.com/${config.owner}/${config.repo}/commit/${commit.sha}`,
+      syncedAt: committedAt ? new Date(committedAt) : new Date(),
+    };
+  }
+
   async sync(
     exportRecord: Pick<ResearchExport, 'id' | 'fromDate' | 'toDate'>,
     pack: GeneratedResearchPack,
@@ -22,8 +60,7 @@ export class ResearchRepoSyncService {
     const config = this.getConfig();
     this.assertFileSizes(config.maxFileBytes, config.maxTotalBytes, pack);
 
-    const snapshotName = `${pack.manifest.generatedAt.replace(/[:.]/g, '-')}__${exportRecord.id}`;
-    const repoPath = `${config.basePath}/${pack.manifest.clinicKey}/exports/${snapshotName}`;
+    const repoPath = this.plannedRepoPath(exportRecord, pack);
     const latestPath = `${config.basePath}/${pack.manifest.clinicKey}/latest.json`;
 
     const ref = await this.request<GitHubRefResponse>('GET', `/git/ref/heads/${config.branch}`);
