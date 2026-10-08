@@ -115,8 +115,8 @@ the volume, so the account's daily cap is unaffected.
 
 A send failure the provider can positively identify as transient — a relay that never answered, a
 dropped connection, a 4xx SMTP reply — is handed back to the queue rather than written `FAILED`.
-The row stays `QUEUED` between attempts, because `processReminder` refuses to act on a row that is
-not, and a row reading `FAILED` mid-retry would show an operator a failure still being worked and a
+The claim is handed back (`SENDING` -> `QUEUED`) between attempts, because `processReminder`
+refuses to act on a row that is not `QUEUED`, and a row reading `FAILED` mid-retry would show an operator a failure still being worked and a
 resend they do not need. Three attempts, five seconds before the first retry and sixty before the
 second: a blip is usually over in seconds, and anything still failing after that is not a blip.
 Anything not positively transient — bad credentials, a bad address, a 5xx reply, an unrecognised
@@ -124,10 +124,36 @@ error — stays terminal on the first attempt, as it always was. Jobs are queued
 `reminder` backoff type from `reminders/reminder-retry.ts`; BullMQ computes a built-in type itself
 and never asks the worker, which is how this schedule once silently became 60 and 120 seconds.
 
-A job delivered twice sends once. Before reading the row, `processReminder` takes a
-transaction-scoped advisory lock on the reminder. A duplicate that finds it held stands down,
-because the holder is already sending, and one that arrives after the first commits reads `SENT`
-and does nothing.
+A job delivered twice sends once, however long the provider takes (#164). `processReminder` runs in
+three steps, never one transaction around the provider call:
+
+1. **Claim**: under the job's tenant context, move the row `QUEUED` -> `SENDING` (with
+   `sendingStartedAt`) and commit. A duplicate delivery, or a retry, finds `SENDING` and stands
+   down.
+2. **Send** with no transaction open.
+3. **Record** `SENT` (or the failure) in a second short transaction.
+
+The provider call used to run inside the job's transaction. A send slower than the transaction's
+5 second timeout reached the patient while the `SENT` write rolled back, and the retry sent it
+again.
+
+A row left in `SENDING` means nobody knows whether the message went: the worker died, or it sent
+the message and could not record it. Neither Twilio nor SMTP takes an idempotency key, so the
+outcome cannot be asked of the provider. The reminder reconciliation sweep (every five minutes) marks
+a send claimed more than ten minutes ago `FAILED` with `SEND_OUTCOME_UNKNOWN`, audited as
+`REMINDER.OUTCOME_UNKNOWN`, and never resends it. An operator checks with the patient before
+resending. If the original worker does record `SENT` later, that still wins.
+
+A job delivered before its reminder is due (clock skew between the API host and Redis, or a delayed
+job promoted by hand) is never sent early and never dropped (#165). The worker moves it back to
+delayed until `scheduledAt` with `job.moveToDelayed` and BullMQ's `DelayedError`, which spends no
+retry attempt, and it sends once when it runs again. It used to return and complete, leaving a
+`QUEUED` row with no job behind it.
+
+The same five-minute sweep re-queues any `QUEUED` reminder more than fifteen minutes past its time
+whose job is missing or finished, however the job was lost (a Redis flush, an older worker). A
+reminder whose job is still waiting, delayed or running is left alone, so the sweep never adds a
+second run. The re-queued job carries the reminder's own clinic, as the first one did.
 
 Time to send
 

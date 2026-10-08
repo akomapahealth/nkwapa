@@ -6,6 +6,7 @@ import { setStoredActiveClinicId } from '@/lib/bootstrap-storage';
 import { FullscreenStatus, PageSkeleton } from '@/components/feedback/AppState';
 import { db } from '@/lib/db';
 import { getKeycloak, initKeycloak, resetKeycloak } from '@/lib/keycloak';
+import { isKeycloakCallback } from '@/lib/keycloak-callback';
 import { clearPortalCache } from '@/lib/portal-cache';
 import { AuthBootstrapWrapper } from './AuthBootstrapWrapper';
 import { SyncWithAuth } from './SyncWithAuth';
@@ -84,8 +85,21 @@ export function KeycloakProvider({ children }: { children: React.ReactNode }) {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     initKeycloak({
       onLoad: 'check-sso',
-      checkLoginIframe: true,
-      silentCheckSsoRedirectUri: `${origin}/silent-check-sso.html`,
+      /*
+        Off (#172). The login-status iframe polls Keycloak to notice a session ended elsewhere,
+        and enabling it costs two third-party-cookie probe pages plus the iframe itself, in series,
+        before the first token on every page load. A session that ends is already caught here:
+        `getToken` refreshes before every API call, and a refused refresh leaves the API answering
+        401. The trade is that a sign-out in another tab is noticed on the next request, not
+        within seconds.
+      */
+      checkLoginIframe: false,
+      // Silent SSO restores a session on an ordinary page load. Returning from sign-in the code
+      // is exchanged directly, so it is left out there: configuring it is what triggers the
+      // third-party-cookie probe.
+      ...(isKeycloakCallback(window.location)
+        ? {}
+        : { silentCheckSsoRedirectUri: `${origin}/silent-check-sso.html` }),
     })
       .then((authenticated) => {
         clearTimeout(timeout);

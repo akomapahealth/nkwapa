@@ -67,6 +67,7 @@ const SYNC_ENTITY = oneOf(
   'medication_reconciliation',
   'patient_pharmacy_revision',
   'patient_pharmacy_preference',
+  'clinician_plan',
   'other',
 );
 

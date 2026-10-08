@@ -54,6 +54,9 @@ module.exports = defineConfig({
         SMTP_HOST: process.env.SMTP_HOST || 'localhost',
         SMTP_PORT: process.env.SMTP_PORT || '1025',
         EMAIL_FROM: process.env.EMAIL_FROM || 'info@akomapa.org',
+        // The API runs as production here, which needs a configured seal key for the offline
+        // clinician plan (#131); a key generated at boot is enough for one test run.
+        CLINICIAN_PLAN_SEAL_EPHEMERAL: process.env.CLINICIAN_PLAN_SEAL_EPHEMERAL || 'true',
         APP_PUBLIC_URL: process.env.APP_PUBLIC_URL || 'http://localhost:3000',
         EMAIL_DELIVERABILITY_ALLOWED_DOMAINS:
           process.env.EMAIL_DELIVERABILITY_ALLOWED_DOMAINS || 'nkwapa.local',

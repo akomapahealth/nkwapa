@@ -16,6 +16,8 @@ export type EntityType =
   // Today's glucose reading alone, as the glucose station records it (#167).
   | 'diabetes_glucose_reading'
   | 'hypertension_assessment'
+  // The supervising clinician's plan, sealed on the device to the server's key (#131).
+  | 'clinician_plan'
   | 'encounter_medication_adherence'
   | 'care_plan'
   | 'patient_consent'

@@ -10,6 +10,7 @@ import {
   getOnboardingPath,
 } from '@/lib/auth-routing';
 import { useBootstrap } from '@/lib/bootstrap-context';
+import { getSwitchableClinics } from '@/lib/bootstrap-clinics';
 import { useKeycloak } from '@/app/KeycloakProvider';
 import { AppLayout } from '@/components/AppLayout';
 import { FullscreenStatus } from '@/components/feedback/AppState';
@@ -31,6 +32,7 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
   const search = searchParams.toString();
   const currentPath = pathname ? `${pathname}${search ? `?${search}` : ''}` : null;
   const isLoginRoute = pathname === '/login';
+  const knownClinics = getSwitchableClinics(bootstrap);
 
   useEffect(() => {
     if (!isAuthenticated && !isLoginRoute) {
@@ -103,6 +105,7 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
       activeClinicId={bootstrapCtx?.activeClinicId}
       currentUserId={bootstrap?.userId}
       currentUserName={bootstrap?.displayName}
+      knownClinics={knownClinics}
     >
       {isDisabledAccount ? (
         <FullscreenStatus

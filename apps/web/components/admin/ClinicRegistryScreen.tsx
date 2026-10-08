@@ -33,11 +33,18 @@ import {
   zoneFilterOptions,
   zoneFilterToSelect,
   zoneLabel,
-  zoneQueryString,
-  zoneResourceKey,
   type ZoneFilter,
   type ZoneSummary,
 } from '@/lib/clinic-zones';
+import {
+  adminClinicsQuery,
+  organizationFilterFromSelect,
+  organizationFilterLabel,
+  organizationFilterOptions,
+  organizationFilterToSelect,
+  shouldOfferOrganizationFilter,
+  type OrganizationFilter,
+} from '@/lib/organization-filter';
 import {
   CLINIC_METADATA_ISSUE_LABELS,
   CLINIC_METADATA_SEVERITY_VARIANT,
@@ -113,6 +120,7 @@ export function ClinicRegistryScreen() {
   const getToken = useAuth();
   const [filter, setFilter] = useState<ClinicListFilter>('all');
   const [zoneFilter, setZoneFilter] = useState<ZoneFilter>(null);
+  const [organizationFilter, setOrganizationFilter] = useState<OrganizationFilter>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<ClinicDialogMode>('create');
   const [dialogValues, setDialogValues] = useState<ClinicFormValues>(emptyClinicForm(null));
@@ -123,13 +131,14 @@ export function ClinicRegistryScreen() {
 
   // Filtered server-side. The registry is unpaginated today, so narrowing here rather than in
   // the browser is not about payload size: it is so one implementation decides which clinics
-  // are in a zone. The key carries the filter because `useAsyncResource` refetches on the key
+  // are in a zone or an organization. The key carries the filters because `useAsyncResource` refetches on the key
   // alone, and both come from the same helper so the URL and the key cannot disagree.
+  const clinicsQuery = adminClinicsQuery(zoneFilter, organizationFilter);
   const clinics = useAsyncResource<ClinicRow[]>({
-    resourceKey: zoneResourceKey('admin-clinics', zoneFilter),
+    resourceKey: clinicsQuery.resourceKey,
     errorMessage: 'The clinic list could not be loaded.',
     fetcher: async (token, signal) => {
-      const response = await apiFetch(`/admin/clinics${zoneQueryString(zoneFilter)}`, {
+      const response = await apiFetch(clinicsQuery.path, {
         getToken: token,
         skipClinicHeader: true,
         signal,
@@ -170,7 +179,8 @@ export function ClinicRegistryScreen() {
   });
 
   const rows = useMemo(() => clinics.data ?? [], [clinics.data]);
-  const organizationList = organizations.data ?? [];
+  const organizationList = useMemo(() => organizations.data ?? [], [organizations.data]);
+  const showOrganizationFilter = shouldOfferOrganizationFilter(organizationList);
   // The rows already arrive zone-filtered; the client pass only applies the view. Passing the
   // zone again would be harmless but would imply the server had not been trusted to apply it.
   const visibleRows = useMemo(() => filterClinics(rows, filter), [rows, filter]);
@@ -247,6 +257,24 @@ export function ClinicRegistryScreen() {
   const columns: GridColDef<ClinicRow>[] = useMemo(
     () => [
       { field: 'name', headerName: 'Name', flex: 1, minWidth: 170 },
+      {
+        field: 'organization',
+        headerName: 'Organization',
+        minWidth: 170,
+        sortable: false,
+        valueGetter: (_value, row) => row.organization?.name ?? '',
+        renderCell: (params) =>
+          params.row.organization ? (
+            <span className="flex min-w-0 flex-col leading-tight">
+              <span className="truncate">{params.row.organization.name}</span>
+              <span className="truncate font-mono text-xs text-muted-foreground">
+                {params.row.organization.slug}
+              </span>
+            </span>
+          ) : (
+            <span className="text-muted-foreground">Not linked</span>
+          ),
+      },
       {
         field: 'locationCode',
         headerName: 'Location code',
@@ -398,11 +426,37 @@ export function ClinicRegistryScreen() {
                   </SelectContent>
                 </Select>
               </div>
+              {showOrganizationFilter ? (
+                <div className="space-y-2 lg:w-64">
+                  <Label htmlFor="clinic-organization-filter">Organization</Label>
+                  <Select
+                    value={organizationFilterToSelect(organizationFilter)}
+                    onValueChange={(value) =>
+                      setOrganizationFilter(organizationFilterFromSelect(value))
+                    }
+                  >
+                    <SelectTrigger id="clinic-organization-filter">
+                      <SelectValue placeholder="All organizations" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {organizationFilterOptions(organizationList).map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
             </div>
             <ActiveFilterSummary
               items={[
                 { label: 'View', value: FILTER_LABELS[filter] },
                 { label: 'Zone', value: zoneFilterLabel(zoneFilter) },
+                {
+                  label: 'Organization',
+                  value: organizationFilterLabel(organizationList, organizationFilter),
+                },
               ]}
               emptyLabel="All clinics"
             />
@@ -417,7 +471,9 @@ export function ClinicRegistryScreen() {
             // Only the unfiltered read can mean "there are no clinics". Once a zone is applied
             // an empty response means the filter found nothing, and offering "Create the first
             // clinic" there would be both wrong and the wrong thing to reach for.
-            isEmpty={(data) => data.length === 0 && zoneFilter === null}
+            isEmpty={(data) =>
+              data.length === 0 && zoneFilter === null && organizationFilter === null
+            }
             empty={{
               icon: Building2,
               title: 'No clinics yet',

@@ -10,12 +10,19 @@ import { RESEARCH_EXPORT_QUEUE_NAME } from './research-policy';
 import { ResearchTransformService } from './research-transform.service';
 import { ResearchRepoSyncService } from './research-repo-sync.service';
 import { ResearchExportProcessor } from './research-export.processor';
+import {
+  RESEARCH_EXPORT_RECONCILIATION_QUEUE,
+  ResearchExportReconciliationProcessor,
+} from './research-export-reconciliation.processor';
 
 @Module({
   imports: [
     PrismaModule,
     AuditModule,
-    BullModule.registerQueue({ name: RESEARCH_EXPORT_QUEUE_NAME }),
+    BullModule.registerQueue(
+      { name: RESEARCH_EXPORT_QUEUE_NAME },
+      { name: RESEARCH_EXPORT_RECONCILIATION_QUEUE },
+    ),
   ],
   controllers: [ResearchExportController],
   providers: [
@@ -25,6 +32,7 @@ import { ResearchExportProcessor } from './research-export.processor';
     ResearchTransformService,
     ResearchRepoSyncService,
     ResearchExportProcessor,
+    ResearchExportReconciliationProcessor,
   ],
   exports: [ResearchExportService],
 })
