@@ -225,23 +225,6 @@ export function CrossClinicInvestigationScreen() {
         title="Cross-clinic duplicates"
         description="Charts in different clinics that look like the same person, counted per clinic pair. For sizing the problem, not fixing it: nothing here changes or merges a record."
         badges={<Badge variant="outline">Investigation only</Badge>}
-        helpTitle="Why these cannot be merged"
-        helpText={
-          <div className="space-y-2">
-            <p>
-              A chart belongs to one clinic, and merging is limited to two charts in the same
-              clinic: the merge moves visits, notes and prescriptions onto the surviving chart and
-              records the merge against that clinic. Two clinics may hold different consent,
-              different staff and different records for the same person, and nothing yet decides
-              which clinic should own the result.
-            </p>
-            <p>
-              Until that policy exists, these pairs are investigated rather than resolved. Only
-              active clinics are included, every view is recorded in the audit log, and only system
-              administrators can open this page.
-            </p>
-          </div>
-        }
         actions={
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Button
@@ -275,6 +258,24 @@ export function CrossClinicInvestigationScreen() {
           </div>
         }
       />
+
+      {/* Required reading, not header help: #63 keeps it visible on the page. */}
+      <ProgressiveHelp title="Why these cannot be merged">
+        <div className="space-y-2">
+          <p>
+            A chart belongs to one clinic, and merging is limited to two charts in the same clinic:
+            the merge moves visits, notes and prescriptions onto the surviving chart and records the
+            merge against that clinic. Two clinics may hold different consent, different staff and
+            different records for the same person, and nothing yet decides which clinic should own
+            the result.
+          </p>
+          <p>
+            Until that policy exists, these pairs are investigated rather than resolved. Only active
+            clinics are included, every view is recorded in the audit log, and only system
+            administrators can open this page.
+          </p>
+        </div>
+      </ProgressiveHelp>
 
       <InlineNotice tone="info" live={false}>
         <span className="font-medium">Read-only.</span> Pairs here are counted and compared, never

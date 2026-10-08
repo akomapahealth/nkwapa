@@ -47,7 +47,7 @@ export function TrendChart({
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
           <CardTitle className="text-base font-semibold">{title}</CardTitle>
-          {hint ? <InfoHint label={hint} /> : null}
+          {hint ? <InfoHint label={hint} size="sm" /> : null}
         </div>
       </CardHeader>
       <CardContent>

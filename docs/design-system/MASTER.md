@@ -457,6 +457,10 @@ They are not duplicates and neither replaces the other. They used to share the `
 
 Safety rules, consent wording, what stays protected on a record, and de-identification terms belong in `ProgressiveHelp`. #63 forbids moving them into a bubble, and that rule is the reason both components exist.
 
+**A page header never expands in place.** `AppPageHeader`'s `hint` and `helpText` both render as an `InfoHint` beside the title (with `helpTitle` as the bubble's heading), so no header pushes the page down. Help that is required reading is therefore not header help: it goes in a `ProgressiveHelp` directly under the header, in the page body, as on consent, research exports and the two duplicate screens.
+
+`InfoHint` is built on Radix Popover: collision handling, an arrow that stays on its trigger, an exit animation, and scaling from the trigger (`--radix-popover-content-transform-origin`). It keeps `role="tooltip"` and leaves focus on the trigger. Sizes are `sm` and `md`; call sites do not offset it with margins. Next to text it is inline and `align-middle`, so it sits on the text's last line however that wraps.
+
 `InfoHint` enforces single-open across the whole page through a module-level registry: opening one closes any other. It returns focus to its trigger on Escape, and on an outside click when focus was inside the bubble. Its 44px target is a centred pseudo-element, so a call site's size override actually applies.
 
 ### The five states, in order

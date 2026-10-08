@@ -313,23 +313,6 @@ export function DuplicateReviewScreen() {
         eyebrow="Patient identity"
         title="Duplicate review"
         description="Charts that look like the same person, ranked by how strong the match is. Nothing here changes a record."
-        helpTitle="How candidates are found"
-        helpText={
-          <div className="space-y-2">
-            <p>
-              Every pair below matched at least one conservative rule: the same national ID, the
-              same name and date of birth, the same ID type and last four digits with a matching
-              date of birth, the same phone number, or the same email address. A first name that is
-              close but not identical counts only when the surname and date of birth already agree.
-            </p>
-            <p>
-              This screen never merges anything. Marking a pair only records what you decided, so
-              the queue gets shorter as it is worked instead of resetting each time it is opened.
-              Merging two charts is a separate, irreversible step on the patient chart itself, and
-              is limited to system administrators.
-            </p>
-          </div>
-        }
         actions={
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             {isSystemAdmin ? (
@@ -373,6 +356,24 @@ export function DuplicateReviewScreen() {
           </div>
         }
       />
+
+      {/* Required reading, not header help: #63 keeps it visible on the page. */}
+      <ProgressiveHelp title="How candidates are found">
+        <div className="space-y-2">
+          <p>
+            Every pair below matched at least one conservative rule: the same national ID, the same
+            name and date of birth, the same ID type and last four digits with a matching date of
+            birth, the same phone number, or the same email address. A first name that is close but
+            not identical counts only when the surname and date of birth already agree.
+          </p>
+          <p>
+            This screen never merges anything. Marking a pair only records what you decided, so the
+            queue gets shorter as it is worked instead of resetting each time it is opened. Merging
+            two charts is a separate, irreversible step on the patient chart itself, and is limited
+            to system administrators.
+          </p>
+        </div>
+      </ProgressiveHelp>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <AppMetricCard

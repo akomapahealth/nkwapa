@@ -11,6 +11,7 @@ import { CONSENT_TEXT_V1_EN } from '@/lib/consent-text';
 import { db } from '@/lib/db';
 import { enqueueOutboxMutation, SYNC_OPERATION } from '@/lib/outbox';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { Button } from '@/components/ui/button';
@@ -162,9 +163,14 @@ export function RecordConsentScreen({
         eyebrow="Research consent"
         title="Record Research Consent"
         description="Document informed consent for de-identified research participation with an auditable, clinic-scoped workflow."
-        helpTitle="Before you record consent"
-        helpText="Read the consent text below with the patient in a language they understand. Consent covers de-identified research use only, it is recorded against this clinic, and the patient may withdraw it later. Record it only after the patient has agreed."
       />
+
+      {/* Required reading, not header help: #63 keeps it visible on the page. */}
+      <ProgressiveHelp title="Before you record consent">
+        Read the consent text below with the patient in a language they understand. Consent covers
+        de-identified research use only, it is recorded against this clinic, and the patient may
+        withdraw it later. Record it only after the patient has agreed.
+      </ProgressiveHelp>
 
       <div className="grid gap-4 md:grid-cols-3">
         <AppMetricCard

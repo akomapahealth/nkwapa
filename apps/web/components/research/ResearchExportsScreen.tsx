@@ -313,8 +313,6 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
           eyebrow="Research operations"
           title="Research exports"
           description="Request and track de-identified export packs."
-          helpTitle="How research exports work"
-          helpText="Exports use the approved research transform profile: stable clinic-scoped keys, rounded timestamps, no names or free text, and optional private GitHub sync after processing."
           actions={
             <Button
               variant="outline"
@@ -331,6 +329,12 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
           }
         />
       </div>
+
+      {/* Required reading, not header help: #63 keeps it visible on the page. */}
+      <ProgressiveHelp title="How research exports work">
+        Exports use the approved research transform profile: stable clinic-scoped keys, rounded
+        timestamps, no names or free text, and optional private GitHub sync after processing.
+      </ProgressiveHelp>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
         <FormSectionCard

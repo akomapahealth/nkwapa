@@ -25,12 +25,10 @@ export function AppMetricCard({
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="flex items-center gap-1.5">
-              <CardDescription className="text-eyebrow text-muted-foreground">
-                {title}
-              </CardDescription>
-              {hint ? <InfoHint label={hint} className="-mr-1 h-5 w-5" /> : null}
-            </div>
+            {/* Inline, so the help follows the label's last line when a narrow card wraps it. */}
+            <CardDescription className="text-eyebrow text-muted-foreground">
+              {hint ? <TitleWithHint title={title} hint={hint} /> : title}
+            </CardDescription>
             <CardTitle className="mt-3 text-2xl font-semibold tabular-nums tracking-tight text-foreground sm:text-3xl">
               {value}
             </CardTitle>
@@ -48,5 +46,24 @@ export function AppMetricCard({
         </CardContent>
       ) : null}
     </Card>
+  );
+}
+
+/**
+ * The label's last word and its help icon never part: a narrow card wraps the label, and an icon
+ * left alone on the next line reads as belonging to the number below it.
+ */
+function TitleWithHint({ title, hint }: { title: string; hint: string }) {
+  const split = title.lastIndexOf(' ');
+  const head = split === -1 ? '' : title.slice(0, split + 1);
+  const tail = split === -1 ? title : title.slice(split + 1);
+  return (
+    <>
+      {head ? <span className="align-middle">{head}</span> : null}
+      <span className="whitespace-nowrap">
+        <span className="align-middle">{tail}</span>
+        <InfoHint label={hint} size="sm" className="ml-1" />
+      </span>
+    </>
   );
 }

@@ -6,7 +6,7 @@ import { useBootstrap } from '@/lib/bootstrap-context';
 import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { Header } from '@/components/Header';
 import { Badge } from '@/components/ui/badge';
-import { ProgressiveHelp } from '@/components/ui/progressive-help';
+import { InfoHint } from '@/components/ui/info-hint';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -75,14 +75,13 @@ export function PortalLayout({ children }: { children: React.ReactNode }) {
                   Welcome back, {displayName.split(' ')[0]}
                 </h1>
                 <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
-                  Your care and visits in one place.
+                  <span className="align-middle">Your care and visits in one place.</span>
+                  <InfoHint
+                    size="sm"
+                    label="Review finalized readings, check appointment details, and send visit requests without leaving the portal."
+                    className="ml-1.5"
+                  />
                 </p>
-                <div className="max-w-2xl pt-2">
-                  <ProgressiveHelp title="What you can do here">
-                    Review finalized readings, check appointment details, and send visit requests
-                    without leaving the portal.
-                  </ProgressiveHelp>
-                </div>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">

@@ -51,7 +51,7 @@ export function MetricsEventTable({
                   <th scope="row" className="py-2 pr-3 text-left font-normal">
                     <span className="inline-flex items-center gap-1">
                       {row.label}
-                      <InfoHint label={row.description} className="h-5 w-5" />
+                      <InfoHint label={row.description} size="sm" />
                     </span>
                   </th>
                   <td className="py-2 pr-3 text-right tabular-nums">{row.total}</td>
