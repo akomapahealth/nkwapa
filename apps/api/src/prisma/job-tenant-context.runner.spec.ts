@@ -45,6 +45,7 @@ describe('JobTenantContextRunner', () => {
       'clinic-1',
       { requestId: 'job-1', userId: 'user-1' },
       callback,
+      undefined,
     );
     expect(callback).toHaveBeenCalledWith(transactionClient);
   });
@@ -73,12 +74,14 @@ describe('JobTenantContextRunner', () => {
         systemReason: 'Resolve tenant for a legacy reminder payload',
       },
       expect.any(Function),
+      undefined,
     );
     expect(resolveTenant).toHaveBeenCalledTimes(1);
     expect(prisma.withClinicContext).toHaveBeenCalledWith(
       'clinic-legacy',
       { requestId: '42', userId: null },
       expect.any(Function),
+      undefined,
     );
   });
 
@@ -142,6 +145,7 @@ describe('JobTenantContextRunner', () => {
         systemReason: '',
       },
       expect.any(Function),
+      undefined,
     );
   });
 
@@ -204,6 +208,7 @@ describe('JobTenantContextRunner', () => {
           'clinic-from-row',
           { requestId: 'job-1', userId: null },
           expect.any(Function),
+          undefined,
         );
       },
     );
@@ -216,6 +221,7 @@ describe('JobTenantContextRunner', () => {
         'clinic-1',
         { requestId: 'job-1', userId: null },
         expect.any(Function),
+        undefined,
       );
     });
   });
