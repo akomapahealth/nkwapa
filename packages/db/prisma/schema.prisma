@@ -892,6 +892,7 @@ model User {
   createdAssignments              PatientAssignment[]             @relation("AssignmentAssignedBy")
   queuedStationVisits             PatientStationVisit[]           @relation("StationVisitQueuedBy")
   claimedStationVisits            PatientStationVisit[]           @relation("StationVisitClaimedBy")
+  assignedStationVisits           PatientStationVisit[]           @relation("StationVisitAssignedBy")
   completedStationVisits          PatientStationVisit[]           @relation("StationVisitCompletedBy")
   counsellingRecords              CounsellingRecord[]             @relation("CounsellingRecordAuthor")
   doctorAppointments              Appointment[]                   @relation("AppointmentAssignedDoctor")
@@ -1205,8 +1206,11 @@ model PatientStationVisit {
   queuedAt       DateTime
   queuedByUserId String   @db.Uuid
 
-  claimedByUserId String?   @db.Uuid
-  claimedAt       DateTime?
+  claimedByUserId  String?   @db.Uuid
+  claimedAt        DateTime?
+  /// Set when a manager handed the patient to `claimedBy` instead of them taking it themselves.
+  /// Cleared when the patient goes back to the queue (release, force-release, shift end).
+  assignedByUserId String?   @db.Uuid
 
   completedByUserId String?   @db.Uuid
   completedAt       DateTime?
@@ -1225,6 +1229,7 @@ model PatientStationVisit {
   station        ClinicStation  @relation(fields: [stationId], references: [id], onDelete: Restrict)
   queuedBy       User           @relation("StationVisitQueuedBy", fields: [queuedByUserId], references: [id], onDelete: Restrict)
   claimedBy      User?          @relation("StationVisitClaimedBy", fields: [claimedByUserId], references: [id], onDelete: SetNull)
+  assignedBy     User?          @relation("StationVisitAssignedBy", fields: [assignedByUserId], references: [id], onDelete: SetNull)
   completedBy    User?          @relation("StationVisitCompletedBy", fields: [completedByUserId], references: [id], onDelete: SetNull)
 
   @@index([clinicId, stationId, status, queuedAt])
