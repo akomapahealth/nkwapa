@@ -331,6 +331,58 @@ scripts. Adding another exception requires a documented system reason and securi
 
 ---
 
+## Keycloak Maintenance
+
+Nkwapa keeps identity in Keycloak and roles in Postgres, linked by `User.keycloakSub`. Most
+Keycloak work is about keeping those two in step.
+
+### Realm changes
+
+The realm export lives in `infra/nkwapa/keycloak/realm-export/realm-nkwapa.json`, with the login
+and email themes beside it in `infra/nkwapa/keycloak/themes/nkwapa/`.
+
+1. Edit the export or theme, then run `npm run keycloak:validate-realm`. It checks the auth flows,
+   SMTP placeholders and theme files statically; it touches no running server.
+2. Know that `--import-realm` only imports a realm that does not exist yet. A fresh local stack
+   picks up the change; **staging and production do not**. For those, apply the change through the
+   admin console or `kcadm.sh`, or with a script like the one below.
+3. The `nkwapa-api` service account (needed for staff and portal invites, deactivation sync and
+   password-reset emails) is applied to an existing realm with
+   `npm run keycloak:apply-service-account -- --dry-run`, then without `--dry-run`. It is
+   idempotent. See `docs/KEYCLOAK_SERVICE_ACCOUNT_ROLLOUT.md`.
+4. Realm SMTP is re-applied from `KC_SMTP_*` on every Keycloak boot.
+
+### Retiring a realm role
+
+Remove the role from Postgres first (a migration, as with `20260520000000_remove_preceptor_role`),
+verify no rows remain, then delete the realm role with `kcadm.sh delete roles/<ROLE> -r nkwapa`.
+See `docs/USER_AND_ROLE_SETUP_GUIDE.md` section 6 for the PRECEPTOR example.
+
+### Recovering from a subject mismatch after a reseed
+
+Any full reseed (dropping the Postgres database counts, not only wiping the Keycloak volume) can
+leave the `SEED_*_SUB` values in `.env` different from the subjects Keycloak actually issues. The
+seed grants roles to a user row keyed on the `.env` subject, and the first login creates a second,
+roleless row keyed on the real one. The symptom is "No clinic selected" on every staff route.
+
+1. Check for duplicates:
+
+   ```sql
+   SELECT u."displayName", u."keycloakSub", count(r.id)
+   FROM "User" u LEFT JOIN "UserClinicRole" r ON r."userId" = u.id
+   GROUP BY 1, 2;
+   ```
+
+   Two rows for one person, one with 0 roles, confirms it.
+
+2. Read the real ids from the Keycloak admin API
+   (`/admin/realms/nkwapa/users?username=<username>&exact=true`) and write them into `.env`
+   (`SEED_SYSTEM_ADMIN_SUB`, `SEED_E2E_STAFF_SUB`, `SEED_E2E_DOCTOR_SUB`, `SEED_E2E_VOLUNTEER_SUB`,
+   `SEED_E2E_PATIENT_SUB`).
+3. Drop the database and reseed once.
+
+---
+
 ## Environment Variables
 
 Common variables from `.env.example`:

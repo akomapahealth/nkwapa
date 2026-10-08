@@ -23,7 +23,14 @@ test.describe('as a system admin', () => {
 
   test('shows the cohort totals and a row per clinic', async ({ page }) => {
     await openAnalyticsTab(page);
-    await expect(page.getByText('Encounter status')).toBeVisible({ timeout: 30_000 });
+    /*
+      By role, not by text: "Encounter status" is both this filter's label and, once the cohort
+      has loaded, the title of a chart. A text match passed only while the data was still in
+      flight, and failed strict mode the moment the chart rendered first.
+    */
+    await expect(page.getByRole('combobox', { name: 'Encounter status' })).toBeVisible({
+      timeout: 30_000,
+    });
     await expect(page.getByRole('grid').getByText('Nkwapa Clinic - Demo')).toBeVisible();
   });
 
@@ -67,7 +74,14 @@ test.describe('as a system admin', () => {
     await expect(page.getByText('Nothing matches this cohort')).toBeVisible({ timeout: 30_000 });
 
     await page.getByRole('button', { name: 'Reset filters' }).last().click();
-    await expect(page.getByText('Encounter status')).toBeVisible({ timeout: 30_000 });
+    /*
+      By role, not by text: "Encounter status" is both this filter's label and, once the cohort
+      has loaded, the title of a chart. A text match passed only while the data was still in
+      flight, and failed strict mode the moment the chart rendered first.
+    */
+    await expect(page.getByRole('combobox', { name: 'Encounter status' })).toBeVisible({
+      timeout: 30_000,
+    });
   });
 
   test('a backwards date range is caught before it is sent', async ({ page }) => {

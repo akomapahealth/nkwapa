@@ -8,15 +8,20 @@ It focuses on real workflow behavior, not internal code structure.
 
 ## 1. Who Uses What
 
-| User type    | Main surfaces                                                        |
-| ------------ | -------------------------------------------------------------------- |
-| Volunteer    | patients, encounters, queues, my assigned                            |
-| Doctor       | queues, encounters, dashboard                                        |
-| Doctor       | queues, encounters, dashboard, notifications, my assigned            |
-| Manager      | today board, patients, audit, admin users, dashboard                 |
-| Director     | clinic settings, research exports, admin users, audit, dashboard     |
-| System admin | all clinics, all users, clinic lifecycle, merge and global oversight |
-| Patient      | claim record, portal overview, health, self-reports, appointments    |
+Navigation is gated by permission, not by role name, so a person with two roles at a clinic sees
+the union. The table shows what each role reaches at its own clinic. Routes behind a feature flag
+are marked with the flag.
+
+| User type    | Main surfaces                                                                                                                                                                                       |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Volunteer    | dashboard, patients, new patient, appointments, my assigned, queues, stations (`stationWorkflow`), chat                                                                                             |
+| Doctor       | dashboard, patients, new patient, appointments, my assigned, queues (review and cosign), stations (`stationWorkflow`), chat                                                                         |
+| Manager      | dashboard, today board, stations and station setup, patients, appointments, audit, staff activity, metrics, notifications, staff (`/admin/users`), duplicate review, chat                           |
+| Director     | dashboard, today board, patients, appointments, audit, staff activity, metrics, notifications, clinic settings and research exports, staff and clinics admin, staff invites, duplicate review, chat |
+| System admin | everything above at every active clinic, plus organization report and analytics (`/reports/organization`), cross-clinic duplicates, merge, clinic lifecycle                                         |
+| Patient      | claim record, portal overview, health, self-reports, appointments and change requests                                                                                                               |
+
+When the station workflow is on, **My Assigned** is hidden and **Stations** replaces it (section 4).
 
 ---
 
@@ -25,7 +30,9 @@ It focuses on real workflow behavior, not internal code structure.
 1. The user signs in through Keycloak.
 2. The web app calls `/auth/whoami`.
 3. The API returns memberships, active clinic, effective permissions, and onboarding state.
-4. The app picks the active clinic from the stored clinic, request header, or first membership.
+4. The app sends the last clinic it used as the `x-clinic-id` header. The API honours it only if
+   it is one of the clinics this user may switch to; otherwise the first of those clinics becomes
+   active.
 5. If the user is a patient with a pending invite, the app routes them to `/claim-record`.
 
 Important rules:
@@ -33,6 +40,20 @@ Important rules:
 - identity is managed by Keycloak
 - permissions and clinic memberships are stored in Nkwapa
 - a user usually needs to log in once before appearing in local admin tables
+
+### Switching clinics
+
+Staff with roles at more than one clinic, and every system admin, see a clinic picker in the
+header (in the menu sheet on small screens). Switching changes the records, queues, notifications
+and dashboard shown across the workspace.
+
+- A staff member can switch only between active clinics where they hold a role.
+- A system admin can switch to **any active clinic**, with or without a role there, and holds
+  every permission once there. Treat switching as entering that clinic's records: every read and
+  write is scoped to it and audited against it.
+- The choice is remembered on the device (`nkwapa:activeClinicId`). If that clinic is later
+  deactivated or the role is removed, the API ignores it and falls back to the first available
+  clinic.
 
 ### Forgot password
 
@@ -62,7 +83,7 @@ Use this when the primary task is documenting care.
 3. Start a new encounter.
 4. Complete vitals and screening data.
 5. Submit the encounter for review.
-6. A clinical reviews the encounter.
+6. A doctor reviews the encounter from **Queues → Needs Review**.
 7. A doctor finalizes the encounter, completes the care plan, and adds prescriptions if needed.
 
 Finalization effects:
@@ -88,6 +109,24 @@ Main pages:
 
 - `/today`
 - `/my/assigned`
+
+### When the station workflow is on
+
+Clinics that run screening as a line of stations enable `FEATURE_STATION_WORKFLOW_ENABLED` and
+`NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED` together (the web flag needs a rebuild). Then:
+
+1. Check-in queues the patient at the first active station. No manager assignment is needed.
+2. Whoever is free at a station opens `/stations` and presses **Take patient**. If two people take
+   the same patient, one wins and the other is told who has them.
+3. The volunteer records that station's data and hands the patient on with an optional note.
+   Skipping a station asks for a reason.
+4. The last station (Counselling and clinical review) records counselling and completes the
+   session. A doctor reviews it afterwards from **Queues → Needs Review**.
+5. Managers can Move, Release or mark a patient as Left from `/today`, each with a reason.
+6. The old manager Assign flow is refused with `409 STATION_WORKFLOW_ACTIVE`.
+
+Managers rename, reorder, close, add and set capacity for stations on `/stations/setup`. See
+`docs/clinic-ops/27_STATION_WORKFLOW_V1.md`.
 
 ---
 
@@ -513,3 +552,88 @@ the owning feature issue must schedule removal. The removal change deletes the d
 typed registry entries, environment variables, flag-specific tests, and stale documentation
 together. Do not add flags for authorization policy, permanent tenant configuration, or low-risk
 changes that can ship normally.
+
+---
+
+## 13. Staff Appointment Workflow
+
+Patients request a date range from the portal; staff decide the exact time.
+
+1. Open `/appointments`. Pending requests appear in the triage panel.
+2. **Confirm** a request with an exact start time, or **Reject** it. Confirming creates the
+   appointment and schedules its reminders.
+3. Use the day or week view and the filters to work the schedule.
+4. From an appointment's actions: **Reschedule** (asks for the new time), **Complete**, **Mark
+   no-show** (refused before the start time), or **Cancel appointment** (asks for a reason, which
+   the patient receives by email).
+5. Patient change requests (reschedule or cancel) appear for staff to decide; the patient cannot
+   change a confirmed appointment directly.
+
+Reading the schedule needs `APPOINTMENT.READ` (director, manager, doctor, volunteer). Triage and
+every lifecycle change need `APPOINTMENT.WRITE` (manager, doctor). See
+`docs/clinic-ops/22_APPOINTMENTS_CALENDAR_V1.md` and section 10 for the emails each step sends.
+
+---
+
+## 14. Staff Invites
+
+Directors (for their own clinic) and system admins invite managers, doctors and volunteers by
+email from `/admin/users` → **Invite a colleague**. The invite creates the Keycloak account,
+emails a password-setup link, and grants the role when the colleague accepts on `/accept-invite`.
+Director and System Admin are never granted by invite. Full rules, refusals and audit events are
+in `docs/USER_AND_ROLE_SETUP_GUIDE.md` section 6.
+
+---
+
+## 15. Organization Reporting And Cohort Analytics
+
+System admins only (`ORGANIZATION.REPORT.READ`, held through the `*` wildcard).
+
+1. Open `/reports/organization` and pick the organization.
+2. The **Report** tab rolls up every clinic in the organization, one row per clinic with its zone.
+   **Open dashboard** switches to that clinic's dashboard.
+3. The **Cohort analytics** tab builds an encounter cohort for a date range and can narrow it by
+   clinic, zone, encounter status and condition workflow. **Only this clinic** on a row narrows the
+   cohort to that clinic. It shows counts only; no patient is ever listed.
+
+Zone is a reporting filter, never a permission. See `docs/specs/02_DOMAIN_MODEL_AND_DATA_DICTIONARY.md`
+(Organization analytics) for how the cohort and each measure are defined.
+
+---
+
+## 16. Clinic Oversight: Staff Activity And Metrics
+
+- `/staff-activity` (`AUDIT.READ`: manager, director) shows activity at the active clinic by
+  person and by day, with a per-person drill-down.
+- `/metrics` (`METRICS.READ`: manager, director) shows station wait time and throughput and the
+  instrumented product events.
+
+---
+
+## 17. Offline Work And Sync Recovery
+
+Core clinical work (patients, encounters, forms, consent, prescriptions), shift start and end,
+patient check-in, and a doctor's clinician plan can be saved while offline. They queue on the
+device and send when the connection returns.
+
+- The sync status bar shows what is waiting, sending, or needs attention.
+- A change that conflicts with the server is held for review; the user can retry it or discard it
+  (discarding asks for confirmation).
+- Changes queued while working in another clinic are listed separately and are sent as the account
+  and clinic that queued them.
+- Assigning a patient, starting a visit, and handing a patient between stations stay online-only,
+  because they depend on who is on duty at that moment.
+
+See `docs/specs/04_OFFLINE_FIRST_AND_SYNC.md`.
+
+---
+
+## 18. Staff Chat
+
+Staff with `CHAT.SEND` open the chat panel from the bottom-right of the workspace. Conversations
+are scoped to the active clinic.
+
+- Direct messages between two staff members, and group conversations of up to 50 people. Any
+  member can add people or rename a group; someone who left and is added back keeps their history.
+- Online presence, last seen, typing indicators and unread counts update live.
+- Messages are TLS-protected in transit; they are not end-to-end encrypted.
