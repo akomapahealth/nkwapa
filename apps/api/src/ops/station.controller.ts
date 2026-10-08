@@ -23,6 +23,7 @@ import { hasPermissionAtClinic } from '../auth/clinic-roles';
 import { isApiFeatureEnabled } from '../common/feature-flags';
 import { StationService, type StationActor } from './station.service';
 import {
+  AssignStationVisitDto,
   CompleteStationVisitDto,
   CreateStationDto,
   MoveCheckInDto,
@@ -175,6 +176,26 @@ export class StationController {
   ) {
     this.assertEnabled();
     return this.stationService.claim(clinicId, visitId, this.actor(req, clinicId), this.ctx(req));
+  }
+
+  /** Manager hands a waiting patient to a named person on shift. */
+  @Post('station-visits/:visitId/assign')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.OPS_STATION_MANAGE)
+  assign(
+    @Param('clinicId') clinicId: string,
+    @Param('visitId', ParseUUIDPipe) visitId: string,
+    @Body() body: AssignStationVisitDto,
+    @Request() req: StationRequest,
+  ) {
+    this.assertEnabled();
+    return this.stationService.assign(
+      clinicId,
+      visitId,
+      body.assigneeUserId,
+      this.actor(req, clinicId),
+      this.ctx(req),
+    );
   }
 
   @Post('station-visits/:visitId/release')

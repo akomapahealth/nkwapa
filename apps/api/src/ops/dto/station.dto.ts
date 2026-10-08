@@ -68,6 +68,12 @@ export class CompleteStationVisitDto {
   skips?: StationSkipDto[];
 }
 
+export class AssignStationVisitDto {
+  /** The volunteer or doctor on shift who takes the patient. */
+  @IsUUID()
+  assigneeUserId!: string;
+}
+
 export class SetShiftStationDto {
   /** Null clears it. */
   @ValidateIf((_, value) => value !== null)
