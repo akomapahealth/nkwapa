@@ -27,6 +27,7 @@ import { ClinicService } from '../clinics/clinic.service';
 import { AdminService } from '../admin/admin.service';
 import { DashboardService } from '../dashboard/dashboard.service';
 import { OrganizationReportService } from '../org-reports/organization-report.service';
+import { OrganizationAnalyticsService } from '../org-reports/organization-analytics.service';
 import { IncludeStaffInviteScope } from '../staff-invites/staff-invite-scope.decorator';
 
 /**
@@ -95,6 +96,7 @@ describeIsolation('organization and zone isolation', () => {
   let admin: AdminService;
   let dashboard: DashboardService;
   let reports: OrganizationReportService;
+  let analytics: OrganizationAnalyticsService;
 
   beforeAll(async () => {
     if (!sourceUrl) throw new Error('DATABASE_URL is required');
@@ -144,6 +146,7 @@ describeIsolation('organization and zone isolation', () => {
     admin = new AdminService(prisma, {} as never, {} as never, {} as never);
     dashboard = new DashboardService(prisma);
     reports = new OrganizationReportService(prisma);
+    analytics = new OrganizationAnalyticsService(prisma);
   });
 
   afterAll(async () => {
@@ -303,6 +306,48 @@ describeIsolation('organization and zone isolation', () => {
     ])('refuses a %s, even for their own organization', async (_label, user) => {
       await expect(
         asRequest(user, () => reports.getReport(actor(user), orgA.id)),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+
+  describe('organization analytics (#25)', () => {
+    it('counts one organization’s cohort and nothing from the other', async () => {
+      const result = await asRequest(TENANT_SYSTEM_ADMIN, () =>
+        analytics.getAnalytics(actor(TENANT_SYSTEM_ADMIN), orgA.id, {}),
+      );
+      expect(result.clinics.map((row) => row.clinicId).sort()).toEqual([a1.id, a2.id].sort());
+      // One encounter each at A1 and A2, from two different patients; B1's never appears.
+      expect(result.totals.encounters).toBe(2);
+      expect(result.totals.patients).toBe(2);
+      expect(result.totals.encountersByStatus.DRAFT).toBe(2);
+    });
+
+    it('narrows to one clinic when asked', async () => {
+      const result = await asRequest(TENANT_SYSTEM_ADMIN, () =>
+        analytics.getAnalytics(actor(TENANT_SYSTEM_ADMIN), orgA.id, { clinicId: a2.id }),
+      );
+      expect(result.clinics.map((row) => row.clinicId)).toEqual([a2.id]);
+      expect(result.totals.encounters).toBe(1);
+    });
+
+    it('will not narrow to a clinic from another organization', async () => {
+      await expect(
+        asRequest(TENANT_SYSTEM_ADMIN, () =>
+          analytics.getAnalytics(actor(TENANT_SYSTEM_ADMIN), orgA.id, { clinicId: b1.id }),
+        ),
+      ).rejects.toThrow(/not part of this organization/);
+    });
+
+    it.each([
+      ['director', DIRECTOR_A1],
+      ['manager', MANAGER_A1],
+      ['doctor', DOCTOR_A1],
+      ['volunteer', VOLUNTEER_A1],
+      ['patient', PATIENT_A1],
+      ['director who also practises at A2', TENANT_CROSS_CLINIC_USERS.directorAtA1DoctorAtA2],
+    ])('refuses a %s, even for their own organization', async (_label, user) => {
+      await expect(
+        asRequest(user, () => analytics.getAnalytics(actor(user), orgA.id, {})),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
