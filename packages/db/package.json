@@ -41,6 +41,10 @@
       "types": "./dist/src/eye-screening.d.ts",
       "default": "./dist/src/eye-screening.js"
     },
+    "./clinician-plan-seal": {
+      "types": "./dist/src/clinician-plan-seal.d.ts",
+      "default": "./dist/src/clinician-plan-seal.js"
+    },
     "./diabetes-screening": {
       "types": "./dist/src/diabetes-screening.d.ts",
       "default": "./dist/src/diabetes-screening.js"

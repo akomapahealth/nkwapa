@@ -38,6 +38,15 @@ export {
   type VisionLossCause,
   type VisualAcuity,
 } from './src/eye-screening';
+export {
+  CLINICIAN_PLAN_SEAL_ALGORITHM,
+  clinicianPlanSealAad,
+  sealClinicianPlan,
+  type ClinicianPlanCondition,
+  type ClinicianPlanSealContext,
+  type ClinicianPlanSealKey,
+  type SealedClinicianPlan,
+} from './src/clinician-plan-seal';
 export { normalizePhoneToE164 } from './src/phone';
 export {
   computeBmi,

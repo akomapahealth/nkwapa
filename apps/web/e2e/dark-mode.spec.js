@@ -52,6 +52,7 @@ test.describe('staff surfaces in dark mode', () => {
     '/appointments',
     '/admin/users',
     '/admin/duplicates',
+    '/reports/organization',
   ];
 
   for (const path of ROUTES) {

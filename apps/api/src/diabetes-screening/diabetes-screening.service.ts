@@ -403,7 +403,14 @@ export class DiabetesScreeningService {
     actor: DiabetesActor,
     dto: UpsertDiabetesClinicianPlanDto,
     metadata: DiabetesRequestMetadata = {},
+    /**
+     * When the clinician made the decision, for a plan queued offline and replayed later (#131).
+     * The follow-up window counts from here, not from when signal returned. Already clamped by
+     * the caller; online saves leave it out and use now.
+     */
+    options: { decidedAt?: Date } = {},
   ) {
+    const decidedAt = options.decidedAt ?? new Date();
     assertPermissionAtClinic(
       actor.roles,
       clinicId,
@@ -442,12 +449,12 @@ export class DiabetesScreeningService {
           followUpOwner: dto.followUpOwner,
           clinicianComments: dto.clinicianComments,
           clinicianPlanAuthorId: actor.userId,
-          clinicianPlanAuthoredAt: new Date(),
+          clinicianPlanAuthoredAt: decidedAt,
         },
         include: this.contextInclude(),
       });
 
-      const followUpDate = resolveFollowUpDate(dto.followUpWindow, new Date());
+      const followUpDate = resolveFollowUpDate(dto.followUpWindow, decidedAt);
       if (followUpDate) {
         await tx.carePlan.upsert({
           where: { encounterId },
@@ -470,6 +477,19 @@ export class DiabetesScreeningService {
           userAgent: metadata.userAgent,
         },
       });
+      // A replayed plan leaves its idempotency record in the transaction that applied it.
+      if (metadata.syncMutation) {
+        await tx.syncMutation.create({
+          data: {
+            clinicId,
+            entityType: metadata.syncMutation.entityType,
+            entityId: metadata.syncMutation.entityId,
+            operation: 'UPSERT',
+            idempotencyKey: metadata.syncMutation.idempotencyKey,
+            status: 'APPLIED',
+          },
+        });
+      }
       return record;
     });
 

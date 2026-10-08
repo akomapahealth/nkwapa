@@ -30,6 +30,7 @@ describe('explainFailure', () => {
       'EMAIL_SEND_FAILED',
       'QUEUE_UNAVAILABLE',
       'SEND_FAILED',
+      'SEND_OUTCOME_UNKNOWN',
     ]) {
       expect(explainFailure(code)?.recovery).toBeTruthy();
     }

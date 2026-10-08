@@ -9,6 +9,8 @@ import { useBootstrap } from '@/lib/bootstrap-context';
 import { onSyncPassComplete } from '@/lib/sync';
 import type { SyncRecoveryAccess } from '@/lib/sync-conflicts';
 import { useOutboxQueue } from '@/lib/use-outbox-queue';
+import { getSwitchableClinics } from '@/lib/bootstrap-clinics';
+import { useOtherClinicQueues } from '@/lib/other-clinic-queue';
 import { cn } from '@/lib/utils';
 import { SyncCenterSheet } from './SyncCenterSheet';
 
@@ -45,6 +47,13 @@ export function SyncStatusBar({
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   // Only this account's own changes count here; others' are held and shown in the sync center.
   const queue = useOutboxQueue(clinicId, bootstrap?.userId ?? null);
+  const otherClinics = useOtherClinicQueues({
+    activeClinicId: clinicId,
+    currentUserId: bootstrap?.userId ?? null,
+    accessibleClinics: getSwitchableClinics(bootstrap),
+  });
+  // Counted apart from the active clinic's, which the pill's number is about.
+  const otherClinicChanges = otherClinics.reduce((sum, other) => sum + other.own.length, 0);
   const blocked = queue.blocked.length;
   const waiting = queue.retrying.length + queue.pending.length;
 
@@ -72,7 +81,12 @@ export function SyncStatusBar({
     [clinicId, setSyncCenterOpen, showToast],
   );
 
-  if (!clinicId || (!canSync && queue.total === 0 && queue.held.length === 0)) return null;
+  if (
+    !clinicId ||
+    (!canSync && queue.total === 0 && queue.held.length === 0 && otherClinicChanges === 0)
+  ) {
+    return null;
+  }
 
   const state: PillState = !isOnline
     ? 'offline'
@@ -108,7 +122,9 @@ export function SyncStatusBar({
           type="button"
           onClick={() => setSyncCenterOpen(true)}
           className="relative flex h-11 min-w-11 items-center gap-2 rounded-lg px-3 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:rounded-r-none"
-          aria-label={`Offline changes: ${label}. Open sync center.`}
+          aria-label={`Offline changes: ${label}.${
+            otherClinicChanges > 0 ? ` ${otherClinicChanges} saved for other clinics.` : ''
+          } Open sync center.`}
           data-testid="sync-status"
           data-state={state}
         >
@@ -121,6 +137,15 @@ export function SyncStatusBar({
           >
             {label}
           </span>
+          {otherClinicChanges > 0 ? (
+            // A quiet marker, not a count: it says "look in the sync center" without inflating
+            // the active clinic's number.
+            <span
+              aria-hidden="true"
+              data-testid="sync-other-clinics-marker"
+              className="absolute left-1.5 top-1.5 h-2 w-2 rounded-full bg-primary"
+            />
+          ) : null}
           {count > 0 ? (
             <span
               aria-hidden="true"
@@ -152,6 +177,7 @@ export function SyncStatusBar({
       <SyncCenterSheet
         clinicId={clinicId}
         queue={queue}
+        otherClinics={otherClinics}
         canSync={canSync}
         recoveryAccess={recoveryAccess}
       />
