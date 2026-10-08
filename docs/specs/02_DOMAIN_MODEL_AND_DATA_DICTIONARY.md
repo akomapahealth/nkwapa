@@ -33,7 +33,43 @@ Key fields:
 Current use:
 
 - groups clinics across multiple locations
-- provides the future boundary for rollup reporting and higher-level admin
+- is the boundary for rollup reporting (`GET /organizations/:id/report`, #13) and cohort
+  analytics (`GET /organizations/:id/analytics`, #25), and the future boundary for higher-level
+  admin
+
+#### Organization analytics (#25)
+
+Cohort analytics read one organization's clinics through a set of optional filters. Both
+endpoints need `ORGANIZATION.REPORT.READ`, and the service also checks for the global
+`SYSTEM_ADMIN` seat. A clinic-scoped role is refused, a director included, even for its own
+organization.
+
+How the cohort is built:
+
+- **Encounter cohort.** Encounters at the organization's clinics whose `createdAt` falls in
+  `[from, to]`.
+  - The dates are calendar days in `Organization.timezone`, and both ends are included.
+  - The default is the last 30 days. The longest range allowed is 366 days.
+  - The cohort can be narrowed by `clinicId`, `zoneCode`, `encounterStatus` and `workflow`.
+- **Condition workflow.** An encounter is in a workflow when it has that 1:1 child record:
+  - `HYPERTENSION`: `HypertensionAssessment`
+  - `DIABETES`: `DiabetesScreening`
+  - `EYE`: `EyeScreening`
+  - `COUNSELLING`: `CounsellingRecord`
+
+  One encounter can be in several workflows.
+
+- **Appointments.** Appointments whose `startsAt` falls in the same range, at the same clinics,
+  narrowed by `appointmentStatus`. `workflow` and `encounterStatus` do not apply to
+  appointments. The response's `appliesTo` field says which filters affected which section.
+- **Patients.** The number of distinct patients with an encounter in the cohort.
+  - The organization total is its own count. It is not the sum of the clinic rows, because a
+    patient seen at two clinics is one patient to the organization.
+- **Clinic filter.** A `clinicId` from another organization is refused with a 400. It is not
+  treated as an empty cohort.
+
+The response is aggregate counts only. It contains no patient identifiers and no row-level data,
+so it sits apart from research exports and their de-identification rules.
 
 ### Clinic
 
