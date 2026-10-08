@@ -1,192 +1,118 @@
 'use client';
 
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import * as Popover from '@radix-ui/react-popover';
 import { CircleHelp } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 
-const BUBBLE_WIDTH = 288;
-const VIEWPORT_GUTTER = 12;
-const BUBBLE_OFFSET = 10;
-
 /**
- * Every mounted hint's close function.
+ * Every open hint's close function.
  *
- * Issue #63 requires that only the intended bubble is open. State was per-instance, so a
- * dashboard with five metric hints and three chart hints could have all eight open at once,
- * stacked over the data they were explaining. A module-level registry is the smallest thing that
- * fixes it without a provider every consumer would have to remember to mount.
+ * Issue #63 requires that only the intended bubble is open. A pointer gets that for free -- pressing
+ * a second trigger is an outside click for the first bubble -- but Enter and Space fire no
+ * pointerdown, so a keyboard user could stack every hint on a dashboard over the data it explains.
+ * A module-level registry is the smallest thing that fixes it without a provider every consumer
+ * would have to remember to mount.
  */
 const openHints = new Set<() => void>();
 
-function closeOtherHints(self: () => void) {
-  for (const close of openHints) {
-    if (close !== self) close();
-  }
-}
+const triggerSizes = {
+  sm: 'h-5 w-5 [&_svg]:h-3.5 [&_svg]:w-3.5',
+  md: 'h-6 w-6 [&_svg]:h-4 [&_svg]:w-4',
+} as const;
 
 /**
- * Contextual help that does not move the page.
+ * Contextual help that floats and never moves the page.
  *
- * Use this for a sentence that helps someone read what is already on screen. Anything a user
- * must read to work safely -- consent wording, safety rules, de-identification terms -- belongs
- * in ProgressiveHelp instead, which stays visible and expands in place. #63 is explicit that
- * required instructions and clinical warnings must not be hidden behind a trigger.
+ * Built on Radix Popover, which brings what the hand-placed bubble kept re-deriving: collision
+ * handling on every side, an arrow that stays pointed at its trigger when the bubble is pushed in
+ * from a screen edge, focus return on close, and an exit animation (the old bubble unmounted).
+ *
+ * Use it for help that explains what is already on screen. Anything a user must read to work
+ * safely -- consent wording, safety rules, de-identification terms -- belongs in ProgressiveHelp,
+ * which stays visible. #63 forbids moving that class of content into a bubble.
+ *
+ * `label` names the trigger ("Show help: …") and is the bubble's text. Pass `children` for richer
+ * help, with `label` as its short title.
  */
-export function InfoHint({ label, className }: { label: string; className?: string }) {
+export function InfoHint({
+  label,
+  children,
+  size = 'md',
+  side = 'bottom',
+  className,
+}: {
+  label: string;
+  children?: React.ReactNode;
+  size?: keyof typeof triggerSizes;
+  side?: 'top' | 'bottom' | 'left' | 'right';
+  className?: string;
+}) {
   const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState<{
-    left: number;
-    top: number;
-    placement: 'top' | 'bottom';
-  } | null>(null);
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const bubbleRef = useRef<HTMLDivElement | null>(null);
-  const bubbleId = useId();
-
   const close = useCallback(() => setOpen(false), []);
-
-  /**
-   * Place the bubble against the real measured height.
-   *
-   * This used to flip to the top whenever there was less than 160px below the trigger, which is a
-   * guess: a three-line hint is shorter than that and a six-line one is taller, so long help text
-   * still ran off the bottom of the viewport. Measuring means the flip happens exactly when the
-   * bubble would not fit, and never otherwise.
-   */
-  const updatePosition = useCallback(() => {
-    const button = buttonRef.current;
-    if (!button || typeof window === 'undefined') return;
-
-    const rect = button.getBoundingClientRect();
-    const maxLeft = Math.max(window.innerWidth - BUBBLE_WIDTH - VIEWPORT_GUTTER, VIEWPORT_GUTTER);
-    const left = Math.min(
-      Math.max(rect.left + rect.width / 2 - BUBBLE_WIDTH / 2, VIEWPORT_GUTTER),
-      maxLeft,
-    );
-
-    const bubbleHeight = bubbleRef.current?.offsetHeight ?? 0;
-    const spaceBelow = window.innerHeight - rect.bottom - BUBBLE_OFFSET - VIEWPORT_GUTTER;
-    const spaceAbove = rect.top - BUBBLE_OFFSET - VIEWPORT_GUTTER;
-
-    // Prefer below. Flip only when it genuinely will not fit and there is more room above.
-    const placement: 'top' | 'bottom' =
-      bubbleHeight > 0 && spaceBelow < bubbleHeight && spaceAbove > spaceBelow ? 'top' : 'bottom';
-    const top = placement === 'bottom' ? rect.bottom + BUBBLE_OFFSET : rect.top - BUBBLE_OFFSET;
-
-    setPosition((current) =>
-      current && current.left === left && current.top === top && current.placement === placement
-        ? current
-        : { left, top, placement },
-    );
-  }, []);
-
-  // Runs after the bubble exists, so the first paint is already measured rather than being
-  // positioned on a guess and then corrected, which the eye reads as a jump.
-  useLayoutEffect(() => {
-    if (open) updatePosition();
-  }, [open, updatePosition]);
 
   useEffect(() => {
     if (!open) return;
-
+    for (const other of openHints) other();
     openHints.add(close);
-    closeOtherHints(close);
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (buttonRef.current?.contains(target) || bubbleRef.current?.contains(target)) return;
-
-      // If focus is inside the bubble we are about to unmount, hand it back to the trigger.
-      // Without this it lands on <body> and the next Tab restarts from the top of the page.
-      const focusWasInside = bubbleRef.current?.contains(document.activeElement);
-      setOpen(false);
-      if (focusWasInside) buttonRef.current?.focus();
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.stopPropagation();
-      setOpen(false);
-      buttonRef.current?.focus();
-    };
-
-    window.addEventListener('resize', updatePosition);
-    window.addEventListener('scroll', updatePosition, true);
-    document.addEventListener('pointerdown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
-
     return () => {
       openHints.delete(close);
-      window.removeEventListener('resize', updatePosition);
-      window.removeEventListener('scroll', updatePosition, true);
-      document.removeEventListener('pointerdown', handlePointerDown);
-      document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [open, close, updatePosition]);
+  }, [open, close]);
 
   return (
-    <>
-      <button
-        ref={buttonRef}
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Trigger
         type="button"
-        aria-expanded={open}
         aria-label={`Show help: ${label}`}
-        aria-describedby={open ? bubbleId : undefined}
-        onClick={() => setOpen((current) => !current)}
         className={cn(
-          // The 44px touch target is a centred pseudo-element rather than the button's own box.
-          // `touch-target` used to set min-height/min-width on the button itself, which silently
-          // beat every `h-5 w-5` / `-mr-1` override the four call sites pass, and pushed metric
-          // card headers around by 20px. The glyph now sizes as asked and the tap area still
-          // clears the contract's 44px floor.
-          'relative inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground transition-colors duration-150',
+          // The 44px touch target is a centred pseudo-element, so the glyph sits at the size the
+          // layout needs and the tap area still clears the contract's floor (MASTER.md section 8).
+          'relative inline-flex shrink-0 items-center justify-center rounded-full align-middle text-muted-foreground transition-colors duration-fast',
           'before:absolute before:left-1/2 before:top-1/2 before:h-11 before:w-11 before:-translate-x-1/2 before:-translate-y-1/2 before:content-[""]',
           'hover:bg-muted hover:text-foreground',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
           'data-[state=open]:bg-primary/10 data-[state=open]:text-primary',
+          triggerSizes[size],
           className,
         )}
-        data-state={open ? 'open' : 'closed'}
       >
-        <CircleHelp aria-hidden="true" className="h-4 w-4" />
-      </button>
-      {open
-        ? createPortal(
-            <div
-              ref={bubbleRef}
-              id={bubbleId}
-              role="tooltip"
-              className={cn(
-                'fixed z-[120] rounded-lg border border-border/80 bg-popover px-4 py-3 text-left text-sm leading-6 text-popover-foreground outline-none animate-in fade-in-0 zoom-in-95',
-                position?.placement === 'top'
-                  ? '-translate-y-full slide-in-from-bottom-1'
-                  : 'slide-in-from-top-1',
-              )}
-              style={{
-                // Width is driven from the constant the placement maths uses, so the two cannot
-                // drift apart the way `w-72` and BUBBLE_WIDTH could.
-                width: BUBBLE_WIDTH,
-                left: position?.left ?? -9999,
-                top: position?.top ?? -9999,
-                // Hidden for the one frame before measurement, so it is never seen mispositioned.
-                visibility: position ? 'visible' : 'hidden',
-              }}
-            >
-              <span
-                className={cn(
-                  'absolute h-3 w-3 rotate-45 border border-border/80 bg-popover',
-                  position?.placement === 'top'
-                    ? 'bottom-[-7px] left-1/2 -translate-x-1/2 border-l-0 border-t-0'
-                    : 'left-1/2 top-[-7px] -translate-x-1/2 border-b-0 border-r-0',
-                )}
-                aria-hidden="true"
-              />
-              {label}
-            </div>,
-            document.body,
-          )
-        : null}
-    </>
+        <CircleHelp aria-hidden="true" />
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          // A tooltip in behaviour: focus stays on the trigger, so Tab carries on through the page
+          // and Escape hands back to where the user was.
+          role="tooltip"
+          side={side}
+          align="center"
+          sideOffset={8}
+          collisionPadding={12}
+          onOpenAutoFocus={(event) => event.preventDefault()}
+          className={cn(
+            'z-[120] w-72 max-w-[calc(100vw-24px)] rounded-lg border border-border/80 bg-popover px-4 py-3 text-left text-sm leading-6 text-popover-foreground shadow-md outline-none',
+            // Scales from the trigger, not from its own centre. Exit is quicker than entry: the
+            // user has already decided to move on.
+            'origin-[--radix-popover-content-transform-origin]',
+            'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:duration-150',
+            'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:duration-100',
+          )}
+        >
+          {children ? (
+            <div className="space-y-1.5">
+              <p className="font-semibold text-foreground">{label}</p>
+              <div className="text-muted-foreground">{children}</div>
+            </div>
+          ) : (
+            label
+          )}
+          <Popover.Arrow
+            width={14}
+            height={7}
+            className="fill-popover [filter:drop-shadow(0_1px_0_hsl(var(--border)))]"
+          />
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }

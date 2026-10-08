@@ -29,6 +29,17 @@ module.exports = {
         'landing-body': ['Circular Std', 'var(--font-landing)', 'Poppins', 'sans-serif'],
         'landing-nav': ['Circular Std', 'var(--font-landing)', 'Poppins', 'sans-serif'],
       },
+      // Named rather than overriding Tailwind's own `ease-out`, so existing call sites keep the
+      // curve they were tuned with and new motion opts in. Values live in globals.css.
+      transitionTimingFunction: {
+        'out-strong': 'var(--ease-out)',
+        'in-out-strong': 'var(--ease-in-out)',
+        drawer: 'var(--ease-drawer)',
+      },
+      transitionDuration: {
+        fast: 'var(--duration-fast)',
+        base: 'var(--duration-base)',
+      },
       keyframes: {
         marquee: {
           '0%': { transform: 'translateX(0)' },

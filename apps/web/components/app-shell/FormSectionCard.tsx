@@ -28,11 +28,11 @@ export function FormSectionCard({
   return (
     <Card className={className}>
       <CardHeader className="space-y-2 pb-4">
-        <div className="flex items-start gap-2">
+        <div className="flex items-center gap-2">
           <CardTitle as={titleAs} className="text-lg">
             {title}
           </CardTitle>
-          {hint ? <InfoHint label={hint} className="-mt-1" /> : null}
+          {hint ? <InfoHint label={hint} size="sm" /> : null}
         </div>
         {description ? <CardDescription>{description}</CardDescription> : null}
       </CardHeader>

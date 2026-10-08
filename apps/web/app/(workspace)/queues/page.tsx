@@ -17,7 +17,7 @@ import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { Box } from '@mui/material';
 import { dataGridSx } from '@/lib/datagrid-theme';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ProgressiveHelp } from '@/components/ui/progressive-help';
+import { InfoHint } from '@/components/ui/info-hint';
 import { EmptyState, InlineErrorState } from '@/components/feedback/AppState';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 
@@ -248,7 +248,13 @@ export default function QueuesPage() {
           <CardHeader className="space-y-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <CardTitle className="text-xl">Encounter queues</CardTitle>
+                <CardTitle className="text-xl">
+                  <span className="align-middle">Encounter queues</span>
+                  <InfoHint
+                    label="Drafts are still being prepared, Needs review is waiting on clinical review, and Ready to finalize is waiting on doctor sign-off."
+                    className="ml-2"
+                  />
+                </CardTitle>
                 <CardDescription>Switch lanes and open the right encounter fast.</CardDescription>
               </div>
               <div className="rounded-lg border border-border bg-background px-4 py-3 text-sm">
@@ -266,10 +272,6 @@ export default function QueuesPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <ProgressiveHelp title="Lane tips">
-              Drafts are still being prepared, Needs review is waiting on clinical review, and Ready
-              to finalize is waiting on doctor sign-off.
-            </ProgressiveHelp>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-lg border border-border bg-background p-2 sm:grid-cols-2 xl:grid-cols-4">
                 {canDrafts && <TabsTrigger value="drafts">Drafts</TabsTrigger>}

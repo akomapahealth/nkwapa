@@ -372,6 +372,10 @@ The serif heading is deliberate. It separates headings from data at a glance, wh
 - Nothing longer in a clinical view.
 - **No transform-based hover.** Scale and translate on hover cause layout shift, which #63 and #66 both prohibit. Use colour or opacity.
 - `prefers-reduced-motion` is already handled globally in `globals.css` and is correct. Do not duplicate it per component.
+- **Curves and durations are tokens.** `--ease-out`, `--ease-in-out`, `--ease-drawer`, `--duration-fast` (150ms) and `--duration-base` (200ms) in `globals.css`, exposed as `ease-out-strong`, `ease-in-out-strong`, `ease-drawer`, `duration-fast` and `duration-base`. Enter with `ease-out-strong`; never `ease-in`, which delays the moment the user is watching.
+- **Press feedback is allowed.** `Button` scales to 0.97 on `:active`. That answers a press, not a hover, and scale does not change the box, so nothing moves.
+- **Busy buttons keep their width.** `Button loading` hides the label under a spinner rather than swapping text (section 11).
+- **Toasts are Sonner**, through `useToast()` in `components/ui/toast.tsx`. Pass the id a loading toast returned to settle it in place as success or error, or use `toastPromise`.
 
 ---
 
@@ -452,6 +456,10 @@ They are not duplicates and neither replaces the other. They used to share the `
 | Never carries          | Anything required                                  | —                                             |
 
 Safety rules, consent wording, what stays protected on a record, and de-identification terms belong in `ProgressiveHelp`. #63 forbids moving them into a bubble, and that rule is the reason both components exist.
+
+**A page header never expands in place.** `AppPageHeader`'s `hint` and `helpText` both render as an `InfoHint` beside the title (with `helpTitle` as the bubble's heading), so no header pushes the page down. Help that is required reading is therefore not header help: it goes in a `ProgressiveHelp` directly under the header, in the page body, as on consent, research exports and the two duplicate screens.
+
+`InfoHint` is built on Radix Popover: collision handling, an arrow that stays on its trigger, an exit animation, and scaling from the trigger (`--radix-popover-content-transform-origin`). It keeps `role="tooltip"` and leaves focus on the trigger. Sizes are `sm` and `md`; call sites do not offset it with margins. Next to text it is inline and `align-middle`, so it sits on the text's last line however that wraps.
 
 `InfoHint` enforces single-open across the whole page through a module-level registry: opening one closes any other. It returns focus to its trigger on Escape, and on an outside click when focus was inside the bubble. Its 44px target is a centred pseudo-element, so a call site's size override actually applies.
 
