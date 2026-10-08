@@ -8,7 +8,9 @@ import { OPS_DEFAULT_TIMEZONE, formatOpsDateTime } from '@/lib/ops';
 import { fetchEncounterStationTimeline, type StationVisit } from '@/lib/stations';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { EyeScreeningRecord } from '@/lib/eye-screening';
 import { CounsellingForm, type CounsellingRecord } from './CounsellingForm';
+import { EyeScreeningForm } from './EyeScreeningForm';
 import { StationResultsSummary } from './StationResultsSummary';
 
 const FOLLOW_UP_LABELS: Record<string, string> = {
@@ -45,6 +47,7 @@ export function StationSessionPanel({
   const { isOnline } = useSync();
   const [timeline, setTimeline] = useState<StationVisit[] | null>(null);
   const [counselling, setCounselling] = useState<CounsellingRecord | null>(null);
+  const [eye, setEye] = useState<EyeScreeningRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -84,6 +87,7 @@ export function StationSessionPanel({
         timeline={timeline}
         vitals={vitals}
         diabetes={diabetes}
+        eye={eye}
         timezone={OPS_DEFAULT_TIMEZONE}
       />
       <Card>
@@ -117,6 +121,15 @@ export function StationSessionPanel({
           {counselling.followUpOther ? ` (${counselling.followUpOther})` : ''}. Set the follow-up
           date in the care plan before finalizing, or no reminder is scheduled.
         </InlineNotice>
+      ) : null}
+      {timeline.some((stop) => stop.station.kind === 'EYE') ? (
+        <EyeScreeningForm
+          clinicId={clinicId}
+          encounterId={encounterId}
+          canEdit={canEditCounselling}
+          onLoaded={setEye}
+          onSaved={setEye}
+        />
       ) : null}
       <CounsellingForm
         clinicId={clinicId}

@@ -2,6 +2,7 @@
 
 import { classifyBloodPressure, isHypoglycemic } from '@nkwapa/db';
 import type { DiabetesScreeningRecord, VitalsRecord } from '@/lib/db';
+import { summarizeEyeScreening, type EyeScreeningRecord } from '@/lib/eye-screening';
 import { HYPERTENSION_LABELS } from '@/lib/hypertension';
 import { formatOpsDateTime } from '@/lib/ops';
 import type { StationKind, StationVisit } from '@/lib/stations';
@@ -24,11 +25,13 @@ export function StationResultsSummary({
   timeline,
   vitals,
   diabetes,
+  eye = null,
   timezone,
 }: {
   timeline: StationVisit[];
   vitals: VitalsRecord | null;
   diabetes: DiabetesScreeningRecord | null;
+  eye?: EyeScreeningRecord | null;
   timezone: string;
 }) {
   const recordedAt = (kind: StationKind) => {
@@ -49,6 +52,8 @@ export function StationResultsSummary({
     diabetes?.derivedSuspicion === 'SUSPECTED' || (glucose != null && isHypoglycemic(glucose));
   const bmi = vitals?.bmi;
   const bmiFlag = bmi != null && (bmi < 18.5 || bmi >= 25);
+  const eyeSummary = summarizeEyeScreening(eye);
+  const visitedEye = timeline.some((visit) => visit.station.kind === 'EYE');
 
   const rows: Array<{
     label: string;
@@ -96,6 +101,20 @@ export function StationResultsSummary({
       flag: bmiFlag,
       by: recordedAt('ANTHROPOMETRY'),
     },
+    // Clinics whose line predates the eye station, or that closed it, show no eye row.
+    ...(eyeSummary || visitedEye
+      ? [
+          {
+            label: 'Vision (best per eye)',
+            value: eyeSummary
+              ? `OD ${eyeSummary.right ?? '–'} · OS ${eyeSummary.left ?? '–'}`
+              : 'Not recorded',
+            detail: eyeSummary?.detail || undefined,
+            flag: eyeSummary?.flag ?? false,
+            by: recordedAt('EYE'),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -108,7 +127,7 @@ export function StationResultsSummary({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <dl className="grid gap-3 md:grid-cols-3">
+        <dl className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {rows.map((row) => (
             <div
               key={row.label}
