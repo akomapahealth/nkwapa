@@ -47,6 +47,8 @@ export interface StationVisit {
   queuedAt: string;
   claimedBy: StaffSummary | null;
   claimedAt: string | null;
+  /** The manager who handed the patient to `claimedBy`; null when they took the patient themselves. */
+  assignedBy?: StaffSummary | null;
   completedBy: StaffSummary | null;
   completedAt: string | null;
   handoffNote: string | null;
@@ -64,6 +66,15 @@ export interface StationBoard {
   date: string;
   timezone: string;
   stations: Array<ClinicStation & { staff: StaffSummary[]; visits: StationVisit[] }>;
+  /** Everyone on shift. Absent from a board saved on this device before managers could assign. */
+  onShift?: OnShiftStaff[];
+}
+
+export interface OnShiftStaff {
+  user: StaffSummary;
+  roleAtShift: 'VOLUNTEER' | 'DOCTOR' | 'MANAGER';
+  stationId: string | null;
+  activeVisitCount: number;
 }
 
 export interface StationVisitDetail extends StationVisit {
@@ -214,6 +225,20 @@ export const claimStationVisit = (clinicId: string, visitId: string, getToken: G
     },
   );
 
+/** Manager hands a waiting patient to a named person on shift. */
+export const assignStationVisit = (
+  clinicId: string,
+  visitId: string,
+  assigneeUserId: string,
+  getToken: GetToken,
+) =>
+  request<StationVisit>(
+    clinicId,
+    `/station-visits/${encodeURIComponent(visitId)}/assign`,
+    getToken,
+    { method: 'POST', body: { assigneeUserId } },
+  );
+
 export const releaseStationVisit = (
   clinicId: string,
   visitId: string,
@@ -284,6 +309,22 @@ export const cancelCheckIn = (
     getToken,
     { method: 'POST', body: { reason } },
   );
+
+/**
+ * Who a manager can hand a patient at `stationId` to: the people working that station first,
+ * then everyone else on shift, each group with the least busy first.
+ */
+export function assignableStaff(
+  onShift: readonly OnShiftStaff[],
+  stationId: string,
+): { atStation: OnShiftStaff[]; elsewhere: OnShiftStaff[] } {
+  const byLoad = (a: OnShiftStaff, b: OnShiftStaff) =>
+    a.activeVisitCount - b.activeVisitCount || a.user.displayName.localeCompare(b.user.displayName);
+  return {
+    atStation: onShift.filter((s) => s.stationId === stationId).sort(byLoad),
+    elsewhere: onShift.filter((s) => s.stationId !== stationId).sort(byLoad),
+  };
+}
 
 /**
  * The station a patient goes to next if the volunteer changes nothing: the next active station in

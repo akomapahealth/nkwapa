@@ -359,3 +359,70 @@ test.describe('station flow metrics on the dashboard (#24)', () => {
     });
   }
 });
+
+test('a manager hands a waiting patient to a volunteer on shift', async ({ page }) => {
+  const patient = await createPatient(page);
+  const { clinicId } = patient;
+  const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+    clinicId,
+    data: { patientId: patient.patientId },
+  });
+  expect(checkIn.ok(), checkIn.text()).toBeTruthy();
+  const checkInId = checkIn.json().id;
+  await ensureShift('volunteer', clinicId);
+  const volunteer = (await apiRequestAs('volunteer', 'get', '/auth/whoami', { clinicId })).json();
+  const waiting = await boardVisit('staff', clinicId, checkInId);
+
+  // The board offers the volunteer, and a volunteer cannot hand patients out.
+  const board = (
+    await apiRequestAs('staff', 'get', `/clinics/${clinicId}/stations/board`, { clinicId })
+  ).json();
+  expect(board.onShift.map((member) => member.user.id)).toContain(volunteer.userId);
+  const refused = await apiRequestAs(
+    'volunteer',
+    'post',
+    `/clinics/${clinicId}/station-visits/${waiting.visit.id}/assign`,
+    { clinicId, data: { assigneeUserId: volunteer.userId } },
+  );
+  expect(refused.status()).toBe(403);
+
+  const assigned = await apiRequestAs(
+    'staff',
+    'post',
+    `/clinics/${clinicId}/station-visits/${waiting.visit.id}/assign`,
+    { clinicId, data: { assigneeUserId: volunteer.userId } },
+  );
+  expect(assigned.ok(), assigned.text()).toBeTruthy();
+  expect(assigned.json()).toMatchObject({
+    status: 'IN_PROGRESS',
+    claimedBy: { id: volunteer.userId },
+    assignedBy: { id: expect.any(String) },
+  });
+
+  // The volunteer now holds the patient, exactly as if they had claimed them.
+  const held = await boardVisit('volunteer', clinicId, checkInId);
+  expect(held.visit.claimedBy.id).toBe(volunteer.userId);
+  const again = await apiRequestAs(
+    'staff',
+    'post',
+    `/clinics/${clinicId}/station-visits/${waiting.visit.id}/assign`,
+    { clinicId, data: { assigneeUserId: randomUUID() } },
+  );
+  expect(again.status()).toBe(400);
+
+  await page.goto('/today');
+  await expect(
+    page.getByText(`Assigned by ${assigned.json().assignedBy.displayName}`),
+  ).toBeVisible();
+
+  const left = await apiRequestAs(
+    'staff',
+    'post',
+    `/clinics/${clinicId}/checkins/${checkInId}/cancel`,
+    {
+      clinicId,
+      data: { reason: 'Test finished' },
+    },
+  );
+  expect(left.ok(), left.text()).toBeTruthy();
+});
