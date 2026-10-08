@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { Building2, MapPinned, Map, ShieldAlert } from 'lucide-react';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
@@ -344,7 +344,7 @@ export function ClinicRegistryScreen() {
         actions={<Button onClick={openCreate}>Create clinic</Button>}
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <AppMetricGroup label="Clinic metadata summary" className="sm:grid-cols-2 xl:grid-cols-4">
         <AppMetricCard
           title="Total clinics"
           value={rows.length}
@@ -369,7 +369,7 @@ export function ClinicRegistryScreen() {
           icon={ShieldAlert}
           detail="Clinics whose location metadata organization reporting cannot rely on."
         />
-      </div>
+      </AppMetricGroup>
 
       <Card className="min-w-0">
         <CardHeader className="space-y-3">

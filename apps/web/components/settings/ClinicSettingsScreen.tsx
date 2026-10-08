@@ -5,7 +5,7 @@ import { Microscope, Settings2, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch, getErrorMessage, readApiError } from '@/lib/api';
 import { useAsyncResource } from '@/lib/use-async-resource';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { ResourceState } from '@/components/feedback/ResourceState';
 import { SectionSkeleton } from '@/components/feedback/AppState';
@@ -155,7 +155,7 @@ export function ClinicSettingsScreen({ clinicId }: { clinicId: string }) {
               for the clinic. The unsaved state is announced next to the Save button instead,
               which is where the user can act on it.
             */}
-            <div className="grid gap-4 md:grid-cols-3">
+            <AppMetricGroup className="md:grid-cols-3">
               <AppMetricCard
                 title="Research mode"
                 value={data.researchEnabled ? 'Enabled' : 'Disabled'}
@@ -178,7 +178,7 @@ export function ClinicSettingsScreen({ clinicId }: { clinicId: string }) {
                     : 'No changes recorded yet.'
                 }
               />
-            </div>
+            </AppMetricGroup>
 
             <Card className="max-w-3xl">
               <CardHeader>

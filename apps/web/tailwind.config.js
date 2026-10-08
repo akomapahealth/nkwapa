@@ -47,6 +47,12 @@ module.exports = {
         },
         // The indeterminate refresh bar. Travels rather than pulsing, so it reads as "still
         // working" rather than as something blinking for attention.
+        // A page arriving. Opacity only: a rise would move content that layout checks measure,
+        // and MASTER.md section 7 keeps position changes out of anything this frequent.
+        'page-in': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
         'refresh-sweep': {
           '0%': { transform: 'translateX(-100%)' },
           '100%': { transform: 'translateX(400%)' },
@@ -55,6 +61,7 @@ module.exports = {
       animation: {
         marquee: 'marquee var(--marquee-duration, 30s) linear infinite',
         'refresh-sweep': 'refresh-sweep 1.1s ease-in-out infinite',
+        'page-in': 'page-in var(--duration-fast) var(--ease-out) both',
       },
       colors: {
         border: 'hsl(var(--border))',

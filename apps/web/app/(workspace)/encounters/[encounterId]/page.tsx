@@ -8,7 +8,7 @@ import { useBootstrap } from '@/lib/bootstrap-context';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { apiFetch } from '@/lib/api';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { InlineErrorState } from '@/components/feedback/AppState';
@@ -317,7 +317,7 @@ export default function EncounterDetailPage() {
           }
         />
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <AppMetricGroup className="md:grid-cols-3">
           <AppMetricCard
             title="Encounter state"
             value={encounter.status}
@@ -336,7 +336,7 @@ export default function EncounterDetailPage() {
             icon={ShieldCheck}
             detail="Finalized encounters are preserved as read-only records."
           />
-        </div>
+        </AppMetricGroup>
 
         {error ? (
           <InlineErrorState

@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
 import { readApiError } from '@/lib/ops';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
@@ -380,7 +380,7 @@ export default function RemindersPage() {
           </InlineNotice>
         ) : null}
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+        <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-6">
           <AppMetricCard
             title="Visible messages"
             value={rows.length}
@@ -417,7 +417,7 @@ export default function RemindersPage() {
             icon={Timer}
             detail="Median wait between a message becoming due and the provider accepting it, across the rows loaded here."
           />
-        </div>
+        </AppMetricGroup>
 
         <Card>
           <CardHeader className="space-y-3">

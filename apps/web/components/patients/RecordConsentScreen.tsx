@@ -10,7 +10,7 @@ import { useBootstrap } from '@/lib/bootstrap-context';
 import { CONSENT_TEXT_V1_EN } from '@/lib/consent-text';
 import { db } from '@/lib/db';
 import { enqueueOutboxMutation, SYNC_OPERATION } from '@/lib/outbox';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineNotice } from '@/components/ops/OpsShared';
@@ -172,7 +172,7 @@ export function RecordConsentScreen({
         withdraw it later. Record it only after the patient has agreed.
       </ProgressiveHelp>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <AppMetricGroup className="md:grid-cols-3">
         <AppMetricCard
           title="Consent type"
           value="De-identified"
@@ -191,7 +191,7 @@ export function RecordConsentScreen({
           icon={FileText}
           detail="The current English consent text is captured with the audit record."
         />
-      </div>
+      </AppMetricGroup>
 
       <Card>
         <CardHeader>

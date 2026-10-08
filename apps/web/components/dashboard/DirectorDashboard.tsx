@@ -3,7 +3,7 @@
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { TrendChart } from './TrendChart';
 import { DistributionChart } from './DistributionChart';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { DashboardSectionHeader } from './DashboardSectionHeader';
 import { DashboardKpiCard } from './DashboardKpiCard';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
@@ -60,13 +60,13 @@ export function DirectorDashboard({
       />
 
       {pendingClinicalNoteCosigns !== undefined ? (
-        <div className="grid gap-4 sm:max-w-sm">
+        <AppMetricGroup className="sm:max-w-sm">
           <DashboardKpiCard
             title="Pending HAP cosigns"
             value={pendingClinicalNoteCosigns}
             hint="Clinic-level operational count only. Clinical note content remains restricted."
           />
-        </div>
+        </AppMetricGroup>
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">

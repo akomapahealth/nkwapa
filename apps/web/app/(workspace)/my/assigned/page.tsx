@@ -24,7 +24,7 @@ import { OPS_OFFLINE_SUPPORT, overlayPendingShifts } from '@/lib/ops-offline';
 import { useOpsView } from '@/lib/use-ops-view';
 import { usePendingOpsWrites } from '@/lib/use-pending-ops-writes';
 import { useShiftControls } from '@/lib/use-shift-controls';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
@@ -303,7 +303,7 @@ export default function MyAssignedPage() {
           }
         />
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
           <AppMetricCard
             title="Assigned today"
             value={assignments.length}
@@ -338,7 +338,7 @@ export default function MyAssignedPage() {
             }
             detail="Finished clinic flow"
           />
-        </div>
+        </AppMetricGroup>
 
         {!isOnline ? (
           <OfflineOpsBanner

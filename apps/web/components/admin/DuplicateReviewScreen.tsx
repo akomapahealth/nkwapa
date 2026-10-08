@@ -31,7 +31,7 @@ import {
   type DuplicateFilters,
   type DuplicateReviewStatus,
 } from '@/lib/patient-duplicates';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
 import { SectionSkeleton, SelectClinicState } from '@/components/feedback/AppState';
@@ -371,7 +371,7 @@ export function DuplicateReviewScreen() {
         </div>
       </ProgressiveHelp>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
         <AppMetricCard
           title="Needs review"
           value={summary.open}
@@ -396,7 +396,7 @@ export function DuplicateReviewScreen() {
           icon={ShieldCheck}
           detail="Already checked and marked as different people."
         />
-      </div>
+      </AppMetricGroup>
 
       {notice ? (
         <InlineNotice tone="success" live>

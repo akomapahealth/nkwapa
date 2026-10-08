@@ -33,7 +33,7 @@ import {
   type DuplicateFilters,
 } from '@/lib/patient-duplicates';
 import { cn } from '@/lib/utils';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { EmptyState, SectionSkeleton } from '@/components/feedback/AppState';
 import { ResourceState } from '@/components/feedback/ResourceState';
@@ -279,7 +279,7 @@ export function CrossClinicInvestigationScreen() {
         under All clinics.
       </InlineNotice>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
         <AppMetricCard
           title="Pairs across clinics"
           value={burden?.totalPairs ?? '—'}
@@ -310,7 +310,7 @@ export function CrossClinicInvestigationScreen() {
               : 'Every pair sits inside one organisation.'
           }
         />
-      </div>
+      </AppMetricGroup>
 
       <ResourceState
         state={investigation}

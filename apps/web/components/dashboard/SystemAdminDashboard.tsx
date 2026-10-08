@@ -26,6 +26,7 @@ import {
   type ZoneSummary,
 } from '@/lib/clinic-zones';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
+import { AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 
 interface ClinicComparisonRow {
   clinicId: string;
@@ -105,7 +106,7 @@ export function SystemAdminDashboard({
         hint="Use this section to compare activity across clinics and zones, and spot where support is needed."
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <AppMetricGroup className="sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <DashboardKpiCard
           title="Clinics"
           value={totalClinics}
@@ -135,7 +136,7 @@ export function SystemAdminDashboard({
           icon={Activity}
           hint="Visits recorded across the full network."
         />
-      </div>
+      </AppMetricGroup>
 
       <TrendChart
         title="Visits across clinics in the last 30 days"

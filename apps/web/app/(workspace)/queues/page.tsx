@@ -7,7 +7,7 @@ import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { RouteGuard } from '@/components/RouteGuard';
 import { Button } from '@/components/ui/button';
@@ -208,7 +208,7 @@ export default function QueuesPage() {
           helpText="Each lane groups encounters by the step they are currently in so staff can jump straight to the right record without bouncing between screens."
         />
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
           <AppMetricCard
             title="Drafts"
             value={drafts.length}
@@ -235,7 +235,7 @@ export default function QueuesPage() {
             icon={Stethoscope}
             detail="Encounters ready for doctor finalization."
           />
-        </div>
+        </AppMetricGroup>
 
         {error ? (
           <InlineErrorState

@@ -14,7 +14,7 @@ import {
   RotateCcw,
   XCircle,
 } from 'lucide-react';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
 import { EmptyState, InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { ResourceState } from '@/components/feedback/ResourceState';
@@ -530,7 +530,7 @@ export function AppointmentsPortalScreen() {
           </PortalPanel>
         </section>
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
           <AppMetricCard
             icon={CalendarClock}
             title="Upcoming confirmed"
@@ -553,7 +553,7 @@ export function AppointmentsPortalScreen() {
               appointments.filter((a) => a.status === 'CANCELLED' || a.status === 'NO_SHOW').length
             }
           />
-        </section>
+        </AppMetricGroup>
 
         {/*
           The counts above change without anything moving, so a screen-reader user gets no signal

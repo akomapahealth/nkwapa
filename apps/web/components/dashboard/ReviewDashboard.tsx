@@ -8,6 +8,7 @@ import { DashboardActionRow } from './DashboardActionRow';
 import { TrendChart } from './TrendChart';
 import { DistributionChart } from './DistributionChart';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
+import { AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 
 interface ReviewDashboardProps {
   awaitingReview: number;
@@ -52,7 +53,7 @@ export function ReviewDashboard({
         hint="Use this section to clear visits that still need clinical review."
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <AppMetricGroup className="sm:grid-cols-3">
         <DashboardKpiCard
           title="Waiting for review"
           value={awaitingReview}
@@ -68,7 +69,7 @@ export function ReviewDashboard({
           value={reviewsCompleted.week}
           hint="Visits you reviewed this week."
         />
-      </div>
+      </AppMetricGroup>
 
       <div className="grid gap-4 md:grid-cols-2">
         <TrendChart

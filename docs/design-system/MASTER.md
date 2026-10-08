@@ -400,28 +400,34 @@ Focus rings are `ring-2 ring-ring` everywhere. They were `ring-1` on form contro
 
 Shared primitives live in `apps/web/components/app-shell/` and `apps/web/components/ui/`. **Do not build a second family of any of these.**
 
-| Need                            | Use                                                 | Do not                                     |
-| ------------------------------- | --------------------------------------------------- | ------------------------------------------ |
-| Page title, actions, context    | `AppPageHeader`                                     | Hand-rolled `<h1>` + hero section          |
-| KPI / metric                    | `AppMetricCard`                                     | Bespoke stat card                          |
-| Form grouping                   | `FormSectionCard`                                   | Bare `<Card>` with a heading               |
-| A field's error                 | `FieldError` + `fieldErrorProps`                    | A bare `<p className="text-destructive">`  |
-| A required field                | `RequiredMark` + one `RequiredLegend` per form      | An asterisk baked into the label string    |
-| A form-level message            | `InlineNotice`                                      | A `<div>` with no role                     |
-| Refresh in progress             | `ResourceState`'s own indicator                     | A control that resizes when it goes busy   |
-| One read's five states          | `ResourceState` + `useAsyncResource`                | A hand-rolled `useState` triple            |
-| Loading                         | `SectionSkeleton` / `PageSkeleton`                  | A spinner in the middle of content         |
-| Nothing here yet                | `EmptyState`                                        | A dashed div with a paragraph              |
-| Failed, can retry               | `InlineErrorState`                                  | A red box with no way forward              |
-| Not allowed                     | `NoAccessState`                                     | An error state wearing red                 |
-| No clinic chosen                | `SelectClinicState`, or `RouteGuard requiresClinic` | "Select a clinic to …" in a `<p>`          |
-| Contextual help                 | `InfoHint`                                          | A second tooltip system                    |
-| Help that must actually be read | `ProgressiveHelp`                                   | Hiding it in a bubble                      |
-| Filter summary                  | `ActiveFilterSummary`                               | Inline filter chips                        |
-| View switching                  | `SegmentedControl`                                  | Bare button group                          |
-| Uppercase micro-label           | `.text-eyebrow`                                     | Another `tracking-[0.Nem]` value           |
-| Data table                      | `DataTable` from `components/ui/data-table`         | A hand-rolled `<table>` or a restyled grid |
-| Choosing from a very long list  | `Combobox`                                          | A `Select` with hundreds of options        |
+| Need                            | Use                                                 | Do not                                              |
+| ------------------------------- | --------------------------------------------------- | --------------------------------------------------- |
+| Page title, actions, context    | `AppPageHeader` (on the canvas, hairline below)     | Hand-rolled `<h1>` + hero section, or a boxed title |
+| KPI / metric                    | `AppMetricCard`, several in one `AppMetricGroup`    | A grid of separately bordered stat cards            |
+| Form grouping                   | `FormSectionCard`                                   | Bare `<Card>` with a heading                        |
+| A field's error                 | `FieldError` + `fieldErrorProps`                    | A bare `<p className="text-destructive">`           |
+| A required field                | `RequiredMark` + one `RequiredLegend` per form      | An asterisk baked into the label string             |
+| A form-level message            | `InlineNotice`                                      | A `<div>` with no role                              |
+| Refresh in progress             | `ResourceState`'s own indicator                     | A control that resizes when it goes busy            |
+| One read's five states          | `ResourceState` + `useAsyncResource`                | A hand-rolled `useState` triple                     |
+| Loading                         | `SectionSkeleton` / `PageSkeleton`                  | A spinner in the middle of content                  |
+| Nothing here yet                | `EmptyState`                                        | A dashed div with a paragraph                       |
+| Failed, can retry               | `InlineErrorState`                                  | A red box with no way forward                       |
+| Not allowed                     | `NoAccessState`                                     | An error state wearing red                          |
+| No clinic chosen                | `SelectClinicState`, or `RouteGuard requiresClinic` | "Select a clinic to …" in a `<p>`                   |
+| Contextual help                 | `InfoHint`                                          | A second tooltip system                             |
+| Help that must actually be read | `ProgressiveHelp`                                   | Hiding it in a bubble                               |
+| Filter summary                  | `ActiveFilterSummary`                               | Inline filter chips                                 |
+| View switching                  | `SegmentedControl`                                  | Bare button group                                   |
+| Uppercase micro-label           | `.text-eyebrow`                                     | Another `tracking-[0.Nem]` value                    |
+| Data table                      | `DataTable` from `components/ui/data-table`         | A hand-rolled `<table>` or a restyled grid          |
+| Choosing from a very long list  | `Combobox`                                          | A `Select` with hundreds of options                 |
+
+### Metrics and page headers
+
+Related metrics share one `AppMetricGroup` panel divided by hairlines; a metric is a quiet label with a 16px icon, then the figure. A grid of separately bordered cards, each with a 48px tinted icon tile, made the tiles the loudest thing on a dashboard and every page read as a template. A phrase standing in for a figure ("No reading yet") drops to `text-xl` so an empty state is not the largest text on screen.
+
+`AppPageHeader` sits on the canvas with a hairline under it, not inside a card: the title is the page's heading, not one more panel among the panels below it. Workspace pages fade in over 150ms (`app/(workspace)/template.tsx`, opacity only), and a 2px bar crosses the top while an in-app link loads (`NavigationProgress`).
 
 ### The combobox, and when it is not the answer
 

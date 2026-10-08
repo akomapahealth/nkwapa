@@ -1,7 +1,7 @@
 'use client';
 
 import { Users, Activity, FileEdit, Eye, CheckCircle } from 'lucide-react';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 
 interface SummaryCardsProps {
   totalPatients: number;
@@ -52,7 +52,7 @@ export function SummaryCards({
   ];
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+    <AppMetricGroup className="sm:grid-cols-2 lg:grid-cols-5">
       {cards.map((card) => {
         return (
           <AppMetricCard
@@ -64,6 +64,6 @@ export function SummaryCards({
           />
         );
       })}
-    </div>
+    </AppMetricGroup>
   );
 }

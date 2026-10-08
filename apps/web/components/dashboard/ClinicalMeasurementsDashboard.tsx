@@ -2,7 +2,7 @@
 
 import { Activity, Cigarette, ClipboardCheck, Ruler, Thermometer, Wind } from 'lucide-react';
 import { DistributionChart } from './DistributionChart';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { DashboardSectionHeader } from './DashboardSectionHeader';
 
 export interface MeasurementAggregate {
@@ -95,12 +95,12 @@ export function ClinicalMeasurementsDashboard({
         not a number with a footnote; "128 mmHg" is the reading, and splitting it lets someone
         read the figure without seeing what it measures.
       */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
         {workflowCards.map(({ label, value, icon }) => (
           <AppMetricCard key={label} title={label} value={value} icon={icon} />
         ))}
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      </AppMetricGroup>
+      <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
         {measurementCards.map(({ label, aggregate, suffix, icon }) => (
           <AppMetricCard
             key={label}
@@ -110,7 +110,7 @@ export function ClinicalMeasurementsDashboard({
             icon={icon}
           />
         ))}
-      </div>
+      </AppMetricGroup>
       <DistributionChart
         title="Smoking status documentation"
         data={tobaccoDistribution}

@@ -31,7 +31,7 @@ import {
   readTrendNumber,
   type TrendRangeDays,
 } from '@/lib/patient-trends';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
 import { EmptyState, SectionSkeleton } from '@/components/feedback/AppState';
 import { ResourceState } from '@/components/feedback/ResourceState';
@@ -208,7 +208,7 @@ export function HealthPortalScreen() {
 
             return (
               <div className="space-y-6">
-                <section className="grid gap-4 md:grid-cols-3">
+                <AppMetricGroup className="md:grid-cols-3">
                   <AppMetricCard
                     icon={HeartPulse}
                     title="Blood pressure"
@@ -231,7 +231,7 @@ export function HealthPortalScreen() {
                     }
                     detail={latestWeightLabel(latestWeight)}
                   />
-                </section>
+                </AppMetricGroup>
 
                 {me.recommendations && (
                   <PortalPanel

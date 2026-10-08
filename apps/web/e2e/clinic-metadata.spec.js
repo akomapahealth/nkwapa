@@ -147,9 +147,11 @@ test.describe('clinic metadata visibility', () => {
   test('counts the clinics whose metadata reporting cannot rely on', async ({ page }) => {
     await openRegistry(page);
 
-    // Scoped to the metric card: "Needs attention" is also the label of the filter button.
+    // Scoped to the metric panel: "Needs attention" is also the label of the filter button.
     await expect(
-      page.getByText('Needs attention', { exact: true }).and(page.locator('div')),
+      page
+        .getByRole('region', { name: 'Clinic metadata summary' })
+        .getByText('Needs attention', { exact: true }),
     ).toBeVisible();
   });
 

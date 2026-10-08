@@ -25,7 +25,7 @@ import {
 } from '@/lib/patient-portal';
 import { getNextConfirmedAppointment } from '@/lib/appointment-status';
 import { readTrendNumber } from '@/lib/patient-trends';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppointmentStatusBadge } from '@/components/appointments/AppointmentStatusBadge';
 import { EmptyState, SectionSkeleton } from '@/components/feedback/AppState';
 import { ResourceState } from '@/components/feedback/ResourceState';
@@ -177,7 +177,7 @@ export function OverviewPortalScreen() {
                   />
                 </section>
 
-                <section className="grid gap-4 md:grid-cols-3">
+                <AppMetricGroup className="md:grid-cols-3">
                   <AppMetricCard
                     icon={HeartPulse}
                     title="Latest blood pressure"
@@ -220,7 +220,7 @@ export function OverviewPortalScreen() {
                         : 'Add a weight reading.'
                     }
                   />
-                </section>
+                </AppMetricGroup>
 
                 <section className={PORTAL_HERO_GRID}>
                   <PortalPanel

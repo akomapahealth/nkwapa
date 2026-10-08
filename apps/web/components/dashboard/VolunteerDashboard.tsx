@@ -7,6 +7,7 @@ import { DashboardKpiCard } from './DashboardKpiCard';
 import { DashboardActionRow } from './DashboardActionRow';
 import { TrendChart } from './TrendChart';
 import { DistributionChart } from './DistributionChart';
+import { AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 
 interface VolunteerDashboardProps {
   patientsRegisteredToday: number;
@@ -38,7 +39,7 @@ export function VolunteerDashboard({
         hint="Use this section to track your intake work and move patients to the next step."
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
         {clinicalNotes ? (
           <DashboardKpiCard
             title="Your HAP notes"
@@ -63,7 +64,7 @@ export function VolunteerDashboard({
           value={pendingSubmissions}
           hint="Visits you started but have not submitted yet."
         />
-      </div>
+      </AppMetricGroup>
 
       <div className="grid gap-4 md:grid-cols-2">
         <TrendChart
