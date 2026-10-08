@@ -103,7 +103,7 @@ BullMQ workers: reminders, research exports, and the maintenance sweeps. Each is
 | JOB-01 | A reminder job is delivered twice | A stalled job redelivered, or two workers holding one job id | The send is claimed with an advisory lock before the row is read. A duplicate that finds it held stands down; one that arrives after reads SENT. One message. | Reminders worker (`apps/api/src/reminders`) | high | Unit, Manual |
 | JOB-02 | The appointment changed between queueing and sending | A queued reminder whose appointment was rescheduled, cancelled, or deleted | Not sent. The row is suppressed with a reason that stays visible. | Reminders worker (`apps/api/src/reminders`) | high | Unit |
 | JOB-03 | The provider fails transiently, or Redis is briefly unavailable | A send that fails as transient, with attempts left and then without | The row stays QUEUED between attempts, retried after 5s then 60s, and is marked FAILED only once the attempts are spent. | Reminders worker (`apps/api/src/reminders`) | high | Unit, Manual |
-| JOB-04 | A reminder job fires before its scheduled time | A queued reminder whose scheduledAt is still in the future | Nothing is sent. Today the job completes and the row stays QUEUED; see the known risk. (Known risk: A reminder job that fires early completes without sending.) | Reminders worker (`apps/api/src/reminders`) | medium | Unit |
+| JOB-04 | A reminder job fires before its scheduled time | A queued reminder whose scheduledAt is still in the future | Nothing is sent early. The job goes back to delayed until scheduledAt (spending no attempt) and sends once then (#165). A reminder past its time with no live job, however the job was lost, is re-queued under its own clinic by the five-minute sweep. | Reminders worker (`apps/api/src/reminders`) | medium | Unit |
 | JOB-05 | A failed research export is retried | A FAILED export whose first job BullMQ still holds under the export id | Retry queues it under a fresh job id, so it actually runs, instead of reading APPROVED with nothing queued. | Research export worker (`apps/api/src/research`) | high | Unit, Manual |
 | JOB-06 | A research export run fails | Pack generation or the GitHub push throws, with attempts left and on the last attempt | With attempts left the run is handed back to the queue and nothing is recorded. The last attempt records FAILED and its audit entry, and they commit. | Research export worker (`apps/api/src/research`) | high | Unit, Manual |
 | JOB-07 | A research export job is delivered twice | Two deliveries of one export, concurrently or after completion | The pack is built and pushed to the research repository once. | Research export worker (`apps/api/src/research`) | high | Unit |
@@ -119,14 +119,6 @@ Scenarios: CLN-06.
 - **Today:** The outbox, the pill and the sync center are all scoped to the active clinic. If an account loses its seat at a clinic entirely, that clinic is never offered as active again, so changes queued under it stay on the device and appear nowhere.
 - **Why it is tolerated:** Nothing is deleted, and nothing is sent to a clinic the account cannot write to. Restoring the seat, or signing in as someone who holds one, drains them.
 - **Next:** #163: List queued work for clinics other than the active one in the sync center.
-
-### A reminder job that fires early completes without sending
-
-Scenarios: JOB-04.
-
-- **Today:** A reminder job delivered before its scheduled time (clock skew between the API and Redis) finds the row not yet due, returns, and completes. Nothing re-queues it, so the row stays QUEUED.
-- **Why it is tolerated:** Delays are computed from the same scheduledAt the check reads, so this needs skew larger than the gap between them. The reminders page shows a QUEUED row past its time, which is the signal to look.
-- **Next:** #165: Re-queue a reminder that is not yet due for the remaining delay.
 
 ## Automated coverage
 
@@ -241,6 +233,9 @@ The exact tests behind each row.
   - Unit: `apps/api/src/reminders/appointment-reminder-lifecycle.spec.ts` "queues retries on the schedule the worker computes"
 - **JOB-04** A reminder job fires before its scheduled time
   - Unit: `apps/api/src/reminders/appointment-reminder-lifecycle.spec.ts` "does nothing before the reminder is due"
+  - Unit: `apps/api/src/reminders/reminder-early-delivery.spec.ts` "asks to run again at the reminder time, without sending or claiming"
+  - Unit: `apps/api/src/reminders/reminder.processor.spec.ts` "moves the job back to delayed until the reminder is due, spending no attempt"
+  - Unit: `apps/api/src/reminders/reminder-early-delivery.spec.ts` "re-queues a reminder whose job is gone, under its own clinic"
 - **JOB-05** A failed research export is retried
   - Unit: `apps/api/src/research/research-export.service.spec.ts` "retries a failed export under a job id the queue has not already used"
 - **JOB-06** A research export run fails
