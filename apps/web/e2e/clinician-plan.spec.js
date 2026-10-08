@@ -113,3 +113,122 @@ test.describe('as a doctor', () => {
     await expect(control).toHaveText(/not classified/i);
   });
 });
+
+/*
+  #131: a doctor without signal queues the plan sealed, and nothing on any device can read it.
+*/
+const { apiRequestAs } = require('../playwright/api-client');
+const { readOutboxRows, waitForOutboxDrain } = require('../playwright/outbox');
+
+/** Every record in every IndexedDB store on this device, as one string to search. */
+async function dumpDevice(page) {
+  return page.evaluate(
+    () =>
+      new Promise((resolve, reject) => {
+        const request = indexedDB.open('NkwapaDb');
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const db = request.result;
+          const names = [...db.objectStoreNames];
+          if (!names.length) return resolve('');
+          const tx = db.transaction(names, 'readonly');
+          const out = {};
+          let pending = names.length;
+          for (const name of names) {
+            const all = tx.objectStore(name).getAll();
+            all.onsuccess = () => {
+              out[name] = all.result;
+              pending -= 1;
+              if (pending === 0) {
+                db.close();
+                resolve(JSON.stringify(out));
+              }
+            };
+          }
+        };
+      }),
+  );
+}
+
+test.describe('offline, as a doctor', () => {
+  test.use({ storageState: storageStateFor('doctor') });
+
+  test('the plan is queued sealed, unreadable on the device, and applied on reconnect', async ({
+    page,
+    context,
+  }) => {
+    test.setTimeout(180_000);
+    const encounterId = await openHypertensionTab(page, 'PlanOffline');
+    const marker = `sealed-${randomUUID().slice(0, 8)}`;
+
+    await page.getByRole('button', { name: 'Save assessment' }).click();
+    await expect(page.getByText(/saved and synced/i)).toBeVisible({ timeout: 30_000 });
+    // Wait until the device has fetched the key it seals to, while it still can.
+    await page
+      .waitForResponse((r) => r.url().includes('/sync/clinician-plan-key'), {
+        timeout: 30_000,
+      })
+      .catch(() => undefined);
+
+    await context.setOffline(true);
+    await expect(page.getByText(/saving seals the plan/i)).toBeVisible({ timeout: 15_000 });
+    await page.getByRole('checkbox', { name: 'Adjust medication' }).check();
+    await page.getByLabel('Follow-up', { exact: true }).click();
+    await page.getByRole('option', { name: 'Within 1 month', exact: true }).click();
+    await page.getByLabel('Follow-up owner').click();
+    await page.getByRole('option', { name: 'Akomapa team', exact: true }).click();
+    await page.getByLabel('Additional comments').fill(marker);
+    await page.getByRole('button', { name: 'Queue plan' }).click();
+    await expect(page.getByText(/queued on this device, not saved yet/i)).toBeVisible();
+
+    // On the device: a sealed envelope and routing, never the plan.
+    const queued = (await readOutboxRows(page)).filter(
+      (row) => row.entityType === 'clinician_plan',
+    );
+    expect(queued).toHaveLength(1);
+    const payload = JSON.parse(queued[0].payloadJson);
+    expect(payload).toMatchObject({ encounterId, condition: 'HYPERTENSION' });
+    expect(Object.keys(payload.sealed).sort()).toEqual(['alg', 'ct', 'ek', 'iv', 'kid', 'v']);
+    expect(await dumpDevice(page)).not.toContain(marker);
+    expect(await dumpDevice(page)).not.toContain('ADJUST_MEDICATION');
+
+    // Back online: it drains, and the server has the plan and the follow-up date.
+    await context.setOffline(false);
+    await waitForOutboxDrain(page, expect, { entityType: 'clinician_plan' });
+    const clinicId = queued[0].clinicId;
+    const encounter = await apiRequestAs('doctor', 'get', `/encounters/${encounterId}`, {
+      clinicId,
+    });
+    expect(encounter.json().carePlan?.followUpDate).toBeTruthy();
+    const assessments = await apiRequestAs(
+      'doctor',
+      'get',
+      `/clinics/${clinicId}/patients/${encounter.json().patientId}/hypertension-assessments`,
+      { clinicId },
+    );
+    expect(assessments.ok(), assessments.text()).toBeTruthy();
+    expect(assessments.text()).toContain(marker);
+    // Applied, and the device still never held it in the clear.
+    expect(await dumpDevice(page)).not.toContain(marker);
+
+    // A volunteer on their own device: the pull withholds the plan, so nothing of it lands there.
+    const volunteerContext = await page
+      .context()
+      .browser()
+      .newContext({
+        storageState: storageStateFor('volunteer'),
+      });
+    const volunteerPage = await volunteerContext.newPage();
+    const pulled = volunteerPage.waitForResponse(
+      (response) => new URL(response.url()).pathname === '/sync/pull' && response.ok(),
+    );
+    await volunteerPage.goto(`/encounters/${encounterId}`);
+    await pulled;
+    await volunteerPage.getByRole('tab', { name: 'Hypertension' }).click();
+    await expect(
+      volunteerPage.getByRole('heading', { name: /supervising clinician assessment and plan/i }),
+    ).toHaveCount(0);
+    expect(await dumpDevice(volunteerPage)).not.toContain(marker);
+    await volunteerContext.close();
+  });
+});

@@ -22,7 +22,8 @@ export class ResearchExportProcessor extends WorkerHost {
 
   async process(job: Job<ResearchExportJobData>): Promise<void> {
     const { exportId, clinicId, userId } = job.data;
-    await this.tenantContext.runClinicJob(
+    // Steps, not one transaction: the GitHub push must happen with no transaction open (#164).
+    await this.tenantContext.runClinicJobSteps(
       {
         queueName: RESEARCH_EXPORT_QUEUE_NAME,
         jobId: job.id,
@@ -34,7 +35,7 @@ export class ResearchExportProcessor extends WorkerHost {
         },
         unresolvedTenant: 'fail',
       },
-      () => this.researchExportService.processQueuedExport(exportId, jobAttempt(job)),
+      (step) => this.researchExportService.processQueuedExport(exportId, jobAttempt(job), step),
     );
   }
 }

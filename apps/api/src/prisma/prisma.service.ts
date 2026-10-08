@@ -35,7 +35,7 @@ type ActivePrismaContext = {
   rls: PrismaRlsContext;
 };
 
-type TransactionOptions = {
+export type TransactionOptions = {
   maxWait?: number;
   timeout?: number;
   isolationLevel?: Prisma.TransactionIsolationLevel;
@@ -165,6 +165,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   async withRlsContext<T>(
     context: PrismaRlsContext,
     callback: (client: Prisma.TransactionClient) => Promise<T>,
+    options?: TransactionOptions,
   ): Promise<T> {
     const normalizedContext = this.normalizeRlsContext(context);
     const active = this.rlsStorage.getStore();
@@ -182,13 +183,19 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         },
         () => callback(tx),
       );
-    });
+    }, options);
   }
 
+  /**
+   * @param options Only for work that cannot be split and has no side effect outside the
+   * database, such as a long read. Never raise the timeout to cover a network call: move the call
+   * out of the transaction instead (see JobTenantContextRunner.runClinicJobSteps).
+   */
   async withClinicContext<T>(
     clinicId: string,
     context: Omit<PrismaRlsContext, 'activeClinicId' | 'clinicIds' | 'isSystemAdmin'>,
     callback: (client: Prisma.TransactionClient) => Promise<T>,
+    options?: TransactionOptions,
   ): Promise<T> {
     const normalizedClinicId = clinicId.trim();
     if (!normalizedClinicId) {
@@ -211,34 +218,39 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       systemReason: null,
     });
 
-    return this.withRlsContext(initialContext, async (tx) => {
-      const clinic = await tx.clinic.findUnique({
-        where: { id: normalizedClinicId },
-        select: { organizationId: true, zoneCode: true },
-      });
-      if (!clinic) {
-        throw new UnknownClinicContextError(normalizedClinicId);
-      }
+    return this.withRlsContext(
+      initialContext,
+      async (tx) => {
+        const clinic = await tx.clinic.findUnique({
+          where: { id: normalizedClinicId },
+          select: { organizationId: true, zoneCode: true },
+        });
+        if (!clinic) {
+          throw new UnknownClinicContextError(normalizedClinicId);
+        }
 
-      const enrichedContext = this.normalizeRlsContext({
-        ...initialContext,
-        organizationId: context.organizationId ?? clinic.organizationId,
-        zoneCode: context.zoneCode ?? clinic.zoneCode,
-      });
-      await this.applyRlsContext(tx, enrichedContext);
+        const enrichedContext = this.normalizeRlsContext({
+          ...initialContext,
+          organizationId: context.organizationId ?? clinic.organizationId,
+          zoneCode: context.zoneCode ?? clinic.zoneCode,
+        });
+        await this.applyRlsContext(tx, enrichedContext);
 
-      const current = this.rlsStorage.getStore();
-      if (current) {
-        current.rls = enrichedContext;
-      }
+        const current = this.rlsStorage.getStore();
+        if (current) {
+          current.rls = enrichedContext;
+        }
 
-      return callback(tx);
-    });
+        return callback(tx);
+      },
+      options,
+    );
   }
 
   async withSystemContext<T>(
     context: PrismaSystemContext,
     callback: (client: Prisma.TransactionClient) => Promise<T>,
+    options?: TransactionOptions,
   ): Promise<T> {
     const systemReason = context.systemReason.trim();
     if (!systemReason) {
@@ -253,6 +265,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         systemReason,
       },
       callback,
+      options,
     );
   }
 
@@ -283,8 +296,9 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
   private transactionWithContext<T>(
     callback: (client: Prisma.TransactionClient) => Promise<T>,
+    options?: TransactionOptions,
   ): Promise<T> {
-    return super.$transaction(callback);
+    return super.$transaction(callback, options);
   }
 
   private normalizeRlsContext(context: PrismaRlsContext): PrismaRlsContext {

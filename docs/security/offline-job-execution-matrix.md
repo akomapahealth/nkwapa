@@ -18,7 +18,7 @@ disappears or a manual step is missing from the user testing guide.
    environment being released. The checklist at the end of this file lists them.
 3. Read the known risks. They are tolerated today on purpose and must not be reported as new.
 
-41 scenarios, 30 of them high risk; 19 also walked by hand.
+41 scenarios, 30 of them high risk; 18 also walked by hand.
 
 ## Offline
 
@@ -78,7 +78,7 @@ A device holds work for a clinic other than the one now active, or for a clinic 
 | CLN-03 | The account lost its seat at the clinic its queued work belongs to | A push or pull naming a clinic where the account holds no role, or only a patient role | The route refuses it with 403 before the service runs. The device keeps every row and says "This account cannot sync at this clinic". | Sync API (`apps/api/src/sync`) | high | Unit, Manual |
 | CLN-04 | A push carries a change whose own clinic is not the clinic pushed to | One mutation naming clinic B inside a push to clinic A, beside a valid one | CLINIC_MISMATCH for that change, nothing recorded under clinic A, and the rest of the push applies. | Sync API (`apps/api/src/sync`) | high | Unit |
 | CLN-05 | An account signs out with work still queued, and another signs in on the device | A queued change from account A; account B signs in at the same clinic | The change is held, never sent under account B. B sees it in the sync center attributed to A and can discard it after confirming; A signing back in sends it. A change from before owners were recorded is held until an account confirms it as its own (#162). | Web outbox and sync engine (`apps/web/lib/outbox.ts`, `sync.ts`) | high | Unit, E2E, Manual |
-| CLN-06 | The account loses its seat at a clinic entirely while work is queued there | A queued change for clinic A; the account’s only role at A removed by an admin | Clinic A is no longer offered, and its change is kept on the device but not shown. See the known risk. (Known risk: Work queued for a clinic the account can no longer open is not shown.) | Web outbox and sync engine (`apps/web/lib/outbox.ts`, `sync.ts`) | medium | Manual |
+| CLN-06 | The account loses its seat at a clinic entirely while work is queued there | A queued change for clinic A; the account’s only role at A removed by an admin | Clinic A is no longer offered as active, and its change is listed in the sync center under "Saved for other clinics", named, never pushed. A clinic the account can still open offers a switch that sends it there; a lost one offers only a confirmed discard of this account’s own changes (#163). | Web outbox and sync engine (`apps/web/lib/outbox.ts`, `sync.ts`) | medium | E2E, Unit, Manual |
 
 ## Cross-tenant isolation
 
@@ -103,38 +103,16 @@ BullMQ workers: reminders, research exports, and the maintenance sweeps. Each is
 | JOB-01 | A reminder job is delivered twice | A stalled job redelivered, or two workers holding one job id | The send is claimed with an advisory lock before the row is read. A duplicate that finds it held stands down; one that arrives after reads SENT. One message. | Reminders worker (`apps/api/src/reminders`) | high | Unit, Manual |
 | JOB-02 | The appointment changed between queueing and sending | A queued reminder whose appointment was rescheduled, cancelled, or deleted | Not sent. The row is suppressed with a reason that stays visible. | Reminders worker (`apps/api/src/reminders`) | high | Unit |
 | JOB-03 | The provider fails transiently, or Redis is briefly unavailable | A send that fails as transient, with attempts left and then without | The row stays QUEUED between attempts, retried after 5s then 60s, and is marked FAILED only once the attempts are spent. | Reminders worker (`apps/api/src/reminders`) | high | Unit, Manual |
-| JOB-04 | A reminder job fires before its scheduled time | A queued reminder whose scheduledAt is still in the future | Nothing is sent. Today the job completes and the row stays QUEUED; see the known risk. (Known risk: A reminder job that fires early completes without sending.) | Reminders worker (`apps/api/src/reminders`) | medium | Unit |
+| JOB-04 | A reminder job fires before its scheduled time | A queued reminder whose scheduledAt is still in the future | Nothing is sent early. The job goes back to delayed until scheduledAt (spending no attempt) and sends once then (#165). A reminder past its time with no live job, however the job was lost, is re-queued under its own clinic by the five-minute sweep. | Reminders worker (`apps/api/src/reminders`) | medium | Unit |
 | JOB-05 | A failed research export is retried | A FAILED export whose first job BullMQ still holds under the export id | Retry queues it under a fresh job id, so it actually runs, instead of reading APPROVED with nothing queued. | Research export worker (`apps/api/src/research`) | high | Unit, Manual |
 | JOB-06 | A research export run fails | Pack generation or the GitHub push throws, with attempts left and on the last attempt | With attempts left the run is handed back to the queue and nothing is recorded. The last attempt records FAILED and its audit entry, and they commit. | Research export worker (`apps/api/src/research`) | high | Unit, Manual |
 | JOB-07 | A research export job is delivered twice | Two deliveries of one export, concurrently or after completion | The pack is built and pushed to the research repository once. | Research export worker (`apps/api/src/research`) | high | Unit |
 | JOB-08 | Scheduled maintenance across several API instances and a Redis outage | The portal invite expiry and telemetry retention schedulers | One scheduler per cluster held in Redis, boot survives an unreachable queue, each sweep runs as system work and is safe to run twice. | Maintenance schedulers (portal invite expiry, telemetry retention) | medium | Unit |
-| JOB-09 | A send or export outlasts the job transaction | A slow SMTP relay, or a large clinic export pushed to a slow GitHub | Today the transaction can expire after the external call succeeded; see the known risk. (Known risk: External calls run inside the job transaction.) | Research export worker (`apps/api/src/research`) | high | Manual |
+| JOB-09 | A send or export outlasts the job transaction | A slow SMTP relay, or a large clinic export pushed to a slow GitHub | No provider call or push runs inside a transaction (#164). The row is claimed (SENDING, PROCESSING) and committed first, the call runs with no transaction open, and the outcome is recorded in a second step. A lost outcome is never retried blindly: a reminder is recorded as SEND_OUTCOME_UNKNOWN, and an export is settled by asking GitHub for a commit at its planned path. | Research export worker (`apps/api/src/research`) | high | Unit |
 
 ## Known risks
 
-### Work queued for a clinic the account can no longer open is not shown
-
-Scenarios: CLN-06.
-
-- **Today:** The outbox, the pill and the sync center are all scoped to the active clinic. If an account loses its seat at a clinic entirely, that clinic is never offered as active again, so changes queued under it stay on the device and appear nowhere.
-- **Why it is tolerated:** Nothing is deleted, and nothing is sent to a clinic the account cannot write to. Restoring the seat, or signing in as someone who holds one, drains them.
-- **Next:** #163: List queued work for clinics other than the active one in the sync center.
-
-### External calls run inside the job transaction
-
-Scenarios: JOB-09.
-
-- **Today:** Each job runs in one interactive Prisma transaction with the default 5 second timeout. The SMS or email send, and the research pack build plus GitHub push, happen inside it. A slow provider can expire the transaction after the message or commit has already gone out.
-- **Why it is tolerated:** Sends and exports are claimed with an advisory lock, so two deliveries never run at the same time. That does not cover this case: if the transaction expires after the provider accepted the message, the SENT or COMPLETED write rolls back and the retry sends or pushes again. Typical sends finish well inside the window; watch for expired-transaction errors in the worker log.
-- **Next:** #164: Move provider calls and the GitHub push outside the tenant transaction.
-
-### A reminder job that fires early completes without sending
-
-Scenarios: JOB-04.
-
-- **Today:** A reminder job delivered before its scheduled time (clock skew between the API and Redis) finds the row not yet due, returns, and completes. Nothing re-queues it, so the row stays QUEUED.
-- **Why it is tolerated:** Delays are computed from the same scheduledAt the check reads, so this needs skew larger than the gap between them. The reminders page shows a QUEUED row past its time, which is the signal to look.
-- **Next:** #165: Re-queue a reminder that is not yet due for the remaining delay.
+None.
 
 ## Automated coverage
 
@@ -211,6 +189,10 @@ The exact tests behind each row.
   - E2E: `apps/web/e2e/outbox-owner.spec.js` "another account's queued change is held, attributed, and never sent"
   - E2E: `apps/web/e2e/outbox-owner.spec.js` "a change with no recorded owner is sent only after it is claimed"
   - E2E: `apps/web/e2e/outbox-owner.spec.js` "the owner's own session sends what it queued"
+- **CLN-06** The account loses its seat at a clinic entirely while work is queued there
+  - E2E: `apps/web/e2e/outbox-other-clinics.spec.js` "a change saved for another open clinic is listed, not pushed, and sent there on switching"
+  - E2E: `apps/web/e2e/outbox-other-clinics.spec.js` "a lost clinic offers only a confirmed discard of this account’s own changes"
+  - Unit: `apps/web/lib/other-clinic-queue.test.ts` "groups by clinic, open clinics first, and names a lost one from what was recorded"
 - **TEN-01** A replayed payload points at another clinic’s data
   - Unit: `apps/api/src/sync/sync.service.spec.ts` "refuses an encounter payload that names another clinic"
   - Unit: `apps/api/src/sync/sync.service.spec.ts` "refuses an encounter whose patient belongs to another clinic"
@@ -249,6 +231,9 @@ The exact tests behind each row.
   - Unit: `apps/api/src/reminders/appointment-reminder-lifecycle.spec.ts` "queues retries on the schedule the worker computes"
 - **JOB-04** A reminder job fires before its scheduled time
   - Unit: `apps/api/src/reminders/appointment-reminder-lifecycle.spec.ts` "does nothing before the reminder is due"
+  - Unit: `apps/api/src/reminders/reminder-early-delivery.spec.ts` "asks to run again at the reminder time, without sending or claiming"
+  - Unit: `apps/api/src/reminders/reminder.processor.spec.ts` "moves the job back to delayed until the reminder is due, spending no attempt"
+  - Unit: `apps/api/src/reminders/reminder-early-delivery.spec.ts` "re-queues a reminder whose job is gone, under its own clinic"
 - **JOB-05** A failed research export is retried
   - Unit: `apps/api/src/research/research-export.service.spec.ts` "retries a failed export under a job id the queue has not already used"
 - **JOB-06** A research export run fails
@@ -264,6 +249,14 @@ The exact tests behind each row.
   - Unit: `apps/api/src/patient-portal/portal-invite-maintenance.processor.spec.ts` "sweeps under a system tenant context"
   - Unit: `apps/api/src/telemetry/telemetry-retention.processor.spec.ts` "boots even when the queue is unreachable"
   - Unit: `apps/api/src/telemetry/telemetry-retention.processor.spec.ts` "is safe to run twice, because it only ever deletes by age"
+- **JOB-09** A send or export outlasts the job transaction
+  - Unit: `apps/api/src/reminders/reminder-send-steps.spec.ts` "claims, sends with no transaction open, then records SENT"
+  - Unit: `apps/api/src/reminders/reminder-send-steps.spec.ts` "sends exactly once however long the provider takes"
+  - Unit: `apps/api/src/reminders/reminder-send-steps.spec.ts` "leaves the row SENDING when SENT cannot be recorded, so the retry does not resend"
+  - Unit: `apps/api/src/reminders/reminder-send-steps.spec.ts` "records a long-stuck send as outcome unknown, without sending anything"
+  - Unit: `apps/api/src/research/research-export-steps.spec.ts` "records the planned path before the push, and COMPLETED after it"
+  - Unit: `apps/api/src/research/research-export-steps.spec.ts` "completes from the commit GitHub already has when the push response was lost"
+  - Unit: `apps/api/src/research/research-export-steps.spec.ts` "leaves the export PROCESSING when nobody can tell whether the push landed"
 
 ## Release validation checklist
 
@@ -287,4 +280,3 @@ The rows a person walks, in section 17d of `docs/USER_TESTING_GUIDE.md`.
 - [ ] **JOB-03** The provider fails transiently, or Redis is briefly unavailable
 - [ ] **JOB-05** A failed research export is retried
 - [ ] **JOB-06** A research export run fails
-- [ ] **JOB-09** A send or export outlasts the job transaction

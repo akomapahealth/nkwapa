@@ -45,6 +45,8 @@ describe('ResearchExportService', () => {
     create: jest.Mock;
     findById: jest.Mock;
     update: jest.Mock;
+    transition: jest.Mock;
+    findStaleProcessing: jest.Mock;
     listByClinic: jest.Mock;
   };
   let prisma: {
@@ -53,7 +55,7 @@ describe('ResearchExportService', () => {
   };
   let auditService: { logWrite: jest.Mock };
   let transformService: { generatePack: jest.Mock };
-  let repoSyncService: { sync: jest.Mock };
+  let repoSyncService: { sync: jest.Mock; plannedRepoPath: jest.Mock; findPushedCommit: jest.Mock };
   let exportQueue: { add: jest.Mock };
   let service: ResearchExportService;
 
@@ -62,6 +64,8 @@ describe('ResearchExportService', () => {
       create: jest.fn(),
       findById: jest.fn(),
       update: jest.fn(),
+      transition: jest.fn(),
+      findStaleProcessing: jest.fn().mockResolvedValue([]),
       listByClinic: jest.fn(),
     };
     prisma = {
@@ -70,7 +74,11 @@ describe('ResearchExportService', () => {
     };
     auditService = { logWrite: jest.fn() };
     transformService = { generatePack: jest.fn() };
-    repoSyncService = { sync: jest.fn() };
+    repoSyncService = {
+      sync: jest.fn(),
+      plannedRepoPath: jest.fn().mockReturnValue('clinics/abc/exports/snapshot'),
+      findPushedCommit: jest.fn().mockResolvedValue(null),
+    };
     exportQueue = { add: jest.fn() };
 
     service = new ResearchExportService(
@@ -227,7 +235,8 @@ describe('ResearchExportService', () => {
     });
 
     repo.findById.mockResolvedValueOnce(approved);
-    repo.update.mockResolvedValueOnce(processing).mockResolvedValueOnce(completed);
+    repo.transition.mockResolvedValueOnce(processing).mockResolvedValueOnce(completed);
+    repo.update.mockResolvedValueOnce({ ...processing, repoPath: 'clinics/abc/exports/snapshot' });
     transformService.generatePack.mockResolvedValue({
       manifest: {
         exportId: 'exp-1',
@@ -283,7 +292,7 @@ describe('ResearchExportService', () => {
 
     beforeEach(() => {
       repo.findById.mockResolvedValueOnce(approved);
-      repo.update.mockResolvedValueOnce(processing).mockResolvedValueOnce(failed);
+      repo.transition.mockResolvedValueOnce(processing).mockResolvedValueOnce(failed);
       transformService.generatePack.mockRejectedValue(
         new BadRequestException('missing RESEARCH_GITHUB_TOKEN'),
       );
@@ -298,8 +307,9 @@ describe('ResearchExportService', () => {
       });
 
       expect(result?.status).toBe('FAILED');
-      expect(repo.update).toHaveBeenLastCalledWith(
+      expect(repo.transition).toHaveBeenLastCalledWith(
         'exp-1',
+        'PROCESSING',
         expect.objectContaining({
           status: 'FAILED',
           failureReason: 'RESEARCH_EXPORT_FAILED',
@@ -315,9 +325,14 @@ describe('ResearchExportService', () => {
         service.processQueuedExport('exp-1', { attemptsMade: 0, maxAttempts: 3 }),
       ).rejects.toThrow(BadRequestException);
 
-      expect(repo.update).toHaveBeenCalledTimes(1);
-      expect(repo.update).not.toHaveBeenCalledWith(
+      // Handed back for the retry: PROCESSING -> APPROVED, never FAILED.
+      expect(repo.transition).toHaveBeenLastCalledWith('exp-1', 'PROCESSING', {
+        status: 'APPROVED',
+        repoPath: null,
+      });
+      expect(repo.transition).not.toHaveBeenCalledWith(
         'exp-1',
+        expect.anything(),
         expect.objectContaining({ status: 'FAILED' }),
       );
       expect(auditService.logWrite).not.toHaveBeenCalledWith(

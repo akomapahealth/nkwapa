@@ -10,7 +10,7 @@ import {
   useState,
 } from 'react';
 import { db } from '@/lib/db';
-import { setOutboxOwner } from '@/lib/outbox';
+import { setOutboxClinicNames, setOutboxOwner } from '@/lib/outbox';
 import { purgePortalCacheExcept } from '@/lib/portal-cache';
 import { syncNow, onSyncStatusChange, type SyncResult, type SyncStatus } from '@/lib/sync';
 import { automaticSyncRetryDelay } from '@/lib/sync-retry';
@@ -44,6 +44,7 @@ export function ServiceWorkerAndSyncProvider({
   activeClinicId,
   currentUserId,
   currentUserName,
+  knownClinics,
 }: {
   children: React.ReactNode;
   getAccessToken?: () => Promise<string | null>;
@@ -51,6 +52,8 @@ export function ServiceWorkerAndSyncProvider({
   /** The signed-in account, once bootstrap has resolved it. */
   currentUserId?: string | null;
   currentUserName?: string | null;
+  /** The clinics this account can open, so each queued change records its clinic's name. */
+  knownClinics?: ReadonlyArray<{ clinicId: string; clinicName: string }>;
 }) {
   const [isOnline, setIsOnline] = useState(
     typeof navigator !== 'undefined' ? navigator.onLine : true,
@@ -104,6 +107,15 @@ export function ServiceWorkerAndSyncProvider({
     );
   }, [currentUserId, currentUserName]);
 
+  const knownClinicsKey = (knownClinics ?? [])
+    .map((clinic) => `${clinic.clinicId}:${clinic.clinicName}`)
+    .join('|');
+  useEffect(() => {
+    setOutboxClinicNames(knownClinics ?? []);
+    // knownClinicsKey stands in for knownClinics, which is a new array on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [knownClinicsKey]);
+
   useEffect(() => {
     const unsub = onSyncStatusChange((status, message, detail) => {
       setSyncStatus(status);
@@ -126,11 +138,18 @@ export function ServiceWorkerAndSyncProvider({
     [currentUserId, getAccessToken],
   );
 
-  // Also when the account changes: an owner signing back in drains what they left held.
+  /*
+    Also when the account changes: an owner signing back in drains what they left held.
+
+    Not before the account is known (#172). The stored clinic arrives before whoami does, so a
+    pass started then ran without an owner, and the account's arrival started a second one: two
+    full pulls on every boot. Nothing is lost by waiting; the outbox only sends its owner's
+    changes, and without an account there is no owner to send for.
+  */
   useEffect(() => {
-    if (!isOnline || !activeClinicId) return;
+    if (!isOnline || !activeClinicId || !currentUserId) return;
     void doSyncNow(activeClinicId);
-  }, [activeClinicId, doSyncNow, isOnline]);
+  }, [activeClinicId, currentUserId, doSyncNow, isOnline]);
 
   /*
     Follow a failed or partly refused pass with another, backing off, so the queue drains on its
