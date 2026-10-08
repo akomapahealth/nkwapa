@@ -70,6 +70,11 @@ export interface WhoAmIResponse {
         }>;
       }
     | null;
+  /**
+   * The welcome tour version this person last finished or skipped. Optional so an older API
+   * still parses; the tour is simply not offered then.
+   */
+  welcomeTour?: { completedVersion: number | null };
 }
 
 interface BootstrapContextValue {

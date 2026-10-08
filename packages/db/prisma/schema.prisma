@@ -934,6 +934,11 @@ model User {
   /// A stable code such as KEYCLOAK_ADMIN_TIMEOUT. Never a sentence, never an address.
   identitySyncFailureReason String?                @db.VarChar(255)
 
+  /// The welcome tour version this person last finished or skipped; null if never. The web app
+  /// shows the tour while this is below its current version, so a changed tour can be re-offered.
+  welcomeTourVersion     Int?
+  welcomeTourCompletedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
