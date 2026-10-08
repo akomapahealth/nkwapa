@@ -8,7 +8,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { Reminder, ReminderStatus } from '@prisma/client';
+import { Prisma, Reminder, ReminderStatus } from '@prisma/client';
 import { CLINIC_DEFAULT_TIMEZONE, todayInTimeZone } from '@nkwapa/db';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -23,8 +23,12 @@ import {
   encodeJsonKeysetCursor,
 } from '../common/keyset-cursor';
 import { EMAIL_PROVIDER } from '../notifications/email/email-provider.token';
-import type { EmailProvider } from '../notifications/email/email-provider.interface';
-import type { SmsProvider } from './sms-provider.interface';
+import type {
+  EmailProvider,
+  EmailSendResult,
+} from '../notifications/email/email-provider.interface';
+import type { JobStep } from '../prisma/job-tenant-context.runner';
+import type { SmsProvider, SmsSendResult } from './sms-provider.interface';
 import { REMINDER_BACKOFF, REMINDER_SEND_ATTEMPTS } from './reminder-retry';
 import {
   isTemplateKey,
@@ -39,6 +43,34 @@ const REMINDER_QUEUE_NAME = 'reminders';
 const FOLLOWUP_TEMPLATE_KEY = 'FOLLOWUP_REMINDER_V1';
 const APPOINTMENT_TEMPLATE_KEY = 'APPOINTMENT_REMINDER_V1';
 const REMINDER_SEND_FAILED = 'SEND_FAILED';
+/** A send whose outcome nobody knows: the worker claimed it and never recorded what happened. */
+export const SEND_OUTCOME_UNKNOWN = 'SEND_OUTCOME_UNKNOWN';
+/**
+ * How long a send may stay in flight before the sweep calls its outcome unknown. A provider call
+ * is bounded by seconds (SMTP's connect timeout is 10 s), so ten minutes is never a live send.
+ */
+export const REMINDER_SEND_STALE_AFTER_MS = 10 * 60 * 1000;
+const REMINDER_RECONCILE_BATCH = 200;
+/**
+ * How far past its time a QUEUED reminder may be before the sweep looks for its job (#165). Longer
+ * than the retry schedule (5 s, then 60 s) and the rate limiter's queueing, so a reminder that is
+ * merely waiting its turn is never re-queued under a live job.
+ */
+export const REMINDER_OVERDUE_GRACE_MS = 15 * 60 * 1000;
+/** Job states in which the queue still holds a run of this reminder. */
+const LIVE_JOB_STATES = new Set([
+  'waiting',
+  'delayed',
+  'active',
+  'prioritized',
+  'waiting-children',
+]);
+
+/**
+ * What one run of `processReminder` asks of the queue. `notDueUntil`: the job arrived before the
+ * reminder's time and must run again then (#165).
+ */
+export type ReminderRunOutcome = { notDueUntil: Date } | void;
 /** Why a staff-scheduled reminder that never went out is marked FAILED (#116). */
 export const CANCELLED_BY_STAFF = 'CANCELLED_BY_STAFF';
 
@@ -227,6 +259,11 @@ export interface ListRemindersResult {
   }>;
   nextCursor: string | null;
 }
+
+/** The row `processReminder` claimed, with what deciding to send it needed to read. */
+type ReminderToSend = Prisma.ReminderGetPayload<{
+  include: { clinic: true; patient: true; appointment: true };
+}>;
 
 type ReminderMessage = {
   subject: string;
@@ -785,22 +822,259 @@ export class ReminderService {
    * queue (and by older queued jobs), which is read as a single, final attempt - the behaviour
    * before retries existed.
    */
+  /**
+   * Send one queued reminder (#164).
+   *
+   * Three short steps, never one transaction around the provider call:
+   *
+   * 1. **Claim**: under the job's tenant context, move the row QUEUED -> SENDING and commit. A
+   *    duplicate delivery of the job, or a retry, finds SENDING and stands down.
+   * 2. **Send**, with no transaction open, so a slow provider cannot outlive one.
+   * 3. **Record** SENT or the failure in a second step.
+   *
+   * The old shape ran all three in the job's single transaction. When the provider took longer
+   * than the transaction's timeout, the provider had the message but the SENT write rolled back,
+   * and the retry sent it again. Now a crash or a failed record step leaves the row in SENDING,
+   * which means "we do not know whether it went": `reconcileStaleSends` records that, and nothing
+   * resends it automatically.
+   *
+   * @param step Runs one transaction under the job's tenant context. The processor always passes
+   * one; the default is for callers already inside a context, such as tests.
+   */
   async processReminder(
     reminderId: string,
     attempt: JobAttempt = SINGLE_FINAL_ATTEMPT,
-  ): Promise<void> {
-    // A job redelivered while its first run is still sending (a stalled worker, or two workers
-    // picking up one id) used to read the same QUEUED row and send a second message. The send is
-    // claimed for this transaction first, and the row is read only after: a duplicate that finds
-    // the claim taken stands down, and one that arrives after the first commits reads SENT.
-    if (!(await tryLockForTransaction(this.prisma, `reminder-send:${reminderId}`))) return;
+    step: JobStep = (callback) => callback(this.prisma),
+  ): Promise<ReminderRunOutcome> {
+    const claim = await step(() => this.claimForSend(reminderId));
+    if (!claim) return;
+    if ('notDueUntil' in claim) {
+      /*
+        Delivered early (#165): clock skew between this host and Redis, or someone promoting a
+        delayed job by hand. Returning used to complete the job with nothing re-queued, so the row
+        stayed QUEUED with no job behind it and never sent. The processor puts the job back until
+        the reminder's time instead; it is never sent early.
+      */
+      this.logger.warn(
+        JSON.stringify({
+          message: 'Reminder delivered before its time; delayed until due',
+          reminderId,
+          scheduledAt: claim.notDueUntil.toISOString(),
+          earlyByMs: claim.notDueUntil.getTime() - Date.now(),
+        }),
+      );
+      return { notDueUntil: claim.notDueUntil };
+    }
+    const { reminder, message } = claim;
+
+    let result: SmsSendResult | EmailSendResult;
+    try {
+      result =
+        reminder.channel === 'EMAIL' && this.emailProvider
+          ? await this.emailProvider.send(
+              reminder.toAddress,
+              message.subject,
+              message.emailHtml,
+              message.emailText,
+            )
+          : await this.smsProvider.send(reminder.toAddress, message.smsBody);
+    } catch (err) {
+      // Providers report their own failures as results. A throw is something nobody classified,
+      // and it may have come after the provider accepted the message, so the row stays SENDING
+      // for the sweep instead of being retried into a second copy.
+      this.logger.error(
+        JSON.stringify({
+          message: 'Reminder send outcome unknown; left for reconciliation',
+          reminderId,
+          clinicId: reminder.clinicId,
+          channel: reminder.channel,
+          error: redactLogValue(err),
+        }),
+      );
+      return;
+    }
+
+    if (result.success && result.providerMessageId) {
+      const providerMessageId = result.providerMessageId;
+      try {
+        await step(() => this.recordSent(reminder, providerMessageId));
+      } catch (err) {
+        // The provider has the message. Throwing hands the job back to the queue, and the retry
+        // finds SENDING and stands down; the sweep then records the outcome as unknown.
+        this.logger.error(
+          JSON.stringify({
+            message: 'Reminder was sent but SENT could not be recorded',
+            reminderId,
+            clinicId: reminder.clinicId,
+            channel: reminder.channel,
+            providerMessageId,
+            error: redactLogValue(err),
+          }),
+        );
+        throw err;
+      }
+      return;
+    }
+
+    if (result.error) {
+      this.logger.warn(
+        JSON.stringify({
+          message: 'Reminder provider send failed',
+          reminderId,
+          clinicId: reminder.clinicId,
+          channel: reminder.channel,
+          error: redactLogValue(result.error),
+        }),
+      );
+    }
+    const failureReason = this.normalizeFailureReason(result.error);
+
+    if (result.retryable && hasAttemptsLeft(attempt)) {
+      /*
+        The provider said this one did not go and might next time. Hand the claim back (SENDING
+        -> QUEUED) and throw, so BullMQ schedules the next attempt and the claim lets it through.
+        Nothing is recorded as FAILED on purpose: a row that reads FAILED between attempts would
+        show an operator a failure that is still being worked on, and a resend they do not need.
+      */
+      await step(() => this.releaseClaim(reminderId));
+      this.logger.log(
+        JSON.stringify({
+          message: 'Reminder send will be retried',
+          reminderId,
+          clinicId: reminder.clinicId,
+          channel: reminder.channel,
+          attemptsMade: attempt.attemptsMade,
+          failureReason,
+        }),
+      );
+      throw new TransientReminderSendError(reminderId, failureReason, attempt.attemptsMade);
+    }
+
+    // Keep the provider's own code when it gave one. A row that reads EMAIL_NOT_CONFIGURED tells an
+    // operator exactly what to change; SEND_FAILED sends them to the logs to find out.
+    await step(() =>
+      this.failReminder(reminder, failureReason, 'REMINDER.SEND_FAILED', { from: 'SENDING' }),
+    );
+  }
+
+  /**
+   * Record reminders whose send outcome nobody knows (#164).
+   *
+   * A row still SENDING well after its claim belongs to a worker that died, or that sent the
+   * message and then could not record it. Either way the message may or may not have reached the
+   * patient. It is marked FAILED with SEND_OUTCOME_UNKNOWN so an operator sees it and decides,
+   * and it is never resent from here. If the original worker does record SENT afterwards, that
+   * still wins: see `recordSent`.
+   *
+   * Runs under system context: it crosses clinics, and touches nothing but these rows.
+   */
+  async reconcileStaleSends(now: Date = new Date()): Promise<number> {
+    const staleBefore = new Date(now.getTime() - REMINDER_SEND_STALE_AFTER_MS);
+    const stale = await this.prisma.reminder.findMany({
+      where: {
+        status: 'SENDING',
+        OR: [{ sendingStartedAt: { lt: staleBefore } }, { sendingStartedAt: null }],
+      },
+      select: { id: true, clinicId: true, sendingStartedAt: true },
+      orderBy: { sendingStartedAt: 'asc' },
+      take: REMINDER_RECONCILE_BATCH,
+    });
+
+    let reconciled = 0;
+    for (const row of stale) {
+      const marked = await this.prisma.reminder.updateMany({
+        where: { id: row.id, status: 'SENDING' },
+        data: { status: 'FAILED', failureReason: SEND_OUTCOME_UNKNOWN },
+      });
+      if (marked.count === 0) continue;
+      reconciled += 1;
+      await this.auditService.logWrite({
+        clinicId: row.clinicId,
+        actorUserId: SYSTEM_ACTOR_USER_ID,
+        action: 'REMINDER.OUTCOME_UNKNOWN',
+        entityType: 'Reminder',
+        entityId: row.id,
+        beforeJson: JSON.stringify({ status: 'SENDING', sendingStartedAt: row.sendingStartedAt }),
+        afterJson: JSON.stringify({ status: 'FAILED', failureReason: SEND_OUTCOME_UNKNOWN }),
+      });
+      this.logger.warn(
+        JSON.stringify({
+          message: 'Reminder send outcome unknown; recorded for an operator',
+          reminderId: row.id,
+          clinicId: row.clinicId,
+        }),
+      );
+    }
+    return reconciled;
+  }
+
+  /**
+   * Re-queue reminders that are past their time with no job behind them (#165).
+   *
+   * The safety net for any way a job is lost: one that completed before its time under an older
+   * worker, a Redis flush, a queue outage after the row was written. A reminder whose job is still
+   * waiting, delayed or running is left alone, so this never adds a second run of a live one.
+   * Each re-queued job carries its own clinic, exactly as `queueReminder` built the first, so the
+   * worker runs it under that clinic's context.
+   *
+   * @param step Reads the overdue rows under the sweep's system context. Redis is asked outside
+   * any transaction.
+   */
+  async requeueOverdue(step: JobStep, now: Date = new Date()): Promise<number> {
+    const overdue = await step(() =>
+      this.prisma.reminder.findMany({
+        where: {
+          status: 'QUEUED',
+          scheduledAt: { lt: new Date(now.getTime() - REMINDER_OVERDUE_GRACE_MS) },
+        },
+        select: { id: true, clinicId: true, scheduledAt: true },
+        orderBy: { scheduledAt: 'asc' },
+        take: REMINDER_RECONCILE_BATCH,
+      }),
+    );
+
+    let requeued = 0;
+    for (const row of overdue) {
+      const jobId = this.getReminderJobId(row.id);
+      const job = await this.reminderQueue.getJob(jobId);
+      const state = job ? await job.getState() : null;
+      if (state && LIVE_JOB_STATES.has(state)) continue;
+      // BullMQ ignores an add under an id it still holds, finished or not.
+      await job?.remove();
+      await this.queueReminder(row.id, row.scheduledAt, row.clinicId);
+      requeued += 1;
+      this.logger.warn(
+        JSON.stringify({
+          message: 'Overdue reminder had no live job; re-queued',
+          reminderId: row.id,
+          clinicId: row.clinicId,
+          previousJobState: state ?? 'missing',
+          overdueByMs: now.getTime() - row.scheduledAt.getTime(),
+        }),
+      );
+    }
+    return requeued;
+  }
+
+  /**
+   * Step 1 of `processReminder`: decide whether this reminder should go, and if so take it.
+   * Returns null when there is nothing for this worker to send.
+   */
+  private async claimForSend(
+    reminderId: string,
+  ): Promise<
+    { reminder: ReminderToSend; message: ReminderMessage } | { notDueUntil: Date } | null
+  > {
+    // Stands down cheaply when another delivery of this job is deciding the same row. The claim
+    // below is what actually makes the send exclusive.
+    if (!(await tryLockForTransaction(this.prisma, `reminder-send:${reminderId}`))) return null;
 
     const reminder = await this.prisma.reminder.findUnique({
       where: { id: reminderId },
       include: { clinic: true, patient: true, appointment: true },
     });
-    if (!reminder || reminder.status !== 'QUEUED') return;
-    if (reminder.scheduledAt > new Date()) return;
+    if (!reminder || reminder.status !== 'QUEUED') return null;
+    if (reminder.scheduledAt > new Date()) return { notDueUntil: reminder.scheduledAt };
 
     const payload = JSON.parse(reminder.payloadJson) as Record<string, unknown>;
     const appointmentSuppressionReason = await this.getAppointmentSendSuppressionReason(
@@ -809,14 +1083,14 @@ export class ReminderService {
     );
     if (appointmentSuppressionReason) {
       await this.failReminder(reminder, appointmentSuppressionReason, 'REMINDER.SUPPRESS');
-      return;
+      return null;
     }
 
     if (reminder.channel === 'EMAIL' && !this.emailProvider) {
       // Never fall through to SMS here. This branch used to send the SMS body to an
       // email address, which delivered a stripped message and recorded it as a success.
       await this.failReminder(reminder, EMAIL_CHANNEL_UNAVAILABLE, 'REMINDER.SEND_FAILED');
-      return;
+      return null;
     }
 
     let message: ReminderMessage;
@@ -838,119 +1112,59 @@ export class ReminderService {
         `${TEMPLATE_NOT_FOUND}:${reminder.templateKey}`.slice(0, 255),
         'REMINDER.SEND_FAILED',
       );
-      return;
+      return null;
     }
 
-    try {
-      const result =
-        reminder.channel === 'EMAIL' && this.emailProvider
-          ? await this.emailProvider.send(
-              reminder.toAddress,
-              message.subject,
-              message.emailHtml,
-              message.emailText,
-            )
-          : await this.smsProvider.send(reminder.toAddress, message.smsBody);
+    const claimed = await this.prisma.reminder.updateMany({
+      where: { id: reminderId, status: 'QUEUED' },
+      data: { status: 'SENDING', sendingStartedAt: new Date() },
+    });
+    if (claimed.count === 0) return null;
+    return { reminder, message };
+  }
 
-      if (result.success && result.providerMessageId) {
-        const sentAt = new Date();
-        await this.prisma.reminder.update({
-          where: { id: reminderId },
-          data: {
-            status: 'SENT',
-            sentAt,
-            providerMessageId: result.providerMessageId,
-          },
-        });
-        await this.auditService.logWrite({
-          clinicId: reminder.clinicId,
-          actorUserId: SYSTEM_ACTOR_USER_ID,
-          action: 'REMINDER.SENT',
-          entityType: 'Reminder',
-          entityId: reminderId,
-          afterJson: JSON.stringify({
-            status: 'SENT',
-            sentAt,
-            providerMessageId: result.providerMessageId,
-          }),
-        });
-      } else {
-        if (result.error) {
-          this.logger.warn(
-            JSON.stringify({
-              message: 'Reminder provider send failed',
-              reminderId,
-              clinicId: reminder.clinicId,
-              channel: reminder.channel,
-              error: redactLogValue(result.error),
-            }),
-          );
-        }
-        const failureReason = this.normalizeFailureReason(result.error);
-
-        if (result.retryable && hasAttemptsLeft(attempt)) {
-          /*
-            Leave the row QUEUED and throw, so BullMQ schedules the next attempt and the guard at
-            the top of this method lets it through. Nothing is written here on purpose: a row that
-            reads FAILED between attempts would show an operator a failure that is still being
-            worked on, and a resend they do not need.
-          */
-          throw new TransientReminderSendError(reminderId, failureReason, attempt.attemptsMade);
-        }
-
-        // Keep the provider's own code when it gave one. A row that reads
-        // EMAIL_NOT_CONFIGURED tells an operator exactly what to change; SEND_FAILED
-        // sends them to the logs to find out.
-        await this.failReminder(reminder, failureReason, 'REMINDER.SEND_FAILED');
-      }
-    } catch (err) {
-      if (err instanceof TransientReminderSendError) {
-        /*
-          Not a processing failure: a deliberate hand-off to the queue. It has to pass through
-          this catch untouched, because the block below marks the row FAILED - which is precisely
-          the state the retry depends on the row not being in.
-        */
-        this.logger.log(
-          JSON.stringify({
-            message: 'Reminder send will be retried',
-            reminderId,
-            clinicId: reminder.clinicId,
-            channel: reminder.channel,
-            attemptsMade: err.attemptsMade,
-            failureReason: err.failureReason,
-          }),
-        );
-        throw err;
-      }
-
+  /**
+   * Step 3 of `processReminder` on success.
+   *
+   * Also accepts a row the sweep already marked SEND_OUTCOME_UNKNOWN: the provider has confirmed
+   * the message went, which is better than not knowing.
+   */
+  private async recordSent(reminder: ReminderToSend, providerMessageId: string): Promise<void> {
+    const sentAt = new Date();
+    const recorded = await this.prisma.reminder.updateMany({
+      where: {
+        id: reminder.id,
+        OR: [{ status: 'SENDING' }, { status: 'FAILED', failureReason: SEND_OUTCOME_UNKNOWN }],
+      },
+      data: { status: 'SENT', sentAt, providerMessageId, failureReason: null },
+    });
+    if (recorded.count === 0) {
       this.logger.warn(
         JSON.stringify({
-          message: 'Reminder processing failed',
-          reminderId,
+          message: 'Reminder was sent but its row had moved on; SENT not recorded',
+          reminderId: reminder.id,
           clinicId: reminder.clinicId,
-          channel: reminder.channel,
-          error: redactLogValue(err),
+          providerMessageId,
         }),
       );
-      // `failReminder` is the most likely thing to have thrown us in here, since the
-      // success and failure branches above both end in one. Calling it again unguarded
-      // meant the second throw escaped with nothing logged, and the only trace of the
-      // original cause was the line above. Record that we could not record the failure.
-      try {
-        await this.failReminder(reminder, REMINDER_SEND_FAILED, 'REMINDER.SEND_FAILED');
-      } catch (failErr) {
-        this.logger.error(
-          JSON.stringify({
-            message: 'Reminder failure could not be recorded',
-            reminderId,
-            clinicId: reminder.clinicId,
-            channel: reminder.channel,
-            error: redactLogValue(failErr),
-          }),
-        );
-        throw failErr;
-      }
+      return;
     }
+    await this.auditService.logWrite({
+      clinicId: reminder.clinicId,
+      actorUserId: SYSTEM_ACTOR_USER_ID,
+      action: 'REMINDER.SENT',
+      entityType: 'Reminder',
+      entityId: reminder.id,
+      afterJson: JSON.stringify({ status: 'SENT', sentAt, providerMessageId }),
+    });
+  }
+
+  /** Hand a claimed reminder back to the queue after a send that certainly did not go. */
+  private async releaseClaim(reminderId: string): Promise<void> {
+    await this.prisma.reminder.updateMany({
+      where: { id: reminderId, status: 'SENDING' },
+      data: { status: 'QUEUED', sendingStartedAt: null },
+    });
   }
 
   async findReminderClinicId(reminderId: string): Promise<string | null> {
@@ -1046,15 +1260,28 @@ export class ReminderService {
     return null;
   }
 
+  /**
+   * @param options.from The status the row must still be in. After a send, the row must still be
+   * SENDING: if the sweep has already recorded it, that record stands.
+   */
   private async failReminder(
     reminder: { id: string; clinicId: string | null },
     failureReason: string,
     action: 'REMINDER.SEND_FAILED' | 'REMINDER.SUPPRESS',
+    options: { from?: ReminderStatus } = {},
   ): Promise<void> {
-    await this.prisma.reminder.update({
-      where: { id: reminder.id },
-      data: { status: 'FAILED', failureReason },
-    });
+    if (options.from) {
+      const failed = await this.prisma.reminder.updateMany({
+        where: { id: reminder.id, status: options.from },
+        data: { status: 'FAILED', failureReason },
+      });
+      if (failed.count === 0) return;
+    } else {
+      await this.prisma.reminder.update({
+        where: { id: reminder.id },
+        data: { status: 'FAILED', failureReason },
+      });
+    }
     await this.auditService.logWrite({
       clinicId: reminder.clinicId,
       actorUserId: SYSTEM_ACTOR_USER_ID,

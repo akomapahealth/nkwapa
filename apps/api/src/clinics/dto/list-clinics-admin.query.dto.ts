@@ -1,4 +1,4 @@
-import { IsOptional } from 'class-validator';
+import { IsOptional, IsUUID } from 'class-validator';
 import { ToSanitizedString } from '../../common/validation';
 import { IsZoneFilter } from '../../common/clinic-metadata.validator';
 
@@ -9,9 +9,9 @@ import { IsZoneFilter } from '../../common/clinic-metadata.validator';
  * `forbidNonWhitelisted`, so a query parameter no DTO declares is a 400 rather than something
  * quietly ignored.
  *
- * Zone is the only filter here, and it narrows. The controller resolves which clinics the actor
- * may see before this value is applied, so a zone the actor does not administer simply matches
- * nothing rather than reaching across a tenant boundary.
+ * Both filters narrow and can do nothing else. The service resolves which clinics the actor may
+ * see before either is applied, so a zone or an organization the actor does not administer
+ * simply matches nothing rather than reaching across a tenant boundary.
  */
 export class ListClinicsAdminQueryDto {
   /**
@@ -29,4 +29,9 @@ export class ListClinicsAdminQueryDto {
   @ToSanitizedString()
   @IsZoneFilter()
   zoneCode?: string;
+
+  /** One organization's clinics. Must be a UUID; anything else is a 400, never a wildcard. */
+  @IsOptional()
+  @IsUUID()
+  organizationId?: string;
 }

@@ -82,6 +82,21 @@ The clinician plan is doctor-only, refused by the API for any other role, and wi
 
 Offline: queued as `hypertension_assessment`. The queued write requires the same permission as the online one.
 
+## Supervising clinician plan (hypertension and diabetes)
+
+Doctor-only. Queued offline only sealed to the server key (#131): the device cannot read a queued plan back, the pull never returns one, and the server opens it only for the clinic, encounter, condition and doctor it was sealed for.
+
+| Role | Read | Write |
+| --- | --- | --- |
+| SYSTEM_ADMIN | yes | yes |
+| DIRECTOR | no | no |
+| MANAGER | no | no |
+| DOCTOR | yes | yes |
+| VOLUNTEER | no | no |
+| PATIENT | no | no |
+
+Offline: queued as `clinician_plan`. The queued write requires the same permission as the online one.
+
 ## Per-encounter medication adherence
 
 An observation about a reconciled medication at one visit, gated on the interview permissions rather than medication reconciliation: it is refused on a finalized encounter, and the medication list is not.

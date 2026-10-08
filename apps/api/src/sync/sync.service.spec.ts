@@ -22,6 +22,8 @@ import { MedicationAdherenceService } from '../medication-adherence/medication-a
 import { PrescriptionService } from '../prescriptions/prescription.service';
 import { OpsService } from '../ops/ops.service';
 import { createSyncMutationStore } from '../testing/sync-mutation-store';
+import { ClinicianPlanSealService } from './clinician-plan-seal.service';
+import { sealClinicianPlan } from '@nkwapa/db';
 
 const mockUser = {
   user: { id: 'user-1' },
@@ -30,6 +32,7 @@ const mockUser = {
 
 describe('SyncService', () => {
   let service: SyncService;
+  let moduleRef: TestingModule;
   let patientRepo: jest.Mocked<PatientRepository>;
   let encounterRepo: jest.Mocked<EncounterRepository>;
   let prisma: jest.Mocked<PrismaService>;
@@ -135,6 +138,7 @@ describe('SyncService', () => {
               compatibility: {},
             }),
             upsert: jest.fn().mockResolvedValue({ id: 'diabetes-1' }),
+            upsertClinicianPlan: jest.fn().mockResolvedValue({ id: 'diabetes-1' }),
           },
         },
         {
@@ -149,8 +153,11 @@ describe('SyncService', () => {
               },
             }),
             upsert: jest.fn().mockResolvedValue({ id: 'hypertension-1' }),
+            upsertClinicianPlan: jest.fn().mockResolvedValue({ id: 'hypertension-1' }),
           },
         },
+        // The real one: replay tests seal with the browser's own function and must open here.
+        ClinicianPlanSealService,
         {
           provide: MedicationAdherenceService,
           useValue: {
@@ -180,6 +187,7 @@ describe('SyncService', () => {
       ],
     }).compile();
 
+    moduleRef = module;
     service = module.get(SyncService);
     patientRepo = module.get(PatientRepository);
     prisma = module.get(PrismaService);
@@ -1825,6 +1833,159 @@ describe('SyncService', () => {
       expect(results).toEqual([{ id: 'mut-medication-4', status: 'APPLIED' }]);
       expect(medicationReconciliationService.createMedication).not.toHaveBeenCalled();
       expect(medicationReconciliationService.reviseMedication).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('a clinician plan sealed offline (#131)', () => {
+    const doctor = {
+      user: { id: 'doctor-1' },
+      roles: [{ clinicId: 'clinic-1', role: 'DOCTOR' }],
+    };
+    const diabetesPlan = {
+      clinicianPlanItems: ['CONTINUE_CURRENT_MANAGEMENT'],
+      clinicianPlanOther: null,
+      followUpWindow: 'WITHIN_1_MONTH',
+      followUpOther: null,
+      followUpOwner: 'AKOMAPA_TEAM',
+      clinicianComments: 'Recheck after salt reduction',
+    };
+    // Hypertension adds the blood-pressure goal.
+    const plan = { ...diabetesPlan, bpGoalSystolic: 130, bpGoalDiastolic: 80 };
+
+    async function sealed(
+      overrides: Partial<{ authorUserId: string; condition: string; encounterId: string }> = {},
+      planOverride: Record<string, unknown> = plan,
+    ) {
+      const seal = moduleRef.get(ClinicianPlanSealService);
+      const key = seal.publicKey();
+      if (!key.available) throw new Error('seal key unavailable in tests');
+      return sealClinicianPlan({ kid: key.kid, spki: key.spki }, planOverride, {
+        clinicId: 'clinic-1',
+        encounterId: 'enc-1',
+        condition: 'HYPERTENSION',
+        authorUserId: 'doctor-1',
+        ...overrides,
+      });
+    }
+
+    function mutation(payload: Record<string, unknown>, id = 'mut-plan-1'): SyncMutationDto {
+      return {
+        id,
+        entityType: 'clinician_plan',
+        entityId: `plan-${id}`,
+        operation: 'UPSERT',
+        clinicId: 'clinic-1',
+        idempotencyKey: `idem-${id}`,
+        payloadJson: payload,
+      } as SyncMutationDto;
+    }
+
+    it('opens the plan and applies it through the online service, decided when the doctor decided', async () => {
+      const decidedAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+      const results = await service.applyMutations('clinic-1', doctor as never, [
+        mutation({
+          schemaVersion: 1,
+          encounterId: 'enc-1',
+          condition: 'HYPERTENSION',
+          decidedAt,
+          sealed: await sealed(),
+        }),
+      ]);
+
+      expect(results).toEqual([{ id: 'mut-plan-1', status: 'APPLIED' }]);
+      expect(hypertensionAssessmentService.upsertClinicianPlan).toHaveBeenCalledWith(
+        'clinic-1',
+        'enc-1',
+        expect.objectContaining({ userId: 'doctor-1' }),
+        expect.objectContaining({
+          followUpWindow: 'WITHIN_1_MONTH',
+          clinicianComments: 'Recheck after salt reduction',
+        }),
+        expect.objectContaining({
+          syncMutation: expect.objectContaining({ idempotencyKey: 'idem-mut-plan-1' }),
+        }),
+        { decidedAt: new Date(decidedAt) },
+      );
+    });
+
+    it('routes a diabetes plan to the diabetes service', async () => {
+      const results = await service.applyMutations('clinic-1', doctor as never, [
+        mutation({
+          encounterId: 'enc-1',
+          condition: 'DIABETES',
+          sealed: await sealed({ condition: 'DIABETES' }, diabetesPlan),
+        }),
+      ]);
+      expect(results[0].status).toBe('APPLIED');
+      expect(diabetesScreeningService.upsertClinicianPlan).toHaveBeenCalled();
+      expect(hypertensionAssessmentService.upsertClinicianPlan).not.toHaveBeenCalled();
+    });
+
+    it('refuses a volunteer before opening anything', async () => {
+      const results = await service.applyMutations('clinic-1', mockUser as never, [
+        mutation({ encounterId: 'enc-1', condition: 'HYPERTENSION', sealed: await sealed() }),
+      ]);
+      expect(results[0]).toMatchObject({ status: 'ERROR', conflictType: 'FORBIDDEN' });
+      expect(hypertensionAssessmentService.upsertClinicianPlan).not.toHaveBeenCalled();
+    });
+
+    it('refuses a plan another doctor sealed, even pushed by a doctor', async () => {
+      const results = await service.applyMutations('clinic-1', doctor as never, [
+        mutation({
+          encounterId: 'enc-1',
+          condition: 'HYPERTENSION',
+          sealed: await sealed({ authorUserId: 'doctor-2' }),
+        }),
+      ]);
+      expect(results[0]).toMatchObject({
+        status: 'ERROR',
+        conflictType: 'SEALED_PLAN_UNREADABLE',
+        retryable: false,
+      });
+      expect(hypertensionAssessmentService.upsertClinicianPlan).not.toHaveBeenCalled();
+    });
+
+    it('refuses a plan moved to another encounter', async () => {
+      const results = await service.applyMutations('clinic-1', doctor as never, [
+        mutation({ encounterId: 'enc-2', condition: 'HYPERTENSION', sealed: await sealed() }),
+      ]);
+      expect(results[0]).toMatchObject({ conflictType: 'SEALED_PLAN_UNREADABLE' });
+    });
+
+    it('refuses a plan for a clinic other than the push', async () => {
+      const results = await service.applyMutations('clinic-1', doctor as never, [
+        {
+          ...mutation({ encounterId: 'enc-1', condition: 'HYPERTENSION', sealed: await sealed() }),
+          clinicId: 'clinic-2',
+        },
+      ]);
+      expect(results[0]).toMatchObject({ conflictType: 'CLINIC_MISMATCH' });
+    });
+
+    it('refuses a plan the online route would refuse, once opened', async () => {
+      const results = await service.applyMutations('clinic-1', doctor as never, [
+        mutation({
+          encounterId: 'enc-1',
+          condition: 'HYPERTENSION',
+          sealed: await sealed({}, { ...plan, followUpWindow: 'NEXT_YEAR', extra: 'field' }),
+        }),
+      ]);
+      expect(results[0]).toMatchObject({ conflictType: 'VALIDATION_ERROR' });
+      expect(hypertensionAssessmentService.upsertClinicianPlan).not.toHaveBeenCalled();
+    });
+
+    it('reports a finalized encounter as the service does, without retrying', async () => {
+      hypertensionAssessmentService.upsertClinicianPlan.mockRejectedValueOnce(
+        new ConflictException({ code: 'CONFLICT_FINALIZED' }),
+      );
+      const results = await service.applyMutations('clinic-1', doctor as never, [
+        mutation({ encounterId: 'enc-1', condition: 'HYPERTENSION', sealed: await sealed() }),
+      ]);
+      expect(results[0]).toMatchObject({
+        status: 'CONFLICT',
+        conflictType: 'CONFLICT_FINALIZED',
+        retryable: false,
+      });
     });
   });
 });

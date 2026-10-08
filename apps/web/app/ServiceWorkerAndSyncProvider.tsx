@@ -138,11 +138,18 @@ export function ServiceWorkerAndSyncProvider({
     [currentUserId, getAccessToken],
   );
 
-  // Also when the account changes: an owner signing back in drains what they left held.
+  /*
+    Also when the account changes: an owner signing back in drains what they left held.
+
+    Not before the account is known (#172). The stored clinic arrives before whoami does, so a
+    pass started then ran without an owner, and the account's arrival started a second one: two
+    full pulls on every boot. Nothing is lost by waiting; the outbox only sends its owner's
+    changes, and without an account there is no owner to send for.
+  */
   useEffect(() => {
-    if (!isOnline || !activeClinicId) return;
+    if (!isOnline || !activeClinicId || !currentUserId) return;
     void doSyncNow(activeClinicId);
-  }, [activeClinicId, doSyncNow, isOnline]);
+  }, [activeClinicId, currentUserId, doSyncNow, isOnline]);
 
   /*
     Follow a failed or partly refused pass with another, backing off, so the queue drains on its

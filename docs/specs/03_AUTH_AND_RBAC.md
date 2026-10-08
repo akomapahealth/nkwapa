@@ -231,6 +231,37 @@ anyone else's.
 
 ---
 
+## Organization and Zone Isolation
+
+The policy, as the tests in `apps/api/src/tenancy/org-zone-isolation.integration.spec.ts` (#16) hold
+it against a real database, as the unprivileged application role:
+
+- **A clinic role sees its clinics' rows and nothing else**, whatever it asks for. A user with roles
+  at two clinics sees exactly those two.
+- **The active-clinic header chooses; it does not grant.** `X-Clinic-Id` picks which of the actor's
+  clinics is active. Naming a clinic the actor has no role at adds nothing to what they can read.
+- **Organization and zone are filters, never grants.** Every filter is ANDed onto the actor's own
+  scope. A director who names another organization, or a zone another organization also uses, gets
+  their own clinics that match, which is often none.
+- **Reading and administering are different scopes.** Someone who practises at a clinic may read it,
+  but it does not appear among the clinics they administer unless they direct it. Row level security
+  enforces the first; the services enforce the second, and the suite includes a user for whom the two
+  differ so that neither layer can quietly cover for the other.
+- **`SYSTEM_ADMIN`'s global visibility comes from the global seat only** (`clinicId = null`). A
+  clinic-scoped row that says `SYSTEM_ADMIN` grants nothing global. The organization report and the
+  cross-clinic dashboard comparison are system-admin only.
+- **Another tenant's clinic is not confirmed to exist.** A director asking for a clinic outside their
+  scope gets "not found", not "forbidden", because row level security hides the row.
+- **Scope widening for invitations is per route.** An open staff invitation adds its clinic to the
+  invitee's scope only on the routes that show or accept it (`@IncludeStaffInviteScope`), never on
+  ordinary requests.
+
+The suite was checked against deliberate regressions: removing the service scope, widening every
+route for invitations, letting the header grant its clinic, and dropping the report's admin check
+each make it fail.
+
+---
+
 ## Enforcement Path
 
 ### API Layer
@@ -324,6 +355,16 @@ it carries controls the patient flow does not:
 DIRECTOR and SYSTEM_ADMIN seats are still assigned by hand on `/admin/users`, once the person has
 signed in and their local `User` row exists.
 
+Removal mirrors it (issue #126). Deactivation sets `User.isActive` in the request, then an
+`identity-sync` BullMQ job disables the Keycloak identity (`PUT /users/{id}` with `enabled: false`)
+and ends its sessions (`POST /users/{id}/logout`). Reactivation re-enables it. Both calls are within
+the service account's `manage-users` ceiling. The job runs after the request commits because the
+request is a single bounded transaction, and a slow Keycloak inside it could roll the local block
+back. The job converges on the user's current state rather than replaying a command, so a quick
+deactivate-then-reactivate lands correctly whichever job runs first. `User.identitySyncStatus`
+records the outcome for the admin page. A clinic-scoped deactivation of someone who still works
+in another clinic withdraws only that clinic's roles and leaves the identity alone.
+
 ### Patient Users
 
 Patients do not create their own accounts, and staff do not create them by hand. The account
@@ -390,9 +431,11 @@ The current realm export is hardened with:
 
 - zone is a reporting filter rather than a permission scope; zone-scoped roles are deliberately
   not implemented, and the Zone Model section above is the statement of record
-- organization-level admin/reporting permissions are not yet distinct from clinic-level permissions
+- organization-level roles do not exist yet. The organization report (`GET
+/organizations/:id/report`, #13) sits behind its own permission, `ORGANIZATION.REPORT.READ`,
+  which is granted to no role, so today only `SYSTEM_ADMIN` reads it through `'*'`. It is named so
+  a future organization leadership role can be given exactly that, instead of a director's clinic
+  permissions being stretched across an organization
 - Keycloak still provides identity only; app-side policy remains the authority and must continue to be tested independently
-- deactivating a user does not yet disable their Keycloak identity (#126), which matters more now
-  that staff accounts are created automatically
 - patient invitations reach an email address only; provisioning an identity from a phone number
   is not implemented, and a phone-only invite is recorded as such rather than failing

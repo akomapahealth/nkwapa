@@ -58,6 +58,16 @@ export const SYNC_ENTITY_PERMISSIONS: Record<EntityType, SyncEntityPermission> =
   },
   hypertension_assessment: screening(),
   /*
+    Doctor-only, exactly as the REST route: the plan is sealed so the device cannot read it, and
+    this is what stops a volunteer queueing one. The service checks the permission again, and the
+    seal itself is bound to the author, so a plan cannot be replayed under another account.
+  */
+  clinician_plan: {
+    create: PERMISSIONS.CAREPLAN_CLINICIAN_PLAN,
+    update: PERMISSIONS.CAREPLAN_CLINICIAN_PLAN,
+    delete: null,
+  },
+  /*
     The observation is the interview's, not the medication list's.
 
     A volunteer holds both MEDICATION_RECONCILIATION.WRITE and SCREENING.WRITE, so the two look
