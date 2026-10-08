@@ -102,14 +102,6 @@ export const KNOWN_RISKS = {
       'Nothing is deleted, and nothing is sent to a clinic the account cannot write to. Restoring the seat, or signing in as someone who holds one, drains them.',
     followUp: '#163: List queued work for clinics other than the active one in the sync center.',
   },
-  'early-reminder': {
-    title: 'A reminder job that fires early completes without sending',
-    behaviour:
-      'A reminder job delivered before its scheduled time (clock skew between the API and Redis) finds the row not yet due, returns, and completes. Nothing re-queues it, so the row stays QUEUED.',
-    mitigation:
-      'Delays are computed from the same scheduledAt the check reads, so this needs skew larger than the gap between them. The reminders page shows a QUEUED row past its time, which is the signal to look.',
-    followUp: '#165: Re-queue a reminder that is not yet due for the remaining delay.',
-  },
 } as const satisfies Record<string, KnownRisk>;
 export type KnownRiskId = keyof typeof KNOWN_RISKS;
 
@@ -880,15 +872,26 @@ export const OFFLINE_JOB_SCENARIOS: readonly MatrixScenario[] = [
     scenario: 'A reminder job fires before its scheduled time',
     fixture: 'A queued reminder whose scheduledAt is still in the future',
     expected:
-      'Nothing is sent. Today the job completes and the row stays QUEUED; see the known risk.',
+      'Nothing is sent early. The job goes back to delayed until scheduledAt (spending no attempt) and sends once then (#165). A reminder past its time with no live job, however the job was lost, is re-queued under its own clinic by the five-minute sweep.',
     automated: [
       ref(
         `${REMINDERS}/appointment-reminder-lifecycle.spec.ts`,
         'does nothing before the reminder is due',
       ),
+      ref(
+        `${REMINDERS}/reminder-early-delivery.spec.ts`,
+        'asks to run again at the reminder time, without sending or claiming',
+      ),
+      ref(
+        `${REMINDERS}/reminder.processor.spec.ts`,
+        'moves the job back to delayed until the reminder is due, spending no attempt',
+      ),
+      ref(
+        `${REMINDERS}/reminder-early-delivery.spec.ts`,
+        're-queues a reminder whose job is gone, under its own clinic',
+      ),
     ],
     manual: false,
-    knownRisk: 'early-reminder',
   },
   {
     id: 'JOB-05',

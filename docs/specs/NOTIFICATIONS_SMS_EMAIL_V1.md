@@ -144,6 +144,17 @@ a send claimed more than ten minutes ago `FAILED` with `SEND_OUTCOME_UNKNOWN`, a
 `REMINDER.OUTCOME_UNKNOWN`, and never resends it. An operator checks with the patient before
 resending. If the original worker does record `SENT` later, that still wins.
 
+A job delivered before its reminder is due (clock skew between the API host and Redis, or a delayed
+job promoted by hand) is never sent early and never dropped (#165). The worker moves it back to
+delayed until `scheduledAt` with `job.moveToDelayed` and BullMQ's `DelayedError`, which spends no
+retry attempt, and it sends once when it runs again. It used to return and complete, leaving a
+`QUEUED` row with no job behind it.
+
+The same five-minute sweep re-queues any `QUEUED` reminder more than fifteen minutes past its time
+whose job is missing or finished, however the job was lost (a Redis flush, an older worker). A
+reminder whose job is still waiting, delayed or running is left alone, so the sweep never adds a
+second run. The re-queued job carries the reminder's own clinic, as the first one did.
+
 Time to send
 
 Recorded as the gap between the later of `createdAt` and `scheduledAt` and `sentAt`, and shown per

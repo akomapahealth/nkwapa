@@ -15,8 +15,9 @@ export const REMINDER_RECONCILE_JOB = 'reconcile-stale-sends';
 export const REMINDER_RECONCILE_INTERVAL_MS = 5 * 60 * 1000;
 
 /**
- * Records reminders whose send outcome nobody knows (#164); see
- * `ReminderService.reconcileStaleSends`. A BullMQ job scheduler, like the invite expiry sweep, so
+ * Records reminders whose send outcome nobody knows (#164), and re-queues reminders that are past
+ * their time with no job behind them (#165); see `ReminderService.reconcileStaleSends` and
+ * `ReminderService.requeueOverdue`. A BullMQ job scheduler, like the invite expiry sweep, so
  * several API instances produce one sweep.
  */
 @Processor(REMINDER_RECONCILIATION_QUEUE)
@@ -51,15 +52,18 @@ export class ReminderReconciliationProcessor extends WorkerHost implements OnMod
   }
 
   async process(): Promise<void> {
-    // Crosses every clinic, so it cannot run under any one tenant's context. It touches only the
-    // database, so one transaction is right here.
-    await this.tenantContext.runSystemJob(
+    // Crosses every clinic, so it cannot run under any one tenant's context. Steps rather than one
+    // transaction, because re-queuing asks Redis about each overdue reminder.
+    await this.tenantContext.runSystemJobSteps(
       {
         queueName: REMINDER_RECONCILIATION_QUEUE,
         resourceId: REMINDER_RECONCILE_JOB,
-        systemReason: 'Record reminders whose send outcome is unknown',
+        systemReason: 'Record reminders whose send outcome is unknown, and re-queue overdue ones',
       },
-      () => this.reminderService.reconcileStaleSends(),
+      async (step) => {
+        await step(() => this.reminderService.reconcileStaleSends());
+        await this.reminderService.requeueOverdue(step);
+      },
     );
   }
 }
