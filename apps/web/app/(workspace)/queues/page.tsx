@@ -13,13 +13,11 @@ import { RouteGuard } from '@/components/RouteGuard';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { DataGrid, type GridColDef } from '@mui/x-data-grid';
-import { Box } from '@mui/material';
-import { dataGridSx } from '@/lib/datagrid-theme';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
 import { EmptyState, InlineErrorState } from '@/components/feedback/AppState';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 
 interface QueueRow {
   id: string;
@@ -168,32 +166,35 @@ export default function QueuesPage() {
     loadAll();
   }, [loadAll]);
 
-  const columns: GridColDef[] = [
-    { field: 'patientCode', headerName: 'Patient Code', width: 130 },
-    { field: 'patientName', headerName: 'Patient Name', flex: 1 },
+  const columns: DataTableColumn<QueueRow>[] = [
+    { id: 'patientCode', accessorKey: 'patientCode', header: 'Patient Code' },
+    { id: 'patientName', accessorKey: 'patientName', header: 'Patient Name' },
     {
-      field: 'createdAt',
-      headerName: 'Created',
-      width: 160,
-      valueFormatter: (v) => (v ? new Date(v as string).toLocaleString() : ''),
+      id: 'createdAt',
+      accessorKey: 'createdAt',
+      header: 'Created',
+      cell: ({ getValue }) => {
+        const v = getValue() as string | number | null | undefined;
+        return v ? new Date(v as string).toLocaleString() : '';
+      },
     },
     {
-      field: 'bpStage',
-      headerName: 'BP',
-      width: 100,
-      renderCell: (params) =>
-        params.value ? <Badge variant="warning">{String(params.value)}</Badge> : null,
+      id: 'bpStage',
+      accessorKey: 'bpStage',
+      header: 'BP',
+      cell: ({ getValue }) =>
+        getValue() ? <Badge variant="warning">{String(getValue())}</Badge> : null,
     },
     {
-      field: 'glucoseFlag',
-      headerName: 'DM Flag',
-      width: 90,
-      renderCell: (params) => (params.value ? <Badge variant="destructive">Flag</Badge> : null),
+      id: 'glucoseFlag',
+      accessorKey: 'glucoseFlag',
+      header: 'DM Flag',
+      cell: ({ getValue }) => (getValue() ? <Badge variant="destructive">Flag</Badge> : null),
     },
   ];
 
-  const handleRowClick = (params: { id: unknown }) => {
-    router.push(`/encounters/${String(params.id)}`);
+  const handleRowClick = (row: { id: string }) => {
+    router.push(`/encounters/${row.id}`);
   };
 
   return (
@@ -331,8 +332,8 @@ function QueueContent({
 }: {
   rows: QueueRow[];
   loading: boolean;
-  columns: GridColDef[];
-  onRowClick: (params: { id: unknown }) => void;
+  columns: DataTableColumn<QueueRow>[];
+  onRowClick: (row: { id: string }) => void;
 }) {
   if (!loading && rows.length === 0) {
     return (
@@ -371,17 +372,16 @@ function QueueContent({
         ))}
       </div>
 
-      <Box sx={{ height: 420, width: '100%' }} className="hidden overflow-x-auto md:block">
-        <DataGrid
-          rows={rows}
+      <div className="hidden md:block">
+        <DataTable
+          caption="Encounters in this lane"
           columns={columns}
-          loading={loading}
+          data={rows}
+          isRefreshing={loading}
           onRowClick={onRowClick}
           pageSizeOptions={[10, 25]}
-          disableRowSelectionOnClick
-          sx={{ ...dataGridSx, cursor: 'pointer' }}
         />
-      </Box>
+      </div>
     </>
   );
 }

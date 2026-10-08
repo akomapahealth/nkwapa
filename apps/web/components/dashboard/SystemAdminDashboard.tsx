@@ -2,9 +2,6 @@
 
 import { useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { DataGrid, type GridColDef } from '@mui/x-data-grid';
-import { Box } from '@mui/material';
-import { dataGridSx } from '@/lib/datagrid-theme';
 import { Building2, Users, Activity, Map } from 'lucide-react';
 import { DashboardSectionHeader } from './DashboardSectionHeader';
 import { DashboardKpiCard } from './DashboardKpiCard';
@@ -28,6 +25,7 @@ import {
   type ZoneFilter,
   type ZoneSummary,
 } from '@/lib/clinic-zones';
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 
 interface ClinicComparisonRow {
   clinicId: string;
@@ -52,22 +50,22 @@ interface SystemAdminDashboardProps {
   isRefreshing?: boolean;
 }
 
-const columns: GridColDef[] = [
-  { field: 'clinicName', headerName: 'Clinic', flex: 1, minWidth: 160 },
+const columns: DataTableColumn<ClinicComparisonRow>[] = [
+  { id: 'clinicName', accessorKey: 'clinicName', header: 'Clinic' },
   {
-    field: 'zoneCode',
-    headerName: 'Zone',
-    width: 140,
-    renderCell: (params) =>
-      params.row.zoneCode ? (
-        <span className="font-mono text-xs">{params.row.zoneCode}</span>
+    id: 'zoneCode',
+    accessorKey: 'zoneCode',
+    header: 'Zone',
+    cell: ({ row: params }) =>
+      params.original.zoneCode ? (
+        <span className="font-mono text-xs">{params.original.zoneCode}</span>
       ) : (
         <span className="text-muted-foreground">{zoneLabel(null)}</span>
       ),
   },
-  { field: 'totalPatients', headerName: 'Patients', width: 120, type: 'number' },
-  { field: 'totalEncounters', headerName: 'Encounters', width: 120, type: 'number' },
-  { field: 'totalFinalized', headerName: 'Finalized', width: 120, type: 'number' },
+  { id: 'totalPatients', accessorKey: 'totalPatients', header: 'Patients' },
+  { id: 'totalEncounters', accessorKey: 'totalEncounters', header: 'Encounters' },
+  { id: 'totalFinalized', accessorKey: 'totalFinalized', header: 'Finalized' },
 ];
 
 export function SystemAdminDashboard({
@@ -243,21 +241,17 @@ export function SystemAdminDashboard({
                 ))}
               </ul>
 
-              <Box
-                sx={{ height: 400, width: '100%' }}
-                className="hidden overflow-x-auto overflow-y-hidden md:block"
-              >
-                <DataGrid
-                  rows={clinicComparison}
+              <div className="hidden overflow-y-hidden md:block">
+                <DataTable
+                  caption="Clinics compared"
                   columns={columns}
-                  loading={isRefreshing}
+                  data={clinicComparison}
                   getRowId={(row) => row.clinicId}
+                  isRefreshing={isRefreshing}
                   pageSizeOptions={[10]}
-                  disableRowSelectionOnClick
-                  initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
-                  sx={{ ...dataGridSx, minWidth: 640 }}
+                  initialPageSize={10}
                 />
-              </Box>
+              </div>
             </>
           )}
         </CardContent>

@@ -4,8 +4,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { CalendarDays, ClipboardList, RefreshCw, Stethoscope } from 'lucide-react';
-import { Box } from '@mui/material';
-import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { apiFetch } from '@/lib/api';
@@ -44,7 +42,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { dataGridSx } from '@/lib/datagrid-theme';
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 
 type StaffFilter = 'ALL' | 'ASSIGNED' | 'IN_PROGRESS' | 'COMPLETED';
 
@@ -163,55 +161,54 @@ export default function MyAssignedPage() {
     id: assignment.id,
   }));
 
-  const columns: GridColDef[] = [
+  const columns: DataTableColumn<(typeof rows)[number]>[] = [
     {
-      field: 'patientCode',
-      headerName: 'Patient',
-      minWidth: 230,
-      flex: 1,
-      valueGetter: (_, row) => `${row.patient.patientCode} · ${row.patient.displayName}`.trim(),
+      id: 'patientCode',
+      accessorKey: 'patientCode',
+      header: 'Patient',
+      accessorFn: (row) => `${row.patient.patientCode} · ${row.patient.displayName}`.trim(),
     },
     {
-      field: 'checkedInAt',
-      headerName: 'Checked In',
-      width: 160,
-      valueGetter: (_, row) => formatOpsDateTime(row.checkedInAt, timezone),
+      id: 'checkedInAt',
+      accessorKey: 'checkedInAt',
+      header: 'Checked In',
+      accessorFn: (row) => formatOpsDateTime(row.checkedInAt, timezone),
     },
     {
-      field: 'assignedRole',
-      headerName: 'My Role',
-      width: 120,
-      sortable: false,
-      renderCell: (params) => (
-        <AssignedRoleBadge role={params.row.assignedRole as 'VOLUNTEER' | 'DOCTOR'} />
+      id: 'assignedRole',
+      accessorKey: 'assignedRole',
+      header: 'My Role',
+      enableSorting: false,
+      cell: ({ row: params }) => (
+        <AssignedRoleBadge role={params.original.assignedRole as 'VOLUNTEER' | 'DOCTOR'} />
       ),
     },
     {
-      field: 'checkInStatus',
-      headerName: 'Status',
-      width: 140,
-      sortable: false,
-      renderCell: (params) => (
+      id: 'checkInStatus',
+      accessorKey: 'checkInStatus',
+      header: 'Status',
+      enableSorting: false,
+      cell: ({ row: params }) => (
         <CheckInStatusBadge
-          status={params.row.checkInStatus as MyAssignmentSummary['checkInStatus']}
+          status={params.original.checkInStatus as MyAssignmentSummary['checkInStatus']}
         />
       ),
     },
     {
-      field: 'team',
-      headerName: 'Care Team',
-      minWidth: 220,
-      flex: 1,
-      valueGetter: (_, row) =>
+      id: 'team',
+      accessorKey: 'team',
+      header: 'Care Team',
+      accessorFn: (row) =>
         `${row.assignedVolunteer.displayName} / ${row.assignedDoctor.displayName}`,
     },
     {
-      field: 'actions',
-      headerName: '',
-      width: 190,
-      sortable: false,
-      renderCell: (params) => {
-        const assignment = params.row as MyAssignmentSummary;
+      id: 'actions',
+
+      header: () => <span className="sr-only">Actions</span>,
+      enableSorting: false,
+      meta: { align: 'right' },
+      cell: ({ row: params }) => {
+        const assignment = params.original;
 
         if (assignment.assignedRole === 'VOLUNTEER') {
           if (assignment.encounterId) {
@@ -452,18 +449,15 @@ export default function MyAssignedPage() {
                     description="As soon as the manager pairs you to a patient, the case will appear here."
                   />
                 ) : (
-                  <Box sx={{ height: 460, width: '100%' }} className="overflow-x-auto">
-                    <DataGrid
-                      rows={rows}
+                  <div className="overflow-x-auto">
+                    <DataTable
+                      caption="Patients assigned to you"
                       columns={columns}
-                      disableRowSelectionOnClick
+                      data={rows}
                       pageSizeOptions={[10, 25]}
-                      initialState={{
-                        pagination: { paginationModel: { pageSize: 10 } },
-                      }}
-                      sx={dataGridSx}
+                      initialPageSize={10}
                     />
-                  </Box>
+                  </div>
                 )}
               </CardContent>
             </Card>

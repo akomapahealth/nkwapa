@@ -1,15 +1,13 @@
 'use client';
 
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { DataGrid, type GridColDef } from '@mui/x-data-grid';
-import { Box } from '@mui/material';
-import { dataGridSx } from '@/lib/datagrid-theme';
 import { ClipboardList } from 'lucide-react';
 import { DashboardSectionHeader } from './DashboardSectionHeader';
 import { DashboardKpiCard } from './DashboardKpiCard';
 import { DashboardActionRow } from './DashboardActionRow';
 import { TrendChart } from './TrendChart';
 import { DistributionChart } from './DistributionChart';
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 
 interface ReviewDashboardProps {
   awaitingReview: number;
@@ -25,15 +23,18 @@ interface ReviewDashboardProps {
   }[];
 }
 
-const columns: GridColDef[] = [
-  { field: 'patientCode', headerName: 'Patient Code', width: 140 },
-  { field: 'patientName', headerName: 'Patient Name', flex: 1 },
-  { field: 'status', headerName: 'Status', width: 120 },
+const columns: DataTableColumn<ReviewDashboardProps['recentReviews'][number]>[] = [
+  { id: 'patientCode', accessorKey: 'patientCode', header: 'Patient Code' },
+  { id: 'patientName', accessorKey: 'patientName', header: 'Patient Name' },
+  { id: 'status', accessorKey: 'status', header: 'Status' },
   {
-    field: 'createdAt',
-    headerName: 'Date',
-    width: 160,
-    valueFormatter: (v: string) => (v ? new Date(v).toLocaleDateString() : ''),
+    id: 'createdAt',
+    accessorKey: 'createdAt',
+    header: 'Date',
+    cell: ({ getValue }) => {
+      const v = getValue() as string | number | null | undefined;
+      return v ? new Date(v).toLocaleDateString() : '';
+    },
   },
 ];
 
@@ -91,18 +92,15 @@ export function ReviewDashboard({
           <DashboardActionRow
             actions={[{ href: '/queues', label: 'Open queues', icon: ClipboardList }]}
           />
-          <Box sx={{ height: 400, width: '100%' }} className="overflow-x-auto overflow-y-hidden">
-            <DataGrid
-              rows={recentReviews}
+          <div className="overflow-y-hidden">
+            <DataTable
+              caption="Recent reviews"
               columns={columns}
+              data={recentReviews}
               pageSizeOptions={[10]}
-              disableRowSelectionOnClick
-              initialState={{
-                pagination: { paginationModel: { pageSize: 10 } },
-              }}
-              sx={{ ...dataGridSx, minWidth: 620 }}
+              initialPageSize={10}
             />
-          </Box>
+          </div>
         </CardContent>
       </Card>
     </section>

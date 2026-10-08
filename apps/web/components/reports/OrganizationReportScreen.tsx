@@ -2,13 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { DataGrid, type GridColDef } from '@mui/x-data-grid';
-import { Box } from '@mui/material';
 import { Activity, Building2, ClipboardList, Users } from 'lucide-react';
 import { apiFetch, readApiError } from '@/lib/api';
 import { useAsyncResource } from '@/lib/use-async-resource';
 import { useBootstrap } from '@/lib/bootstrap-context';
-import { dataGridSx } from '@/lib/datagrid-theme';
 import type { OrganizationSummary } from '@/lib/clinic-metadata';
 import { zoneLabel } from '@/lib/clinic-zones';
 import {
@@ -35,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 
 /**
  * An organization's dashboard across all of its clinics (#13).
@@ -89,54 +87,52 @@ export function OrganizationReportScreen() {
     router.push(row.drilldown.path);
   };
 
-  const columns = useMemo<GridColDef<ClinicReportRow>[]>(
+  const columns = useMemo<DataTableColumn<ClinicReportRow>[]>(
     () => [
       {
-        field: 'clinicName',
-        headerName: 'Clinic',
-        flex: 1,
-        minWidth: 180,
-        renderCell: (params) => (
+        id: 'clinicName',
+        accessorKey: 'clinicName',
+        header: 'Clinic',
+        cell: ({ row: params }) => (
           <span className="flex items-center gap-2">
-            <span className="truncate">{params.row.clinicName}</span>
-            {params.row.isActive ? null : <Badge variant="outline">Inactive</Badge>}
+            <span className="truncate">{params.original.clinicName}</span>
+            {params.original.isActive ? null : <Badge variant="outline">Inactive</Badge>}
           </span>
         ),
       },
       {
-        field: 'zoneCode',
-        headerName: 'Zone',
-        width: 110,
-        valueGetter: (_value, row) => zoneLabel(row.zoneCode),
+        id: 'zoneCode',
+        accessorKey: 'zoneCode',
+        header: 'Zone',
+        accessorFn: (row) => zoneLabel(row.zoneCode),
       },
-      { field: 'patients', headerName: 'Patients', type: 'number', width: 100 },
-      { field: 'encounters', headerName: 'Encounters', type: 'number', width: 110 },
+      { id: 'patients', accessorKey: 'patients', header: 'Patients', width: 100 },
+      { id: 'encounters', accessorKey: 'encounters', header: 'Encounters', width: 110 },
       {
-        field: 'openWork',
-        headerName: 'Open work',
-        type: 'number',
-        width: 110,
-        valueGetter: (_value, row) => openWork(row),
+        id: 'openWork',
+        accessorKey: 'openWork',
+        header: 'Open work',
+        accessorFn: (row) => openWork(row),
       },
       {
-        field: 'hypertensionScreeningRate',
-        headerName: 'BP screened',
-        width: 160,
-        sortable: false,
-        valueGetter: (_value, row) => formatRate(row.hypertensionScreeningRate),
+        id: 'hypertensionScreeningRate',
+        accessorKey: 'hypertensionScreeningRate',
+        header: 'BP screened',
+        enableSorting: false,
+        accessorFn: (row) => formatRate(row.hypertensionScreeningRate),
       },
-      { field: 'activeStaff', headerName: 'Staff', type: 'number', width: 90 },
+      { id: 'activeStaff', accessorKey: 'activeStaff', header: 'Staff', width: 90 },
       {
-        field: 'drilldown',
-        headerName: '',
-        width: 150,
-        sortable: false,
-        renderCell: (params) => (
+        id: 'drilldown',
+        accessorKey: 'drilldown',
+        header: '',
+        enableSorting: false,
+        cell: ({ row: params }) => (
           <Button
             size="sm"
             variant="outline"
-            onClick={() => openClinic(params.row)}
-            aria-label={`Open the ${params.row.clinicName} dashboard`}
+            onClick={() => openClinic(params.original)}
+            aria-label={`Open the ${params.original.clinicName} dashboard`}
           >
             Open dashboard
           </Button>
@@ -289,18 +285,16 @@ export function OrganizationReportScreen() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <Box sx={{ width: '100%' }}>
-                        <DataGrid
-                          rows={data.clinics}
+                      <div>
+                        <DataTable
+                          caption="Clinics in this organization"
                           columns={columns}
+                          data={data.clinics}
                           getRowId={(row) => row.clinicId}
-                          autoHeight
-                          disableRowSelectionOnClick
                           pageSizeOptions={[25, 50]}
-                          initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
-                          sx={dataGridSx}
+                          initialPageSize={25}
                         />
-                      </Box>
+                      </div>
                     </CardContent>
                   </Card>
                 </div>

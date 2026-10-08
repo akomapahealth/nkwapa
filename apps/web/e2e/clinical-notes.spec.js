@@ -115,8 +115,12 @@ test('the note can be drafted from the interviews, and regenerating is safe', as
     time the button was pressed. Pressing it twice must produce the same note.
   */
   const first = await history.inputValue();
-  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Draft from the interviews' }).click();
+  // Replacing typed text asks first, in the app's own dialog rather than the browser's.
+  await page
+    .getByRole('dialog', { name: 'Replace the draft?' })
+    .getByRole('button', { name: 'Replace draft' })
+    .click();
   await expect(page.getByText(/Draft written from the interviews/i)).toBeVisible();
   expect(await history.inputValue()).toBe(first);
 
@@ -138,11 +142,13 @@ test('regenerating over an edited draft asks before discarding it', async ({ pag
   await page.getByRole('button', { name: 'Start HAP note' }).click();
   await page.getByLabel('History').fill('Typed by the clinician.');
 
-  page.once('dialog', (dialog) => {
-    expect(dialog.message()).toMatch(/will be lost/i);
-    void dialog.dismiss();
-  });
   await page.getByRole('button', { name: 'Draft from the interviews' }).click();
+  const confirm = page.getByRole('dialog', { name: 'Replace the draft?' });
+  await expect(confirm).toContainText(/is lost/i);
+  // The safe choice has focus, so a reflexive Enter keeps the typing.
+  await expect(confirm.getByRole('button', { name: 'Keep it' })).toBeFocused();
+  await confirm.getByRole('button', { name: 'Keep it' }).click();
+  await expect(confirm).toHaveCount(0);
 
   await expect(page.getByLabel('History')).toHaveValue('Typed by the clinician.');
 });

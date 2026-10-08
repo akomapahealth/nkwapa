@@ -139,7 +139,7 @@ test.describe('clinic metadata visibility', () => {
   test('shows each clinic its location code and time zone', async ({ page }) => {
     await openRegistry(page);
 
-    const grid = page.getByRole('grid');
+    const grid = page.getByRole('table');
     await expect(grid.getByText('nkwapa-clinic-demo')).toBeVisible();
     await expect(grid.getByText('Africa/Accra').first()).toBeVisible();
   });
@@ -198,7 +198,7 @@ test.describe('creating a clinic', () => {
     await submit(dialog);
 
     await expect(dialog).toBeHidden({ timeout: 15_000 });
-    await expect(page.getByRole('grid').getByText(locationCode)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('table').getByText(locationCode)).toBeVisible({ timeout: 15_000 });
   });
 });
 
@@ -237,7 +237,7 @@ test.describe('clinic zone filter', () => {
     const { locationCode, zoneCode } = await createZonedClinic(page);
 
     // The seeded clinic has no zone code, so it is the row that must disappear.
-    const grid = page.getByRole('grid');
+    const grid = page.getByRole('table');
     await expect(grid.getByText('nkwapa-clinic-demo')).toBeVisible({ timeout: 15_000 });
 
     await zoneFilter(page).click();
@@ -260,7 +260,7 @@ test.describe('clinic zone filter', () => {
     await zoneFilter(page).click();
     await page.getByRole('option', { name: /^No zone/ }).click();
 
-    const grid = page.getByRole('grid');
+    const grid = page.getByRole('table');
     await expect(grid.getByText('nkwapa-clinic-demo')).toBeVisible({ timeout: 15_000 });
     await expect(grid.getByText(locationCode)).toBeHidden();
     await expect(page.getByText('Zone: No zone')).toBeVisible();
@@ -289,7 +289,7 @@ test.describe('clinic zone filter', () => {
 
     await zoneFilter(page).click();
     await page.getByRole('option', { name: new RegExp(zoneCode) }).click();
-    await expect(page.getByRole('grid')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('table')).toBeVisible({ timeout: 15_000 });
 
     await page.getByRole('button', { name: 'Needs attention' }).click();
 

@@ -2,13 +2,10 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { DataGrid, type GridColDef } from '@mui/x-data-grid';
-import { Box } from '@mui/material';
 import { Activity, CalendarCheck, Filter, Users } from 'lucide-react';
 import { apiFetch, readApiError } from '@/lib/api';
 import { useAsyncResource } from '@/lib/use-async-resource';
 import { useBootstrap } from '@/lib/bootstrap-context';
-import { dataGridSx } from '@/lib/datagrid-theme';
 import {
   summarizeZones,
   zoneFilterFromSelect,
@@ -51,6 +48,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 
 /** The `Select` value standing for "no filter". Radix refuses an empty-string item value. */
 const ANY = '__any__';
@@ -112,52 +110,51 @@ export function OrganizationAnalyticsPanel({
     router.push(row.drilldown.path);
   };
 
-  const columns = useMemo<GridColDef<ClinicAnalyticsRow>[]>(
+  const columns = useMemo<DataTableColumn<ClinicAnalyticsRow>[]>(
     () => [
-      { field: 'clinicName', headerName: 'Clinic', flex: 1, minWidth: 180 },
+      { id: 'clinicName', accessorKey: 'clinicName', header: 'Clinic', minWidth: 180 },
       {
-        field: 'zoneCode',
-        headerName: 'Zone',
-        width: 110,
-        valueGetter: (_value, row) => zoneLabel(row.zoneCode),
+        id: 'zoneCode',
+        accessorKey: 'zoneCode',
+        header: 'Zone',
+        accessorFn: (row) => zoneLabel(row.zoneCode),
       },
-      { field: 'encounters', headerName: 'Encounters', type: 'number', width: 110 },
-      { field: 'patients', headerName: 'Patients', type: 'number', width: 100 },
+      { id: 'encounters', accessorKey: 'encounters', header: 'Encounters', width: 110 },
+      { id: 'patients', accessorKey: 'patients', header: 'Patients', width: 100 },
       {
-        field: 'finalized',
-        headerName: 'Finalized',
-        type: 'number',
-        width: 100,
-        valueGetter: (_value, row) => row.encountersByStatus.FINALIZED,
+        id: 'finalized',
+        accessorKey: 'finalized',
+        header: 'Finalized',
+        accessorFn: (row) => row.encountersByStatus.FINALIZED,
       },
-      { field: 'appointments', headerName: 'Appointments', type: 'number', width: 130 },
+      { id: 'appointments', accessorKey: 'appointments', header: 'Appointments', width: 130 },
       {
-        field: 'noShows',
-        headerName: 'No-shows',
-        type: 'number',
-        width: 100,
-        valueGetter: (_value, row) => row.appointmentsByStatus.NO_SHOW,
+        id: 'noShows',
+        accessorKey: 'noShows',
+        header: 'No-shows',
+        accessorFn: (row) => row.appointmentsByStatus.NO_SHOW,
       },
       {
-        field: 'actions',
-        headerName: '',
-        width: 250,
-        sortable: false,
-        renderCell: (params) => (
+        id: 'actions',
+
+        header: () => <span className="sr-only">Actions</span>,
+        enableSorting: false,
+        meta: { align: 'right' },
+        cell: ({ row: params }) => (
           <span className="flex items-center gap-2">
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => update({ clinicId: params.row.clinicId })}
-              aria-label={`Show only ${params.row.clinicName}`}
+              onClick={() => update({ clinicId: params.original.clinicId })}
+              aria-label={`Show only ${params.original.clinicName}`}
             >
               Only this clinic
             </Button>
             <Button
               size="sm"
               variant="outline"
-              onClick={() => openClinic(params.row)}
-              aria-label={`Open the ${params.row.clinicName} dashboard`}
+              onClick={() => openClinic(params.original)}
+              aria-label={`Open the ${params.original.clinicName} dashboard`}
             >
               Open dashboard
             </Button>
@@ -390,18 +387,16 @@ export function OrganizationAnalyticsPanel({
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Box sx={{ width: '100%' }}>
-                    <DataGrid
-                      rows={data.clinics}
+                  <div>
+                    <DataTable
+                      caption="Cohort by clinic"
                       columns={columns}
+                      data={data.clinics}
                       getRowId={(row) => row.clinicId}
-                      autoHeight
-                      disableRowSelectionOnClick
                       pageSizeOptions={[25, 50]}
-                      initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
-                      sx={dataGridSx}
+                      initialPageSize={25}
                     />
-                  </Box>
+                  </div>
                 </CardContent>
               </Card>
             </div>

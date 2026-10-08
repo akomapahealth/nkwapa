@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/dialog';
 import { ChartSectionLoading } from '@/components/patients/chart/ChartSectionState';
 import { ClinicalNoteStatusBadge } from './ClinicalNoteStatusBadge';
+import { confirmAction as askToConfirm } from '@/components/ui/confirm-dialog';
 
 const EMPTY_DRAFT = { history: '', assessment: '', plan: '' };
 
@@ -115,9 +116,12 @@ export function ClinicalNotePanel({
     );
     if (
       hasWriting &&
-      !window.confirm(
-        'This replaces the draft with text generated from the hypertension and diabetes interviews. Anything typed here will be lost. Continue?',
-      )
+      !(await askToConfirm({
+        title: 'Replace the draft?',
+        description:
+          'The draft is replaced with text generated from the hypertension and diabetes interviews. Anything typed here is lost.',
+        confirmLabel: 'Replace draft',
+      }))
     ) {
       return;
     }

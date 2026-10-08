@@ -41,6 +41,7 @@ import {
 } from '@/components/ui/select';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
+import { removeWithUndo } from '@/lib/undoable';
 
 export interface StaffInvitesCardProps {
   clinicId: string;
@@ -142,8 +143,41 @@ export function StaffInvitesCard({
     }
   };
 
+  /*
+    Cancelling is cheap to undo -- the colleague can simply be invited again -- so it does not ask
+    first. It shows as cancelled at once and is sent a few seconds later, with Undo in between.
+  */
+  const cancelWithUndo = (invite: StaffInvite) => {
+    if (!getToken) return;
+    setActionError(null);
+    setNotice(null);
+    removeWithUndo({
+      message: `Invitation to ${invite.email} cancelled`,
+      hide: () =>
+        setInvites((current) =>
+          current.map((item) =>
+            item.id === invite.id
+              ? { ...item, status: 'CANCELLED', cancelledAt: new Date().toISOString() }
+              : item,
+          ),
+        ),
+      restore: () =>
+        setInvites((current) => current.map((item) => (item.id === invite.id ? invite : item))),
+      commit: async () => {
+        await cancelStaffInvite(clinicId, invite.id, getToken);
+        await load();
+        onChanged?.();
+      },
+      failureMessage: `The invitation to ${invite.email} could not be cancelled, so it is still open.`,
+    });
+  };
+
   const act = async (invite: StaffInvite, action: 'resend' | 'cancel') => {
     if (!getToken) return;
+    if (action === 'cancel') {
+      cancelWithUndo(invite);
+      return;
+    }
     setBusy({ inviteId: invite.id, action });
     setActionError(null);
     try {

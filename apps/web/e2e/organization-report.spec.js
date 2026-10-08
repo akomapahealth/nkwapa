@@ -17,7 +17,7 @@ test.describe('as a system admin', () => {
     });
     await expect(page.getByText('Encounters per day')).toBeVisible({ timeout: 30_000 });
 
-    const grid = page.getByRole('grid');
+    const grid = page.getByRole('table');
     await expect(grid.getByText('Nkwapa Clinic - Demo')).toBeVisible();
     // The page says what a rate rests on, not only the percentage.
     await expect(page.getByText(/Blood pressure screened/)).toBeVisible();

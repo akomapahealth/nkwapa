@@ -2,8 +2,6 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { Building2, MapPinned, Map, ShieldAlert } from 'lucide-react';
-import { Box } from '@mui/material';
-import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
@@ -25,7 +23,6 @@ import { SectionSkeleton } from '@/components/feedback/AppState';
 import { ApiError, apiFetch, readApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useAsyncResource } from '@/lib/use-async-resource';
-import { dataGridSx } from '@/lib/datagrid-theme';
 import {
   listZoneCodes,
   zoneFilterFromSelect,
@@ -63,6 +60,7 @@ import {
   type OrganizationSummary,
 } from '@/lib/clinic-metadata';
 import { ClinicMetadataDialog, type ClinicDialogMode } from './ClinicMetadataDialog';
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 
 const FILTER_OPTIONS = [
   { value: 'all' as const, label: 'All clinics' },
@@ -254,21 +252,21 @@ export function ClinicRegistryScreen() {
     }
   };
 
-  const columns: GridColDef<ClinicRow>[] = useMemo(
+  const columns: DataTableColumn<ClinicRow>[] = useMemo(
     () => [
-      { field: 'name', headerName: 'Name', flex: 1, minWidth: 170 },
+      { id: 'name', accessorKey: 'name', header: 'Name', minWidth: 170 },
       {
-        field: 'organization',
-        headerName: 'Organization',
-        minWidth: 170,
-        sortable: false,
-        valueGetter: (_value, row) => row.organization?.name ?? '',
-        renderCell: (params) =>
-          params.row.organization ? (
+        id: 'organization',
+        accessorKey: 'organization',
+        header: 'Organization',
+        enableSorting: false,
+        accessorFn: (row) => row.organization?.name ?? '',
+        cell: ({ row: params }) =>
+          params.original.organization ? (
             <span className="flex min-w-0 flex-col leading-tight">
-              <span className="truncate">{params.row.organization.name}</span>
+              <span className="truncate">{params.original.organization.name}</span>
               <span className="truncate font-mono text-xs text-muted-foreground">
-                {params.row.organization.slug}
+                {params.original.organization.slug}
               </span>
             </span>
           ) : (
@@ -276,55 +274,56 @@ export function ClinicRegistryScreen() {
           ),
       },
       {
-        field: 'locationCode',
-        headerName: 'Location code',
-        width: 170,
-        renderCell: (params) =>
-          params.row.locationCode ? (
-            <span className="font-mono text-xs">{params.row.locationCode}</span>
+        id: 'locationCode',
+        accessorKey: 'locationCode',
+        header: 'Location code',
+        cell: ({ row: params }) =>
+          params.original.locationCode ? (
+            <span className="font-mono text-xs">{params.original.locationCode}</span>
           ) : (
             <span className="text-muted-foreground">Not set</span>
           ),
       },
-      { field: 'timezone', headerName: 'Time zone', width: 160 },
+      { id: 'timezone', accessorKey: 'timezone', header: 'Time zone', width: 160 },
       {
-        field: 'zoneCode',
-        headerName: 'Zone',
-        width: 130,
-        renderCell: (params) =>
-          params.row.zoneCode ? (
-            <span className="font-mono text-xs">{params.row.zoneCode}</span>
+        id: 'zoneCode',
+        accessorKey: 'zoneCode',
+        header: 'Zone',
+        cell: ({ row: params }) =>
+          params.original.zoneCode ? (
+            <span className="font-mono text-xs">{params.original.zoneCode}</span>
           ) : (
             <span className="text-muted-foreground">{zoneLabel(null)}</span>
           ),
       },
       {
-        field: 'isActive',
-        headerName: 'Status',
-        width: 110,
-        renderCell: (params) => (
-          <Badge variant={params.row.isActive ? 'finalized' : 'destructive'}>
-            {params.row.isActive ? 'Active' : 'Inactive'}
+        id: 'isActive',
+        accessorKey: 'isActive',
+        header: 'Status',
+        cell: ({ row: params }) => (
+          <Badge variant={params.original.isActive ? 'finalized' : 'destructive'}>
+            {params.original.isActive ? 'Active' : 'Inactive'}
           </Badge>
         ),
       },
       {
-        field: 'metadataIssues',
-        headerName: 'Metadata',
-        width: 200,
-        sortable: false,
-        renderCell: (params) => <MetadataBadges clinic={params.row} />,
+        id: 'metadataIssues',
+        accessorKey: 'metadataIssues',
+        header: 'Metadata',
+        enableSorting: false,
+        cell: ({ row: params }) => <MetadataBadges clinic={params.original} />,
       },
       {
-        field: 'actions',
-        headerName: '',
-        width: 100,
-        sortable: false,
-        renderCell: (params) => (
+        id: 'actions',
+
+        header: () => <span className="sr-only">Actions</span>,
+        enableSorting: false,
+        meta: { align: 'right' },
+        cell: ({ row: params }) => (
           <Button
             variant="outline"
             size="sm"
-            onClick={() => openEdit(params.row, headlineIssue(params.row)?.field)}
+            onClick={() => openEdit(params.original, headlineIssue(params.original)?.field)}
           >
             Edit
           </Button>
@@ -568,18 +567,15 @@ export function ClinicRegistryScreen() {
                     ))}
                   </div>
 
-                  <Box
-                    sx={{ height: 520, width: '100%' }}
-                    className="hidden overflow-x-auto md:block"
-                  >
-                    <DataGrid
-                      rows={visibleRows}
+                  <div className="hidden md:block">
+                    <DataTable
+                      caption="Clinics"
                       columns={columns}
-                      loading={clinics.isRefreshing}
+                      data={visibleRows}
                       getRowId={(row) => row.id}
-                      sx={dataGridSx}
+                      isRefreshing={clinics.isRefreshing}
                     />
-                  </Box>
+                  </div>
                 </>
               )
             }

@@ -31,7 +31,7 @@ test.describe('as a system admin', () => {
     await expect(page.getByRole('combobox', { name: 'Encounter status' })).toBeVisible({
       timeout: 30_000,
     });
-    await expect(page.getByRole('grid').getByText('Nkwapa Clinic - Demo')).toBeVisible();
+    await expect(page.getByRole('table').getByText('Nkwapa Clinic - Demo')).toBeVisible();
   });
 
   test('the analytics agree with themselves: clinic rows add up to the totals', async () => {

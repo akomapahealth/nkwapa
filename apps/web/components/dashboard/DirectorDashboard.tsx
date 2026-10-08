@@ -3,12 +3,10 @@
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { TrendChart } from './TrendChart';
 import { DistributionChart } from './DistributionChart';
-import { DataGrid, type GridColDef } from '@mui/x-data-grid';
-import { Box } from '@mui/material';
-import { dataGridSx } from '@/lib/datagrid-theme';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { DashboardSectionHeader } from './DashboardSectionHeader';
 import { DashboardKpiCard } from './DashboardKpiCard';
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 
 interface StaffActivityRow {
   userId: string;
@@ -29,20 +27,18 @@ interface DirectorDashboardProps {
   pendingClinicalNoteCosigns?: number;
 }
 
-const staffColumns: GridColDef[] = [
-  { field: 'displayName', headerName: 'Staff Name', flex: 1 },
-  { field: 'role', headerName: 'Role', width: 130 },
+const staffColumns: DataTableColumn<StaffActivityRow>[] = [
+  { id: 'displayName', accessorKey: 'displayName', header: 'Staff Name' },
+  { id: 'role', accessorKey: 'role', header: 'Role' },
   {
-    field: 'encountersCreated',
-    headerName: 'Created',
-    width: 100,
-    type: 'number',
+    id: 'encountersCreated',
+    accessorKey: 'encountersCreated',
+    header: 'Created',
   },
   {
-    field: 'encountersFinalized',
-    headerName: 'Finalized',
-    width: 100,
-    type: 'number',
+    id: 'encountersFinalized',
+    accessorKey: 'encountersFinalized',
+    header: 'Finalized',
   },
 ];
 
@@ -120,19 +116,16 @@ export function DirectorDashboard({
           <CardTitle className="text-sm font-medium">Staff activity summary</CardTitle>
         </CardHeader>
         <CardContent>
-          <Box sx={{ height: 400, width: '100%' }} className="overflow-x-auto overflow-y-hidden">
-            <DataGrid
-              rows={staffActivity}
+          <div className="overflow-y-hidden">
+            <DataTable
+              caption="Staff activity"
               columns={staffColumns}
+              data={staffActivity}
               getRowId={(row) => row.userId}
               pageSizeOptions={[10]}
-              disableRowSelectionOnClick
-              initialState={{
-                pagination: { paginationModel: { pageSize: 10 } },
-              }}
-              sx={{ ...dataGridSx, minWidth: 560 }}
+              initialPageSize={10}
             />
-          </Box>
+          </div>
         </CardContent>
       </Card>
     </section>
