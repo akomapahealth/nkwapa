@@ -55,11 +55,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // time this mounts, and the effect below reconciles React's state with it.
   const [preference, setPreferenceState] = useState<ThemePreference>('system');
   const [theme, setTheme] = useState<ResolvedTheme>('light');
+  // False until the stored preference has been read. Until then `theme` is only the server
+  // default, and applying it would undo the boot script: effects in the first commit run before
+  // the state they set, so the page flashed light right after hydration for anyone on dark.
+  const [resolved, setResolved] = useState(false);
 
   useEffect(() => {
     const stored = readStoredPreference();
     setPreferenceState(stored);
     setTheme(stored === 'system' ? systemTheme() : stored);
+    setResolved(true);
   }, []);
 
   // Only follow the OS while the user has not made an explicit choice.
@@ -72,8 +77,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [preference]);
 
   useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
+    if (resolved) applyTheme(theme);
+  }, [resolved, theme]);
 
   const setPreference = useCallback((next: ThemePreference) => {
     setPreferenceState(next);
