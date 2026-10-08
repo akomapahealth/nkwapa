@@ -200,6 +200,60 @@ test('a patient moves through every station and reaches a doctor', async ({ page
   expect(encounter.json().diabetesScreening).toMatchObject({ glucoseMgDl: 210 });
   expect((await complete('volunteer', clinicId, anthropometry.at.visit.id)).ok()).toBeTruthy();
 
+  // Eye station, through the UI: acuity, the penlight and ophthalmoscopy tables, a referral.
+  const eye = await claimNext('volunteer', clinicId, checkInId);
+  expect(eye.at.station.kind).toBe('EYE');
+  const eyeContext = await browser.newContext({ storageState: storageStateFor('volunteer') });
+  const eyePage = await eyeContext.newPage();
+  await eyePage.goto(`/stations/visits/${eye.at.visit.id}`);
+  await expect(eyePage.getByRole('button', { name: 'Save eye examination' })).toBeVisible({
+    timeout: 20_000,
+  });
+  await eyePage.getByLabel('Right eye (OD), unaided').click();
+  await eyePage.getByRole('option', { name: '6/18 (20/60)' }).click();
+  await eyePage.getByLabel('Left eye (OS), unaided').click();
+  await eyePage.getByRole('option', { name: '6/6 (20/20)' }).click();
+  await eyePage.getByLabel('Right eye (OD), pinhole').click();
+  await eyePage.getByRole('option', { name: '6/9 (20/30)' }).click();
+  // One button per table, penlight then ophthalmoscopy. Locators wait, unlike .all(), which
+  // would read the page while the closing dropdown still hides it from the accessibility tree.
+  const markRestNormal = eyePage.getByRole('button', { name: 'Mark the rest normal' });
+  await markRestNormal.nth(0).click();
+  await markRestNormal.nth(1).click();
+  await eyePage
+    .getByRole('group', { name: 'Macula, Left eye (OS)' })
+    .getByRole('button', { name: 'Abnormal' })
+    .click();
+  await eyePage.getByLabel('What was seen: Macula, Left eye (OS)').fill('Hard exudates');
+  await eyePage.getByLabel('Signs of diabetes seen').click();
+  await eyePage.getByLabel('Refer to an eye specialist').click();
+  await eyePage.getByLabel('Referral note').fill('Fundus review for diabetic retinopathy');
+  await eyePage.getByRole('button', { name: 'Save eye examination' }).click();
+  await expect(eyePage.getByText('Eye examination saved.')).toBeVisible({ timeout: 20_000 });
+  await eyeContext.close();
+  const eyeRecord = await apiRequestAs(
+    'doctor',
+    'get',
+    `/clinics/${clinicId}/encounters/${encounterId}/eye-screening`,
+    { clinicId },
+  );
+  expect(eyeRecord.json().record).toMatchObject({
+    vaOdUnaided: '6/18',
+    vaOsUnaided: '6/6',
+    vaOdPinhole: '6/9',
+    diabeticSignsSeen: true,
+    referralRecommended: true,
+  });
+  // 13 structures for each eye, every one recorded.
+  expect(eyeRecord.json().record.findings).toHaveLength(26);
+  expect(eyeRecord.json().record.findings).toContainEqual({
+    eye: 'OS',
+    structure: 'MACULA',
+    result: 'ABNORMAL',
+    note: 'Hard exudates',
+  });
+  expect((await complete('volunteer', clinicId, eye.at.visit.id)).ok()).toBeTruthy();
+
   // Review: no session completes without counselling.
   const review = await claimNext('volunteer', clinicId, checkInId);
   expect(review.at.station.kind).toBe('REVIEW');
@@ -258,6 +312,10 @@ test('a patient moves through every station and reaches a doctor', async ({ page
   });
   await expect(doctorPage.getByText('150/95 mmHg')).toBeVisible();
   await expect(doctorPage.getByText('BP high, recheck at review.')).toBeVisible();
+  await expect(doctorPage.getByText('OD 6/9 · OS 6/6')).toBeVisible();
+  await expect(
+    doctorPage.getByText('1 abnormal finding · diabetic signs · referral recommended'),
+  ).toBeVisible();
   await expect(doctorPage.getByText(/recommended follow-up\s+within 1 month/)).toBeVisible();
   await doctorContext.close();
 });
