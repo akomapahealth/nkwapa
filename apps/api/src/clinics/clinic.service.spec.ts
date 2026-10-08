@@ -53,6 +53,7 @@ describe('ClinicService.create', () => {
       'BLOOD_PRESSURE',
       'GLUCOSE',
       'ANTHROPOMETRY',
+      'EYE',
       'REVIEW',
     ]);
     expect(data.every((station: { clinicId: string }) => station.clinicId === 'clinic-1')).toBe(

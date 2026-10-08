@@ -9,6 +9,7 @@ export type StationKindValue =
   | 'BLOOD_PRESSURE'
   | 'GLUCOSE'
   | 'ANTHROPOMETRY'
+  | 'EYE'
   | 'REVIEW'
   | 'CUSTOM';
 
@@ -21,7 +22,8 @@ export const DEFAULT_CLINIC_STATIONS: ReadonlyArray<{
   { kind: 'BLOOD_PRESSURE', name: 'Blood pressure', sortOrder: 2 },
   { kind: 'GLUCOSE', name: 'Glucose testing', sortOrder: 3 },
   { kind: 'ANTHROPOMETRY', name: 'Anthropometry', sortOrder: 4 },
-  { kind: 'REVIEW', name: 'Counselling and clinical review', sortOrder: 5 },
+  { kind: 'EYE', name: 'Eye station', sortOrder: 5 },
+  { kind: 'REVIEW', name: 'Counselling and clinical review', sortOrder: 6 },
 ];
 
 export const STATION_KIND_LABELS: Record<StationKindValue, string> = {
@@ -29,6 +31,7 @@ export const STATION_KIND_LABELS: Record<StationKindValue, string> = {
   BLOOD_PRESSURE: 'Blood pressure',
   GLUCOSE: 'Glucose',
   ANTHROPOMETRY: 'Anthropometry',
+  EYE: 'Eye',
   REVIEW: 'Counselling and review',
   CUSTOM: 'Other',
 };

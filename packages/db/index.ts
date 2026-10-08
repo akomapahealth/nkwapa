@@ -14,6 +14,30 @@ export {
   nextStationId,
   type StationKindValue,
 } from './src/clinic-stations';
+export {
+  CUP_DISC_RATIO_MAX,
+  CUP_DISC_RATIO_MIN,
+  EXTERNAL_EYE_STRUCTURES,
+  EYE_FINDING_RESULTS,
+  EYE_LABELS,
+  EYE_STRUCTURE_LABELS,
+  EYE_STRUCTURES,
+  EYES,
+  INTERNAL_EYE_STRUCTURES,
+  REDUCED_VISION_THRESHOLD,
+  VISION_LOSS_CAUSE_LABELS,
+  VISION_LOSS_CAUSES,
+  VISUAL_ACUITY_LABELS,
+  VISUAL_ACUITY_VALUES,
+  bestAcuity,
+  isReducedVision,
+  isVisualAcuity,
+  type Eye,
+  type EyeFindingResult,
+  type EyeStructure,
+  type VisionLossCause,
+  type VisualAcuity,
+} from './src/eye-screening';
 export { normalizePhoneToE164 } from './src/phone';
 export {
   computeBmi,

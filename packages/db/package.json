@@ -37,6 +37,10 @@
       "types": "./dist/src/clinical-measurements.d.ts",
       "default": "./dist/src/clinical-measurements.js"
     },
+    "./eye-screening": {
+      "types": "./dist/src/eye-screening.d.ts",
+      "default": "./dist/src/eye-screening.js"
+    },
     "./diabetes-screening": {
       "types": "./dist/src/diabetes-screening.d.ts",
       "default": "./dist/src/diabetes-screening.js"
