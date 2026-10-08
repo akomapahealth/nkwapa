@@ -1,5 +1,6 @@
 const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
+const AxeBuilder = require('@axe-core/playwright').default;
 
 const { apiRequestAs } = require('../playwright/api-client');
 const { storageStateFor } = require('../playwright/roles');
@@ -289,4 +290,139 @@ test('manager assignment is refused while the station line runs', async ({ page 
   );
   expect(left.ok(), left.text()).toBeTruthy();
   expect(await boardVisit('staff', clinicId, checkIn.json().id)).toBeNull();
+});
+
+test.describe('station flow metrics on the dashboard (#24)', () => {
+  test('show wait and service time from real visits, to managers only', async ({ page }) => {
+    const patient = await createPatient(page);
+    const { clinicId } = patient;
+    await ensureShift('staff', clinicId);
+    const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+      clinicId,
+      data: { patientId: patient.patientId },
+    });
+    expect(checkIn.ok(), checkIn.text()).toBeTruthy();
+    const first = await claimNext('staff', clinicId, checkIn.json().id);
+    expect((await complete('staff', clinicId, first.at.visit.id)).ok()).toBeTruthy();
+
+    const metrics = await apiRequestAs('staff', 'get', `/clinics/${clinicId}/stations/metrics`, {
+      clinicId,
+    });
+    expect(metrics.ok(), metrics.text()).toBeTruthy();
+    const body = metrics.json();
+    expect(body.live).toBe(true);
+    expect(body.checkIns.total).toBeGreaterThanOrEqual(1);
+    const intake = body.stations.find((station) => station.kind === 'INTAKE');
+    expect(intake.seen).toBeGreaterThanOrEqual(1);
+    expect(intake.wait.n).toBeGreaterThanOrEqual(1);
+    // Aggregates only: the patient is nowhere in it.
+    expect(JSON.stringify(body)).not.toContain(patient.patientId);
+    expect(JSON.stringify(body)).not.toContain(checkIn.json().id);
+
+    // A volunteer works the line but does not run it.
+    const volunteer = await apiRequestAs(
+      'volunteer',
+      'get',
+      `/clinics/${clinicId}/stations/metrics`,
+      {
+        clinicId,
+      },
+    );
+    expect(volunteer.status()).toBe(403);
+
+    await page.goto('/dashboard');
+    await expect(page.getByRole('heading', { name: 'Station flow' })).toBeVisible({
+      timeout: 20_000,
+    });
+    const table = page.getByTestId('station-flow-table');
+    await expect(table.getByRole('rowheader', { name: new RegExp(intake.name) })).toBeVisible();
+  });
+
+  for (const theme of ['light', 'dark']) {
+    test(`the station flow section is accessible (${theme})`, async ({ page }, testInfo) => {
+      await page.addInitScript(
+        (value) => window.localStorage.setItem('nkwapa-theme', value),
+        theme,
+      );
+      await page.goto('/dashboard');
+      const section = page.locator('section[aria-labelledby="station-flow-heading"]');
+      await expect(section.getByRole('heading', { name: 'Station flow' })).toBeVisible({
+        timeout: 20_000,
+      });
+      await page.waitForLoadState('networkidle');
+      const results = await new AxeBuilder({ page })
+        .include('section[aria-labelledby="station-flow-heading"]')
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+      await section.screenshot({ path: testInfo.outputPath(`station-flow-${theme}.png`) });
+    });
+  }
+});
+
+test('a manager hands a waiting patient to a volunteer on shift', async ({ page }) => {
+  const patient = await createPatient(page);
+  const { clinicId } = patient;
+  const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+    clinicId,
+    data: { patientId: patient.patientId },
+  });
+  expect(checkIn.ok(), checkIn.text()).toBeTruthy();
+  const checkInId = checkIn.json().id;
+  await ensureShift('volunteer', clinicId);
+  const volunteer = (await apiRequestAs('volunteer', 'get', '/auth/whoami', { clinicId })).json();
+  const waiting = await boardVisit('staff', clinicId, checkInId);
+
+  // The board offers the volunteer, and a volunteer cannot hand patients out.
+  const board = (
+    await apiRequestAs('staff', 'get', `/clinics/${clinicId}/stations/board`, { clinicId })
+  ).json();
+  expect(board.onShift.map((member) => member.user.id)).toContain(volunteer.userId);
+  const refused = await apiRequestAs(
+    'volunteer',
+    'post',
+    `/clinics/${clinicId}/station-visits/${waiting.visit.id}/assign`,
+    { clinicId, data: { assigneeUserId: volunteer.userId } },
+  );
+  expect(refused.status()).toBe(403);
+
+  const assigned = await apiRequestAs(
+    'staff',
+    'post',
+    `/clinics/${clinicId}/station-visits/${waiting.visit.id}/assign`,
+    { clinicId, data: { assigneeUserId: volunteer.userId } },
+  );
+  expect(assigned.ok(), assigned.text()).toBeTruthy();
+  expect(assigned.json()).toMatchObject({
+    status: 'IN_PROGRESS',
+    claimedBy: { id: volunteer.userId },
+    assignedBy: { id: expect.any(String) },
+  });
+
+  // The volunteer now holds the patient, exactly as if they had claimed them.
+  const held = await boardVisit('volunteer', clinicId, checkInId);
+  expect(held.visit.claimedBy.id).toBe(volunteer.userId);
+  const again = await apiRequestAs(
+    'staff',
+    'post',
+    `/clinics/${clinicId}/station-visits/${waiting.visit.id}/assign`,
+    { clinicId, data: { assigneeUserId: randomUUID() } },
+  );
+  expect(again.status()).toBe(400);
+
+  await page.goto('/today');
+  await expect(
+    page.getByText(`Assigned by ${assigned.json().assignedBy.displayName}`),
+  ).toBeVisible();
+
+  const left = await apiRequestAs(
+    'staff',
+    'post',
+    `/clinics/${clinicId}/checkins/${checkInId}/cancel`,
+    {
+      clinicId,
+      data: { reason: 'Test finished' },
+    },
+  );
+  expect(left.ok(), left.text()).toBeTruthy();
 });

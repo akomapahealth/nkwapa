@@ -47,6 +47,8 @@ export interface StationVisit {
   queuedAt: string;
   claimedBy: StaffSummary | null;
   claimedAt: string | null;
+  /** The manager who handed the patient to `claimedBy`; null when they took the patient themselves. */
+  assignedBy?: StaffSummary | null;
   completedBy: StaffSummary | null;
   completedAt: string | null;
   handoffNote: string | null;
@@ -64,6 +66,15 @@ export interface StationBoard {
   date: string;
   timezone: string;
   stations: Array<ClinicStation & { staff: StaffSummary[]; visits: StationVisit[] }>;
+  /** Everyone on shift. Absent from a board saved on this device before managers could assign. */
+  onShift?: OnShiftStaff[];
+}
+
+export interface OnShiftStaff {
+  user: StaffSummary;
+  roleAtShift: 'VOLUNTEER' | 'DOCTOR' | 'MANAGER';
+  stationId: string | null;
+  activeVisitCount: number;
 }
 
 export interface StationVisitDetail extends StationVisit {
@@ -132,6 +143,61 @@ export const fetchStationBoard = (
     signal,
   });
 
+export interface DurationSummary {
+  n: number;
+  medianMinutes: number | null;
+  p90Minutes: number | null;
+}
+
+/** Wait-time and throughput for one clinic day (#24). Aggregates only. */
+export interface StationMetrics {
+  date: string;
+  timezone: string;
+  live: boolean;
+  lowVolume: boolean;
+  checkIns: { total: number; completed: number; leftEarly: number; inClinicNow: number };
+  timeInClinic: DurationSummary;
+  stations: Array<{
+    stationId: string;
+    name: string;
+    kind: StationKind;
+    active: boolean;
+    seen: number;
+    skipped: number;
+    wait: DurationSummary;
+    service: DurationSummary;
+    releases: number;
+    waitingNow: number | null;
+    longestCurrentWaitMinutes: number | null;
+    staffNow: number | null;
+  }>;
+  bottleneckStationId: string | null;
+  hourly: Array<{ hour: string; checkedIn: number; completed: number }>;
+  staffing: { onShiftNow: number | null };
+}
+
+/** With no date, the server answers for today in the clinic's own timezone. */
+export const fetchStationMetrics = (
+  clinicId: string,
+  date: string | null,
+  getToken: GetToken,
+  signal?: AbortSignal,
+) =>
+  request<StationMetrics>(
+    clinicId,
+    `/stations/metrics${date ? `?date=${encodeURIComponent(date)}` : ''}`,
+    getToken,
+    { signal },
+  );
+
+/** "12 min", "1 h 05 min", or an en dash when nothing was measured. */
+export function formatMinutes(minutes: number | null | undefined): string {
+  if (minutes == null) return '–';
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours} h ${String(minutes % 60).padStart(2, '0')} min`;
+}
+
 export const fetchStations = (clinicId: string, getToken: GetToken) =>
   request<{ items: ClinicStation[] }>(clinicId, '/stations', getToken);
 
@@ -157,6 +223,20 @@ export const claimStationVisit = (clinicId: string, visitId: string, getToken: G
     {
       method: 'POST',
     },
+  );
+
+/** Manager hands a waiting patient to a named person on shift. */
+export const assignStationVisit = (
+  clinicId: string,
+  visitId: string,
+  assigneeUserId: string,
+  getToken: GetToken,
+) =>
+  request<StationVisit>(
+    clinicId,
+    `/station-visits/${encodeURIComponent(visitId)}/assign`,
+    getToken,
+    { method: 'POST', body: { assigneeUserId } },
   );
 
 export const releaseStationVisit = (
@@ -229,6 +309,22 @@ export const cancelCheckIn = (
     getToken,
     { method: 'POST', body: { reason } },
   );
+
+/**
+ * Who a manager can hand a patient at `stationId` to: the people working that station first,
+ * then everyone else on shift, each group with the least busy first.
+ */
+export function assignableStaff(
+  onShift: readonly OnShiftStaff[],
+  stationId: string,
+): { atStation: OnShiftStaff[]; elsewhere: OnShiftStaff[] } {
+  const byLoad = (a: OnShiftStaff, b: OnShiftStaff) =>
+    a.activeVisitCount - b.activeVisitCount || a.user.displayName.localeCompare(b.user.displayName);
+  return {
+    atStation: onShift.filter((s) => s.stationId === stationId).sort(byLoad),
+    elsewhere: onShift.filter((s) => s.stationId !== stationId).sort(byLoad),
+  };
+}
 
 /**
  * The station a patient goes to next if the volunteer changes nothing: the next active station in

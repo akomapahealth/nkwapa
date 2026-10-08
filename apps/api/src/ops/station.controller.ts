@@ -23,6 +23,7 @@ import { hasPermissionAtClinic } from '../auth/clinic-roles';
 import { isApiFeatureEnabled } from '../common/feature-flags';
 import { StationService, type StationActor } from './station.service';
 import {
+  AssignStationVisitDto,
   CompleteStationVisitDto,
   CreateStationDto,
   MoveCheckInDto,
@@ -108,6 +109,15 @@ export class StationController {
     );
   }
 
+  /** Wait-time and throughput for one clinic day (#24). For the people who run the line. */
+  @Get('stations/metrics')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.OPS_STATION_MANAGE)
+  metrics(@Param('clinicId') clinicId: string, @Query() query: StationDayQueryDto) {
+    this.assertEnabled();
+    return this.stationService.getMetrics(clinicId, query.date);
+  }
+
   @Get('stations/board')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.OPS_STATION_READ)
@@ -175,6 +185,26 @@ export class StationController {
   ) {
     this.assertEnabled();
     return this.stationService.claim(clinicId, visitId, this.actor(req, clinicId), this.ctx(req));
+  }
+
+  /** Manager hands a waiting patient to a named person on shift. */
+  @Post('station-visits/:visitId/assign')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.OPS_STATION_MANAGE)
+  assign(
+    @Param('clinicId') clinicId: string,
+    @Param('visitId', ParseUUIDPipe) visitId: string,
+    @Body() body: AssignStationVisitDto,
+    @Request() req: StationRequest,
+  ) {
+    this.assertEnabled();
+    return this.stationService.assign(
+      clinicId,
+      visitId,
+      body.assigneeUserId,
+      this.actor(req, clinicId),
+      this.ctx(req),
+    );
   }
 
   @Post('station-visits/:visitId/release')

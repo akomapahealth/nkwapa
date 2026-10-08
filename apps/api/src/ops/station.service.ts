@@ -16,7 +16,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService, type LogWriteParams } from '../audit/audit.service';
 import { isUniqueViolation } from '../common/prisma-errors';
 import { lockForTransaction } from '../prisma/transaction-lock';
+import { hasPermissionAtClinic } from '../auth/clinic-roles';
+import { PERMISSIONS } from '../auth/constants/permissions';
 import { createDraftEncounter } from './draft-encounter';
+import { computeStationMetrics } from './station-metrics';
 import type {
   CompleteStationVisitDto,
   CreateStationDto,
@@ -34,6 +37,7 @@ const USER_SUMMARY = { select: { id: true, displayName: true } } as const;
 const VISIT_INCLUDE = {
   station: { select: { id: true, kind: true, name: true, sortOrder: true } },
   claimedBy: USER_SUMMARY,
+  assignedBy: USER_SUMMARY,
   completedBy: USER_SUMMARY,
   patientCheckIn: {
     select: {
@@ -283,11 +287,18 @@ export class StationService {
         orderBy: { queuedAt: 'asc' },
       }),
       this.prisma.staffShift.findMany({
-        where: { clinicId, status: 'ACTIVE', stationId: { not: null } },
-        select: { stationId: true, user: USER_SUMMARY },
+        where: { clinicId, status: 'ACTIVE' },
+        select: { stationId: true, roleAtShift: true, user: USER_SUMMARY },
+        orderBy: { checkedInAt: 'asc' },
       }),
     ]);
     const previous = await this.previousVisits(visits.map((visit) => visit.patientCheckInId));
+    const holding = new Map<string, number>();
+    for (const visit of visits) {
+      if (visit.status === 'IN_PROGRESS' && visit.claimedByUserId) {
+        holding.set(visit.claimedByUserId, (holding.get(visit.claimedByUserId) ?? 0) + 1);
+      }
+    }
 
     return {
       date: day.date,
@@ -301,7 +312,55 @@ export class StationService {
           .filter((visit) => visit.stationId === station.id)
           .map((visit) => this.toVisit(visit, previous.get(visit.patientCheckInId))),
       })),
+      // Everyone a manager could hand a patient to, and how many patients each is holding now.
+      onShift: myShifts.map((shift) => ({
+        user: shift.user,
+        roleAtShift: shift.roleAtShift,
+        stationId: shift.stationId,
+        activeVisitCount: holding.get(shift.user.id) ?? 0,
+      })),
     };
+  }
+
+  /**
+   * Wait-time and throughput for one clinic day (#24): every check-in that day, its station
+   * visits, and the shifts that overlapped it. Aggregated in `computeStationMetrics`; nothing
+   * that names a patient is read.
+   */
+  async getMetrics(clinicId: string, date?: string, now: Date = new Date()) {
+    const day = await this.dayWindow(clinicId, date);
+    const inDay = { gte: day.start, lte: day.end };
+    const [stations, checkIns, visits, shifts] = await Promise.all([
+      this.prisma.clinicStation.findMany({
+        where: { clinicId },
+        select: { id: true, name: true, kind: true, sortOrder: true, active: true },
+      }),
+      this.prisma.patientCheckIn.findMany({
+        where: { clinicId, checkedInAt: inDay },
+        select: { id: true, checkedInAt: true, status: true },
+      }),
+      this.prisma.patientStationVisit.findMany({
+        where: { clinicId, patientCheckIn: { checkedInAt: inDay } },
+        select: {
+          stationId: true,
+          patientCheckInId: true,
+          status: true,
+          queuedAt: true,
+          claimedAt: true,
+          completedAt: true,
+          releaseCount: true,
+        },
+      }),
+      this.prisma.staffShift.findMany({
+        where: {
+          clinicId,
+          checkedInAt: { lte: day.end },
+          OR: [{ checkedOutAt: null }, { checkedOutAt: { gte: day.start } }],
+        },
+        select: { userId: true, stationId: true, status: true },
+      }),
+    ]);
+    return computeStationMetrics({ day, now, stations, checkIns, visits, shifts });
   }
 
   async getVisit(clinicId: string, visitId: string) {
@@ -390,81 +449,36 @@ export class StationService {
     context: StationWriteContext = {},
   ) {
     await this.requireActiveShift(clinicId, actor.userId);
-    const visit = await this.prisma.$transaction(async (tx) => {
-      const now = new Date();
-      const claimed = await tx.patientStationVisit.updateMany({
-        where: { id: visitId, clinicId, status: 'QUEUED' },
-        data: { status: 'IN_PROGRESS', claimedByUserId: actor.userId, claimedAt: now },
-      });
-      if (claimed.count === 0) {
-        const current = await tx.patientStationVisit.findUnique({
-          where: { id: visitId },
-          include: { claimedBy: USER_SUMMARY },
-        });
-        if (!current || current.clinicId !== clinicId) throw this.visitNotFound();
-        if (current.status === 'IN_PROGRESS' && current.claimedByUserId === actor.userId) {
-          // A repeated tap. The caller already holds this patient.
-          return this.loadVisit(tx, visitId);
-        }
-        if (current.status === 'IN_PROGRESS') {
-          throw new ConflictException({
-            code: 'STATION_VISIT_ALREADY_CLAIMED',
-            message: `${current.claimedBy?.displayName ?? 'Someone'} has already taken this patient.`,
-            claimedBy: current.claimedBy,
-          });
-        }
-        throw this.visitClosed(current.status);
-      }
+    const visit = await this.prisma.$transaction((tx) =>
+      this.claimInTx(tx, clinicId, visitId, actor.userId, actor.userId, context),
+    );
+    return this.toVisit(visit);
+  }
 
-      const claimedVisit = await tx.patientStationVisit.findUniqueOrThrow({
-        where: { id: visitId },
-        select: { patientCheckInId: true },
-      });
-      const checkIn = await tx.patientCheckIn.findUniqueOrThrow({
-        where: { id: claimedVisit.patientCheckInId },
-      });
-      let encounterId = checkIn.encounterId;
-      if (!encounterId) {
-        const encounter = await createDraftEncounter(tx, {
-          clinicId,
-          patientId: checkIn.patientId,
-          createdByUserId: actor.userId,
-        });
-        encounterId = encounter.id;
-        await tx.patientCheckIn.update({
-          where: { id: checkIn.id },
-          data: { encounterId, status: 'IN_PROGRESS' },
-        });
-        await this.audit(tx, clinicId, actor.userId, context, {
-          action: 'ENCOUNTER.CREATE',
-          entityType: 'Encounter',
-          entityId: encounter.id,
-          afterJson: JSON.stringify(encounter),
-        });
-        await this.audit(tx, clinicId, actor.userId, context, {
-          action: 'CHECKIN.STATUS.UPDATE',
-          entityType: 'PatientCheckIn',
-          entityId: checkIn.id,
-          beforeJson: JSON.stringify({ status: checkIn.status, encounterId: null }),
-          afterJson: JSON.stringify({ status: 'IN_PROGRESS', encounterId }),
-        });
-      } else if (checkIn.status === 'WAITING') {
-        await tx.patientCheckIn.update({
-          where: { id: checkIn.id },
-          data: { status: 'IN_PROGRESS' },
-        });
-      }
-      await tx.patientStationVisit.update({ where: { id: visitId }, data: { encounterId } });
-
-      const updated = await this.loadVisit(tx, visitId);
-      await this.audit(tx, clinicId, actor.userId, context, {
-        action: 'STATION.CLAIM',
-        entityType: 'PatientStationVisit',
-        entityId: visitId,
-        afterJson: JSON.stringify(this.auditShape(updated)),
-      });
-      return updated;
-    });
+  /**
+   * Manager override: hand a waiting patient to a named person on shift, so the patient does not
+   * wait for someone to notice them.
+   *
+   * This is the same claim a volunteer makes for themselves, only made on their behalf, so it
+   * races a self-claim exactly as two self-claims race each other: whichever update reaches the
+   * QUEUED row first wins and the other is told who has the patient. An assignee who is already
+   * with someone is allowed; the board shows how many patients each person holds, and a doctor
+   * reviewing several at once is normal.
+   */
+  async assign(
+    clinicId: string,
+    visitId: string,
+    assigneeUserId: string,
+    actor: StationActor,
+    context: StationWriteContext = {},
+  ) {
+    this.requireManage(actor);
+    await this.requireAssignableStaff(clinicId, assigneeUserId);
+    const visit = await this.prisma.$transaction((tx) =>
+      this.claimInTx(tx, clinicId, visitId, assigneeUserId, actor.userId, context, {
+        assignedByUserId: actor.userId,
+      }),
+    );
     return this.toVisit(visit);
   }
 
@@ -489,6 +503,7 @@ export class StationService {
           status: 'QUEUED',
           claimedByUserId: null,
           claimedAt: null,
+          assignedByUserId: null,
           endReason: reason,
           releaseCount: { increment: 1 },
         },
@@ -765,6 +780,7 @@ export class StationService {
           status: 'QUEUED',
           claimedByUserId: null,
           claimedAt: null,
+          assignedByUserId: null,
           endReason: 'SHIFT_ENDED',
           releaseCount: { increment: 1 },
         },
@@ -780,6 +796,103 @@ export class StationService {
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Take a QUEUED visit for `claimantUserId`.
+   *
+   * The update only applies while the visit is still QUEUED, which is the whole race: the second
+   * of two simultaneous claims changes no row and is told who got there first. The first claim of
+   * a check-in also opens its encounter, so every station after it records into the same one.
+   */
+  private async claimInTx(
+    tx: TxClient,
+    clinicId: string,
+    visitId: string,
+    claimantUserId: string,
+    actorUserId: string,
+    context: StationWriteContext,
+    options: { assignedByUserId?: string } = {},
+  ) {
+    const now = new Date();
+    const assignedByUserId = options.assignedByUserId ?? null;
+    const claimed = await tx.patientStationVisit.updateMany({
+      where: { id: visitId, clinicId, status: 'QUEUED' },
+      data: {
+        status: 'IN_PROGRESS',
+        claimedByUserId: claimantUserId,
+        claimedAt: now,
+        assignedByUserId,
+      },
+    });
+    if (claimed.count === 0) {
+      const current = await tx.patientStationVisit.findUnique({
+        where: { id: visitId },
+        include: { claimedBy: USER_SUMMARY },
+      });
+      if (!current || current.clinicId !== clinicId) throw this.visitNotFound();
+      if (current.status === 'IN_PROGRESS' && current.claimedByUserId === claimantUserId) {
+        // A repeated tap. The claimant already holds this patient.
+        return this.loadVisit(tx, visitId);
+      }
+      if (current.status === 'IN_PROGRESS') {
+        throw new ConflictException({
+          code: 'STATION_VISIT_ALREADY_CLAIMED',
+          message: `${current.claimedBy?.displayName ?? 'Someone'} has already taken this patient.`,
+          claimedBy: current.claimedBy,
+        });
+      }
+      throw this.visitClosed(current.status);
+    }
+
+    const claimedVisit = await tx.patientStationVisit.findUniqueOrThrow({
+      where: { id: visitId },
+      select: { patientCheckInId: true },
+    });
+    const checkIn = await tx.patientCheckIn.findUniqueOrThrow({
+      where: { id: claimedVisit.patientCheckInId },
+    });
+    let encounterId = checkIn.encounterId;
+    if (!encounterId) {
+      const encounter = await createDraftEncounter(tx, {
+        clinicId,
+        patientId: checkIn.patientId,
+        createdByUserId: claimantUserId,
+      });
+      encounterId = encounter.id;
+      await tx.patientCheckIn.update({
+        where: { id: checkIn.id },
+        data: { encounterId, status: 'IN_PROGRESS' },
+      });
+      await this.audit(tx, clinicId, actorUserId, context, {
+        action: 'ENCOUNTER.CREATE',
+        entityType: 'Encounter',
+        entityId: encounter.id,
+        afterJson: JSON.stringify(encounter),
+      });
+      await this.audit(tx, clinicId, actorUserId, context, {
+        action: 'CHECKIN.STATUS.UPDATE',
+        entityType: 'PatientCheckIn',
+        entityId: checkIn.id,
+        beforeJson: JSON.stringify({ status: checkIn.status, encounterId: null }),
+        afterJson: JSON.stringify({ status: 'IN_PROGRESS', encounterId }),
+      });
+    } else if (checkIn.status === 'WAITING') {
+      await tx.patientCheckIn.update({
+        where: { id: checkIn.id },
+        data: { status: 'IN_PROGRESS' },
+      });
+    }
+    await tx.patientStationVisit.update({ where: { id: visitId }, data: { encounterId } });
+
+    const updated = await this.loadVisit(tx, visitId);
+    await this.audit(tx, clinicId, actorUserId, context, {
+      action: assignedByUserId ? 'STATION.ASSIGN' : 'STATION.CLAIM',
+      entityType: 'PatientStationVisit',
+      entityId: visitId,
+      afterJson: JSON.stringify(this.auditShape(updated)),
+    });
+    return updated;
+  }
 
   private async completeSession(
     tx: TxClient,
@@ -921,6 +1034,42 @@ export class StationService {
     }
   }
 
+  /**
+   * Someone a manager can hand a patient to: an active account that works stations at this clinic
+   * and is on shift here now. Checked against the assignee's own roles, never the manager's.
+   */
+  private async requireAssignableStaff(clinicId: string, userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        isActive: true,
+        clinicRoles: {
+          where: { OR: [{ clinicId }, { clinicId: null }] },
+          select: { clinicId: true, role: true },
+        },
+      },
+    });
+    if (
+      !user?.isActive ||
+      !hasPermissionAtClinic(user.clinicRoles, clinicId, PERMISSIONS.OPS_STATION_WORK)
+    ) {
+      throw new BadRequestException({
+        code: 'ASSIGNEE_NOT_STATION_STAFF',
+        message: 'That person does not work the station line at this clinic.',
+      });
+    }
+    const shift = await this.prisma.staffShift.findFirst({
+      where: { clinicId, userId, status: 'ACTIVE' },
+      select: { id: true },
+    });
+    if (!shift) {
+      throw new ConflictException({
+        code: 'ASSIGNEE_NOT_ON_SHIFT',
+        message: 'That person has not started a shift, so they cannot take a patient yet.',
+      });
+    }
+  }
+
   private requireManage(actor: StationActor) {
     if (!actor.canManage) {
       throw new ForbiddenException('OPS.STATION.MANAGE permission is required');
@@ -955,6 +1104,7 @@ export class StationService {
       stationId: visit.stationId,
       status: visit.status,
       claimedByUserId: visit.claimedByUserId,
+      assignedByUserId: visit.assignedByUserId,
       completedByUserId: visit.completedByUserId,
       encounterId: visit.encounterId,
       endReason: visit.endReason,
@@ -997,6 +1147,7 @@ export class StationService {
       queuedAt: visit.queuedAt.toISOString(),
       claimedBy: visit.claimedBy,
       claimedAt: visit.claimedAt?.toISOString() ?? null,
+      assignedBy: visit.assignedBy,
       completedBy: visit.completedBy,
       completedAt: visit.completedAt?.toISOString() ?? null,
       handoffNote: visit.handoffNote,

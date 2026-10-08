@@ -10,9 +10,15 @@ import {
   useState,
 } from 'react';
 import { db } from '@/lib/db';
-import { setOutboxClinicNames, setOutboxOwner } from '@/lib/outbox';
+import { onOutboxChange, setOutboxClinicNames, setOutboxOwner } from '@/lib/outbox';
 import { purgePortalCacheExcept } from '@/lib/portal-cache';
-import { syncNow, onSyncStatusChange, type SyncResult, type SyncStatus } from '@/lib/sync';
+import {
+  syncNow,
+  syncQueuedChange,
+  onSyncStatusChange,
+  type SyncResult,
+  type SyncStatus,
+} from '@/lib/sync';
 import { automaticSyncRetryDelay } from '@/lib/sync-retry';
 
 interface SyncContextValue {
@@ -150,6 +156,27 @@ export function ServiceWorkerAndSyncProvider({
     if (!isOnline || !activeClinicId || !currentUserId) return;
     void doSyncNow(activeClinicId);
   }, [activeClinicId, currentUserId, doSyncNow, isOnline]);
+
+  /*
+    Send what was just queued at this clinic. Many forms queue a change and leave the sending to
+    whatever syncs next; when nothing else was about to, the change sat until a reload. Deferred a
+    tick so a form that syncs straight after queueing starts its own pass first, which this joins.
+  */
+  useEffect(() => {
+    if (!isOnline || !activeClinicId || !currentUserId) return;
+    let timer: number | undefined;
+    const unsubscribe = onOutboxChange((clinicId) => {
+      if (clinicId !== activeClinicId) return;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        syncQueuedChange({ clinicId, currentUserId, getAccessToken });
+      }, 0);
+    });
+    return () => {
+      unsubscribe();
+      window.clearTimeout(timer);
+    };
+  }, [activeClinicId, currentUserId, getAccessToken, isOnline]);
 
   /*
     Follow a failed or partly refused pass with another, backing off, so the queue drains on its
