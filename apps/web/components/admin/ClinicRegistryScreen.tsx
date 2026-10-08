@@ -344,7 +344,7 @@ export function ClinicRegistryScreen() {
         actions={<Button onClick={openCreate}>Create clinic</Button>}
       />
 
-      <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
+      <AppMetricGroup label="Clinic metadata summary" className="sm:grid-cols-2 xl:grid-cols-4">
         <AppMetricCard
           title="Total clinics"
           value={rows.length}
