@@ -275,3 +275,27 @@ describe('PatientRepository - canonical chart redirects', () => {
     });
   });
 });
+
+describe('patientRegistryOrderBy', () => {
+  // Imported lazily so this block does not depend on the suite's own setup above.
+  const { patientRegistryOrderBy } = jest.requireActual('./patient.repository');
+
+  it('defaults to most recently updated first, as the registry always has', () => {
+    expect(patientRegistryOrderBy(undefined)).toEqual([{ updatedAt: 'desc' }, { id: 'desc' }]);
+  });
+
+  it('sorts by surname then first name, in the direction asked', () => {
+    expect(patientRegistryOrderBy({ field: 'name', direction: 'asc' })).toEqual([
+      { lastName: 'asc' },
+      { firstName: 'asc' },
+      { id: 'asc' },
+    ]);
+  });
+
+  it('always ends on id, so equal values cannot swap places between pages', () => {
+    for (const field of ['updatedAt', 'name', 'patientCode'] as const) {
+      const order = patientRegistryOrderBy({ field, direction: 'desc' });
+      expect(order[order.length - 1]).toEqual({ id: 'desc' });
+    }
+  });
+});

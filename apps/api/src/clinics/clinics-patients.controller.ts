@@ -101,6 +101,7 @@ export class ClinicsPatientsController {
       {
         cursor: query.cursor,
         limit: query.limit,
+        sort: query.sortBy ? { field: query.sortBy, direction: query.sortDir ?? 'asc' } : undefined,
         location: {
           residentialRegion: query.residentialRegion,
           residentialDistrict: query.residentialDistrict,

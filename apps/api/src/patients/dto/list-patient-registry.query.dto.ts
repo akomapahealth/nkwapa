@@ -1,5 +1,6 @@
 import { GhanaRegion, PatientLocationStatus } from '@prisma/client';
-import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsEnum, IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { PATIENT_REGISTRY_SORT_FIELDS, type PatientRegistrySortField } from '../patient.repository';
 import { ToCursor, ToOptionalNumber, ToSanitizedString } from '../../common/validation';
 
 export class ListPatientRegistryQueryDto {
@@ -35,6 +36,14 @@ export class ListPatientRegistryQueryDto {
   @Min(1)
   @Max(100)
   pageSize?: number;
+
+  @IsOptional()
+  @IsIn([...PATIENT_REGISTRY_SORT_FIELDS])
+  sortBy?: PatientRegistrySortField;
+
+  @IsOptional()
+  @IsIn(['asc', 'desc'])
+  sortDir?: 'asc' | 'desc';
 
   @IsOptional()
   @ToCursor()

@@ -388,7 +388,7 @@ The serif heading is deliberate. It separates headings from data at a glance, wh
 | Minimum interactive target | 44px                    |
 | Breakpoints                | 375 / 768 / 1024 / 1440 |
 
-Both row heights are set by `dataGridSx` in `lib/datagrid-theme.ts`, which every grid in the product consumes. It also makes the numerals tabular and sticks the column headers, because a roster that runs past a viewport is unreadable once its headers scroll away.
+Both row heights are set by `DataTable` (`components/ui/data-table.tsx`, TanStack Table v9), and by `dataGridSx` in `lib/datagrid-theme.ts` for the MUI grids not yet migrated to it. Row actions are real buttons in a right-aligned final column, one primary at most, so they line up down the column. It also makes the numerals tabular and sticks the column headers, because a roster that runs past a viewport is unreadable once its headers scroll away.
 
 The 44px floor is enforced in the primitives rather than per call site: `Button`, `Input`, `Select` and its menu rows, `Tabs` triggers, and the two help triggers. Where the glyph must stay small — a help icon, a toast dismiss — the target is a centred pseudo-element rather than a `min-height` on the visible box. `.touch-target` set `min-height`/`min-width` on the element itself, which silently overrode every size a call site asked for and pushed metric-card headers around by 20px.
 
@@ -400,28 +400,28 @@ Focus rings are `ring-2 ring-ring` everywhere. They were `ring-1` on form contro
 
 Shared primitives live in `apps/web/components/app-shell/` and `apps/web/components/ui/`. **Do not build a second family of any of these.**
 
-| Need                            | Use                                                 | Do not                                    |
-| ------------------------------- | --------------------------------------------------- | ----------------------------------------- |
-| Page title, actions, context    | `AppPageHeader`                                     | Hand-rolled `<h1>` + hero section         |
-| KPI / metric                    | `AppMetricCard`                                     | Bespoke stat card                         |
-| Form grouping                   | `FormSectionCard`                                   | Bare `<Card>` with a heading              |
-| A field's error                 | `FieldError` + `fieldErrorProps`                    | A bare `<p className="text-destructive">` |
-| A required field                | `RequiredMark` + one `RequiredLegend` per form      | An asterisk baked into the label string   |
-| A form-level message            | `InlineNotice`                                      | A `<div>` with no role                    |
-| Refresh in progress             | `ResourceState`'s own indicator                     | A control that resizes when it goes busy  |
-| One read's five states          | `ResourceState` + `useAsyncResource`                | A hand-rolled `useState` triple           |
-| Loading                         | `SectionSkeleton` / `PageSkeleton`                  | A spinner in the middle of content        |
-| Nothing here yet                | `EmptyState`                                        | A dashed div with a paragraph             |
-| Failed, can retry               | `InlineErrorState`                                  | A red box with no way forward             |
-| Not allowed                     | `NoAccessState`                                     | An error state wearing red                |
-| No clinic chosen                | `SelectClinicState`, or `RouteGuard requiresClinic` | "Select a clinic to …" in a `<p>`         |
-| Contextual help                 | `InfoHint`                                          | A second tooltip system                   |
-| Help that must actually be read | `ProgressiveHelp`                                   | Hiding it in a bubble                     |
-| Filter summary                  | `ActiveFilterSummary`                               | Inline filter chips                       |
-| View switching                  | `SegmentedControl`                                  | Bare button group                         |
-| Uppercase micro-label           | `.text-eyebrow`                                     | Another `tracking-[0.Nem]` value          |
-| Data table                      | `dataGridSx` from `lib/datagrid-theme`              | Restyling the grid at the call site       |
-| Choosing from a very long list  | `Combobox`                                          | A `Select` with hundreds of options       |
+| Need                            | Use                                                                                 | Do not                                     |
+| ------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------ |
+| Page title, actions, context    | `AppPageHeader`                                                                     | Hand-rolled `<h1>` + hero section          |
+| KPI / metric                    | `AppMetricCard`                                                                     | Bespoke stat card                          |
+| Form grouping                   | `FormSectionCard`                                                                   | Bare `<Card>` with a heading               |
+| A field's error                 | `FieldError` + `fieldErrorProps`                                                    | A bare `<p className="text-destructive">`  |
+| A required field                | `RequiredMark` + one `RequiredLegend` per form                                      | An asterisk baked into the label string    |
+| A form-level message            | `InlineNotice`                                                                      | A `<div>` with no role                     |
+| Refresh in progress             | `ResourceState`'s own indicator                                                     | A control that resizes when it goes busy   |
+| One read's five states          | `ResourceState` + `useAsyncResource`                                                | A hand-rolled `useState` triple            |
+| Loading                         | `SectionSkeleton` / `PageSkeleton`                                                  | A spinner in the middle of content         |
+| Nothing here yet                | `EmptyState`                                                                        | A dashed div with a paragraph              |
+| Failed, can retry               | `InlineErrorState`                                                                  | A red box with no way forward              |
+| Not allowed                     | `NoAccessState`                                                                     | An error state wearing red                 |
+| No clinic chosen                | `SelectClinicState`, or `RouteGuard requiresClinic`                                 | "Select a clinic to …" in a `<p>`          |
+| Contextual help                 | `InfoHint`                                                                          | A second tooltip system                    |
+| Help that must actually be read | `ProgressiveHelp`                                                                   | Hiding it in a bubble                      |
+| Filter summary                  | `ActiveFilterSummary`                                                               | Inline filter chips                        |
+| View switching                  | `SegmentedControl`                                                                  | Bare button group                          |
+| Uppercase micro-label           | `.text-eyebrow`                                                                     | Another `tracking-[0.Nem]` value           |
+| Data table                      | `DataTable` from `components/ui/data-table` (`dataGridSx` until a grid is migrated) | A hand-rolled `<table>` or a restyled grid |
+| Choosing from a very long list  | `Combobox`                                                                          | A `Select` with hundreds of options        |
 
 ### The combobox, and when it is not the answer
 
