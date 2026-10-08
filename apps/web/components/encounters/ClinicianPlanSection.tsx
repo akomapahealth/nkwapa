@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { liveQuery } from 'dexie';
 import {
   FOLLOW_UP_OWNERS,
   FOLLOW_UP_OWNER_LABELS,
@@ -16,6 +17,16 @@ import { apiFetch, getErrorMessage, readApiError } from '@/lib/api';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { useAuth } from '@/lib/auth-context';
 import { useSeededFormValues } from '@/lib/use-seeded-form-values';
+import { useBootstrap } from '@/lib/bootstrap-context';
+import { db } from '@/lib/db';
+import {
+  conditionForEndpoint,
+  isQueuedPlanFor,
+  queueSealedClinicianPlan,
+  readCachedSealKey,
+  refreshSealKey,
+} from '@/lib/clinician-plan-offline';
+import type { ClinicianPlanSealKey } from '@nkwapa/db/clinician-plan-seal';
 import {
   ChoiceQuestion,
   MultiChoiceQuestion,
@@ -70,11 +81,11 @@ export function clinicianPlanFromRecord(
  * The API refuses the route independently; this is the convenience half of that boundary, not the
  * boundary itself.
  *
- * Unlike the rest of the interview this saves online only. The plan is not an offline entity type:
- * `SYNC.PUSH` is held by four roles, and the repo's precedent -- a finalize that a replay cannot
- * perform, a clinical note that never leaves the server -- is that a clinician's deliberate,
- * audited act stays online. That is a real constraint on a doctor working without signal, recorded
- * on #114 rather than hidden.
+ * Online, it saves straight to the server. Offline (#131), a doctor's device seals the plan to the
+ * server's public key and queues the sealed copy: the device keeps nothing that opens it, so it is
+ * never readable here -- not in devtools, not by the doctor's own later session -- and the server
+ * opens it only for this clinic, encounter, condition and doctor. The section says which of the
+ * two happened. A device that has never fetched the key while online cannot queue, and says so.
  */
 export function ClinicianPlanSection({
   clinicId,
@@ -119,6 +130,39 @@ export function ClinicianPlanSection({
   const [message, setMessage] = useState<string | null>(null);
   const { isOnline, syncNow } = useSync();
   const getToken = useAuth();
+  const userId = useBootstrap()?.bootstrap?.userId ?? null;
+  const condition = conditionForEndpoint(endpoint);
+  const [sealKey, setSealKey] = useState<ClinicianPlanSealKey | null>(null);
+  const [queuedCount, setQueuedCount] = useState(0);
+
+  // Keep the server's key on this device while online, so the doctor can still queue without it.
+  useEffect(() => {
+    if (!canEdit || !condition) return;
+    setSealKey(readCachedSealKey());
+    if (!isOnline || !getToken) return;
+    let current = true;
+    refreshSealKey(clinicId, getToken)
+      .then((key) => current && setSealKey(key))
+      .catch(() => undefined);
+    return () => {
+      current = false;
+    };
+  }, [canEdit, condition, isOnline, getToken, clinicId]);
+
+  // A plan this doctor queued for this encounter, still waiting for signal.
+  useEffect(() => {
+    if (!canEdit || !condition || !userId) return;
+    const subscription = liveQuery(() =>
+      db.outbox.where('clinicId').equals(clinicId).toArray(),
+    ).subscribe({
+      next: (rows) =>
+        setQueuedCount(
+          rows.filter((row) => isQueuedPlanFor(row, { encounterId, condition, userId })).length,
+        ),
+      error: () => setQueuedCount(0),
+    });
+    return () => subscription.unsubscribe();
+  }, [canEdit, condition, userId, clinicId, encounterId]);
 
   const update = useCallback(
     <K extends keyof ClinicianPlanValues>(key: K, value: ClinicianPlanValues[K]) => {
@@ -127,13 +171,47 @@ export function ClinicianPlanSection({
     [setValues],
   );
 
-  const disabled = !canEdit || saving || !isOnline || !getToken;
+  const canQueue = Boolean(sealKey && condition && userId);
+  const disabled = !canEdit || saving || !getToken || (!isOnline && !canQueue);
 
   const handleSave = useCallback(async () => {
     if (disabled) return;
     setSaving(true);
     setError(null);
     setMessage(null);
+    const text = (raw: string) => raw.trim() || null;
+    const plan = {
+      clinicianPlanItems: values.clinicianPlanItems,
+      clinicianPlanOther: values.clinicianPlanItems.includes('OTHER')
+        ? text(values.clinicianPlanOther)
+        : null,
+      followUpWindow: values.followUpWindow,
+      followUpOther: values.followUpWindow === 'OTHER' ? text(values.followUpOther) : null,
+      followUpOwner: values.followUpOwner,
+      clinicianComments: text(values.clinicianComments),
+      ...(extraFields?.toPayload() ?? {}),
+    };
+    if (!isOnline) {
+      try {
+        if (!sealKey || !condition || !userId) throw new Error('This device cannot queue a plan.');
+        await queueSealedClinicianPlan({
+          key: sealKey,
+          clinicId,
+          encounterId,
+          condition,
+          authorUserId: userId,
+          plan,
+        });
+        setMessage(
+          'Queued on this device, not saved yet. It is sealed so this device cannot read it back, and it is sent when the connection returns.',
+        );
+      } catch (caught) {
+        setError(getErrorMessage(caught, 'Unable to queue the plan.'));
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
     try {
       /*
         Flush the outbox before writing the plan.
@@ -146,24 +224,13 @@ export function ClinicianPlanSection({
       */
       await syncNow(clinicId);
 
-      const text = (raw: string) => raw.trim() || null;
       const response = await apiFetch(
         `/clinics/${encodeURIComponent(clinicId)}/encounters/${encodeURIComponent(encounterId)}/${endpoint}/clinician-plan`,
         {
           getToken,
           activeClinicId: clinicId,
           method: 'PUT',
-          body: JSON.stringify({
-            clinicianPlanItems: values.clinicianPlanItems,
-            clinicianPlanOther: values.clinicianPlanItems.includes('OTHER')
-              ? text(values.clinicianPlanOther)
-              : null,
-            followUpWindow: values.followUpWindow,
-            followUpOther: values.followUpWindow === 'OTHER' ? text(values.followUpOther) : null,
-            followUpOwner: values.followUpOwner,
-            clinicianComments: text(values.clinicianComments),
-            ...(extraFields?.toPayload() ?? {}),
-          }),
+          body: JSON.stringify(plan),
         },
       );
       if (!response.ok) throw await readApiError(response);
@@ -174,7 +241,21 @@ export function ClinicianPlanSection({
     } finally {
       setSaving(false);
     }
-  }, [disabled, clinicId, encounterId, endpoint, values, extraFields, onSaved, syncNow, getToken]);
+  }, [
+    disabled,
+    clinicId,
+    encounterId,
+    endpoint,
+    values,
+    extraFields,
+    onSaved,
+    syncNow,
+    getToken,
+    isOnline,
+    sealKey,
+    condition,
+    userId,
+  ]);
 
   const q = (id: string) => ({ id: `${idPrefix}-${id}`, disabled });
 
@@ -184,10 +265,24 @@ export function ClinicianPlanSection({
       titleAs="h2"
       description="Recorded by the supervising clinician."
     >
-      {!isOnline ? (
-        <InlineNotice tone="warning">
-          A clinician plan is recorded online. This section is unavailable until the connection
-          returns; the rest of the interview continues to save on this device.
+      {!isOnline && canEdit ? (
+        canQueue ? (
+          <InlineNotice tone="warning">
+            No connection. Saving seals the plan so this device cannot read it, and queues it to
+            send when the connection returns. It is not saved until then.
+          </InlineNotice>
+        ) : (
+          <InlineNotice tone="warning">
+            A clinician plan can only be queued on a device that has been online since you signed
+            in. This section is unavailable until the connection returns; the rest of the interview
+            continues to save on this device.
+          </InlineNotice>
+        )
+      ) : null}
+      {queuedCount > 0 ? (
+        <InlineNotice tone="info" live={false}>
+          A plan you recorded offline for this visit is waiting to be sent. It is sealed, so it
+          cannot be shown here. Saving again once online sends the queued plan first, then this one.
         </InlineNotice>
       ) : null}
 
@@ -268,7 +363,7 @@ export function ClinicianPlanSection({
 
       {canEdit ? (
         <Button onClick={() => void handleSave()} disabled={disabled}>
-          {saving ? 'Saving…' : 'Save plan'}
+          {saving ? 'Saving…' : isOnline ? 'Save plan' : 'Queue plan'}
         </Button>
       ) : (
         <p className="text-sm text-muted-foreground">This plan is read-only.</p>

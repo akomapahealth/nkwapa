@@ -273,16 +273,38 @@ routes use. Before this change hypertension had no REST module at all and was wr
 inline, unvalidated upsert in the sync handler, so a payload naming a classification outside the
 enum was accepted.
 
-**The clinician plan is online-only**, and says so when the connection drops rather than failing
-quietly. `SYNC.PUSH` is held by four roles, and the precedent here — a finalize a replay cannot
-perform, a clinical note that never leaves the server — is that a clinician's deliberate, audited
-act stays online. This is a real constraint on a doctor working without signal and is tracked on
-issue #114 rather than hidden.
+**The clinician plan is sealed when it is queued** (#131). Online, it saves straight to the server.
+Offline, a doctor's device seals it to the server's public key and queues the sealed copy as a
+`clinician_plan` mutation. The boundary the pull projection protects holds from the other direction:
 
-Because the interview writes through the outbox and the plan writes over REST, saving a plan first
-flushes the queue. Otherwise a clinician who completed the interview and moved straight to the plan
-would be refused by a server that had not seen the screening yet, and the refusal would read as the
-plan being rejected rather than as a queue that had not drained.
+- **Never readable on the device.** The browser encrypts the plan with a fresh AES-256-GCM key and
+  wraps that key with the server's RSA-OAEP (SHA-256) public key. Nothing that opens it is kept, so
+  neither devtools nor the doctor's own later session can read a queued plan back. Only routing is
+  in the clear: the encounter, the condition, and when the doctor decided. The shared code is
+  `packages/db/src/clinician-plan-seal.ts`, the browser half, which the API's tests also seal with.
+- **Opened only for its context.** The clinic, encounter, condition and author are the GCM
+  additional authenticated data. The server checks the author against the account pushing the
+  change, so a plan cannot be moved to another visit or replayed by anyone else. That failure is
+  `SEALED_PLAN_UNREADABLE`, terminal.
+- **The same checks as online.** `clinician_plan` needs `CAREPLAN.CLINICIAN_PLAN`, doctor only. The
+  opened plan goes through the route's own DTO and `upsertClinicianPlan`, which refuses a finalized
+  encounter and resolves the follow-up window to `CarePlan.followUpDate` in the same transaction.
+  The window counts from when the doctor decided. The server believes the device's time back to 30
+  days, but never a time in the future.
+- **Ordered after the screening.** The outbox sends oldest first, so the interview queued before the
+  plan arrives before it. A plan that arrives first is refused as `RECORD_NOT_FOUND` and retried.
+  Saving a plan online still flushes the queue first, so a plan queued earlier never overwrites a
+  newer one saved online.
+- **Owned.** The queued plan is the doctor's (#162): another account on the same laptop sees that a
+  sealed plan is waiting and can discard it, but can never send it or read it.
+- **Honest.** The section says "Queued on this device, not saved yet" until the server confirms. A
+  device that has never been online since sign-in has no key and cannot queue; it says so.
+
+Keys live in `CLINICIAN_PLAN_SEAL_PRIVATE_KEY` and `CLINICIAN_PLAN_SEAL_KEY_ID` (PKCS#8 PEM, or the
+PEM base64-encoded). During a rotation the old pair stays as `CLINICIAN_PLAN_SEAL_PREVIOUS_*`, so
+plans sealed before it still open. In production with no key, the plan is online-only, as before.
+Outside production the API generates a key at boot, and plans queued against it do not survive a
+restart.
 
 ## Feature flags and rollout
 
