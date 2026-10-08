@@ -177,6 +177,11 @@ export function StationFlowDashboard({ clinicId }: { clinicId: string }) {
               <span className="font-semibold">Longest wait: {bottleneck.name}.</span> Half of the{' '}
               {bottleneck.wait.n} patients waited {formatMinutes(bottleneck.wait.medianMinutes)} or
               more to be taken, and 1 in 10 waited over {formatMinutes(bottleneck.wait.p90Minutes)}.
+              {metrics.bottleneckConstraint === 'CAPACITY'
+                ? ` At its busiest every place there was in use (${bottleneck.peakInUse} of ${bottleneck.capacity}), so the wait was for space or equipment, not just staff.`
+                : metrics.bottleneckConstraint === 'STAFFING'
+                  ? ` It never filled (at most ${bottleneck.peakInUse} of ${bottleneck.capacity} places in use), so the wait was for someone to take them.`
+                  : ''}
             </p>
           ) : null}
 
@@ -203,6 +208,9 @@ export function StationFlowDashboard({ clinicId }: { clinicId: string }) {
                     </th>
                     <th scope="col" className="py-2 pr-3 text-right font-medium">
                       Median time with patient
+                    </th>
+                    <th scope="col" className="py-2 pr-3 text-right font-medium">
+                      Busiest, of capacity
                     </th>
                     {metrics.live ? (
                       <>
@@ -248,6 +256,11 @@ export function StationFlowDashboard({ clinicId }: { clinicId: string }) {
                         </td>
                         <td className="py-2 pr-3 text-right">
                           {formatMinutes(station.service.medianMinutes)}
+                        </td>
+                        <td className="py-2 pr-3 text-right">
+                          {station.capacity
+                            ? `${station.peakInUse ?? 0} of ${station.capacity}`
+                            : '–'}
                         </td>
                         {metrics.live ? (
                           <>

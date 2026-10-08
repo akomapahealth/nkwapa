@@ -1,6 +1,7 @@
 import {
   assignableStaff,
   formatMinutes,
+  moveStation,
   minutesSince,
   stationsPassedOver,
   suggestedNextStation,
@@ -55,6 +56,18 @@ describe('formatMinutes', () => {
     expect(formatMinutes(45)).toBe('45 min');
     expect(formatMinutes(65)).toBe('1 h 05 min');
     expect(formatMinutes(null)).toBe('–');
+  });
+});
+
+describe('moveStation (#32)', () => {
+  const order = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+  it('swaps a station with its neighbour', () => {
+    expect(moveStation(order, 'b', -1)).toEqual(['b', 'a', 'c']);
+    expect(moveStation(order, 'b', 1)).toEqual(['a', 'c', 'b']);
+  });
+  it('leaves the order alone at either end', () => {
+    expect(moveStation(order, 'a', -1)).toEqual(['a', 'b', 'c']);
+    expect(moveStation(order, 'c', 1)).toEqual(['a', 'b', 'c']);
   });
 });
 

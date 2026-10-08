@@ -112,6 +112,7 @@ export class StationService {
             clinicId,
             kind: dto.kind,
             name: dto.name,
+            capacity: dto.capacity ?? 1,
             sortOrder: (last?.sortOrder ?? 0) + 1,
           },
         });
@@ -165,6 +166,7 @@ export class StationService {
           data: {
             ...(dto.name !== undefined ? { name: dto.name } : {}),
             ...(dto.active !== undefined ? { active: dto.active } : {}),
+            ...(dto.capacity !== undefined ? { capacity: dto.capacity } : {}),
           },
         });
         await this.audit(tx, clinicId, actor.userId, context, {
@@ -305,6 +307,10 @@ export class StationService {
       timezone: day.timezone,
       stations: stations.map((station) => ({
         ...this.toStation(station),
+        // Patients being seen now, against how many the station can see at once (#32).
+        inUse: visits.filter(
+          (visit) => visit.stationId === station.id && visit.status === 'IN_PROGRESS',
+        ).length,
         staff: myShifts
           .filter((shift) => shift.stationId === station.id)
           .map((shift) => shift.user),
@@ -333,7 +339,14 @@ export class StationService {
     const [stations, checkIns, visits, shifts] = await Promise.all([
       this.prisma.clinicStation.findMany({
         where: { clinicId },
-        select: { id: true, name: true, kind: true, sortOrder: true, active: true },
+        select: {
+          id: true,
+          name: true,
+          kind: true,
+          sortOrder: true,
+          active: true,
+          capacity: true,
+        },
       }),
       this.prisma.patientCheckIn.findMany({
         where: { clinicId, checkedInAt: inDay },
@@ -1117,6 +1130,7 @@ export class StationService {
     name: string;
     sortOrder: number;
     active: boolean;
+    capacity: number;
   }) {
     return {
       id: station.id,
@@ -1124,6 +1138,7 @@ export class StationService {
       name: station.name,
       sortOrder: station.sortOrder,
       active: station.active,
+      capacity: station.capacity,
     };
   }
 

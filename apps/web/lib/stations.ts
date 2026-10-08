@@ -22,6 +22,8 @@ export interface ClinicStation {
   name: string;
   sortOrder: number;
   active: boolean;
+  /** How many patients it can see at once (#32). Absent from a board saved before it existed. */
+  capacity?: number;
 }
 
 export interface StaffSummary {
@@ -65,7 +67,9 @@ export interface StationVisit {
 export interface StationBoard {
   date: string;
   timezone: string;
-  stations: Array<ClinicStation & { staff: StaffSummary[]; visits: StationVisit[] }>;
+  stations: Array<
+    ClinicStation & { staff: StaffSummary[]; visits: StationVisit[]; inUse?: number }
+  >;
   /** Everyone on shift. Absent from a board saved on this device before managers could assign. */
   onShift?: OnShiftStaff[];
 }
@@ -167,11 +171,14 @@ export interface StationMetrics {
     wait: DurationSummary;
     service: DurationSummary;
     releases: number;
+    capacity?: number;
+    peakInUse?: number;
     waitingNow: number | null;
     longestCurrentWaitMinutes: number | null;
     staffNow: number | null;
   }>;
   bottleneckStationId: string | null;
+  bottleneckConstraint?: 'CAPACITY' | 'STAFFING' | null;
   hourly: Array<{ hour: string; checkedIn: number; completed: number }>;
   staffing: { onShiftNow: number | null };
 }
@@ -196,6 +203,44 @@ export function formatMinutes(minutes: number | null | undefined): string {
   if (minutes < 60) return `${minutes} min`;
   const hours = Math.floor(minutes / 60);
   return `${hours} h ${String(minutes % 60).padStart(2, '0')} min`;
+}
+
+/** Station setup, for managers (#32). The server keeps exactly one active review station. */
+export const createStation = (
+  clinicId: string,
+  body: { kind: StationKind; name: string; capacity: number },
+  getToken: GetToken,
+) => request<ClinicStation>(clinicId, '/stations', getToken, { method: 'POST', body });
+
+export const updateStation = (
+  clinicId: string,
+  stationId: string,
+  body: { name?: string; active?: boolean; capacity?: number },
+  getToken: GetToken,
+) =>
+  request<ClinicStation>(clinicId, `/stations/${encodeURIComponent(stationId)}`, getToken, {
+    method: 'PATCH',
+    body,
+  });
+
+export const reorderStations = (clinicId: string, stationIds: string[], getToken: GetToken) =>
+  request<{ items: ClinicStation[] }>(clinicId, '/stations/order', getToken, {
+    method: 'PUT',
+    body: { stationIds },
+  });
+
+/** A station's place moved one step up or down, as the full order the API expects. */
+export function moveStation(
+  stations: readonly Pick<ClinicStation, 'id'>[],
+  stationId: string,
+  direction: -1 | 1,
+): string[] {
+  const ids = stations.map((station) => station.id);
+  const from = ids.indexOf(stationId);
+  const to = from + direction;
+  if (from === -1 || to < 0 || to >= ids.length) return ids;
+  [ids[from], ids[to]] = [ids[to], ids[from]];
+  return ids;
 }
 
 export const fetchStations = (clinicId: string, getToken: GetToken) =>
