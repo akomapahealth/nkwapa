@@ -1,3 +1,4 @@
+import { DelayedError } from 'bullmq';
 import { ReminderProcessor } from './reminder.processor';
 
 describe('ReminderProcessor tenant context', () => {
@@ -176,5 +177,35 @@ describe('ReminderProcessor tenant context', () => {
       },
       step,
     );
+  });
+
+  describe('a job delivered before its reminder is due (#165)', () => {
+    const job = (moveToDelayed = jest.fn().mockResolvedValue(undefined)) =>
+      ({
+        id: 'job-1',
+        data: { reminderId: 'reminder-1', clinicId: 'clinic-1', userId: null },
+        moveToDelayed,
+      }) as never;
+
+    it('moves the job back to delayed until the reminder is due, spending no attempt', async () => {
+      const due = new Date('2026-10-08T15:00:00Z');
+      reminderService.processReminder.mockResolvedValueOnce({ notDueUntil: due });
+      const moveToDelayed = jest.fn().mockResolvedValue(undefined);
+      const processor = new ReminderProcessor(reminderService as never, tenantContext as never);
+
+      await expect(processor.process(job(moveToDelayed), 'lock-token')).rejects.toBeInstanceOf(
+        DelayedError,
+      );
+      expect(moveToDelayed).toHaveBeenCalledWith(due.getTime(), 'lock-token');
+    });
+
+    it('finishes normally once the reminder has been handled', async () => {
+      reminderService.processReminder.mockResolvedValueOnce(undefined);
+      const moveToDelayed = jest.fn();
+      const processor = new ReminderProcessor(reminderService as never, tenantContext as never);
+
+      await expect(processor.process(job(moveToDelayed), 'lock-token')).resolves.toBeUndefined();
+      expect(moveToDelayed).not.toHaveBeenCalled();
+    });
   });
 });

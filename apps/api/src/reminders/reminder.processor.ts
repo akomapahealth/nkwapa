@@ -1,9 +1,9 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Job } from 'bullmq';
+import { DelayedError, Job } from 'bullmq';
 import { jobAttempt } from '../common/job-attempt';
 import { JobTenantContextRunner } from '../prisma/job-tenant-context.runner';
 import { reminderRetryDelay } from './reminder-retry';
-import { ReminderService } from './reminder.service';
+import { ReminderService, type ReminderRunOutcome } from './reminder.service';
 
 export type ReminderJobData = {
   reminderId: string;
@@ -55,13 +55,23 @@ export class ReminderProcessor extends WorkerHost {
     super();
   }
 
-  async process(job: Job<ReminderJobData>): Promise<void> {
+  async process(job: Job<ReminderJobData>, token?: string): Promise<void> {
+    const outcome = await this.run(job);
+    if (outcome?.notDueUntil) {
+      // Back to delayed until the reminder's time (#165). DelayedError tells the worker the job
+      // was moved, not finished, and spends no attempt.
+      await job.moveToDelayed(outcome.notDueUntil.getTime(), token);
+      throw new DelayedError();
+    }
+  }
+
+  private async run(job: Job<ReminderJobData>): Promise<ReminderRunOutcome | undefined> {
     const { reminderId, clinicId, userId, scope } = job.data;
     const attempt = jobAttempt(job);
 
     // Steps, not one transaction: the provider call must happen with no transaction open (#164).
     if (scope === 'global') {
-      await this.tenantContext.runSystemJobSteps(
+      return this.tenantContext.runSystemJobSteps(
         {
           queueName: 'reminders',
           jobId: job.id,
@@ -71,10 +81,9 @@ export class ReminderProcessor extends WorkerHost {
         },
         (step) => this.reminderService.processReminder(reminderId, attempt, step),
       );
-      return;
     }
 
-    await this.tenantContext.runClinicJobSteps(
+    return this.tenantContext.runClinicJobSteps(
       {
         queueName: 'reminders',
         jobId: job.id,

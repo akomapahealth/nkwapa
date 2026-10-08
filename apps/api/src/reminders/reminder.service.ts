@@ -51,6 +51,26 @@ export const SEND_OUTCOME_UNKNOWN = 'SEND_OUTCOME_UNKNOWN';
  */
 export const REMINDER_SEND_STALE_AFTER_MS = 10 * 60 * 1000;
 const REMINDER_RECONCILE_BATCH = 200;
+/**
+ * How far past its time a QUEUED reminder may be before the sweep looks for its job (#165). Longer
+ * than the retry schedule (5 s, then 60 s) and the rate limiter's queueing, so a reminder that is
+ * merely waiting its turn is never re-queued under a live job.
+ */
+export const REMINDER_OVERDUE_GRACE_MS = 15 * 60 * 1000;
+/** Job states in which the queue still holds a run of this reminder. */
+const LIVE_JOB_STATES = new Set([
+  'waiting',
+  'delayed',
+  'active',
+  'prioritized',
+  'waiting-children',
+]);
+
+/**
+ * What one run of `processReminder` asks of the queue. `notDueUntil`: the job arrived before the
+ * reminder's time and must run again then (#165).
+ */
+export type ReminderRunOutcome = { notDueUntil: Date } | void;
 /** Why a staff-scheduled reminder that never went out is marked FAILED (#116). */
 export const CANCELLED_BY_STAFF = 'CANCELLED_BY_STAFF';
 
@@ -825,9 +845,26 @@ export class ReminderService {
     reminderId: string,
     attempt: JobAttempt = SINGLE_FINAL_ATTEMPT,
     step: JobStep = (callback) => callback(this.prisma),
-  ): Promise<void> {
+  ): Promise<ReminderRunOutcome> {
     const claim = await step(() => this.claimForSend(reminderId));
     if (!claim) return;
+    if ('notDueUntil' in claim) {
+      /*
+        Delivered early (#165): clock skew between this host and Redis, or someone promoting a
+        delayed job by hand. Returning used to complete the job with nothing re-queued, so the row
+        stayed QUEUED with no job behind it and never sent. The processor puts the job back until
+        the reminder's time instead; it is never sent early.
+      */
+      this.logger.warn(
+        JSON.stringify({
+          message: 'Reminder delivered before its time; delayed until due',
+          reminderId,
+          scheduledAt: claim.notDueUntil.toISOString(),
+          earlyByMs: claim.notDueUntil.getTime() - Date.now(),
+        }),
+      );
+      return { notDueUntil: claim.notDueUntil };
+    }
     const { reminder, message } = claim;
 
     let result: SmsSendResult | EmailSendResult;
@@ -972,12 +1009,62 @@ export class ReminderService {
   }
 
   /**
+   * Re-queue reminders that are past their time with no job behind them (#165).
+   *
+   * The safety net for any way a job is lost: one that completed before its time under an older
+   * worker, a Redis flush, a queue outage after the row was written. A reminder whose job is still
+   * waiting, delayed or running is left alone, so this never adds a second run of a live one.
+   * Each re-queued job carries its own clinic, exactly as `queueReminder` built the first, so the
+   * worker runs it under that clinic's context.
+   *
+   * @param step Reads the overdue rows under the sweep's system context. Redis is asked outside
+   * any transaction.
+   */
+  async requeueOverdue(step: JobStep, now: Date = new Date()): Promise<number> {
+    const overdue = await step(() =>
+      this.prisma.reminder.findMany({
+        where: {
+          status: 'QUEUED',
+          scheduledAt: { lt: new Date(now.getTime() - REMINDER_OVERDUE_GRACE_MS) },
+        },
+        select: { id: true, clinicId: true, scheduledAt: true },
+        orderBy: { scheduledAt: 'asc' },
+        take: REMINDER_RECONCILE_BATCH,
+      }),
+    );
+
+    let requeued = 0;
+    for (const row of overdue) {
+      const jobId = this.getReminderJobId(row.id);
+      const job = await this.reminderQueue.getJob(jobId);
+      const state = job ? await job.getState() : null;
+      if (state && LIVE_JOB_STATES.has(state)) continue;
+      // BullMQ ignores an add under an id it still holds, finished or not.
+      await job?.remove();
+      await this.queueReminder(row.id, row.scheduledAt, row.clinicId);
+      requeued += 1;
+      this.logger.warn(
+        JSON.stringify({
+          message: 'Overdue reminder had no live job; re-queued',
+          reminderId: row.id,
+          clinicId: row.clinicId,
+          previousJobState: state ?? 'missing',
+          overdueByMs: now.getTime() - row.scheduledAt.getTime(),
+        }),
+      );
+    }
+    return requeued;
+  }
+
+  /**
    * Step 1 of `processReminder`: decide whether this reminder should go, and if so take it.
    * Returns null when there is nothing for this worker to send.
    */
   private async claimForSend(
     reminderId: string,
-  ): Promise<{ reminder: ReminderToSend; message: ReminderMessage } | null> {
+  ): Promise<
+    { reminder: ReminderToSend; message: ReminderMessage } | { notDueUntil: Date } | null
+  > {
     // Stands down cheaply when another delivery of this job is deciding the same row. The claim
     // below is what actually makes the send exclusive.
     if (!(await tryLockForTransaction(this.prisma, `reminder-send:${reminderId}`))) return null;
@@ -987,7 +1074,7 @@ export class ReminderService {
       include: { clinic: true, patient: true, appointment: true },
     });
     if (!reminder || reminder.status !== 'QUEUED') return null;
-    if (reminder.scheduledAt > new Date()) return null;
+    if (reminder.scheduledAt > new Date()) return { notDueUntil: reminder.scheduledAt };
 
     const payload = JSON.parse(reminder.payloadJson) as Record<string, unknown>;
     const appointmentSuppressionReason = await this.getAppointmentSendSuppressionReason(
