@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Send } from 'lucide-react';
+import { ArrowLeft, LogOut, Pencil, Send, UserPlus, Users } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import {
@@ -12,6 +12,15 @@ import {
 import { apiFetch } from '@/lib/api';
 import { getChatSocket } from '@/lib/chat-socket';
 import { ChatMessageBubble, type ChatMessageView } from './ChatMessageBubble';
+import { ChatAvatar, ChatGroupAvatar } from './ChatAvatar';
+import { ChatUserPicker } from './ChatUserPicker';
+import {
+  conversationTitle,
+  isGroup,
+  otherMembers,
+  presenceLabel,
+  typingSummary,
+} from '@/lib/chat-display';
 
 type MessageErrorPayload = {
   conversationId?: string;
@@ -81,7 +90,7 @@ function TypingDots() {
 }
 
 export function ChatConversation({
-  conversation,
+  conversation: opened,
   onBack,
 }: {
   conversation: ChatConversationType;
@@ -93,6 +102,12 @@ export function ChatConversation({
   const activeClinicId = bootstrapCtx?.activeClinicId;
   const currentUserId = bootstrap?.userId;
   const chat = useChatContext();
+  // The live copy: a rename or a new member arrives through the context, not through the prop.
+  const conversation = chat?.conversations.find((conv) => conv.id === opened.id) ?? opened;
+  const [panel, setPanel] = useState<'none' | 'members' | 'add'>('none');
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [panelError, setPanelError] = useState<string | null>(null);
+  const typingSentRef = useRef(false);
 
   const [messages, setMessages] = useState<ChatMessageView[]>([]);
   const [input, setInput] = useState('');
@@ -102,9 +117,12 @@ export function ChatConversation({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Get the other participant's name for display
-  const otherParticipant = conversation.participants.find((p) => p.userId !== currentUserId);
-  const displayName = otherParticipant?.user.displayName ?? conversation.title ?? 'Chat';
+  const group = isGroup(conversation);
+  const others = otherMembers(conversation, currentUserId);
+  const otherParticipant = group ? undefined : others[0];
+  const displayName = conversationTitle(conversation, currentUserId);
+  const onlineIds = chat?.onlineUserIds ?? new Set<string>();
+  const onlineCount = others.filter((p) => onlineIds.has(p.userId)).length;
 
   // Fetch message history
   const fetchMessages = useCallback(
@@ -142,9 +160,12 @@ export function ChatConversation({
     void fetchMessages();
     chat?.joinConversation(conversation.id);
     chat?.markRead(conversation.id);
+    // Tells the unread count this conversation is on screen, so new messages arrive read.
+    chat?.setActiveConversationId(conversation.id);
 
     return () => {
-      chat?.leaveConversation(conversation.id);
+      chat?.setActiveConversationId(null);
+      chat?.closeConversation(conversation.id);
     };
   }, [conversation.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -251,6 +272,8 @@ export function ChatConversation({
 
     if (queueMessage(trimmed)) {
       setInput('');
+      typingSentRef.current = false;
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       chat?.sendTypingStop(conversation.id);
     }
   }, [input, queueMessage, chat, conversation.id]);
@@ -282,18 +305,48 @@ export function ChatConversation({
       setInput(e.target.value);
       if (!chat) return;
 
-      chat.sendTypingStart(conversation.id);
+      // One start per burst of typing, not one per keystroke.
+      if (!typingSentRef.current) {
+        chat.sendTypingStart(conversation.id);
+        typingSentRef.current = true;
+      }
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
       typingTimeoutRef.current = setTimeout(() => {
         chat.sendTypingStop(conversation.id);
+        typingSentRef.current = false;
       }, 2000);
     },
     [chat, conversation.id],
   );
 
   const typingList = chat?.typingUsers[conversation.id] ?? [];
+  const typing = typingSummary(typingList.map((t) => t.displayName.split(' ')[0]));
+
+  const runPanelAction = async (action: () => Promise<void>) => {
+    setPanelError(null);
+    try {
+      await action();
+    } catch (caught) {
+      setPanelError(caught instanceof Error ? caught.message : 'That did not work. Try again.');
+    }
+  };
+
+  if (panel === 'add') {
+    return (
+      <ChatUserPicker
+        mode="add"
+        title={`Add to ${displayName}`}
+        excludeUserIds={[...others.map((p) => p.userId), ...(currentUserId ? [currentUserId] : [])]}
+        onSubmit={async (userIds) => {
+          await chat?.addParticipants(conversation.id, userIds);
+          setPanel('members');
+        }}
+        onBack={() => setPanel('members')}
+      />
+    );
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -306,13 +359,133 @@ export function ChatConversation({
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
+        {group ? (
+          <ChatGroupAvatar onlineCount={onlineCount} size="sm" />
+        ) : (
+          <ChatAvatar
+            name={displayName}
+            online={otherParticipant ? onlineIds.has(otherParticipant.userId) : false}
+            size="sm"
+          />
+        )}
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-sm font-semibold">{displayName}</h3>
-          {otherParticipant && chat?.onlineUserIds.has(otherParticipant.userId) && (
-            <p className="text-[11px] text-success">Online</p>
-          )}
+          <p
+            className="truncate text-[11px] text-muted-foreground"
+            data-testid="chat-header-status"
+          >
+            {group
+              ? `${others.length + 1} members${onlineCount ? ` · ${onlineCount} online` : ''}`
+              : otherParticipant
+                ? presenceLabel(
+                    onlineIds.has(otherParticipant.userId),
+                    chat?.lastSeen[otherParticipant.userId],
+                  )
+                : ''}
+          </p>
         </div>
+        {group ? (
+          <button
+            onClick={() => setPanel(panel === 'members' ? 'none' : 'members')}
+            className="cursor-pointer rounded-md p-1.5 transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            aria-label="Members"
+            aria-expanded={panel === 'members'}
+          >
+            <Users className="h-4 w-4" />
+          </button>
+        ) : null}
       </div>
+
+      {group && panel === 'members' ? (
+        <div
+          className="max-h-[45%] space-y-2 overflow-y-auto border-b bg-muted/30 px-3 py-2"
+          data-testid="chat-members"
+        >
+          {renaming !== null ? (
+            <form
+              className="flex gap-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void runPanelAction(async () => {
+                  await chat?.renameConversation(conversation.id, renaming.trim() || null);
+                  setRenaming(null);
+                });
+              }}
+            >
+              <input
+                aria-label="Group name"
+                value={renaming}
+                maxLength={200}
+                onChange={(event) => setRenaming(event.target.value)}
+                className="min-w-0 flex-1 rounded-md border bg-background px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-primary"
+              />
+              <button
+                type="submit"
+                className="rounded-md bg-primary px-2 text-xs font-medium text-primary-foreground"
+              >
+                Save
+              </button>
+            </form>
+          ) : null}
+          <ul className="space-y-1.5">
+            {conversation.participants
+              .filter((p) => p.isActive !== false)
+              .map((p) => {
+                const isMe = p.userId === currentUserId;
+                const online = onlineIds.has(p.userId);
+                return (
+                  <li key={p.userId} className="flex items-center gap-2 text-sm">
+                    <ChatAvatar
+                      name={p.user.displayName}
+                      online={isMe ? undefined : online}
+                      size="sm"
+                    />
+                    <span className="min-w-0 flex-1 truncate">
+                      {p.user.displayName}
+                      {isMe ? ' (you)' : ''}
+                    </span>
+                    {!isMe ? (
+                      <span className="shrink-0 text-[11px] text-muted-foreground">
+                        {presenceLabel(online, chat?.lastSeen[p.userId])}
+                      </span>
+                    ) : null}
+                  </li>
+                );
+              })}
+          </ul>
+          {panelError ? (
+            <p role="alert" className="text-xs text-destructive">
+              {panelError}
+            </p>
+          ) : null}
+          <div className="flex flex-wrap gap-2 pt-1">
+            <button
+              onClick={() => setPanel('add')}
+              className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted"
+            >
+              <UserPlus className="h-3.5 w-3.5" aria-hidden="true" /> Add people
+            </button>
+            <button
+              onClick={() => setRenaming(conversation.title ?? '')}
+              className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted"
+            >
+              <Pencil className="h-3.5 w-3.5" aria-hidden="true" /> Rename
+            </button>
+            <button
+              onClick={() =>
+                void runPanelAction(async () => {
+                  if (!window.confirm(`Leave ${displayName}? You can be added back later.`)) return;
+                  await chat?.leaveConversation(conversation.id);
+                  onBack();
+                })
+              }
+              className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
+            >
+              <LogOut className="h-3.5 w-3.5" aria-hidden="true" /> Leave group
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {/* Messages */}
       <div className="flex flex-1 flex-col-reverse overflow-y-auto px-3 py-2">
@@ -345,9 +518,8 @@ export function ChatConversation({
           className="flex items-center gap-1.5 px-3 pb-1 text-[11px] text-muted-foreground"
           aria-live="polite"
         >
-          <span className="truncate">
-            {typingList.map((t) => t.displayName).join(', ')}{' '}
-            {typingList.length === 1 ? 'is' : 'are'} typing
+          <span className="truncate" data-testid="chat-typing">
+            {typing}
           </span>
           <TypingDots />
         </div>
