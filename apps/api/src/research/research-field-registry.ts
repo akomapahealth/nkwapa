@@ -117,6 +117,9 @@ export const RESEARCH_OUT_OF_SCOPE_MODELS: Record<string, string> = {
   PatientAssignment: 'Exported directly into research_ops_assignments.csv.',
   CounsellingRecord:
     'Advice given to one identified patient, mostly free text, with the same audience as clinical note content; not exported in v1 (#167).',
+  EyeScreening:
+    'Eye station findings, new and not yet reviewed for export; the systemic-sign flags are the likely first candidates. Not exported in v1.',
+  EyeExamFinding: 'Per-structure findings of an EyeScreening, out of scope with it.',
   Appointment: 'Exported directly into research_appointments.csv.',
   AppointmentRequest: 'Exported directly into research_appointments.csv.',
   PatientConsent:

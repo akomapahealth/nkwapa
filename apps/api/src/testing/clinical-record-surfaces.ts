@@ -64,6 +64,14 @@ export const CLINICAL_RECORD_SURFACES: readonly ClinicalRecordSurface[] = [
     note: 'The clinician plan is doctor-only, refused by the API for any other role, and withheld from the offline pull so no volunteer device caches it.',
   },
   {
+    id: 'eye',
+    label: 'Eye station examination',
+    read: PERMISSIONS.SCREENING_READ,
+    write: PERMISSIONS.SCREENING_WRITE,
+    syncEntityTypes: [],
+    note: 'Online-only and never queued, like the counselling record at the station beside it. Refused on a finalized encounter.',
+  },
+  {
     id: 'hypertension',
     label: 'Hypertension interview',
     read: PERMISSIONS.SCREENING_READ,

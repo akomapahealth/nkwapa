@@ -7,6 +7,7 @@ const describeMigration =
   process.env.RUN_STATION_WORKFLOW_MIGRATION_TESTS === '1' ? describe : describe.skip;
 
 const STATION_MIGRATION = '20261007120000_station_workflow';
+const EYE_MIGRATION = '20261008130000_station_kind_eye';
 
 function databaseUrl(source: string, database: string): string {
   const url = new URL(source);
@@ -20,6 +21,8 @@ const VOLUNTEER_1 = '73000000-0000-4000-8000-000000000001';
 const VOLUNTEER_2 = '73000000-0000-4000-8000-000000000002';
 const PATIENT = '73000000-0000-4000-8000-000000000003';
 const CHECK_IN = '73000000-0000-4000-8000-000000000004';
+const CLINIC_C = '73000000-0000-4000-8000-00000000000c';
+const ENCOUNTER = '73000000-0000-4000-8000-000000000005';
 
 /**
  * What the database holds on its own for the station line (#167), whatever the service remembers.
@@ -30,6 +33,8 @@ const CHECK_IN = '73000000-0000-4000-8000-000000000004';
  * - A claimed visit always names its holder.
  * - One active review station per clinic.
  * - Row-level security keeps one clinic's line invisible to another.
+ * - The Eye station joins every existing line just before review, and its findings hold to the
+ *   chart and stay inside their clinic.
  */
 describeMigration('station workflow database safeguards', () => {
   jest.setTimeout(120_000);
@@ -66,7 +71,23 @@ describeMigration('station workflow database safeguards', () => {
       SELECT '${CLINIC_A}', 'Station Clinic A', "id", 'Africa/Accra', 'station-a', CURRENT_TIMESTAMP
       FROM "Organization" LIMIT 1;
     `);
-    for (const migration of migrations.filter((name) => name >= STATION_MIGRATION)) {
+    for (const migration of migrations.filter(
+      (name) => name >= STATION_MIGRATION && name < EYE_MIGRATION,
+    )) {
+      await apply(migration);
+    }
+    // A clinic that rearranged its line, with a station after review: the eye station must still
+    // land immediately before review, and everything from review on moves down one place.
+    await target.query(`
+      INSERT INTO "Clinic" ("id", "name", "organizationId", "timezone", "locationCode", "updatedAt")
+      SELECT '${CLINIC_C}', 'Station Clinic C', "id", 'Africa/Accra', 'station-c', CURRENT_TIMESTAMP
+      FROM "Organization" LIMIT 1;
+      INSERT INTO "ClinicStation" ("id", "clinicId", "kind", "name", "sortOrder", "updatedAt") VALUES
+        (gen_random_uuid(), '${CLINIC_C}', 'INTAKE', 'Intake', 1, CURRENT_TIMESTAMP),
+        (gen_random_uuid(), '${CLINIC_C}', 'REVIEW', 'Review', 2, CURRENT_TIMESTAMP),
+        (gen_random_uuid(), '${CLINIC_C}', 'CUSTOM', 'Pharmacy', 3, CURRENT_TIMESTAMP);
+    `);
+    for (const migration of migrations.filter((name) => name >= EYE_MIGRATION)) {
       await apply(migration);
     }
 
@@ -81,6 +102,8 @@ describeMigration('station workflow database safeguards', () => {
         ('${PATIENT}', 'NKP-STATION-1', '${CLINIC_A}', 'Station', 'Patient', 'OTHER', 'encrypted', 'station-hash', CURRENT_TIMESTAMP);
       INSERT INTO "PatientCheckIn" ("id", "clinicId", "patientId", "checkedInAt", "updatedAt") VALUES
         ('${CHECK_IN}', '${CLINIC_A}', '${PATIENT}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+      INSERT INTO "Encounter" ("id", "clinicId", "patientId", "createdByUserId", "updatedAt") VALUES
+        ('${ENCOUNTER}', '${CLINIC_A}', '${PATIENT}', '${VOLUNTEER_1}', CURRENT_TIMESTAMP);
     `);
 
     const rows = await target.query<{ id: string; kind: string }>(
@@ -192,7 +215,91 @@ describeMigration('station workflow database safeguards', () => {
       }
     };
 
-    await expect(visible(CLINIC_A)).resolves.toEqual({ visits: 1, stations: 5 });
+    await expect(visible(CLINIC_A)).resolves.toEqual({
+      visits: 1,
+      stations: DEFAULT_CLINIC_STATIONS.length,
+    });
     await expect(visible(CLINIC_B)).resolves.toEqual({ visits: 0, stations: 0 });
+  });
+
+  describe('eye station', () => {
+    afterEach(async () => {
+      await target.query(`DELETE FROM "EyeScreening"`);
+    });
+
+    async function screen(acuity: Record<string, string | null> = {}) {
+      const columns = Object.keys(acuity);
+      const result = await target.query<{ id: string }>(
+        `INSERT INTO "EyeScreening"
+          ("id", "clinicId", "encounterId", "authorUserId", "updatedAt"${columns
+            .map((column) => `, "${column}"`)
+            .join('')})
+         VALUES (gen_random_uuid(), $1, $2, $3, CURRENT_TIMESTAMP${columns
+           .map((_, index) => `, $${index + 4}`)
+           .join('')})
+         RETURNING "id"`,
+        [CLINIC_A, ENCOUNTER, VOLUNTEER_1, ...Object.values(acuity)],
+      );
+      return result.rows[0].id;
+    }
+
+    it('lands just before review in a rearranged line, moving the rest down', async () => {
+      const rows = await target.query<{ kind: string; name: string; sortOrder: number }>(
+        `SELECT "kind", "name", "sortOrder" FROM "ClinicStation" WHERE "clinicId" = $1
+         ORDER BY "sortOrder"`,
+        [CLINIC_C],
+      );
+      expect(rows.rows).toEqual([
+        { kind: 'INTAKE', name: 'Intake', sortOrder: 1 },
+        { kind: 'EYE', name: 'Eye station', sortOrder: 2 },
+        { kind: 'REVIEW', name: 'Review', sortOrder: 3 },
+        { kind: 'CUSTOM', name: 'Pharmacy', sortOrder: 4 },
+      ]);
+    });
+
+    it('accepts chart values and readings not taken, and refuses anything else', async () => {
+      await expect(
+        screen({ vaOdUnaided: '6/9', vaOsUnaided: 'CF', vaOuUnaided: null }),
+      ).resolves.toBeTruthy();
+      await target.query(`DELETE FROM "EyeScreening"`);
+      await expect(screen({ vaOdUnaided: '20/20' })).rejects.toMatchObject({ code: '23514' });
+    });
+
+    it('refuses a cup-to-disc ratio above 1', async () => {
+      await expect(
+        target.query(
+          `INSERT INTO "EyeScreening" ("id", "clinicId", "encounterId", "authorUserId", "updatedAt", "cupDiscRatioOd")
+           VALUES (gen_random_uuid(), $1, $2, $3, CURRENT_TIMESTAMP, 1.2)`,
+          [CLINIC_A, ENCOUNTER, VOLUNTEER_1],
+        ),
+      ).rejects.toMatchObject({ code: '23514' });
+    });
+
+    it("hides one clinic's eye findings from another", async () => {
+      const screeningId = await screen({ vaOdUnaided: '6/6' });
+      await target.query(
+        `INSERT INTO "EyeExamFinding" ("id", "eyeScreeningId", "eye", "structure", "result")
+         VALUES (gen_random_uuid(), $1, 'OD', 'CORNEA', 'NORMAL')`,
+        [screeningId],
+      );
+      const visible = async (clinicId: string) => {
+        await target.query('BEGIN');
+        try {
+          await target.query('SET LOCAL ROLE nkwapa_app');
+          await target.query(`SELECT set_config('app.current_clinic_ids', $1, true)`, [
+            `{${clinicId}}`,
+          ]);
+          await target.query(`SELECT set_config('app.is_system_admin', 'false', true)`);
+          const screenings = await target.query(`SELECT "id" FROM "EyeScreening"`);
+          const findings = await target.query(`SELECT "id" FROM "EyeExamFinding"`);
+          return { screenings: screenings.rowCount, findings: findings.rowCount };
+        } finally {
+          await target.query('ROLLBACK');
+        }
+      };
+
+      await expect(visible(CLINIC_A)).resolves.toEqual({ screenings: 1, findings: 1 });
+      await expect(visible(CLINIC_B)).resolves.toEqual({ screenings: 0, findings: 0 });
+    });
   });
 });

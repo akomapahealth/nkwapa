@@ -36,6 +36,8 @@ import { MedicalHistoryPanel } from '@/components/patients/MedicalHistoryPanel';
 import { ClinicalNotePanel } from '@/components/clinical-notes/ClinicalNotePanel';
 import { GlucoseReadingForm } from '@/components/stations/GlucoseReadingForm';
 import { CounsellingForm } from '@/components/stations/CounsellingForm';
+import { EyeScreeningForm } from '@/components/stations/EyeScreeningForm';
+import { eyeScreeningPath, type EyeScreeningRecord } from '@/lib/eye-screening';
 import { StationResultsSummary } from '@/components/stations/StationResultsSummary';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -54,6 +56,8 @@ import {
 interface EncounterReadings {
   vitals: VitalsRecord | null;
   diabetes: DiabetesScreeningRecord | null;
+  /** Online only: null offline, and before the eye station records. */
+  eye: EyeScreeningRecord | null;
 }
 
 const STATUS_LABELS: Record<StationVisit['status'], string> = {
@@ -82,11 +86,33 @@ export default function StationVisitPage() {
 
   const [visit, setVisit] = useState<StationVisitDetail | null>(null);
   const [stations, setStations] = useState<ClinicStation[]>([]);
-  const [readings, setReadings] = useState<EncounterReadings>({ vitals: null, diabetes: null });
+  const [readings, setReadings] = useState<EncounterReadings>({
+    vitals: null,
+    diabetes: null,
+    eye: null,
+  });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  /** The eye record has its own route; a failure leaves the summary showing it as not recorded. */
+  const loadEyeScreening = useCallback(
+    async (encounterId: string) => {
+      if (!getToken || !clinicId) return null;
+      try {
+        const response = await apiFetch(eyeScreeningPath(clinicId, encounterId), {
+          getToken,
+          activeClinicId: clinicId,
+        });
+        if (!response.ok) return null;
+        return ((await response.json()) as { record: EyeScreeningRecord | null }).record;
+      } catch {
+        return null;
+      }
+    },
+    [getToken, clinicId],
+  );
 
   const loadReadings = useCallback(
     async (encounterId: string) => {
@@ -104,6 +130,7 @@ export default function StationVisitPage() {
         setReadings({
           vitals: encounter.vitals ?? null,
           diabetes: encounter.diabetesScreening ?? null,
+          eye: await loadEyeScreening(encounterId),
         });
       } catch {
         // Offline or unreachable: this device's copy is what the forms build on.
@@ -111,10 +138,10 @@ export default function StationVisitPage() {
           db.vitals.where('encounterId').equals(encounterId).first(),
           db.diabetes_screenings.where('encounterId').equals(encounterId).first(),
         ]);
-        setReadings({ vitals: vitals ?? null, diabetes: diabetes ?? null });
+        setReadings({ vitals: vitals ?? null, diabetes: diabetes ?? null, eye: null });
       }
     },
-    [getToken, clinicId],
+    [getToken, clinicId, loadEyeScreening],
   );
 
   const load = useCallback(async () => {
@@ -401,6 +428,10 @@ function StationForm({
           onSaved={onSaved}
         />
       );
+    case 'EYE':
+      return (
+        <EyeScreeningForm clinicId={clinicId} encounterId={encounterId} canEdit onSaved={onSaved} />
+      );
     case 'REVIEW':
       return (
         <div className="space-y-6">
@@ -408,6 +439,7 @@ function StationForm({
             timeline={visit.timeline}
             vitals={readings.vitals}
             diabetes={readings.diabetes}
+            eye={readings.eye}
             timezone={timezone}
           />
           <CounsellingForm clinicId={clinicId} encounterId={encounterId} canEdit />

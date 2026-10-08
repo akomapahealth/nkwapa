@@ -115,8 +115,45 @@ enum StationKind {
   BLOOD_PRESSURE
   GLUCOSE
   ANTHROPOMETRY
+  EYE
   REVIEW
   CUSTOM
+}
+
+/// Which eye a finding is about. Both-eyes acuity (OU) is a column, not a finding.
+enum Eye {
+  OD
+  OS
+}
+
+/// What the Eye station examines: penlight (externals), then ophthalmoscopy (internals).
+enum EyeStructure {
+  LIDS_LASHES
+  CONJUNCTIVA_PALPEBRAL
+  CONJUNCTIVA_BULBAR
+  SCLERA
+  CORNEA
+  ANTERIOR_CHAMBER
+  IRIS
+  PUPIL
+  LENS
+  VITREOUS
+  OPTIC_DISC
+  MACULA
+  PERIPHERY
+}
+
+enum EyeFindingResult {
+  NORMAL
+  ABNORMAL
+  NOT_ASSESSED
+}
+
+/// Whether reduced vision looks like it needs glasses or a doctor.
+enum VisionLossCause {
+  REFRACTIVE
+  PATHOLOGICAL
+  UNDETERMINED
 }
 
 enum StationVisitStatus {
@@ -834,6 +871,7 @@ model Clinic {
   stations                  ClinicStation[]
   stationVisits             PatientStationVisit[]
   counsellingRecords        CounsellingRecord[]
+  eyeScreenings             EyeScreening[]
   appointmentRequests       AppointmentRequest[]
   appointments              Appointment[]
   patientPortalInvites      PatientPortalInvite[]
@@ -923,6 +961,7 @@ model User {
   assignedStationVisits           PatientStationVisit[]           @relation("StationVisitAssignedBy")
   completedStationVisits          PatientStationVisit[]           @relation("StationVisitCompletedBy")
   counsellingRecords              CounsellingRecord[]             @relation("CounsellingRecordAuthor")
+  eyeScreenings                   EyeScreening[]                  @relation("EyeScreeningAuthor")
   doctorAppointments              Appointment[]                   @relation("AppointmentAssignedDoctor")
   volunteerAppointments           Appointment[]                   @relation("AppointmentAssignedVolunteer")
   createdPatientPortalInvites     PatientPortalInvite[]           @relation("PatientPortalInviteCreatedBy")
@@ -1124,6 +1163,7 @@ model Encounter {
   medicationReconciliations  MedicationReconciliationEvent[] @relation("MedicationReconciliationSourceEncounter")
   clinicalNote               ClinicalNote?
   counsellingRecord          CounsellingRecord?
+  eyeScreening               EyeScreening?
   stationVisits              PatientStationVisit[]
 
   // Windowed per-clinic reads: clinic dashboards (today, trends) and organization rollups (#13).
@@ -1302,6 +1342,74 @@ model CounsellingRecord {
   author    User      @relation("CounsellingRecordAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
 
   @@index([clinicId, updatedAt])
+}
+
+/// What the Eye station found (UCC eye team). One per encounter, written at the Eye station and
+/// editable until the encounter is finalized.
+///
+/// Separate from `DiabetesScreening.eyeExam`, which records whether a diabetic patient has had a
+/// retinal exam at some point; this is today's examination.
+///
+/// Acuity is a metric Snellen value or a coarse test (CF, HM, PL, NPL); a CHECK in SQL holds every
+/// acuity column to the list in packages/db/src/eye-screening.ts.
+model EyeScreening {
+  id          String @id @default(uuid()) @db.Uuid
+  clinicId    String @db.Uuid
+  encounterId String @unique @db.Uuid
+
+  /// The patient came with an eye symptom or sign, and what they said about it, so whoever they
+  /// are referred to knows what they might be dealing with.
+  hasEyeComplaint  Boolean @default(false)
+  complaintHistory String? @db.Text
+  wearsCorrection  Boolean @default(false)
+
+  vaOdUnaided String? @db.VarChar(8)
+  vaOsUnaided String? @db.VarChar(8)
+  vaOuUnaided String? @db.VarChar(8)
+  vaOdAided   String? @db.VarChar(8)
+  vaOsAided   String? @db.VarChar(8)
+  vaOuAided   String? @db.VarChar(8)
+  vaOdPinhole String? @db.VarChar(8)
+  vaOsPinhole String? @db.VarChar(8)
+
+  cupDiscRatioOd Decimal? @db.Decimal(3, 2)
+  cupDiscRatioOs Decimal? @db.Decimal(3, 2)
+
+  visionLossCause       VisionLossCause?
+  /// Ocular signs of a systemic condition, which suggest undiagnosed or long-standing disease.
+  diabeticSignsSeen     Boolean          @default(false)
+  hypertensiveSignsSeen Boolean          @default(false)
+  referralRecommended   Boolean          @default(false)
+  referralNote          String?          @db.Text
+  notes                 String?          @db.Text
+
+  authorUserId String @db.Uuid
+  version      Int    @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clinic    Clinic           @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  encounter Encounter        @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+  author    User             @relation("EyeScreeningAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  findings  EyeExamFinding[]
+
+  @@index([clinicId, updatedAt])
+}
+
+/// One structure of one eye. Absent means not recorded; NOT_ASSESSED means looked for but not
+/// examinable (an uncooperative child, a dense cataract hiding the fundus).
+model EyeExamFinding {
+  id             String           @id @default(uuid()) @db.Uuid
+  eyeScreeningId String           @db.Uuid
+  eye            Eye
+  structure      EyeStructure
+  result         EyeFindingResult
+  note           String?          @db.VarChar(500)
+
+  eyeScreening EyeScreening @relation(fields: [eyeScreeningId], references: [id], onDelete: Cascade)
+
+  @@unique([eyeScreeningId, eye, structure])
 }
 
 model ClinicalNote {

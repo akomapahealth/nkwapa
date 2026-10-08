@@ -26,7 +26,8 @@ A doctor reviews afterwards.
 | 2     | `BLOOD_PRESSURE` | Blood pressure                   | BP with context, and observations (Vitals groups `bloodPressure`, `notes`) |
 | 3     | `GLUCOSE`        | Glucose testing                  | Today's reading and its timing (`diabetes_glucose_reading`)                |
 | 4     | `ANTHROPOMETRY`  | Anthropometry                    | Weight and height; BMI is derived (Vitals group `anthropometry`)           |
-| 5     | `REVIEW`         | Counselling and clinical review  | Combined results, counselling record, HAP note                             |
+| 5     | `EYE`            | Eye station                      | Visual acuity (OD, OS, OU), penlight and ophthalmoscopy (`EyeScreening`)   |
+| 6     | `REVIEW`         | Counselling and clinical review  | Combined results, counselling record, HAP note                             |
 
 Every clinic is seeded with this line: existing clinics by migration `20261007120000_station_workflow`,
 new clinics by `ClinicService.create`, local data by `seed.ts`. The template lives in
@@ -105,6 +106,7 @@ trail.
 | `POST station-visits/:id/claim` \| `release` \| `force-release` \| `complete`                    | Moving a patient along                       |
 | `POST checkins/:id/move`, `POST checkins/:id/cancel`                                             | Overrides                                    |
 | `GET/PUT encounters/:id/counselling`                                                             | The counselling record                       |
+| `GET/PUT encounters/:id/eye-screening`                                                           | The eye station's examination                |
 | `PUT encounters/:id/diabetes-screening/glucose`                                                  | The glucose station's reading                |
 
 With the flag on, `POST assignments`, `PATCH assignments/:id/reassign` and
@@ -132,6 +134,34 @@ Counselling is online-only, like clinical notes.
   audit trail, not refused by the server, so an offline replay is never refused because a claim
   has since moved on.
 - Retiring manager assignment and the flag is a follow-up, as #149 is for the pre-interview forms.
+
+## Eye station
+
+Added after v1 at the UCC eye team's request. It sits immediately before review: completing review
+ends the session, so a station after it would never be reached. The migration that added it
+inserted it before each existing clinic's active review station and moved review, and anything
+after review, down one place.
+
+- **Visual acuity**: right eye (OD) first, then left (OS), then both (OU). Each is recorded
+  unaided, with correction, and (one eye at a time) through a pinhole. Values come off a Snellen
+  chart at 6 m (`6/5` to `6/60`), or are a coarse test below the chart: counting fingers, hand
+  motion, light perception, no light perception. Only the metric value is stored, and a SQL CHECK
+  holds every acuity column to that list.
+- **Brief history**: recorded only when the patient comes with an eye complaint, so whoever they
+  are referred to knows what they might be dealing with.
+- **Penlight examination (externals)**: lids and lashes, conjunctiva (palpebral, bulbar), sclera,
+  cornea, anterior chamber, iris, pupil. Each structure of each eye is recorded as normal,
+  abnormal (with what was seen) or not assessed, as an `EyeExamFinding` row.
+- **Ophthalmoscopy (internals)**: lens, vitreous, optic nerve head, macula, periphery, recorded
+  the same way, plus a cup-to-disc ratio for each eye.
+- **Impression**: whether reduced vision looks refractive or pathological; whether there are ocular
+  signs of diabetes or hypertension (which suggest undiagnosed or long-standing disease); and a
+  referral to an eye specialist.
+
+The record is online only, like counselling, and stays editable until the encounter is finalized.
+The review summary shows the best acuity for each eye and flags vision worse than 6/12. 6/12 is
+the WHO line for mild visual impairment; the UCC eye team has not yet confirmed it as their
+threshold. Eye records are not in the research export yet.
 
 ## Capacity and station setup (#32)
 
