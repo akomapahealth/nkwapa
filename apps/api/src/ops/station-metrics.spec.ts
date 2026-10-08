@@ -1,5 +1,6 @@
 import { clinicDayWindow } from '@nkwapa/db';
 import {
+  peakConcurrency,
   STATION_BOTTLENECK_MIN_MINUTES,
   STATION_METRICS_MIN_SAMPLE,
   computeStationMetrics,
@@ -17,10 +18,17 @@ const day = clinicDayWindow('2026-10-08', TZ);
 const at = (hhmm: string) => new Date(`2026-10-08T${hhmm}:00+01:00`);
 
 const STATIONS = [
-  { id: 'bp', name: 'Blood pressure', kind: 'BLOOD_PRESSURE', sortOrder: 2, active: true },
-  { id: 'intake', name: 'Intake', kind: 'INTAKE', sortOrder: 1, active: true },
-  { id: 'review', name: 'Review', kind: 'REVIEW', sortOrder: 3, active: true },
-  { id: 'old', name: 'Closed station', kind: 'CUSTOM', sortOrder: 4, active: false },
+  {
+    id: 'bp',
+    name: 'Blood pressure',
+    kind: 'BLOOD_PRESSURE',
+    sortOrder: 2,
+    active: true,
+    capacity: 2,
+  },
+  { id: 'intake', name: 'Intake', kind: 'INTAKE', sortOrder: 1, active: true, capacity: 1 },
+  { id: 'review', name: 'Review', kind: 'REVIEW', sortOrder: 3, active: true, capacity: 1 },
+  { id: 'old', name: 'Closed station', kind: 'CUSTOM', sortOrder: 4, active: false, capacity: 1 },
 ];
 
 function input(overrides: Partial<StationMetricsInput> = {}): StationMetricsInput {
@@ -227,6 +235,65 @@ describe('computeStationMetrics', () => {
     const serialized = JSON.stringify(metrics);
     expect(serialized).not.toContain('checkin-secret');
     expect(serialized).not.toContain('user-secret');
+  });
+});
+
+describe('station capacity (#32)', () => {
+  it('finds the most patients seen at once, not counting a hand-on and the next take as overlap', () => {
+    const iv = (from: string, to: string) => ({ start: at(from), end: at(to) });
+    expect(peakConcurrency([])).toBe(0);
+    expect(peakConcurrency([iv('09:00', '09:10'), iv('09:10', '09:20')])).toBe(1);
+    expect(
+      peakConcurrency([iv('09:00', '09:30'), iv('09:05', '09:15'), iv('09:10', '09:20')]),
+    ).toBe(3);
+  });
+
+  it('reports each station’s capacity and its busiest moment', () => {
+    const metrics = computeStationMetrics(
+      input({
+        visits: [
+          visit('bp', 'c1', '09:00', '09:05', '09:20'),
+          visit('bp', 'c2', '09:00', '09:10', '09:25'),
+          visit('bp', 'c3', '09:00', '09:30', '09:40'),
+        ],
+      }),
+    );
+    expect(metrics.stations.find((s) => s.stationId === 'bp')).toMatchObject({
+      capacity: 2,
+      peakInUse: 2,
+    });
+  });
+
+  const slowAt = (stationId: string, overlapping: boolean) =>
+    [0, 1, 2].map((index) =>
+      overlapping
+        ? // Taken late and all at once: the station was full.
+          visit(stationId, `${stationId}-${index}`, '09:00', '09:30', '09:50')
+        : // Taken late one after another: there was room, nobody to take them.
+          visit(
+            stationId,
+            `${stationId}-${index}`,
+            '09:00',
+            `09:${30 + index * 10}`,
+            `09:${35 + index * 10}`,
+          ),
+    );
+
+  it('says a long wait at a full station is a capacity problem', () => {
+    const metrics = computeStationMetrics(input({ visits: slowAt('intake', true) }));
+    expect(metrics.bottleneckStationId).toBe('intake');
+    expect(metrics.bottleneckConstraint).toBe('CAPACITY');
+  });
+
+  it('says a long wait at a station that never filled is a staffing problem', () => {
+    const metrics = computeStationMetrics(input({ visits: slowAt('bp', false) }));
+    expect(metrics.bottleneckStationId).toBe('bp');
+    expect(metrics.stations.find((s) => s.stationId === 'bp')!.peakInUse).toBe(1);
+    expect(metrics.bottleneckConstraint).toBe('STAFFING');
+  });
+
+  it('has no constraint to report without a bottleneck', () => {
+    expect(computeStationMetrics(input()).bottleneckConstraint).toBeNull();
   });
 });
 
