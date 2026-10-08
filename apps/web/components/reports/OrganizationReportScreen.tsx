@@ -26,6 +26,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { OrganizationAnalyticsPanel } from './OrganizationAnalyticsPanel';
 import {
   Select,
   SelectContent,
@@ -45,6 +47,7 @@ export function OrganizationReportScreen() {
   const router = useRouter();
   const bootstrapCtx = useBootstrap();
   const [organizationId, setOrganizationId] = useState<string | null>(null);
+  const [tab, setTab] = useState<'report' | 'analytics'>('report');
 
   const organizations = useAsyncResource<OrganizationSummary[]>({
     resourceKey: 'report-organizations',
@@ -197,99 +200,124 @@ export function OrganizationReportScreen() {
       </ResourceState>
 
       {organizationId ? (
-        <ResourceState
-          state={report}
-          errorTitle="The organization report could not be loaded"
-          skeleton={<SectionSkeleton lines={6} />}
-        >
-          {(data) => (
-            <div className="space-y-6">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <DashboardKpiCard
-                  title="Clinics"
-                  value={data.totals.clinics}
-                  hint={`${data.totals.activeClinics} active`}
-                  icon={Building2}
-                />
-                <DashboardKpiCard
-                  title="Patients"
-                  value={data.totals.patients.toLocaleString()}
-                  hint={`${data.totals.newPatients.toLocaleString()} registered in ${data.windowDays} days`}
-                  icon={Users}
-                />
-                <DashboardKpiCard
-                  title="Encounters"
-                  value={data.totals.encounters.toLocaleString()}
-                  hint={`Last ${data.windowDays} days, ${data.totals.finalized.toLocaleString()} finalized`}
-                  icon={Activity}
-                />
-                <DashboardKpiCard
-                  title="Open work"
-                  value={openWork(data.totals).toLocaleString()}
-                  hint={`${data.totals.openDrafts} drafts, ${data.totals.awaitingReview} awaiting review, ${data.totals.readyToFinalize} ready to finalize`}
-                  icon={ClipboardList}
-                />
-              </div>
-
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr),minmax(0,1fr)]">
-                <TrendChart
-                  title="Encounters per day"
-                  hint={`All ${data.organization.name} clinics, last ${data.windowDays} days`}
-                  data={data.encounterTrend}
-                />
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Care quality</CardTitle>
-                    <CardDescription>Across every clinic, from combined counts.</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <dl className="space-y-3 text-sm">
-                      {[
-                        ['Blood pressure screened', data.totals.hypertensionScreeningRate],
-                        ['Diabetes screened', data.totals.diabetesScreeningRate],
-                        ['Care plans with a follow-up date', data.totals.followUpRate],
-                      ].map(([label, value]) => (
-                        <div key={label as string} className="flex flex-wrap justify-between gap-2">
-                          <dt className="text-muted-foreground">{label as string}</dt>
-                          <dd className="font-medium text-foreground">
-                            {formatRate(value as OrganizationReport['totals']['followUpRate'])}
-                          </dd>
-                        </div>
-                      ))}
-                      <div className="flex flex-wrap justify-between gap-2">
-                        <dt className="text-muted-foreground">Active staff</dt>
-                        <dd className="font-medium text-foreground">{data.totals.activeStaff}</dd>
-                      </div>
-                    </dl>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <Card className="min-w-0">
-                <CardHeader>
-                  <CardTitle className="text-lg">By clinic</CardTitle>
-                  <CardDescription>
-                    Open any clinic&apos;s own dashboard to see its detail.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Box sx={{ width: '100%' }}>
-                    <DataGrid
-                      rows={data.clinics}
-                      columns={columns}
-                      getRowId={(row) => row.clinicId}
-                      autoHeight
-                      disableRowSelectionOnClick
-                      pageSizeOptions={[25, 50]}
-                      initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
-                      sx={dataGridSx}
+        <Tabs value={tab} onValueChange={(value) => setTab(value as 'report' | 'analytics')}>
+          <TabsList>
+            <TabsTrigger value="report">Report</TabsTrigger>
+            <TabsTrigger value="analytics">Cohort analytics</TabsTrigger>
+          </TabsList>
+          <TabsContent value="report" className="mt-4">
+            <ResourceState
+              state={report}
+              errorTitle="The organization report could not be loaded"
+              skeleton={<SectionSkeleton lines={6} />}
+            >
+              {(data) => (
+                <div className="space-y-6">
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <DashboardKpiCard
+                      title="Clinics"
+                      value={data.totals.clinics}
+                      hint={`${data.totals.activeClinics} active`}
+                      icon={Building2}
                     />
-                  </Box>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-        </ResourceState>
+                    <DashboardKpiCard
+                      title="Patients"
+                      value={data.totals.patients.toLocaleString()}
+                      hint={`${data.totals.newPatients.toLocaleString()} registered in ${data.windowDays} days`}
+                      icon={Users}
+                    />
+                    <DashboardKpiCard
+                      title="Encounters"
+                      value={data.totals.encounters.toLocaleString()}
+                      hint={`Last ${data.windowDays} days, ${data.totals.finalized.toLocaleString()} finalized`}
+                      icon={Activity}
+                    />
+                    <DashboardKpiCard
+                      title="Open work"
+                      value={openWork(data.totals).toLocaleString()}
+                      hint={`${data.totals.openDrafts} drafts, ${data.totals.awaitingReview} awaiting review, ${data.totals.readyToFinalize} ready to finalize`}
+                      icon={ClipboardList}
+                    />
+                  </div>
+
+                  <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr),minmax(0,1fr)]">
+                    <TrendChart
+                      title="Encounters per day"
+                      hint={`All ${data.organization.name} clinics, last ${data.windowDays} days`}
+                      data={data.encounterTrend}
+                    />
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Care quality</CardTitle>
+                        <CardDescription>
+                          Across every clinic, from combined counts.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <dl className="space-y-3 text-sm">
+                          {[
+                            ['Blood pressure screened', data.totals.hypertensionScreeningRate],
+                            ['Diabetes screened', data.totals.diabetesScreeningRate],
+                            ['Care plans with a follow-up date', data.totals.followUpRate],
+                          ].map(([label, value]) => (
+                            <div
+                              key={label as string}
+                              className="flex flex-wrap justify-between gap-2"
+                            >
+                              <dt className="text-muted-foreground">{label as string}</dt>
+                              <dd className="font-medium text-foreground">
+                                {formatRate(value as OrganizationReport['totals']['followUpRate'])}
+                              </dd>
+                            </div>
+                          ))}
+                          <div className="flex flex-wrap justify-between gap-2">
+                            <dt className="text-muted-foreground">Active staff</dt>
+                            <dd className="font-medium text-foreground">
+                              {data.totals.activeStaff}
+                            </dd>
+                          </div>
+                        </dl>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <Card className="min-w-0">
+                    <CardHeader>
+                      <CardTitle className="text-lg">By clinic</CardTitle>
+                      <CardDescription>
+                        Open any clinic&apos;s own dashboard to see its detail.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Box sx={{ width: '100%' }}>
+                        <DataGrid
+                          rows={data.clinics}
+                          columns={columns}
+                          getRowId={(row) => row.clinicId}
+                          autoHeight
+                          disableRowSelectionOnClick
+                          pageSizeOptions={[25, 50]}
+                          initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
+                          sx={dataGridSx}
+                        />
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </ResourceState>
+          </TabsContent>
+          {/* Mounted only while open, so the report alone never pays for the cohort read. */}
+          <TabsContent value="analytics" className="mt-4">
+            {tab === 'analytics' ? (
+              <OrganizationAnalyticsPanel
+                key={organizationId}
+                organizationId={organizationId}
+                clinics={report.data?.organization.id === organizationId ? report.data.clinics : []}
+              />
+            ) : null}
+          </TabsContent>
+        </Tabs>
       ) : null}
     </div>
   );
