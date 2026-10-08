@@ -1,4 +1,5 @@
 const { test, expect, request: playwrightRequest } = require('@playwright/test');
+const { skipWelcomeTour } = require('../playwright/welcome-tour');
 
 const { storageStateFor } = require('../playwright/roles');
 const { apiRequestAs } = require('../playwright/api-client');
@@ -126,6 +127,8 @@ test('accepting grants the role in that one clinic, and nowhere else', async () 
     .getByRole('button', { name: new RegExp(`accept volunteer at ${clinicName}`, 'i') })
     .click();
   await inviteePage.waitForURL(/\/dashboard/, { timeout: 60_000 });
+  // A brand-new account meets the welcome tour on its first workspace page.
+  await skipWelcomeTour(inviteePage);
 
   // Asked of the API directly, as the invitee: the role, and the scope it landed in.
   const tokenContext = await playwrightRequest.newContext();

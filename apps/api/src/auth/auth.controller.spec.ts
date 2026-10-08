@@ -16,6 +16,7 @@ describe('AuthController', () => {
   const prisma = {
     user: {
       findUnique: jest.fn(),
+      updateMany: jest.fn(),
     },
     patientPortalInvite: {
       findMany: jest.fn(),
@@ -507,6 +508,49 @@ describe('AuthController', () => {
 
       expect(result.pendingStaffInvites).toEqual([]);
       expect(prisma.staffInvite.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('welcome tour', () => {
+    it('reports the version this person last finished, or null', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        email: 'test@example.com',
+        phoneE164: null,
+        isActive: true,
+        welcomeTourVersion: 2,
+      });
+      const seen = await controller.whoami({ user: reqUser });
+      expect(seen.welcomeTour).toEqual({ completedVersion: 2 });
+
+      prisma.user.findUnique.mockResolvedValue({ email: null, phoneE164: null, isActive: true });
+      const never = await controller.whoami({ user: reqUser });
+      expect(never.welcomeTour).toEqual({ completedVersion: null });
+    });
+
+    it("writes only the caller's own row, and only forward", async () => {
+      prisma.user.updateMany.mockResolvedValue({ count: 1 });
+      prisma.user.findUnique.mockResolvedValue({ welcomeTourVersion: 3 });
+
+      const result = await controller.completeWelcomeTour({ user: reqUser }, { version: 3 });
+
+      expect(prisma.user.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: 'user-1',
+          OR: [{ welcomeTourVersion: null }, { welcomeTourVersion: { lt: 3 } }],
+        },
+        data: { welcomeTourVersion: 3, welcomeTourCompletedAt: expect.any(Date) },
+      });
+      expect(result).toEqual({ completedVersion: 3 });
+    });
+
+    it('a stale version changes nothing and reports the newer one already recorded', async () => {
+      // The forward-only filter matches no row, so nothing is written.
+      prisma.user.updateMany.mockResolvedValue({ count: 0 });
+      prisma.user.findUnique.mockResolvedValue({ welcomeTourVersion: 4 });
+
+      const result = await controller.completeWelcomeTour({ user: reqUser }, { version: 2 });
+
+      expect(result).toEqual({ completedVersion: 4 });
     });
   });
 });

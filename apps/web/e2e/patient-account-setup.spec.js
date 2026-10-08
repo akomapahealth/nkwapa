@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const { skipWelcomeTour } = require('../playwright/welcome-tour');
 
 const { storageStateFor } = require('../playwright/roles');
 const {
@@ -221,6 +222,8 @@ test('the patient claims their record and the portal opens', async () => {
   await patientPage.getByRole('button', { name: /claim patient record/i }).click();
 
   await patientPage.waitForURL(/\/portal/, { timeout: 60_000 });
+  // A brand-new account meets the welcome tour on its first workspace page.
+  await skipWelcomeTour(patientPage);
   await expect(
     patientPage.getByRole('heading', { name: /your care snapshot/i }).first(),
   ).toBeVisible({

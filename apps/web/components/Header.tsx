@@ -34,7 +34,9 @@ import { getActiveBootstrapClinic, getSwitchableClinics } from '@/lib/bootstrap-
 import { setStoredActiveClinicId } from '@/lib/bootstrap-storage';
 import { useToast } from '@/components/ui/toast';
 import { SyncStatusBar } from '@/components/sync/SyncStatusBar';
-import { LogOut, Menu, PanelLeft, PanelLeftClose, ShieldCheck, User } from 'lucide-react';
+import { Compass, LogOut, Menu, PanelLeft, PanelLeftClose, ShieldCheck, User } from 'lucide-react';
+import { WelcomeTour } from '@/components/onboarding/WelcomeTour';
+import { WELCOME_TOUR_OPEN_EVENT } from '@/lib/welcome-tour';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 
 export function Header({
@@ -251,7 +253,7 @@ export function Header({
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full">
+              <Button variant="ghost" size="icon" className="rounded-full" aria-label="User menu">
                 <Avatar className="h-9 w-9">
                   <AvatarFallback className="bg-primary text-xs text-primary-foreground">
                     {initials}
@@ -280,6 +282,12 @@ export function Header({
                   Dashboard
                 </Link>
               </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => window.dispatchEvent(new Event(WELCOME_TOUR_OPEN_EVENT))}
+              >
+                <Compass className="mr-2 h-4 w-4" />
+                Take the tour
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
                 Appearance
@@ -304,6 +312,8 @@ export function Header({
           </DropdownMenu>
         </div>
       </div>
+      {/* Here because both the workspace and the portal render this header. */}
+      <WelcomeTour />
     </header>
   );
 }

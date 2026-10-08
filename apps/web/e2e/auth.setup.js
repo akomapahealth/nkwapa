@@ -1,5 +1,6 @@
 const { test: setup, expect } = require('@playwright/test');
 const { ROLES } = require('../playwright/roles');
+const { skipWelcomeTour } = require('../playwright/welcome-tour');
 
 async function authenticate(page, { username, password, storageState, landingUrl = '/dashboard' }) {
   /*
@@ -34,6 +35,10 @@ async function authenticate(page, { username, password, storageState, landingUrl
   // The main landmark rather than a named tile: these screens compose different sections per
   // role, and this setup runs for identities that see different ones.
   await expect(page.locator('#main-content')).toBeVisible({ timeout: 60_000 });
+  // Recorded on the server, so every spec that reuses this identity starts past the tour.
+  if (!landingUrl.startsWith('/claim-record')) {
+    await skipWelcomeTour(page);
+  }
 
   await page.context().storageState({ path: storageState });
 }

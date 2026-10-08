@@ -1,4 +1,4 @@
-import { Controller, Get, Request, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Request, UseGuards } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { ClinicService } from '../clinics/clinic.service';
@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RateLimit } from '../common/rate-limit.decorator';
 import { claimableInviteForIdentityWhere } from '../common/portal-invite-lifecycle';
 import { IncludeStaffInviteScope } from '../staff-invites/staff-invite-scope.decorator';
+import { CompleteWelcomeTourDto } from './dto/welcome-tour.dto';
 import {
   findAcceptableStaffInvites,
   type AcceptableStaffInvite,
@@ -68,6 +69,11 @@ export interface WhoAmIResponse {
         }>;
       }
     | null;
+  /**
+   * The welcome tour version this person last finished or skipped, or null if never. The web app
+   * offers the tour while this is below its current version. Not onboarding: it gates nothing.
+   */
+  welcomeTour: { completedVersion: number | null };
 }
 
 @Controller('auth')
@@ -167,6 +173,11 @@ export class AuthController {
           ? { state: 'STAFF_INVITE_ACCEPT_REQUIRED' }
           : await this.findPendingPatientClaimOnboarding(user.id);
 
+    const tour = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: { welcomeTourVersion: true },
+    });
+
     return {
       userId: user.id,
       keycloakSub: user.keycloakSub,
@@ -179,7 +190,37 @@ export class AuthController {
       effectivePermissionsForActiveClinic,
       pendingStaffInvites,
       onboarding,
+      welcomeTour: { completedVersion: tour?.welcomeTourVersion ?? null },
     };
+  }
+
+  /**
+   * Record that the caller finished or skipped the welcome tour.
+   *
+   * Writes only the caller's own row -- the id comes from the token, never the body -- and only
+   * moves forward: a stale tab finishing an older version cannot re-offer a tour this person has
+   * already seen a newer one of. Idempotent, so the client can retry blindly.
+   */
+  @UseGuards(JwtAuthGuard)
+  @Post('welcome-tour')
+  @HttpCode(200)
+  @RateLimit({ key: 'auth_welcome_tour', limit: 20, windowSeconds: 60, scope: 'user-or-ip' })
+  async completeWelcomeTour(
+    @Request() req: { user: ReqUser },
+    @Body() dto: CompleteWelcomeTourDto,
+  ): Promise<{ completedVersion: number }> {
+    await this.prisma.user.updateMany({
+      where: {
+        id: req.user.user.id,
+        OR: [{ welcomeTourVersion: null }, { welcomeTourVersion: { lt: dto.version } }],
+      },
+      data: { welcomeTourVersion: dto.version, welcomeTourCompletedAt: new Date() },
+    });
+    const row = await this.prisma.user.findUnique({
+      where: { id: req.user.user.id },
+      select: { welcomeTourVersion: true },
+    });
+    return { completedVersion: row?.welcomeTourVersion ?? dto.version };
   }
 
   private async findPendingPatientClaimOnboarding(
