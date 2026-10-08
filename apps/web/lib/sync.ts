@@ -4,7 +4,7 @@ import type { Table } from 'dexie';
 import { db, type OutboxRecord } from './db';
 import type { SyncPullResponseDto } from './sync-types';
 import { applyAdherencePull } from './medication-adherence';
-import { isOwnedBy, outboxFailureUpdate, outboxSyncState } from './outbox';
+import { currentOutboxRevision, isOwnedBy, outboxFailureUpdate, outboxSyncState } from './outbox';
 import { describeSyncTransportFailure, type SyncTransportFailure } from './sync-conflicts';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
@@ -351,6 +351,15 @@ async function pullIntoLocalStore(clinicId: string, headers: Record<string, stri
 }
 
 /**
+ * Send a change that was just queued, unless a pass for its clinic is already running: that pass
+ * sees the outbox revision move and runs again by itself, so joining it would only add a third.
+ */
+export function syncQueuedChange(options: SyncNowOptions): void {
+  if (inFlightByClinic.has(options.clinicId)) return;
+  void syncNow(options);
+}
+
+/**
  * Coalesces concurrent retries without losing mutations queued during an active sync pass.
  * A concurrent caller requests one follow-up pass after the current push/pull completes.
  */
@@ -367,12 +376,16 @@ export function syncNow(options: SyncNowOptions): Promise<SyncResult> {
     const rejected: SyncMutationFailure[] = [];
     let result: SyncResult;
 
+    let queuedDuringPass: boolean;
     do {
       rerunRequestedByClinic.delete(options.clinicId);
+      const revisionAtStart = currentOutboxRevision();
       result = await performSync(latestOptionsByClinic.get(options.clinicId) ?? options);
       if (result.conflicts) conflicts.push(...result.conflicts);
       if (result.rejected) rejected.push(...result.rejected);
-    } while (result.success && rerunRequestedByClinic.has(options.clinicId));
+      // A change queued mid-pass may have landed after the push read the outbox.
+      queuedDuringPass = currentOutboxRevision() !== revisionAtStart;
+    } while (result.success && (rerunRequestedByClinic.has(options.clinicId) || queuedDuringPass));
 
     const merged: SyncResult = {
       ...result,
