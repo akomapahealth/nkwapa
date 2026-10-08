@@ -138,6 +138,14 @@ const NAV_SECTIONS: AppNavSection[] = [
         requiresClinic: true,
       },
       {
+        href: '/staff-activity',
+        label: 'Staff activity',
+        description: 'Workload by person.',
+        icon: Users,
+        permission: 'AUDIT.READ',
+        requiresClinic: true,
+      },
+      {
         href: '/metrics',
         label: 'Metrics',
         description: 'Workflow conversion and failures.',
