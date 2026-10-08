@@ -34,6 +34,7 @@ import { HypertensionAssessmentModule } from './hypertension-assessment/hyperten
 import { MedicationAdherenceModule } from './medication-adherence/medication-adherence.module';
 import { ClinicalNoteModule } from './clinical-notes/clinical-note.module';
 import { CounsellingModule } from './counselling/counselling.module';
+import { StaffActivityModule } from './staff-activity/staff-activity.module';
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
 
@@ -72,6 +73,7 @@ const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
     MedicationAdherenceModule,
     ClinicalNoteModule,
     CounsellingModule,
+    StaffActivityModule,
   ],
   providers: [RateLimitGuard],
 })
