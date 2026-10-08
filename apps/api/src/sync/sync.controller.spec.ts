@@ -13,6 +13,7 @@ import { RbacGuard } from '../auth/guards/rbac.guard';
 import { SYNC_MUTATION_RESULT_STATUS } from './dto/sync-push-response.dto';
 import { SYNC_PUSH_BODY_PIPE, SyncController } from './sync.controller';
 import { SyncService } from './sync.service';
+import { ClinicianPlanSealService } from './clinician-plan-seal.service';
 import {
   CLINIC_A1,
   CLINIC_B1,
@@ -116,6 +117,7 @@ describe('SyncController', () => {
         ClinicScopeGuard,
         RbacGuard,
         { provide: SyncService, useValue: syncService },
+        ClinicianPlanSealService,
       ],
     }).compile();
 
@@ -340,6 +342,7 @@ describe('SyncController stale clinic scope', () => {
         ClinicScopeGuard,
         RbacGuard,
         { provide: SyncService, useValue: { applyMutations: jest.fn(), pull: jest.fn() } },
+        ClinicianPlanSealService,
       ],
     }).compile();
     controller = module.get(SyncController);

@@ -117,6 +117,9 @@ export const SYNC_CONFLICT_CODES = {
   // cannot come back, so no replay will ever be accepted.
   OPS_REPLAY_EXPIRED: code('validation', terminal),
   INVALID_OPS_TIME_ORDER: code('validation'),
+  // A clinician plan sealed offline (#131) that the server cannot open: an unknown or retired key,
+  // or an envelope sealed for another clinic, encounter or account. No replay will ever open it.
+  SEALED_PLAN_UNREADABLE: code('validation', terminal),
 
   // Access
   FORBIDDEN: code('permission'),
