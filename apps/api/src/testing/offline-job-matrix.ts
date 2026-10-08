@@ -94,14 +94,6 @@ export interface KnownRisk {
 }
 
 export const KNOWN_RISKS = {
-  'stranded-clinic': {
-    title: 'Work queued for a clinic the account can no longer open is not shown',
-    behaviour:
-      'The outbox, the pill and the sync center are all scoped to the active clinic. If an account loses its seat at a clinic entirely, that clinic is never offered as active again, so changes queued under it stay on the device and appear nowhere.',
-    mitigation:
-      'Nothing is deleted, and nothing is sent to a clinic the account cannot write to. Restoring the seat, or signing in as someone who holds one, drains them.',
-    followUp: '#163: List queued work for clinics other than the active one in the sync center.',
-  },
   'job-transaction': {
     title: 'External calls run inside the job transaction',
     behaviour:
@@ -657,10 +649,22 @@ export const OFFLINE_JOB_SCENARIOS: readonly MatrixScenario[] = [
     scenario: 'The account loses its seat at a clinic entirely while work is queued there',
     fixture: 'A queued change for clinic A; the account’s only role at A removed by an admin',
     expected:
-      'Clinic A is no longer offered, and its change is kept on the device but not shown. See the known risk.',
-    automated: [],
+      'Clinic A is no longer offered as active, and its change is listed in the sync center under "Saved for other clinics", named, never pushed. A clinic the account can still open offers a switch that sends it there; a lost one offers only a confirmed discard of this account’s own changes (#163).',
+    automated: [
+      ref(
+        `${E2E}/outbox-other-clinics.spec.js`,
+        'a change saved for another open clinic is listed, not pushed, and sent there on switching',
+      ),
+      ref(
+        `${E2E}/outbox-other-clinics.spec.js`,
+        'a lost clinic offers only a confirmed discard of this account’s own changes',
+      ),
+      ref(
+        `${WEB}/other-clinic-queue.test.ts`,
+        'groups by clinic, open clinics first, and names a lost one from what was recorded',
+      ),
+    ],
     manual: true,
-    knownRisk: 'stranded-clinic',
   },
 
   // Cross-tenant isolation

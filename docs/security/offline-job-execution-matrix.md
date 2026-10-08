@@ -78,7 +78,7 @@ A device holds work for a clinic other than the one now active, or for a clinic 
 | CLN-03 | The account lost its seat at the clinic its queued work belongs to | A push or pull naming a clinic where the account holds no role, or only a patient role | The route refuses it with 403 before the service runs. The device keeps every row and says "This account cannot sync at this clinic". | Sync API (`apps/api/src/sync`) | high | Unit, Manual |
 | CLN-04 | A push carries a change whose own clinic is not the clinic pushed to | One mutation naming clinic B inside a push to clinic A, beside a valid one | CLINIC_MISMATCH for that change, nothing recorded under clinic A, and the rest of the push applies. | Sync API (`apps/api/src/sync`) | high | Unit |
 | CLN-05 | An account signs out with work still queued, and another signs in on the device | A queued change from account A; account B signs in at the same clinic | The change is held, never sent under account B. B sees it in the sync center attributed to A and can discard it after confirming; A signing back in sends it. A change from before owners were recorded is held until an account confirms it as its own (#162). | Web outbox and sync engine (`apps/web/lib/outbox.ts`, `sync.ts`) | high | Unit, E2E, Manual |
-| CLN-06 | The account loses its seat at a clinic entirely while work is queued there | A queued change for clinic A; the account’s only role at A removed by an admin | Clinic A is no longer offered, and its change is kept on the device but not shown. See the known risk. (Known risk: Work queued for a clinic the account can no longer open is not shown.) | Web outbox and sync engine (`apps/web/lib/outbox.ts`, `sync.ts`) | medium | Manual |
+| CLN-06 | The account loses its seat at a clinic entirely while work is queued there | A queued change for clinic A; the account’s only role at A removed by an admin | Clinic A is no longer offered as active, and its change is listed in the sync center under "Saved for other clinics", named, never pushed. A clinic the account can still open offers a switch that sends it there; a lost one offers only a confirmed discard of this account’s own changes (#163). | Web outbox and sync engine (`apps/web/lib/outbox.ts`, `sync.ts`) | medium | E2E, Unit, Manual |
 
 ## Cross-tenant isolation
 
@@ -111,14 +111,6 @@ BullMQ workers: reminders, research exports, and the maintenance sweeps. Each is
 | JOB-09 | A send or export outlasts the job transaction | A slow SMTP relay, or a large clinic export pushed to a slow GitHub | Today the transaction can expire after the external call succeeded; see the known risk. (Known risk: External calls run inside the job transaction.) | Research export worker (`apps/api/src/research`) | high | Manual |
 
 ## Known risks
-
-### Work queued for a clinic the account can no longer open is not shown
-
-Scenarios: CLN-06.
-
-- **Today:** The outbox, the pill and the sync center are all scoped to the active clinic. If an account loses its seat at a clinic entirely, that clinic is never offered as active again, so changes queued under it stay on the device and appear nowhere.
-- **Why it is tolerated:** Nothing is deleted, and nothing is sent to a clinic the account cannot write to. Restoring the seat, or signing in as someone who holds one, drains them.
-- **Next:** #163: List queued work for clinics other than the active one in the sync center.
 
 ### External calls run inside the job transaction
 
@@ -211,6 +203,10 @@ The exact tests behind each row.
   - E2E: `apps/web/e2e/outbox-owner.spec.js` "another account's queued change is held, attributed, and never sent"
   - E2E: `apps/web/e2e/outbox-owner.spec.js` "a change with no recorded owner is sent only after it is claimed"
   - E2E: `apps/web/e2e/outbox-owner.spec.js` "the owner's own session sends what it queued"
+- **CLN-06** The account loses its seat at a clinic entirely while work is queued there
+  - E2E: `apps/web/e2e/outbox-other-clinics.spec.js` "a change saved for another open clinic is listed, not pushed, and sent there on switching"
+  - E2E: `apps/web/e2e/outbox-other-clinics.spec.js` "a lost clinic offers only a confirmed discard of this account’s own changes"
+  - Unit: `apps/web/lib/other-clinic-queue.test.ts` "groups by clinic, open clinics first, and names a lost one from what was recorded"
 - **TEN-01** A replayed payload points at another clinic’s data
   - Unit: `apps/api/src/sync/sync.service.spec.ts` "refuses an encounter payload that names another clinic"
   - Unit: `apps/api/src/sync/sync.service.spec.ts` "refuses an encounter whose patient belongs to another clinic"

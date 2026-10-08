@@ -1041,9 +1041,11 @@ Needs an account with seats at two clinics (the cross-clinic fixtures from
       does not count it, and the sync center lists it under "Saved by another account on this
       device", attributed to A. B can discard it only after confirming, and has no way to send
       it. Sign back in as A: it is sent and the audit entry names A (#162).
-- [ ] **CLN-06** _Known risk._ Queue a change at clinic A, then remove the account's only role at A.
-      After a refresh, clinic A is no longer offered, and the change is kept in IndexedDB but shown
-      nowhere. Restoring the role brings it back and it drains. Tracked in #163.
+- [ ] **CLN-06** Queue a change at clinic A, then remove the account's only role at A. After a
+      refresh, clinic A is no longer offered, the sync pill shows a small dot, and the sync center
+      lists the change under "Saved for other clinics" with clinic A's name and "You no longer have
+      access". The only action is **Discard**, which asks first. Restore the role instead: the
+      section offers **Switch to clinic A**, and switching sends the change there (#163).
 
 ### Background jobs
 
