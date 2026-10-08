@@ -272,6 +272,9 @@ enum ReminderRecipientType {
 
 enum ReminderStatus {
   QUEUED
+  /// Claimed by a worker that is calling the provider now (#164). A row stuck here means the
+  /// outcome is unknown, and the reconciliation sweep records it as such rather than resending.
+  SENDING
   SENT
   DELIVERED
   FAILED
@@ -1775,6 +1778,9 @@ model Reminder {
   status            ReminderStatus @default(QUEUED)
   providerMessageId String?        @db.VarChar(255)
   failureReason     String?        @db.VarChar(255)
+  /// When a worker claimed the row to send it. Only meaningful while SENDING; it is how the
+  /// sweep tells a send still in flight from one whose worker died.
+  sendingStartedAt  DateTime?
 
   /// The staff member who scheduled this reminder directly (#116). Null for every reminder that is
   /// a side effect of something else (finalize, appointments, invites); only these can be cancelled
