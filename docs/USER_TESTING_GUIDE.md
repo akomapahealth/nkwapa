@@ -1063,9 +1063,6 @@ Needs an account with seats at two clinics (the cross-clinic fixtures from
 - [ ] **JOB-06** During JOB-05, watch the research page between attempts. The export stays
       _Approved_ while it is being retried, and reads **Failed**, with an audit entry, only after the
       last attempt. Refresh the page after it fails, to confirm it is still **Failed**.
-- [ ] **JOB-09** _Known risk._ During the release smoke, search the API log for "Transaction already
-      closed" or "expired transaction" from the reminder or research workers. Any hit means a send or
-      push outlasted the job transaction. Note which one; it is tracked in #164.
 
 ---
 

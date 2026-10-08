@@ -78,6 +78,14 @@ export const CLINICAL_RECORD_SURFACES: readonly ClinicalRecordSurface[] = [
     note: 'The clinician plan is doctor-only, refused by the API for any other role, and withheld from the offline pull so no volunteer device caches it.',
   },
   {
+    id: 'clinician-plan',
+    label: 'Supervising clinician plan (hypertension and diabetes)',
+    read: PERMISSIONS.CAREPLAN_CLINICIAN_PLAN,
+    write: PERMISSIONS.CAREPLAN_CLINICIAN_PLAN,
+    syncEntityTypes: ['clinician_plan'],
+    note: 'Doctor-only. Queued offline only sealed to the server key (#131): the device cannot read a queued plan back, the pull never returns one, and the server opens it only for the clinic, encounter, condition and doctor it was sealed for.',
+  },
+  {
     id: 'medication-adherence',
     label: 'Per-encounter medication adherence',
     read: PERMISSIONS.SCREENING_READ,

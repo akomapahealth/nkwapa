@@ -259,16 +259,31 @@ Current status progression:
 - `FAILED`
 - `REJECTED`
 
-Each run happens inside the job's clinic-scoped transaction, so a failure behaves as follows:
+A run is a series of short clinic-scoped transactions, never one around the GitHub push (#164):
 
-- **Attempts left:** a failed run is thrown back to the queue. The transaction rolls back, the
-  export stays `APPROVED`, and BullMQ runs it again (three attempts, exponential from 60 seconds).
-- **Last attempt:** the run records `FAILED` and its `RESEARCH_EXPORT.FAIL` audit entry, then
-  returns instead of throwing, so that record commits. A throw would roll it back and leave an
-  export that reads `APPROVED` forever.
-- **Two deliveries of one export:** the run takes an advisory lock on the export before reading it.
-  A duplicate that finds the lock held stands down, and one that arrives after completion finds
-  `COMPLETED` and does nothing. The pack is built and pushed to the research repository once.
+1. **Claim**: `APPROVED` -> `PROCESSING`, committed.
+2. **Generate** the pack in a read-only transaction, which may run for up to two minutes because
+   reading twice is harmless.
+3. **Plan**: record the pack metadata and the repository path the push will write to.
+4. **Push** to GitHub with no transaction open.
+5. **Record** `COMPLETED` with the commit.
+
+A failure behaves as follows:
+
+- **Before the push, attempts left:** the export is handed back (`PROCESSING` -> `APPROVED`) and
+  the run is thrown to the queue, which runs it again (three attempts, exponential from 60 seconds).
+- **Before the push, last attempt:** the run records `FAILED` and its `RESEARCH_EXPORT.FAIL` audit
+  entry, then returns.
+- **The push fails, or COMPLETED cannot be recorded:** the planned path settles it. The snapshot
+  directory is unique to the run, so a commit touching it on the export branch is that run's push,
+  and the export completes from it without pushing again. No commit means the push did not land,
+  and the run fails or retries as above. If GitHub cannot be asked, the export stays `PROCESSING`.
+- **Two deliveries of one export:** a duplicate finds `PROCESSING` and stands down, and one that
+  arrives after completion finds `COMPLETED` and does nothing. The pack is pushed once.
+- **A run that never finished:** the reconciliation sweep (every fifteen minutes) settles exports
+  still `PROCESSING` an hour after they started, the same way: a commit at the planned path
+  completes it (`RESEARCH_EXPORT.RECONCILE`); none, or no planned path, fails it with
+  `RESEARCH_EXPORT_INTERRUPTED`, which an operator can retry.
 
 ### 4. Retry failures
 

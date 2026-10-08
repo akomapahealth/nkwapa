@@ -21,6 +21,7 @@ import { RbacGuard } from '../auth/guards/rbac.guard';
 import { ClinicScopeGuard } from '../auth/guards/clinic-scope.guard';
 import { PERMISSIONS } from '../auth/constants/permissions';
 import { SyncService } from './sync.service';
+import { ClinicianPlanSealService } from './clinician-plan-seal.service';
 import { SyncMutationDto } from './dto/sync-mutation.dto';
 import { RateLimit } from '../common/rate-limit.decorator';
 import { flattenValidationErrors } from '../common/validation';
@@ -78,7 +79,22 @@ class SyncPullQueryDto extends SyncQueryDto {
 @Controller('sync')
 @UseGuards(JwtAuthGuard, ClinicScopeGuard, RbacGuard)
 export class SyncController {
-  constructor(private readonly syncService: SyncService) {}
+  constructor(
+    private readonly syncService: SyncService,
+    private readonly clinicianPlanSeal: ClinicianPlanSealService,
+  ) {}
+
+  /**
+   * The public key a doctor's device seals an offline clinician plan to (#131). Not a secret, but
+   * only a doctor ever needs it, so it is served under the same permission as the plan itself.
+   * `available: false` means no key is configured and the plan stays online-only.
+   */
+  @Get('clinician-plan-key')
+  @RequirePermission(PERMISSIONS.CAREPLAN_CLINICIAN_PLAN)
+  @ClinicScoped({ type: 'query', queryKey: 'clinicId' })
+  clinicianPlanKey(@Query() _query: SyncQueryDto) {
+    return this.clinicianPlanSeal.publicKey();
+  }
 
   @Post('push')
   @Track('sync.push', { describe: describeSyncPush })

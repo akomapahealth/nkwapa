@@ -6,6 +6,7 @@ import { PatientModule } from '../patients/patient.module';
 import { EncounterModule } from '../encounters/encounter.module';
 import { MedicalHistoryModule } from '../medical-history/medical-history.module';
 import { ClinicalMeasurementsService } from './clinical-measurements.service';
+import { ClinicianPlanSealService } from './clinician-plan-seal.service';
 import { MedicationReconciliationModule } from '../medication-reconciliation/medication-reconciliation.module';
 import { DiabetesScreeningModule } from '../diabetes-screening/diabetes-screening.module';
 import { HypertensionAssessmentModule } from '../hypertension-assessment/hypertension-assessment.module';
@@ -27,6 +28,6 @@ import { OpsModule } from '../ops/ops.module';
     OpsModule,
   ],
   controllers: [SyncController],
-  providers: [SyncService, ClinicalMeasurementsService],
+  providers: [SyncService, ClinicalMeasurementsService, ClinicianPlanSealService],
 })
 export class SyncModule {}
