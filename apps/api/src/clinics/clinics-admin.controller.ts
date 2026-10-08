@@ -43,7 +43,10 @@ export class ClinicsAdminController {
       roles: req.user.roles,
     };
     this.assertCanAdministerClinics(actor.roles, 'list clinics');
-    return this.clinicService.listAllForAdmin(actor, { zoneCode: query.zoneCode });
+    return this.clinicService.listAllForAdmin(actor, {
+      zoneCode: query.zoneCode,
+      organizationId: query.organizationId,
+    });
   }
 
   /**

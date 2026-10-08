@@ -126,3 +126,45 @@ export const STAFF_ACCOUNT_DEACTIVATED_V1: EmailTemplate<StaffLifecyclePayload> 
     };
   },
 };
+
+/**
+ * The counterpart to a deactivation. Sent because the person was told their access ended, and
+ * the sign-in identity is re-enabled at the same time: without this they have no reason to try.
+ */
+export const STAFF_ACCOUNT_REACTIVATED_V1: EmailTemplate<StaffLifecyclePayload> = {
+  key: 'STAFF_ACCOUNT_REACTIVATED_V1',
+  parse: parseStaffPayload,
+  render: (payload) => {
+    const isGlobal = payload.scope === 'GLOBAL';
+    const clinicName = payload.clinicName ?? PRODUCT_NAME;
+
+    const layout: LayoutInput = {
+      preheader: isGlobal
+        ? 'Your Nkwapa account has been reactivated.'
+        : `Your access at ${clinicName} has been restored.`,
+      heading: isGlobal ? 'Your account has been reactivated' : 'Your clinic access is back',
+      clinicName,
+      paragraphs: [
+        greeting(payload.displayName),
+        isGlobal
+          ? 'Your Nkwapa account has been reactivated. You can sign in again with your existing password.'
+          : `Your access to ${clinicName} has been restored. You can sign in again with your existing password.`,
+      ],
+      ...(payload.clinicName && !isGlobal
+        ? { details: [{ label: 'Clinic', value: payload.clinicName }] }
+        : {}),
+      footnotes: [
+        'If you have forgotten your password, use "Forgot password" on the sign-in page.',
+        'If you were not expecting this, contact your clinic administrator.',
+      ],
+    };
+
+    return {
+      subject: isGlobal
+        ? 'Your Nkwapa account has been reactivated'
+        : `Your access at ${clinicName} has been restored`,
+      html: renderLayout(layout),
+      text: renderText(layout),
+    };
+  },
+};
