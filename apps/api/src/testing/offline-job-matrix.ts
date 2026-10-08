@@ -93,32 +93,7 @@ export interface KnownRisk {
   followUp: string;
 }
 
-export const KNOWN_RISKS = {
-  'stranded-clinic': {
-    title: 'Work queued for a clinic the account can no longer open is not shown',
-    behaviour:
-      'The outbox, the pill and the sync center are all scoped to the active clinic. If an account loses its seat at a clinic entirely, that clinic is never offered as active again, so changes queued under it stay on the device and appear nowhere.',
-    mitigation:
-      'Nothing is deleted, and nothing is sent to a clinic the account cannot write to. Restoring the seat, or signing in as someone who holds one, drains them.',
-    followUp: '#163: List queued work for clinics other than the active one in the sync center.',
-  },
-  'job-transaction': {
-    title: 'External calls run inside the job transaction',
-    behaviour:
-      'Each job runs in one interactive Prisma transaction with the default 5 second timeout. The SMS or email send, and the research pack build plus GitHub push, happen inside it. A slow provider can expire the transaction after the message or commit has already gone out.',
-    mitigation:
-      'Sends and exports are claimed with an advisory lock, so two deliveries never run at the same time. That does not cover this case: if the transaction expires after the provider accepted the message, the SENT or COMPLETED write rolls back and the retry sends or pushes again. Typical sends finish well inside the window; watch for expired-transaction errors in the worker log.',
-    followUp: '#164: Move provider calls and the GitHub push outside the tenant transaction.',
-  },
-  'early-reminder': {
-    title: 'A reminder job that fires early completes without sending',
-    behaviour:
-      'A reminder job delivered before its scheduled time (clock skew between the API and Redis) finds the row not yet due, returns, and completes. Nothing re-queues it, so the row stays QUEUED.',
-    mitigation:
-      'Delays are computed from the same scheduledAt the check reads, so this needs skew larger than the gap between them. The reminders page shows a QUEUED row past its time, which is the signal to look.',
-    followUp: '#165: Re-queue a reminder that is not yet due for the remaining delay.',
-  },
-} as const satisfies Record<string, KnownRisk>;
+export const KNOWN_RISKS = {} as const satisfies Record<string, KnownRisk>;
 export type KnownRiskId = keyof typeof KNOWN_RISKS;
 
 export interface MatrixScenario {
@@ -657,10 +632,22 @@ export const OFFLINE_JOB_SCENARIOS: readonly MatrixScenario[] = [
     scenario: 'The account loses its seat at a clinic entirely while work is queued there',
     fixture: 'A queued change for clinic A; the account’s only role at A removed by an admin',
     expected:
-      'Clinic A is no longer offered, and its change is kept on the device but not shown. See the known risk.',
-    automated: [],
+      'Clinic A is no longer offered as active, and its change is listed in the sync center under "Saved for other clinics", named, never pushed. A clinic the account can still open offers a switch that sends it there; a lost one offers only a confirmed discard of this account’s own changes (#163).',
+    automated: [
+      ref(
+        `${E2E}/outbox-other-clinics.spec.js`,
+        'a change saved for another open clinic is listed, not pushed, and sent there on switching',
+      ),
+      ref(
+        `${E2E}/outbox-other-clinics.spec.js`,
+        'a lost clinic offers only a confirmed discard of this account’s own changes',
+      ),
+      ref(
+        `${WEB}/other-clinic-queue.test.ts`,
+        'groups by clinic, open clinics first, and names a lost one from what was recorded',
+      ),
+    ],
     manual: true,
-    knownRisk: 'stranded-clinic',
   },
 
   // Cross-tenant isolation
@@ -888,15 +875,26 @@ export const OFFLINE_JOB_SCENARIOS: readonly MatrixScenario[] = [
     scenario: 'A reminder job fires before its scheduled time',
     fixture: 'A queued reminder whose scheduledAt is still in the future',
     expected:
-      'Nothing is sent. Today the job completes and the row stays QUEUED; see the known risk.',
+      'Nothing is sent early. The job goes back to delayed until scheduledAt (spending no attempt) and sends once then (#165). A reminder past its time with no live job, however the job was lost, is re-queued under its own clinic by the five-minute sweep.',
     automated: [
       ref(
         `${REMINDERS}/appointment-reminder-lifecycle.spec.ts`,
         'does nothing before the reminder is due',
       ),
+      ref(
+        `${REMINDERS}/reminder-early-delivery.spec.ts`,
+        'asks to run again at the reminder time, without sending or claiming',
+      ),
+      ref(
+        `${REMINDERS}/reminder.processor.spec.ts`,
+        'moves the job back to delayed until the reminder is due, spending no attempt',
+      ),
+      ref(
+        `${REMINDERS}/reminder-early-delivery.spec.ts`,
+        're-queues a reminder whose job is gone, under its own clinic',
+      ),
     ],
     manual: false,
-    knownRisk: 'early-reminder',
   },
   {
     id: 'JOB-05',
@@ -999,9 +997,37 @@ export const OFFLINE_JOB_SCENARIOS: readonly MatrixScenario[] = [
     scenario: 'A send or export outlasts the job transaction',
     fixture: 'A slow SMTP relay, or a large clinic export pushed to a slow GitHub',
     expected:
-      'Today the transaction can expire after the external call succeeded; see the known risk.',
-    automated: [],
-    manual: true,
-    knownRisk: 'job-transaction',
+      'No provider call or push runs inside a transaction (#164). The row is claimed (SENDING, PROCESSING) and committed first, the call runs with no transaction open, and the outcome is recorded in a second step. A lost outcome is never retried blindly: a reminder is recorded as SEND_OUTCOME_UNKNOWN, and an export is settled by asking GitHub for a commit at its planned path.',
+    automated: [
+      ref(
+        'apps/api/src/reminders/reminder-send-steps.spec.ts',
+        'claims, sends with no transaction open, then records SENT',
+      ),
+      ref(
+        'apps/api/src/reminders/reminder-send-steps.spec.ts',
+        'sends exactly once however long the provider takes',
+      ),
+      ref(
+        'apps/api/src/reminders/reminder-send-steps.spec.ts',
+        'leaves the row SENDING when SENT cannot be recorded, so the retry does not resend',
+      ),
+      ref(
+        'apps/api/src/reminders/reminder-send-steps.spec.ts',
+        'records a long-stuck send as outcome unknown, without sending anything',
+      ),
+      ref(
+        'apps/api/src/research/research-export-steps.spec.ts',
+        'records the planned path before the push, and COMPLETED after it',
+      ),
+      ref(
+        'apps/api/src/research/research-export-steps.spec.ts',
+        'completes from the commit GitHub already has when the push response was lost',
+      ),
+      ref(
+        'apps/api/src/research/research-export-steps.spec.ts',
+        'leaves the export PROCESSING when nobody can tell whether the push landed',
+      ),
+    ],
+    manual: false,
   },
 ];

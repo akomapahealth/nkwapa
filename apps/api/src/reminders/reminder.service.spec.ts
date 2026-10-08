@@ -45,6 +45,7 @@ describe('ReminderService', () => {
       findFirst: jest.Mock;
       findUnique: jest.Mock;
       update: jest.Mock;
+      updateMany: jest.Mock;
     };
     appointment: { findFirst: jest.Mock };
     patient: { findFirst: jest.Mock };
@@ -67,6 +68,7 @@ describe('ReminderService', () => {
         findFirst: jest.fn(),
         findUnique: jest.fn(),
         update: jest.fn(async ({ where, data }) => createReminder({ id: where.id, ...data })),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       appointment: { findFirst: jest.fn() },
       patient: { findFirst: jest.fn() },
@@ -249,8 +251,8 @@ describe('ReminderService', () => {
 
       await service.processReminder('reminder-1');
 
-      expect(prisma.reminder.update).toHaveBeenCalledWith({
-        where: { id: 'reminder-1' },
+      expect(prisma.reminder.updateMany).toHaveBeenCalledWith({
+        where: { id: 'reminder-1', status: 'SENDING' },
         data: { status: 'FAILED', failureReason: 'EMAIL_NOT_CONFIGURED' },
       });
     });
@@ -265,8 +267,8 @@ describe('ReminderService', () => {
 
       await service.processReminder('reminder-1');
 
-      expect(prisma.reminder.update).toHaveBeenCalledWith({
-        where: { id: 'reminder-1' },
+      expect(prisma.reminder.updateMany).toHaveBeenCalledWith({
+        where: { id: 'reminder-1', status: 'SENDING' },
         data: { status: 'FAILED', failureReason: 'SEND_FAILED' },
       });
     });
@@ -302,8 +304,8 @@ describe('ReminderService', () => {
 
       await service.processReminder('reminder-1', { attemptsMade: 2, maxAttempts: 3 });
 
-      expect(prisma.reminder.update).toHaveBeenCalledWith({
-        where: { id: 'reminder-1' },
+      expect(prisma.reminder.updateMany).toHaveBeenCalledWith({
+        where: { id: 'reminder-1', status: 'SENDING' },
         data: { status: 'FAILED', failureReason: 'EMAIL_SEND_FAILED' },
       });
     });
@@ -315,8 +317,8 @@ describe('ReminderService', () => {
 
       await service.processReminder('reminder-1', { attemptsMade: 0, maxAttempts: 3 });
 
-      expect(prisma.reminder.update).toHaveBeenCalledWith({
-        where: { id: 'reminder-1' },
+      expect(prisma.reminder.updateMany).toHaveBeenCalledWith({
+        where: { id: 'reminder-1', status: 'SENDING' },
         data: { status: 'FAILED', failureReason: 'EMAIL_NOT_CONFIGURED' },
       });
     });
@@ -332,8 +334,8 @@ describe('ReminderService', () => {
 
       await service.processReminder('reminder-1');
 
-      expect(prisma.reminder.update).toHaveBeenCalledWith({
-        where: { id: 'reminder-1' },
+      expect(prisma.reminder.updateMany).toHaveBeenCalledWith({
+        where: { id: 'reminder-1', status: 'SENDING' },
         data: { status: 'FAILED', failureReason: 'EMAIL_SEND_FAILED' },
       });
     });
@@ -480,8 +482,15 @@ describe('ReminderService', () => {
       '+233240000000',
       expect.stringContaining('your appointment is scheduled'),
     );
-    expect(prisma.reminder.update).toHaveBeenCalledWith({
-      where: { id: 'reminder-1' },
+    expect(prisma.reminder.updateMany).toHaveBeenCalledWith({
+      where: { id: 'reminder-1', status: 'QUEUED' },
+      data: expect.objectContaining({ status: 'SENDING' }),
+    });
+    expect(prisma.reminder.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'reminder-1',
+        OR: [{ status: 'SENDING' }, { status: 'FAILED', failureReason: 'SEND_OUTCOME_UNKNOWN' }],
+      },
       data: expect.objectContaining({ status: 'SENT', providerMessageId: 'sms-1' }),
     });
   });

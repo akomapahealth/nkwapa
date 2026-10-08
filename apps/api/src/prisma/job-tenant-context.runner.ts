@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { PrismaService } from './prisma.service';
+import { PrismaService, type TransactionOptions } from './prisma.service';
 
 export type JobTenant = {
   clinicId: string;
@@ -29,6 +29,21 @@ export type SystemJobContext = {
   userId?: string | null;
 };
 
+/**
+ * Run one short transaction under the job's tenant context.
+ *
+ * A job that calls something outside the database (an SMS or email provider, GitHub) uses one
+ * step to claim its row, makes the call with no transaction open, and a second step to record the
+ * outcome. The claim commits before the call, so a slow call can never roll it back, and the
+ * outcome is recorded whatever the call cost. Reads and writes outside a step have no tenant
+ * context, so row-level security returns nothing: everything that touches the database belongs in
+ * a step.
+ */
+export type JobStep = <T>(
+  callback: (client: Prisma.TransactionClient) => Promise<T>,
+  options?: TransactionOptions,
+) => Promise<T>;
+
 export class UnresolvedJobTenantError extends Error {
   constructor(queueName: string, resourceId: string) {
     super(`Unable to resolve tenant for ${queueName} job resource ${resourceId}`);
@@ -42,9 +57,21 @@ export class JobTenantContextRunner {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  /** The whole job in one transaction. Only for jobs that call nothing outside the database. */
   async runClinicJob<T>(
     context: ClinicJobContext,
     callback: (client: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T | undefined> {
+    return this.runClinicJobSteps(context, (step) => step(callback));
+  }
+
+  /**
+   * The job as a series of short transactions, each under the same clinic context. The callback
+   * itself runs outside any transaction; see `JobStep`.
+   */
+  async runClinicJobSteps<T>(
+    context: ClinicJobContext,
+    callback: (step: JobStep) => Promise<T>,
   ): Promise<T | undefined> {
     const requestId = this.getRequestId(context.jobId, context.resourceId);
     let tenant = this.normalizeTenant(context.tenant);
@@ -76,10 +103,14 @@ export class JobTenantContextRunner {
       return undefined;
     }
 
-    return this.prisma.withClinicContext(
-      tenant.clinicId,
-      { requestId, userId: tenant.userId },
-      callback,
+    const resolved = tenant;
+    return callback((stepCallback, options) =>
+      this.prisma.withClinicContext(
+        resolved.clinicId,
+        { requestId, userId: resolved.userId },
+        stepCallback,
+        options,
+      ),
     );
   }
 
@@ -87,17 +118,34 @@ export class JobTenantContextRunner {
     context: SystemJobContext,
     callback: (client: Prisma.TransactionClient) => Promise<T>,
   ): Promise<T> {
+    return this.runSystemJobSteps(context, (step) => step(callback));
+  }
+
+  /** `runClinicJobSteps` for work that crosses clinics. */
+  async runSystemJobSteps<T>(
+    context: SystemJobContext,
+    callback: (step: JobStep) => Promise<T>,
+  ): Promise<T> {
     this.warn('system_job_context', context, {
       systemReason: context.systemReason,
     });
-    return this.prisma.withSystemContext(
-      {
-        requestId: this.getRequestId(context.jobId, context.resourceId),
-        userId: context.userId ?? null,
-        systemReason: context.systemReason,
-      },
-      callback,
+    const systemContext = {
+      requestId: this.getRequestId(context.jobId, context.resourceId),
+      userId: context.userId ?? null,
+      systemReason: context.systemReason,
+    };
+    return callback((stepCallback, options) =>
+      this.prisma.withSystemContext(systemContext, stepCallback, options),
     );
+  }
+
+  /**
+   * A step under one clinic's context, for a system job that has found work in that clinic (a
+   * sweep) and records the outcome there rather than with system-wide rights.
+   */
+  clinicStep(clinicId: string, requestId: string): JobStep {
+    return (stepCallback, options) =>
+      this.prisma.withClinicContext(clinicId, { requestId, userId: null }, stepCallback, options);
   }
 
   /**

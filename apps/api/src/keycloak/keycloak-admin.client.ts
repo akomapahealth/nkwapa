@@ -149,6 +149,41 @@ export class KeycloakAdminClient {
     }
   }
 
+  /**
+   * Turn an identity's ability to sign in on or off.
+   *
+   * A partial representation, carrying `enabled` alone. Keycloak 26 applies it without touching
+   * the rest of the user (checked against the pinned image: email and names survive), which is
+   * what makes this safe to call without first reading the user back.
+   *
+   * Never a delete. Audit events and PatientAccountLink reference the subject, and removing it
+   * would break the record of who did what.
+   */
+  async setUserEnabled(userId: string, enabled: boolean): Promise<'UPDATED' | 'NOT_FOUND'> {
+    const response = await this.send('PUT', `/users/${encodeURIComponent(userId)}`, { enabled });
+    if (response.status === 404) return 'NOT_FOUND';
+    if (!response.ok) {
+      await this.fail(response, 'PUT /users/:id');
+    }
+    return 'UPDATED';
+  }
+
+  /**
+   * End every live session for an identity.
+   *
+   * Disabling alone stops new sign-ins, but an access token already issued stays valid until it
+   * expires, and a refresh could still be attempted against the session. Ending the sessions is
+   * what makes a deactivation take effect now rather than eventually.
+   */
+  async logoutUser(userId: string): Promise<'LOGGED_OUT' | 'NOT_FOUND'> {
+    const response = await this.send('POST', `/users/${encodeURIComponent(userId)}/logout`);
+    if (response.status === 404) return 'NOT_FOUND';
+    if (!response.ok) {
+      await this.fail(response, 'POST /users/:id/logout');
+    }
+    return 'LOGGED_OUT';
+  }
+
   private async request<T>(method: 'GET', endpoint: string): Promise<T> {
     const response = await this.send(method, endpoint);
     if (!response.ok) {

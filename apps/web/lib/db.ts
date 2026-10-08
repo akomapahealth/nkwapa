@@ -467,6 +467,11 @@ export interface OutboxRecord {
    * queued before owners were recorded; those are held until someone explicitly claims them.
    */
   ownerUserId?: string;
+  /**
+   * The clinic's name when the change was queued (#163). A clinic this account later loses no
+   * longer appears in bootstrap, so this is the only way the sync center can still name it.
+   */
+  clinicName?: string;
   /** Shown to other accounts on the device, so they know whose held change it is. */
   ownerName?: string;
   syncState?: OutboxSyncState;
