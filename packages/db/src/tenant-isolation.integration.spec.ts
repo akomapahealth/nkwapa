@@ -363,6 +363,100 @@ describeIsolation('tenant isolation', () => {
       });
     });
 
+    describe('in-flight claims and the reconciliation sweeps (#164)', () => {
+      /** Put both clinics' rows in flight, claimed two hours ago, inside the current transaction. */
+      const putInFlight = async () => {
+        await app.query(
+          `UPDATE "Reminder" SET "status" = 'SENDING',
+             "sendingStartedAt" = CURRENT_TIMESTAMP - interval '2 hours'
+           WHERE "id" = ANY($1)`,
+          [[JOB_ROWS.reminderA1, JOB_ROWS.reminderB1]],
+        );
+        await app.query(
+          `UPDATE "ResearchExport" SET "status" = 'PROCESSING',
+             "startedAt" = CURRENT_TIMESTAMP - interval '2 hours'
+           WHERE "id" = ANY($1)`,
+          [[JOB_ROWS.exportA1, JOB_ROWS.exportB1]],
+        );
+      };
+      const staleSends = async () =>
+        (
+          await app.query(
+            `SELECT "id" FROM "Reminder" WHERE "status" = 'SENDING'
+               AND "sendingStartedAt" < CURRENT_TIMESTAMP - interval '10 minutes' ORDER BY "id"`,
+          )
+        ).rows.map((row) => row.id);
+      const staleExports = async () =>
+        (
+          await app.query(
+            `SELECT "id" FROM "ResearchExport" WHERE "status" = 'PROCESSING'
+               AND "startedAt" < CURRENT_TIMESTAMP - interval '1 hour' ORDER BY "id"`,
+          )
+        ).rows.map((row) => row.id);
+
+      it("cannot claim or record another clinic's send", async () => {
+        await asClinic([TENANT_CLINICS.a1.id], async () => {
+          const claim = await app.query(
+            `UPDATE "Reminder" SET "status" = 'SENDING', "sendingStartedAt" = CURRENT_TIMESTAMP
+             WHERE "id" = $1 AND "status" = 'QUEUED'`,
+            [JOB_ROWS.reminderB1],
+          );
+          expect(claim.rowCount).toBe(0);
+          const own = await app.query(
+            `UPDATE "Reminder" SET "status" = 'SENDING', "sendingStartedAt" = CURRENT_TIMESTAMP
+             WHERE "id" = $1 AND "status" = 'QUEUED'`,
+            [JOB_ROWS.reminderA1],
+          );
+          expect(own.rowCount).toBe(1);
+        });
+      });
+
+      it('lets the system sweep find stuck work in every clinic', async () => {
+        await asSystemAdmin(async () => {
+          await putInFlight();
+          expect(await staleSends()).toEqual([JOB_ROWS.reminderA1, JOB_ROWS.reminderB1]);
+          expect(await staleExports()).toEqual([JOB_ROWS.exportA1, JOB_ROWS.exportB1]);
+        });
+      });
+
+      it("shows a clinic's context none of another clinic's stuck work", async () => {
+        // Committed by the owner, so the app role's clinic transaction below sees them. The owner
+        // is under forced row-level security too, so it writes with system-admin scope.
+        await owner.query(`SELECT set_config('app.is_system_admin', 'true', false)`);
+        await owner.query(
+          `UPDATE "Reminder" SET "status" = 'SENDING',
+             "sendingStartedAt" = CURRENT_TIMESTAMP - interval '2 hours' WHERE "id" = ANY($1)`,
+          [[JOB_ROWS.reminderA1, JOB_ROWS.reminderB1]],
+        );
+        await owner.query(
+          `UPDATE "ResearchExport" SET "status" = 'PROCESSING',
+             "startedAt" = CURRENT_TIMESTAMP - interval '2 hours' WHERE "id" = ANY($1)`,
+          [[JOB_ROWS.exportA1, JOB_ROWS.exportB1]],
+        );
+        try {
+          await asClinic([TENANT_CLINICS.a1.id], async () => {
+            expect(await staleSends()).toEqual([JOB_ROWS.reminderA1]);
+            expect(await staleExports()).toEqual([JOB_ROWS.exportA1]);
+            // Settling a stuck export happens under its own clinic, and cannot reach another's.
+            const settle = await app.query(
+              `UPDATE "ResearchExport" SET "status" = 'FAILED' WHERE "id" = $1 AND "status" = 'PROCESSING'`,
+              [JOB_ROWS.exportB1],
+            );
+            expect(settle.rowCount).toBe(0);
+          });
+        } finally {
+          await owner.query(
+            `UPDATE "Reminder" SET "status" = 'QUEUED', "sendingStartedAt" = NULL WHERE "id" = ANY($1)`,
+            [[JOB_ROWS.reminderA1, JOB_ROWS.reminderB1]],
+          );
+          await owner.query(
+            `UPDATE "ResearchExport" SET "status" = 'APPROVED', "startedAt" = NULL WHERE "id" = ANY($1)`,
+            [[JOB_ROWS.exportA1, JOB_ROWS.exportB1]],
+          );
+        }
+      });
+    });
+
     it('shows a notification that belongs to no clinic only to system work', async () => {
       await asClinic([TENANT_CLINICS.a1.id], async () => {
         expect(await ids('Reminder')).not.toContain(JOB_ROWS.reminderGlobal);

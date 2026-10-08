@@ -48,6 +48,7 @@ function visitRow(overrides: Row = {}): Row {
     queuedByUserId: 'vol-0',
     claimedByUserId: null,
     claimedAt: null,
+    assignedByUserId: null,
     completedByUserId: null,
     completedAt: null,
     handoffNote: null,
@@ -57,6 +58,9 @@ function visitRow(overrides: Row = {}): Row {
     station: STATIONS.find((s) => s.id === stationId),
     claimedBy: overrides.claimedByUserId
       ? { id: overrides.claimedByUserId, displayName: `Name ${overrides.claimedByUserId}` }
+      : null,
+    assignedBy: overrides.assignedByUserId
+      ? { id: overrides.assignedByUserId, displayName: `Name ${overrides.assignedByUserId}` }
       : null,
     completedBy: null,
     patientCheckIn: {
@@ -159,7 +163,13 @@ function setup(initial: Row = {}) {
     },
     clinic: { findFirst: jest.fn(async () => ({ id: CLINIC })) },
     patient: { findUnique: jest.fn(async () => ({ id: 'patient-1', primaryClinicId: CLINIC })) },
-    user: { findFirst: jest.fn(async () => ({ id: 'vol-1' })) },
+    user: {
+      findFirst: jest.fn(async () => ({ id: 'vol-1' })),
+      findUnique: jest.fn(async () => ({
+        isActive: true,
+        clinicRoles: [{ clinicId: CLINIC, role: 'VOLUNTEER' }],
+      })),
+    },
     staffShift: {
       findFirst: jest.fn(async () => ({ id: 'shift-1' })),
     },
@@ -256,6 +266,103 @@ describe('StationService', () => {
       await expect(service.claim(CLINIC, 'visit-1', volunteer)).rejects.toBeInstanceOf(
         NotFoundException,
       );
+    });
+  });
+
+  describe('assign', () => {
+    it('hands a queued patient to a named volunteer and records who assigned them', async () => {
+      const { service, tx, audit, current } = setup();
+      const result = await service.assign(CLINIC, 'visit-1', 'vol-2', manager);
+
+      expect(result.status).toBe('IN_PROGRESS');
+      expect(result.claimedBy).toEqual({ id: 'vol-2', displayName: 'Name vol-2' });
+      expect(result.assignedBy).toEqual({ id: 'mgr-1', displayName: 'Name mgr-1' });
+      expect(current()).toMatchObject({ claimedByUserId: 'vol-2', assignedByUserId: 'mgr-1' });
+      expect(audit.logWrite).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'STATION.ASSIGN', actorUserId: 'mgr-1' }),
+        tx,
+      );
+      expect(actions(audit)).not.toContain('STATION.CLAIM');
+    });
+
+    it('leaves assignedBy empty on a self-claim', async () => {
+      const { service, current } = setup();
+      await service.claim(CLINIC, 'visit-1', volunteer);
+      expect(current().assignedByUserId).toBeNull();
+    });
+
+    it('is refused to a volunteer', async () => {
+      const { service, prisma } = setup();
+      await expect(service.assign(CLINIC, 'visit-1', 'vol-2', volunteer)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('refuses an assignee who is not on shift', async () => {
+      const { service, prisma } = setup();
+      prisma.staffShift.findFirst.mockResolvedValueOnce(null as never);
+      await expect(service.assign(CLINIC, 'visit-1', 'vol-2', manager)).rejects.toMatchObject({
+        response: { code: 'ASSIGNEE_NOT_ON_SHIFT' },
+      });
+    });
+
+    it('refuses an assignee whose station role is at another clinic', async () => {
+      const { service, prisma } = setup();
+      prisma.user.findUnique.mockResolvedValueOnce({
+        isActive: true,
+        clinicRoles: [{ clinicId: 'clinic-2', role: 'VOLUNTEER' }],
+      } as never);
+      await expect(service.assign(CLINIC, 'visit-1', 'vol-2', manager)).rejects.toMatchObject({
+        response: { code: 'ASSIGNEE_NOT_STATION_STAFF' },
+      });
+    });
+
+    it('refuses a deactivated assignee and one with no station role', async () => {
+      const { service, prisma } = setup();
+      prisma.user.findUnique.mockResolvedValueOnce({
+        isActive: false,
+        clinicRoles: [{ clinicId: CLINIC, role: 'VOLUNTEER' }],
+      } as never);
+      await expect(service.assign(CLINIC, 'visit-1', 'vol-2', manager)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      prisma.user.findUnique.mockResolvedValueOnce({
+        isActive: true,
+        clinicRoles: [{ clinicId: CLINIC, role: 'DIRECTOR' }],
+      } as never);
+      await expect(service.assign(CLINIC, 'visit-1', 'vol-2', manager)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
+    it('loses cleanly to a volunteer who claims the patient at the same moment', async () => {
+      const { service } = setup();
+      const [selfClaim, assignment] = await Promise.allSettled([
+        service.claim(CLINIC, 'visit-1', volunteer),
+        service.assign(CLINIC, 'visit-1', 'vol-2', manager),
+      ]);
+
+      expect(selfClaim.status).toBe('fulfilled');
+      expect(assignment.status).toBe('rejected');
+      expect(
+        ((assignment as PromiseRejectedResult).reason as ConflictException).getResponse(),
+      ).toMatchObject({ code: 'STATION_VISIT_ALREADY_CLAIMED', claimedBy: { id: 'vol-1' } });
+    });
+
+    it('is cleared when the assignee hands the patient back to the queue', async () => {
+      const { service, current } = setup({
+        status: 'IN_PROGRESS',
+        claimedByUserId: 'vol-2',
+        claimedAt: new Date(),
+        assignedByUserId: 'mgr-1',
+      });
+      await service.release(CLINIC, 'visit-1', otherVolunteer, 'Needs a Twi speaker');
+      expect(current()).toMatchObject({
+        status: 'QUEUED',
+        claimedByUserId: null,
+        assignedByUserId: null,
+      });
     });
   });
 

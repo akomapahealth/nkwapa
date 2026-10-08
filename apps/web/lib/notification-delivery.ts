@@ -7,7 +7,7 @@
  * only gets covered once it lives outside a component.
  */
 
-export type DeliveryStatus = 'QUEUED' | 'SENT' | 'DELIVERED' | 'FAILED' | string;
+export type DeliveryStatus = 'QUEUED' | 'SENDING' | 'SENT' | 'DELIVERED' | 'FAILED' | string;
 export type DeliveryChannel = 'SMS' | 'EMAIL' | string;
 
 export type BadgeTone = 'finalized' | 'secondary' | 'destructive' | 'draft' | 'warning';
@@ -63,6 +63,12 @@ const FAILURE_EXPLANATIONS: Record<string, FailureExplanation> = {
     label: 'Send failed',
     detail: 'The provider rejected this message without a specific reason.',
     recovery: 'Try resending; if it keeps failing, check the recipient details.',
+  },
+  SEND_OUTCOME_UNKNOWN: {
+    label: 'Outcome unknown',
+    detail:
+      'The server started sending this message but lost track of whether the provider accepted it. It may have arrived.',
+    recovery: 'Check with the recipient before resending, so they do not get it twice.',
   },
   DELIVERY_FAILED: {
     label: 'Not delivered',
@@ -147,6 +153,7 @@ const TYPE_LABELS: Record<string, string> = {
   STAFF_ROLE_GRANTED_V1: 'Access granted',
   STAFF_ROLE_REVOKED_V1: 'Access removed',
   STAFF_ACCOUNT_DEACTIVATED_V1: 'Account deactivated',
+  STAFF_ACCOUNT_REACTIVATED_V1: 'Account reactivated',
 };
 
 export function formatTemplateLabel(templateKey: string): string {

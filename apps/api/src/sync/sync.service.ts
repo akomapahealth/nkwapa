@@ -28,6 +28,12 @@ import { assertPermissionAtClinic, type ScopedRole } from '../auth/clinic-roles'
 import type { EntityType as SyncEntityType } from './entity-types';
 import { SYNC_ENTITY_PERMISSIONS, isSyncEntityType } from './sync-permissions';
 import { recordAppliedSyncMutation } from './applied-sync-mutation';
+import { ClinicianPlanSealService } from './clinician-plan-seal.service';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+import { UpsertHypertensionClinicianPlanDto } from '../hypertension-assessment/dto/hypertension-assessment.dto';
+import { UpsertDiabetesClinicianPlanDto } from '../diabetes-screening/dto/diabetes-screening.dto';
+import { flattenValidationErrors } from '../common/validation';
 import {
   classifySyncFailure,
   isTerminalOutcome,
@@ -104,6 +110,7 @@ export class SyncService {
     private readonly medicationAdherenceService: MedicationAdherenceService,
     private readonly prescriptionService: PrescriptionService,
     private readonly opsService: OpsService,
+    private readonly clinicianPlanSeal: ClinicianPlanSealService,
     @Optional() private readonly telemetry?: TelemetryService,
   ) {}
 
@@ -384,6 +391,16 @@ export class SyncService {
         );
       case 'hypertension_assessment':
         return this.applyHypertensionAssessmentUpsert(
+          clinicId,
+          actorUserId,
+          user,
+          mut,
+          payload,
+          idempotencyKey,
+          metadata,
+        );
+      case 'clinician_plan':
+        return this.applySealedClinicianPlan(
           clinicId,
           actorUserId,
           user,
@@ -1033,6 +1050,78 @@ export class SyncService {
       mut.entityId,
     );
 
+    return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
+  }
+
+  /**
+   * Open and apply a clinician plan a doctor queued without signal (#131).
+   *
+   * The device queued only routing (encounter, condition), when the doctor decided, and an envelope
+   * sealed to this server's key; it never held the plan in a form it could read back. The envelope
+   * opens only for the clinic, encounter, condition and author it was sealed for -- the pushing
+   * account is the author it is checked against -- and then goes through the same DTO and the same
+   * `upsertClinicianPlan` as the online route: doctor-only, refused on a finalized encounter, and
+   * resolving the follow-up window to `CarePlan.followUpDate` in the same transaction.
+   */
+  private async applySealedClinicianPlan(
+    clinicId: string,
+    actorUserId: string,
+    user: UserWithId,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+    idempotencyKey: string,
+    metadata?: RequestMetadata,
+  ): Promise<SyncMutationResultDto> {
+    const encounterId = payload.encounterId;
+    const condition = payload.condition;
+    if (typeof encounterId !== 'string' || !encounterId) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'A queued clinician plan must name its encounter.',
+      });
+    }
+    if (condition !== 'HYPERTENSION' && condition !== 'DIABETES') {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'A queued clinician plan must be for hypertension or diabetes.',
+      });
+    }
+
+    const plain = this.clinicianPlanSeal.open(payload.sealed, {
+      clinicId,
+      encounterId,
+      condition,
+      authorUserId: actorUserId,
+    });
+    const serviceMetadata = {
+      requestId: idempotencyKey,
+      ipAddress: metadata?.ipAddress,
+      userAgent: metadata?.userAgent,
+      syncMutation: { entityType: mut.entityType, entityId: mut.entityId, idempotencyKey },
+    };
+    const options = { decidedAt: clampDecidedAt(payload.decidedAt, new Date()) };
+    const actor = { userId: actorUserId, roles: user.roles };
+    if (condition === 'HYPERTENSION') {
+      const dto = await validateClinicianPlan(UpsertHypertensionClinicianPlanDto, plain);
+      await this.hypertensionAssessmentService.upsertClinicianPlan(
+        clinicId,
+        encounterId,
+        actor,
+        dto,
+        serviceMetadata,
+        options,
+      );
+    } else {
+      const dto = await validateClinicianPlan(UpsertDiabetesClinicianPlanDto, plain);
+      await this.diabetesScreeningService.upsertClinicianPlan(
+        clinicId,
+        encounterId,
+        actor,
+        dto,
+        serviceMetadata,
+        options,
+      );
+    }
     return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
   }
 
@@ -1842,4 +1931,44 @@ export class SyncService {
       patientPharmacyPreferences,
     };
   }
+}
+
+/** How far back a queued plan's decision time is believed. Beyond this the device clock is wrong. */
+const DECIDED_AT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * When a replayed plan's decision was made, as far as the server will believe the device.
+ *
+ * The follow-up window counts from it, so a plan decided on Monday and synced on Wednesday still
+ * means "a month from Monday". A device clock cannot push it into the future, and an implausibly
+ * old one (a laptop that lost its time) falls back to now rather than scheduling a reminder that
+ * has already passed.
+ */
+export function clampDecidedAt(value: unknown, now: Date): Date {
+  const parsed = typeof value === 'string' ? new Date(value) : null;
+  if (!parsed || Number.isNaN(parsed.getTime())) return now;
+  if (parsed > now) return now;
+  if (now.getTime() - parsed.getTime() > DECIDED_AT_MAX_AGE_MS) return now;
+  return parsed;
+}
+
+/** The opened plan, through the same DTO and the same strictness as the REST route. */
+async function validateClinicianPlan<T extends object>(
+  DtoClass: new () => T,
+  plain: Record<string, unknown>,
+): Promise<T> {
+  const dto = plainToInstance(DtoClass, plain);
+  const errors = await validate(dto, {
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    forbidUnknownValues: true,
+  });
+  if (errors.length) {
+    throw new BadRequestException({
+      code: 'VALIDATION_ERROR',
+      message: 'Clinician plan validation failed.',
+      fieldErrors: flattenValidationErrors(errors),
+    });
+  }
+  return dto;
 }

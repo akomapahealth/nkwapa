@@ -24,6 +24,8 @@ import type { SyncRecoveryAccess } from '@/lib/sync-conflicts';
 import type { OutboxQueue, OutboxQueueItem } from '@/lib/use-outbox-queue';
 import { DiscardMutationDialog } from './DiscardMutationDialog';
 import { HeldChangesSection } from './HeldChangesSection';
+import { OtherClinicsSection } from './OtherClinicsSection';
+import type { OtherClinicQueue } from '@/lib/other-clinic-queue';
 import { SyncMutationCard } from './SyncMutationCard';
 
 const GROUPS = [
@@ -47,11 +49,14 @@ const GROUPS = [
 export function SyncCenterSheet({
   clinicId,
   queue,
+  otherClinics,
   canSync,
   recoveryAccess,
 }: {
   clinicId: string;
   queue: OutboxQueue;
+  /** Changes saved for clinics other than this one (#163). */
+  otherClinics: OtherClinicQueue[];
   canSync: boolean;
   recoveryAccess: SyncRecoveryAccess;
 }) {
@@ -67,7 +72,8 @@ export function SyncCenterSheet({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [discarding, setDiscarding] = useState<OutboxQueueItem | null>(null);
   const syncing = syncStatus === 'syncing';
-  const bootstrap = useBootstrap()?.bootstrap ?? null;
+  const bootstrapCtx = useBootstrap();
+  const bootstrap = bootstrapCtx?.bootstrap ?? null;
 
   // Counts only: how much was waiting when someone looked, never what it was.
   useEffect(() => {
@@ -99,6 +105,18 @@ export function SyncCenterSheet({
       displayName: bootstrap.displayName,
     });
     await syncNow(clinicId);
+  };
+
+  // Switching makes the clinic active, which syncs it: its changes go to it and nowhere else.
+  const handleSwitchClinic = (otherClinicId: string) => {
+    bootstrapCtx?.setActiveClinicId(otherClinicId);
+  };
+
+  // Only this account's own changes. Another account may still hold the seat this one lost.
+  const handleDiscardOtherClinic = async (other: OtherClinicQueue) => {
+    for (const row of other.own) {
+      await discardOutboxMutation(db, row);
+    }
   };
 
   const handleDiscard = async (item: OutboxQueueItem) => {
@@ -177,7 +195,10 @@ export function SyncCenterSheet({
         </div>
 
         <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-5">
-          {queue.loaded && queue.total === 0 && queue.held.length === 0 ? (
+          {queue.loaded &&
+          queue.total === 0 &&
+          queue.held.length === 0 &&
+          otherClinics.length === 0 ? (
             <EmptyState
               density="compact"
               icon={CheckCircle2}
@@ -222,6 +243,12 @@ export function SyncCenterSheet({
             disabled={!isOnline || !canSync || syncing}
             onDiscard={setDiscarding}
             onClaim={handleClaim}
+          />
+          <OtherClinicsSection
+            queues={otherClinics}
+            onSwitch={handleSwitchClinic}
+            onDiscard={handleDiscardOtherClinic}
+            disabled={syncing}
           />
         </div>
       </SheetContent>

@@ -147,4 +147,58 @@ describe('ResearchRepoSyncService', () => {
       ),
     ).rejects.toThrow(BadRequestException);
   });
+
+  describe('settling a push whose outcome was lost (#164)', () => {
+    const pack = { manifest: { clinicKey: 'clinic-key', generatedAt: '2026-10-08T12:00:00.000Z' } };
+
+    it('plans the same path the push uses', () => {
+      expect(service.plannedRepoPath({ id: 'exp-1' }, pack)).toBe(
+        'clinics/clinic-key/exports/2026-10-08T12-00-00-000Z__exp-1',
+      );
+    });
+
+    it('finds the commit that touched the snapshot directory on the export branch', async () => {
+      const fetchMock = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => [
+          { sha: 'abc123', commit: { committer: { date: '2026-10-08T12:01:00Z' } } },
+        ],
+      });
+      global.fetch = fetchMock as never;
+
+      await expect(service.findPushedCommit('clinics/clinic-key/exports/snap')).resolves.toEqual({
+        provider: 'GITHUB',
+        repoPath: 'clinics/clinic-key/exports/snap',
+        commitSha: 'abc123',
+        commitUrl: 'https://github.com/example/research-data/commit/abc123',
+        syncedAt: new Date('2026-10-08T12:01:00Z'),
+      });
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(init.method).toBe('GET');
+      expect(url).toBe(
+        'https://api.github.com/repos/example/research-data/commits?sha=main&path=clinics%2Fclinic-key%2Fexports%2Fsnap&per_page=1',
+      );
+    });
+
+    it('reports no commit when nothing touched the path', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => [],
+      }) as never;
+      await expect(service.findPushedCommit('clinics/clinic-key/exports/snap')).resolves.toBeNull();
+    });
+
+    it('throws when GitHub cannot be asked, rather than guessing', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 503,
+        text: async () => 'unavailable',
+      }) as never;
+      await expect(service.findPushedCommit('clinics/clinic-key/exports/snap')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
 });

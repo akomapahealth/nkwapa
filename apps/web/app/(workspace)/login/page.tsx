@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useRef } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getPostAuthPath, getSafeNextPath, shouldAutoContinue } from '@/lib/auth-routing';
 import { useKeycloak } from '@/app/KeycloakProvider';
@@ -13,6 +13,7 @@ import { AlertTriangle, ArrowRight, CheckCircle2, ShieldCheck, Wifi } from 'luci
 
 export default function LoginPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const bootstrapCtx = useBootstrap();
   const bootstrap = bootstrapCtx?.bootstrap ?? null;
   const isBootstrapLoading = bootstrapCtx?.isLoading ?? false;
@@ -53,11 +54,17 @@ export default function LoginPage() {
       return;
     }
 
+    /*
+      A client-side navigation, not a page load (#172). Keycloak hands back to this page, which
+      has already initialised Keycloak, exchanged the code for tokens and fetched whoami.
+      `window.location.replace` threw all of that away and ran it again on the destination: a
+      second Keycloak start-up, token exchange, whoami and first sync on every sign-in.
+    */
     const destination = getPostAuthPath(bootstrap, nextPath);
     if (typeof window !== 'undefined' && window.location.pathname !== destination) {
-      window.location.replace(destination);
+      router.replace(destination);
     }
-  }, [bootstrap, isAuthenticated, isBootstrapLoading, nextPath]);
+  }, [bootstrap, isAuthenticated, isBootstrapLoading, nextPath, router]);
 
   if (isAuthenticated) {
     return (

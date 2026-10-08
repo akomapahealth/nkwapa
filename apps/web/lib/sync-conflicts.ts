@@ -189,6 +189,8 @@ const ENTITY_LABELS: Record<string, string> = {
   diabetes_screening: 'Diabetes screening',
   diabetes_glucose_reading: 'Glucose reading',
   hypertension_assessment: 'Hypertension assessment',
+  // Sealed: the sync center can say what it is and for which visit, never what it says (#131).
+  clinician_plan: 'Clinician plan (sealed)',
   encounter_medication_adherence: 'Medication adherence',
   care_plan: 'Care plan',
   patient_consent: 'Consent',

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, ResearchExportStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { decodeJsonKeysetCursor, encodeJsonKeysetCursor } from '../common/keyset-cursor';
 
@@ -35,6 +35,36 @@ export class ResearchExportRepository {
       where: { id },
       data,
       include: researchExportInclude,
+    });
+  }
+
+  /**
+   * Move an export from one status to another only if it is still in the first, and return it.
+   * Null when another worker, or the reconciliation sweep, got there first.
+   */
+  async transition(
+    id: string,
+    from: ResearchExportStatus,
+    data: Prisma.ResearchExportUpdateManyMutationInput,
+  ): Promise<ResearchExportRecord | null> {
+    const moved = await this.prisma.researchExport.updateMany({
+      where: { id, status: from },
+      data,
+    });
+    if (moved.count === 0) return null;
+    return this.findById(id);
+  }
+
+  /** Exports a worker claimed and never finished, oldest first, across every clinic it can see. */
+  async findStaleProcessing(startedBefore: Date, take: number) {
+    return this.prisma.researchExport.findMany({
+      where: {
+        status: 'PROCESSING',
+        OR: [{ startedAt: { lt: startedBefore } }, { startedAt: null }],
+      },
+      select: { id: true, clinicId: true, repoPath: true, startedAt: true },
+      orderBy: { startedAt: 'asc' },
+      take,
     });
   }
 

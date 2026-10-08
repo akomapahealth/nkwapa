@@ -1,10 +1,12 @@
 import {
+  assignableStaff,
   formatMinutes,
   moveStation,
   minutesSince,
   stationsPassedOver,
   suggestedNextStation,
   type ClinicStation,
+  type OnShiftStaff,
 } from './stations';
 
 const stations: ClinicStation[] = [
@@ -66,5 +68,36 @@ describe('moveStation (#32)', () => {
   it('leaves the order alone at either end', () => {
     expect(moveStation(order, 'a', -1)).toEqual(['a', 'b', 'c']);
     expect(moveStation(order, 'c', 1)).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('assignableStaff', () => {
+  const member = (
+    id: string,
+    stationId: string | null,
+    activeVisitCount: number,
+  ): OnShiftStaff => ({
+    user: { id, displayName: id },
+    roleAtShift: 'VOLUNTEER',
+    stationId,
+    activeVisitCount,
+  });
+
+  it('puts the people at the station first, least busy first, and everyone else after', () => {
+    const { atStation, elsewhere } = assignableStaff(
+      [
+        member('Kofi', 'bp', 1),
+        member('Esi', 'glucose', 0),
+        member('Ama', 'bp', 0),
+        member('Yaw', null, 2),
+      ],
+      'bp',
+    );
+    expect(atStation.map((m) => m.user.id)).toEqual(['Ama', 'Kofi']);
+    expect(elsewhere.map((m) => m.user.id)).toEqual(['Esi', 'Yaw']);
+  });
+
+  it('offers nobody when nobody is on shift', () => {
+    expect(assignableStaff([], 'bp')).toEqual({ atStation: [], elsewhere: [] });
   });
 });
