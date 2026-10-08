@@ -67,6 +67,21 @@ The clinician plan is doctor-only, refused by the API for any other role, and wi
 
 Offline: queued as `diabetes_screening`. The queued write requires the same permission as the online one.
 
+## Eye station examination
+
+Online-only and never queued, like the counselling record at the station beside it. Refused on a finalized encounter.
+
+| Role | Read | Write |
+| --- | --- | --- |
+| SYSTEM_ADMIN | yes | yes |
+| DIRECTOR | yes | no |
+| MANAGER | yes | no |
+| DOCTOR | yes | yes |
+| VOLUNTEER | yes | yes |
+| PATIENT | no | no |
+
+Offline: not queued. Every read and write requires a live connection.
+
 ## Hypertension interview
 
 The clinician plan is doctor-only, refused by the API for any other role, and withheld from the offline pull so no volunteer device caches it.
