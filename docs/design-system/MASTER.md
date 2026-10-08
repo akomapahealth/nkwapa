@@ -372,6 +372,10 @@ The serif heading is deliberate. It separates headings from data at a glance, wh
 - Nothing longer in a clinical view.
 - **No transform-based hover.** Scale and translate on hover cause layout shift, which #63 and #66 both prohibit. Use colour or opacity.
 - `prefers-reduced-motion` is already handled globally in `globals.css` and is correct. Do not duplicate it per component.
+- **Curves and durations are tokens.** `--ease-out`, `--ease-in-out`, `--ease-drawer`, `--duration-fast` (150ms) and `--duration-base` (200ms) in `globals.css`, exposed as `ease-out-strong`, `ease-in-out-strong`, `ease-drawer`, `duration-fast` and `duration-base`. Enter with `ease-out-strong`; never `ease-in`, which delays the moment the user is watching.
+- **Press feedback is allowed.** `Button` scales to 0.97 on `:active`. That answers a press, not a hover, and scale does not change the box, so nothing moves.
+- **Busy buttons keep their width.** `Button loading` hides the label under a spinner rather than swapping text (section 11).
+- **Toasts are Sonner**, through `useToast()` in `components/ui/toast.tsx`. Pass the id a loading toast returned to settle it in place as success or error, or use `toastPromise`.
 
 ---
 

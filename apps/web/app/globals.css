@@ -82,6 +82,17 @@
     --sidebar-muted-foreground: 200 14% 32%;
     --radius: 0.625rem;
     /*
+      Motion, per MASTER.md section 7: 150ms for colour and opacity, 200ms for position, nothing
+      longer in a clinical view. The curves are stronger than the CSS keywords, which start too
+      slowly to read as a response to the user: an ease-out that moves most of the way in the
+      first frames feels faster at the same duration.
+    */
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+    --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+    --duration-fast: 150ms;
+    --duration-base: 200ms;
+    /*
       Five series, derived and then measured -- see scripts/check-chart-palette.mjs, which runs
       these same checks in CI. The palette this replaced was two brand hues at two lightnesses
       plus a desaturated neighbour of the first, which put --chart-1 and --chart-5 at deltaE 6.1

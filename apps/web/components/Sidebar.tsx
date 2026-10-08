@@ -31,33 +31,49 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
       id="workspace-sidebar"
       className={cn(
         'sticky top-0 hidden h-screen shrink-0 border-r border-sidebar-border bg-sidebar text-foreground md:flex',
-        'transition-[width] duration-200 ease-out',
+        'transition-[width] duration-base ease-drawer',
         collapsed ? 'w-[96px]' : 'w-[320px]',
       )}
     >
       <div className="flex h-full w-full flex-col gap-5 p-4">
         <div className={cn('flex flex-col gap-3', collapsed ? 'items-center' : 'items-start')}>
-          {collapsed ? (
-            <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-background">
-              <Image
-                src="/images/favicon/android-chrome-192x192.png"
-                alt="Nkwapa"
-                fill
-                sizes="48px"
-                className="object-contain"
-              />
-            </div>
-          ) : (
-            <div className="relative h-12 w-44 shrink-0">
+          {/*
+            Both marks stay mounted and cross-fade while the rail changes width, instead of one
+            being swapped for the other mid-transition. The collapsed mark used the 192px
+            favicon, a portrait squash of the square app tile, so it read as stretched; it is now
+            a square crop of the tile itself (`nkwapa-mark.png`).
+          */}
+          <div className="relative h-12 w-full overflow-hidden">
+            <div
+              className={cn(
+                'absolute inset-y-0 left-0 w-44 origin-left transition-[opacity,transform] duration-base ease-out-strong',
+                collapsed ? 'pointer-events-none scale-95 opacity-0' : 'scale-100 opacity-100',
+              )}
+            >
               <Image
                 src="/images/nkwapa-logo.png"
-                alt="Nkwapa EMR"
+                alt={collapsed ? '' : 'Nkwapa EMR'}
                 fill
                 sizes="176px"
+                priority
                 className="object-contain object-left"
               />
             </div>
-          )}
+            <div
+              className={cn(
+                'absolute left-1/2 top-1/2 h-11 w-11 -translate-x-1/2 -translate-y-1/2 transition-[opacity,transform] duration-base ease-out-strong',
+                collapsed ? 'scale-100 opacity-100' : 'pointer-events-none scale-90 opacity-0',
+              )}
+            >
+              <Image
+                src="/images/nkwapa-mark.png"
+                alt={collapsed ? 'Nkwapa' : ''}
+                fill
+                sizes="44px"
+                className="object-contain"
+              />
+            </div>
+          </div>
           {!collapsed && (
             <p className="text-sm font-medium text-sidebar-muted-foreground">Clinic workspace</p>
           )}
