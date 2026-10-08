@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const { skipWelcomeTour } = require('../playwright/welcome-tour');
 const AxeBuilder = require('@axe-core/playwright').default;
 
 const { storageStateFor } = require('../playwright/roles');
@@ -151,6 +152,8 @@ test.describe('a patient holding an invitation', () => {
     await submitClaim(page, { patientCode, dob: CLAIMABLE_DOB });
 
     await page.waitForURL(/\/portal/, { timeout: 60_000 });
+    // A record just claimed is a first visit, so the welcome tour opens over the portal.
+    await skipWelcomeTour(page);
     await expect(page.getByRole('heading', { name: /your care snapshot/i }).first()).toBeVisible({
       timeout: 30_000,
     });
