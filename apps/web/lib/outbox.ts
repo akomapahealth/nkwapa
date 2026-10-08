@@ -48,6 +48,35 @@ export function getOutboxOwner(): OutboxOwner | null {
 }
 
 /**
+ * Counts every change that gave the outbox something new to send: a row queued, retried or
+ * claimed. Sync's own bookkeeping (recording a failure, removing an applied row) does not count.
+ *
+ * Forms queue a change and, in many places, leave sending it to whatever syncs next. When that was
+ * a pass already running, the pass had read the outbox before the row landed, finished cleanly, and
+ * nothing synced again until an unrelated trigger: a prescription queued as the connection came
+ * back sat unsent. The revision lets a running pass see it missed something, and the listeners let
+ * the sync provider start a pass when none is running.
+ */
+let outboxRevision = 0;
+const outboxChangeListeners = new Set<(clinicId: string) => void>();
+
+export function currentOutboxRevision(): number {
+  return outboxRevision;
+}
+
+export function onOutboxChange(listener: (clinicId: string) => void): () => void {
+  outboxChangeListeners.add(listener);
+  return () => {
+    outboxChangeListeners.delete(listener);
+  };
+}
+
+function markOutboxChanged(clinicId: string) {
+  outboxRevision += 1;
+  outboxChangeListeners.forEach((listener) => listener(clinicId));
+}
+
+/**
  * Names of the clinics the signed-in account can open, set from bootstrap by the sync provider.
  * Each new change records its clinic's name (#163), so it can still be named after the account
  * loses that clinic and bootstrap stops listing it.
@@ -205,10 +234,12 @@ export async function enqueueOutboxMutation(
     ).find((row) => row.clinicId === params.clinicId && row.ownerUserId === record.ownerUserId);
     if (queued) return queued;
     await dbInstance.outbox.add(record);
+    markOutboxChanged(record.clinicId);
     return record;
   }
   const record = buildOutboxMutation(params);
   await dbInstance.outbox.add(record);
+  markOutboxChanged(record.clinicId);
   return record;
 }
 
@@ -248,6 +279,8 @@ export function outboxFailureUpdate(
  */
 export async function retryOutboxMutation(dbInstance: NkwapaDb, id: string): Promise<void> {
   await dbInstance.outbox.update(id, { syncState: 'pending' });
+  const row = await dbInstance.outbox.get(id);
+  if (row) markOutboxChanged(row.clinicId);
 }
 
 /**
@@ -269,6 +302,7 @@ export async function claimUnownedOutboxMutation(
     ...(owner.displayName ? { ownerName: owner.displayName } : {}),
     syncState: 'pending',
   });
+  markOutboxChanged(row.clinicId);
   return true;
 }
 
