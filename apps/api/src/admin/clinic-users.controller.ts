@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   Patch,
+  Post,
   Query,
   Request,
   UseGuards,
@@ -61,6 +62,46 @@ export class ClinicUsersController {
       },
       clinicId,
       userId,
+      req.headers?.['x-request-id'] ?? randomUUID(),
+    );
+  }
+
+  @Patch(':userId/reactivate')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.CLINIC_MANAGE)
+  async reactivateUser(
+    @Param('clinicId') clinicId: string,
+    @Param('userId') userId: string,
+    @Request()
+    req: {
+      user: ReqUserWithRoles;
+      headers?: { 'x-request-id'?: string };
+    },
+  ) {
+    return this.adminService.reactivateUserInClinic(
+      { userId: req.user.user.id, roles: req.user.roles },
+      clinicId,
+      userId,
+      req.headers?.['x-request-id'] ?? randomUUID(),
+    );
+  }
+
+  @Post(':userId/identity/sync')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.CLINIC_MANAGE)
+  async syncIdentity(
+    @Param('clinicId') clinicId: string,
+    @Param('userId') userId: string,
+    @Request()
+    req: {
+      user: ReqUserWithRoles;
+      headers?: { 'x-request-id'?: string };
+    },
+  ) {
+    return this.adminService.retryIdentitySync(
+      { userId: req.user.user.id, roles: req.user.roles },
+      userId,
+      clinicId,
       req.headers?.['x-request-id'] ?? randomUUID(),
     );
   }

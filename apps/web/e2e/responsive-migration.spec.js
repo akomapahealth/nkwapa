@@ -50,6 +50,7 @@ const ROUTES = [
   { path: '/admin/clinics', heading: /clinics/i },
   { path: '/admin/duplicates', heading: /duplicate review/i },
   { path: '/admin/duplicates/cross-clinic', heading: /cross-clinic duplicates/i },
+  { path: '/reports/organization', heading: /organization report/i },
 ];
 
 function horizontalOverflow(page) {

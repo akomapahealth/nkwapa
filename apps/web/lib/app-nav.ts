@@ -183,6 +183,13 @@ const NAV_SECTIONS: AppNavSection[] = [
         permission: 'CLINIC.MANAGE',
       },
       {
+        href: '/reports/organization',
+        label: 'Organization report',
+        description: 'Every clinic at once.',
+        icon: BarChart3,
+        permission: 'ORGANIZATION.REPORT.READ',
+      },
+      {
         href: '/admin/duplicates',
         label: 'Duplicate review',
         description: 'Charts that may be the same person.',

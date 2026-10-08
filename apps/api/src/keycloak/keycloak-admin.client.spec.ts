@@ -275,6 +275,55 @@ describe('KeycloakAdminClient', () => {
     });
   });
 
+  describe('identity access (#126)', () => {
+    it('disables with a partial representation and never deletes', async () => {
+      fetchMock
+        .mockResolvedValueOnce(tokenResponse())
+        .mockResolvedValueOnce(jsonResponse(undefined, 204));
+
+      await expect(client().setUserEnabled('u1', false)).resolves.toBe('UPDATED');
+
+      const [url, init] = fetchMock.mock.calls[1];
+      expect(String(url)).toBe('http://keycloak.test/admin/realms/nkwapa/users/u1');
+      expect(init.method).toBe('PUT');
+      expect(JSON.parse(String(init.body))).toEqual({ enabled: false });
+    });
+
+    it('ends every session for the identity', async () => {
+      fetchMock
+        .mockResolvedValueOnce(tokenResponse())
+        .mockResolvedValueOnce(jsonResponse(undefined, 204));
+
+      await expect(client().logoutUser('u1')).resolves.toBe('LOGGED_OUT');
+
+      const [url, init] = fetchMock.mock.calls[1];
+      expect(String(url)).toBe('http://keycloak.test/admin/realms/nkwapa/users/u1/logout');
+      expect(init.method).toBe('POST');
+    });
+
+    it('reports a missing identity rather than throwing', async () => {
+      fetchMock
+        .mockResolvedValueOnce(tokenResponse())
+        .mockResolvedValueOnce(jsonResponse({ error: 'User not found' }, 404))
+        .mockResolvedValueOnce(jsonResponse({ error: 'User not found' }, 404));
+
+      const admin = client();
+      await expect(admin.setUserEnabled('gone', true)).resolves.toBe('NOT_FOUND');
+      await expect(admin.logoutUser('gone')).resolves.toBe('NOT_FOUND');
+    });
+
+    it('raises anything else as a coded failure', async () => {
+      fetchMock
+        .mockResolvedValueOnce(tokenResponse())
+        .mockResolvedValueOnce(jsonResponse({ error: 'boom' }, 500));
+
+      await expect(client().setUserEnabled('u1', false)).rejects.toMatchObject({
+        code: 'KEYCLOAK_ADMIN_REQUEST_FAILED',
+        status: 500,
+      });
+    });
+  });
+
   describe('transport failures', () => {
     it('retries once when a cached token has been revoked under us', async () => {
       fetchMock
