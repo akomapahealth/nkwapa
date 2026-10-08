@@ -1,9 +1,10 @@
 'use client';
 
-import { MessageSquarePlus } from 'lucide-react';
+import { MessageSquarePlus, Users } from 'lucide-react';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useChatContext, type ChatConversation } from '@/lib/chat-context';
-import { ChatPresenceIndicator } from './ChatPresenceIndicator';
+import { conversationTitle, isGroup, otherMembers, typingSummary } from '@/lib/chat-display';
+import { ChatAvatar, ChatGroupAvatar } from './ChatAvatar';
 import { ChatUnreadBadge } from './ChatUnreadBadge';
 
 function formatRelativeTime(dateStr: string) {
@@ -23,9 +24,11 @@ function formatRelativeTime(dateStr: string) {
 export function ChatConversationList({
   onSelect,
   onNewMessage,
+  onNewGroup,
 }: {
   onSelect: (conversation: ChatConversation) => void;
   onNewMessage: () => void;
+  onNewGroup: () => void;
 }) {
   const bootstrapCtx = useBootstrap();
   const currentUserId = bootstrapCtx?.bootstrap?.userId;
@@ -33,20 +36,30 @@ export function ChatConversationList({
 
   if (!chat) return null;
 
-  const { conversations, onlineUserIds } = chat;
+  const { conversations, onlineUserIds, typingUsers } = chat;
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b px-3 py-2.5">
         <h3 className="text-sm font-semibold">Messages</h3>
-        <button
-          onClick={onNewMessage}
-          className="cursor-pointer rounded-md p-1.5 transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          title="New message"
-          aria-label="New message"
-        >
-          <MessageSquarePlus className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={onNewGroup}
+            className="cursor-pointer rounded-md p-1.5 transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            title="New group"
+            aria-label="New group"
+          >
+            <Users className="h-4 w-4" />
+          </button>
+          <button
+            onClick={onNewMessage}
+            className="cursor-pointer rounded-md p-1.5 transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            title="New message"
+            aria-label="New message"
+          >
+            <MessageSquarePlus className="h-4 w-4" />
+          </button>
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto">
         {conversations.length === 0 ? (
@@ -61,22 +74,29 @@ export function ChatConversationList({
           </div>
         ) : (
           conversations.map((conv) => {
-            const other = conv.participants.find((p) => p.userId !== currentUserId);
-            const name = other?.user.displayName ?? conv.title ?? 'Unknown';
-            const isOnline = other ? onlineUserIds.has(other.userId) : false;
+            const name = conversationTitle(conv, currentUserId);
+            const others = otherMembers(conv, currentUserId);
+            const group = isGroup(conv);
+            const onlineCount = others.filter((p) => onlineUserIds.has(p.userId)).length;
+            const typing = typingSummary(
+              (typingUsers[conv.id] ?? []).map((t) => t.displayName.split(' ')[0]),
+            );
 
             return (
               <button
                 key={conv.id}
                 onClick={() => onSelect(conv)}
+                data-testid="chat-conversation-row"
                 className="flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
               >
-                <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                  {(other?.user.firstName?.[0] ?? name[0]).toUpperCase()}
-                  <span className="absolute -bottom-0.5 -right-0.5">
-                    <ChatPresenceIndicator online={isOnline} />
-                  </span>
-                </div>
+                {group ? (
+                  <ChatGroupAvatar onlineCount={onlineCount} />
+                ) : (
+                  <ChatAvatar
+                    name={others[0]?.user.displayName ?? name}
+                    online={others[0] ? onlineUserIds.has(others[0].userId) : false}
+                  />
+                )}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between">
                     <p className="truncate text-sm font-medium">{name}</p>
@@ -86,12 +106,27 @@ export function ChatConversationList({
                       </span>
                     )}
                   </div>
-                  {conv.lastMessage && (
+                  {typing ? (
+                    <p className="truncate text-xs italic text-primary" aria-live="polite">
+                      {typing}…
+                    </p>
+                  ) : conv.lastMessage ? (
                     <p className="truncate text-xs text-muted-foreground">
-                      {conv.lastMessage.senderUserId === currentUserId ? 'You: ' : ''}
+                      {conv.lastMessage.senderUserId === currentUserId
+                        ? 'You: '
+                        : group
+                          ? `${
+                              others.find((p) => p.userId === conv.lastMessage?.senderUserId)?.user
+                                .firstName ?? 'Someone'
+                            }: `
+                          : ''}
                       {conv.lastMessage.content}
                     </p>
-                  )}
+                  ) : group ? (
+                    <p className="truncate text-xs text-muted-foreground">
+                      {others.length + 1} members{onlineCount ? ` · ${onlineCount} online` : ''}
+                    </p>
+                  ) : null}
                 </div>
                 {conv.unreadCount > 0 && (
                   <div className="relative shrink-0">

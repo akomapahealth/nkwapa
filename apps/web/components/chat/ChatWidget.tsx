@@ -14,7 +14,7 @@ import { ChatConversation } from './ChatConversation';
 import { ChatUserPicker } from './ChatUserPicker';
 import { ChatUnreadBadge } from './ChatUnreadBadge';
 
-type View = 'list' | 'conversation' | 'new-message';
+type View = 'list' | 'conversation' | 'new-message' | 'new-group';
 
 function ChatPanel() {
   const chat = useChatContext();
@@ -37,6 +37,16 @@ function ChatPanel() {
       } catch {
         // ignore
       }
+    },
+    [chat],
+  );
+
+  const handleCreateGroup = useCallback(
+    async (userIds: string[], groupName: string | null) => {
+      if (!chat) return;
+      const conv = await chat.startGroupConversation(groupName, userIds);
+      setActiveConversation(conv);
+      setView('conversation');
     },
     [chat],
   );
@@ -84,6 +94,7 @@ function ChatPanel() {
             <ChatConversationList
               onSelect={handleOpenConversation}
               onNewMessage={() => setView('new-message')}
+              onNewGroup={() => setView('new-group')}
             />
           )}
 
@@ -93,6 +104,10 @@ function ChatPanel() {
 
           {view === 'new-message' && (
             <ChatUserPicker onSelect={handleUserSelect} onBack={handleBack} />
+          )}
+
+          {view === 'new-group' && (
+            <ChatUserPicker mode="group" onSubmit={handleCreateGroup} onBack={handleBack} />
           )}
         </div>
       )}
