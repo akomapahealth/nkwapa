@@ -244,7 +244,8 @@ Key fields:
 - `patientId`
 - `status`
 - `createdByUserId`
-- `preceptorReviewedById`
+- `preceptorReviewedById` (legacy name: the doctor who reviewed the encounter; the PRECEPTOR role
+  was retired in `20260520000000_remove_preceptor_role`)
 - `doctorFinalizedById`
 
 Status flow:

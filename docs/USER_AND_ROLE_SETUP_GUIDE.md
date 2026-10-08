@@ -72,6 +72,37 @@ Examples:
 - patient portal link and read actions
 - sync, dashboard, audit, and reminder permissions
 
+Surfaces that are easy to get wrong:
+
+| Surface                                               | Who sees it                         | Permission                                                              |
+| ----------------------------------------------------- | ----------------------------------- | ----------------------------------------------------------------------- |
+| `/reports/organization` (report and cohort analytics) | System admin only                   | `ORGANIZATION.REPORT.READ`, granted to no role; held through `*`        |
+| `/admin/duplicates/cross-clinic`                      | System admin only                   | `PATIENT.DUPLICATE.REVIEW` plus the system-admin check                  |
+| Patient merge                                         | System admin only                   | `PATIENT.MERGE`, granted to no role                                     |
+| `/staff-activity`, `/audit`                           | Manager, director                   | `AUDIT.READ`                                                            |
+| `/metrics`                                            | Manager, director                   | `METRICS.READ`                                                          |
+| `/admin/clinics`                                      | Director, system admin              | `CLINIC.MANAGE` plus the director/system-admin check                    |
+| Staff invites                                         | Director (own clinic), system admin | `CLINIC.STAFF.INVITE`                                                   |
+| Switching to any clinic                               | System admin                        | global `SYSTEM_ADMIN` role; staff switch only between their own clinics |
+
+### Security-sensitive operations checklist
+
+Each of these is audited. Before doing one, confirm the active clinic in the header picker.
+
+- **Patient merge** (system admin): review the preview and every blocked condition first. The
+  absorbed chart's code becomes an alias and its record is preserved. Merge is clinic-local;
+  cross-clinic pairs can be investigated but not merged.
+- **Granting Director or System Admin**: by hand only, never through an invite. Confirm the person
+  in person or through a known channel.
+- **Staff invites**: use an address only that person reads. Shared inboxes are refused.
+- **Removing a role or deactivating an account**: deactivation also disables Keycloak sign-in.
+  Check whether you mean one clinic or the whole account.
+- **Research export approval** (director): only consented patients are included; confirm the
+  request's purpose before approving.
+- **Revoking consent**: the patient is excluded from every export built after the revocation.
+- **Switching into another clinic as a system admin**: every read and write is scoped to that
+  clinic and audited against it.
+
 ---
 
 ## 5. First System Admin Setup
@@ -162,7 +193,8 @@ Users section of `docs/specs/03_AUTH_AND_RBAC.md`.
 
 ### Existing deployment cleanup after the doctor role migration
 
-The Prisma migration converts the retired preceptor operational role to `DOCTOR`. After deploying
+The Prisma migration `20260520000000_remove_preceptor_role` converts the retired preceptor
+operational role to `DOCTOR`. After deploying
 and running `npm run db:migrate:deploy`, operators can verify cleanup with:
 
 ```sql
@@ -199,22 +231,26 @@ There are two supported patterns.
 
 ### Pattern A: direct portal link
 
-Use this when the patient already has a local Nkwapa user account.
+Use this only when the patient already has a local Nkwapa user account, for example a staff
+member who is also a patient. Do not create a Keycloak identity by hand for this.
 
-1. Create the Keycloak identity.
-2. Let the user log into Nkwapa once.
-3. Open the patient chart.
-4. Use the portal-link action to connect the user to the chart.
+1. Make sure the person has signed in to Nkwapa at least once.
+2. Open the patient chart.
+3. Use the portal-link action to connect that user to the chart.
 
-### Pattern B: invite and claim
+### Pattern B: invite and claim (the normal path)
 
-Use this when staff wants to stage access and let the patient claim it later.
+1. Open the patient chart and create a portal invite with an email address and/or phone number,
+   choosing how long it stays valid (7, 14 or 30 days; 14 by default).
+2. For an email invite, Nkwapa creates the Keycloak account itself and Keycloak emails the patient a
+   password-setup link. Nkwapa then sends the invitation email. Nobody builds the identity by hand.
+3. The patient sets a password and signs in. `/auth/whoami` returns `PATIENT_CLAIM_REQUIRED`.
+4. The patient finishes `/claim-record`, which links the account to the chart.
 
-1. Open the patient chart.
-2. Create a portal invite.
-3. The patient logs in through Keycloak.
-4. `/auth/whoami` returns onboarding state when claim is required.
-5. The patient finishes `/claim-record`.
+If Keycloak is unreachable or unconfigured, the invite is still created and the chart says the
+account could not be created. **Resend** finishes the job once Keycloak is back; it only sends what
+is still outstanding and never resets a password the patient already chose. A phone-only invite
+has no address to provision against, so the patient needs an email address to claim online.
 
 Important note:
 
@@ -453,6 +489,6 @@ redacts email-shaped values; avoid adding logs that serialize raw invite payload
 
 - Keycloak manages passwords, reset tokens, and session expiry.
 - Nkwapa manages permissions, memberships, and clinic scope.
-- Staff and patients usually need one successful login before local admin tooling sees them.
+- Staff need one successful login before local admin tooling sees them, unless they arrive through an invite.
 - Portal access should be created from the patient record, not by role assignment alone.
 - Current frontend allowlists for Keycloak and API CORS are exact-origin based, so environment URLs must stay in sync with deployment configuration.

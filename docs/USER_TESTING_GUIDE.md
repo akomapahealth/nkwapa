@@ -216,6 +216,14 @@ Run once per environment, before enabling clinical records there. See
 - [ ] self-deactivation is blocked
 - [ ] duplicate patient merge succeeds for same-clinic charts (section 6b covers the rest)
 - [ ] `/admin/duplicates/cross-clinic` loads and is read-only (section 6b)
+- [ ] the header clinic picker lists every active clinic, including ones with no role; switching
+      changes the dashboard, queues and records shown
+- [ ] `/reports/organization` **Report** tab lists one row per clinic in the organization;
+      **Open dashboard** switches to that clinic
+- [ ] **Cohort analytics** tab: narrowing by zone hides clinics outside it in the clinic picker;
+      **Only this clinic** narrows the cohort; no patient name or code appears anywhere
+- [ ] as a director, `/reports/organization` is absent from the sidebar and the analytics API
+      returns 403
 
 ---
 
@@ -676,6 +684,8 @@ assessments by hand at different severities to check the ordering and the labels
 - [ ] chat toggle stays visible above page content on every breakpoint
 - [ ] chat panel opens within the viewport on phone and tablet sizes
 - [ ] chat panel is visibly larger on desktop without covering the full screen
+- [ ] a group conversation can be created, renamed, and have people added; a 51st member is refused
+- [ ] presence, last seen and typing update live between two browsers
 
 ---
 
