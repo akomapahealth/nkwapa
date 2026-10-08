@@ -359,3 +359,87 @@ test.describe('station flow metrics on the dashboard (#24)', () => {
     });
   }
 });
+
+test.describe('station capacity (#32)', () => {
+  test('a manager sets how many a station sees at once, and the board shows places in use', async ({
+    page,
+  }) => {
+    const patient = await createPatient(page);
+    const { clinicId } = patient;
+    const stations = (
+      await apiRequestAs('staff', 'get', `/clinics/${clinicId}/stations`, { clinicId })
+    ).json().items;
+    const intake = stations.find((station) => station.kind === 'INTAKE');
+
+    await page.goto('/stations/setup');
+    await expect(page.getByTestId('station-setup-list')).toBeVisible({ timeout: 20_000 });
+    const axe = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(axe.violations).toEqual([]);
+    const row = page.getByTestId('station-setup-row').filter({
+      has: page.locator(`#station-name-${intake.id}`),
+    });
+    await row.getByLabel('Sees at once').fill('3');
+    await row.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByText(`${intake.name} saved.`)).toBeVisible();
+
+    const saved = (
+      await apiRequestAs('staff', 'get', `/clinics/${clinicId}/stations`, { clinicId })
+    ).json().items;
+    expect(saved.find((station) => station.id === intake.id).capacity).toBe(3);
+
+    // One patient taken at intake: the board counts the place in use against capacity.
+    await ensureShift('staff', clinicId);
+    const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+      clinicId,
+      data: { patientId: patient.patientId },
+    });
+    const taken = await claimNext('staff', clinicId, checkIn.json().id);
+    const board = (
+      await apiRequestAs('staff', 'get', `/clinics/${clinicId}/stations/board`, { clinicId })
+    ).json();
+    const intakeOnBoard = board.stations.find((station) => station.id === intake.id);
+    expect(intakeOnBoard.capacity).toBe(3);
+    expect(intakeOnBoard.inUse).toBeGreaterThanOrEqual(1);
+
+    const metrics = (
+      await apiRequestAs('staff', 'get', `/clinics/${clinicId}/stations/metrics`, { clinicId })
+    ).json();
+    expect(metrics.stations.find((station) => station.stationId === intake.id)).toMatchObject({
+      capacity: 3,
+    });
+
+    // Put it back for the other specs.
+    await complete('staff', clinicId, taken.at.visit.id);
+    await apiRequestAs('staff', 'patch', `/clinics/${clinicId}/stations/${intake.id}`, {
+      clinicId,
+      data: { capacity: 1 },
+    });
+  });
+
+  test('only a manager sets capacity, and only to something real', async ({ page }) => {
+    const patient = await createPatient(page);
+    const { clinicId } = patient;
+    const station = (
+      await apiRequestAs('staff', 'get', `/clinics/${clinicId}/stations`, { clinicId })
+    ).json().items[0];
+    const asVolunteer = await apiRequestAs(
+      'volunteer',
+      'patch',
+      `/clinics/${clinicId}/stations/${station.id}`,
+      { clinicId, data: { capacity: 4 } },
+    );
+    expect(asVolunteer.status()).toBe(403);
+    const zero = await apiRequestAs(
+      'staff',
+      'patch',
+      `/clinics/${clinicId}/stations/${station.id}`,
+      {
+        clinicId,
+        data: { capacity: 0 },
+      },
+    );
+    expect(zero.status()).toBe(400);
+  });
+});
