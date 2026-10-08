@@ -1,13 +1,15 @@
 import { ReminderProcessor } from './reminder.processor';
 
 describe('ReminderProcessor tenant context', () => {
+  // The provider call has to run between transactions, so the job is run as steps (#164).
+  const step = jest.fn();
   const reminderService = {
     processReminder: jest.fn(),
     findReminderClinicId: jest.fn(),
   };
   const tenantContext = {
-    runClinicJob: jest.fn(async (_context, callback) => callback()),
-    runSystemJob: jest.fn(async (_context, callback) => callback()),
+    runClinicJobSteps: jest.fn(async (_context, callback) => callback(step)),
+    runSystemJobSteps: jest.fn(async (_context, callback) => callback(step)),
   };
 
   beforeEach(() => {
@@ -26,7 +28,7 @@ describe('ReminderProcessor tenant context', () => {
       },
     } as never);
 
-    expect(tenantContext.runClinicJob).toHaveBeenCalledWith(
+    expect(tenantContext.runClinicJobSteps).toHaveBeenCalledWith(
       expect.objectContaining({
         queueName: 'reminders',
         jobId: 'job-1',
@@ -37,10 +39,14 @@ describe('ReminderProcessor tenant context', () => {
       expect.any(Function),
     );
     expect(reminderService.findReminderClinicId).not.toHaveBeenCalled();
-    expect(reminderService.processReminder).toHaveBeenCalledWith('reminder-1', {
-      attemptsMade: 0,
-      maxAttempts: 1,
-    });
+    expect(reminderService.processReminder).toHaveBeenCalledWith(
+      'reminder-1',
+      {
+        attemptsMade: 0,
+        maxAttempts: 1,
+      },
+      step,
+    );
   });
 
   it('runs a deliberately global notification as system work instead of discarding it', async () => {
@@ -54,8 +60,8 @@ describe('ReminderProcessor tenant context', () => {
       data: { reminderId: 'reminder-global', userId: null, scope: 'global' },
     } as never);
 
-    expect(tenantContext.runClinicJob).not.toHaveBeenCalled();
-    expect(tenantContext.runSystemJob).toHaveBeenCalledWith(
+    expect(tenantContext.runClinicJobSteps).not.toHaveBeenCalled();
+    expect(tenantContext.runSystemJobSteps).toHaveBeenCalledWith(
       expect.objectContaining({
         queueName: 'reminders',
         resourceId: 'reminder-global',
@@ -63,10 +69,14 @@ describe('ReminderProcessor tenant context', () => {
       }),
       expect.any(Function),
     );
-    expect(reminderService.processReminder).toHaveBeenCalledWith('reminder-global', {
-      attemptsMade: 0,
-      maxAttempts: 1,
-    });
+    expect(reminderService.processReminder).toHaveBeenCalledWith(
+      'reminder-global',
+      {
+        attemptsMade: 0,
+        maxAttempts: 1,
+      },
+      step,
+    );
   });
 
   it('still resolves a legacy payload rather than treating it as global', async () => {
@@ -80,8 +90,8 @@ describe('ReminderProcessor tenant context', () => {
       data: { reminderId: 'reminder-legacy' },
     } as never);
 
-    expect(tenantContext.runSystemJob).not.toHaveBeenCalled();
-    expect(tenantContext.runClinicJob).toHaveBeenCalled();
+    expect(tenantContext.runSystemJobSteps).not.toHaveBeenCalled();
+    expect(tenantContext.runClinicJobSteps).toHaveBeenCalled();
   });
 
   it('declares safe discard and resolves legacy reminder tenants as system work', async () => {
@@ -93,7 +103,7 @@ describe('ReminderProcessor tenant context', () => {
       data: { reminderId: 'reminder-legacy' },
     } as never);
 
-    const context = tenantContext.runClinicJob.mock.calls[0][0];
+    const context = tenantContext.runClinicJobSteps.mock.calls[0][0];
     expect(context).toMatchObject({
       tenant: null,
       unresolvedTenant: 'discard',
@@ -119,7 +129,7 @@ describe('ReminderProcessor tenant context', () => {
       },
     } as never);
 
-    expect(tenantContext.runClinicJob.mock.calls[0][0].tenant).toEqual({
+    expect(tenantContext.runClinicJobSteps.mock.calls[0][0].tenant).toEqual({
       clinicId: 'different-clinic',
       userId: null,
     });
@@ -138,10 +148,14 @@ describe('ReminderProcessor tenant context', () => {
       data: { reminderId: 'reminder-1', clinicId: 'clinic-1', userId: null, scope: 'clinic' },
     } as never);
 
-    expect(reminderService.processReminder).toHaveBeenCalledWith('reminder-1', {
-      attemptsMade: 1,
-      maxAttempts: 3,
-    });
+    expect(reminderService.processReminder).toHaveBeenCalledWith(
+      'reminder-1',
+      {
+        attemptsMade: 1,
+        maxAttempts: 3,
+      },
+      step,
+    );
   });
 
   it('reads a job queued before retries were configured as a single final attempt', async () => {
@@ -154,9 +168,13 @@ describe('ReminderProcessor tenant context', () => {
       data: { reminderId: 'reminder-1', clinicId: 'clinic-1', userId: null, scope: 'clinic' },
     } as never);
 
-    expect(reminderService.processReminder).toHaveBeenCalledWith('reminder-1', {
-      attemptsMade: 0,
-      maxAttempts: 1,
-    });
+    expect(reminderService.processReminder).toHaveBeenCalledWith(
+      'reminder-1',
+      {
+        attemptsMade: 0,
+        maxAttempts: 1,
+      },
+      step,
+    );
   });
 });
