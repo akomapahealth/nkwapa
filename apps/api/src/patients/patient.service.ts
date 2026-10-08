@@ -13,7 +13,11 @@ import { AuditService } from '../audit/audit.service';
 import { EmailStatusService } from '../notifications/email/email-status.service';
 import { resolveAppPublicUrl } from '../notifications/email/email-config';
 import { effectivePortalInviteStatus } from '../common/portal-invite-lifecycle';
-import { PatientRepository, PatientFindManyFilters } from './patient.repository';
+import {
+  PatientRepository,
+  PatientFindManyFilters,
+  type PatientRegistrySort,
+} from './patient.repository';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientBodyDto } from './dto/update-patient-body.dto';
 import {
@@ -248,7 +252,12 @@ export class PatientService {
     q = '',
     page = 1,
     pageSize = 25,
-    options?: { cursor?: string; limit?: number; location?: ResidentialLocationFilters },
+    options?: {
+      cursor?: string;
+      limit?: number;
+      location?: ResidentialLocationFilters;
+      sort?: PatientRegistrySort;
+    },
   ): Promise<PatientRegistryPage> {
     const normalizedPage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
     const normalizedPageSize = Math.min(
@@ -275,6 +284,7 @@ export class PatientService {
       residentialDistrict: options?.location?.residentialDistrict,
       residentialCommunity: options?.location?.residentialCommunity,
       residentialLocationStatus: options?.location?.residentialLocationStatus,
+      sort: options?.sort,
     };
 
     if (trimmed) {

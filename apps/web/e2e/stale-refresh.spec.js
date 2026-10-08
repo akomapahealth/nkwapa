@@ -52,7 +52,7 @@ test('a refresh control does not change size when it becomes busy', async ({ pag
 test('a refetch keeps the rows that are already on screen', async ({ page }) => {
   await page.goto('/patients');
   await expect(page.locator('#main-content')).toBeVisible({ timeout: 30_000 });
-  const rows = page.locator('.MuiDataGrid-row');
+  const rows = page.locator('tbody tr');
   await expect(rows.first()).toBeVisible({ timeout: 30_000 });
   const before = await rows.count();
   expect(before).toBeGreaterThan(0);
@@ -74,7 +74,7 @@ test('a refetch keeps the rows that are already on screen', async ({ page }) => 
 test('the refresh indicator cannot move the content it sits above', async ({ page }) => {
   await page.goto('/patients');
   await expect(page.locator('#main-content')).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator('.MuiDataGrid-row').first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('tbody tr').first()).toBeVisible({ timeout: 30_000 });
 
   await slowDown(page, '**/clinics/*/patients*');
   await page

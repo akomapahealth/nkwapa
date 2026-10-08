@@ -44,7 +44,7 @@ test('records a residential location, distinguishes it from the clinic, and filt
   await page.goto(`/clinics/${clinicId}/patients`);
   await chooseSelect(page, 'Region', 'Greater Accra');
   await expect(page.getByText('Region: Greater Accra')).toBeVisible();
-  await expect(page.getByRole('gridcell', { name: lastName })).toBeVisible();
+  await expect(page.getByRole('cell', { name: lastName })).toBeVisible();
 
   // No horizontal overflow across breakpoints.
   for (const viewport of [

@@ -2,12 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Box } from '@mui/material';
-import { DataGrid, type GridColDef } from '@mui/x-data-grid';
+import type { SortingState } from '@tanstack/react-table';
 import { Search, Stethoscope, UserPlus, Users } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { useBootstrap } from '@/lib/bootstrap-context';
-import { dataGridSx } from '@/lib/datagrid-theme';
+import { registrySortQuery } from '@/lib/patient-registry-sort';
 import { hasPermission, readApiError } from '@/lib/ops';
 import { GHANA_REGION_LABELS, PATIENT_LOCATION_STATUS_LABELS } from '@/lib/residential-location';
 import { useAsyncResource } from '@/lib/use-async-resource';
@@ -26,6 +25,7 @@ import {
 } from '@/components/patients/ResidentialLocationFilters';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { DataTable, DataTableActions, type DataTableColumn } from '@/components/ui/data-table';
 import { Input } from '@/components/ui/input';
 
 interface PatientSummary {
@@ -65,6 +65,8 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
     useState<ResidentialLocationFilterValue>(EMPTY_LOCATION_FILTER);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const sortQuery = registrySortQuery(sorting);
 
   /*
     Only the free-text inputs are debounced. Typing a name should not fire a request per
@@ -98,12 +100,15 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
       district,
       committed.community,
       status,
+      sortQuery.sortBy ?? '',
+      sortQuery.sortDir ?? '',
     ].join('|'),
     errorMessage: 'The patient registry could not be loaded.',
     fetcher: async (token, signal) => {
       const query = new URLSearchParams({
         page: String(page + 1),
         pageSize: String(pageSize),
+        ...sortQuery,
       });
       if (committed.q) query.set('q', committed.q);
       if (region) query.set('residentialRegion', region);
@@ -135,51 +140,67 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
   const items = registry.data?.items ?? [];
   const total = registry.data?.total ?? 0;
 
-  const columns: GridColDef[] = [
-    { field: 'patientCode', headerName: 'Patient Code', width: 140 },
+  const columns: DataTableColumn<PatientSummary>[] = [
     {
-      field: 'name',
-      headerName: 'Name',
-      flex: 1,
-      minWidth: 160,
-      valueGetter: (_, row) => `${row.firstName} ${row.lastName}`.trim(),
+      id: 'patientCode',
+      accessorKey: 'patientCode',
+      header: 'Patient code',
+      meta: { className: 'whitespace-nowrap font-medium' },
     },
     {
-      field: 'phoneE164',
-      headerName: 'Phone',
-      width: 150,
-      valueFormatter: (value) => (value ? String(value).replace(/(.{4}).*(.{4})/, '$1***$2') : ''),
+      id: 'name',
+      accessorFn: (row) => `${row.firstName} ${row.lastName}`.trim(),
+      header: 'Name',
     },
     {
-      field: 'nationalIdLast4',
-      headerName: 'ID Last 4',
-      width: 100,
-      valueFormatter: (value) => (value ? `...${value}` : ''),
+      id: 'phoneE164',
+      accessorKey: 'phoneE164',
+      header: 'Phone',
+      enableSorting: false,
+      meta: { className: 'w-40 text-muted-foreground' },
+      cell: ({ getValue }) => {
+        const value = getValue<string | null>();
+        return value ? value.replace(/(.{4}).*(.{4})/, '$1***$2') : '—';
+      },
     },
     {
-      field: 'actions',
-      headerName: 'Actions',
-      width: 180,
-      sortable: false,
-      renderCell: (params) => (
-        <div className="flex gap-3">
-          <Link
-            href={patientHref(params.row.id)}
-            className="rounded-sm text-sm text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            View
-          </Link>
+      id: 'nationalIdLast4',
+      accessorKey: 'nationalIdLast4',
+      header: 'ID last 4',
+      enableSorting: false,
+      meta: { className: 'w-28 text-muted-foreground' },
+      cell: ({ getValue }) => {
+        const value = getValue<string | null>();
+        return value ? `…${value}` : '—';
+      },
+    },
+    {
+      id: 'actions',
+      header: () => <span className="sr-only">Actions</span>,
+      enableSorting: false,
+      meta: { align: 'right', className: 'w-[220px]' },
+      /*
+        Real buttons, aligned down the column. They were two text links side by side whose widths
+        depended on the label, so "View" and "Check-in" wandered row to row. There is still no
+        row-click navigation: it fired for anything inside the row, including Check in.
+      */
+      cell: ({ row }) => (
+        <DataTableActions>
+          <Button asChild variant="outline" size="sm" className="h-9 w-20">
+            <Link href={patientHref(row.original.id)}>View</Link>
+          </Button>
           {canCreateOpsCheckIn ? (
-            <button
-              type="button"
-              onClick={() => void checkIn.checkIn(params.row as PatientSummary)}
+            <Button
+              size="sm"
+              className="h-9 w-24"
+              loading={checkIn.busyPatientId === row.original.id}
               disabled={checkIn.isBusy || !checkIn.canSubmit}
-              className="rounded-sm text-sm text-success-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              onClick={() => void checkIn.checkIn(row.original)}
             >
-              Check-in
-            </button>
+              Check in
+            </Button>
           ) : null}
-        </div>
+        </DataTableActions>
       ),
     },
   ];
@@ -304,105 +325,58 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
             }}
           >
             {(data) => (
-              <>
-                <div className="space-y-3 md:hidden">
-                  {data.items.map((row) => (
-                    <article
-                      key={row.id}
-                      className="rounded-lg border border-border/80 bg-background/80 p-4 shadow-sm"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h3 className="text-base font-semibold text-foreground">
-                            {row.firstName} {row.lastName}
-                          </h3>
-                          <p className="mt-1 text-sm text-muted-foreground">{row.patientCode}</p>
-                        </div>
-                        {row.nationalIdLast4 ? (
-                          <span className="text-xs tabular-nums text-muted-foreground">
-                            ...{row.nationalIdLast4}
-                          </span>
-                        ) : null}
+              <DataTable
+                caption="Patients in this clinic"
+                columns={columns}
+                data={data.items}
+                getRowId={(row) => row.id}
+                rowCount={data.total}
+                isRefreshing={registry.isRefreshing}
+                sorting={sorting}
+                onSortingChange={(next) => {
+                  setSorting(next);
+                  setPage(0);
+                }}
+                pagination={{ pageIndex: page, pageSize }}
+                onPaginationChange={(next) => {
+                  setPage(next.pageIndex);
+                  setPageSize(next.pageSize);
+                }}
+                renderMobileRow={(row) => (
+                  <article className="rounded-lg border border-border/80 bg-card p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-base font-semibold text-foreground">
+                          {row.firstName} {row.lastName}
+                        </h3>
+                        <p className="mt-1 text-sm text-muted-foreground">{row.patientCode}</p>
                       </div>
-                      <p className="mt-3 text-sm tabular-nums text-muted-foreground">
-                        {row.phoneE164 || 'No phone on file'}
-                      </p>
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <Button asChild variant="outline" className="flex-1">
-                          <Link href={patientHref(row.id)}>View record</Link>
+                      {row.nationalIdLast4 ? (
+                        <span className="text-xs tabular-nums text-muted-foreground">
+                          …{row.nationalIdLast4}
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="mt-3 text-sm tabular-nums text-muted-foreground">
+                      {row.phoneE164 || 'No phone on file'}
+                    </p>
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <Button asChild variant="outline">
+                        <Link href={patientHref(row.id)}>View record</Link>
+                      </Button>
+                      {canCreateOpsCheckIn ? (
+                        <Button
+                          loading={checkIn.busyPatientId === row.id}
+                          disabled={checkIn.isBusy || !checkIn.canSubmit}
+                          onClick={() => void checkIn.checkIn(row)}
+                        >
+                          Check in
                         </Button>
-                        {canCreateOpsCheckIn ? (
-                          <Button
-                            className="flex-1"
-                            disabled={checkIn.isBusy || !checkIn.canSubmit}
-                            onClick={() => void checkIn.checkIn(row)}
-                          >
-                            {checkIn.busyPatientId === row.id ? 'Checking in...' : 'Check-in'}
-                          </Button>
-                        ) : null}
-                      </div>
-                    </article>
-                  ))}
-                </div>
-
-                {/*
-                  A bounded height, not `autoHeight`: the sticky column headers `dataGridSx` ships
-                  only stick against the grid's own scroll container, and an auto-height grid does
-                  not have one. A registry that runs past the viewport is exactly the case they
-                  exist for.
-                */}
-                <Box
-                  sx={{ height: 460, width: '100%' }}
-                  className="hidden overflow-x-auto md:block"
-                >
-                  {/*
-                    No `onRowClick` navigation. It was a mouse-only duplicate of the View link in
-                    the Actions cell, and because a row click fires for anything inside the row it
-                    also fired when someone pressed Check-in, navigating away from the result while
-                    the check-in was still in flight.
-                  */}
-                  <DataGrid
-                    rows={data.items}
-                    columns={columns}
-                    loading={registry.isRefreshing}
-                    disableColumnMenu
-                    disableRowSelectionOnClick
-                    paginationMode="server"
-                    rowCount={data.total}
-                    pageSizeOptions={[10, 25, 50]}
-                    paginationModel={{ page, pageSize }}
-                    onPaginationModelChange={(model) => {
-                      setPage(model.page);
-                      setPageSize(model.pageSize);
-                    }}
-                    sx={dataGridSx}
-                  />
-                </Box>
-
-                <div className="flex items-center justify-between rounded-lg border border-border/70 bg-background/70 px-4 py-3 text-sm md:hidden">
-                  <p className="tabular-nums text-muted-foreground">
-                    Showing {data.items.length} of {data.total} patients
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={page === 0 || registry.isRefreshing}
-                      onClick={() => setPage((current) => Math.max(0, current - 1))}
-                    >
-                      Previous
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={(page + 1) * pageSize >= data.total || registry.isRefreshing}
-                      onClick={() => setPage((current) => current + 1)}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </div>
-              </>
+                      ) : null}
+                    </div>
+                  </article>
+                )}
+              />
             )}
           </ResourceState>
         </CardContent>

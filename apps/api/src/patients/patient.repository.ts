@@ -16,6 +16,33 @@ export interface PatientFindManyFilters {
   skip?: number;
   take?: number;
   includeMerged?: boolean;
+  /** Registry sort; most recently updated first when absent. */
+  sort?: PatientRegistrySort;
+}
+
+export const PATIENT_REGISTRY_SORT_FIELDS = ['updatedAt', 'name', 'patientCode'] as const;
+export type PatientRegistrySortField = (typeof PATIENT_REGISTRY_SORT_FIELDS)[number];
+export interface PatientRegistrySort {
+  field: PatientRegistrySortField;
+  direction: 'asc' | 'desc';
+}
+
+/**
+ * A whitelisted sort, always ending on `id` so pages are stable: two patients with the same name
+ * must not swap places between page 2 and page 3, or one of them is never seen.
+ */
+export function patientRegistryOrderBy(
+  sort: PatientRegistrySort | undefined,
+): Prisma.PatientOrderByWithRelationInput[] {
+  const direction = sort?.direction ?? 'desc';
+  switch (sort?.field) {
+    case 'name':
+      return [{ lastName: direction }, { firstName: direction }, { id: direction }];
+    case 'patientCode':
+      return [{ patientCode: direction }, { id: direction }];
+    default:
+      return [{ updatedAt: direction }, { id: direction }];
+  }
 }
 
 @Injectable()
@@ -114,7 +141,7 @@ export class PatientRepository {
             skip: filters.skip,
           }),
       take: filters.take ?? 50,
-      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+      orderBy: patientRegistryOrderBy(filters.sort),
     });
   }
 
