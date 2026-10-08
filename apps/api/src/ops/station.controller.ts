@@ -108,6 +108,15 @@ export class StationController {
     );
   }
 
+  /** Wait-time and throughput for one clinic day (#24). For the people who run the line. */
+  @Get('stations/metrics')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.OPS_STATION_MANAGE)
+  metrics(@Param('clinicId') clinicId: string, @Query() query: StationDayQueryDto) {
+    this.assertEnabled();
+    return this.stationService.getMetrics(clinicId, query.date);
+  }
+
   @Get('stations/board')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.OPS_STATION_READ)
