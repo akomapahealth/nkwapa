@@ -13,12 +13,14 @@ jest.mock('./db', () => ({
 }));
 
 import { db as mockedDb } from './db';
+import { enqueueOutboxMutation, onOutboxChange } from './outbox';
 import {
   isFullySynced,
   onSyncPassComplete,
   onSyncStatusChange,
   SYNC_PUSH_BATCH_SIZE,
   syncNow,
+  syncQueuedChange,
 } from './sync';
 
 const db = mockedDb as unknown as FakeSyncDb;
@@ -55,6 +57,77 @@ describe('sync coordinator', () => {
     await expect(first).resolves.toMatchObject({ success: true, blockedCount: 0 });
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls[1]?.[0]).toContain('/sync/push');
+  });
+});
+
+describe('a change queued with nobody asking for a sync', () => {
+  /*
+    A form queued a prescription while the reconnect pass was already running. The pass had read
+    the outbox before the row landed, finished cleanly, and nothing synced again: the change sat
+    unsent until something unrelated triggered a pass. No one calls syncNow here on purpose.
+  */
+  it('is sent by the pass that was running when it was queued', async () => {
+    let resolveFirstPull!: (value: unknown) => void;
+    const firstPull = new Promise((resolve) => {
+      resolveFirstPull = resolve;
+    });
+    const pushed: string[] = [];
+    const fetchMock = jest.fn(async (url: string, init?: RequestInit) => {
+      if (url.includes('/sync/push')) {
+        const batch = JSON.parse(String(init?.body)) as { id: string }[];
+        pushed.push(...batch.map((row) => row.id));
+        return {
+          ok: true,
+          json: async () => ({
+            results: batch.map((row) => ({ id: row.id, status: 'APPLIED' })),
+          }),
+        };
+      }
+      if (fetchMock.mock.calls.length === 1) return firstPull;
+      return { ok: true, json: async () => ({ ...EMPTY_PULL, cursor: 'cursor-2' }) };
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const pass = syncNow({ clinicId: 'clinic-1', currentUserId: OWNER });
+    // Queue only once the pass is pulling: its push has already read an empty outbox.
+    while (fetchMock.mock.calls.length === 0) await new Promise((r) => setTimeout(r, 0));
+    const queued = await enqueueOutboxMutation(db as never, {
+      clinicId: 'clinic-1',
+      entityType: 'prescription',
+      entityId: 'rx-1',
+      operation: 'UPSERT',
+      payloadJson: { encounterId: 'encounter-1' },
+      owner: { userId: OWNER },
+    });
+    resolveFirstPull({ ok: true, json: async () => EMPTY_PULL });
+
+    await expect(pass).resolves.toMatchObject({ success: true });
+    expect(pushed).toEqual([queued.id]);
+    expect(await db.outbox.toArray()).toEqual([]);
+  });
+
+  it('tells listeners which clinic it was queued at', async () => {
+    const heard: string[] = [];
+    const unsubscribe = onOutboxChange((clinicId) => heard.push(clinicId));
+    await enqueueOutboxMutation(db as never, {
+      clinicId: 'clinic-2',
+      entityType: 'prescription',
+      entityId: 'rx-2',
+      operation: 'UPSERT',
+      payloadJson: {},
+      owner: { userId: OWNER },
+    });
+    unsubscribe();
+    expect(heard).toEqual(['clinic-2']);
+  });
+
+  it('does not start a second pass beside one already running', async () => {
+    const fetchMock = mockSyncFetch([]);
+    const running = syncNow({ clinicId: 'clinic-1', currentUserId: OWNER });
+    syncQueuedChange({ clinicId: 'clinic-1', currentUserId: OWNER });
+    await running;
+    // One pass, one pull: the queued-change request neither joined nor started another.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 

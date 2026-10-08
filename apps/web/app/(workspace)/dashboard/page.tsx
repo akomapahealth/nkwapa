@@ -15,6 +15,8 @@ import { ReviewDashboard } from '@/components/dashboard/ReviewDashboard';
 import { DirectorDashboard } from '@/components/dashboard/DirectorDashboard';
 import { VolunteerDashboard } from '@/components/dashboard/VolunteerDashboard';
 import { SystemAdminDashboard } from '@/components/dashboard/SystemAdminDashboard';
+import { StationFlowDashboard } from '@/components/dashboard/StationFlowDashboard';
+import { isWebFeatureEnabled } from '@/lib/feature-flags';
 import {
   ClinicalMeasurementsDashboard,
   type ClinicalMeasurementMetrics,
@@ -120,6 +122,12 @@ export default function DashboardPage() {
   const { showToast } = useToast();
   const clinicId = getBootstrapActiveClinicId(bootstrap);
   const activeClinic = getActiveBootstrapClinic(bootstrap, clinicId);
+  const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
+  // The people who run the station line: managers, directors and system administrators (#24).
+  const showStationFlow =
+    isWebFeatureEnabled('stationWorkflow') &&
+    Boolean(clinicId) &&
+    (perms.includes('*') || perms.includes('OPS.STATION.MANAGE'));
 
   const [zoneFilter, setZoneFilter] = useState<ZoneFilter>(null);
   const [data, setData] = useState<DashboardData | null>(null);
@@ -276,6 +284,8 @@ export default function DashboardPage() {
                   }
                 />
               )}
+
+              {showStationFlow && clinicId ? <StationFlowDashboard clinicId={clinicId} /> : null}
 
               {data.doctor && <DoctorDashboard {...data.doctor} />}
 
