@@ -260,9 +260,15 @@ Treat those local drift migrations as disposable until they are validated agains
 Every newly produced queue payload must carry `clinicId` and an explicit `userId` (`null` for
 automated work). Every processor must call one of these runner methods before touching the database:
 
-- `runClinicJob(...)` for clinic data. It applies clinic/user context before the callback runs.
+- `runClinicJob(...)` for clinic data. It applies clinic/user context before the callback runs,
+  and runs the whole callback in one transaction.
 - `runSystemJob(...)` only for work that genuinely spans tenants. A non-empty
   `systemReason` is mandatory and the runner logs the decision without job payload data.
+- `runClinicJobSteps(...)` / `runSystemJobSteps(...)` for any job that calls something outside the
+  database: an SMS or email provider, GitHub, any HTTP API. The callback receives `step`, and each
+  `step(...)` is one short transaction under the same context. **No external call may run inside a
+  transaction** (#164): a call that outlives the transaction's 5 second timeout succeeds while the
+  write recording it rolls back, and the retry repeats the side effect.
 
 `runClinicJob(...)` also requires an explicit unresolved-tenant policy:
 
@@ -282,15 +288,23 @@ Before adding or changing a processor:
 4. Add tests for direct tenant metadata, any legacy resolver, and the failure/discard decision.
 5. Confirm warnings contain identifiers and static reasons only, never payload data or PHI.
 6. Assume the job will be delivered twice. If it has a side effect (a send, an external push),
-   claim it with `tryLockForTransaction` from `prisma/transaction-lock.ts` before reading its row,
-   and stand down when the claim is held.
-7. Read the retry budget with `jobAttempt(job)` from `common/job-attempt.ts`. With attempts left,
-   throw and record nothing: the job transaction rolls back whatever the run wrote. On the last
-   attempt, record the failure and return instead of throwing, or the rollback erases the record.
-8. Retrying a finished job needs a fresh `jobId`. BullMQ keeps finished jobs under their id and
+   split it: a step that claims the row by moving it to an in-flight status with a conditional
+   `updateMany ... where status = <expected>` and commits; the external call with no transaction
+   open; a step that records the outcome, again conditional on the in-flight status. A duplicate
+   or a retry finds the in-flight status and stands down.
+7. Treat an outcome you lost as unknown, never as safe to repeat. If the call throws in a way the
+   provider did not classify, or the record step fails after the call, leave the row in flight
+   and let a reconciliation sweep settle it (see `ReminderService.reconcileStaleSends` and
+   `ResearchExportService.reconcileStaleExports`). Record what the external system can confirm,
+   and otherwise surface it to an operator.
+8. Read the retry budget with `jobAttempt(job)` from `common/job-attempt.ts`. With attempts left
+   after a failure that certainly had no external effect, hand the claim back (in-flight ->
+   queued) in a step and throw. On the last attempt, record the failure and return instead of
+   throwing.
+9. Retrying a finished job needs a fresh `jobId`. BullMQ keeps finished jobs under their id and
    silently ignores an add that reuses one.
-9. Add the processor's duplicate-delivery, retry and tenant scenarios to
-   `apps/api/src/testing/offline-job-matrix.ts`.
+10. Add the processor's duplicate-delivery, retry and tenant scenarios to
+    `apps/api/src/testing/offline-job-matrix.ts`.
 
 ### Standalone script rule
 

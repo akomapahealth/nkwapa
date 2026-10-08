@@ -7,7 +7,7 @@
  * only gets covered once it lives outside a component.
  */
 
-export type DeliveryStatus = 'QUEUED' | 'SENT' | 'DELIVERED' | 'FAILED' | string;
+export type DeliveryStatus = 'QUEUED' | 'SENDING' | 'SENT' | 'DELIVERED' | 'FAILED' | string;
 export type DeliveryChannel = 'SMS' | 'EMAIL' | string;
 
 export type BadgeTone = 'finalized' | 'secondary' | 'destructive' | 'draft' | 'warning';
@@ -63,6 +63,12 @@ const FAILURE_EXPLANATIONS: Record<string, FailureExplanation> = {
     label: 'Send failed',
     detail: 'The provider rejected this message without a specific reason.',
     recovery: 'Try resending; if it keeps failing, check the recipient details.',
+  },
+  SEND_OUTCOME_UNKNOWN: {
+    label: 'Outcome unknown',
+    detail:
+      'The server started sending this message but lost track of whether the provider accepted it. It may have arrived.',
+    recovery: 'Check with the recipient before resending, so they do not get it twice.',
   },
   DELIVERY_FAILED: {
     label: 'Not delivered',
