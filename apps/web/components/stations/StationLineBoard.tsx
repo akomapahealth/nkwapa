@@ -146,6 +146,11 @@ export function StationLineBoard() {
         description="Where every checked-in patient is, and who is seeing them."
         actions={
           <div className="flex items-end gap-3">
+            {canManage ? (
+              <Button asChild variant="outline">
+                <Link href="/stations/setup">Set up stations</Link>
+              </Button>
+            ) : null}
             <Input
               type="date"
               aria-label="Clinic day"
@@ -192,7 +197,17 @@ export function StationLineBoard() {
           {stations.map((station) => (
             <Card key={station.id} className="min-w-0">
               <CardHeader className="space-y-1 pb-3">
-                <CardTitle className="text-base">{station.name}</CardTitle>
+                <div className="flex items-center justify-between gap-2">
+                  <CardTitle className="text-base">{station.name}</CardTitle>
+                  {station.capacity ? (
+                    <Badge
+                      variant={(station.inUse ?? 0) >= station.capacity ? 'warning' : 'secondary'}
+                      data-testid="station-occupancy"
+                    >
+                      {station.inUse ?? 0} of {station.capacity} in use
+                    </Badge>
+                  ) : null}
+                </div>
                 <p className="text-xs text-muted-foreground">
                   {station.staff.length
                     ? station.staff.map((member) => member.displayName).join(', ')

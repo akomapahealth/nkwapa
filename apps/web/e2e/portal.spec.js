@@ -37,6 +37,7 @@ const STAFF_ROUTES = [
   '/admin/duplicates/cross-clinic',
   '/reports/organization',
   '/audit',
+  '/staff-activity',
 ];
 
 for (const route of PORTAL_ROUTES) {

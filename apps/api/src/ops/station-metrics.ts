@@ -31,6 +31,7 @@ export interface StationMetricsInput {
     kind: string;
     sortOrder: number;
     active: boolean;
+    capacity: number;
   }>;
   checkIns: ReadonlyArray<{ id: string; checkedInAt: Date; status: string }>;
   visits: ReadonlyArray<{
@@ -74,6 +75,10 @@ export interface StationMetrics {
     service: DurationSummary;
     /** Times a patient was put back in this station's queue. */
     releases: number;
+    /** How many patients the station can see at once (#32). */
+    capacity: number;
+    /** The most patients it was seeing at the same moment that day. */
+    peakInUse: number;
     /** Null on a past day. */
     waitingNow: number | null;
     longestCurrentWaitMinutes: number | null;
@@ -84,6 +89,12 @@ export interface StationMetrics {
    * a wait long enough to matter. Null when nothing qualifies.
    */
   bottleneckStationId: string | null;
+  /**
+   * Why the bottleneck waited, as far as the day can tell (#32): `CAPACITY` when the station was
+   * full at its busiest (every chair or cuff in use, so more staff alone would not have helped),
+   * `STAFFING` when it never filled (there was room, so the wait was for people).
+   */
+  bottleneckConstraint: 'CAPACITY' | 'STAFFING' | null;
   /** Clinic-local hours from the first to the last activity of the day. */
   hourly: Array<{ hour: string; checkedIn: number; completed: number }>;
   staffing: { onShiftNow: number | null };
@@ -118,6 +129,28 @@ function localHour(instant: Date, timeZone: string): number {
 }
 
 const OPEN_CHECK_IN = new Set(['WAITING', 'ASSIGNED', 'IN_PROGRESS']);
+
+/**
+ * The most intervals open at the same instant. An interval is half-open, so a patient handed on at
+ * 10:05 and the next taken at 10:05 are not counted as overlapping.
+ */
+export function peakConcurrency(intervals: ReadonlyArray<{ start: Date; end: Date }>): number {
+  const edges = intervals
+    .filter((interval) => interval.end > interval.start)
+    .flatMap((interval) => [
+      { at: interval.start.getTime(), delta: 1 },
+      { at: interval.end.getTime(), delta: -1 },
+    ])
+    // Ends before starts at the same instant.
+    .sort((a, b) => a.at - b.at || a.delta - b.delta);
+  let current = 0;
+  let peak = 0;
+  for (const edge of edges) {
+    current += edge.delta;
+    peak = Math.max(peak, current);
+  }
+  return peak;
+}
 
 export function computeStationMetrics(input: StationMetricsInput): StationMetrics {
   const { day, now, checkIns, visits } = input;
@@ -163,6 +196,18 @@ export function computeStationMetrics(input: StationMetricsInput): StationMetric
             .map((visit) => minutesBetween(visit.claimedAt!, visit.completedAt!)),
         ),
         releases: atStation.reduce((sum, visit) => sum + visit.releaseCount, 0),
+        capacity: station.capacity,
+        peakInUse: peakConcurrency(
+          atStation
+            .filter((visit) => visit.claimedAt)
+            .map((visit) => ({
+              start: visit.claimedAt!,
+              // Still being seen: up to now, or the end of a past day.
+              end:
+                visit.completedAt ??
+                (visit.status === 'IN_PROGRESS' ? (live ? now : day.end) : visit.claimedAt!),
+            })),
+        ),
         waitingNow: live ? queued.length : null,
         longestCurrentWaitMinutes:
           live && queued.length
@@ -225,6 +270,11 @@ export function computeStationMetrics(input: StationMetricsInput): StationMetric
     timeInClinic,
     stations,
     bottleneckStationId: bottleneck?.stationId ?? null,
+    bottleneckConstraint: bottleneck
+      ? bottleneck.peakInUse >= bottleneck.capacity
+        ? 'CAPACITY'
+        : 'STAFFING'
+      : null,
     hourly,
     staffing: {
       onShiftNow: live ? input.shifts.filter((shift) => shift.status === 'ACTIVE').length : null,

@@ -36,6 +36,7 @@ import { MedicationAdherenceModule } from './medication-adherence/medication-adh
 import { ClinicalNoteModule } from './clinical-notes/clinical-note.module';
 import { CounsellingModule } from './counselling/counselling.module';
 import { EyeScreeningModule } from './eye-screening/eye-screening.module';
+import { StaffActivityModule } from './staff-activity/staff-activity.module';
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
 
@@ -76,6 +77,7 @@ const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
     ClinicalNoteModule,
     CounsellingModule,
     EyeScreeningModule,
+    StaffActivityModule,
   ],
   providers: [RateLimitGuard],
 })

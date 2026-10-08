@@ -6,6 +6,9 @@ import {
   IsArray,
   IsBoolean,
   IsEnum,
+  IsInt,
+  Max,
+  Min,
   IsOptional,
   IsString,
   IsUUID,
@@ -86,6 +89,10 @@ export class MoveCheckInDto extends StationReasonDto {
   stationId!: string;
 }
 
+/** How many patients a station can see at once (#32). */
+export const STATION_CAPACITY_MIN = 1;
+export const STATION_CAPACITY_MAX = 50;
+
 export class CreateStationDto {
   @IsEnum(StationKind)
   kind!: StationKind;
@@ -95,6 +102,13 @@ export class CreateStationDto {
   @MinLength(1)
   @MaxLength(120)
   name!: string;
+
+  /** Defaults to 1. */
+  @IsOptional()
+  @IsInt()
+  @Min(STATION_CAPACITY_MIN)
+  @Max(STATION_CAPACITY_MAX)
+  capacity?: number;
 }
 
 export class UpdateStationDto {
@@ -108,6 +122,12 @@ export class UpdateStationDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(STATION_CAPACITY_MIN)
+  @Max(STATION_CAPACITY_MAX)
+  capacity?: number;
 }
 
 export class ReorderStationsDto {

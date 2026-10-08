@@ -20,6 +20,21 @@ import { randomUUID } from 'crypto';
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
 
 /*
+  Presence (#30).
+
+  Online used to be a Redis set entry added on connect and removed on the last disconnect, so an
+  API that crashed or was redeployed without a clean disconnect left everyone it was serving
+  "online" for good. It is now a heartbeat: each tab checks in every PRESENCE_HEARTBEAT_MS, and
+  someone is online while their last check-in is newer than PRESENCE_TTL_MS. Nothing has to clean
+  up after a crash; a stale entry simply ages out. When someone goes offline cleanly, the time is
+  kept as when they were last seen.
+*/
+export const PRESENCE_HEARTBEAT_MS = 25_000;
+export const PRESENCE_TTL_MS = 60_000;
+const presenceKey = (clinicId: string) => `chat:clinic:${clinicId}:presence`;
+const lastSeenKey = (clinicId: string) => `chat:clinic:${clinicId}:last-seen`;
+
+/*
   Bound explicitly, because a global one is not enough.
 
   `PrismaRlsInterceptor` is registered as an `APP_INTERCEPTOR`, which covers HTTP but is not applied
@@ -77,8 +92,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     await client.join(`clinic:${clinicId}`);
     await client.join(`user:${userId}`);
 
-    // Track online presence in Redis
-    await this.pubClient.sadd(`chat:clinic:${clinicId}:online`, userId);
+    await this.pubClient.zadd(presenceKey(clinicId), Date.now(), userId);
 
     // Broadcast presence to clinic
     client.to(`clinic:${clinicId}`).emit('presence:online', {
@@ -99,8 +113,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
     // Only remove presence if this is the last connection for this user
     if (sockets.length <= 1) {
-      await this.pubClient.srem(`chat:clinic:${clinicId}:online`, userId);
-      this.server.to(clinicRoom).emit('presence:offline', { userId });
+      const lastSeenAt = new Date().toISOString();
+      await this.pubClient.zrem(presenceKey(clinicId), userId);
+      await this.pubClient.hset(lastSeenKey(clinicId), userId, lastSeenAt);
+      this.server.to(clinicRoom).emit('presence:offline', { userId, lastSeenAt });
     }
   }
 
@@ -194,7 +210,8 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       return;
     }
 
-    client.to(`conversation:${conversationId}`).emit('typing:start', {
+    // To each member, not just those with it open, so their list shows who is typing (#30).
+    await this.emitToOtherMembers(conversationId, auth.userId, 'typing:start', {
       conversationId,
       userId: auth.userId,
       displayName: auth.displayName,
@@ -214,7 +231,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       return;
     }
 
-    client.to(`conversation:${conversationId}`).emit('typing:stop', {
+    await this.emitToOtherMembers(conversationId, auth.userId, 'typing:stop', {
       conversationId,
       userId: auth.userId,
     });
@@ -240,17 +257,59 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     await client.leave(`conversation:${payload.conversationId}`);
   }
 
-  /**
-   * Get online users in a clinic (REST fallback is in the controller).
-   */
+  /** A tab saying it is still here. Keeps its person online; see PRESENCE_TTL_MS. */
+  @SubscribeMessage('presence:heartbeat')
+  async handlePresenceHeartbeat(client: Socket) {
+    const auth: WsAuthData = client.data.auth;
+    if (!auth) return;
+    await this.pubClient.zadd(presenceKey(auth.clinicId), Date.now(), auth.userId);
+  }
+
+  /** Who is online at this clinic now, and when everyone else was last seen. */
   @SubscribeMessage('presence:list')
   async handlePresenceList(client: Socket) {
     const auth: WsAuthData = client.data.auth;
     if (!auth) return;
 
-    const onlineUserIds = await this.pubClient.smembers(`chat:clinic:${auth.clinicId}:online`);
+    const now = Date.now();
+    const key = presenceKey(auth.clinicId);
+    // Entries older than the TTL belong to tabs that stopped without saying so.
+    await this.pubClient.zremrangebyscore(key, '-inf', now - PRESENCE_TTL_MS);
+    const [onlineUserIds, lastSeen] = await Promise.all([
+      this.pubClient.zrangebyscore(key, now - PRESENCE_TTL_MS, '+inf'),
+      this.pubClient.hgetall(lastSeenKey(auth.clinicId)),
+    ]);
 
-    client.emit('presence:list', { onlineUserIds });
+    client.emit('presence:list', { onlineUserIds, lastSeen });
+  }
+
+  /**
+   * Tell members about a conversation they are new to or that changed (#30), so their list updates
+   * without a reload. Someone who left stops receiving its messages at once.
+   */
+  notifyConversationChanged(
+    conversationId: string,
+    params: { memberIds: string[]; removedIds?: string[]; kind: 'new' | 'updated' },
+  ) {
+    for (const userId of params.memberIds) {
+      this.server.to(`user:${userId}`).emit(`conversation:${params.kind}`, { conversationId });
+    }
+    for (const userId of params.removedIds ?? []) {
+      this.server.in(`user:${userId}`).socketsLeave(`conversation:${conversationId}`);
+      this.server.to(`user:${userId}`).emit('conversation:removed', { conversationId });
+    }
+  }
+
+  private async emitToOtherMembers(
+    conversationId: string,
+    senderUserId: string,
+    event: string,
+    payload: Record<string, unknown>,
+  ) {
+    const memberIds = await this.chatService.activeParticipantIds(conversationId);
+    for (const userId of memberIds) {
+      if (userId !== senderUserId) this.server.to(`user:${userId}`).emit(event, payload);
+    }
   }
 
   private readConversationId(payload: { conversationId?: unknown } | null | undefined) {

@@ -141,6 +141,12 @@ function setup(initial: Row = {}) {
     clinicStation: {
       findMany: jest.fn(async () => STATIONS),
       findFirst: jest.fn(async () => STATIONS[0]),
+      create: jest.fn(async ({ data }: { data: Row }) => ({ id: 'st-new', active: true, ...data })),
+      update: jest.fn(async ({ where, data }: { where: { id: string }; data: Row }) => ({
+        ...STATIONS.find((s) => s.id === where.id),
+        capacity: 1,
+        ...data,
+      })),
       findUnique: jest.fn(
         async ({ where }: { where: { id: string } }) =>
           STATIONS.find((s) => s.id === where.id) ?? null,
@@ -567,6 +573,24 @@ describe('StationService', () => {
       await expect(
         service.updateStation(CLINIC, 'st-bp', manager, { active: false }),
       ).rejects.toMatchObject({ response: { code: 'STATION_HAS_PATIENTS' } });
+    });
+
+    it('records how many patients a station can see at once, 1 unless told (#32)', async () => {
+      const { service, tx } = setup();
+      const created = await service.createStation(CLINIC, manager, {
+        kind: 'CUSTOM' as never,
+        name: 'Vision screening',
+      });
+      expect(tx.clinicStation.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ capacity: 1 }),
+      });
+      expect(created.capacity).toBe(1);
+
+      const updated = await service.updateStation(CLINIC, 'st-bp', manager, { capacity: 3 });
+      expect(tx.clinicStation.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ capacity: 3 }) }),
+      );
+      expect(updated.capacity).toBe(3);
     });
 
     it('needs every station named once to reorder', async () => {

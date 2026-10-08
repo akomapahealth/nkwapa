@@ -162,3 +162,22 @@ The record is online only, like counselling, and stays editable until the encoun
 The review summary shows the best acuity for each eye and flags vision worse than 6/12. 6/12 is
 the WHO line for mild visual impairment; the UCC eye team has not yet confirmed it as their
 threshold. Eye records are not in the research export yet.
+
+## Capacity and station setup (#32)
+
+Stations are the clinic's resources: the station line covers what #32 first described as rooms and
+service lanes. What a station did not record was how many patients it can see at once: two chairs
+and two BP cuffs, one consulting room. `ClinicStation.capacity` (1 to 50, default 1) holds that.
+It is a room and equipment limit, not a staffing figure, and claiming past it is not blocked:
+doubling up happens, and the board says so rather than refusing.
+
+- **Station setup** (`/stations/setup`, `OPS.STATION.MANAGE`, linked from the station board): the
+  order patients move through, each station's name, whether it is open, and its capacity. It uses
+  the existing routes (`POST stations`, `PATCH stations/:id`, `PUT stations/order`), which had no
+  screen until now.
+- **The board** shows "N of C in use" on each station: patients being seen against capacity,
+  highlighted when full.
+- **Station flow** (#24) adds each station's busiest moment against its capacity (peak concurrent
+  patients being seen), and says why the bottleneck waited. Full at its busiest means the wait was
+  for space or equipment (`CAPACITY`). Never full means there was room and the wait was for staff
+  (`STAFFING`).

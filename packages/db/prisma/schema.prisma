@@ -1250,6 +1250,9 @@ model ClinicStation {
   kind      StationKind
   name      String      @db.VarChar(120)
   sortOrder Int
+  /// How many patients the station can see at once: chairs, cuffs, rooms (#32). Staff on the
+  /// station can be fewer (understaffed) or more; this is the room and equipment limit.
+  capacity  Int         @default(1)
   active    Boolean     @default(true)
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt

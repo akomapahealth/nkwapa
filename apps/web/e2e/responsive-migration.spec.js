@@ -46,6 +46,7 @@ const ROUTES = [
   { path: '/appointments', heading: /appointments/i },
   { path: '/notifications', heading: /notifications/i },
   { path: '/audit', heading: /audit/i },
+  { path: '/staff-activity', heading: /staff activity/i },
   { path: '/admin/users', heading: /staff/i },
   { path: '/admin/clinics', heading: /clinics/i },
   { path: '/admin/duplicates', heading: /duplicate review/i },
