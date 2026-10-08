@@ -40,6 +40,7 @@ import {
   type EmailAvailability,
 } from '@/lib/notification-delivery';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
+import { removeWithUndo } from '@/lib/undoable';
 
 interface ReminderRow {
   id: string;
@@ -80,7 +81,8 @@ export default function RemindersPage() {
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
   const seesStaffNotices = perms.includes('*') || perms.includes('REMINDER.READ_STAFF_NOTICES');
   const canCancelAny = perms.includes('*') || perms.includes('REMINDER.CANCEL_ANY');
-  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  // Reminders cancelled on screen and waiting out their Undo window.
+  const [pendingCancelIds, setPendingCancelIds] = useState<ReadonlySet<string>>(new Set());
   const [cancelError, setCancelError] = useState<string | null>(null);
   const typeFilters = NOTIFICATION_TYPE_FILTERS.filter(
     (option) => seesStaffNotices || option.value !== 'STAFF',
@@ -182,22 +184,35 @@ export default function RemindersPage() {
     row.createdByUserId !== null &&
     (canCancelAny || row.createdByUserId === bootstrap?.userId);
 
-  const cancelReminder = async (row: ReminderRow) => {
+  /*
+    A queued reminder that has not gone out costs nothing to cancel and can be rescheduled, so it
+    does not ask first: it shows as cancelled at once and is sent a few seconds later, with Undo.
+  */
+  const cancelReminder = (row: ReminderRow) => {
     if (!clinicId || !getToken) return;
-    setCancellingId(row.id);
     setCancelError(null);
-    try {
-      const res = await apiFetch(
-        `/clinics/${encodeURIComponent(clinicId)}/reminders/${encodeURIComponent(row.id)}/cancel`,
-        { method: 'POST', getToken },
-      );
-      if (!res.ok) throw new Error(await readApiError(res));
-      await fetchReminders();
-    } catch (e) {
-      setCancelError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setCancellingId(null);
-    }
+    const mark = (pending: boolean) =>
+      setPendingCancelIds((current) => {
+        const next = new Set(current);
+        if (pending) next.add(row.id);
+        else next.delete(row.id);
+        return next;
+      });
+    removeWithUndo({
+      message: 'Reminder cancelled',
+      hide: () => mark(true),
+      restore: () => mark(false),
+      commit: async () => {
+        const res = await apiFetch(
+          `/clinics/${encodeURIComponent(clinicId)}/reminders/${encodeURIComponent(row.id)}/cancel`,
+          { method: 'POST', getToken },
+        );
+        if (!res.ok) throw new Error(await readApiError(res));
+        await fetchReminders();
+        mark(false);
+      },
+      failureMessage: 'The reminder could not be cancelled, so it is still queued.',
+    });
   };
 
   const columns: DataTableColumn<ReminderRow>[] = [
@@ -312,15 +327,13 @@ export default function RemindersPage() {
       meta: { align: 'right' },
       cell: ({ row: params }) => {
         const row = params.original;
+        if (pendingCancelIds.has(row.id)) {
+          return <span className="text-sm text-muted-foreground">Cancelled</span>;
+        }
         if (!canCancel(row)) return null;
         return (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={cancellingId !== null}
-            onClick={() => void cancelReminder(row)}
-          >
-            {cancellingId === row.id ? 'Cancelling…' : 'Cancel'}
+          <Button size="sm" variant="outline" className="h-9" onClick={() => cancelReminder(row)}>
+            Cancel
           </Button>
         );
       },

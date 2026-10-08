@@ -67,6 +67,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { confirmAction } from '@/components/ui/confirm-dialog';
 
 interface ConsentStatusItem {
   consentType: string;
@@ -457,6 +458,13 @@ function PatientChartWorkspace() {
 
   const handleRevoke = async () => {
     if (!hasGrantedResearchConsent) return;
+    const confirmed = await confirmAction({
+      title: 'Revoke research consent?',
+      description:
+        'This patient will be left out of every research export built from now on. Record it only when the patient has asked to withdraw. Consent can be recorded again later, but exports already released are not recalled.',
+      confirmLabel: 'Revoke consent',
+    });
+    if (!confirmed) return;
     setLoading(true);
     setError(null);
     try {
@@ -998,7 +1006,7 @@ function PatientChartWorkspace() {
                         <Button
                           variant="destructive"
                           size="sm"
-                          onClick={handleRevoke}
+                          onClick={() => void handleRevoke()}
                           disabled={loading}
                         >
                           Revoke Consent

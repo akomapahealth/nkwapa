@@ -484,6 +484,17 @@ An empty state's title is an `<h3>`. An empty region is still a region, and a sc
 
 One primary per view. Destructive actions require a confirmation step naming what will change.
 
+### Removing things: confirm, or undo
+
+Removals split by what a mistake costs.
+
+| Cost                                          | Treatment                                                                                                    | Where                                                                                                                        |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| Costly, irreversible, or felt by someone else | `confirmAction()` dialog naming what changes; focus starts on the safe choice; never a row action in a table | Deactivate, remove a role, cancel an appointment, revoke consent, remove a prescription, leave a group, replace a typed note |
+| Cheap and reversible                          | Acts at once; `removeWithUndo()` shows it done, commits after 5 seconds, and offers Undo in the toast        | Cancel a staff invitation (re-invitable), cancel a queued reminder                                                           |
+
+`window.confirm` is not used: it cannot mark the dangerous button, reads as the browser rather than the product, and blocks the tab. A pending undoable removal is committed, not dropped, when the page is left.
+
 ---
 
 ## 10. Clinical form contract

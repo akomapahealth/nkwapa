@@ -21,6 +21,7 @@ import {
   presenceLabel,
   typingSummary,
 } from '@/lib/chat-display';
+import { confirmAction } from '@/components/ui/confirm-dialog';
 
 type MessageErrorPayload = {
   conversationId?: string;
@@ -474,7 +475,13 @@ export function ChatConversation({
             <button
               onClick={() =>
                 void runPanelAction(async () => {
-                  if (!window.confirm(`Leave ${displayName}? You can be added back later.`)) return;
+                  const leave = await confirmAction({
+                    title: `Leave ${displayName}?`,
+                    description:
+                      'You stop receiving its messages. Any member can add you back, and your history comes with you.',
+                    confirmLabel: 'Leave conversation',
+                  });
+                  if (!leave) return;
                   await chat?.leaveConversation(conversation.id);
                   onBack();
                 })

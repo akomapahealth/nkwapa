@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
+import { confirmAction } from '@/components/ui/confirm-dialog';
 
 interface PrescriptionItem {
   id: string;
@@ -57,7 +58,15 @@ export function PrescriptionList({
     fetchList();
   }, [fetchList, refreshKey]);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (item: PrescriptionItem) => {
+    const confirmed = await confirmAction({
+      title: `Remove ${item.drug.name}?`,
+      description:
+        'This prescription is removed from the encounter before it is finalized. Re-enter it if it is still needed.',
+      confirmLabel: 'Remove prescription',
+    });
+    if (!confirmed) return;
+    const id = item.id;
     try {
       const res = await apiFetch(
         `/clinics/${encodeURIComponent(clinicId)}/encounters/${encodeURIComponent(encounterId)}/prescriptions/${id}`,
@@ -107,7 +116,12 @@ export function PrescriptionList({
             </p>
           </div>
           {canWrite && !isFinalized && (
-            <Button variant="ghost" size="icon" onClick={() => handleDelete(p.id)}>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={`Remove ${p.drug.name}`}
+              onClick={() => void handleDelete(p)}
+            >
               <Trash2 className="h-4 w-4 text-destructive" />
             </Button>
           )}

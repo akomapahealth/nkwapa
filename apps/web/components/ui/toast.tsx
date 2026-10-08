@@ -3,6 +3,7 @@
 import { AlertTriangle, CheckCircle2, Info, Loader2, XCircle } from 'lucide-react';
 import { useMemo } from 'react';
 import { Toaster, toast as sonner, type ExternalToast } from 'sonner';
+import { ConfirmHost } from '@/components/ui/confirm-dialog';
 import { useTheme } from '@/lib/theme-context';
 
 /**
@@ -97,8 +98,10 @@ export function toastPromise<T>(
   so a toast reads as part of the product rather than as a library default.
 */
 const toastClassNames = {
+  // Opaque on purpose. A tinted, see-through toast let the header read through it; tone is
+  // carried by the icon and the border instead, and the text stays on the card surface.
   toast:
-    'group pointer-events-auto flex w-full items-start gap-3 rounded-lg border border-border/80 bg-card p-4 text-sm text-foreground shadow-lg',
+    'group pointer-events-auto relative flex w-full items-start gap-3 rounded-lg border border-border bg-card p-4 pr-10 text-sm text-foreground shadow-lg',
   title: 'font-semibold leading-5',
   description: 'mt-1 leading-5 text-muted-foreground',
   icon: 'relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center [&>svg]:h-5 [&>svg]:w-5',
@@ -107,13 +110,12 @@ const toastClassNames = {
     'ml-auto inline-flex h-9 shrink-0 items-center rounded-md border border-input bg-background px-3 text-xs font-medium text-primary transition-colors duration-fast hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
   cancelButton:
     'inline-flex h-9 shrink-0 items-center rounded-md px-3 text-xs font-medium text-muted-foreground hover:bg-muted',
+  // Unstyled, Sonner leaves this as the first flex child, in front of the icon. Pin it top-right.
   closeButton:
-    'border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring',
-  success:
-    'border-success/25 bg-success/10 text-success-ink [&_[data-description]]:text-success-ink/80',
-  warning:
-    'border-warning/25 bg-warning/10 text-warning-ink [&_[data-description]]:text-warning-ink/80',
-  error: 'border-destructive/25 bg-destructive/10',
+    'absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors duration-fast hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&>svg]:h-3.5 [&>svg]:w-3.5',
+  success: 'border-success/40',
+  warning: 'border-warning/50',
+  error: 'border-destructive/40',
   info: '',
   loading: '',
 };
@@ -143,6 +145,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         containerAriaLabel="Notifications"
         toastOptions={{ unstyled: true, classNames: toastClassNames }}
       />
+      {/* Beside the toaster because both are app-wide, imperative, and mounted once. */}
+      <ConfirmHost />
     </>
   );
 }
