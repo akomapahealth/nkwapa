@@ -47,6 +47,19 @@ export function getOutboxOwner(): OutboxOwner | null {
   return currentOwner;
 }
 
+/**
+ * Names of the clinics the signed-in account can open, set from bootstrap by the sync provider.
+ * Each new change records its clinic's name (#163), so it can still be named after the account
+ * loses that clinic and bootstrap stops listing it.
+ */
+let knownClinicNames = new Map<string, string>();
+
+export function setOutboxClinicNames(
+  clinics: ReadonlyArray<{ clinicId: string; clinicName: string }>,
+) {
+  knownClinicNames = new Map(clinics.map((clinic) => [clinic.clinicId, clinic.clinicName]));
+}
+
 /** Whether `userId` may send this change: only the account that queued it ever does. */
 export function isOwnedBy(
   row: Pick<OutboxRecord, 'ownerUserId'>,
@@ -58,6 +71,7 @@ export function isOwnedBy(
 export interface OutboxRecordShape {
   id: string;
   clinicId: string;
+  clinicName?: string;
   entityType: string;
   entityId: string;
   operation: string;
@@ -152,6 +166,7 @@ export function buildOutboxMutation(params: OutboxMutationParams): OutboxRecordS
   const idempotencyKey = params.idempotencyKey ?? generateClientId();
   const createdAt = new Date().toISOString();
   const owner = params.owner === undefined ? currentOwner : params.owner;
+  const clinicName = knownClinicNames.get(params.clinicId);
   return {
     id,
     clinicId: params.clinicId,
@@ -164,6 +179,7 @@ export function buildOutboxMutation(params: OutboxMutationParams): OutboxRecordS
     ...(params.localContext ? { localContext: params.localContext } : {}),
     ...(owner ? { ownerUserId: owner.userId } : {}),
     ...(owner?.displayName ? { ownerName: owner.displayName } : {}),
+    ...(clinicName ? { clinicName } : {}),
   };
 }
 

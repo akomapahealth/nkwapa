@@ -12,6 +12,7 @@ import {
   OFFLINE_JOB_SCENARIOS,
   OWNER_SURFACES,
   type AutomatedTestRef,
+  type KnownRisk,
   type MatrixScenario,
 } from './offline-job-matrix';
 
@@ -21,6 +22,9 @@ export function testKind(file: string): 'Unit' | 'Integration' | 'E2E' {
   if (file.includes('.integration.')) return 'Integration';
   return 'Unit';
 }
+
+/** Widened so the document still renders once every known risk has been fixed and removed. */
+const knownRisks: Readonly<Record<string, KnownRisk>> = KNOWN_RISKS;
 
 const cell = (text: string) => text.replace(/\|/g, '\\|').replace(/\n/g, ' ');
 
@@ -74,7 +78,7 @@ export function renderOfflineJobMatrix(): string {
     push('| --- | --- | --- | --- | --- | --- | --- |');
     for (const scenario of OFFLINE_JOB_SCENARIOS.filter((row) => row.condition === condition)) {
       const expected = scenario.knownRisk
-        ? `${scenario.expected} (Known risk: ${KNOWN_RISKS[scenario.knownRisk].title}.)`
+        ? `${scenario.expected} (Known risk: ${knownRisks[scenario.knownRisk].title}.)`
         : scenario.expected;
       push(
         `| ${scenario.id} | ${cell(scenario.scenario)} | ${cell(scenario.fixture)} | ${cell(expected)} | ${cell(
@@ -86,7 +90,8 @@ export function renderOfflineJobMatrix(): string {
   }
 
   push('## Known risks', '');
-  for (const [id, risk] of Object.entries(KNOWN_RISKS)) {
+  if (Object.keys(knownRisks).length === 0) push('None.', '');
+  for (const [id, risk] of Object.entries(knownRisks)) {
     const scenarios = OFFLINE_JOB_SCENARIOS.filter((scenario) => scenario.knownRisk === id)
       .map((scenario) => scenario.id)
       .join(', ');
