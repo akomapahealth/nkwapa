@@ -10,7 +10,7 @@ import {
   useState,
 } from 'react';
 import { db } from '@/lib/db';
-import { setOutboxOwner } from '@/lib/outbox';
+import { setOutboxClinicNames, setOutboxOwner } from '@/lib/outbox';
 import { purgePortalCacheExcept } from '@/lib/portal-cache';
 import { syncNow, onSyncStatusChange, type SyncResult, type SyncStatus } from '@/lib/sync';
 import { automaticSyncRetryDelay } from '@/lib/sync-retry';
@@ -44,6 +44,7 @@ export function ServiceWorkerAndSyncProvider({
   activeClinicId,
   currentUserId,
   currentUserName,
+  knownClinics,
 }: {
   children: React.ReactNode;
   getAccessToken?: () => Promise<string | null>;
@@ -51,6 +52,8 @@ export function ServiceWorkerAndSyncProvider({
   /** The signed-in account, once bootstrap has resolved it. */
   currentUserId?: string | null;
   currentUserName?: string | null;
+  /** The clinics this account can open, so each queued change records its clinic's name. */
+  knownClinics?: ReadonlyArray<{ clinicId: string; clinicName: string }>;
 }) {
   const [isOnline, setIsOnline] = useState(
     typeof navigator !== 'undefined' ? navigator.onLine : true,
@@ -103,6 +106,15 @@ export function ServiceWorkerAndSyncProvider({
       currentUserId ? { userId: currentUserId, displayName: currentUserName ?? undefined } : null,
     );
   }, [currentUserId, currentUserName]);
+
+  const knownClinicsKey = (knownClinics ?? [])
+    .map((clinic) => `${clinic.clinicId}:${clinic.clinicName}`)
+    .join('|');
+  useEffect(() => {
+    setOutboxClinicNames(knownClinics ?? []);
+    // knownClinicsKey stands in for knownClinics, which is a new array on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [knownClinicsKey]);
 
   useEffect(() => {
     const unsub = onSyncStatusChange((status, message, detail) => {
