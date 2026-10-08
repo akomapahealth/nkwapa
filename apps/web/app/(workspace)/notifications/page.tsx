@@ -16,9 +16,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { DataGrid, type GridColDef } from '@mui/x-data-grid';
-import { Box } from '@mui/material';
-import { dataGridSx } from '@/lib/datagrid-theme';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import {
@@ -42,6 +39,7 @@ import {
   medianDeliveryLatencyMs,
   type EmailAvailability,
 } from '@/lib/notification-delivery';
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 
 interface ReminderRow {
   id: string;
@@ -202,24 +200,33 @@ export default function RemindersPage() {
     }
   };
 
-  const columns: GridColDef[] = [
+  const columns: DataTableColumn<ReminderRow>[] = [
     {
-      field: 'createdAt',
-      headerName: 'Created',
-      width: 160,
-      valueFormatter: (v) => (v ? new Date(v as string).toLocaleString() : ''),
+      id: 'createdAt',
+      accessorKey: 'createdAt',
+      header: 'Created',
+      cell: ({ getValue }) => {
+        const v = getValue() as string | number | null | undefined;
+        return v ? new Date(v as string).toLocaleString() : '';
+      },
     },
     {
-      field: 'scheduledAt',
-      headerName: 'Scheduled',
-      width: 160,
-      valueFormatter: (v) => (v ? new Date(v as string).toLocaleString() : ''),
+      id: 'scheduledAt',
+      accessorKey: 'scheduledAt',
+      header: 'Scheduled',
+      cell: ({ getValue }) => {
+        const v = getValue() as string | number | null | undefined;
+        return v ? new Date(v as string).toLocaleString() : '';
+      },
     },
     {
-      field: 'sentAt',
-      headerName: 'Sent',
-      width: 160,
-      valueFormatter: (v) => (v ? new Date(v as string).toLocaleString() : ''),
+      id: 'sentAt',
+      accessorKey: 'sentAt',
+      header: 'Sent',
+      cell: ({ getValue }) => {
+        const v = getValue() as string | number | null | undefined;
+        return v ? new Date(v as string).toLocaleString() : '';
+      },
     },
     {
       /*
@@ -227,46 +234,57 @@ export default function RemindersPage() {
         arithmetic on it. Sorting works because the value is the number of milliseconds; the
         formatter is only what an operator reads.
       */
-      field: 'deliveryLatency',
-      headerName: 'Time to send',
-      width: 130,
-      sortable: true,
-      valueGetter: (_value, row: ReminderRow) => deliveryLatencyMs(row),
-      valueFormatter: (v) => formatDeliveryLatency(typeof v === 'number' ? v : null),
+      id: 'deliveryLatency',
+      accessorKey: 'deliveryLatency',
+      header: 'Time to send',
+      accessorFn: (row) => deliveryLatencyMs(row),
+      cell: ({ getValue }) => {
+        const v = getValue() as string | number | null | undefined;
+        return formatDeliveryLatency(typeof v === 'number' ? v : null);
+      },
     },
     {
-      field: 'status',
-      headerName: 'Status',
-      width: 120,
-      renderCell: (params) => (
-        <Badge variant={getStatusVariant(String(params.value))}>{String(params.value)}</Badge>
+      id: 'status',
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ getValue }) => (
+        <Badge variant={getStatusVariant(String(getValue()))}>{String(getValue())}</Badge>
       ),
     },
-    { field: 'channel', headerName: 'Channel', width: 110 },
+    { id: 'channel', accessorKey: 'channel', header: 'Channel' },
     {
-      field: 'templateKey',
-      headerName: 'Type',
-      width: 190,
-      valueFormatter: (v) => formatTemplateLabel(String(v)),
+      id: 'templateKey',
+      accessorKey: 'templateKey',
+      header: 'Type',
+      cell: ({ getValue }) => {
+        const v = getValue() as string | number | null | undefined;
+        return formatTemplateLabel(String(v));
+      },
     },
     {
-      field: 'appointmentId',
-      headerName: 'Appointment',
-      width: 140,
-      valueFormatter: (v) => (v ? String(v).slice(0, 8) : ''),
+      id: 'appointmentId',
+      accessorKey: 'appointmentId',
+      header: 'Appointment',
+      cell: ({ getValue }) => {
+        const v = getValue() as string | number | null | undefined;
+        return v ? String(v).slice(0, 8) : '';
+      },
     },
     {
-      field: 'toAddress',
-      headerName: 'To',
-      width: 140,
-      valueFormatter: (v) => maskAddress(String(v)),
+      id: 'toAddress',
+      accessorKey: 'toAddress',
+      header: 'To',
+      cell: ({ getValue }) => {
+        const v = getValue() as string | number | null | undefined;
+        return maskAddress(String(v));
+      },
     },
     {
-      field: 'failureReason',
-      headerName: 'Failure',
-      width: 220,
-      renderCell: (params) => {
-        const explanation = explainFailure(params.value ? String(params.value) : null);
+      id: 'failureReason',
+      accessorKey: 'failureReason',
+      header: 'Failure',
+      cell: ({ getValue }) => {
+        const explanation = explainFailure(getValue() ? String(getValue()) : null);
         if (!explanation) return '';
         // The detail and recovery are the point of the column; without them the code
         // is just a restatement of "this failed".
@@ -278,18 +296,22 @@ export default function RemindersPage() {
       },
     },
     {
-      field: 'updatedAt',
-      headerName: 'Updated',
-      width: 160,
-      valueFormatter: (v) => (v ? new Date(v as string).toLocaleString() : ''),
+      id: 'updatedAt',
+      accessorKey: 'updatedAt',
+      header: 'Updated',
+      cell: ({ getValue }) => {
+        const v = getValue() as string | number | null | undefined;
+        return v ? new Date(v as string).toLocaleString() : '';
+      },
     },
     {
-      field: 'actions',
-      headerName: '',
-      width: 110,
-      sortable: false,
-      renderCell: (params) => {
-        const row = params.row as ReminderRow;
+      id: 'actions',
+
+      header: () => <span className="sr-only">Actions</span>,
+      enableSorting: false,
+      meta: { align: 'right' },
+      cell: ({ row: params }) => {
+        const row = params.original;
         if (!canCancel(row)) return null;
         return (
           <Button
@@ -581,18 +603,15 @@ export default function RemindersPage() {
                   ))}
                 </div>
 
-                <Box
-                  sx={{ height: 500, width: '100%' }}
-                  className="hidden overflow-x-auto md:block"
-                >
-                  <DataGrid
-                    rows={rows}
+                <div className="hidden md:block">
+                  <DataTable
+                    caption="Messages sent by the clinic"
                     columns={columns}
-                    loading={loading}
+                    data={rows}
+                    isRefreshing={loading}
                     pageSizeOptions={[25, 50]}
-                    sx={dataGridSx}
                   />
-                </Box>
+                </div>
               </>
             )}
 

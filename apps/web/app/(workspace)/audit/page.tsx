@@ -15,12 +15,10 @@ import { RouteGuard } from '@/components/RouteGuard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { DataGrid, type GridColDef } from '@mui/x-data-grid';
-import { Box } from '@mui/material';
-import { dataGridSx } from '@/lib/datagrid-theme';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import { EmptyStateCard } from '@/components/ops/OpsShared';
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 
 interface AuditRow {
   id: string;
@@ -105,22 +103,25 @@ export default function AuditPage() {
     if (clinicId) fetchAudit();
   }, [fetchAudit, clinicId]);
 
-  const columns: GridColDef[] = [
+  const columns: DataTableColumn<AuditRow>[] = [
     {
-      field: 'createdAt',
-      headerName: 'Time',
-      width: 180,
-      valueFormatter: (v) => (v ? new Date(v as string).toLocaleString() : ''),
+      id: 'createdAt',
+      accessorKey: 'createdAt',
+      header: 'Time',
+      cell: ({ getValue }) => {
+        const v = getValue() as string | number | null | undefined;
+        return v ? new Date(v as string).toLocaleString() : '';
+      },
     },
     {
-      field: 'actorDisplayName',
-      headerName: 'Actor',
-      width: 150,
+      id: 'actorDisplayName',
+      accessorKey: 'actorDisplayName',
+      header: 'Actor',
     },
-    { field: 'action', headerName: 'Action', width: 200 },
-    { field: 'entityType', headerName: 'Entity', width: 120 },
-    { field: 'entityId', headerName: 'Entity ID', width: 280 },
-    { field: 'requestId', headerName: 'Request ID', width: 120 },
+    { id: 'action', accessorKey: 'action', header: 'Action' },
+    { id: 'entityType', accessorKey: 'entityType', header: 'Entity' },
+    { id: 'entityId', accessorKey: 'entityId', header: 'Entity ID' },
+    { id: 'requestId', accessorKey: 'requestId', header: 'Request ID' },
   ];
 
   if (!clinicId) {
@@ -331,18 +332,15 @@ export default function AuditPage() {
                   ))}
                 </div>
 
-                <Box
-                  sx={{ height: 500, width: '100%' }}
-                  className="hidden overflow-x-auto md:block"
-                >
-                  <DataGrid
-                    rows={rows}
+                <div className="hidden md:block">
+                  <DataTable
+                    caption="Audit events"
                     columns={columns}
-                    loading={loading}
+                    data={rows}
+                    isRefreshing={loading}
                     pageSizeOptions={[25, 50, 100]}
-                    sx={dataGridSx}
                   />
-                </Box>
+                </div>
               </>
             )}
 

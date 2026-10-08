@@ -220,21 +220,6 @@
   }
 }
 
-/*
-  MUI DataGrid.
-
-  All twelve grids in the product pass `dataGridSx` from lib/datagrid-theme.ts, which owns the
-  full treatment. What used to live here was a duplicate of that object written with `!important`,
-  so the two fought over every property and only agreed by luck. The single rule left is the one
-  thing `sx` cannot reach: the pagination select's popover menu renders in a portal outside the
-  grid, so it never receives the grid's own styles.
-*/
-.MuiDataGrid-menu .MuiPaper-root,
-.MuiTablePagination-menuItem {
-  font-family: var(--font-body), system-ui, sans-serif;
-  color: hsl(var(--foreground));
-}
-
 /* Utility classes */
 @layer utilities {
   .touch-target {

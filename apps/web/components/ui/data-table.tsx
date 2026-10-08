@@ -107,6 +107,7 @@ export function DataTable<TData extends RowData>({
   isRefreshing = false,
   emptyState,
   renderMobileRow,
+  onRowClick,
   maxHeight = 560,
   className,
 }: {
@@ -129,6 +130,11 @@ export function DataTable<TData extends RowData>({
   /** Shown in place of the rows when there are none. */
   emptyState?: React.ReactNode;
   renderMobileRow?: (row: TData) => React.ReactNode;
+  /**
+   * Open a row. The row becomes focusable and Enter opens it too, so this is never mouse-only.
+   * Do not combine with buttons in the row: a click on one would also open the row.
+   */
+  onRowClick?: (row: TData) => void;
   /** Height the body may grow to before it scrolls under the sticky header. */
   maxHeight?: number;
   className?: string;
@@ -258,7 +264,20 @@ export function DataTable<TData extends RowData>({
                 rows.map((row) => (
                   <tr
                     key={row.id}
-                    className="border-b border-border/70 transition-colors duration-fast last:border-b-0 hover:bg-muted/50"
+                    tabIndex={onRowClick ? 0 : undefined}
+                    onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                    onKeyDown={
+                      onRowClick
+                        ? (event) => {
+                            if (event.key === 'Enter') onRowClick(row.original);
+                          }
+                        : undefined
+                    }
+                    className={cn(
+                      'border-b border-border/70 transition-colors duration-fast last:border-b-0 hover:bg-muted/50',
+                      onRowClick &&
+                        'cursor-pointer focus-visible:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+                    )}
                   >
                     {row.getAllCells().map((cell) => {
                       const meta = cell.column.columnDef.meta;
@@ -266,7 +285,10 @@ export function DataTable<TData extends RowData>({
                         <td
                           key={cell.id}
                           className={cn(
-                            'h-11 px-3 py-1.5 align-middle text-foreground [@media(pointer:coarse)]:h-[52px]',
+                            // One line per cell by default: a date or a code broken over two lines is
+                            // misread. Long prose opts back in with `whitespace-normal`; the
+                            // table scrolls sideways inside its own container rather than wrap.
+                            'h-11 whitespace-nowrap px-3 py-1.5 align-middle text-foreground [@media(pointer:coarse)]:h-[52px]',
                             meta?.align === 'right' && 'text-right',
                             meta?.hideOnMobile && 'hidden md:table-cell',
                             meta?.className,

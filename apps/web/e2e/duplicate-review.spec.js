@@ -27,14 +27,14 @@ async function openQueue(page) {
   await expect(page.getByRole('heading', { name: /duplicate review/i })).toBeVisible({
     timeout: 30_000,
   });
-  return page.getByRole('grid');
+  return page.getByRole('table');
 }
 
 /** Switches the Decision filter and returns the grid it reloads into. */
 async function filterByDecision(page, option) {
   await page.getByLabel('Decision').click();
   await page.getByRole('option', { name: option, exact: true }).click();
-  return page.getByRole('grid');
+  return page.getByRole('table');
 }
 
 test.describe('a system admin working the queue', () => {

@@ -1,8 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Box } from '@mui/material';
-import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import {
   AlertTriangle,
   Building2,
@@ -15,7 +13,6 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { downloadCsv } from '@/lib/csv';
-import { dataGridSx } from '@/lib/datagrid-theme';
 import { readApiError } from '@/lib/ops';
 import { useAsyncResource } from '@/lib/use-async-resource';
 import {
@@ -48,6 +45,7 @@ import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import { DuplicateComparisonSheet } from './duplicates/DuplicateComparisonSheet';
 import { DuplicateFilterFields } from './duplicates/DuplicateFilterFields';
 import { DuplicatePairCard } from './duplicates/DuplicatePairCard';
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 
 /**
  * Every decision by default. The question here is "how many are there", and a pair someone has
@@ -125,28 +123,27 @@ export function CrossClinicInvestigationScreen() {
     Column widths follow the review queue's: the grid gets roughly 880px inside the two-column
     layout at 1440, and the Compare action has to stay on screen without a horizontal scrollbar.
   */
-  const columns: GridColDef<DuplicateCandidate>[] = useMemo(
+  const columns: DataTableColumn<DuplicateCandidate>[] = useMemo(
     () => [
       {
-        field: 'confidence',
-        headerName: 'Strength',
-        width: 104,
-        sortable: false,
-        renderCell: (params) => (
-          <Badge variant={confidenceBadgeVariant(params.row.confidence)}>
-            {DUPLICATE_CONFIDENCE_LABELS[params.row.confidence]}
+        id: 'confidence',
+        accessorKey: 'confidence',
+        header: 'Strength',
+        enableSorting: false,
+        cell: ({ row: params }) => (
+          <Badge variant={confidenceBadgeVariant(params.original.confidence)}>
+            {DUPLICATE_CONFIDENCE_LABELS[params.original.confidence]}
           </Badge>
         ),
       },
       {
-        field: 'patients',
-        headerName: 'Charts and clinics',
-        flex: 2.4,
-        minWidth: 300,
-        sortable: false,
-        renderCell: (params) => (
+        id: 'patients',
+        accessorKey: 'patients',
+        header: 'Charts and clinics',
+        enableSorting: false,
+        cell: ({ row: params }) => (
           <div className="py-2 text-sm leading-5">
-            {params.row.patients.map((patient) => (
+            {params.original.patients.map((patient) => (
               <p
                 key={patient.id}
                 className="truncate"
@@ -163,32 +160,31 @@ export function CrossClinicInvestigationScreen() {
         ),
       },
       {
-        field: 'reasons',
-        headerName: 'Why it matched',
-        flex: 1,
-        minWidth: 150,
-        sortable: false,
+        id: 'reasons',
+        accessorKey: 'reasons',
+        header: 'Why it matched',
+        enableSorting: false,
         // One line each, so a long first reason cannot push "and N more" out of a 64px row.
-        renderCell: (params) => (
+        cell: ({ row: params }) => (
           <div className="min-w-0 py-2 text-sm leading-5">
-            <p className="truncate text-foreground" title={formatReasons(params.row.reasons)}>
-              {DUPLICATE_MATCH_REASON_LABELS[params.row.reasons[0]]}
+            <p className="truncate text-foreground" title={formatReasons(params.original.reasons)}>
+              {DUPLICATE_MATCH_REASON_LABELS[params.original.reasons[0]]}
             </p>
-            {params.row.reasons.length > 1 ? (
-              <p className="text-muted-foreground">and {params.row.reasons.length - 1} more</p>
+            {params.original.reasons.length > 1 ? (
+              <p className="text-muted-foreground">and {params.original.reasons.length - 1} more</p>
             ) : null}
           </div>
         ),
       },
       {
-        field: 'mergeEligible',
-        headerName: 'Merge',
-        width: 108,
-        sortable: false,
+        id: 'mergeEligible',
+        accessorKey: 'mergeEligible',
+        header: 'Merge',
+        enableSorting: false,
         // Spelled out on every row rather than implied by the screen, because "can I just merge
         // these?" is the first thing anyone looking at a likely duplicate will ask.
-        renderCell: (params) => {
-          const availability = describeMergeAvailability(params.row);
+        cell: ({ row: params }) => {
+          const availability = describeMergeAvailability(params.original);
           return (
             <span
               className={cn(
@@ -203,13 +199,13 @@ export function CrossClinicInvestigationScreen() {
         },
       },
       {
-        field: 'actions',
-        headerName: 'Actions',
-        width: 96,
-        sortable: false,
-        filterable: false,
-        renderCell: (params) => (
-          <Button variant="ghost" size="sm" onClick={() => setSelected(params.row)}>
+        id: 'actions',
+
+        header: () => <span className="sr-only">Actions</span>,
+        enableSorting: false,
+        meta: { align: 'right' },
+        cell: ({ row: params }) => (
+          <Button variant="ghost" size="sm" onClick={() => setSelected(params.original)}>
             Compare
           </Button>
         ),
@@ -436,29 +432,22 @@ export function CrossClinicInvestigationScreen() {
                         ))}
                       </div>
 
-                      <Box
-                        sx={{ height: 460, width: '100%' }}
-                        className="hidden overflow-x-auto lg:block"
-                      >
-                        <DataGrid
-                          rows={data.items}
+                      <div className="hidden lg:block">
+                        <DataTable
+                          caption="Possible duplicates across clinics"
                           columns={columns}
+                          data={data.items}
                           getRowId={(row) => row.pairKey}
-                          rowHeight={64}
-                          loading={investigation.isRefreshing}
-                          disableColumnMenu
-                          disableRowSelectionOnClick
-                          paginationMode="server"
-                          rowCount={data.total}
+                          isRefreshing={investigation.isRefreshing}
                           pageSizeOptions={[10, 25, 50]}
-                          paginationModel={{ page, pageSize }}
-                          onPaginationModelChange={(model) => {
-                            setPage(model.page);
-                            setPageSize(model.pageSize);
+                          rowCount={data.total}
+                          pagination={{ pageIndex: page, pageSize }}
+                          onPaginationChange={(next) => {
+                            setPage(next.pageIndex);
+                            setPageSize(next.pageSize);
                           }}
-                          sx={dataGridSx}
                         />
-                      </Box>
+                      </div>
 
                       <div className="flex items-center justify-between rounded-lg border border-border/70 bg-background/70 px-4 py-3 text-sm lg:hidden">
                         <p className="tabular-nums text-muted-foreground">

@@ -1,15 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Box } from '@mui/material';
-import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { AlertTriangle, Layers3, RefreshCw, ShieldAlert, Users } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { apiFetch } from '@/lib/api';
 import { formatRoleLabel, readApiError } from '@/lib/ops';
-import { dataGridSx } from '@/lib/datagrid-theme';
 import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
@@ -73,6 +70,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import { DataTable, DataTableActions, type DataTableColumn } from '@/components/ui/data-table';
 
 type RoleName = 'SYSTEM_ADMIN' | 'DIRECTOR' | 'MANAGER' | 'DOCTOR' | 'VOLUNTEER' | 'PATIENT';
 
@@ -650,15 +648,14 @@ export default function AdminUsersPage() {
   const showPortalDetails =
     isSystemAdmin && viewMode === 'all' && Boolean(selectedUser?.patientPortal);
 
-  const columns: GridColDef[] = [
+  const columns: DataTableColumn<StaffAccessRow>[] = [
     {
-      field: 'displayName',
-      headerName: 'Staff member',
-      minWidth: 220,
-      flex: 1.2,
-      valueGetter: (_, row) => nameForRow(row as StaffAccessRow),
-      renderCell: (params) => {
-        const row = params.row as StaffAccessRow;
+      id: 'displayName',
+      accessorKey: 'displayName',
+      header: 'Staff member',
+      accessorFn: (row) => nameForRow(row),
+      cell: ({ row: params }) => {
+        const row = params.original;
         return (
           <div className="flex min-w-0 flex-col py-2">
             <span className="truncate font-medium text-foreground">{nameForRow(row)}</span>
@@ -670,12 +667,12 @@ export default function AdminUsersPage() {
       },
     },
     {
-      field: 'isActive',
-      headerName: 'Status',
-      width: 220,
-      sortable: false,
-      renderCell: (params) => {
-        const row = params.row as StaffAccessRow;
+      id: 'isActive',
+      accessorKey: 'isActive',
+      header: 'Status',
+      enableSorting: false,
+      cell: ({ row: params }) => {
+        const row = params.original;
         const identity = describeIdentitySync(row.isActive, row.identitySync);
         return (
           <span className="flex flex-wrap items-center gap-1.5">
@@ -693,34 +690,31 @@ export default function AdminUsersPage() {
       },
     },
     {
-      field: 'clinicRoles',
-      headerName: viewMode === 'clinic' ? 'Current clinic access' : 'Active clinic access',
-      minWidth: 220,
-      flex: 1,
-      sortable: false,
-      renderCell: (params) => {
-        const row = params.row as StaffAccessRow;
+      id: 'clinicRoles',
+      accessorKey: 'clinicRoles',
+      header: viewMode === 'clinic' ? 'Current clinic access' : 'Active clinic access',
+      enableSorting: false,
+      cell: ({ row: params }) => {
+        const row = params.original;
         return <span className="text-sm text-foreground">{summarizeCurrentAccess(row)}</span>;
       },
     },
     {
-      field: 'extraAccess',
-      headerName: 'Broader access',
-      minWidth: 220,
-      flex: 1,
-      sortable: false,
-      valueGetter: (_, row) => summarizeExtraAccess(row as StaffAccessRow),
+      id: 'extraAccess',
+      accessorKey: 'extraAccess',
+      header: 'Broader access',
+      enableSorting: false,
+      accessorFn: (row) => summarizeExtraAccess(row),
     },
     ...(showPortalFilter
       ? [
           {
-            field: 'patientPortal',
-            headerName: 'Portal state',
-            minWidth: 160,
-            flex: 0.8,
-            sortable: false,
-            renderCell: (params) => {
-              const row = params.row as StaffAccessRow;
+            id: 'patientPortal',
+            accessorKey: 'patientPortal',
+            header: 'Portal state',
+            enableSorting: false,
+            cell: ({ row: params }) => {
+              const row = params.original;
               return row.patientPortal ? (
                 <Badge variant={portalStatusVariant(row.patientPortal.status)}>
                   {portalStatusLabel(row.patientPortal.status)}
@@ -729,22 +723,25 @@ export default function AdminUsersPage() {
                 <span className="text-sm text-muted-foreground">Not available</span>
               );
             },
-          } satisfies GridColDef,
+          } satisfies DataTableColumn<StaffAccessRow>,
         ]
       : []),
     {
-      field: 'actions',
-      headerName: '',
-      width: 120,
-      sortable: false,
-      renderCell: (params) => (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => openDetails(params.row as StaffAccessRow)}
-        >
-          Manage
-        </Button>
+      id: 'actions',
+      header: () => <span className="sr-only">Actions</span>,
+      enableSorting: false,
+      meta: { align: 'right', className: 'w-28' },
+      cell: ({ row: params }) => (
+        <DataTableActions>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9"
+            onClick={() => openDetails(params.original)}
+          >
+            Manage
+          </Button>
+        </DataTableActions>
       ),
     },
   ];
@@ -1352,20 +1349,16 @@ export default function AdminUsersPage() {
                     ))}
                   </div>
 
-                  <Box
-                    sx={{ height: 560, width: '100%' }}
-                    className="hidden overflow-x-auto md:block"
-                  >
-                    <DataGrid
-                      rows={visibleRows}
+                  <div className="hidden md:block">
+                    <DataTable
+                      caption="Staff accounts"
                       columns={columns}
+                      data={visibleRows}
                       getRowId={(row) => row.id}
-                      loading={loading}
-                      disableRowSelectionOnClick
+                      isRefreshing={loading}
                       pageSizeOptions={[10, 25, 50]}
-                      sx={dataGridSx}
                     />
-                  </Box>
+                  </div>
                 </>
               )}
             </CardContent>

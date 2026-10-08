@@ -24,7 +24,7 @@ test.describe('as a system admin', () => {
   test('shows the cohort totals and a row per clinic', async ({ page }) => {
     await openAnalyticsTab(page);
     await expect(page.getByText('Encounter status')).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByRole('grid').getByText('Nkwapa Clinic - Demo')).toBeVisible();
+    await expect(page.getByRole('table').getByText('Nkwapa Clinic - Demo')).toBeVisible();
   });
 
   test('the analytics agree with themselves: clinic rows add up to the totals', async () => {

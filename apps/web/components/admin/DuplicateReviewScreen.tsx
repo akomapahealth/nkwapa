@@ -2,8 +2,6 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Box } from '@mui/material';
-import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import {
   AlertTriangle,
   ArrowRight,
@@ -17,7 +15,6 @@ import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
-import { dataGridSx } from '@/lib/datagrid-theme';
 import { readApiError } from '@/lib/ops';
 import { useAsyncResource } from '@/lib/use-async-resource';
 import {
@@ -58,6 +55,7 @@ import { DuplicateComparisonSheet } from './duplicates/DuplicateComparisonSheet'
 import { DuplicateFilterFields } from './duplicates/DuplicateFilterFields';
 import { DuplicatePairCard } from './duplicates/DuplicatePairCard';
 import { MergeUnavailableBadge } from './duplicates/MergeAvailability';
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 
 type ScopeMode = 'clinic' | 'all';
 /**
@@ -212,28 +210,27 @@ export function DuplicateReviewScreen() {
     two-column layout at 1440, and an earlier set summing to 928 pushed the Actions cell -- the
     only way into the comparison -- off the right edge behind a scrollbar nobody scrolls.
   */
-  const columns: GridColDef<DuplicateCandidate>[] = useMemo(
+  const columns: DataTableColumn<DuplicateCandidate>[] = useMemo(
     () => [
       {
-        field: 'confidence',
-        headerName: 'Strength',
-        width: 104,
-        sortable: false,
-        renderCell: (params) => (
-          <Badge variant={confidenceBadgeVariant(params.row.confidence)}>
-            {DUPLICATE_CONFIDENCE_LABELS[params.row.confidence]}
+        id: 'confidence',
+        accessorKey: 'confidence',
+        header: 'Strength',
+        enableSorting: false,
+        cell: ({ row: params }) => (
+          <Badge variant={confidenceBadgeVariant(params.original.confidence)}>
+            {DUPLICATE_CONFIDENCE_LABELS[params.original.confidence]}
           </Badge>
         ),
       },
       {
-        field: 'patients',
-        headerName: 'Charts',
-        flex: 1.9,
-        minWidth: 236,
-        sortable: false,
-        renderCell: (params) => (
+        id: 'patients',
+        accessorKey: 'patients',
+        header: 'Charts',
+        enableSorting: false,
+        cell: ({ row: params }) => (
           <div className="py-2 text-sm leading-5">
-            {params.row.patients.map((patient, index) => (
+            {params.original.patients.map((patient, index) => (
               <p key={patient.id} className={index === 0 ? 'text-foreground' : 'text-foreground'}>
                 <span className="font-medium">{patientDisplayName(patient)}</span>
                 <span className="text-muted-foreground"> · {patient.patientCode}</span>
@@ -243,60 +240,59 @@ export function DuplicateReviewScreen() {
         ),
       },
       {
-        field: 'reasons',
-        headerName: 'Why it matched',
-        flex: 1,
-        minWidth: 180,
-        sortable: false,
+        id: 'reasons',
+        accessorKey: 'reasons',
+        header: 'Why it matched',
+        enableSorting: false,
         // The strongest reason in full, with a count for the rest. The joined list ran to three
         // wrapped lines in a 64px row and clipped; the comparison sheet spells all of them out.
-        renderCell: (params) => (
+        cell: ({ row: params }) => (
           <div className="min-w-0 py-2 text-sm leading-5">
-            <p className="truncate text-foreground" title={formatReasons(params.row.reasons)}>
-              {DUPLICATE_MATCH_REASON_LABELS[params.row.reasons[0]]}
+            <p className="truncate text-foreground" title={formatReasons(params.original.reasons)}>
+              {DUPLICATE_MATCH_REASON_LABELS[params.original.reasons[0]]}
             </p>
-            {params.row.reasons.length > 1 ? (
-              <p className="text-muted-foreground">and {params.row.reasons.length - 1} more</p>
+            {params.original.reasons.length > 1 ? (
+              <p className="text-muted-foreground">and {params.original.reasons.length - 1} more</p>
             ) : null}
           </div>
         ),
       },
       {
-        field: 'clinic',
-        headerName: 'Scope',
-        width: 112,
-        sortable: false,
+        id: 'clinic',
+        accessorKey: 'clinic',
+        header: 'Scope',
+        enableSorting: false,
         // Which clinic a same-clinic pair sits in is always the clinic already named in the
         // header, so the column earns its width only by calling out the pairs that span two.
         // The clinic and organisation names for both charts are in the comparison sheet.
-        renderCell: (params) =>
-          params.row.crossClinic ? (
+        cell: ({ row: params }) =>
+          params.original.crossClinic ? (
             <Badge variant="warning">Across clinics</Badge>
-          ) : params.row.mergeEligible ? (
+          ) : params.original.mergeEligible ? (
             <span className="text-muted-foreground">This clinic</span>
           ) : (
-            <MergeUnavailableBadge candidate={params.row} />
+            <MergeUnavailableBadge candidate={params.original} />
           ),
       },
       {
-        field: 'lastUpdatedAt',
-        headerName: 'Updated',
-        width: 100,
-        sortable: false,
-        renderCell: (params) => (
+        id: 'lastUpdatedAt',
+        accessorKey: 'lastUpdatedAt',
+        header: 'Updated',
+        enableSorting: false,
+        cell: ({ row: params }) => (
           <span className="tabular-nums text-muted-foreground">
-            {params.row.lastUpdatedAt.slice(0, 10)}
+            {params.original.lastUpdatedAt.slice(0, 10)}
           </span>
         ),
       },
       {
-        field: 'actions',
-        headerName: 'Actions',
-        width: 100,
-        sortable: false,
-        filterable: false,
-        renderCell: (params) => (
-          <Button variant="ghost" size="sm" onClick={() => setSelected(params.row)}>
+        id: 'actions',
+
+        header: () => <span className="sr-only">Actions</span>,
+        enableSorting: false,
+        meta: { align: 'right' },
+        cell: ({ row: params }) => (
+          <Button variant="ghost" size="sm" onClick={() => setSelected(params.original)}>
             Compare
           </Button>
         ),
@@ -542,36 +538,22 @@ export function DuplicateReviewScreen() {
                       A bounded height rather than autoHeight: the sticky column headers in
                       dataGridSx only stick against the grid's own scroll container.
                     */}
-                    <Box
-                      sx={{ height: 460, width: '100%' }}
-                      className="hidden overflow-x-auto lg:block"
-                    >
-                      <DataGrid
-                        rows={data.items}
+                    <div className="hidden lg:block">
+                      <DataTable
+                        caption="Possible duplicate charts"
                         columns={columns}
+                        data={data.items}
                         getRowId={(row) => row.pairKey}
-                        /*
-                          The one deviation from the 44px row height in dataGridSx, and a
-                          deliberate one: every other grid in the product puts a single record
-                          on a row, while a row here is a pair of them. At 44px both chart
-                          codes and the match reason clip, which is exactly what an operator
-                          opens this screen to read.
-                        */
-                        rowHeight={64}
-                        loading={queue.isRefreshing}
-                        disableColumnMenu
-                        disableRowSelectionOnClick
-                        paginationMode="server"
-                        rowCount={data.total}
+                        isRefreshing={queue.isRefreshing}
                         pageSizeOptions={[10, 25, 50]}
-                        paginationModel={{ page, pageSize }}
-                        onPaginationModelChange={(model) => {
-                          setPage(model.page);
-                          setPageSize(model.pageSize);
+                        rowCount={data.total}
+                        pagination={{ pageIndex: page, pageSize }}
+                        onPaginationChange={(next) => {
+                          setPage(next.pageIndex);
+                          setPageSize(next.pageSize);
                         }}
-                        sx={dataGridSx}
                       />
-                    </Box>
+                    </div>
 
                     <div className="flex items-center justify-between rounded-lg border border-border/70 bg-background/70 px-4 py-3 text-sm lg:hidden">
                       <p className="tabular-nums text-muted-foreground">

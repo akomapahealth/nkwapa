@@ -63,7 +63,7 @@ test.describe('a system admin investigating', () => {
     page,
   }) => {
     await openInvestigation(page);
-    const grid = page.getByRole('grid');
+    const grid = page.getByRole('table');
 
     const efua = grid.getByRole('row').filter({ hasText: 'Efua Asante' });
     await expect(efua).toHaveCount(1, { timeout: 20_000 });
@@ -75,7 +75,7 @@ test.describe('a system admin investigating', () => {
 
   test('compares a pair read-only, with the reason merge is refused', async ({ page }) => {
     await openInvestigation(page);
-    const grid = page.getByRole('grid');
+    const grid = page.getByRole('table');
     await grid
       .getByRole('row')
       .filter({ hasText: 'Efua Asante' })
@@ -106,7 +106,7 @@ test.describe('a system admin investigating', () => {
     await expect(page.getByText(/^Only pairs between /)).toBeVisible();
     await expect(
       page
-        .getByRole('grid')
+        .getByRole('table')
         .getByText(/Efua Asante/)
         .first(),
     ).toBeVisible({
