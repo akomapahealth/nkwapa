@@ -143,6 +143,61 @@ export const fetchStationBoard = (
     signal,
   });
 
+export interface DurationSummary {
+  n: number;
+  medianMinutes: number | null;
+  p90Minutes: number | null;
+}
+
+/** Wait-time and throughput for one clinic day (#24). Aggregates only. */
+export interface StationMetrics {
+  date: string;
+  timezone: string;
+  live: boolean;
+  lowVolume: boolean;
+  checkIns: { total: number; completed: number; leftEarly: number; inClinicNow: number };
+  timeInClinic: DurationSummary;
+  stations: Array<{
+    stationId: string;
+    name: string;
+    kind: StationKind;
+    active: boolean;
+    seen: number;
+    skipped: number;
+    wait: DurationSummary;
+    service: DurationSummary;
+    releases: number;
+    waitingNow: number | null;
+    longestCurrentWaitMinutes: number | null;
+    staffNow: number | null;
+  }>;
+  bottleneckStationId: string | null;
+  hourly: Array<{ hour: string; checkedIn: number; completed: number }>;
+  staffing: { onShiftNow: number | null };
+}
+
+/** With no date, the server answers for today in the clinic's own timezone. */
+export const fetchStationMetrics = (
+  clinicId: string,
+  date: string | null,
+  getToken: GetToken,
+  signal?: AbortSignal,
+) =>
+  request<StationMetrics>(
+    clinicId,
+    `/stations/metrics${date ? `?date=${encodeURIComponent(date)}` : ''}`,
+    getToken,
+    { signal },
+  );
+
+/** "12 min", "1 h 05 min", or an en dash when nothing was measured. */
+export function formatMinutes(minutes: number | null | undefined): string {
+  if (minutes == null) return '–';
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours} h ${String(minutes % 60).padStart(2, '0')} min`;
+}
+
 export const fetchStations = (clinicId: string, getToken: GetToken) =>
   request<{ items: ClinicStation[] }>(clinicId, '/stations', getToken);
 

@@ -1,5 +1,6 @@
 import {
   assignableStaff,
+  formatMinutes,
   minutesSince,
   stationsPassedOver,
   suggestedNextStation,
@@ -45,6 +46,15 @@ describe('station hand-off helpers', () => {
     const now = new Date('2026-10-07T10:30:00Z');
     expect(minutesSince('2026-10-07T10:17:40Z', now)).toBe(12);
     expect(minutesSince('2026-10-07T10:31:00Z', now)).toBe(0);
+  });
+});
+
+describe('formatMinutes', () => {
+  it('reads minutes, then hours and minutes, and marks nothing measured', () => {
+    expect(formatMinutes(0)).toBe('0 min');
+    expect(formatMinutes(45)).toBe('45 min');
+    expect(formatMinutes(65)).toBe('1 h 05 min');
+    expect(formatMinutes(null)).toBe('–');
   });
 });
 

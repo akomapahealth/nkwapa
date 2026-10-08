@@ -19,6 +19,7 @@ import { lockForTransaction } from '../prisma/transaction-lock';
 import { hasPermissionAtClinic } from '../auth/clinic-roles';
 import { PERMISSIONS } from '../auth/constants/permissions';
 import { createDraftEncounter } from './draft-encounter';
+import { computeStationMetrics } from './station-metrics';
 import type {
   CompleteStationVisitDto,
   CreateStationDto,
@@ -319,6 +320,47 @@ export class StationService {
         activeVisitCount: holding.get(shift.user.id) ?? 0,
       })),
     };
+  }
+
+  /**
+   * Wait-time and throughput for one clinic day (#24): every check-in that day, its station
+   * visits, and the shifts that overlapped it. Aggregated in `computeStationMetrics`; nothing
+   * that names a patient is read.
+   */
+  async getMetrics(clinicId: string, date?: string, now: Date = new Date()) {
+    const day = await this.dayWindow(clinicId, date);
+    const inDay = { gte: day.start, lte: day.end };
+    const [stations, checkIns, visits, shifts] = await Promise.all([
+      this.prisma.clinicStation.findMany({
+        where: { clinicId },
+        select: { id: true, name: true, kind: true, sortOrder: true, active: true },
+      }),
+      this.prisma.patientCheckIn.findMany({
+        where: { clinicId, checkedInAt: inDay },
+        select: { id: true, checkedInAt: true, status: true },
+      }),
+      this.prisma.patientStationVisit.findMany({
+        where: { clinicId, patientCheckIn: { checkedInAt: inDay } },
+        select: {
+          stationId: true,
+          patientCheckInId: true,
+          status: true,
+          queuedAt: true,
+          claimedAt: true,
+          completedAt: true,
+          releaseCount: true,
+        },
+      }),
+      this.prisma.staffShift.findMany({
+        where: {
+          clinicId,
+          checkedInAt: { lte: day.end },
+          OR: [{ checkedOutAt: null }, { checkedOutAt: { gte: day.start } }],
+        },
+        select: { userId: true, stationId: true, status: true },
+      }),
+    ]);
+    return computeStationMetrics({ day, now, stations, checkIns, visits, shifts });
   }
 
   async getVisit(clinicId: string, visitId: string) {
