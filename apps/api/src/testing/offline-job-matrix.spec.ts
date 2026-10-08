@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   KNOWN_RISKS,
+  type KnownRisk,
   MATRIX_CONDITIONS,
   OFFLINE_JOB_SCENARIOS,
   OWNER_SURFACES,
@@ -98,7 +99,8 @@ describe('offline and job execution matrix', () => {
   });
 
   it('gives every known risk a filed follow-up issue and at least one scenario', () => {
-    for (const [id, risk] of Object.entries(KNOWN_RISKS)) {
+    const risks: Readonly<Record<string, KnownRisk>> = KNOWN_RISKS;
+    for (const [id, risk] of Object.entries(risks)) {
       expect(risk.followUp).toMatch(/^#\d+: /);
       expect(OFFLINE_JOB_SCENARIOS.some((scenario) => scenario.knownRisk === id)).toBe(true);
     }
