@@ -8,7 +8,7 @@ import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/boot
 import { apiFetch } from '@/lib/api';
 import { formatRoleLabel, readApiError } from '@/lib/ops';
 import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
 import {
@@ -996,7 +996,7 @@ export default function AdminUsersPage() {
           amber so a "portal mismatches" count was the only metric in the product that did not use
           the status tokens.
         */}
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
           <AppMetricCard
             title="Scope"
             value={viewMode === 'clinic' ? (activeClinicName ?? 'Clinic roster') : 'All users'}
@@ -1030,7 +1030,7 @@ export default function AdminUsersPage() {
               className="border-warning/40"
             />
           ) : null}
-        </div>
+        </AppMetricGroup>
 
         {error ? (
           <InlineErrorState

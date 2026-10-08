@@ -49,6 +49,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
+import { AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 
 /** The `Select` value standing for "no filter". Radix refuses an empty-string item value. */
 const ANY = '__any__';
@@ -320,7 +321,7 @@ export function OrganizationAnalyticsPanel({
                 {analytics.isRefreshing ? ' · Updating…' : ''}
               </p>
 
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
                 <DashboardKpiCard
                   title="Encounters"
                   value={data.totals.encounters.toLocaleString()}
@@ -344,7 +345,7 @@ export function OrganizationAnalyticsPanel({
                   value={data.totals.clinics}
                   hint="In this cohort"
                 />
-              </div>
+              </AppMetricGroup>
 
               <TrendChart
                 title="Encounters per day"

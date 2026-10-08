@@ -12,7 +12,7 @@ import { GHANA_REGION_LABELS, PATIENT_LOCATION_STATUS_LABELS } from '@/lib/resid
 import { useAsyncResource } from '@/lib/use-async-resource';
 import { usePatientCheckIn } from '@/lib/use-patient-check-in';
 import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { FormSectionCard } from '@/components/app-shell/FormSectionCard';
 import { SectionSkeleton } from '@/components/feedback/AppState';
@@ -223,7 +223,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <AppMetricGroup className="md:grid-cols-3">
         <AppMetricCard
           title="Visible results"
           value={items.length}
@@ -246,7 +246,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
           icon={Stethoscope}
           detail="Check-in shortcuts appear when your role can add patients to the clinic board."
         />
-      </div>
+      </AppMetricGroup>
 
       <FormSectionCard
         title="Search patients"

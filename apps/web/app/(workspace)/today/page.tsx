@@ -34,7 +34,7 @@ import type { CheckInSummary } from '@/lib/ops';
 import { useOpsView } from '@/lib/use-ops-view';
 import { usePendingOpsWrites } from '@/lib/use-pending-ops-writes';
 import { useShiftControls } from '@/lib/use-shift-controls';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
@@ -354,7 +354,7 @@ function TodayBoardPage() {
           }
         />
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
           <AppMetricCard
             title="Patients waiting"
             value={groupedCheckins.WAITING.length}
@@ -375,7 +375,7 @@ function TodayBoardPage() {
             value={groupedCheckins.COMPLETED.length}
             detail={formatOpsDate(selectedDate, timezone)}
           />
-        </div>
+        </AppMetricGroup>
 
         {!isOnline ? (
           <OfflineOpsBanner

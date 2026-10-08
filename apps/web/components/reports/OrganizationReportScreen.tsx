@@ -33,6 +33,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
+import { AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 
 /**
  * An organization's dashboard across all of its clinics (#13).
@@ -209,7 +210,7 @@ export function OrganizationReportScreen() {
             >
               {(data) => (
                 <div className="space-y-6">
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
                     <DashboardKpiCard
                       title="Clinics"
                       value={data.totals.clinics}
@@ -234,7 +235,7 @@ export function OrganizationReportScreen() {
                       hint={`${data.totals.openDrafts} drafts, ${data.totals.awaitingReview} awaiting review, ${data.totals.readyToFinalize} ready to finalize`}
                       icon={ClipboardList}
                     />
-                  </div>
+                  </AppMetricGroup>
 
                   <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr),minmax(0,1fr)]">
                     <TrendChart

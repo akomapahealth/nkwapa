@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft, FilePenLine, ShieldCheck, UserPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, type GetToken } from '@/lib/api';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { FormSectionCard } from '@/components/app-shell/FormSectionCard';
 import { PhoneInput } from '@/components/PhoneInput';
@@ -151,7 +151,7 @@ export function RegisterPatientScreen({
         helpText="Record identity, contact details, and a trusted ID in one pass. Nkwapa checks for duplicate national IDs before it creates the chart."
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <AppMetricGroup className="md:grid-cols-3">
         <AppMetricCard
           title="Registration mode"
           value="Clinic"
@@ -170,7 +170,7 @@ export function RegisterPatientScreen({
           icon={FilePenLine}
           detail="After save, the patient record opens immediately."
         />
-      </div>
+      </AppMetricGroup>
 
       <Dialog
         open={!!conflictPatient}

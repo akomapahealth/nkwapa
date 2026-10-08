@@ -15,7 +15,7 @@ import {
 import { Clock, DoorOpen, Hourglass, LogOut, UserCheck, Users } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { fetchStationMetrics, formatMinutes, type StationMetrics } from '@/lib/stations';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { EmptyState, InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -133,7 +133,7 @@ export function StationFlowDashboard({ clinicId }: { clinicId: string }) {
         />
       ) : metrics ? (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-5">
             <AppMetricCard title="Checked in" value={metrics.checkIns.total} icon={UserCheck} />
             <AppMetricCard
               title="Sessions completed"
@@ -167,7 +167,7 @@ export function StationFlowDashboard({ clinicId }: { clinicId: string }) {
               }
               icon={Clock}
             />
-          </div>
+          </AppMetricGroup>
 
           {bottleneck ? (
             <p

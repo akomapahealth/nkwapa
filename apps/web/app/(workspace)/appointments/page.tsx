@@ -17,7 +17,7 @@ import {
   UserX,
 } from 'lucide-react';
 import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
@@ -619,7 +619,7 @@ export default function StaffAppointmentsPage() {
           onRequestResolved={() => loadSchedule({ background: true })}
         />
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
           <AppMetricCard
             title="Scheduled"
             value={summary.total}
@@ -651,7 +651,7 @@ export default function StaffAppointmentsPage() {
                 : 'No confirmed visit in the current filters.'
             }
           />
-        </section>
+        </AppMetricGroup>
 
         <Card className="rounded-lg border-border/80 bg-card">
           <CardHeader className="space-y-4">

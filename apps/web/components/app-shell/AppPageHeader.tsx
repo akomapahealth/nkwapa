@@ -33,9 +33,10 @@ export function AppPageHeader({
   return (
     <section
       className={cn(
-        // Flat, per the design system: no gradient and no heavy shadow on a clinical view. The
-        // header should frame the chart, not compete with the measurements in it.
-        'overflow-hidden rounded-lg border border-border/80 bg-card p-5 md:p-6',
+        // On the canvas, not in a box. Every page opened with a bordered card around its own
+        // title, which made the title one more panel among the panels below it. Type and space
+        // carry the hierarchy now; a hairline separates the header from the work.
+        'border-b border-border/70 pb-5 pt-1 md:pb-6',
         className,
       )}
     >

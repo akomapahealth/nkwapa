@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
 import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { zoneLabel } from '@/lib/clinic-zones';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
@@ -145,7 +145,7 @@ export default function AuditPage() {
           helpText="Filter by date, actor, action, entity, or request ID to rebuild a timeline for support, governance, or incident review."
         />
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <AppMetricGroup className="md:grid-cols-3">
           <AppMetricCard
             title="Visible events"
             value={rows.length}
@@ -164,7 +164,7 @@ export default function AuditPage() {
             icon={Shield}
             detail="Audit records are filtered to the active clinic context."
           />
-        </div>
+        </AppMetricGroup>
 
         <Card>
           <CardHeader className="space-y-3">

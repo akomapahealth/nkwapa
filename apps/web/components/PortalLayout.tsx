@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { Header } from '@/components/Header';
+import { NavigationProgress } from '@/components/app-shell/NavigationProgress';
 import { Badge } from '@/components/ui/badge';
 import { InfoHint } from '@/components/ui/info-hint';
 import { cn } from '@/lib/utils';
@@ -64,6 +65,7 @@ export function PortalLayout({ children }: { children: React.ReactNode }) {
       >
         Skip to main content
       </a>
+      <NavigationProgress />
       <Header />
       <div className="border-b border-border bg-card">
         <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">

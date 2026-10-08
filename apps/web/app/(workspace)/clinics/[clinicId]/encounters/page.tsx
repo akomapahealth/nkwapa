@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ClipboardList, FileText, Stethoscope } from 'lucide-react';
 import { RouteGuard } from '@/components/RouteGuard';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,7 +36,7 @@ export default function ClinicEncountersListPage() {
           }
         />
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <AppMetricGroup className="md:grid-cols-3">
           <AppMetricCard
             title="Queue state"
             value="Preparing"
@@ -55,7 +55,7 @@ export default function ClinicEncountersListPage() {
             icon={Stethoscope}
             detail="Check-ins and assignments continue through the live clinic board."
           />
-        </div>
+        </AppMetricGroup>
 
         <Card className="max-w-3xl ">
           <CardHeader>

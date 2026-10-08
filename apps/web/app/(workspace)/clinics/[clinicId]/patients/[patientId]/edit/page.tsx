@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
 import { db } from '@/lib/db';
 import { enqueueOutboxMutation, SYNC_OPERATION } from '@/lib/outbox';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { FormSectionCard } from '@/components/app-shell/FormSectionCard';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
@@ -258,7 +258,7 @@ function EditPatientForm() {
         helpText="Demographics and contact details can change here. National ID details stay protected, and offline saves queue a sync when the network is unavailable."
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <AppMetricGroup className="md:grid-cols-3">
         <AppMetricCard
           title="Record"
           value={patient.patientCode}
@@ -277,7 +277,7 @@ function EditPatientForm() {
           icon={FilePenLine}
           detail="Changes save back to the clinic chart and sync through the offline queue when needed."
         />
-      </div>
+      </AppMetricGroup>
 
       {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
       {savedOffline ? (

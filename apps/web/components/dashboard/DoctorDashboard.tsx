@@ -9,6 +9,7 @@ import { DashboardKpiCard } from './DashboardKpiCard';
 import { DashboardActionRow } from './DashboardActionRow';
 import { TrendChart } from './TrendChart';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
+import { AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 
 interface DoctorDashboardProps {
   awaitingFinalization: number;
@@ -59,7 +60,7 @@ export function DoctorDashboard({
         hint="Use this section to spot visits that still need a doctor's final decision."
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-5">
         {pendingClinicalNoteCosigns !== undefined ? (
           <DashboardKpiCard
             title="HAP notes to cosign"
@@ -89,7 +90,7 @@ export function DoctorDashboard({
           value={`${followUpComplianceRate}%`}
           hint="Share of care plans in this clinic that include a follow-up date."
         />
-      </div>
+      </AppMetricGroup>
 
       <TrendChart
         title="Finalizations in the last 14 days"

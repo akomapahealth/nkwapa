@@ -17,7 +17,7 @@ import {
 } from '@/lib/metrics';
 import { RouteGuard } from '@/components/RouteGuard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
 import { ResourceState } from '@/components/feedback/ResourceState';
 import { SectionSkeleton } from '@/components/feedback/AppState';
@@ -82,10 +82,7 @@ function MetricsContent() {
           );
           return (
             <div className="space-y-6">
-              <section
-                aria-label="Headline figures"
-                className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
-              >
+              <AppMetricGroup label="Headline figures" className="sm:grid-cols-2 xl:grid-cols-3">
                 <AppMetricCard
                   title="Request conversion"
                   value={formatRatio(headlines.requestConversion)}
@@ -119,7 +116,7 @@ function MetricsContent() {
                   detail={`Last ${summary.range.days} days`}
                   icon={Activity}
                 />
-              </section>
+              </AppMetricGroup>
 
               <section aria-labelledby="metrics-funnels" className="space-y-3">
                 <h2 id="metrics-funnels" className="text-base font-semibold">

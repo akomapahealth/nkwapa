@@ -9,7 +9,7 @@ import { useBootstrap } from '@/lib/bootstrap-context';
 import { apiFetch } from '@/lib/api';
 import { hasPermission, readApiError } from '@/lib/ops';
 import { usePatientCheckIn } from '@/lib/use-patient-check-in';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { db } from '@/lib/db';
 import { enqueueOutboxMutation } from '@/lib/outbox';
@@ -638,7 +638,7 @@ function PatientChartWorkspace() {
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <AppMetricGroup className="md:grid-cols-3">
         <AppMetricCard
           title="Recent encounters"
           value={recentEncounters.length}
@@ -667,7 +667,7 @@ function PatientChartWorkspace() {
           icon={ShieldCheck}
           detail="Current de-identified research consent status for this patient."
         />
-      </div>
+      </AppMetricGroup>
 
       {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
       {mergedFrom ? (

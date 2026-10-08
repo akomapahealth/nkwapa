@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Header } from '@/components/Header';
+import { NavigationProgress } from '@/components/app-shell/NavigationProgress';
 import { Sidebar } from '@/components/Sidebar';
 import { ChatWidget } from '@/components/chat/ChatWidget';
 import { PendingStaffInviteNotice } from '@/components/staff/PendingStaffInviteNotice';
@@ -55,6 +56,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background">
+      <NavigationProgress />
       {/*
         First thing in the tab order, hidden until focused. Without it a keyboard or screen reader
         user walks the whole sidebar and header on every page before reaching the chart.
