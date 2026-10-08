@@ -102,14 +102,6 @@ export const KNOWN_RISKS = {
       'Nothing is deleted, and nothing is sent to a clinic the account cannot write to. Restoring the seat, or signing in as someone who holds one, drains them.',
     followUp: '#163: List queued work for clinics other than the active one in the sync center.',
   },
-  'job-transaction': {
-    title: 'External calls run inside the job transaction',
-    behaviour:
-      'Each job runs in one interactive Prisma transaction with the default 5 second timeout. The SMS or email send, and the research pack build plus GitHub push, happen inside it. A slow provider can expire the transaction after the message or commit has already gone out.',
-    mitigation:
-      'Sends and exports are claimed with an advisory lock, so two deliveries never run at the same time. That does not cover this case: if the transaction expires after the provider accepted the message, the SENT or COMPLETED write rolls back and the retry sends or pushes again. Typical sends finish well inside the window; watch for expired-transaction errors in the worker log.',
-    followUp: '#164: Move provider calls and the GitHub push outside the tenant transaction.',
-  },
   'early-reminder': {
     title: 'A reminder job that fires early completes without sending',
     behaviour:
@@ -999,9 +991,37 @@ export const OFFLINE_JOB_SCENARIOS: readonly MatrixScenario[] = [
     scenario: 'A send or export outlasts the job transaction',
     fixture: 'A slow SMTP relay, or a large clinic export pushed to a slow GitHub',
     expected:
-      'Today the transaction can expire after the external call succeeded; see the known risk.',
-    automated: [],
-    manual: true,
-    knownRisk: 'job-transaction',
+      'No provider call or push runs inside a transaction (#164). The row is claimed (SENDING, PROCESSING) and committed first, the call runs with no transaction open, and the outcome is recorded in a second step. A lost outcome is never retried blindly: a reminder is recorded as SEND_OUTCOME_UNKNOWN, and an export is settled by asking GitHub for a commit at its planned path.',
+    automated: [
+      ref(
+        'apps/api/src/reminders/reminder-send-steps.spec.ts',
+        'claims, sends with no transaction open, then records SENT',
+      ),
+      ref(
+        'apps/api/src/reminders/reminder-send-steps.spec.ts',
+        'sends exactly once however long the provider takes',
+      ),
+      ref(
+        'apps/api/src/reminders/reminder-send-steps.spec.ts',
+        'leaves the row SENDING when SENT cannot be recorded, so the retry does not resend',
+      ),
+      ref(
+        'apps/api/src/reminders/reminder-send-steps.spec.ts',
+        'records a long-stuck send as outcome unknown, without sending anything',
+      ),
+      ref(
+        'apps/api/src/research/research-export-steps.spec.ts',
+        'records the planned path before the push, and COMPLETED after it',
+      ),
+      ref(
+        'apps/api/src/research/research-export-steps.spec.ts',
+        'completes from the commit GitHub already has when the push response was lost',
+      ),
+      ref(
+        'apps/api/src/research/research-export-steps.spec.ts',
+        'leaves the export PROCESSING when nobody can tell whether the push landed',
+      ),
+    ],
+    manual: false,
   },
 ];

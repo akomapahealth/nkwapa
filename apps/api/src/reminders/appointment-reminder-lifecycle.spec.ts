@@ -44,6 +44,7 @@ describe('appointment reminders across the lifecycle', () => {
       findFirst: jest.Mock;
       findUnique: jest.Mock;
       update: jest.Mock;
+      updateMany: jest.Mock;
     };
     appointment: { findFirst: jest.Mock };
   };
@@ -67,6 +68,7 @@ describe('appointment reminders across the lifecycle', () => {
         update: jest.fn(async ({ where, data }) =>
           appointmentReminderFixture({ id: where.id, ...data }),
         ),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       appointment: { findFirst: jest.fn() },
     };
@@ -299,8 +301,8 @@ describe('appointment reminders across the lifecycle', () => {
         '+233240000000',
         expect.stringContaining('your appointment is scheduled'),
       );
-      expect(prisma.reminder.update).toHaveBeenCalledWith({
-        where: { id: 'reminder-1' },
+      expect(prisma.reminder.updateMany).toHaveBeenCalledWith({
+        where: expect.objectContaining({ id: 'reminder-1' }),
         data: expect.objectContaining({ status: 'SENT', providerMessageId: 'sms-1' }),
       });
     });

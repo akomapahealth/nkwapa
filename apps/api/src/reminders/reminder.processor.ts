@@ -59,8 +59,9 @@ export class ReminderProcessor extends WorkerHost {
     const { reminderId, clinicId, userId, scope } = job.data;
     const attempt = jobAttempt(job);
 
+    // Steps, not one transaction: the provider call must happen with no transaction open (#164).
     if (scope === 'global') {
-      await this.tenantContext.runSystemJob(
+      await this.tenantContext.runSystemJobSteps(
         {
           queueName: 'reminders',
           jobId: job.id,
@@ -68,12 +69,12 @@ export class ReminderProcessor extends WorkerHost {
           userId: userId ?? null,
           systemReason: 'Deliver a notification that is not scoped to a single clinic',
         },
-        () => this.reminderService.processReminder(reminderId, attempt),
+        (step) => this.reminderService.processReminder(reminderId, attempt, step),
       );
       return;
     }
 
-    await this.tenantContext.runClinicJob(
+    await this.tenantContext.runClinicJobSteps(
       {
         queueName: 'reminders',
         jobId: job.id,
@@ -93,7 +94,7 @@ export class ReminderProcessor extends WorkerHost {
         },
         unresolvedTenant: 'discard',
       },
-      () => this.reminderService.processReminder(reminderId, attempt),
+      (step) => this.reminderService.processReminder(reminderId, attempt, step),
     );
   }
 }
