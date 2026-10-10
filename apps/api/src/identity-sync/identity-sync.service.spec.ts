@@ -8,6 +8,7 @@ import {
 } from './identity-sync.service';
 import { identitySyncBackoff } from './identity-sync.processor';
 import type { IdentityAccessResult } from '../keycloak/keycloak-admin.service';
+import { RedisUnavailableError } from '../redis/redis.service';
 
 const USER_ID = 'user-1';
 const SUB = 'kc-sub-1';
@@ -61,6 +62,7 @@ describe('IdentitySyncService', () => {
       keycloak as never,
       tenantContext as never,
       queue as never,
+      { isReady: () => true, assertReady: () => undefined } as never,
     );
   });
 
@@ -86,6 +88,29 @@ describe('IdentitySyncService', () => {
           backoff: { type: 'custom' },
         }),
       );
+    });
+
+    // BullMQ waits for Redis rather than failing, so the request must not reach it (#199).
+    it('fails fast without touching the queue while Redis is down', async () => {
+      const offline = new IdentitySyncService(
+        prisma as never,
+        audit as never,
+        keycloak as never,
+        tenantContext as never,
+        queue as never,
+        {
+          isReady: () => false,
+          assertReady: () => {
+            throw new RedisUnavailableError();
+          },
+        } as never,
+      );
+
+      await expect(offline.requestSync(disable)).resolves.toEqual({
+        status: 'FAILED',
+        failureReason: 'QUEUE_UNAVAILABLE',
+      });
+      expect(queue.add).not.toHaveBeenCalled();
     });
 
     // Redis is not allowed to turn a deactivation into an error.

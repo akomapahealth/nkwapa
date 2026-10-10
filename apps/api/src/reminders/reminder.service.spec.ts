@@ -1,5 +1,6 @@
 import { ReminderService } from './reminder.service';
 import { SYSTEM_ACTOR_USER_ID } from '../common/system-actor';
+import { RedisUnavailableError } from '../redis/redis.service';
 
 function createReminder(overrides: Record<string, unknown> = {}) {
   return {
@@ -96,6 +97,7 @@ describe('ReminderService', () => {
       smsProvider,
       emailProvider,
       reminderQueue as never,
+      { isReady: () => true, assertReady: () => undefined } as never,
     );
   });
 
@@ -233,6 +235,7 @@ describe('ReminderService', () => {
         smsProvider,
         null,
         reminderQueue as never,
+        { isReady: () => true, assertReady: () => undefined } as never,
       );
       queueEmailReminder();
 
@@ -711,5 +714,39 @@ describe('ReminderService', () => {
       actorUserId: 'doctor-1',
     });
     expect(prisma.reminder.create.mock.calls[0][0].data.createdByUserId).toBeNull();
+  });
+
+  // BullMQ waits for Redis instead of failing, so a request must not reach it while Redis is down
+  // (#199). A later reminder stays QUEUED for the reconciliation sweep to re-queue once due.
+  it('leaves a scheduled reminder for reconciliation instead of waiting on a Redis outage', async () => {
+    const redisDown = {
+      isReady: () => false,
+      assertReady: () => {
+        throw new RedisUnavailableError();
+      },
+    };
+    const offline = new ReminderService(
+      prisma as never,
+      auditService as never,
+      smsProvider,
+      emailProvider,
+      reminderQueue as never,
+      redisDown as never,
+    );
+
+    await expect(
+      offline.scheduleFollowUpReminder({
+        clinicId: 'clinic-1',
+        clinicName: 'Clinic One',
+        patientId: 'patient-1',
+        patientCode: 'NKP-2026-000001',
+        phoneE164: '+233240000000',
+        encounterId: 'encounter-1',
+        followUpDate: new Date(Date.now() + 86_400_000),
+        actorUserId: 'doctor-1',
+      }),
+    ).resolves.toBeDefined();
+    expect(reminderQueue.add).not.toHaveBeenCalled();
+    expect(prisma.reminder.update).not.toHaveBeenCalled();
   });
 });
