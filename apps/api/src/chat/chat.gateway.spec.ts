@@ -2,6 +2,10 @@ import { Socket } from 'socket.io';
 import { UserRole } from '@prisma/client';
 import { ChatGateway } from './chat.gateway';
 
+function redisUp() {
+  return { isReady: () => true, client: {} };
+}
+
 describe('ChatGateway security', () => {
   const chatService = {
     assertActiveParticipant: jest.fn(),
@@ -19,7 +23,7 @@ describe('ChatGateway security', () => {
   });
 
   function createGateway() {
-    return new ChatGateway(chatService as never, prisma as never);
+    return new ChatGateway(chatService as never, prisma as never, redisUp() as never);
   }
 
   function createSocket() {
@@ -83,7 +87,7 @@ describe('ChatGateway security', () => {
 });
 
 describe('ChatGateway presence (#30)', () => {
-  function gatewayWithRedis(now: number) {
+  function gatewayWithRedis(now: number, ready = true) {
     const redis = {
       zadd: jest.fn(),
       zrem: jest.fn(),
@@ -92,8 +96,14 @@ describe('ChatGateway presence (#30)', () => {
       zrangebyscore: jest.fn().mockResolvedValue(['u-online']),
       hgetall: jest.fn().mockResolvedValue({ 'u-gone': '2026-10-08T09:00:00.000Z' }),
     };
-    const gateway = new ChatGateway({} as never, {} as never);
-    (gateway as unknown as { pubClient: unknown }).pubClient = redis;
+    const gateway = new ChatGateway(
+      {} as never,
+      {} as never,
+      {
+        isReady: () => ready,
+        client: redis,
+      } as never,
+    );
     jest.spyOn(Date, 'now').mockReturnValue(now);
     const socket = {
       data: { auth: { userId: 'u-1', clinicId: 'clinic-a', displayName: 'One' } },
@@ -130,6 +140,55 @@ describe('ChatGateway presence (#30)', () => {
   });
 });
 
+describe('ChatGateway presence without Redis (#199)', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  function setup(ready: boolean, failing = false) {
+    const redis = {
+      zadd: jest.fn(failing ? () => Promise.reject(new Error('Command timed out')) : undefined),
+      zremrangebyscore: jest.fn(),
+      zrangebyscore: jest.fn(),
+      hgetall: jest.fn(),
+    };
+    const gateway = new ChatGateway(
+      {} as never,
+      {} as never,
+      {
+        isReady: () => ready,
+        client: redis,
+      } as never,
+    );
+    const emit = jest.fn();
+    const socket = {
+      data: { auth: { userId: 'u-1', clinicId: 'clinic-a', displayName: 'One' } },
+      emit,
+      join: jest.fn(),
+      to: jest.fn().mockReturnValue({ emit }),
+    };
+    return { gateway, redis, socket };
+  }
+
+  it('still connects someone, and tells the clinic, while Redis is down', async () => {
+    const { gateway, redis, socket } = setup(false);
+    await expect(gateway.handleConnection(socket as never)).resolves.toBeUndefined();
+    expect(redis.zadd).not.toHaveBeenCalled();
+    expect(socket.join).toHaveBeenCalledWith('user:u-1');
+    expect(socket.to).toHaveBeenCalledWith('clinic:clinic-a');
+  });
+
+  it('swallows a failed presence write instead of failing the heartbeat', async () => {
+    const { gateway, socket } = setup(true, true);
+    await expect(gateway.handlePresenceHeartbeat(socket as never)).resolves.toBeUndefined();
+  });
+
+  it('sends no presence list rather than an empty one that would show everyone offline', async () => {
+    const { gateway, redis, socket } = setup(false);
+    await gateway.handlePresenceList(socket as never);
+    expect(redis.zrangebyscore).not.toHaveBeenCalled();
+    expect(socket.emit).not.toHaveBeenCalled();
+  });
+});
+
 describe('ChatGateway typing (#30)', () => {
   it("tells every other member who is typing, so their list shows it, and not the typist's own tabs", async () => {
     const emit = jest.fn();
@@ -138,7 +197,7 @@ describe('ChatGateway typing (#30)', () => {
       assertActiveParticipant: jest.fn().mockResolvedValue({ id: 'p1' }),
       activeParticipantIds: jest.fn().mockResolvedValue(['user-1', 'user-2', 'user-3']),
     };
-    const gateway = new ChatGateway(chatService as never, {} as never);
+    const gateway = new ChatGateway(chatService as never, {} as never, redisUp() as never);
     (gateway as unknown as { server: unknown }).server = { to };
     const socket = {
       data: { auth: { userId: 'user-1', clinicId: 'clinic-a', displayName: 'User One' } },
