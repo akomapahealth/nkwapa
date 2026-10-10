@@ -1,20 +1,28 @@
-import { createHash } from "crypto";
+import { createHash } from 'crypto';
 
-export const RESEARCH_EXPORT_QUEUE_NAME = "research-exports";
-export const RESEARCH_POLICY_VERSION = "research-export-v1";
-export const RESEARCH_DATASET_VERSION = 1;
+export const RESEARCH_EXPORT_QUEUE_NAME = 'research-exports';
+export const RESEARCH_POLICY_VERSION = 'research-export-v1';
+// v4 adds a coarse residential_region column to research_subjects.csv.
+// v5 realises the guided chronic interviews (#114): forty hypertension columns on
+// research_clinical_screenings.csv, which carried three, and a new
+// research_medication_adherence.csv. Consumers pinned to v4 keep every column they had -- the
+// change is additive, and the new file is the only one that has to be read for the first time.
+export const RESEARCH_DATASET_VERSION = 5;
 export const RESEARCH_TIMESTAMP_ROUNDING_MINUTES = 15;
-export const RESEARCH_FILE_FORMAT = "zip";
+export const RESEARCH_FILE_FORMAT = 'zip';
 
 export const RESEARCH_TABLE_NAMES = [
-  "research_subjects.csv",
-  "research_ops_checkins.csv",
-  "research_ops_assignments.csv",
-  "research_clinical_vitals.csv",
-  "research_clinical_screenings.csv",
-  "research_measurements.csv",
-  "research_appointments.csv",
-  "research_revocations.csv",
+  'research_subjects.csv',
+  'research_ops_checkins.csv',
+  'research_ops_assignments.csv',
+  'research_clinical_vitals.csv',
+  'research_clinical_tobacco.csv',
+  'research_clinical_screenings.csv',
+  'research_medication_adherence.csv',
+  'research_measurements.csv',
+  'research_appointments.csv',
+  'research_medical_history.csv',
+  'research_revocations.csv',
 ] as const;
 
 export type ResearchTableName = (typeof RESEARCH_TABLE_NAMES)[number];
@@ -65,6 +73,5 @@ export interface ResearchRepoSyncResult {
 }
 
 export function sha256Hex(input: Buffer | string): string {
-  return createHash("sha256").update(input).digest("hex");
+  return createHash('sha256').update(input).digest('hex');
 }
-

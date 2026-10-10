@@ -1,20 +1,20 @@
-"use client";
+'use client';
 
-import { LandingAnalytics } from "./LandingAnalytics";
-import { LandingNav } from "./LandingNav";
-import { HeroSection } from "./HeroSection";
-import { TrustBar } from "./TrustBar";
-import { ProblemSolutionSection } from "./ProblemSolutionSection";
-import { OurStorySection } from "./OurStorySection";
-import { BentoFeaturesSection } from "./BentoFeaturesSection";
-import { WorkflowSection } from "./WorkflowSection";
-import { ImpactSection } from "./ImpactSection";
-import { TalentSection } from "./TalentSection";
-import { TestimonialsSection } from "./TestimonialsSection";
-import { PartnersSection } from "./PartnersSection";
-import { CtaBanner } from "./CtaBanner";
-import { SubscribeSection } from "./SubscribeSection";
-import { Footer } from "./Footer";
+import { LandingAnalytics } from './LandingAnalytics';
+import { LandingNav } from './LandingNav';
+import { HeroSection } from './HeroSection';
+import { TrustBar } from './TrustBar';
+import { ProblemSolutionSection } from './ProblemSolutionSection';
+import { OurStorySection } from './OurStorySection';
+import { BentoFeaturesSection } from './BentoFeaturesSection';
+import { WorkflowSection } from './WorkflowSection';
+import { DashboardPreviewSection } from './DashboardPreviewSection';
+import { ImpactSection } from './ImpactSection';
+import { ClinicalTeamSection } from './ClinicalTeamSection';
+import { TestimonialsSection } from './TestimonialsSection';
+import { EnterpriseAssuranceSection } from './EnterpriseAssuranceSection';
+import { SubscribeSection } from './SubscribeSection';
+import { Footer } from './Footer';
 
 /**
  * Marketing landing for Nkwapa EMR. Layout and section patterns informed by
@@ -32,11 +32,11 @@ export function LandingPage() {
         <OurStorySection />
         <BentoFeaturesSection />
         <WorkflowSection />
+        <DashboardPreviewSection />
         <ImpactSection />
-        <TalentSection />
+        <ClinicalTeamSection />
         <TestimonialsSection />
-        <PartnersSection />
-        <CtaBanner />
+        <EnterpriseAssuranceSection />
         <SubscribeSection />
       </main>
       <Footer />

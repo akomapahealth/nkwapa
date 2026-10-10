@@ -1,22 +1,19 @@
-"use client";
+'use client';
 
-import { useEffect } from "react";
-import { usePathname } from "next/navigation";
-import { trackEvent } from "@/lib/analytics";
+import { useEffect } from 'react';
+import { usePathname } from 'next/navigation';
+import { trackEvent } from '@/lib/analytics';
 
 /**
  * Tracks landing page views and key interactions.
- * Wire to your analytics provider via trackEvent in lib/analytics.ts.
+ * Sent only when analytics is enabled, and only what the shared telemetry catalog allows.
  */
 export function LandingAnalytics() {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (pathname === "/") {
-      trackEvent({
-        name: "landing_page_view",
-        properties: { path: pathname },
-      });
+    if (pathname === '/') {
+      trackEvent('landing.page.view');
     }
   }, [pathname]);
 

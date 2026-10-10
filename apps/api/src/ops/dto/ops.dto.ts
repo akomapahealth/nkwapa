@@ -1,25 +1,23 @@
-import {
-  AssignmentStatus,
-  CheckInSource,
-  CheckInStatus,
-  ShiftRole,
-} from '@prisma/client';
-import {
-  IsEnum,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Matches,
-  MaxLength,
-} from 'class-validator';
+import { AssignmentStatus, CheckInSource, CheckInStatus, ShiftRole } from '@prisma/client';
+import { IsEnum, IsOptional, IsString, IsUUID, Matches, MaxLength } from 'class-validator';
+import { ToSanitizedString } from '../../common/validation';
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export class ShiftCheckInDto {
+  /**
+   * Optional client-generated id. The web generates one per action, so a request cut off
+   * mid-flight can be replayed from the offline queue without creating a second record.
+   */
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
   @IsEnum(ShiftRole)
   roleAtShift!: ShiftRole;
 
   @IsOptional()
+  @ToSanitizedString({ maxLength: 2000, preserveNewlines: true })
   @IsString()
   @MaxLength(2000)
   notes?: string;
@@ -32,6 +30,14 @@ export class ActiveShiftsQueryDto {
 }
 
 export class CreatePatientCheckInDto {
+  /**
+   * Optional client-generated id. The web generates one per action, so a request cut off
+   * mid-flight can be replayed from the offline queue without creating a second record.
+   */
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
   @IsUUID()
   patientId!: string;
 
@@ -40,6 +46,7 @@ export class CreatePatientCheckInDto {
   source?: CheckInSource;
 
   @IsOptional()
+  @ToSanitizedString({ maxLength: 2000, preserveNewlines: true })
   @IsString()
   @MaxLength(2000)
   notes?: string;
@@ -73,6 +80,7 @@ export class ReassignAssignmentDto {
   @IsUUID()
   assignedDoctorId!: string;
 
+  @ToSanitizedString({ maxLength: 2000, preserveNewlines: true })
   @IsString()
   @MaxLength(2000)
   reason!: string;

@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { TrendChart } from "./TrendChart";
-import { DistributionChart } from "./DistributionChart";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
-import { Box } from "@mui/material";
-import { dataGridSx } from "@/lib/datagrid-theme";
-import { DashboardSectionHeader } from "./DashboardSectionHeader";
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { TrendChart } from './TrendChart';
+import { DistributionChart } from './DistributionChart';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
+import { DashboardSectionHeader } from './DashboardSectionHeader';
+import { DashboardKpiCard } from './DashboardKpiCard';
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 
 interface StaffActivityRow {
   userId: string;
@@ -24,22 +24,21 @@ interface DirectorDashboardProps {
   followUpComplianceRate: number;
   staffActivity: StaffActivityRow[];
   encounterStatusDistribution: Record<string, number>;
+  pendingClinicalNoteCosigns?: number;
 }
 
-const staffColumns: GridColDef[] = [
-  { field: "displayName", headerName: "Staff Name", flex: 1 },
-  { field: "role", headerName: "Role", width: 130 },
+const staffColumns: DataTableColumn<StaffActivityRow>[] = [
+  { id: 'displayName', accessorKey: 'displayName', header: 'Staff Name' },
+  { id: 'role', accessorKey: 'role', header: 'Role' },
   {
-    field: "encountersCreated",
-    headerName: "Created",
-    width: 100,
-    type: "number",
+    id: 'encountersCreated',
+    accessorKey: 'encountersCreated',
+    header: 'Created',
   },
   {
-    field: "encountersFinalized",
-    headerName: "Finalized",
-    width: 100,
-    type: "number",
+    id: 'encountersFinalized',
+    accessorKey: 'encountersFinalized',
+    header: 'Finalized',
   },
 ];
 
@@ -51,24 +50,37 @@ export function DirectorDashboard({
   followUpComplianceRate,
   staffActivity,
   encounterStatusDistribution,
+  pendingClinicalNoteCosigns,
 }: DirectorDashboardProps) {
   return (
     <section className="space-y-6">
       <DashboardSectionHeader
-        title="Clinic overview"
-        subtitle="Population health and operational metrics"
+        title="Clinic trends"
+        hint="Use this section to watch how the clinic is performing across patient flow and follow-up."
       />
+
+      {pendingClinicalNoteCosigns !== undefined ? (
+        <AppMetricGroup className="sm:max-w-sm">
+          <DashboardKpiCard
+            title="Pending HAP cosigns"
+            value={pendingClinicalNoteCosigns}
+            hint="Clinic-level operational count only. Clinical note content remains restricted."
+          />
+        </AppMetricGroup>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">
         <TrendChart
-          title="Patient registrations (30 days)"
+          title="Patient registrations in the last 30 days"
           data={patientRegistrationTrend}
           color="hsl(var(--chart-1))"
+          hint="Daily count of new patient registrations in this clinic."
         />
         <TrendChart
-          title="Encounter volume (30 days)"
+          title="Visit volume in the last 30 days"
           data={encounterVolumeTrend}
           color="hsl(var(--chart-2))"
+          hint="Daily count of visits created in this clinic."
         />
       </div>
 
@@ -76,12 +88,12 @@ export function DirectorDashboard({
         <DistributionChart
           title="Queue status"
           data={encounterStatusDistribution}
-          type="bar"
+          hint="How visits are distributed across draft, review, and finalized stages."
         />
         <DistributionChart
-          title="BP classification"
+          title="Blood pressure levels"
           data={bpDistribution}
-          type="bar"
+          hint="How recent hypertension assessments are classified in this clinic."
         />
         <DistributionChart
           title="Screening coverage"
@@ -89,47 +101,31 @@ export function DirectorDashboard({
             Hypertension: screeningRates.hypertension,
             Diabetes: screeningRates.diabetes,
           }}
-          type="bar"
+          hint="How often hypertension and diabetes screenings are being completed."
         />
-        <Card className="lg:col-span-1">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">
-              Follow-up compliance
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-center justify-center pt-4">
-            <div className="text-center">
-              <div className="text-4xl font-bold text-primary">
-                {followUpComplianceRate}%
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Patients with scheduled follow-up
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <AppMetricCard
+          className="lg:col-span-1"
+          title="Follow-up compliance"
+          value={`${followUpComplianceRate}%`}
+          detail="Care plans with a follow-up date"
+        />
       </div>
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">
-            Staff activity summary
-          </CardTitle>
+          <CardTitle className="text-sm font-medium">Staff activity summary</CardTitle>
         </CardHeader>
         <CardContent>
-          <Box sx={{ height: 400, width: "100%" }} className="overflow-x-auto">
-            <DataGrid
-              rows={staffActivity}
+          <div className="overflow-y-hidden">
+            <DataTable
+              caption="Staff activity"
               columns={staffColumns}
+              data={staffActivity}
               getRowId={(row) => row.userId}
               pageSizeOptions={[10]}
-              disableRowSelectionOnClick
-              initialState={{
-                pagination: { paginationModel: { pageSize: 10 } },
-              }}
-              sx={dataGridSx}
+              initialPageSize={10}
             />
-          </Box>
+          </div>
         </CardContent>
       </Card>
     </section>

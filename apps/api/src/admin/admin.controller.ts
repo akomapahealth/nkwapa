@@ -15,34 +15,47 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 import { RbacGuard } from '../auth/guards/rbac.guard';
 import { AdminService } from './admin.service';
+import { ListUsersQueryDto } from './dto/list-users.query.dto';
 import { PERMISSIONS } from '../auth/constants/permissions';
 import { UserRole } from '@prisma/client';
 import { AssignRoleDto } from './dto/assign-role.dto';
+import { MergePatientsDto } from './dto/merge-patients.dto';
+import { AdminMergePreviewQueryDto } from '../patients/dto/merge-preview.query.dto';
+import { PatientDuplicateService } from '../patients/patient-duplicate.service';
+import { PatientMergeService } from '../patients/patient-merge.service';
+import { ListDuplicateCandidatesQueryDto } from '../patients/dto/list-duplicate-candidates.query.dto';
+import { CrossClinicInvestigationQueryDto } from '../patients/dto/cross-clinic-investigation.query.dto';
+import { ReviewDuplicatePairDto } from '../patients/dto/review-duplicate-pair.dto';
 import type { ReqUserWithRoles } from '../auth/guards/rbac.guard';
+import { Track } from '../telemetry/track.decorator';
+import {
+  crossClinicInvestigationShape,
+  mergePreviewClinic,
+  mergePreviewShape,
+  mergeResultClinic,
+} from '../telemetry/track-descriptors';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RbacGuard)
 @RequirePermission(PERMISSIONS.CLINIC_MANAGE)
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly patientDuplicateService: PatientDuplicateService,
+    private readonly patientMergeService: PatientMergeService,
+  ) {}
 
   @Get('users')
-  async listUsers(
-    @Query('status') status: string | undefined,
-    @Request() req: { user: ReqUserWithRoles }
-  ) {
+  async listUsers(@Query() query: ListUsersQueryDto, @Request() req: { user: ReqUserWithRoles }) {
     const actor = {
       userId: req.user.user.id,
       roles: req.user.roles,
     };
-    return this.adminService.listUsers(actor, status);
+    return this.adminService.listUsers(actor, query.status, query.organizationId);
   }
 
   @Get('users/:userId/roles')
-  async getUserRoles(
-    @Param('userId') userId: string,
-    @Request() req: { user: ReqUserWithRoles }
-  ) {
+  async getUserRoles(@Param('userId') userId: string, @Request() req: { user: ReqUserWithRoles }) {
     const actor = {
       userId: req.user.user.id,
       roles: req.user.roles,
@@ -54,22 +67,14 @@ export class AdminController {
   async assignRole(
     @Param('userId') userId: string,
     @Body() dto: AssignRoleDto,
-    @Request() req: { user: ReqUserWithRoles }
+    @Request() req: { user: ReqUserWithRoles },
   ) {
     const actor = {
       userId: req.user.user.id,
       roles: req.user.roles,
     };
-    const clinicId =
-      dto.clinicId === undefined || dto.clinicId === ''
-        ? null
-        : dto.clinicId;
-    return this.adminService.assignRole(
-      actor,
-      userId,
-      clinicId,
-      dto.role as UserRole
-    );
+    const clinicId = dto.clinicId === undefined || dto.clinicId === '' ? null : dto.clinicId;
+    return this.adminService.assignRole(actor, userId, clinicId, dto.role as UserRole);
   }
 
   @Delete('users/:userId/roles')
@@ -81,14 +86,13 @@ export class AdminController {
     req: {
       user: ReqUserWithRoles;
       headers?: { 'x-request-id'?: string };
-    }
+    },
   ) {
     const actor = {
       userId: req.user.user.id,
       roles: req.user.roles,
     };
-    const clinicId =
-      clinicIdParam === undefined || clinicIdParam === '' ? null : clinicIdParam;
+    const clinicId = clinicIdParam === undefined || clinicIdParam === '' ? null : clinicIdParam;
     const role = roleParam as UserRole;
     if (!roleParam || !Object.values(UserRole).includes(role)) {
       throw new BadRequestException('Valid role query parameter is required');
@@ -98,7 +102,114 @@ export class AdminController {
       userId,
       clinicId,
       role,
-      req.headers?.['x-request-id'] ?? randomUUID()
+      req.headers?.['x-request-id'] ?? randomUUID(),
+    );
+  }
+
+  /**
+   * Suspected duplicates across every clinic the caller can see.
+   *
+   * Read-only, and system-admin only: the service refuses an unscoped read from anyone else, and
+   * row level security independently limits a clinic user's context to their own clinics. This
+   * is where a pair spanning two clinics becomes visible at all, which is the case the
+   * clinic-scoped route by definition cannot show.
+   */
+  @Get('patients/duplicates')
+  async listDuplicates(
+    @Query() query: ListDuplicateCandidatesQueryDto,
+    @Request() req: { user: ReqUserWithRoles },
+  ) {
+    return this.patientDuplicateService.listCandidates(
+      { userId: req.user.user.id, roles: req.user.roles },
+      { clinicId: null },
+      query,
+    );
+  }
+
+  /**
+   * Likely duplicates spanning two active clinics, and how many there are per clinic pair.
+   *
+   * Investigation only: nothing on this route writes to a chart, and merge still refuses every
+   * pair it returns. Declared before any `patients/duplicates/:param` route could shadow it.
+   * Three layers hold the line -- the permission here, the system-admin assertion in the service,
+   * and row level security -- because each is one refactor from being the only one.
+   */
+  @Get('patients/duplicates/cross-clinic')
+  @Track('patient.duplicate.investigate', { describe: crossClinicInvestigationShape })
+  @RequirePermission(PERMISSIONS.PATIENT_DUPLICATE_REVIEW)
+  async investigateCrossClinicDuplicates(
+    @Query() query: CrossClinicInvestigationQueryDto,
+    @Request() req: { user: ReqUserWithRoles; headers?: { 'x-request-id'?: string } },
+  ) {
+    return this.patientDuplicateService.investigateCrossClinic(
+      { userId: req.user.user.id, roles: req.user.roles },
+      query,
+      req.headers?.['x-request-id'] ?? randomUUID(),
+    );
+  }
+
+  /** Record a decision about a pair, including one that spans two clinics. */
+  @Post('patients/duplicates/review')
+  async reviewDuplicate(
+    @Body() body: ReviewDuplicatePairDto,
+    @Request() req: { user: ReqUserWithRoles; headers?: { 'x-request-id'?: string } },
+  ) {
+    return this.patientDuplicateService.recordReview(
+      { userId: req.user.user.id, roles: req.user.roles },
+      { clinicId: null },
+      body,
+      req.headers?.['x-request-id'] ?? randomUUID(),
+    );
+  }
+
+  /**
+   * The all-clinics twin of the chart-scoped preview.
+   *
+   * Mirrors how the duplicate queue is exposed on both controllers: the clinic-scoped route is
+   * where an operator working a chart reaches it, and this one is reachable without first
+   * knowing which clinic owns the pair.
+   */
+  @Get('patients/merge/preview')
+  @Track('patient.merge.preview', { describe: mergePreviewShape, clinicId: mergePreviewClinic })
+  @RequirePermission(PERMISSIONS.PATIENT_MERGE)
+  async previewMerge(
+    @Query() query: AdminMergePreviewQueryDto,
+    @Request() req: { user: ReqUserWithRoles },
+  ) {
+    return this.patientMergeService.preview(
+      { userId: req.user.user.id, roles: req.user.roles },
+      query.canonicalPatientId,
+      query.sourcePatientId,
+      {
+        portalLinkStrategy: query.portalLinkStrategy,
+        inviteStrategy: query.inviteStrategy,
+      },
+    );
+  }
+
+  /**
+   * Consolidate two charts. Irreversible, and system-admin only.
+   *
+   * `PatientMergeService` re-runs the same evaluation the preview showed and refuses on any
+   * blocker, so a client that skips the preview is held to exactly the same safety checks.
+   */
+  @Post('patients/merge')
+  @Track('patient.merge.execute', { clinicId: mergeResultClinic })
+  @RequirePermission(PERMISSIONS.PATIENT_MERGE)
+  async mergePatients(
+    @Body() dto: MergePatientsDto,
+    @Request() req: { user: ReqUserWithRoles; headers?: { 'x-request-id'?: string } },
+  ) {
+    return this.patientMergeService.merge(
+      { userId: req.user.user.id, roles: req.user.roles },
+      dto.canonicalPatientId,
+      dto.sourcePatientId,
+      {
+        portalLinkStrategy: dto.portalLinkStrategy,
+        inviteStrategy: dto.inviteStrategy,
+        expectedFingerprint: dto.previewFingerprint,
+      },
+      req.headers?.['x-request-id'] ?? randomUUID(),
     );
   }
 }

@@ -1,5 +1,6 @@
 import { Injectable, NestMiddleware, Logger } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
+import { redactUrl } from './redaction';
 
 @Injectable()
 export class RequestLoggerMiddleware implements NestMiddleware {
@@ -15,7 +16,7 @@ export class RequestLoggerMiddleware implements NestMiddleware {
       const { statusCode } = res;
       const logData = {
         method,
-        url: originalUrl,
+        url: redactUrl(originalUrl),
         statusCode,
         duration: `${duration}ms`,
         correlationId,

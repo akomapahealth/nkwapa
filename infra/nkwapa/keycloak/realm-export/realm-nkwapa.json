@@ -2,21 +2,142 @@
   "realm": "nkwapa",
   "enabled": true,
   "loginTheme": "nkwapa",
-  "sslRequired": "external",
+  "emailTheme": "nkwapa",
+  "sslRequired": "${KC_SSL_REQUIRED}",
   "registrationAllowed": false,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": true,
+  "verifyEmail": true,
   "editUsernameAllowed": false,
-  "bruteForceProtected": false,
+  "bruteForceProtected": true,
   "permanentLockout": false,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "minimumQuickLoginWaitSeconds": 60,
+  "maxFailureWaitSeconds": 900,
+  "maxDeltaTimeSeconds": 43200,
+  "passwordPolicy": "length(12) and upperCase(1) and lowerCase(1) and digits(1) and specialChars(1) and passwordHistory(5) and notUsername(undefined)",
   "accessTokenLifespan": 300,
   "ssoSessionIdleTimeout": 1800,
   "ssoSessionMaxLifespan": 36000,
-  "defaultRoles": [
-    "uma_authorization",
-    "offline_access"
+  "actionTokenGeneratedByUserLifespan": 900,
+  "actionTokenGeneratedByAdminLifespan": 43200,
+  "attributes": {
+    "actionTokenGeneratedByUserLifespan.reset-credentials": "900",
+    "actionTokenGeneratedByUserLifespan.verify-email": "86400"
+  },
+  "smtpServer": {
+    "host": "${KC_SMTP_HOST}",
+    "port": "${KC_SMTP_PORT}",
+    "from": "${KC_SMTP_FROM}",
+    "fromDisplayName": "${KC_SMTP_FROM_DISPLAY_NAME}",
+    "replyTo": "${KC_SMTP_REPLY_TO}",
+    "replyToDisplayName": "${KC_SMTP_REPLY_TO_DISPLAY_NAME}",
+    "envelopeFrom": "${KC_SMTP_ENVELOPE_FROM}",
+    "auth": "${KC_SMTP_AUTH}",
+    "starttls": "${KC_SMTP_STARTTLS}",
+    "ssl": "${KC_SMTP_SSL}",
+    "user": "${KC_SMTP_USER}",
+    "password": "${KC_SMTP_PASSWORD}",
+    "connectionTimeout": "10000",
+    "timeout": "10000",
+    "writeTimeout": "10000"
+  },
+  "resetCredentialsFlow": "reset credentials",
+  "authenticatorConfig": [
+    {
+      "alias": "nkwapa-reset-email-force-login",
+      "config": {
+        "force-login": "true"
+      }
+    }
   ],
+  "authenticationFlows": [
+    {
+      "alias": "reset credentials",
+      "description": "Reset credentials for a user who forgot their password.",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "reset-credentials-choose-user",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "reset-credential-email",
+          "authenticatorConfig": "nkwapa-reset-email-force-login",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "reset-password",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 30,
+          "userSetupAllowed": false
+        },
+        {
+          "flowAlias": "Reset - Conditional OTP",
+          "authenticatorFlow": true,
+          "requirement": "CONDITIONAL",
+          "priority": 40,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "Reset - Conditional OTP",
+      "description": "Require OTP during credential reset when the user has OTP configured.",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "conditional-user-configured",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "reset-otp",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "userSetupAllowed": false
+        }
+      ]
+    }
+  ],
+  "requiredActions": [
+    {
+      "alias": "UPDATE_PASSWORD",
+      "name": "Update Password",
+      "providerId": "UPDATE_PASSWORD",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 30,
+      "config": {}
+    },
+    {
+      "alias": "VERIFY_EMAIL",
+      "name": "Verify Email",
+      "providerId": "VERIFY_EMAIL",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 50,
+      "config": {}
+    }
+  ],
+  "defaultRoles": ["uma_authorization", "offline_access"],
   "roles": {
     "realm": [
       {
@@ -34,10 +155,6 @@
       {
         "name": "DOCTOR",
         "description": "Doctor"
-      },
-      {
-        "name": "PRECEPTOR",
-        "description": "Preceptor"
       },
       {
         "name": "VOLUNTEER",
@@ -58,21 +175,58 @@
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,
       "redirectUris": [
+        "https://app.nkwapa.app/*",
+        "https://app.nkwapa.app",
+        "https://staging.nkwapa.app/*",
+        "https://staging.nkwapa.app",
         "http://localhost:3000/*",
-        "http://localhost:3000",
-        "http://localhost:4000/*",
-        "http://localhost:4000"
+        "http://localhost:3000"
       ],
       "webOrigins": [
-        "http://localhost:3000",
-        "http://localhost:4000"
+        "https://app.nkwapa.app",
+        "https://staging.nkwapa.app",
+        "http://localhost:3000"
       ],
       "attributes": {
-        "post.logout.redirect.uris": "http://localhost:3000/*##http://localhost:3000##http://localhost:4000/*##http://localhost:4000"
+        "post.logout.redirect.uris": "https://app.nkwapa.app/*##https://app.nkwapa.app##https://staging.nkwapa.app/*##https://staging.nkwapa.app##http://localhost:3000/*##http://localhost:3000"
       },
       "protocol": "openid-connect",
       "fullScopeAllowed": true
+    },
+    {
+      "clientId": "nkwapa-api",
+      "name": "Nkwapa API service account",
+      "description": "Server-side client used only to provision patient portal identities. No browser flow.",
+      "enabled": true,
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "frontchannelLogout": false,
+      "secret": "${KEYCLOAK_ADMIN_CLIENT_SECRET}",
+      "redirectUris": [],
+      "webOrigins": [],
+      "protocol": "openid-connect",
+      "fullScopeAllowed": false
     }
   ],
-  "users": []
+  "users": [
+    {
+      "username": "service-account-nkwapa-api",
+      "enabled": true,
+      "serviceAccountClientId": "nkwapa-api",
+      "clientRoles": {
+        "realm-management": ["manage-users"]
+      }
+    }
+  ],
+  "clientScopeMappings": {
+    "realm-management": [
+      {
+        "client": "nkwapa-api",
+        "roles": ["manage-users"]
+      }
+    ]
+  }
 }

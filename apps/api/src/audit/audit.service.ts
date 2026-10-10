@@ -1,6 +1,13 @@
 import { Injectable } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  decodeJsonKeysetCursor,
+  encodeJsonKeysetCursor,
+  type KeysetCursor,
+} from '../common/keyset-cursor';
 import { randomUUID } from 'crypto';
+import { getRequestContext } from '../common/request-context.store';
 
 export interface LogWriteParams {
   clinicId: string | null;
@@ -19,9 +26,21 @@ export interface LogWriteParams {
 export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async logWrite(params: LogWriteParams): Promise<void> {
-    const requestId = params.requestId ?? randomUUID();
-    await this.prisma.auditEvent.create({
+  /**
+   * Record a write. Pass the transaction the write ran in so the event commits with it; without
+   * one the event is written on its own, after the fact.
+   */
+  async logWrite(
+    params: LogWriteParams,
+    client: Pick<Prisma.TransactionClient, 'auditEvent'> = this.prisma,
+  ): Promise<void> {
+    // Fall back to the ambient request rather than a fresh id: an invented id looks like a
+    // correlation and is not one, which is worse than an honest absence.
+    const ambient = getRequestContext();
+    const requestId = params.requestId ?? ambient?.requestId ?? randomUUID();
+    const ipAddress = params.ipAddress ?? ambient?.ipAddress ?? undefined;
+    const userAgent = params.userAgent ?? ambient?.userAgent ?? undefined;
+    await client.auditEvent.create({
       data: {
         clinicId: params.clinicId,
         actorUserId: params.actorUserId,
@@ -31,8 +50,8 @@ export class AuditService {
         beforeJson: params.beforeJson ?? undefined,
         afterJson: params.afterJson ?? undefined,
         requestId,
-        ipAddress: params.ipAddress ?? undefined,
-        userAgent: params.userAgent ?? undefined,
+        ipAddress: ipAddress ?? undefined,
+        userAgent: userAgent ?? undefined,
       },
     });
   }
@@ -63,7 +82,9 @@ export class AuditService {
     nextCursor: string | null;
   }> {
     const limit = Math.min(params.limit ?? 50, 200);
-    const decoded = params.cursor ? this.decodeCursor(params.cursor) : null;
+    const decoded: KeysetCursor | null = params.cursor
+      ? decodeJsonKeysetCursor('createdAt', params.cursor)
+      : null;
 
     const where: {
       clinicId: string;
@@ -89,8 +110,8 @@ export class AuditService {
 
     if (decoded) {
       where.OR = [
-        { createdAt: { lt: decoded.createdAt } },
-        { createdAt: decoded.createdAt, id: { lt: decoded.id } },
+        { createdAt: { lt: decoded.timestamp } },
+        { createdAt: decoded.timestamp, id: { lt: decoded.id } },
       ];
     }
 
@@ -107,7 +128,7 @@ export class AuditService {
     const items = hasMore ? events.slice(0, limit) : events;
     const last = items[items.length - 1];
     const nextCursor =
-      hasMore && last ? this.encodeCursor(last.createdAt, last.id) : null;
+      hasMore && last ? encodeJsonKeysetCursor('createdAt', last.createdAt, last.id) : null;
 
     return {
       items: items.map((e) => ({
@@ -123,24 +144,5 @@ export class AuditService {
       })),
       nextCursor,
     };
-  }
-
-  private decodeCursor(cursor: string): { createdAt: Date; id: string } | null {
-    try {
-      const decoded = Buffer.from(cursor, 'base64').toString('utf-8');
-      const parsed = JSON.parse(decoded) as { createdAt: string; id: string };
-      const createdAt = new Date(parsed.createdAt);
-      if (isNaN(createdAt.getTime())) return null;
-      return { createdAt, id: parsed.id };
-    } catch {
-      return null;
-    }
-  }
-
-  private encodeCursor(createdAt: Date, id: string): string {
-    return Buffer.from(
-      JSON.stringify({ createdAt: createdAt.toISOString(), id }),
-      'utf-8'
-    ).toString('base64');
   }
 }

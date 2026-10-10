@@ -1,0 +1,169 @@
+import { UserRole } from '@prisma/client';
+import { PERMISSIONS, ROLE_PERMISSIONS } from '../auth/constants/permissions';
+import type { EntityType } from '../sync/entity-types';
+
+/**
+ * Every record type the clinical-records initiative introduced, and the permission that governs
+ * each way of reaching it.
+ *
+ * This is the single description the role matrix test and the published role matrix document are
+ * both generated from, so the documentation cannot drift from what the code enforces. Adding a
+ * record type here without deciding its permissions is a type error.
+ */
+export interface ClinicalRecordSurface {
+  /** Stable identifier used as the document's row key. */
+  readonly id: string;
+  readonly label: string;
+  readonly read: string;
+  readonly write: string;
+  /** Permissions beyond read and write, e.g. cosigning a note. */
+  readonly additional?: ReadonlyArray<{ label: string; permission: string }>;
+  /** Offline entity types that can write this record, or an empty list when it is online-only. */
+  readonly syncEntityTypes: readonly EntityType[];
+  /** Anything the permission table alone does not capture. */
+  readonly note?: string;
+}
+
+export const CLINICAL_RECORD_SURFACES: readonly ClinicalRecordSurface[] = [
+  {
+    id: 'medical-history',
+    label: 'Medical history and allergies',
+    read: PERMISSIONS.MEDICAL_HISTORY_READ,
+    write: PERMISSIONS.MEDICAL_HISTORY_WRITE,
+    syncEntityTypes: ['medical_history_revision'],
+    note: 'Append-only. Revisions carry the expected current revision so a stale offline edit conflicts instead of overwriting.',
+  },
+  {
+    id: 'vitals',
+    label: 'Encounter vitals',
+    read: PERMISSIONS.ENCOUNTER_READ,
+    write: PERMISSIONS.SCREENING_WRITE,
+    syncEntityTypes: ['vitals', 'encounter_vitals_bundle'],
+    note: 'No HTTP write route exists; vitals are written only through offline sync.',
+  },
+  {
+    id: 'tobacco',
+    label: 'Tobacco screening',
+    read: PERMISSIONS.ENCOUNTER_READ,
+    write: PERMISSIONS.SCREENING_WRITE,
+    syncEntityTypes: ['encounter_vitals_bundle'],
+    note: 'Captured alongside vitals in the same bundle.',
+  },
+  {
+    id: 'diabetes',
+    label: 'Diabetes interview',
+    read: PERMISSIONS.SCREENING_READ,
+    write: PERMISSIONS.SCREENING_WRITE,
+    syncEntityTypes: ['diabetes_screening'],
+    additional: [
+      {
+        label: 'Supervising clinician plan',
+        permission: PERMISSIONS.CAREPLAN_CLINICIAN_PLAN,
+      },
+    ],
+    note: 'The clinician plan is doctor-only, refused by the API for any other role, and withheld from the offline pull so no volunteer device caches it.',
+  },
+  {
+    id: 'eye',
+    label: 'Eye station examination',
+    read: PERMISSIONS.SCREENING_READ,
+    write: PERMISSIONS.SCREENING_WRITE,
+    syncEntityTypes: [],
+    note: 'Online-only and never queued, like the counselling record at the station beside it. Refused on a finalized encounter.',
+  },
+  {
+    id: 'hypertension',
+    label: 'Hypertension interview',
+    read: PERMISSIONS.SCREENING_READ,
+    write: PERMISSIONS.SCREENING_WRITE,
+    syncEntityTypes: ['hypertension_assessment'],
+    additional: [
+      {
+        label: 'Supervising clinician plan',
+        permission: PERMISSIONS.CAREPLAN_CLINICIAN_PLAN,
+      },
+    ],
+    note: 'The clinician plan is doctor-only, refused by the API for any other role, and withheld from the offline pull so no volunteer device caches it.',
+  },
+  {
+    id: 'clinician-plan',
+    label: 'Supervising clinician plan (hypertension and diabetes)',
+    read: PERMISSIONS.CAREPLAN_CLINICIAN_PLAN,
+    write: PERMISSIONS.CAREPLAN_CLINICIAN_PLAN,
+    syncEntityTypes: ['clinician_plan'],
+    note: 'Doctor-only. Queued offline only sealed to the server key (#131): the device cannot read a queued plan back, the pull never returns one, and the server opens it only for the clinic, encounter, condition and doctor it was sealed for.',
+  },
+  {
+    id: 'medication-adherence',
+    label: 'Per-encounter medication adherence',
+    read: PERMISSIONS.SCREENING_READ,
+    write: PERMISSIONS.SCREENING_WRITE,
+    syncEntityTypes: ['encounter_medication_adherence'],
+    note: 'An observation about a reconciled medication at one visit, gated on the interview permissions rather than medication reconciliation: it is refused on a finalized encounter, and the medication list is not.',
+  },
+  {
+    id: 'medication-reconciliation',
+    label: 'Medication reconciliation and pharmacy history',
+    read: PERMISSIONS.MEDICATION_RECONCILIATION_READ,
+    write: PERMISSIONS.MEDICATION_RECONCILIATION_WRITE,
+    syncEntityTypes: [
+      'patient_medication_revision',
+      'medication_reconciliation',
+      'patient_pharmacy_revision',
+      'patient_pharmacy_preference',
+    ],
+    note: 'Prescription history within this module requires PRESCRIPTION.READ, which a volunteer does not hold.',
+  },
+  {
+    id: 'prescriptions',
+    label: 'Encounter prescriptions',
+    read: PERMISSIONS.PRESCRIPTION_READ,
+    write: PERMISSIONS.PRESCRIPTION_WRITE,
+    syncEntityTypes: ['prescription'],
+    note: 'Writing is doctor-only: a director and a manager may read the record but not create one, and a volunteer holds neither permission. A write is refused on a finalized encounter, and refused without an allergy-review acknowledgement when the patient has active or unrecorded allergies. Editing the drug catalogue the prescription draws on is a separate permission again, DRUG.MANAGE, held by director and manager rather than by the doctor prescribing from it.',
+  },
+  {
+    id: 'clinical-notes',
+    label: 'HAP clinical notes',
+    read: PERMISSIONS.CLINICAL_NOTE_READ,
+    write: PERMISSIONS.CLINICAL_NOTE_WRITE,
+    additional: [
+      { label: 'Cosign', permission: PERMISSIONS.CLINICAL_NOTE_COSIGN },
+      { label: 'Addendum', permission: PERMISSIONS.CLINICAL_NOTE_ADDENDUM },
+      { label: 'Status only', permission: PERMISSIONS.CLINICAL_NOTE_STATUS_READ },
+    ],
+    syncEntityTypes: [],
+    note: 'Online-only and never queued. A system administrator must separately hold a doctor or volunteer seat at the clinic to read content.',
+  },
+  {
+    id: 'residential-location',
+    label: 'Patient residential location',
+    read: PERMISSIONS.PATIENT_READ,
+    write: PERMISSIONS.PATIENT_UPDATE,
+    syncEntityTypes: ['patient'],
+    note: 'Registering a patient requires PATIENT.CREATE; editing an existing chart requires PATIENT.UPDATE.',
+  },
+  {
+    id: 'patient-chart',
+    label: 'Patient chart summary and history',
+    read: PERMISSIONS.PATIENT_READ,
+    write: PERMISSIONS.PATIENT_UPDATE,
+    syncEntityTypes: [],
+    note: 'Read-only. Each tab is additionally gated by the permission of the record it shows.',
+  },
+];
+
+/** Roles that can hold a clinic seat, in the order the documentation lists them. */
+export const MATRIX_ROLES: readonly UserRole[] = [
+  UserRole.SYSTEM_ADMIN,
+  UserRole.DIRECTOR,
+  UserRole.MANAGER,
+  UserRole.DOCTOR,
+  UserRole.VOLUNTEER,
+  UserRole.PATIENT,
+];
+
+export function roleHolds(role: UserRole, permission: string): boolean {
+  const granted = ROLE_PERMISSIONS[role];
+  return granted.includes('*') || granted.includes(permission);
+}

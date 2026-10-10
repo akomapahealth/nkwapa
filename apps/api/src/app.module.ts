@@ -4,6 +4,8 @@ import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuditModule } from './audit/audit.module';
+import { TelemetryModule } from './telemetry/telemetry.module';
+import { NotificationModule } from './notifications/notification.module';
 import { PatientModule } from './patients/patient.module';
 import { EncounterModule } from './encounters/encounter.module';
 import { ClinicModule } from './clinics/clinic.module';
@@ -17,9 +19,24 @@ import { DrugModule } from './drugs/drug.module';
 import { PrescriptionModule } from './prescriptions/prescription.module';
 import { ResearchModule } from './research/research.module';
 import { PatientPortalModule } from './patient-portal/patient-portal.module';
+import { StaffInviteModule } from './staff-invites/staff-invite.module';
+import { OrganizationReportModule } from './org-reports/organization-report.module';
 import { OpsModule } from './ops/ops.module';
+import { ChatModule } from './chat/chat.module';
 import { CorrelationIdMiddleware } from './common/correlation-id.middleware';
 import { RequestLoggerMiddleware } from './common/request-logger.middleware';
+import { SecurityHeadersMiddleware } from './common/security-headers.middleware';
+import { RateLimitGuard } from './common/rate-limit.guard';
+import { MedicalHistoryModule } from './medical-history/medical-history.module';
+import { PatientChartModule } from './patient-chart/patient-chart.module';
+import { MedicationReconciliationModule } from './medication-reconciliation/medication-reconciliation.module';
+import { DiabetesScreeningModule } from './diabetes-screening/diabetes-screening.module';
+import { HypertensionAssessmentModule } from './hypertension-assessment/hypertension-assessment.module';
+import { MedicationAdherenceModule } from './medication-adherence/medication-adherence.module';
+import { ClinicalNoteModule } from './clinical-notes/clinical-note.module';
+import { CounsellingModule } from './counselling/counselling.module';
+import { EyeScreeningModule } from './eye-screening/eye-screening.module';
+import { StaffActivityModule } from './staff-activity/staff-activity.module';
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
 
@@ -32,6 +49,8 @@ const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
     HealthModule,
     AuthModule,
     AuditModule,
+    TelemetryModule,
+    NotificationModule,
     UserModule,
     PatientModule,
     EncounterModule,
@@ -45,11 +64,27 @@ const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
     PrescriptionModule,
     ResearchModule,
     PatientPortalModule,
+    StaffInviteModule,
+    OrganizationReportModule,
     OpsModule,
+    ChatModule,
+    MedicalHistoryModule,
+    PatientChartModule,
+    MedicationReconciliationModule,
+    DiabetesScreeningModule,
+    HypertensionAssessmentModule,
+    MedicationAdherenceModule,
+    ClinicalNoteModule,
+    CounsellingModule,
+    EyeScreeningModule,
+    StaffActivityModule,
   ],
+  providers: [RateLimitGuard],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(CorrelationIdMiddleware, RequestLoggerMiddleware).forRoutes('*');
+    consumer
+      .apply(SecurityHeadersMiddleware, CorrelationIdMiddleware, RequestLoggerMiddleware)
+      .forRoutes('*');
   }
 }

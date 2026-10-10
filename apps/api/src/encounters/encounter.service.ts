@@ -58,7 +58,12 @@ export class EncounterService {
       ? {
           patient: true,
           vitals: true,
-          diabetesScreening: true,
+          tobaccoScreening: {
+            include: { reviewedBy: { select: { id: true, displayName: true } } },
+          },
+          diabetesScreening: {
+            include: { authoredBy: { select: { id: true, displayName: true } } },
+          },
           hypertensionAssessment: true,
           carePlan: true,
         }
@@ -96,7 +101,7 @@ export class EncounterService {
     return updated;
   }
 
-  async preceptorReview(
+  async reviewEncounter(
     id: string,
     userId: string,
     auditContext?: AuditContext,
@@ -104,17 +109,17 @@ export class EncounterService {
     const existing = await this.encounterRepository.findById(id);
     if (!existing) throw new Error('Encounter not found');
     if (existing.status !== 'IN_REVIEW') {
-      throw new Error(`Cannot preceptor review: encounter is ${existing.status}`);
+      throw new Error(`Cannot review encounter: encounter is ${existing.status}`);
     }
     if (existing.preceptorReviewedById) {
-      throw new Error('Encounter already preceptor-reviewed');
+      throw new Error('Encounter already reviewed');
     }
     const updated = await this.encounterRepository.setPreceptorReviewed(id, userId);
     if (auditContext) {
       await this.auditService.logWrite({
         clinicId: auditContext.clinicId,
         actorUserId: auditContext.actorUserId,
-        action: 'ENCOUNTER.PRECEPTOR_REVIEW',
+        action: 'ENCOUNTER.REVIEW',
         entityType: 'Encounter',
         entityId: updated.id,
         beforeJson: JSON.stringify(existing),
@@ -132,7 +137,7 @@ export class EncounterService {
       throw new Error(`Cannot finalize: encounter is ${existing.status}`);
     }
     if (!existing.preceptorReviewedById) {
-      throw new Error('Encounter must be preceptor-reviewed before finalization');
+      throw new Error('Encounter must be reviewed before finalization');
     }
     const updated = await this.encounterRepository.setDoctorFinalized(id, userId);
     if (auditContext) {
@@ -208,6 +213,7 @@ export class EncounterService {
       await this.reminderService.scheduleFollowUpReminder({
         clinicId: encounter.clinicId,
         clinicName: clinic?.name ?? 'Clinic',
+        clinicTimezone: clinic?.timezone,
         patientId: encounter.patientId,
         patientCode: patient.patientCode,
         phoneE164: patient.phoneE164,
@@ -232,6 +238,7 @@ export class EncounterService {
       await this.reminderService.scheduleFollowUpEmailReminder({
         clinicId: encounter.clinicId,
         clinicName: clinic?.name ?? 'Clinic',
+        clinicTimezone: clinic?.timezone,
         patientId: encounter.patientId,
         patientCode: patient.patientCode,
         email: patient.email,

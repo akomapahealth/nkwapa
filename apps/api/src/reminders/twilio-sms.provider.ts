@@ -1,4 +1,4 @@
-import type { SmsProvider, SmsSendResult } from "./sms-provider.interface";
+import type { SmsProvider, SmsSendResult } from './sms-provider.interface';
 
 export class TwilioSmsProvider implements SmsProvider {
   private readonly accountSid: string;
@@ -12,7 +12,7 @@ export class TwilioSmsProvider implements SmsProvider {
     const from = process.env.TWILIO_FROM_NUMBER;
     if (!sid || !token || !from) {
       throw new Error(
-        "Missing Twilio config: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM_NUMBER are required"
+        'Missing Twilio config: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM_NUMBER are required',
       );
     }
     this.accountSid = sid;
@@ -29,26 +29,24 @@ export class TwilioSmsProvider implements SmsProvider {
       Body: body,
     });
     if (this.statusCallbackUrl) {
-      params.set("StatusCallback", this.statusCallbackUrl);
+      params.set('StatusCallback', this.statusCallbackUrl);
     }
 
-    const credentials = Buffer.from(
-      `${this.accountSid}:${this.authToken}`
-    ).toString("base64");
+    const credentials = Buffer.from(`${this.accountSid}:${this.authToken}`).toString('base64');
 
     try {
       const response = await fetch(url, {
-        method: "POST",
+        method: 'POST',
         headers: {
           Authorization: `Basic ${credentials}`,
-          "Content-Type": "application/x-www-form-urlencoded",
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: params.toString(),
       });
 
       if (!response.ok) {
-        const errorBody = await response.text();
-        return { success: false, error: `Twilio API error ${response.status}: ${errorBody}` };
+        await response.text();
+        return { success: false, error: `Twilio API error ${response.status}` };
       }
 
       const data = (await response.json()) as { sid?: string; status?: string };
@@ -56,9 +54,8 @@ export class TwilioSmsProvider implements SmsProvider {
         success: true,
         providerMessageId: data.sid,
       };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return { success: false, error: `Twilio request failed: ${msg}` };
+    } catch {
+      return { success: false, error: 'Twilio request failed' };
     }
   }
 }

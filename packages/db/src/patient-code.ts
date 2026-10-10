@@ -2,11 +2,9 @@
  * Patient code generator: NKP-YYYY-######
  */
 
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from '@prisma/client';
 
-export async function generatePatientCode(
-  prisma: PrismaClient
-): Promise<string> {
+export async function generatePatientCode(prisma: PrismaClient): Promise<string> {
   const year = new Date().getFullYear();
   const result = await prisma.$transaction(async (tx) => {
     const row = await tx.patientCodeSequence.upsert({
@@ -16,5 +14,5 @@ export async function generatePatientCode(
     });
     return row.lastNumber;
   });
-  return `NKP-${year}-${String(result).padStart(6, "0")}`;
+  return `NKP-${year}-${String(result).padStart(6, '0')}`;
 }

@@ -1,13 +1,37 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { syncNow, onSyncStatusChange, type SyncStatus } from '@/lib/sync';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { db } from '@/lib/db';
+import { onOutboxChange, setOutboxClinicNames, setOutboxOwner } from '@/lib/outbox';
+import { purgePortalCacheExcept } from '@/lib/portal-cache';
+import {
+  syncNow,
+  syncQueuedChange,
+  onSyncStatusChange,
+  type SyncResult,
+  type SyncStatus,
+} from '@/lib/sync';
+import { automaticSyncRetryDelay } from '@/lib/sync-retry';
 
 interface SyncContextValue {
   isOnline: boolean;
   syncStatus: SyncStatus;
+  /** Plain-language summary of the last pass, when it needs saying. */
   syncError?: string;
-  syncNow: (clinicId: string) => Promise<void>;
+  /** Raw response or error text behind `syncError`, for the support view only. */
+  syncErrorDetail?: string;
+  syncNow: (clinicId: string) => Promise<SyncResult>;
+  /** The sync center is one sheet for the whole workspace, so any screen can open it. */
+  syncCenterOpen: boolean;
+  setSyncCenterOpen: (open: boolean) => void;
 }
 
 const SyncContext = createContext<SyncContextValue | null>(null);
@@ -23,15 +47,27 @@ export function useSync() {
 export function ServiceWorkerAndSyncProvider({
   children,
   getAccessToken,
+  activeClinicId,
+  currentUserId,
+  currentUserName,
+  knownClinics,
 }: {
   children: React.ReactNode;
   getAccessToken?: () => Promise<string | null>;
+  activeClinicId?: string | null;
+  /** The signed-in account, once bootstrap has resolved it. */
+  currentUserId?: string | null;
+  currentUserName?: string | null;
+  /** The clinics this account can open, so each queued change records its clinic's name. */
+  knownClinics?: ReadonlyArray<{ clinicId: string; clinicName: string }>;
 }) {
   const [isOnline, setIsOnline] = useState(
-    typeof navigator !== 'undefined' ? navigator.onLine : true
+    typeof navigator !== 'undefined' ? navigator.onLine : true,
   );
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const [syncError, setSyncError] = useState<string | undefined>();
+  const [syncErrorDetail, setSyncErrorDetail] = useState<string | undefined>();
+  const [syncCenterOpen, setSyncCenterOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -54,34 +90,125 @@ export function ServiceWorkerAndSyncProvider({
     };
   }, []);
 
+  /*
+    Whatever another account left on this device goes as soon as this one is known (#18).
+
+    Sign-out clears the portal cache too, but a session can also end without it: the token
+    expires, the tab is closed, or someone signs in as another account in a second tab. Reads
+    are keyed by account regardless; this keeps the other account's history off the disk.
+  */
   useEffect(() => {
-    const unsub = onSyncStatusChange((status, error) => {
+    if (!currentUserId) return;
+    void purgePortalCacheExcept(db, currentUserId);
+  }, [currentUserId]);
+
+  /*
+    Every change queued from here on is this account's, and only this account sends it (#162).
+    The outbox is deliberately not cleared when the account changes: an entry that never reached
+    the server cannot be recovered. It is held for its owner instead.
+  */
+  useEffect(() => {
+    setOutboxOwner(
+      currentUserId ? { userId: currentUserId, displayName: currentUserName ?? undefined } : null,
+    );
+  }, [currentUserId, currentUserName]);
+
+  const knownClinicsKey = (knownClinics ?? [])
+    .map((clinic) => `${clinic.clinicId}:${clinic.clinicName}`)
+    .join('|');
+  useEffect(() => {
+    setOutboxClinicNames(knownClinics ?? []);
+    // knownClinicsKey stands in for knownClinics, which is a new array on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [knownClinicsKey]);
+
+  useEffect(() => {
+    const unsub = onSyncStatusChange((status, message, detail) => {
       setSyncStatus(status);
-      setSyncError(error);
+      // A pass in progress keeps the last message on screen rather than blanking it mid-read.
+      if (status === 'syncing') return;
+      setSyncError(message);
+      setSyncErrorDetail(detail);
     });
     return unsub;
   }, []);
 
   const doSyncNow = useCallback(
     async (clinicId: string) => {
-      await syncNow({
+      return syncNow({
         clinicId,
+        currentUserId: currentUserId ?? null,
         getAccessToken,
       });
     },
-    [getAccessToken]
+    [currentUserId, getAccessToken],
   );
 
-  return (
-    <SyncContext.Provider
-      value={{
-        isOnline,
-        syncStatus,
-        syncError,
-        syncNow: doSyncNow,
-      }}
-    >
-      {children}
-    </SyncContext.Provider>
+  /*
+    Also when the account changes: an owner signing back in drains what they left held.
+
+    Not before the account is known (#172). The stored clinic arrives before whoami does, so a
+    pass started then ran without an owner, and the account's arrival started a second one: two
+    full pulls on every boot. Nothing is lost by waiting; the outbox only sends its owner's
+    changes, and without an account there is no owner to send for.
+  */
+  useEffect(() => {
+    if (!isOnline || !activeClinicId || !currentUserId) return;
+    void doSyncNow(activeClinicId);
+  }, [activeClinicId, currentUserId, doSyncNow, isOnline]);
+
+  /*
+    Send what was just queued at this clinic. Many forms queue a change and leave the sending to
+    whatever syncs next; when nothing else was about to, the change sat until a reload. Deferred a
+    tick so a form that syncs straight after queueing starts its own pass first, which this joins.
+  */
+  useEffect(() => {
+    if (!isOnline || !activeClinicId || !currentUserId) return;
+    let timer: number | undefined;
+    const unsubscribe = onOutboxChange((clinicId) => {
+      if (clinicId !== activeClinicId) return;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        syncQueuedChange({ clinicId, currentUserId, getAccessToken });
+      }, 0);
+    });
+    return () => {
+      unsubscribe();
+      window.clearTimeout(timer);
+    };
+  }, [activeClinicId, currentUserId, getAccessToken, isOnline]);
+
+  /*
+    Follow a failed or partly refused pass with another, backing off, so the queue drains on its
+    own once the server recovers. Any pass that leaves nothing to retry resets the schedule, and a
+    new pass (manual or otherwise) clears the pending timer through this effect's cleanup.
+  */
+  const automaticRetries = useRef(0);
+  useEffect(() => {
+    if (syncStatus === 'syncing') return;
+    const delay = automaticSyncRetryDelay(syncStatus, automaticRetries.current);
+    if (delay === null) automaticRetries.current = 0;
+    if (delay === null || !isOnline || !activeClinicId) return;
+
+    const timer = window.setTimeout(() => {
+      automaticRetries.current += 1;
+      void doSyncNow(activeClinicId);
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [activeClinicId, doSyncNow, isOnline, syncStatus]);
+
+  const value = useMemo(
+    () => ({
+      isOnline,
+      syncStatus,
+      syncError,
+      syncErrorDetail,
+      syncNow: doSyncNow,
+      syncCenterOpen,
+      setSyncCenterOpen,
+    }),
+    [doSyncNow, isOnline, syncCenterOpen, syncError, syncErrorDetail, syncStatus],
   );
+
+  return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>;
 }

@@ -1,10 +1,11 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { useAuth } from "@/lib/auth-context";
-import { apiFetch } from "@/lib/api";
-import { Button } from "@/components/ui/button";
-import { Trash2 } from "lucide-react";
+import { useCallback, useEffect, useState } from 'react';
+import { useAuth } from '@/lib/auth-context';
+import { apiFetch } from '@/lib/api';
+import { Button } from '@/components/ui/button';
+import { Trash2 } from 'lucide-react';
+import { confirmAction } from '@/components/ui/confirm-dialog';
 
 interface PrescriptionItem {
   id: string;
@@ -41,7 +42,7 @@ export function PrescriptionList({
     try {
       const res = await apiFetch(
         `/clinics/${encodeURIComponent(clinicId)}/encounters/${encodeURIComponent(encounterId)}/prescriptions`,
-        { getToken, activeClinicId: clinicId }
+        { getToken, activeClinicId: clinicId },
       );
       if (res.ok) {
         setItems((await res.json()) as PrescriptionItem[]);
@@ -57,11 +58,19 @@ export function PrescriptionList({
     fetchList();
   }, [fetchList, refreshKey]);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (item: PrescriptionItem) => {
+    const confirmed = await confirmAction({
+      title: `Remove ${item.drug.name}?`,
+      description:
+        'This prescription is removed from the encounter before it is finalized. Re-enter it if it is still needed.',
+      confirmLabel: 'Remove prescription',
+    });
+    if (!confirmed) return;
+    const id = item.id;
     try {
       const res = await apiFetch(
         `/clinics/${encodeURIComponent(clinicId)}/encounters/${encodeURIComponent(encounterId)}/prescriptions/${id}`,
-        { method: "DELETE", getToken, activeClinicId: clinicId }
+        { method: 'DELETE', getToken, activeClinicId: clinicId },
       );
       if (res.ok) {
         setItems((prev) => prev.filter((p) => p.id !== id));
@@ -72,7 +81,8 @@ export function PrescriptionList({
   };
 
   if (loading) return <p className="text-sm text-muted-foreground">Loading prescriptions...</p>;
-  if (items.length === 0) return <p className="text-sm text-muted-foreground">No prescriptions yet.</p>;
+  if (items.length === 0)
+    return <p className="text-sm text-muted-foreground">No prescriptions yet.</p>;
 
   return (
     <ul className="space-y-2">
@@ -85,14 +95,22 @@ export function PrescriptionList({
                 <span className="ml-1 text-muted-foreground">({p.drug.genericName})</span>
               )}
             </p>
+            {/*
+              These separators were `&middot;` inside template strings, so they reached the page
+              as the literal seven characters rather than a bullet. Only the first one, which is
+              real JSX, ever rendered.
+            */}
             <p className="text-sm">
-              {p.dosage} &middot; {p.frequency}
-              {p.duration && ` &middot; ${p.duration}`}
-              {p.quantity != null && ` &middot; Qty: ${p.quantity}`}
+              {[
+                p.dosage,
+                p.frequency,
+                p.duration || null,
+                p.quantity != null ? `Qty: ${p.quantity}` : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
             </p>
-            {p.instructions && (
-              <p className="text-sm text-muted-foreground">{p.instructions}</p>
-            )}
+            {p.instructions && <p className="text-sm text-muted-foreground">{p.instructions}</p>}
             <p className="text-xs text-muted-foreground">
               Prescribed by {p.prescribedBy.displayName}
             </p>
@@ -101,7 +119,8 @@ export function PrescriptionList({
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => handleDelete(p.id)}
+              aria-label={`Remove ${p.drug.name}`}
+              onClick={() => void handleDelete(p)}
             >
               <Trash2 className="h-4 w-4 text-destructive" />
             </Button>

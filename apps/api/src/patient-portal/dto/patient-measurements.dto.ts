@@ -1,5 +1,6 @@
 import { PatientMeasurementType } from '@prisma/client';
 import {
+  IsDateString,
   IsEnum,
   IsObject,
   IsOptional,
@@ -7,6 +8,7 @@ import {
   IsUUID,
   MaxLength,
 } from 'class-validator';
+import { ToSanitizedString } from '../../common/validation';
 
 export class CreatePatientMeasurementDto {
   @IsEnum(PatientMeasurementType)
@@ -16,12 +18,13 @@ export class CreatePatientMeasurementDto {
   payload!: Record<string, unknown>;
 
   @IsOptional()
+  @ToSanitizedString({ maxLength: 2000, preserveNewlines: true })
   @IsString()
   @MaxLength(2000)
   notes?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   recordedAt?: string;
 }
 
@@ -31,11 +34,11 @@ export class ListPatientMeasurementsQueryDto {
   type?: PatientMeasurementType;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   from?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   to?: string;
 
   @IsOptional()

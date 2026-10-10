@@ -1,0 +1,211 @@
+import { DelayedError } from 'bullmq';
+import { ReminderProcessor } from './reminder.processor';
+
+describe('ReminderProcessor tenant context', () => {
+  // The provider call has to run between transactions, so the job is run as steps (#164).
+  const step = jest.fn();
+  const reminderService = {
+    processReminder: jest.fn(),
+    findReminderClinicId: jest.fn(),
+  };
+  const tenantContext = {
+    runClinicJobSteps: jest.fn(async (_context, callback) => callback(step)),
+    runSystemJobSteps: jest.fn(async (_context, callback) => callback(step)),
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('passes new reminder jobs through the queued clinic context', async () => {
+    const processor = new ReminderProcessor(reminderService as never, tenantContext as never);
+
+    await processor.process({
+      id: 'job-1',
+      data: {
+        reminderId: 'reminder-1',
+        clinicId: 'clinic-1',
+        userId: null,
+      },
+    } as never);
+
+    expect(tenantContext.runClinicJobSteps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queueName: 'reminders',
+        jobId: 'job-1',
+        resourceId: 'reminder-1',
+        tenant: { clinicId: 'clinic-1', userId: null },
+        unresolvedTenant: 'discard',
+      }),
+      expect.any(Function),
+    );
+    expect(reminderService.findReminderClinicId).not.toHaveBeenCalled();
+    expect(reminderService.processReminder).toHaveBeenCalledWith(
+      'reminder-1',
+      {
+        attemptsMade: 0,
+        maxAttempts: 1,
+      },
+      step,
+    );
+  });
+
+  it('runs a deliberately global notification as system work instead of discarding it', async () => {
+    // The defect this guards: runClinicJob applies `unresolvedTenant: 'discard'`, so a
+    // notification with no clinic — a global account deactivation — would be dropped
+    // with only a warn line once clinicId became nullable.
+    const processor = new ReminderProcessor(reminderService as never, tenantContext as never);
+
+    await processor.process({
+      id: 'job-global',
+      data: { reminderId: 'reminder-global', userId: null, scope: 'global' },
+    } as never);
+
+    expect(tenantContext.runClinicJobSteps).not.toHaveBeenCalled();
+    expect(tenantContext.runSystemJobSteps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queueName: 'reminders',
+        resourceId: 'reminder-global',
+        systemReason: expect.stringContaining('not scoped to a single clinic'),
+      }),
+      expect.any(Function),
+    );
+    expect(reminderService.processReminder).toHaveBeenCalledWith(
+      'reminder-global',
+      {
+        attemptsMade: 0,
+        maxAttempts: 1,
+      },
+      step,
+    );
+  });
+
+  it('still resolves a legacy payload rather than treating it as global', async () => {
+    // An absent `scope` predates this field and must keep the old behaviour, or every
+    // job queued before the deploy would be misrouted.
+    reminderService.findReminderClinicId.mockResolvedValue('clinic-legacy');
+    const processor = new ReminderProcessor(reminderService as never, tenantContext as never);
+
+    await processor.process({
+      id: 'job-legacy',
+      data: { reminderId: 'reminder-legacy' },
+    } as never);
+
+    expect(tenantContext.runSystemJobSteps).not.toHaveBeenCalled();
+    expect(tenantContext.runClinicJobSteps).toHaveBeenCalled();
+  });
+
+  it('declares safe discard and resolves legacy reminder tenants as system work', async () => {
+    reminderService.findReminderClinicId.mockResolvedValue('clinic-legacy');
+    const processor = new ReminderProcessor(reminderService as never, tenantContext as never);
+
+    await processor.process({
+      id: 'job-legacy',
+      data: { reminderId: 'reminder-legacy' },
+    } as never);
+
+    const context = tenantContext.runClinicJobSteps.mock.calls[0][0];
+    expect(context).toMatchObject({
+      tenant: null,
+      unresolvedTenant: 'discard',
+      legacy: {
+        systemReason: 'Resolve tenant for a legacy reminder payload',
+      },
+    });
+    await expect(context.legacy.resolveTenant()).resolves.toEqual({
+      clinicId: 'clinic-legacy',
+      userId: null,
+    });
+  });
+
+  it('does not replace a supplied tenant with a database lookup', async () => {
+    const processor = new ReminderProcessor(reminderService as never, tenantContext as never);
+
+    await processor.process({
+      id: 'job-1',
+      data: {
+        reminderId: 'reminder-1',
+        clinicId: 'different-clinic',
+        userId: null,
+      },
+    } as never);
+
+    expect(tenantContext.runClinicJobSteps.mock.calls[0][0].tenant).toEqual({
+      clinicId: 'different-clinic',
+      userId: null,
+    });
+    expect(reminderService.findReminderClinicId).not.toHaveBeenCalled();
+  });
+
+  it("hands the service the job's place in its retry budget", async () => {
+    // The service cannot tell a retry from the last attempt without this, and that decision is
+    // what keeps a row QUEUED between tries instead of marking it FAILED on the first blip.
+    const processor = new ReminderProcessor(reminderService as never, tenantContext as never);
+
+    await processor.process({
+      id: 'job-retry',
+      attemptsMade: 1,
+      opts: { attempts: 3 },
+      data: { reminderId: 'reminder-1', clinicId: 'clinic-1', userId: null, scope: 'clinic' },
+    } as never);
+
+    expect(reminderService.processReminder).toHaveBeenCalledWith(
+      'reminder-1',
+      {
+        attemptsMade: 1,
+        maxAttempts: 3,
+      },
+      step,
+    );
+  });
+
+  it('reads a job queued before retries were configured as a single final attempt', async () => {
+    // Jobs already on the queue when this deploys carry no `opts.attempts`. Treating that as one
+    // attempt keeps their behaviour exactly as it was rather than inventing a retry budget.
+    const processor = new ReminderProcessor(reminderService as never, tenantContext as never);
+
+    await processor.process({
+      id: 'job-legacy-opts',
+      data: { reminderId: 'reminder-1', clinicId: 'clinic-1', userId: null, scope: 'clinic' },
+    } as never);
+
+    expect(reminderService.processReminder).toHaveBeenCalledWith(
+      'reminder-1',
+      {
+        attemptsMade: 0,
+        maxAttempts: 1,
+      },
+      step,
+    );
+  });
+
+  describe('a job delivered before its reminder is due (#165)', () => {
+    const job = (moveToDelayed = jest.fn().mockResolvedValue(undefined)) =>
+      ({
+        id: 'job-1',
+        data: { reminderId: 'reminder-1', clinicId: 'clinic-1', userId: null },
+        moveToDelayed,
+      }) as never;
+
+    it('moves the job back to delayed until the reminder is due, spending no attempt', async () => {
+      const due = new Date('2026-10-08T15:00:00Z');
+      reminderService.processReminder.mockResolvedValueOnce({ notDueUntil: due });
+      const moveToDelayed = jest.fn().mockResolvedValue(undefined);
+      const processor = new ReminderProcessor(reminderService as never, tenantContext as never);
+
+      await expect(processor.process(job(moveToDelayed), 'lock-token')).rejects.toBeInstanceOf(
+        DelayedError,
+      );
+      expect(moveToDelayed).toHaveBeenCalledWith(due.getTime(), 'lock-token');
+    });
+
+    it('finishes normally once the reminder has been handled', async () => {
+      reminderService.processReminder.mockResolvedValueOnce(undefined);
+      const moveToDelayed = jest.fn();
+      const processor = new ReminderProcessor(reminderService as never, tenantContext as never);
+
+      await expect(processor.process(job(moveToDelayed), 'lock-token')).resolves.toBeUndefined();
+      expect(moveToDelayed).not.toHaveBeenCalled();
+    });
+  });
+});

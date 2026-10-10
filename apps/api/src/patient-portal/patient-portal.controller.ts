@@ -1,12 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Param,
-  Request,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Request, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 import { ClinicScoped } from '../auth/decorators/clinic-scoped.decorator';
@@ -50,11 +42,6 @@ export class PatientPortalController {
     @Request() req: { user: { user: { id: string } }; headers?: { 'x-request-id'?: string } },
   ) {
     const requestId = req.headers?.['x-request-id'] ?? undefined;
-    return this.patientPortalService.createSelfReport(
-      clinicId,
-      req.user.user.id,
-      dto,
-      requestId,
-    );
+    return this.patientPortalService.createSelfReport(clinicId, req.user.user.id, dto, requestId);
   }
 }

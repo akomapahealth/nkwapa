@@ -20,6 +20,9 @@ const SUBJECT_HEADERS = [
   'research_clinic_key',
   'sex',
   'birth_year',
+  // Coarse geography only. District, community and the free-text address note
+  // are deliberately excluded from research exports as re-identifying.
+  'residential_region',
   'latest_consent_status',
 ];
 
@@ -53,12 +56,43 @@ const VITALS_HEADERS = [
   'recorded_at',
   'systolic_bp',
   'diastolic_bp',
-  'heart_rate',
+  'bp_site',
+  'patient_position',
+  'cuff_size',
+  'pulse_bpm',
+  'temperature_celsius',
+  'temperature_source',
+  'respiratory_rate',
+  'spo2_percent',
   'weight_kg',
   'height_cm',
   'bmi',
 ];
 
+const TOBACCO_HEADERS = [
+  'research_encounter_key',
+  'research_patient_key',
+  'research_clinic_key',
+  'encounter_status',
+  'encounter_created_at',
+  'recorded_at',
+  'smoking_status',
+  'smokeless_tobacco_status',
+  'passive_exposure',
+  'readiness_to_quit',
+  'counseling_given',
+  'reviewed',
+  'reviewed_at',
+];
+
+/**
+ * One encounter-level row carrying both conditions.
+ *
+ * The hypertension columns were three until #114: a disposition of `EXPORTED` means nothing unless
+ * a column exists for it, and hypertension had no registry entry at all, so the guided interview's
+ * sixty columns reached no analysis. Every name below is `EXPORTED` or `COARSENED` in
+ * `research-field-registry.ts`, and a spec now fails if an exported decision has no column here.
+ */
 const SCREENING_HEADERS = [
   'research_encounter_key',
   'research_patient_key',
@@ -70,8 +104,73 @@ const SCREENING_HEADERS = [
   'glucose_type',
   'hba1c_percent',
   'hypertension_classification',
+  'hypertension_derived_classification',
+  'hypertension_classification_overridden',
   'hypertension_suspected',
   'hypertension_confirmed',
+  'hypertension_status',
+  'hypertension_year_diagnosed',
+  'hypertension_year_diagnosed_unknown',
+  'hypertension_main_concern',
+  'hypertension_usual_care_facility_status',
+  'hypertension_repeat_performed',
+  'hypertension_repeat_systolic_bp',
+  'hypertension_repeat_diastolic_bp',
+  'hypertension_repeat_position',
+  'hypertension_repeat_cuff_size',
+  'hypertension_repeat_measured_at',
+  'hypertension_repeat_prompt_shown',
+  'hypertension_home_monitor_status',
+  'hypertension_home_check_frequency',
+  'hypertension_home_systolic_avg',
+  'hypertension_home_diastolic_avg',
+  'hypertension_home_readings_unknown',
+  'hypertension_home_reading_source',
+  'hypertension_current_symptoms',
+  'hypertension_urgent_review_required',
+  'hypertension_urgent_review_reasons',
+  'hypertension_medication_reminder_strategies',
+  'hypertension_contributing_substances',
+  'hypertension_relevant_conditions',
+  'hypertension_pregnant_now',
+  'hypertension_planning_pregnancy',
+  'hypertension_kidney_function_testing',
+  'hypertension_urine_protein_testing',
+  'hypertension_cholesterol_testing',
+  'hypertension_ecg_completed',
+  'hypertension_statin_use',
+  'hypertension_aspirin_use',
+  'hypertension_clinician_review_requested',
+  'hypertension_review_reasons',
+  'hypertension_bp_goal_systolic',
+  'hypertension_bp_goal_diastolic',
+  'hypertension_follow_up_window',
+  'hypertension_follow_up_owner',
+  'hypertension_collected_at',
+];
+
+/**
+ * One row per medication observed at one visit.
+ *
+ * Its own file rather than columns on the screenings row, because it is per-medication and that
+ * row is per-encounter. The medication is never named: `research_medication_record_key` joins to
+ * the reconciled list, where the coded `drugId` is the analysable form and the patient-reported
+ * name is excluded as free text.
+ */
+const MEDICATION_ADHERENCE_HEADERS = [
+  'research_adherence_key',
+  'research_encounter_key',
+  'research_patient_key',
+  'research_clinic_key',
+  'research_medication_record_key',
+  'research_observed_revision_key',
+  'context',
+  'took_today',
+  'doses_missed_7d',
+  'taking_as_prescribed',
+  'supply_remaining',
+  'problems',
+  'recorded_at',
 ];
 
 const MEASUREMENT_HEADERS = [
@@ -109,6 +208,25 @@ const APPOINTMENT_HEADERS = [
 ];
 
 const REVOCATION_HEADERS = ['research_patient_key', 'research_clinic_key', 'revoked_at', 'status'];
+
+const MEDICAL_HISTORY_HEADERS = [
+  'research_history_revision_key',
+  'research_history_record_key',
+  'research_patient_key',
+  'research_clinic_key',
+  'research_source_encounter_key',
+  'category',
+  'status',
+  'onset_date',
+  'occurrence_date',
+  'resolved_date',
+  'revision_number',
+  'details_schema_version',
+  'allergy_kind',
+  'allergy_severity',
+  'social_history_type',
+  'recorded_at',
+];
 
 interface TransformContext {
   clinicId: string;
@@ -181,6 +299,8 @@ export class ResearchTransformService {
       legacySelfReports,
       appointmentRequests,
       revokedConsents,
+      medicalHistoryRevisions,
+      medicationAdherence,
     ] = await Promise.all([
       consentedPatientIds.length === 0
         ? Promise.resolve([])
@@ -222,8 +342,72 @@ export class ResearchTransformService {
             },
             include: {
               vitals: true,
+              tobaccoScreening: true,
               diabetesScreening: true,
-              hypertensionAssessment: true,
+              /*
+                Selected, not included whole.
+
+                The export's headers are a fixed list, so widening this record never leaked by
+                itself -- but the guided interview (#114) grew it from four columns to sixty-seven,
+                including the supervising clinician's free-text comments, and `true` pulled all of
+                them into the export process. Naming the columns the transform actually reads means
+                adding a header is the only way to export a new field, which is the decision the
+                research registry exists to force.
+
+                Every name here is `EXPORTED` or `COARSENED` in
+                `research-field-registry.ts`, under `HypertensionAssessment`. The supervising
+                clinician's free text and the JSONB sections are absent because the registry
+                excludes them.
+              */
+              hypertensionAssessment: {
+                select: {
+                  createdAt: true,
+                  collectedAt: true,
+                  classification: true,
+                  derivedClassification: true,
+                  classificationOverridden: true,
+                  suspected: true,
+                  confirmed: true,
+                  hypertensionStatus: true,
+                  yearDiagnosed: true,
+                  yearDiagnosedUnknown: true,
+                  mainConcern: true,
+                  usualCareFacilityStatus: true,
+                  repeatPerformed: true,
+                  repeatSystolicBp: true,
+                  repeatDiastolicBp: true,
+                  repeatPosition: true,
+                  repeatCuffSize: true,
+                  repeatMeasuredAt: true,
+                  repeatPromptShown: true,
+                  homeMonitorStatus: true,
+                  homeCheckFrequency: true,
+                  homeSystolicAvg: true,
+                  homeDiastolicAvg: true,
+                  homeReadingsUnknown: true,
+                  homeReadingSource: true,
+                  currentSymptoms: true,
+                  urgentReviewRequired: true,
+                  urgentReviewReasons: true,
+                  medicationReminderStrategies: true,
+                  contributingSubstances: true,
+                  relevantConditions: true,
+                  pregnantNow: true,
+                  planningPregnancy: true,
+                  kidneyFunctionTesting: true,
+                  urineProteinTesting: true,
+                  cholesterolTesting: true,
+                  ecgCompleted: true,
+                  statinUse: true,
+                  aspirinUse: true,
+                  clinicianReviewRequested: true,
+                  reviewReasons: true,
+                  bpGoalSystolic: true,
+                  bpGoalDiastolic: true,
+                  followUpWindow: true,
+                  followUpOwner: true,
+                },
+              },
             },
             orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
           }),
@@ -281,6 +465,58 @@ export class ResearchTransformService {
         },
         orderBy: [{ revokedAt: 'asc' }, { id: 'asc' }],
       }),
+      consentedPatientIds.length === 0
+        ? Promise.resolve([])
+        : this.prisma.medicalHistoryRevision.findMany({
+            where: {
+              record: {
+                clinicId,
+                patientId: { in: consentedPatientIds },
+              },
+              createdAt: { gte: start, lte: end },
+            },
+            include: {
+              record: {
+                select: {
+                  id: true,
+                  patientId: true,
+                  category: true,
+                },
+              },
+            },
+            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          }),
+      /*
+        Selected, not included whole, for the reason given on the hypertension record above.
+
+        `encounter` is joined only for its `patientId`: the row is scoped to the clinic and the
+        research file needs the subject key, and reading the patient from the encounter is what
+        keeps this query from having to trust an id on the adherence row itself.
+      */
+      consentedPatientIds.length === 0
+        ? Promise.resolve([])
+        : this.prisma.encounterMedicationAdherence.findMany({
+            where: {
+              clinicId,
+              encounter: { patientId: { in: consentedPatientIds } },
+              createdAt: { gte: start, lte: end },
+            },
+            select: {
+              id: true,
+              encounterId: true,
+              context: true,
+              medicationRecordId: true,
+              observedRevisionId: true,
+              tookToday: true,
+              dosesMissed7d: true,
+              takingAsPrescribed: true,
+              supplyRemaining: true,
+              problems: true,
+              createdAt: true,
+              encounter: { select: { patientId: true } },
+            },
+            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          }),
     ]);
 
     const referencedPatientIds = new Set<string>();
@@ -308,6 +544,9 @@ export class ResearchTransformService {
     for (const row of assignments) {
       referencedPatientIds.add(row.patientCheckIn.patientId);
     }
+    for (const row of medicalHistoryRevisions) {
+      referencedPatientIds.add(row.record.patientId);
+    }
 
     const patients =
       referencedPatientIds.size === 0
@@ -320,6 +559,8 @@ export class ResearchTransformService {
               id: true,
               dob: true,
               sex: true,
+              residentialLocationStatus: true,
+              residentialRegion: true,
             },
           });
 
@@ -337,6 +578,11 @@ export class ResearchTransformService {
         research_clinic_key: clinicKey,
         sex: patient?.sex ?? 'UNKNOWN',
         birth_year: this.deIdService.birthYear(patient?.dob ?? null),
+        // Region only, and only when deliberately recorded.
+        residential_region:
+          patient?.residentialLocationStatus === 'RECORDED' && patient.residentialRegion
+            ? patient.residentialRegion
+            : '',
         latest_consent_status: currentConsent
           ? 'GRANTED'
           : latestRevocation
@@ -388,10 +634,37 @@ export class ResearchTransformService {
         recorded_at: this.deIdService.roundTimestamp(encounter.vitals?.createdAt ?? null),
         systolic_bp: encounter.vitals?.systolicBp ?? null,
         diastolic_bp: encounter.vitals?.diastolicBp ?? null,
-        heart_rate: encounter.vitals?.heartRate ?? null,
+        bp_site: encounter.vitals?.bpSite ?? null,
+        patient_position: encounter.vitals?.patientPosition ?? null,
+        cuff_size: encounter.vitals?.cuffSize ?? null,
+        pulse_bpm: encounter.vitals?.pulseBpm ?? null,
+        temperature_celsius: encounter.vitals?.temperatureCelsius ?? null,
+        temperature_source: encounter.vitals?.temperatureSource ?? null,
+        respiratory_rate: encounter.vitals?.respiratoryRate ?? null,
+        spo2_percent: encounter.vitals?.spo2Percent ?? null,
         weight_kg: encounter.vitals?.weightKg ?? null,
         height_cm: encounter.vitals?.heightCm ?? null,
         bmi: encounter.vitals?.bmi ?? null,
+      }));
+
+    const tobaccoRows = encounters
+      .filter((encounter) => encounter.tobaccoScreening != null)
+      .map((encounter) => ({
+        research_encounter_key: this.deIdService.entityKey(clinicId, 'encounter', encounter.id),
+        research_patient_key: this.deIdService.patientKey(clinicId, encounter.patientId),
+        research_clinic_key: clinicKey,
+        encounter_status: encounter.status,
+        encounter_created_at: this.deIdService.roundTimestamp(encounter.createdAt),
+        recorded_at: this.deIdService.roundTimestamp(encounter.tobaccoScreening?.createdAt ?? null),
+        smoking_status: encounter.tobaccoScreening?.smokingStatus ?? null,
+        smokeless_tobacco_status: encounter.tobaccoScreening?.smokelessTobaccoStatus ?? null,
+        passive_exposure: encounter.tobaccoScreening?.passiveExposure ?? null,
+        readiness_to_quit: encounter.tobaccoScreening?.readinessToQuit ?? null,
+        counseling_given: encounter.tobaccoScreening?.counselingGiven ?? null,
+        reviewed: encounter.tobaccoScreening?.reviewedAt != null,
+        reviewed_at: this.deIdService.roundTimestamp(
+          encounter.tobaccoScreening?.reviewedAt ?? null,
+        ),
       }));
 
     const screeningRows = encounters
@@ -406,17 +679,39 @@ export class ResearchTransformService {
         encounter_status: encounter.status,
         encounter_created_at: this.deIdService.roundTimestamp(encounter.createdAt),
         recorded_at: this.deIdService.roundTimestamp(
-          encounter.diabetesScreening?.createdAt ??
+          encounter.diabetesScreening?.collectedAt ??
             encounter.hypertensionAssessment?.createdAt ??
             null,
         ),
         glucose_mg_dl: encounter.diabetesScreening?.glucoseMgDl ?? null,
         glucose_type: encounter.diabetesScreening?.glucoseType ?? null,
         hba1c_percent: encounter.diabetesScreening?.hba1cPercent ?? null,
-        hypertension_classification: encounter.hypertensionAssessment?.classification ?? null,
-        hypertension_suspected: encounter.hypertensionAssessment?.suspected ?? null,
-        hypertension_confirmed: encounter.hypertensionAssessment?.confirmed ?? null,
+        ...this.serializeHypertensionColumns(encounter.hypertensionAssessment),
       }));
+
+    const adherenceRows = medicationAdherence.map((row) => ({
+      research_adherence_key: this.deIdService.entityKey(clinicId, 'medication_adherence', row.id),
+      research_encounter_key: this.deIdService.entityKey(clinicId, 'encounter', row.encounterId),
+      research_patient_key: this.deIdService.patientKey(clinicId, row.encounter.patientId),
+      research_clinic_key: clinicKey,
+      research_medication_record_key: this.deIdService.entityKey(
+        clinicId,
+        'patient_medication_record',
+        row.medicationRecordId,
+      ),
+      research_observed_revision_key: this.deIdService.entityKey(
+        clinicId,
+        'patient_medication_revision',
+        row.observedRevisionId,
+      ),
+      context: row.context,
+      took_today: row.tookToday,
+      doses_missed_7d: row.dosesMissed7d,
+      taking_as_prescribed: row.takingAsPrescribed,
+      supply_remaining: row.supplyRemaining,
+      problems: row.problems.join('|'),
+      recorded_at: this.deIdService.roundTimestamp(row.createdAt),
+    }));
 
     const measurementRows = [
       ...measurements.map((measurement) =>
@@ -464,14 +759,71 @@ export class ResearchTransformService {
       status: 'REVOKED',
     }));
 
+    const medicalHistoryRows = medicalHistoryRevisions.map((revision) => {
+      const details =
+        revision.details && typeof revision.details === 'object' && !Array.isArray(revision.details)
+          ? (revision.details as Record<string, unknown>)
+          : {};
+      return {
+        research_history_revision_key: this.deIdService.entityKey(
+          clinicId,
+          'medical_history_revision',
+          revision.id,
+        ),
+        research_history_record_key: this.deIdService.entityKey(
+          clinicId,
+          'medical_history_record',
+          revision.record.id,
+        ),
+        research_patient_key: this.deIdService.patientKey(clinicId, revision.record.patientId),
+        research_clinic_key: clinicKey,
+        research_source_encounter_key: this.deIdService.entityKey(
+          clinicId,
+          'encounter',
+          revision.sourceEncounterId,
+        ),
+        category: revision.record.category,
+        status: revision.status,
+        onset_date: this.deIdService.formatDate(revision.onsetDate),
+        occurrence_date: this.deIdService.formatDate(revision.occurrenceDate),
+        resolved_date: this.deIdService.formatDate(revision.resolvedDate),
+        revision_number: revision.revisionNumber,
+        details_schema_version: revision.detailsSchemaVersion,
+        allergy_kind:
+          revision.record.category === 'ALLERGY'
+            ? (this.deIdService.stringFromUnknown(details.kind) ?? null)
+            : null,
+        allergy_severity:
+          revision.record.category === 'ALLERGY'
+            ? (this.deIdService.stringFromUnknown(details.severity) ?? 'UNKNOWN')
+            : null,
+        social_history_type:
+          revision.record.category === 'SOCIAL_HISTORY'
+            ? (this.deIdService.stringFromUnknown(details.socialType) ?? null)
+            : null,
+        recorded_at: this.deIdService.roundTimestamp(revision.createdAt),
+      };
+    });
+
     const csvFiles = [
       this.createCsvFile('research_subjects.csv', SUBJECT_HEADERS, subjectRows),
       this.createCsvFile('research_ops_checkins.csv', CHECKIN_HEADERS, checkInRows),
       this.createCsvFile('research_ops_assignments.csv', ASSIGNMENT_HEADERS, assignmentRows),
       this.createCsvFile('research_clinical_vitals.csv', VITALS_HEADERS, vitalsRows),
+      this.createCsvFile('research_clinical_tobacco.csv', TOBACCO_HEADERS, tobaccoRows),
       this.createCsvFile('research_clinical_screenings.csv', SCREENING_HEADERS, screeningRows),
+      this.createCsvFile(
+        'research_medication_adherence.csv',
+        MEDICATION_ADHERENCE_HEADERS,
+        adherenceRows,
+      ),
       this.createCsvFile('research_measurements.csv', MEASUREMENT_HEADERS, measurementRows),
       this.createCsvFile('research_appointments.csv', APPOINTMENT_HEADERS, appointmentRows),
+      this.createCsvFile(
+        'research_medical_history.csv',
+        MEDICAL_HISTORY_HEADERS,
+        medicalHistoryRows,
+      ),
       this.createCsvFile('research_revocations.csv', REVOCATION_HEADERS, revocationRows),
     ];
 
@@ -544,6 +896,122 @@ export class ResearchTransformService {
       artifactSizeBytes: zipBuffer.length,
       recordCount: Object.values(rowCounts).reduce<number>((sum, value) => sum + value, 0),
       rowCounts,
+    };
+  }
+
+  /**
+   * The hypertension half of a screenings row.
+   *
+   * Extracted because it is forty columns and the row it belongs to also carries diabetes; inline,
+   * a reader could not see where one condition ended and the other began. Every column is named in
+   * the registry -- arrays are pipe-joined rather than JSON-encoded so a spreadsheet can read them,
+   * and the two timestamps go through the same rounding as every other date in the pack.
+   */
+  private serializeHypertensionColumns(
+    /*
+      Called `row` rather than anything more descriptive.
+
+      `clinical-note-non-exposure.spec.ts` scans every source file under `src/research` for the
+      three column names a clinical note is stored in, word-bounded, and fails on any of them. Note
+      content is server-only by policy, and a mechanical scan is what keeps that boundary from
+      depending on everyone remembering it -- including here, where the obvious name for this
+      parameter is one of the three.
+    */
+    row: {
+      classification: string;
+      derivedClassification: string;
+      classificationOverridden: boolean;
+      suspected: boolean;
+      confirmed: boolean;
+      hypertensionStatus: string;
+      yearDiagnosed: number | null;
+      yearDiagnosedUnknown: boolean;
+      mainConcern: string;
+      usualCareFacilityStatus: string;
+      repeatPerformed: string;
+      repeatSystolicBp: number | null;
+      repeatDiastolicBp: number | null;
+      repeatPosition: string | null;
+      repeatCuffSize: string | null;
+      repeatMeasuredAt: Date | null;
+      repeatPromptShown: boolean;
+      homeMonitorStatus: string;
+      homeCheckFrequency: string;
+      homeSystolicAvg: number | null;
+      homeDiastolicAvg: number | null;
+      homeReadingsUnknown: boolean;
+      homeReadingSource: string;
+      currentSymptoms: string[];
+      urgentReviewRequired: boolean;
+      urgentReviewReasons: string[];
+      medicationReminderStrategies: string[];
+      contributingSubstances: string[];
+      relevantConditions: string[];
+      pregnantNow: string;
+      planningPregnancy: string;
+      kidneyFunctionTesting: string;
+      urineProteinTesting: string;
+      cholesterolTesting: string;
+      ecgCompleted: string;
+      statinUse: string;
+      aspirinUse: string;
+      clinicianReviewRequested: boolean;
+      reviewReasons: string[];
+      bpGoalSystolic: number | null;
+      bpGoalDiastolic: number | null;
+      followUpWindow: string;
+      followUpOwner: string;
+      collectedAt: Date;
+    } | null,
+  ): Record<string, unknown> {
+    const a = row;
+    return {
+      hypertension_classification: a?.classification ?? null,
+      hypertension_derived_classification: a?.derivedClassification ?? null,
+      hypertension_classification_overridden: a?.classificationOverridden ?? null,
+      hypertension_suspected: a?.suspected ?? null,
+      hypertension_confirmed: a?.confirmed ?? null,
+      hypertension_status: a?.hypertensionStatus ?? null,
+      hypertension_year_diagnosed: this.deIdService.yearBand(a?.yearDiagnosed ?? null),
+      hypertension_year_diagnosed_unknown: a?.yearDiagnosedUnknown ?? null,
+      hypertension_main_concern: a?.mainConcern ?? null,
+      hypertension_usual_care_facility_status: a?.usualCareFacilityStatus ?? null,
+      hypertension_repeat_performed: a?.repeatPerformed ?? null,
+      hypertension_repeat_systolic_bp: a?.repeatSystolicBp ?? null,
+      hypertension_repeat_diastolic_bp: a?.repeatDiastolicBp ?? null,
+      hypertension_repeat_position: a?.repeatPosition ?? null,
+      hypertension_repeat_cuff_size: a?.repeatCuffSize ?? null,
+      hypertension_repeat_measured_at: this.deIdService.roundTimestamp(a?.repeatMeasuredAt ?? null),
+      hypertension_repeat_prompt_shown: a?.repeatPromptShown ?? null,
+      hypertension_home_monitor_status: a?.homeMonitorStatus ?? null,
+      hypertension_home_check_frequency: a?.homeCheckFrequency ?? null,
+      hypertension_home_systolic_avg: a?.homeSystolicAvg ?? null,
+      hypertension_home_diastolic_avg: a?.homeDiastolicAvg ?? null,
+      hypertension_home_readings_unknown: a?.homeReadingsUnknown ?? null,
+      hypertension_home_reading_source: a?.homeReadingSource ?? null,
+      hypertension_current_symptoms: a ? a.currentSymptoms.join('|') : null,
+      hypertension_urgent_review_required: a?.urgentReviewRequired ?? null,
+      hypertension_urgent_review_reasons: a ? a.urgentReviewReasons.join('|') : null,
+      hypertension_medication_reminder_strategies: a
+        ? a.medicationReminderStrategies.join('|')
+        : null,
+      hypertension_contributing_substances: a ? a.contributingSubstances.join('|') : null,
+      hypertension_relevant_conditions: a ? a.relevantConditions.join('|') : null,
+      hypertension_pregnant_now: a?.pregnantNow ?? null,
+      hypertension_planning_pregnancy: a?.planningPregnancy ?? null,
+      hypertension_kidney_function_testing: a?.kidneyFunctionTesting ?? null,
+      hypertension_urine_protein_testing: a?.urineProteinTesting ?? null,
+      hypertension_cholesterol_testing: a?.cholesterolTesting ?? null,
+      hypertension_ecg_completed: a?.ecgCompleted ?? null,
+      hypertension_statin_use: a?.statinUse ?? null,
+      hypertension_aspirin_use: a?.aspirinUse ?? null,
+      hypertension_clinician_review_requested: a?.clinicianReviewRequested ?? null,
+      hypertension_review_reasons: a ? a.reviewReasons.join('|') : null,
+      hypertension_bp_goal_systolic: a?.bpGoalSystolic ?? null,
+      hypertension_bp_goal_diastolic: a?.bpGoalDiastolic ?? null,
+      hypertension_follow_up_window: a?.followUpWindow ?? null,
+      hypertension_follow_up_owner: a?.followUpOwner ?? null,
+      hypertension_collected_at: this.deIdService.roundTimestamp(a?.collectedAt ?? null),
     };
   }
 

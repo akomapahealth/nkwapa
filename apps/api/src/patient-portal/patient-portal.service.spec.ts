@@ -1,94 +1,60 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { PatientPortalService } from './patient-portal.service';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
+import { PATIENT_PORTAL_LINK_MISSING, PatientPortalService } from './patient-portal.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ReminderService } from '../reminders/reminder.service';
-
-function createPrismaMock() {
-  const prisma = {
-    user: {
-      findUnique: jest.fn(),
-      findFirst: jest.fn(),
-    },
-    patientAccountLink: {
-      findFirst: jest.fn(),
-      findUnique: jest.fn(),
-      upsert: jest.fn(),
-    },
-    patient: {
-      findFirst: jest.fn(),
-      update: jest.fn(),
-    },
-    encounter: {
-      findFirst: jest.fn(),
-      findMany: jest.fn(),
-    },
-    reminder: {
-      findMany: jest.fn(),
-    },
-    patientMeasurement: {
-      create: jest.fn(),
-      findMany: jest.fn(),
-    },
-    patientSelfReport: {
-      create: jest.fn(),
-      findMany: jest.fn(),
-    },
-    appointmentRequest: {
-      create: jest.fn(),
-      findMany: jest.fn(),
-      findFirst: jest.fn(),
-      update: jest.fn(),
-      count: jest.fn(),
-    },
-    appointment: {
-      create: jest.fn(),
-      count: jest.fn(),
-    },
-    clinic: {
-      findUnique: jest.fn(),
-    },
-    userClinicRole: {
-      upsert: jest.fn(),
-      findFirst: jest.fn(),
-    },
-    $transaction: jest.fn(),
-  };
-
-  prisma.$transaction.mockImplementation(async (callback: (tx: typeof prisma) => unknown) => callback(prisma));
-  return prisma;
-}
-
-const portalPatient = {
-  id: 'patient-1',
-  patientCode: 'NKP-2026-000001',
-  firstName: 'Ama',
-  lastName: 'Mensah',
-  dob: null,
-  sex: 'FEMALE',
-  primaryClinicId: 'clinic-1',
-  phoneE164: '+233240000000',
-  email: 'ama@example.com',
-};
+import { EmailDeliverabilityService } from '../common/email-policy';
+import {
+  createKeycloakAdminServiceMock,
+  keycloakAdminServiceProvider,
+  type KeycloakAdminServiceMock,
+} from '../testing/keycloak-admin-fixtures';
+import {
+  appointmentFixture,
+  createAppointmentPrismaMock,
+  portalPatientFixture as portalPatient,
+} from '../testing/appointment-fixtures';
+import {
+  IDENTITY_NOW as NOW,
+  identityDay as day,
+  portalInviteFixture as buildInvite,
+} from '../testing/patient-identity-fixtures';
 
 describe('PatientPortalService', () => {
   let service: PatientPortalService;
-  let prisma: ReturnType<typeof createPrismaMock>;
+  let prisma: ReturnType<typeof createAppointmentPrismaMock>;
   let auditService: { logWrite: jest.Mock };
+  let emailDeliverabilityService: { assertDomainAcceptsEmail: jest.Mock };
+  let keycloakAdminService: KeycloakAdminServiceMock;
   let reminderService: {
     scheduleAppointmentReminder: jest.Mock;
     scheduleAppointmentEmailReminder: jest.Mock;
     scheduleAppointmentReminderNoContact: jest.Mock;
+    suppressQueuedAppointmentReminders: jest.Mock;
+    sendNotificationNow: jest.Mock;
   };
 
   beforeEach(async () => {
-    prisma = createPrismaMock();
+    prisma = createAppointmentPrismaMock();
     auditService = { logWrite: jest.fn().mockResolvedValue(undefined) };
+    emailDeliverabilityService = {
+      assertDomainAcceptsEmail: jest.fn().mockResolvedValue(undefined),
+    };
+    keycloakAdminService = createKeycloakAdminServiceMock();
     reminderService = {
       scheduleAppointmentReminder: jest.fn().mockResolvedValue(undefined),
       scheduleAppointmentEmailReminder: jest.fn().mockResolvedValue(undefined),
       scheduleAppointmentReminderNoContact: jest.fn().mockResolvedValue(undefined),
+      suppressQueuedAppointmentReminders: jest.fn().mockResolvedValue(undefined),
+      sendNotificationNow: jest.fn().mockResolvedValue({
+        id: 'delivery-1',
+        status: 'QUEUED',
+        failureReason: null,
+        sentAt: null,
+        createdAt: new Date('2026-03-21T09:00:00.000Z'),
+      }),
     };
 
     prisma.user.findUnique.mockResolvedValue({
@@ -99,12 +65,61 @@ describe('PatientPortalService', () => {
     prisma.patientAccountLink.findFirst.mockResolvedValue({ patient: portalPatient });
     prisma.encounter.findFirst.mockResolvedValue(null);
     prisma.encounter.findMany.mockResolvedValue([]);
+    prisma.diabetesScreening.findMany.mockResolvedValue([]);
     prisma.reminder.findMany.mockResolvedValue([]);
     prisma.patient.findFirst.mockResolvedValue({ id: 'patient-1' });
+    prisma.patient.findUnique.mockResolvedValue({
+      ...portalPatient,
+      portalUserId: null,
+      mergedIntoPatientId: null,
+      codeAliases: [],
+    });
+    prisma.patientAccountLink.upsert.mockResolvedValue({
+      id: 'patient-link-1',
+      patientId: 'patient-1',
+      keycloakSub: 'kc-sub-1',
+      createdAt: new Date('2026-04-04T12:00:00.000Z'),
+    });
     prisma.clinic.findUnique.mockResolvedValue({ name: 'Clinic One' });
     prisma.patientMeasurement.findMany.mockResolvedValue([]);
+    prisma.appointment.findMany.mockResolvedValue([]);
+    prisma.appointment.findFirst.mockResolvedValue(null);
+    prisma.appointment.updateMany.mockResolvedValue({ count: 0 });
     prisma.appointmentRequest.count.mockResolvedValue(0);
     prisma.appointment.count.mockResolvedValue(0);
+    prisma.reminder.update.mockImplementation(async ({ where, data }) => ({
+      id: where.id,
+      clinicId: 'clinic-1',
+      patientId: 'patient-1',
+      encounterId: null,
+      channel: 'SMS',
+      toAddress: '+233240000000',
+      templateKey: 'APPOINTMENT_REMINDER_V1',
+      payloadJson: JSON.stringify({ appointmentId: 'appointment-1' }),
+      scheduledAt: new Date('2026-03-25T14:00:00.000Z'),
+      sentAt: null,
+      status: data.status,
+      providerMessageId: null,
+      failureReason: data.failureReason,
+      createdAt: new Date('2026-03-21T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-21T09:00:00.000Z'),
+    }));
+    prisma.patientPortalInvite.findMany.mockResolvedValue([]);
+    prisma.patientPortalInvite.updateMany.mockResolvedValue({ count: 0 });
+    prisma.user.findMany.mockResolvedValue([]);
+    prisma.userClinicRole.findMany.mockResolvedValue([]);
+    prisma.patientAccountLink.findMany.mockResolvedValue([]);
+    prisma.patient.findMany.mockResolvedValue([]);
+    prisma.patientPortalInvite.create.mockImplementation(async ({ data }) => ({
+      id: 'invite-1',
+      ...data,
+      status: 'PENDING',
+      claimedByUserId: null,
+      claimedAt: null,
+      cancelledAt: null,
+      createdAt: new Date('2026-04-04T12:00:00.000Z'),
+      updatedAt: new Date('2026-04-04T12:00:00.000Z'),
+    }));
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -112,6 +127,8 @@ describe('PatientPortalService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: AuditService, useValue: auditService },
         { provide: ReminderService, useValue: reminderService },
+        { provide: EmailDeliverabilityService, useValue: emailDeliverabilityService },
+        keycloakAdminServiceProvider(keycloakAdminService),
       ],
     }).compile();
 
@@ -126,9 +143,52 @@ describe('PatientPortalService', () => {
         where: expect.objectContaining({
           keycloakSub: 'kc-sub-1',
         }),
-      })
+      }),
     );
     expect(result.patient.patientCode).toBe('NKP-2026-000001');
+  });
+
+  it('returns a structured link-missing error when a PATIENT role exists without a linked patient record', async () => {
+    prisma.patientAccountLink.findFirst.mockReset();
+    prisma.patientAccountLink.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+    prisma.patient.findFirst.mockReset();
+    prisma.patient.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+    prisma.userClinicRole.findFirst.mockResolvedValueOnce({ id: 'patient-role-1' });
+
+    try {
+      await service.getMe('clinic-1', 'user-1');
+      fail('Expected getMe to throw a portal link error');
+    } catch (error) {
+      expect(error).toBeInstanceOf(NotFoundException);
+      const response = (error as NotFoundException).getResponse();
+      expect(response).toMatchObject({
+        code: PATIENT_PORTAL_LINK_MISSING,
+        message: expect.stringContaining('not linked'),
+      });
+    }
+  });
+
+  it('keeps clinic scoping strict when a patient link exists for another clinic', async () => {
+    prisma.patientAccountLink.findFirst.mockReset();
+    prisma.patientAccountLink.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      patient: {
+        id: 'patient-2',
+      },
+    });
+    prisma.patient.findFirst.mockReset();
+    prisma.patient.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+    prisma.userClinicRole.findFirst.mockResolvedValueOnce(null);
+
+    try {
+      await service.getMe('clinic-1', 'user-1');
+      fail('Expected getMe to throw for a link in another clinic');
+    } catch (error) {
+      expect(error).toBeInstanceOf(NotFoundException);
+      const response = (error as NotFoundException).getResponse();
+      expect(response).toMatchObject({
+        code: PATIENT_PORTAL_LINK_MISSING,
+      });
+    }
   });
 
   it('creates a BP measurement for the authenticated patient and audits it', async () => {
@@ -154,12 +214,12 @@ describe('PatientPortalService', () => {
         payload: { systolic: 120, diastolic: 80, pulse: 70 },
         notes: 'Morning check',
       },
-      'req-1'
+      'req-1',
     );
 
     expect(prisma.patientMeasurement.create).toHaveBeenCalled();
     expect(auditService.logWrite).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'MEASUREMENT.CREATE', entityId: 'measurement-1' })
+      expect.objectContaining({ action: 'MEASUREMENT.CREATE', entityId: 'measurement-1' }),
     );
     expect(result.payload).toEqual({ systolic: 120, diastolic: 80, pulse: 70 });
   });
@@ -173,8 +233,8 @@ describe('PatientPortalService', () => {
           type: 'GLUCOSE',
           payload: { value: 130 },
         },
-        'req-1'
-      )
+        'req-1',
+      ),
     ).rejects.toThrow(BadRequestException);
   });
 
@@ -202,7 +262,7 @@ describe('PatientPortalService', () => {
         diastolicBp: 77,
         notes: 'Legacy route',
       },
-      'req-1'
+      'req-1',
     );
 
     expect(prisma.patientMeasurement.create).toHaveBeenCalled();
@@ -248,6 +308,92 @@ describe('PatientPortalService', () => {
     expect(result[1].type).toBe('GENERAL');
   });
 
+  describe('a confirmed repeat outranks the reading that prompted it', () => {
+    /*
+      The interview asks for a repeat when an initial reading crosses the threshold, because a
+      single high value is frequently the walk into the room rather than the patient. Plotting the
+      initial number would put the measurement the system itself judged unreliable into the trend a
+      clinician reads to decide whether treatment is working -- and would show a spike on exactly
+      the visits where somebody did the careful thing.
+    */
+    function encountersOnly(encounter: Record<string, unknown>) {
+      prisma.patientMeasurement.findMany.mockResolvedValue([]);
+      prisma.diabetesScreening.findMany.mockResolvedValue([]);
+      prisma.encounter.findMany.mockResolvedValue([encounter]);
+      prisma.appointmentRequest.count.mockResolvedValue(0);
+      prisma.appointment.count.mockResolvedValue(0);
+    }
+
+    it('plots the repeat when one was recorded', async () => {
+      encountersOnly({
+        createdAt: new Date('2026-03-19T08:00:00.000Z'),
+        vitals: { systolicBp: 186, diastolicBp: 112 },
+        hypertensionAssessment: { repeatSystolicBp: 142, repeatDiastolicBp: 88 },
+      });
+
+      const result = await service.listTrendsForStaff('patient-1', 'clinic-1', {});
+
+      expect(result.bp).toEqual([
+        expect.objectContaining({ sys: 142, dia: 88, source: 'ENCOUNTER' }),
+      ]);
+    });
+
+    it('plots the initial reading when no repeat was taken', async () => {
+      encountersOnly({
+        createdAt: new Date('2026-03-19T08:00:00.000Z'),
+        vitals: { systolicBp: 186, diastolicBp: 112 },
+        hypertensionAssessment: { repeatSystolicBp: null, repeatDiastolicBp: null },
+      });
+
+      const result = await service.listTrendsForStaff('patient-1', 'clinic-1', {});
+
+      expect(result.bp).toEqual([expect.objectContaining({ sys: 186, dia: 112 })]);
+    });
+
+    it('plots the initial reading when the encounter has no interview at all', async () => {
+      encountersOnly({
+        createdAt: new Date('2026-03-19T08:00:00.000Z'),
+        vitals: { systolicBp: 132, diastolicBp: 86 },
+        hypertensionAssessment: null,
+      });
+
+      const result = await service.listTrendsForStaff('patient-1', 'clinic-1', {});
+
+      expect(result.bp).toEqual([expect.objectContaining({ sys: 132, dia: 86 })]);
+    });
+
+    /*
+      A half-entered repeat is not a reading.
+
+      Falling back per-value would pair a repeat systolic with an initial diastolic and plot a
+      blood pressure that was never measured.
+    */
+    it('ignores a half-entered repeat rather than pairing it with the initial reading', async () => {
+      encountersOnly({
+        createdAt: new Date('2026-03-19T08:00:00.000Z'),
+        vitals: { systolicBp: 186, diastolicBp: 112 },
+        hypertensionAssessment: { repeatSystolicBp: 140, repeatDiastolicBp: null },
+      });
+
+      const result = await service.listTrendsForStaff('patient-1', 'clinic-1', {});
+
+      // The complete initial pair, not 140/112 -- a reading nobody took.
+      expect(result.bp).toEqual([expect.objectContaining({ sys: 186, dia: 112 })]);
+    });
+
+    it('plots nothing when the visit recorded no blood pressure', async () => {
+      encountersOnly({
+        createdAt: new Date('2026-03-19T08:00:00.000Z'),
+        vitals: null,
+        hypertensionAssessment: null,
+      });
+
+      const result = await service.listTrendsForStaff('patient-1', 'clinic-1', {});
+
+      expect(result.bp).toEqual([]);
+    });
+  });
+
   it('merges finalized encounter readings with patient measurements and follow-up counts', async () => {
     prisma.patientMeasurement.findMany.mockResolvedValue([
       {
@@ -281,23 +427,26 @@ describe('PatientPortalService', () => {
       {
         createdAt: new Date('2026-03-19T08:00:00.000Z'),
         vitals: { systolicBp: 132, diastolicBp: 86 },
-        diabetesScreening: { glucoseMgDl: 201, glucoseType: 'RANDOM' },
       },
     ]);
-    prisma.appointmentRequest.count
-      .mockResolvedValueOnce(2)
-      .mockResolvedValueOnce(1);
+    prisma.diabetesScreening.findMany.mockResolvedValue([
+      {
+        collectedAt: new Date('2026-03-19T08:15:00.000Z'),
+        glucoseMgDl: 201,
+        glucoseType: 'RANDOM',
+      },
+    ]);
+    prisma.appointmentRequest.count.mockResolvedValueOnce(2).mockResolvedValueOnce(1);
     prisma.appointment.count
       .mockResolvedValueOnce(3)
       .mockResolvedValueOnce(4)
       .mockResolvedValueOnce(1)
       .mockResolvedValueOnce(2);
 
-    const result = await service.listTrendsForAuthenticatedPatient(
-      'clinic-1',
-      'user-1',
-      { from: '2026-03-01', to: '2026-03-31' }
-    );
+    const result = await service.listTrendsForAuthenticatedPatient('clinic-1', 'user-1', {
+      from: '2026-03-01',
+      to: '2026-03-31',
+    });
 
     expect(prisma.patientMeasurement.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -310,7 +459,7 @@ describe('PatientPortalService', () => {
             lte: new Date('2026-03-31T23:59:59.999Z'),
           },
         }),
-      })
+      }),
     );
     expect(prisma.encounter.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -323,7 +472,19 @@ describe('PatientPortalService', () => {
             lte: new Date('2026-03-31T23:59:59.999Z'),
           },
         }),
-      })
+      }),
+    );
+    expect(prisma.diabetesScreening.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          clinicId: 'clinic-1',
+          encounter: { patientId: 'patient-1', status: { in: ['FINALIZED'] } },
+          collectedAt: {
+            gte: new Date('2026-03-01T00:00:00.000Z'),
+            lte: new Date('2026-03-31T23:59:59.999Z'),
+          },
+        }),
+      }),
     );
     expect(result.bp).toEqual([
       {
@@ -341,7 +502,7 @@ describe('PatientPortalService', () => {
     ]);
     expect(result.glucose).toEqual([
       {
-        t: '2026-03-19T08:00:00.000Z',
+        t: '2026-03-19T08:15:00.000Z',
         value: 201,
         type: 'RANDOM',
         source: 'ENCOUNTER',
@@ -369,7 +530,15 @@ describe('PatientPortalService', () => {
         return [
           {
             createdAt: new Date('2026-03-18T08:00:00.000Z'),
-            vitals: { systolicBp: 141, diastolicBp: 92 },
+            vitals: {
+              systolicBp: 141,
+              diastolicBp: 92,
+              temperatureCelsius: 37,
+              respiratoryRate: 18,
+              spo2Percent: 97,
+              weightKg: 72,
+              bmi: 24.9,
+            },
             diabetesScreening: null,
           },
         ];
@@ -378,19 +547,27 @@ describe('PatientPortalService', () => {
       return [];
     });
 
-    const patientResult = await service.listTrendsForAuthenticatedPatient(
-      'clinic-1',
-      'user-1',
-      {}
-    );
+    const patientResult = await service.listTrendsForAuthenticatedPatient('clinic-1', 'user-1', {});
     const staffResult = await service.listTrendsForStaff('patient-1', 'clinic-1', {});
 
     expect(patientResult.bp).toEqual([]);
+    expect(patientResult.measurements).toBeUndefined();
     expect(staffResult.bp).toEqual([
       {
         t: '2026-03-18T08:00:00.000Z',
         sys: 141,
         dia: 92,
+        source: 'ENCOUNTER',
+      },
+    ]);
+    expect(staffResult.measurements).toEqual([
+      {
+        t: '2026-03-18T08:00:00.000Z',
+        temperatureCelsius: 37,
+        respiratoryRate: 18,
+        spo2Percent: 97,
+        weightKg: 72,
+        bmi: 24.9,
         source: 'ENCOUNTER',
       },
     ]);
@@ -401,6 +578,8 @@ describe('PatientPortalService', () => {
       id: 'appt-req-1',
       clinicId: 'clinic-1',
       patientId: 'patient-1',
+      requestType: 'NEW_APPOINTMENT',
+      sourceAppointmentId: null,
       preferredStartDate: new Date('2026-03-25T00:00:00.000Z'),
       preferredEndDate: new Date('2026-03-27T00:00:00.000Z'),
       reason: 'Follow-up',
@@ -421,6 +600,7 @@ describe('PatientPortalService', () => {
       },
       triagedBy: null,
       appointment: null,
+      sourceAppointment: null,
     });
 
     const result = await service.createAppointmentRequestForAuthenticatedPatient(
@@ -432,14 +612,1331 @@ describe('PatientPortalService', () => {
         reason: 'Follow-up',
         notes: 'Afternoon is best',
       },
-      'req-1'
+      'req-1',
     );
 
     expect(prisma.appointmentRequest.create).toHaveBeenCalled();
     expect(auditService.logWrite).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'APPT.REQUEST.CREATE', entityId: 'appt-req-1' })
+      expect.objectContaining({ action: 'APPT.REQUEST.CREATE', entityId: 'appt-req-1' }),
     );
     expect(result.status).toBe('REQUESTED');
+  });
+
+  it('lists appointments for the authenticated patient only', async () => {
+    prisma.appointment.findMany.mockResolvedValue([
+      appointmentFixture({
+        startsAt: new Date('2026-03-26T14:00:00.000Z'),
+        endsAt: new Date('2026-03-26T14:30:00.000Z'),
+      }),
+    ]);
+
+    const result = await service.listAppointmentsForAuthenticatedPatient('clinic-1', 'user-1', {
+      from: '2026-03-01',
+      to: '2026-03-31',
+    });
+
+    expect(prisma.appointment.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          clinicId: 'clinic-1',
+          patientId: 'patient-1',
+          startsAt: { lte: new Date('2026-03-31T23:59:59.999Z') },
+          endsAt: { gte: new Date('2026-03-01T00:00:00.000Z') },
+        }),
+        orderBy: [{ startsAt: 'desc' }, { createdAt: 'desc' }],
+      }),
+    );
+    expect(result.summary).toMatchObject({ total: 1, confirmed: 1 });
+    expect(result.items[0]).toMatchObject({
+      id: 'appointment-1',
+      patientId: 'patient-1',
+      status: 'CONFIRMED',
+    });
+  });
+
+  it('creates patient cancellation requests without mutating appointments', async () => {
+    const sourceAppointment = appointmentFixture({
+      startsAt: new Date('2099-03-26T14:00:00.000Z'),
+      endsAt: new Date('2099-03-26T14:30:00.000Z'),
+    });
+    prisma.appointment.findFirst.mockResolvedValue(sourceAppointment);
+    prisma.appointmentRequest.create.mockResolvedValue({
+      id: 'cancel-request-1',
+      clinicId: 'clinic-1',
+      patientId: 'patient-1',
+      requestType: 'CANCEL_APPOINTMENT',
+      sourceAppointmentId: 'appointment-1',
+      preferredStartDate: new Date('2099-03-26T00:00:00.000Z'),
+      preferredEndDate: new Date('2099-03-26T00:00:00.000Z'),
+      reason: 'I cannot make this visit',
+      notes: 'Please cancel it',
+      status: 'REQUESTED',
+      triagedByUserId: null,
+      triagedAt: null,
+      rejectionReason: null,
+      createdAt: new Date('2026-03-21T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-21T09:00:00.000Z'),
+      patient: sourceAppointment.patient,
+      triagedBy: null,
+      appointment: null,
+      sourceAppointment,
+    });
+
+    const result = await service.createCancelAppointmentRequestForAuthenticatedPatient(
+      'clinic-1',
+      'user-1',
+      'appointment-1',
+      { reason: 'I cannot make this visit', notes: 'Please cancel it' },
+      'req-cancel-request',
+    );
+
+    expect(prisma.appointment.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'appointment-1', clinicId: 'clinic-1', patientId: 'patient-1' },
+      }),
+    );
+    expect(prisma.appointmentRequest.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          clinicId: 'clinic-1',
+          patientId: 'patient-1',
+          requestType: 'CANCEL_APPOINTMENT',
+          sourceAppointmentId: 'appointment-1',
+          reason: 'I cannot make this visit',
+          status: 'REQUESTED',
+        }),
+      }),
+    );
+    expect(prisma.appointment.updateMany).not.toHaveBeenCalled();
+    expect(auditService.logWrite).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'APPT.REQUEST.CANCEL_REQUEST.CREATE',
+        entityId: 'cancel-request-1',
+      }),
+    );
+    expect(result).toMatchObject({
+      requestType: 'CANCEL_APPOINTMENT',
+      sourceAppointmentId: 'appointment-1',
+      sourceAppointment: { id: 'appointment-1' },
+    });
+  });
+
+  it('creates patient reschedule requests with preferred date windows', async () => {
+    const sourceAppointment = appointmentFixture({
+      startsAt: new Date('2099-03-26T14:00:00.000Z'),
+      endsAt: new Date('2099-03-26T14:30:00.000Z'),
+    });
+    prisma.appointment.findFirst.mockResolvedValue(sourceAppointment);
+    prisma.appointmentRequest.create.mockResolvedValue({
+      id: 'reschedule-request-1',
+      clinicId: 'clinic-1',
+      patientId: 'patient-1',
+      requestType: 'RESCHEDULE_APPOINTMENT',
+      sourceAppointmentId: 'appointment-1',
+      preferredStartDate: new Date('2099-04-01T00:00:00.000Z'),
+      preferredEndDate: new Date('2099-04-03T00:00:00.000Z'),
+      reason: 'Need a morning slot',
+      notes: 'Any day in this range works',
+      status: 'REQUESTED',
+      triagedByUserId: null,
+      triagedAt: null,
+      rejectionReason: null,
+      createdAt: new Date('2026-03-21T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-21T09:00:00.000Z'),
+      patient: sourceAppointment.patient,
+      triagedBy: null,
+      appointment: null,
+      sourceAppointment,
+    });
+
+    const result = await service.createRescheduleAppointmentRequestForAuthenticatedPatient(
+      'clinic-1',
+      'user-1',
+      'appointment-1',
+      {
+        preferredStartDate: '2099-04-01',
+        preferredEndDate: '2099-04-03',
+        reason: 'Need a morning slot',
+        notes: 'Any day in this range works',
+      },
+      'req-reschedule-request',
+    );
+
+    expect(prisma.appointmentRequest.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          requestType: 'RESCHEDULE_APPOINTMENT',
+          sourceAppointmentId: 'appointment-1',
+          preferredStartDate: new Date('2099-04-01T00:00:00.000Z'),
+          preferredEndDate: new Date('2099-04-03T00:00:00.000Z'),
+        }),
+      }),
+    );
+    expect(prisma.appointment.updateMany).not.toHaveBeenCalled();
+    expect(auditService.logWrite).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'APPT.REQUEST.RESCHEDULE_REQUEST.CREATE',
+        entityId: 'reschedule-request-1',
+      }),
+    );
+    expect(result.requestType).toBe('RESCHEDULE_APPOINTMENT');
+  });
+
+  it('rejects patient change requests for appointments outside the authenticated chart', async () => {
+    prisma.appointment.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.createCancelAppointmentRequestForAuthenticatedPatient(
+        'clinic-1',
+        'user-1',
+        'appointment-owned-by-someone-else',
+        { reason: 'Wrong chart attempt' },
+        'req-wrong-chart',
+      ),
+    ).rejects.toThrow(NotFoundException);
+
+    expect(prisma.appointment.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: 'appointment-owned-by-someone-else',
+          clinicId: 'clinic-1',
+          patientId: 'patient-1',
+        },
+      }),
+    );
+    expect(prisma.appointmentRequest.create).not.toHaveBeenCalled();
+    expect(prisma.appointment.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects patient change requests for non-confirmed or past appointments', async () => {
+    prisma.appointment.findFirst.mockResolvedValueOnce(
+      appointmentFixture({
+        status: 'CANCELLED',
+        startsAt: new Date('2099-03-26T14:00:00.000Z'),
+      }),
+    );
+
+    await expect(
+      service.createCancelAppointmentRequestForAuthenticatedPatient(
+        'clinic-1',
+        'user-1',
+        'appointment-1',
+        { reason: 'Already cancelled' },
+        'req-terminal',
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'APPOINTMENT_CHANGE_REQUEST_NOT_ALLOWED' }),
+    });
+
+    prisma.appointment.findFirst.mockResolvedValueOnce(
+      appointmentFixture({
+        startsAt: new Date('2020-03-26T14:00:00.000Z'),
+      }),
+    );
+
+    await expect(
+      service.createRescheduleAppointmentRequestForAuthenticatedPatient(
+        'clinic-1',
+        'user-1',
+        'appointment-1',
+        { preferredStartDate: '2099-04-01', preferredEndDate: '2099-04-03' },
+        'req-past',
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'APPOINTMENT_CHANGE_REQUEST_TOO_LATE' }),
+    });
+
+    expect(prisma.appointmentRequest.create).not.toHaveBeenCalled();
+  });
+
+  it('lists clinic appointments by overlapping date range and preserves clinic isolation', async () => {
+    prisma.appointment.findMany.mockResolvedValue([
+      {
+        id: 'appointment-1',
+        clinicId: 'clinic-1',
+        patientId: 'patient-1',
+        startsAt: new Date('2026-03-26T14:00:00.000Z'),
+        endsAt: new Date('2026-03-26T14:30:00.000Z'),
+        status: 'CONFIRMED',
+        linkedRequestId: 'appt-req-1',
+        assignedDoctorId: 'doctor-1',
+        assignedVolunteerId: 'volunteer-1',
+        notes: 'Bring home readings',
+        createdAt: new Date('2026-03-21T09:10:00.000Z'),
+        updatedAt: new Date('2026-03-21T09:10:00.000Z'),
+        patient: {
+          id: 'patient-1',
+          patientCode: 'NKP-2026-000001',
+          firstName: 'Ama',
+          lastName: 'Mensah',
+        },
+        assignedDoctor: { id: 'doctor-1', displayName: 'Dr One' },
+        assignedVolunteer: { id: 'volunteer-1', displayName: 'Volunteer One' },
+        reminders: [
+          {
+            id: 'reminder-1',
+            status: 'QUEUED',
+            channel: 'SMS',
+            templateKey: 'APPOINTMENT_REMINDER_V1',
+            scheduledAt: new Date('2026-03-25T14:00:00.000Z'),
+            failureReason: null,
+            createdAt: new Date('2026-03-21T09:00:00.000Z'),
+            updatedAt: new Date('2026-03-21T09:00:00.000Z'),
+          },
+          {
+            id: 'reminder-2',
+            status: 'FAILED',
+            channel: 'EMAIL',
+            templateKey: 'APPOINTMENT_REMINDER_V1',
+            scheduledAt: new Date('2026-03-25T14:00:00.000Z'),
+            failureReason: 'NO_CONTACT_METHOD',
+            createdAt: new Date('2026-03-21T09:01:00.000Z'),
+            updatedAt: new Date('2026-03-21T09:02:00.000Z'),
+          },
+          {
+            // Lifecycle mail hangs off the same appointment but is not a reminder, so it
+            // must not appear in the counts the schedule shows an operator.
+            id: 'reminder-3',
+            status: 'SENT',
+            channel: 'EMAIL',
+            templateKey: 'APPOINTMENT_CONFIRMED_V1',
+            scheduledAt: new Date('2026-03-21T09:00:00.000Z'),
+            failureReason: null,
+            createdAt: new Date('2026-03-21T09:03:00.000Z'),
+            updatedAt: new Date('2026-03-21T09:03:00.000Z'),
+          },
+        ],
+      },
+    ]);
+
+    const result = await service.listAppointmentsForClinic('clinic-1', {
+      from: '2026-03-26',
+      to: '2026-03-27',
+    });
+
+    expect(prisma.appointment.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          clinicId: 'clinic-1',
+          startsAt: { lte: new Date('2026-03-27T23:59:59.999Z') },
+          endsAt: { gte: new Date('2026-03-26T00:00:00.000Z') },
+        }),
+      }),
+    );
+    expect(result.range).toEqual({ from: '2026-03-26', to: '2026-03-27' });
+    expect(result.summary).toMatchObject({ total: 1, confirmed: 1 });
+    expect(result.items[0]).toMatchObject({
+      id: 'appointment-1',
+      clinicId: 'clinic-1',
+      patient: {
+        patientCode: 'NKP-2026-000001',
+        displayName: 'Ama Mensah',
+      },
+      assignedDoctor: { id: 'doctor-1', displayName: 'Dr One' },
+      assignedVolunteer: { id: 'volunteer-1', displayName: 'Volunteer One' },
+      reminderSummary: {
+        total: 2,
+        queued: 1,
+        failed: 1,
+        nextQueuedAt: '2026-03-25T14:00:00.000Z',
+        channels: ['EMAIL', 'SMS'],
+        latestFailureReason: 'NO_CONTACT_METHOD',
+      },
+    });
+  });
+
+  it('applies appointment status and assigned staff filters', async () => {
+    await service.listAppointmentsForClinic('clinic-1', {
+      from: '2026-03-26',
+      status: 'COMPLETED',
+      assignedDoctorId: '11111111-1111-4111-8111-111111111111',
+      assignedVolunteerId: '22222222-2222-4222-8222-222222222222',
+    });
+
+    expect(prisma.appointment.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          clinicId: 'clinic-1',
+          status: 'COMPLETED',
+          assignedDoctorId: '11111111-1111-4111-8111-111111111111',
+          assignedVolunteerId: '22222222-2222-4222-8222-222222222222',
+          startsAt: { lte: new Date('2026-03-26T23:59:59.999Z') },
+          endsAt: { gte: new Date('2026-03-26T00:00:00.000Z') },
+        }),
+      }),
+    );
+  });
+
+  it('applies patient text search without broadening clinic scope', async () => {
+    await service.listAppointmentsForClinic('clinic-1', {
+      from: '2026-03-26',
+      to: '2026-03-26',
+      patientSearch: 'ama',
+    });
+
+    expect(prisma.appointment.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          clinicId: 'clinic-1',
+          patient: {
+            OR: [
+              { patientCode: { contains: 'ama', mode: 'insensitive' } },
+              { firstName: { contains: 'ama', mode: 'insensitive' } },
+              { lastName: { contains: 'ama', mode: 'insensitive' } },
+            ],
+          },
+        }),
+      }),
+    );
+  });
+
+  it('lists appointment staff options for active clinic doctors and volunteers only', async () => {
+    prisma.userClinicRole.findMany.mockResolvedValue([
+      {
+        id: 'role-1',
+        userId: 'doctor-1',
+        clinicId: 'clinic-1',
+        role: UserRole.DOCTOR,
+        createdAt: new Date('2026-03-21T09:00:00.000Z'),
+        user: { id: 'doctor-1', displayName: 'Dr One' },
+      },
+      {
+        id: 'role-2',
+        userId: 'volunteer-1',
+        clinicId: 'clinic-1',
+        role: UserRole.VOLUNTEER,
+        createdAt: new Date('2026-03-21T09:01:00.000Z'),
+        user: { id: 'volunteer-1', displayName: 'Volunteer One' },
+      },
+      {
+        id: 'role-3',
+        userId: 'manager-1',
+        clinicId: 'clinic-1',
+        role: UserRole.MANAGER,
+        createdAt: new Date('2026-03-21T09:02:00.000Z'),
+        user: { id: 'manager-1', displayName: 'Manager One' },
+      },
+    ]);
+
+    const result = await service.listAppointmentStaffOptionsForClinic('clinic-1');
+
+    expect(prisma.userClinicRole.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          clinicId: 'clinic-1',
+          role: { in: [UserRole.DOCTOR, UserRole.VOLUNTEER] },
+          user: { isActive: true },
+        },
+      }),
+    );
+    expect(result).toEqual({
+      doctors: [{ id: 'doctor-1', displayName: 'Dr One' }],
+      volunteers: [{ id: 'volunteer-1', displayName: 'Volunteer One' }],
+    });
+  });
+
+  describe('portal invite email', () => {
+    beforeEach(() => {
+      prisma.patient.findFirst.mockResolvedValue({ id: 'patient-1', portalUserId: null });
+      prisma.patientAccountLink.findUnique.mockResolvedValue(null);
+      prisma.clinic.findUnique.mockResolvedValue({
+        name: 'Cape Coast Clinic',
+        timezone: 'Africa/Accra',
+      });
+      prisma.patient.findUnique.mockResolvedValue({
+        patientCode: 'NKP-2026-000001',
+        firstName: 'Ama',
+      });
+    });
+
+    it('sends the invitation it previously only recorded', async () => {
+      // The defect this closes: staff typed an email address, the row was written, and
+      // the patient was never told anything at all.
+      const result = await service.createPortalInvite(
+        'clinic-1',
+        'patient-1',
+        { email: 'ama@example.com' },
+        'manager-1',
+        'req-1',
+      );
+
+      expect(reminderService.sendNotificationNow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          clinicId: 'clinic-1',
+          recipientType: 'PATIENT',
+          patientId: 'patient-1',
+          toAddress: 'ama@example.com',
+          templateKey: 'PORTAL_INVITE_V1',
+          payload: expect.objectContaining({
+            patientCode: 'NKP-2026-000001',
+            clinicName: 'Cape Coast Clinic',
+            resend: false,
+          }),
+        }),
+      );
+      expect(result.emailDelivery).toMatchObject({ status: 'QUEUED' });
+    });
+
+    it('links the delivery to the invite so status is a join, not a payload scan', async () => {
+      await service.createPortalInvite(
+        'clinic-1',
+        'patient-1',
+        { email: 'ama@example.com' },
+        'manager-1',
+      );
+
+      const call = reminderService.sendNotificationNow.mock.calls[0][0];
+      expect(call.portalInviteId).toBeDefined();
+    });
+
+    it('sends nothing for a phone-only invite and says so rather than failing', async () => {
+      const result = await service.createPortalInvite(
+        'clinic-1',
+        'patient-1',
+        { phoneE164: '+233240000000' },
+        'manager-1',
+      );
+
+      expect(reminderService.sendNotificationNow).not.toHaveBeenCalled();
+      expect(result.emailDelivery).toBeNull();
+    });
+
+    it('resends a pending invite without changing its identity', async () => {
+      // Staff previously had to cancel and recreate, which changes the invite id and
+      // reads as a second invitation in the audit trail.
+      prisma.patientPortalInvite.findFirst.mockResolvedValue({
+        id: 'invite-1',
+        clinicId: 'clinic-1',
+        patientId: 'patient-1',
+        status: 'PENDING',
+        email: 'ama@example.com',
+        phoneE164: null,
+        expiresAt: null,
+        createdAt: new Date('2026-03-21T09:00:00.000Z'),
+      });
+
+      const result = await service.resendPortalInvite(
+        'clinic-1',
+        'patient-1',
+        'invite-1',
+        'manager-1',
+      );
+
+      expect(result.id).toBe('invite-1');
+      expect(reminderService.sendNotificationNow).toHaveBeenCalledWith(
+        expect.objectContaining({ payload: expect.objectContaining({ resend: true }) }),
+      );
+      expect(auditService.logWrite).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PATIENT.PORTAL.INVITE.RESEND' }),
+      );
+    });
+
+    it.each([
+      ['a claimed invite', { status: 'CLAIMED', email: 'ama@example.com' }],
+      ['an invite with no email', { status: 'PENDING', email: null }],
+    ])('refuses to resend %s', async (_label, overrides) => {
+      prisma.patientPortalInvite.findFirst.mockResolvedValue({
+        id: 'invite-1',
+        clinicId: 'clinic-1',
+        patientId: 'patient-1',
+        phoneE164: null,
+        expiresAt: null,
+        createdAt: new Date('2026-03-21T09:00:00.000Z'),
+        ...overrides,
+      });
+
+      await expect(
+        service.resendPortalInvite('clinic-1', 'patient-1', 'invite-1', 'manager-1'),
+      ).rejects.toThrow();
+      expect(reminderService.sendNotificationNow).not.toHaveBeenCalled();
+    });
+
+    it('refuses to resend an invite belonging to another patient', async () => {
+      prisma.patientPortalInvite.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.resendPortalInvite('clinic-1', 'patient-1', 'invite-other', 'manager-1'),
+      ).rejects.toThrow('Portal invite not found');
+    });
+  });
+
+  it('creates and reissues a pending portal invite for a patient chart', async () => {
+    prisma.patient.findFirst.mockResolvedValue({
+      id: 'patient-1',
+      portalUserId: null,
+    });
+    prisma.patientAccountLink.findUnique.mockResolvedValue(null);
+
+    const result = await service.createPortalInvite(
+      'clinic-1',
+      'patient-1',
+      {
+        email: 'ama@example.com',
+      },
+      'manager-1',
+      'req-portal-invite',
+    );
+
+    expect(prisma.patientPortalInvite.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          patientId: 'patient-1',
+          clinicId: 'clinic-1',
+          status: 'PENDING',
+        }),
+      }),
+    );
+    expect(emailDeliverabilityService.assertDomainAcceptsEmail).toHaveBeenCalledWith(
+      'ama@example.com',
+    );
+    expect(prisma.patientPortalInvite.create).toHaveBeenCalled();
+    expect(result).toMatchObject({
+      patientId: 'patient-1',
+      clinicId: 'clinic-1',
+      status: 'PENDING',
+      email: 'ama@example.com',
+    });
+  });
+
+  it('rejects portal invite email domains that fail MX deliverability checks', async () => {
+    prisma.patient.findFirst.mockResolvedValue({
+      id: 'patient-1',
+      portalUserId: null,
+    });
+    emailDeliverabilityService.assertDomainAcceptsEmail.mockRejectedValueOnce(
+      new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Request validation failed.',
+        fieldErrors: [{ field: 'email', message: 'email domain does not accept email' }],
+      }),
+    );
+
+    await expect(
+      service.createPortalInvite(
+        'clinic-1',
+        'patient-1',
+        {
+          email: 'ama@no-mx.testmail',
+        },
+        'manager-1',
+        'req-portal-invite',
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        fieldErrors: [{ field: 'email', message: 'email domain does not accept email' }],
+      }),
+    });
+
+    expect(prisma.patientPortalInvite.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects portal invite email domains when DNS verification fails', async () => {
+    prisma.patient.findFirst.mockResolvedValue({
+      id: 'patient-1',
+      portalUserId: null,
+    });
+    emailDeliverabilityService.assertDomainAcceptsEmail.mockRejectedValueOnce(
+      new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Request validation failed.',
+        fieldErrors: [{ field: 'email', message: 'email domain could not be verified' }],
+      }),
+    );
+
+    await expect(
+      service.createPortalInvite(
+        'clinic-1',
+        'patient-1',
+        {
+          email: 'ama@dns-failure.testmail',
+        },
+        'manager-1',
+        'req-portal-invite',
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        fieldErrors: [{ field: 'email', message: 'email domain could not be verified' }],
+      }),
+    });
+
+    expect(prisma.patientPortalInvite.create).not.toHaveBeenCalled();
+  });
+
+  it('does not run email deliverability checks for phone-only portal invites', async () => {
+    prisma.patient.findFirst.mockResolvedValue({
+      id: 'patient-1',
+      portalUserId: null,
+    });
+    prisma.patientAccountLink.findUnique.mockResolvedValue(null);
+
+    const result = await service.createPortalInvite(
+      'clinic-1',
+      'patient-1',
+      {
+        phoneE164: '+233240000000',
+      },
+      'manager-1',
+      'req-portal-invite',
+    );
+
+    expect(emailDeliverabilityService.assertDomainAcceptsEmail).not.toHaveBeenCalled();
+    expect(prisma.patientPortalInvite.create).toHaveBeenCalled();
+    expect(result).toMatchObject({
+      patientId: 'patient-1',
+      clinicId: 'clinic-1',
+      status: 'PENDING',
+      phoneE164: '+233240000000',
+    });
+  });
+
+  it('claims a pending portal invite into the existing clinical patient record', async () => {
+    prisma.user.findUnique.mockResolvedValueOnce({
+      id: 'user-1',
+      keycloakSub: 'kc-sub-1',
+      isActive: true,
+      email: 'ama@example.com',
+      phoneE164: null,
+    });
+    prisma.patientPortalInvite.findFirst.mockResolvedValueOnce({
+      id: 'invite-1',
+      patientId: 'patient-1',
+      clinicId: 'clinic-1',
+      status: 'PENDING',
+      email: 'ama@example.com',
+      phoneE164: null,
+      claimedByUserId: null,
+      claimedAt: null,
+      cancelledAt: null,
+      expiresAt: null,
+      createdAt: new Date('2026-04-04T12:00:00.000Z'),
+      updatedAt: new Date('2026-04-04T12:00:00.000Z'),
+      patient: {
+        ...portalPatient,
+        dob: new Date('1998-07-22T00:00:00.000Z'),
+        mergedIntoPatientId: null,
+        codeAliases: [],
+      },
+    });
+    prisma.patientAccountLink.findUnique.mockResolvedValueOnce(null);
+
+    const result = await service.claimPatientRecord(
+      'user-1',
+      {
+        inviteId: 'invite-1',
+        patientCode: 'NKP-2026-000001',
+        dob: '1998-07-22',
+      },
+      'req-claim',
+    );
+
+    expect(prisma.patientAccountLink.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { patientId: 'patient-1' },
+      }),
+    );
+    expect(prisma.userClinicRole.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId_clinicId_role: {
+            userId: 'user-1',
+            clinicId: 'clinic-1',
+            role: 'PATIENT',
+          },
+        },
+      }),
+    );
+    expect(result).toEqual({
+      success: true,
+      clinicId: 'clinic-1',
+      patientId: 'patient-1',
+      patientCode: 'NKP-2026-000001',
+    });
+  });
+
+  describe('portal invite lifecycle', () => {
+    beforeEach(() => {
+      jest.useFakeTimers().setSystemTime(NOW);
+      prisma.patient.findFirst.mockResolvedValue({ id: 'patient-1', portalUserId: null });
+      prisma.patientAccountLink.findUnique.mockResolvedValue(null);
+      prisma.patientPortalInvite.updateMany.mockResolvedValue({ count: 1 });
+      prisma.patientPortalInvite.create.mockImplementation(
+        async ({ data }: { data: Record<string, unknown> }) => ({ ...buildInvite(), ...data }),
+      );
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    /*
+      Provisioning the Keycloak identity behind an invitation.
+
+      This is the step that makes the invite email true. Before it, the message told a
+      patient to "create an account using this email address" against a realm with
+      registration disabled, and staff closed the gap by building identities by hand.
+    */
+    describe('identity provisioning', () => {
+      const originalAppPublicUrl = process.env.APP_PUBLIC_URL;
+
+      beforeEach(() => {
+        process.env.APP_PUBLIC_URL = 'https://app.nkwapa.app';
+        prisma.patient.findUnique.mockResolvedValue({ firstName: 'Ama', lastName: 'Mensah' });
+        prisma.patientPortalInvite.update.mockImplementation(
+          async ({ data }: { data: Record<string, unknown> }) => ({ ...buildInvite(), ...data }),
+        );
+      });
+
+      afterEach(() => {
+        if (originalAppPublicUrl === undefined) {
+          delete process.env.APP_PUBLIC_URL;
+        } else {
+          process.env.APP_PUBLIC_URL = originalAppPublicUrl;
+        }
+      });
+
+      it('creates the account before the email that describes it goes out', async () => {
+        await service.createPortalInvite(
+          'clinic-1',
+          'patient-1',
+          { email: 'ama@example.com' },
+          'manager-1',
+          'req-1',
+        );
+
+        expect(keycloakAdminService.provisionInvitedIdentity).toHaveBeenCalledWith({
+          email: 'ama@example.com',
+          firstName: 'Ama',
+          lastName: 'Mensah',
+          claimRedirectUri: 'https://app.nkwapa.app/claim-record?continue=1',
+          lifespanSeconds: 14 * 24 * 60 * 60,
+        });
+
+        const provisionOrder =
+          keycloakAdminService.provisionInvitedIdentity.mock.invocationCallOrder[0];
+        const emailOrder = reminderService.sendNotificationNow.mock.invocationCallOrder[0];
+        expect(provisionOrder).toBeLessThan(emailOrder);
+      });
+
+      it('records the outcome on the invite so the chart can show it later', async () => {
+        await service.createPortalInvite(
+          'clinic-1',
+          'patient-1',
+          { email: 'ama@example.com' },
+          'manager-1',
+          'req-1',
+        );
+
+        expect(prisma.patientPortalInvite.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              identityStatus: 'PROVISIONED',
+              keycloakUserId: 'kc-provisioned-1',
+              identityFailureReason: null,
+            }),
+          }),
+        );
+      });
+
+      it('returns the identity state beside the delivery state, not folded into it', async () => {
+        const result = await service.createPortalInvite(
+          'clinic-1',
+          'patient-1',
+          { email: 'ama@example.com' },
+          'manager-1',
+          'req-1',
+        );
+
+        expect(result.identity).toMatchObject({
+          status: 'PROVISIONED',
+          failureReason: null,
+        });
+        // Support data. The browser has no use for it and it should not be shipped there.
+        expect(result).not.toHaveProperty('keycloakUserId');
+      });
+
+      it('audits the outcome as codes, never as the address provisioned', async () => {
+        await service.createPortalInvite(
+          'clinic-1',
+          'patient-1',
+          { email: 'ama@example.com' },
+          'manager-1',
+          'req-1',
+        );
+
+        const identityAudit = auditService.logWrite.mock.calls
+          .map(([entry]) => entry)
+          .find((entry) => entry.action === 'PATIENT.PORTAL.INVITE.IDENTITY');
+
+        expect(identityAudit).toBeDefined();
+        expect(JSON.parse(identityAudit.afterJson)).toEqual({
+          outcome: 'PROVISIONED',
+          actionsSent: ['UPDATE_PASSWORD', 'VERIFY_EMAIL'],
+          failureReason: null,
+          keycloakUserId: 'kc-provisioned-1',
+        });
+      });
+
+      // The link and the invitation must die together. A link that outlives its invite
+      // lets a patient choose a password and then be refused at the claim step.
+      it('ties the link lifetime to the invitation it belongs to', async () => {
+        await service.createPortalInvite(
+          'clinic-1',
+          'patient-1',
+          { email: 'ama@example.com', ttlDays: 7 },
+          'manager-1',
+          'req-1',
+        );
+
+        expect(keycloakAdminService.provisionInvitedIdentity).toHaveBeenCalledWith(
+          expect.objectContaining({ lifespanSeconds: 7 * 24 * 60 * 60 }),
+        );
+      });
+
+      it('provisions nothing for a phone-only invite, and does not call that a failure', async () => {
+        const result = await service.createPortalInvite(
+          'clinic-1',
+          'patient-1',
+          { phoneE164: '+233201234567' },
+          'manager-1',
+          'req-1',
+        );
+
+        expect(keycloakAdminService.provisionInvitedIdentity).not.toHaveBeenCalled();
+        expect(result.identity.status).toBe('NOT_REQUESTED');
+      });
+
+      it('skips provisioning when there is no honest address to send the patient back to', async () => {
+        delete process.env.APP_PUBLIC_URL;
+
+        const result = await service.createPortalInvite(
+          'clinic-1',
+          'patient-1',
+          { email: 'ama@example.com' },
+          'manager-1',
+          'req-1',
+        );
+
+        expect(keycloakAdminService.provisionInvitedIdentity).not.toHaveBeenCalled();
+        expect(result.identity).toMatchObject({
+          status: 'SKIPPED',
+          failureReason: 'APP_PUBLIC_URL_UNSET',
+        });
+      });
+
+      /*
+        A Keycloak outage must not stand between a clinic and its patients. The invitation
+        is still created and still sent; the chart carries the reason the account behind it
+        does not exist yet, and a resend finishes the job.
+      */
+      it('still issues the invite when Keycloak cannot be reached', async () => {
+        keycloakAdminService.provisionInvitedIdentity.mockResolvedValueOnce({
+          outcome: 'FAILED',
+          keycloakUserId: null,
+          actionsSent: [],
+          failureReason: 'KEYCLOAK_ADMIN_TIMEOUT',
+        });
+
+        const result = await service.createPortalInvite(
+          'clinic-1',
+          'patient-1',
+          { email: 'ama@example.com' },
+          'manager-1',
+          'req-1',
+        );
+
+        expect(prisma.patientPortalInvite.create).toHaveBeenCalled();
+        expect(reminderService.sendNotificationNow).toHaveBeenCalled();
+        expect(result.identity).toMatchObject({
+          status: 'FAILED',
+          failureReason: 'KEYCLOAK_ADMIN_TIMEOUT',
+        });
+      });
+
+      describe('resending', () => {
+        beforeEach(() => {
+          prisma.patientPortalInvite.findFirst.mockResolvedValue(buildInvite());
+        });
+
+        it('provisions again, so a half-finished account is carried to completion', async () => {
+          keycloakAdminService.provisionInvitedIdentity.mockResolvedValueOnce({
+            outcome: 'EXISTING_PENDING',
+            keycloakUserId: 'kc-9',
+            actionsSent: ['VERIFY_EMAIL'],
+            failureReason: null,
+          });
+
+          const result = await service.resendPortalInvite(
+            'clinic-1',
+            'patient-1',
+            'invite-1',
+            'manager-1',
+            'req-1',
+          );
+
+          expect(result.identity.status).toBe('EXISTING_PENDING');
+        });
+
+        it('reports a patient who already has a working account', async () => {
+          keycloakAdminService.provisionInvitedIdentity.mockResolvedValueOnce({
+            outcome: 'ALREADY_ACTIVE',
+            keycloakUserId: 'kc-9',
+            actionsSent: [],
+            failureReason: null,
+          });
+
+          const result = await service.resendPortalInvite(
+            'clinic-1',
+            'patient-1',
+            'invite-1',
+            'manager-1',
+            'req-1',
+          );
+
+          expect(result.identity.status).toBe('ALREADY_ACTIVE');
+        });
+
+        /*
+          The refusal paths must stay write-free. The RLS interceptor wraps the request in
+          one interactive transaction, so anything written on the way to an exception is
+          rolled back by that exception -- it reads as correct and persists nothing.
+        */
+        it('provisions nothing when the invite has lapsed', async () => {
+          prisma.patientPortalInvite.findFirst.mockResolvedValueOnce(
+            buildInvite({ expiresAt: day(-1) }),
+          );
+
+          await expect(
+            service.resendPortalInvite('clinic-1', 'patient-1', 'invite-1', 'manager-1', 'req-1'),
+          ).rejects.toThrow(/expired/i);
+
+          expect(keycloakAdminService.provisionInvitedIdentity).not.toHaveBeenCalled();
+          expect(prisma.patientPortalInvite.update).not.toHaveBeenCalled();
+        });
+
+        it('provisions nothing when the invite was cancelled', async () => {
+          prisma.patientPortalInvite.findFirst.mockResolvedValueOnce(
+            buildInvite({ status: 'CANCELLED', cancelledAt: NOW }),
+          );
+
+          await expect(
+            service.resendPortalInvite('clinic-1', 'patient-1', 'invite-1', 'manager-1', 'req-1'),
+          ).rejects.toThrow();
+
+          expect(keycloakAdminService.provisionInvitedIdentity).not.toHaveBeenCalled();
+        });
+
+        it('provisions nothing when the invite was already claimed', async () => {
+          prisma.patientPortalInvite.findFirst.mockResolvedValueOnce(
+            buildInvite({ status: 'CLAIMED', claimedAt: NOW }),
+          );
+
+          await expect(
+            service.resendPortalInvite('clinic-1', 'patient-1', 'invite-1', 'manager-1', 'req-1'),
+          ).rejects.toThrow();
+
+          expect(keycloakAdminService.provisionInvitedIdentity).not.toHaveBeenCalled();
+        });
+      });
+    });
+
+    // Passing expiresAt straight through as null whenever staff did not type a date is
+    // how invites became open-ended in the first place.
+    it('gives a new invite the deployment default lifetime when none is asked for', async () => {
+      await service.createPortalInvite(
+        'clinic-1',
+        'patient-1',
+        { email: 'ama@example.com' },
+        'manager-1',
+        'req-1',
+      );
+
+      expect(prisma.patientPortalInvite.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ expiresAt: day(14) }),
+        }),
+      );
+    });
+
+    it('honours a staff-selected lifetime', async () => {
+      await service.createPortalInvite(
+        'clinic-1',
+        'patient-1',
+        { email: 'ama@example.com', ttlDays: 7 },
+        'manager-1',
+        'req-1',
+      );
+
+      expect(prisma.patientPortalInvite.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ expiresAt: day(7) }),
+        }),
+      );
+    });
+
+    it('prefers an explicit instant over a lifetime', async () => {
+      await service.createPortalInvite(
+        'clinic-1',
+        'patient-1',
+        { email: 'ama@example.com', ttlDays: 30, expiresAt: day(2).toISOString() },
+        'manager-1',
+        'req-1',
+      );
+
+      expect(prisma.patientPortalInvite.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ expiresAt: day(2) }),
+        }),
+      );
+    });
+
+    // Resending would put a live-looking invitation in front of a patient the claim
+    // endpoint is already refusing.
+    it('refuses to resend an invite that has lapsed', async () => {
+      prisma.patientPortalInvite.findFirst.mockResolvedValueOnce(
+        buildInvite({ expiresAt: day(-1) }),
+      );
+
+      await expect(
+        service.resendPortalInvite('clinic-1', 'patient-1', 'invite-1', 'manager-1', 'req-1'),
+      ).rejects.toThrow(/expired/i);
+
+      expect(reminderService.sendNotificationNow).not.toHaveBeenCalled();
+    });
+
+    it('still resends an invite with time left on it', async () => {
+      prisma.patientPortalInvite.findFirst.mockResolvedValueOnce(buildInvite());
+
+      await service.resendPortalInvite('clinic-1', 'patient-1', 'invite-1', 'manager-1', 'req-1');
+
+      expect(reminderService.sendNotificationNow).toHaveBeenCalledWith(
+        expect.objectContaining({ templateKey: 'PORTAL_INVITE_V1' }),
+      );
+    });
+
+    it.each([
+      ['CLAIMED', /already claimed/i],
+      ['CANCELLED', /cancelled/i],
+    ])('refuses to cancel a %s invite', async (status, message) => {
+      prisma.patientPortalInvite.findFirst.mockResolvedValueOnce(buildInvite({ status }));
+
+      await expect(
+        service.cancelPortalInvite('clinic-1', 'patient-1', 'invite-1', 'manager-1', 'req-1'),
+      ).rejects.toThrow(message);
+    });
+
+    it('cancels a live invite and audits both sides of the transition', async () => {
+      prisma.patientPortalInvite.findFirst.mockResolvedValueOnce(buildInvite());
+      prisma.patientPortalInvite.update.mockResolvedValueOnce(
+        buildInvite({ status: 'CANCELLED', cancelledAt: NOW }),
+      );
+
+      const result = await service.cancelPortalInvite(
+        'clinic-1',
+        'patient-1',
+        'invite-1',
+        'manager-1',
+        'req-1',
+      );
+
+      expect(result).toMatchObject({ status: 'CANCELLED' });
+      expect(auditService.logWrite).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PATIENT.PORTAL.INVITE.CANCEL',
+          beforeJson: expect.any(String),
+          afterJson: expect.any(String),
+        }),
+      );
+    });
+
+    describe('claim', () => {
+      const claimUser = {
+        id: 'user-1',
+        keycloakSub: 'kc-sub-1',
+        isActive: true,
+        email: 'ama@example.com',
+        phoneE164: null,
+      };
+
+      const claimablePatient = {
+        ...portalPatient,
+        dob: new Date('1998-07-22T00:00:00.000Z'),
+        mergedIntoPatientId: null,
+        codeAliases: [],
+      };
+
+      const claimDto = {
+        inviteId: 'invite-1',
+        patientCode: 'NKP-2026-000001',
+        dob: '1998-07-22',
+      };
+
+      beforeEach(() => {
+        prisma.user.findUnique.mockResolvedValue(claimUser);
+        prisma.patientAccountLink.findUnique.mockResolvedValue(null);
+      });
+
+      // The whole point of the expiry column. Before this the claim query matched on
+      // status alone, so an invite dated for last March was still claimable today.
+      it('refuses a lapsed invite by name and date rather than a bare not-found', async () => {
+        prisma.patientPortalInvite.findFirst.mockResolvedValueOnce(null);
+        prisma.patientPortalInvite.findUnique.mockResolvedValueOnce({
+          id: 'invite-1',
+          clinicId: 'clinic-1',
+          status: 'PENDING',
+          expiresAt: new Date('2026-03-03T00:00:00.000Z'),
+        });
+
+        await expect(service.claimPatientRecord('user-1', claimDto, 'req-1')).rejects.toThrow(
+          /expired on 3 March 2026/,
+        );
+
+        expect(prisma.patientAccountLink.upsert).not.toHaveBeenCalled();
+      });
+
+      /*
+        The refusal paths must not try to settle the row on their way out.
+
+        The RLS interceptor runs a whole request inside one interactive transaction, so a
+        write made here is rolled back by the very exception it accompanies. An earlier
+        version of this code did exactly that: it looked right, passed a mocked test that
+        asserted the update and the audit event, and persisted neither. It was only caught
+        by driving the real endpoint and finding the row still PENDING.
+
+        Asserting the absence is the only way a mock can catch the regression, because a
+        mock cannot roll anything back.
+      */
+      it('writes nothing while refusing, because the request transaction would undo it', async () => {
+        prisma.patientPortalInvite.findFirst.mockResolvedValueOnce(null);
+        prisma.patientPortalInvite.findUnique.mockResolvedValueOnce({
+          id: 'invite-1',
+          clinicId: 'clinic-1',
+          status: 'PENDING',
+          expiresAt: day(-1),
+        });
+
+        await expect(service.claimPatientRecord('user-1', claimDto, 'req-1')).rejects.toThrow(
+          /expired/i,
+        );
+
+        expect(prisma.patientPortalInvite.updateMany).not.toHaveBeenCalled();
+        expect(prisma.patientPortalInvite.update).not.toHaveBeenCalled();
+        expect(auditService.logWrite).not.toHaveBeenCalledWith(
+          expect.objectContaining({ action: 'PATIENT.PORTAL.INVITE.EXPIRE' }),
+        );
+      });
+
+      it.each([
+        ['EXPIRED', /expired/i],
+        ['CANCELLED', /cancelled by the clinic/i],
+        ['CLAIMED', /already been used/i],
+      ])('explains a %s invite instead of hiding it', async (status, message) => {
+        prisma.patientPortalInvite.findFirst.mockResolvedValueOnce(null);
+        prisma.patientPortalInvite.findUnique.mockResolvedValueOnce({
+          id: 'invite-1',
+          clinicId: 'clinic-1',
+          status,
+          expiresAt: null,
+        });
+
+        await expect(service.claimPatientRecord('user-1', claimDto, 'req-1')).rejects.toThrow(
+          message,
+        );
+      });
+
+      it('scopes the claim lookup to invites that are still claimable', async () => {
+        prisma.patientPortalInvite.findFirst.mockResolvedValueOnce({
+          ...buildInvite(),
+          patient: claimablePatient,
+        });
+
+        await service.claimPatientRecord('user-1', claimDto, 'req-1');
+
+        expect(prisma.patientPortalInvite.findFirst).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({
+              id: 'invite-1',
+              status: 'PENDING',
+              OR: [{ expiresAt: null }, { expiresAt: { gt: NOW } }],
+            }),
+          }),
+        );
+      });
+
+      // The non-goal in the issue body: nothing here may make an invite easier to claim.
+      // These three refusals are the identity check, and they have to survive the change.
+      it.each([
+        [
+          'a mismatched patient code',
+          { ...claimDto, patientCode: 'NKP-2026-999999' },
+          /Patient code does not match/i,
+        ],
+        ['a mismatched date of birth', { ...claimDto, dob: '1990-01-01' }, /Date of birth/i],
+      ])('still refuses %s', async (_label, dto, message) => {
+        prisma.patientPortalInvite.findFirst.mockResolvedValueOnce({
+          ...buildInvite(),
+          patient: claimablePatient,
+        });
+
+        await expect(service.claimPatientRecord('user-1', dto, 'req-1')).rejects.toThrow(message);
+        expect(prisma.patientAccountLink.upsert).not.toHaveBeenCalled();
+      });
+
+      /*
+        The record-takeover guard.
+
+        `PatientAccountLink` is unique on both columns and the claim upserts on `patientId`, so a
+        chart already linked to somebody else did not collide -- it was quietly repointed at
+        whoever presented an invitation for it, and `portalUserId` was overwritten alongside. One
+        person's record moved to another person's sign-in, audited as an ordinary claim.
+      */
+      it('refuses to take over a record already linked to a different sign-in', async () => {
+        prisma.patientPortalInvite.findFirst.mockResolvedValueOnce({
+          ...buildInvite(),
+          patient: claimablePatient,
+        });
+        prisma.patientAccountLink.findUnique.mockImplementation(
+          async ({ where }: { where: { keycloakSub?: string; patientId?: string } }) =>
+            where.patientId === 'patient-1'
+              ? { id: 'link-existing', patientId: 'patient-1', keycloakSub: 'kc-sub-someone-else' }
+              : null,
+        );
+
+        await expect(service.claimPatientRecord('user-1', claimDto, 'req-1')).rejects.toMatchObject(
+          { response: expect.objectContaining({ code: 'RECORD_ALREADY_LINKED' }) },
+        );
+
+        expect(prisma.patientAccountLink.upsert).not.toHaveBeenCalled();
+        expect(prisma.patient.update).not.toHaveBeenCalled();
+      });
+
+      it('still lets the account that already holds a record re-claim it', async () => {
+        prisma.patientPortalInvite.findFirst.mockResolvedValueOnce({
+          ...buildInvite(),
+          patient: claimablePatient,
+        });
+        prisma.patientAccountLink.findUnique.mockResolvedValue({
+          id: 'link-existing',
+          patientId: 'patient-1',
+          keycloakSub: 'kc-sub-1',
+        });
+
+        await expect(
+          service.claimPatientRecord('user-1', claimDto, 'req-1'),
+        ).resolves.toMatchObject({ success: true });
+      });
+
+      it('still refuses an account whose contact details were never staged', async () => {
+        prisma.user.findUnique.mockResolvedValue({ ...claimUser, email: 'someone@else.test' });
+        prisma.patientPortalInvite.findFirst.mockResolvedValueOnce({
+          ...buildInvite(),
+          patient: claimablePatient,
+        });
+
+        await expect(service.claimPatientRecord('user-1', claimDto, 'req-1')).rejects.toThrow(
+          /sent to a different email address or phone number/i,
+        );
+      });
+    });
   });
 
   it('confirms appointment requests, creates appointments, and schedules reminders', async () => {
@@ -516,18 +2013,94 @@ describe('PatientPortalService', () => {
         endsAt: '2026-03-26T14:30:00.000Z',
         notes: 'Bring logs',
       },
-      'req-1'
+      'req-1',
     );
 
     expect(prisma.appointment.create).toHaveBeenCalled();
     expect(auditService.logWrite).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'APPT.CREATE', entityId: 'appointment-1' })
+      expect.objectContaining({ action: 'APPT.CREATE', entityId: 'appointment-1' }),
     );
     expect(auditService.logWrite).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'APPT.REQUEST.CONFIRM', entityId: 'appt-req-2' })
+      expect.objectContaining({ action: 'APPT.REQUEST.CONFIRM', entityId: 'appt-req-2' }),
     );
     expect(reminderService.scheduleAppointmentReminder).toHaveBeenCalled();
     expect(result.request.status).toBe('CONFIRMED');
+  });
+
+  it('confirms appointment requests with visible failed reminders when contact methods are missing', async () => {
+    const existingRequest = {
+      id: 'appt-req-no-contact',
+      clinicId: 'clinic-1',
+      patientId: 'patient-1',
+      preferredStartDate: new Date('2026-03-25T00:00:00.000Z'),
+      preferredEndDate: new Date('2026-03-27T00:00:00.000Z'),
+      reason: 'Follow-up',
+      notes: null,
+      status: 'REQUESTED',
+      triagedByUserId: null,
+      triagedAt: null,
+      rejectionReason: null,
+      createdAt: new Date('2026-03-21T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-21T09:00:00.000Z'),
+      patient: {
+        id: 'patient-1',
+        patientCode: 'NKP-2026-000001',
+        firstName: 'Ama',
+        lastName: 'Mensah',
+        phoneE164: null,
+        email: null,
+      },
+      triagedBy: null,
+      appointment: null,
+    };
+    const appointment = {
+      id: 'appointment-1',
+      clinicId: 'clinic-1',
+      patientId: 'patient-1',
+      startsAt: new Date('2026-03-26T14:00:00.000Z'),
+      endsAt: new Date('2026-03-26T14:30:00.000Z'),
+      status: 'CONFIRMED',
+      linkedRequestId: 'appt-req-no-contact',
+      assignedDoctorId: null,
+      assignedVolunteerId: null,
+      notes: null,
+      createdAt: new Date('2026-03-21T09:10:00.000Z'),
+      updatedAt: new Date('2026-03-21T09:10:00.000Z'),
+    };
+    prisma.appointmentRequest.findFirst.mockResolvedValue(existingRequest);
+    prisma.appointment.create.mockResolvedValue(appointment);
+    prisma.appointmentRequest.update.mockResolvedValue({
+      ...existingRequest,
+      status: 'CONFIRMED',
+      triagedByUserId: 'manager-1',
+      triagedAt: new Date('2026-03-21T09:10:00.000Z'),
+      appointment: { ...appointment, assignedDoctor: null, assignedVolunteer: null },
+      triagedBy: { id: 'manager-1', displayName: 'Manager One' },
+    });
+
+    await service.confirmAppointmentRequest(
+      'clinic-1',
+      'appt-req-no-contact',
+      'manager-1',
+      {
+        startsAt: '2026-03-26T14:00:00.000Z',
+        endsAt: '2026-03-26T14:30:00.000Z',
+      },
+      'req-no-contact',
+    );
+
+    expect(reminderService.scheduleAppointmentReminderNoContact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clinicId: 'clinic-1',
+        patientId: 'patient-1',
+        patientCode: 'NKP-2026-000001',
+        appointmentId: 'appointment-1',
+        startsAt: new Date('2026-03-26T14:00:00.000Z'),
+        requestId: 'req-no-contact',
+      }),
+    );
+    expect(reminderService.scheduleAppointmentReminder).not.toHaveBeenCalled();
+    expect(reminderService.scheduleAppointmentEmailReminder).not.toHaveBeenCalled();
   });
 
   it('rejects appointment requests and records the rejection reason', async () => {
@@ -587,11 +2160,304 @@ describe('PatientPortalService', () => {
       'appt-req-3',
       'manager-1',
       { reason: 'No slots available' },
-      'req-1'
+      'req-1',
     );
 
     expect(result.status).toBe('REJECTED');
     expect(result.rejectionReason).toBe('No slots available');
+  });
+
+  it('reschedules confirmed appointments, audits the mutation, and replaces reminders', async () => {
+    const before = appointmentFixture();
+    const after = appointmentFixture({
+      startsAt: new Date('2026-03-27T15:00:00.000Z'),
+      endsAt: new Date('2026-03-27T15:45:00.000Z'),
+      notes: 'Updated slot',
+      updatedAt: new Date('2026-03-21T10:00:00.000Z'),
+    });
+    prisma.appointment.findFirst.mockResolvedValueOnce(before).mockResolvedValueOnce(after);
+    prisma.appointment.updateMany.mockResolvedValue({ count: 1 });
+
+    const result = await service.rescheduleAppointment(
+      'clinic-1',
+      'appointment-1',
+      'manager-1',
+      {
+        startsAt: '2026-03-27T15:00:00.000Z',
+        endsAt: '2026-03-27T15:45:00.000Z',
+        notes: 'Updated slot',
+      },
+      'req-reschedule',
+    );
+
+    expect(prisma.appointment.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'appointment-1', clinicId: 'clinic-1', status: 'CONFIRMED' },
+        data: expect.objectContaining({
+          startsAt: new Date('2026-03-27T15:00:00.000Z'),
+          endsAt: new Date('2026-03-27T15:45:00.000Z'),
+          notes: 'Updated slot',
+        }),
+      }),
+    );
+    expect(auditService.logWrite).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'APPT.RESCHEDULE',
+        actorUserId: 'manager-1',
+        clinicId: 'clinic-1',
+        entityId: 'appointment-1',
+      }),
+    );
+    expect(reminderService.suppressQueuedAppointmentReminders).toHaveBeenCalledWith(
+      'clinic-1',
+      'appointment-1',
+      'manager-1',
+      'APPOINTMENT_RESCHEDULED',
+      'req-reschedule',
+    );
+    expect(reminderService.scheduleAppointmentReminder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clinicId: 'clinic-1',
+        patientId: 'patient-1',
+        appointmentId: 'appointment-1',
+        startsAt: new Date('2026-03-27T15:00:00.000Z'),
+        actorUserId: 'manager-1',
+        requestId: 'req-reschedule',
+      }),
+    );
+    expect(reminderService.scheduleAppointmentEmailReminder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clinicId: 'clinic-1',
+        patientId: 'patient-1',
+        appointmentId: 'appointment-1',
+        startsAt: new Date('2026-03-27T15:00:00.000Z'),
+      }),
+    );
+    expect(result.startsAt).toBe('2026-03-27T15:00:00.000Z');
+  });
+
+  it('cancels confirmed appointments with a required reason and audit status metadata', async () => {
+    const before = appointmentFixture();
+    const after = appointmentFixture({
+      status: 'CANCELLED',
+      updatedAt: new Date('2026-03-21T10:05:00.000Z'),
+    });
+    prisma.appointment.findFirst.mockResolvedValueOnce(before).mockResolvedValueOnce(after);
+    prisma.appointment.updateMany.mockResolvedValue({ count: 1 });
+
+    const result = await service.cancelAppointment(
+      'clinic-1',
+      'appointment-1',
+      'doctor-1',
+      { reason: 'Patient requested a new date' },
+      'req-cancel',
+    );
+
+    expect(result.status).toBe('CANCELLED');
+    expect(reminderService.suppressQueuedAppointmentReminders).toHaveBeenCalledWith(
+      'clinic-1',
+      'appointment-1',
+      'doctor-1',
+      'APPOINTMENT_CANCELLED',
+      'req-cancel',
+    );
+    const auditCall = auditService.logWrite.mock.calls.find(
+      ([params]) => params.action === 'APPT.CANCEL',
+    )?.[0];
+    expect(auditCall).toMatchObject({
+      actorUserId: 'doctor-1',
+      clinicId: 'clinic-1',
+      entityId: 'appointment-1',
+    });
+    expect(JSON.parse(auditCall.afterJson)).toMatchObject({
+      actorUserId: 'doctor-1',
+      clinicId: 'clinic-1',
+      appointmentId: 'appointment-1',
+      previousStatus: 'CONFIRMED',
+      newStatus: 'CANCELLED',
+      reason: 'Patient requested a new date',
+    });
+  });
+
+  it('completes confirmed appointments after they have started', async () => {
+    const before = appointmentFixture();
+    const after = appointmentFixture({
+      status: 'COMPLETED',
+      notes: 'Visit completed',
+      updatedAt: new Date('2026-03-21T10:10:00.000Z'),
+    });
+    prisma.appointment.findFirst.mockResolvedValueOnce(before).mockResolvedValueOnce(after);
+    prisma.appointment.updateMany.mockResolvedValue({ count: 1 });
+
+    const result = await service.completeAppointment(
+      'clinic-1',
+      'appointment-1',
+      'doctor-1',
+      { notes: 'Visit completed' },
+      'req-complete',
+    );
+
+    expect(prisma.appointment.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'COMPLETED', notes: 'Visit completed' }),
+      }),
+    );
+    expect(result.status).toBe('COMPLETED');
+    expect(auditService.logWrite).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'APPT.COMPLETE', entityId: 'appointment-1' }),
+    );
+    expect(reminderService.suppressQueuedAppointmentReminders).toHaveBeenCalledWith(
+      'clinic-1',
+      'appointment-1',
+      'doctor-1',
+      'APPOINTMENT_COMPLETED',
+      'req-complete',
+    );
+  });
+
+  it('marks confirmed appointments no-show after they have started', async () => {
+    const before = appointmentFixture();
+    const after = appointmentFixture({
+      status: 'NO_SHOW',
+      updatedAt: new Date('2026-03-21T10:15:00.000Z'),
+    });
+    prisma.appointment.findFirst.mockResolvedValueOnce(before).mockResolvedValueOnce(after);
+    prisma.appointment.updateMany.mockResolvedValue({ count: 1 });
+
+    const result = await service.markAppointmentNoShow(
+      'clinic-1',
+      'appointment-1',
+      'manager-1',
+      { reason: 'Patient did not arrive' },
+      'req-no-show',
+    );
+
+    expect(result.status).toBe('NO_SHOW');
+    expect(auditService.logWrite).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'APPT.NO_SHOW', entityId: 'appointment-1' }),
+    );
+    expect(reminderService.suppressQueuedAppointmentReminders).toHaveBeenCalledWith(
+      'clinic-1',
+      'appointment-1',
+      'manager-1',
+      'APPOINTMENT_NO_SHOW',
+      'req-no-show',
+    );
+  });
+
+  it('blocks lifecycle mutations for terminal appointment states without mutating data', async () => {
+    prisma.appointment.findFirst.mockResolvedValueOnce(appointmentFixture({ status: 'CANCELLED' }));
+
+    await expect(
+      service.cancelAppointment(
+        'clinic-1',
+        'appointment-1',
+        'manager-1',
+        { reason: 'Duplicate cancellation' },
+        'req-blocked',
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'APPOINTMENT_INVALID_TRANSITION',
+        currentStatus: 'CANCELLED',
+        attemptedAction: 'cancel',
+        allowedSourceStatuses: ['CONFIRMED'],
+      }),
+    });
+
+    expect(prisma.appointment.updateMany).not.toHaveBeenCalled();
+    expect(auditService.logWrite).not.toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'APPT.CANCEL' }),
+    );
+  });
+
+  it('blocks complete and no-show before the appointment start time', async () => {
+    prisma.appointment.findFirst.mockResolvedValueOnce(
+      appointmentFixture({
+        startsAt: new Date('2099-03-26T14:00:00.000Z'),
+        endsAt: new Date('2099-03-26T14:30:00.000Z'),
+      }),
+    );
+
+    await expect(
+      service.completeAppointment('clinic-1', 'appointment-1', 'doctor-1', {}, 'req-too-early'),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'APPOINTMENT_ACTION_TOO_EARLY' }),
+    });
+
+    prisma.appointment.findFirst.mockResolvedValueOnce(
+      appointmentFixture({
+        startsAt: new Date('2099-03-26T14:00:00.000Z'),
+        endsAt: new Date('2099-03-26T14:30:00.000Z'),
+      }),
+    );
+
+    await expect(
+      service.markAppointmentNoShow('clinic-1', 'appointment-1', 'doctor-1', {}, 'req-too-early'),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'APPOINTMENT_ACTION_TOO_EARLY' }),
+    });
+
+    expect(prisma.appointment.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid reschedule times before mutating data', async () => {
+    await expect(
+      service.rescheduleAppointment(
+        'clinic-1',
+        'appointment-1',
+        'manager-1',
+        {
+          startsAt: '2026-03-27T15:00:00.000Z',
+          endsAt: '2026-03-27T15:00:00.000Z',
+        },
+        'req-invalid-time',
+      ),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(prisma.appointment.findFirst).not.toHaveBeenCalled();
+    expect(prisma.appointment.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('preserves clinic isolation when mutating appointments', async () => {
+    prisma.appointment.findFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.cancelAppointment(
+        'clinic-2',
+        'appointment-1',
+        'manager-1',
+        { reason: 'Wrong clinic attempt' },
+        'req-clinic-isolation',
+      ),
+    ).rejects.toThrow(NotFoundException);
+
+    expect(prisma.appointment.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'appointment-1', clinicId: 'clinic-2' },
+      }),
+    );
+    expect(prisma.appointment.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('requires a cancellation reason before mutating data', async () => {
+    await expect(
+      service.cancelAppointment(
+        'clinic-1',
+        'appointment-1',
+        'manager-1',
+        { reason: '   ' },
+        'req-empty-reason',
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'VALIDATION_ERROR',
+        fieldErrors: [{ field: 'reason', message: 'reason should not be empty' }],
+      }),
+    });
+
+    expect(prisma.appointment.findFirst).not.toHaveBeenCalled();
+    expect(prisma.appointment.updateMany).not.toHaveBeenCalled();
   });
 
   it('links portal accounts by keycloakSub and blocks linking a user to another patient', async () => {
@@ -608,7 +2474,45 @@ describe('PatientPortalService', () => {
     });
 
     await expect(
-      service.linkPortalUser('clinic-1', 'patient-1', 'user-2', 'manager-1', 'req-1')
+      service.linkPortalUser('clinic-1', 'patient-1', 'user-2', 'manager-1', 'req-1'),
     ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('lists portal link candidates for a patient chart using matching contact details', async () => {
+    prisma.patient.findFirst.mockResolvedValueOnce({
+      id: 'patient-1',
+      email: 'testpatient@example.com',
+      phoneE164: '+233243563312',
+      portalUserId: null,
+    });
+    prisma.user.findMany.mockResolvedValueOnce([
+      {
+        id: 'user-7',
+        keycloakSub: 'kc-sub-7',
+        displayName: 'Test Patient',
+        firstName: 'Test',
+        lastName: 'Patient',
+        email: 'testpatient@example.com',
+        phoneE164: '+233243563312',
+      },
+    ]);
+
+    const result = await service.listPortalLinkCandidates('clinic-1', 'patient-1');
+
+    expect(prisma.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          isActive: true,
+        }),
+      }),
+    );
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: 'user-7',
+        displayName: 'Test Patient',
+        email: 'testpatient@example.com',
+        isSuggestedMatch: true,
+      }),
+    ]);
   });
 });

@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
+import { PrismaModule } from '../prisma/prisma.module';
 import { UserModule } from '../users/user.module';
 import { ClinicModule } from '../clinics/clinic.module';
 import { JwtStrategy } from './jwt.strategy';
@@ -11,6 +12,7 @@ import { AuthController } from './auth.controller';
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
+    PrismaModule,
     UserModule,
     forwardRef(() => ClinicModule),
   ],

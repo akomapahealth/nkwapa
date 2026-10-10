@@ -1,11 +1,13 @@
-import { Controller, Get, Param, Request, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, Request, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 import { ClinicScoped } from '../auth/decorators/clinic-scoped.decorator';
 import { RbacGuard } from '../auth/guards/rbac.guard';
 import { ClinicScopeGuard } from '../auth/guards/clinic-scope.guard';
 import { DashboardService } from './dashboard.service';
+import { DashboardQueryDto } from './dto/dashboard-query.dto';
 import { PERMISSIONS } from '../auth/constants/permissions';
+import { rolesForClinic, type ScopedRole } from '../auth/clinic-roles';
 
 @Controller('clinics/:clinicId/dashboard')
 @UseGuards(JwtAuthGuard, ClinicScopeGuard, RbacGuard)
@@ -21,12 +23,15 @@ export class DashboardController {
     req: {
       user: { user: { id: string }; roles: { role: string; clinicId: string | null }[] };
     },
+    @Query() query: DashboardQueryDto,
   ) {
     const userId = req.user.user.id;
-    const roles = req.user.roles
-      .filter((r) => r.clinicId === clinicId || r.clinicId === null)
-      .map((r) => r.role);
+    // Through the shared helper rather than a local filter: a global grant other than
+    // SYSTEM_ADMIN would otherwise unlock this clinic's dashboard from a seat elsewhere.
+    const roles = rolesForClinic(req.user.roles as ScopedRole[], clinicId).map((r) => r.role);
 
-    return this.dashboardService.getDashboard(clinicId, roles, userId);
+    return this.dashboardService.getDashboard(clinicId, roles, userId, {
+      zoneCode: query.zoneCode,
+    });
   }
 }

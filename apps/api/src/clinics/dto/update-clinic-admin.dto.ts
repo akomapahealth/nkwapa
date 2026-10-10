@@ -1,22 +1,23 @@
-import { IsString, IsOptional, IsBoolean, MaxLength } from 'class-validator';
+import { IsBoolean, IsOptional } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { normalizeLocationCode } from '@nkwapa/db';
+import { ClinicMetadataDto } from './clinic-metadata.dto';
+import { ToOptionalBoolean } from '../../common/validation';
+import { IsLocationCode } from '../../common/clinic-metadata.validator';
 
-export class UpdateClinicAdminDto {
+export class UpdateClinicAdminDto extends ClinicMetadataDto {
+  /**
+   * Optional on update, but never clearable: omitting it leaves the code alone, while sending
+   * an empty one is rejected rather than written. The old guard was `!= null`, so `''` trimmed
+   * to empty and was stored, leaving a clinic that reporting could not identify.
+   */
   @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  name?: string;
+  @Transform(({ value }) => normalizeLocationCode(value))
+  @IsLocationCode()
+  locationCode?: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  region?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(2)
-  countryCode?: string;
-
-  @IsOptional()
+  @ToOptionalBoolean()
   @IsBoolean()
   isActive?: boolean;
 }

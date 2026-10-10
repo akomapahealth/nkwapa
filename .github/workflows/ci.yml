@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '22'
   DATABASE_URL: postgresql://nkwapa:nkwapa@localhost:5432/nkwapa
 
 jobs:
@@ -33,8 +33,20 @@ jobs:
       - name: Prisma generate
         run: npm run db:generate
 
+      - name: Validate Keycloak realm
+        run: npm run keycloak:validate-realm
+
+      - name: Validate chart series palette
+        run: npm run design:check-charts
+
       - name: Build @nkwapa/db
         run: npm run build --workspace=@nkwapa/db
+
+      - name: Build @nkwapa/api
+        run: npm run build --workspace=@nkwapa/api
+
+      - name: Build @nkwapa/web
+        run: npm run build --workspace=@nkwapa/web
 
       - name: ESLint
         run: npm run lint --workspaces --if-present
@@ -110,6 +122,68 @@ jobs:
       - name: Build @nkwapa/db
         run: npm run build --workspace=@nkwapa/db
 
+      - name: Verify expanded vitals legacy migration
+        run: npm run test --workspace=@nkwapa/db -- --runInBand src/vitals-migration.integration.spec.ts
+        env:
+          RUN_MIGRATION_TESTS: '1'
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
+      - name: Verify diabetes screening migration compatibility
+        run: npm run test --workspace=@nkwapa/db -- --runInBand src/diabetes-migration.integration.spec.ts
+        env:
+          RUN_DIABETES_MIGRATION_TESTS: '1'
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
+      - name: Verify clinical note immutability and append-only safeguards
+        run: npm run test --workspace=@nkwapa/db -- --runInBand src/clinical-notes-migration.integration.spec.ts
+        env:
+          RUN_CLINICAL_NOTES_MIGRATION_TESTS: '1'
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
+      - name: Provision the unprivileged application database role
+        run: node scripts/provision-app-db-role.mjs
+        env:
+          APP_DATABASE_PASSWORD: nkwapa_app
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
+      # After the role is provisioned: the row-level-security cases act as nkwapa_app, which does
+      # not own the table, so they exercise the policy rather than the owner's exemption from it.
+      - name: Verify staff invitation safeguards
+        run: npm run test --workspace=@nkwapa/db -- --runInBand src/staff-invite-migration.integration.spec.ts
+        env:
+          RUN_STAFF_INVITE_MIGRATION_TESTS: '1'
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
+      # The station line's guarantees (#167): one open station per patient, one winner per claim,
+      # one review station per clinic, and row-level security on the new tables.
+      - name: Verify station workflow safeguards
+        run: npm run test --workspace=@nkwapa/db -- --runInBand src/station-workflow-migration.integration.spec.ts
+        env:
+          RUN_STATION_WORKFLOW_MIGRATION_TESTS: '1'
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
+      # The same guarantee one layer up: real requests through the RLS interceptor and the real
+      # services, as the unprivileged role, across two organizations and a straddling zone (#16).
+      - name: Verify organization and zone isolation end to end
+        run: npm run test --workspace=@nkwapa/api -- --runInBand src/tenancy/org-zone-isolation.integration.spec.ts
+        env:
+          RUN_ORG_ZONE_ISOLATION_TESTS: '1'
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          APP_DATABASE_URL: postgresql://nkwapa_app:nkwapa_app@localhost:5432/nkwapa
+
+      - name: Verify tenant isolation is enforced by the database
+        run: npm run test --workspace=@nkwapa/db -- --runInBand src/tenant-isolation.integration.spec.ts
+        env:
+          RUN_TENANT_ISOLATION_TESTS: '1'
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          APP_DATABASE_URL: postgresql://nkwapa_app:nkwapa_app@localhost:5432/nkwapa
+
+      - name: Rehearse migrations against a synthetic legacy snapshot
+        run: npm run test --workspace=@nkwapa/db -- --runInBand src/legacy-snapshot-migration.integration.spec.ts
+        env:
+          RUN_LEGACY_SNAPSHOT_TESTS: '1'
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
       - name: Run tests with coverage
         run: npm run test --workspaces --if-present -- --coverage --ci
         env:
@@ -130,7 +204,7 @@ jobs:
   # Security audit
   # ──────────────────────────────────────────────
   security:
-    name: Security Audit
+    name: Security Checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -142,8 +216,219 @@ jobs:
 
       - run: npm ci
 
-      - name: npm audit
-        run: npm audit --audit-level=moderate || true
+      - name: Secret and sensitive-file scan
+        run: npm run security:scan
+
+      - name: Dependency audit
+        run: npm run security:audit
+
+  # ──────────────────────────────────────────────
+  # E2E Smoke (Docker-backed)
+  # ──────────────────────────────────────────────
+  e2e:
+    name: E2E Smoke
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://nkwapa:nkwapa@localhost:5433/nkwapa
+      # Migrations run as the owner; the API runs as the unprivileged role that row level security
+      # actually applies to, so the E2E suite exercises the same isolation production relies on.
+      APP_DATABASE_URL: postgresql://nkwapa_app:nkwapa_app@localhost:5433/nkwapa
+      APP_DATABASE_PASSWORD: nkwapa_app
+      DATABASE_RLS_ENFORCEMENT: required
+      REDIS_URL: redis://localhost:6379
+      KEYCLOAK_BASE_URL: http://localhost:8080
+      KEYCLOAK_REALM: nkwapa
+      # The service account the API provisions patient identities with. Without these the
+      # invite still goes out, but no Keycloak account is created behind it and the
+      # cold-from-email journey has nothing to sign in to. The secret must match the value
+      # docker-compose hands Keycloak, which substitutes it into the realm import.
+      KEYCLOAK_ADMIN_BASE_URL: http://localhost:8080
+      KEYCLOAK_ADMIN_CLIENT_ID: nkwapa-api
+      KEYCLOAK_ADMIN_CLIENT_SECRET: nkwapa-local-dev-secret
+      KEYCLOAK_ISSUER: http://localhost:8080/realms/nkwapa
+      KEYCLOAK_JWKS_URI: http://localhost:8080/realms/nkwapa/protocol/openid-connect/certs
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:4000
+      NEXT_PUBLIC_KEYCLOAK_URL: http://localhost:8080
+      NEXT_PUBLIC_KEYCLOAK_REALM: nkwapa
+      NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: nkwapa-web
+      FEATURE_MEDICAL_HISTORY_ENABLED: true
+      NEXT_PUBLIC_FEATURE_MEDICAL_HISTORY_ENABLED: true
+      FEATURE_MEDICATION_RECONCILIATION_ENABLED: true
+      NEXT_PUBLIC_FEATURE_MEDICATION_RECONCILIATION_ENABLED: true
+      FEATURE_CLINICAL_NOTES_ENABLED: true
+      NEXT_PUBLIC_FEATURE_CLINICAL_NOTES_ENABLED: true
+      FEATURE_GUIDED_CHRONIC_TABS_ENABLED: true
+      NEXT_PUBLIC_FEATURE_GUIDED_CHRONIC_TABS_ENABLED: true
+      NATIONAL_ID_ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000001'
+      # The appointment acceptance suite needs a confirmed visit and a pending request to act on,
+      # and neither can be created through the UI without one already existing.
+      SEED_SAMPLE_APPOINTMENTS: 'true'
+      # The duplicate review queue has no populated state without these. Patient.nationalIdHash
+      # is globally unique, so no other seeded chart can ever collide with another.
+      SEED_SAMPLE_DUPLICATES: 'true'
+      # The cross-clinic investigation needs a second active clinic and an inactive one, with
+      # charts that match across them. No staff seat is granted there, so switchers are unchanged.
+      SEED_SAMPLE_CROSS_CLINIC: 'true'
+      # A merge cannot be undone, so canonical-redirect coverage needs a chart that arrives
+      # already merged rather than one the suite merges and destroys.
+      SEED_SAMPLE_IDENTITY: 'true'
+      E2E_STAFF_SUB: 00000000-0000-4000-8000-000000000042
+      E2E_STAFF_USERNAME: e2e.staff
+      E2E_STAFF_PASSWORD: NkwapaE2E!23
+      E2E_STAFF_NAME: E2E Staff
+      E2E_STAFF_EMAIL: e2e.staff@nkwapa.local
+      E2E_RESET_SUB: 00000000-0000-4000-8000-000000000043
+      E2E_RESET_USERNAME: e2e.reset
+      E2E_RESET_PASSWORD: NkwapaReset!23
+      E2E_RESET_NAME: E2E Reset
+      E2E_RESET_EMAIL: e2e.reset@nkwapa.local
+      # Single-role identities. The staff user holds every role at once, so it cannot show what
+      # one role sees; these can.
+      E2E_DOCTOR_SUB: 00000000-0000-4000-8000-000000000044
+      E2E_DOCTOR_USERNAME: e2e.doctor
+      E2E_DOCTOR_PASSWORD: NkwapaDoctor!23
+      E2E_DOCTOR_NAME: E2E Doctor
+      E2E_DOCTOR_EMAIL: e2e.doctor@nkwapa.local
+      E2E_VOLUNTEER_SUB: 00000000-0000-4000-8000-000000000045
+      E2E_VOLUNTEER_USERNAME: e2e.volunteer
+      E2E_VOLUNTEER_PASSWORD: NkwapaVolunteer!23
+      E2E_VOLUNTEER_NAME: E2E Volunteer
+      E2E_VOLUNTEER_EMAIL: e2e.volunteer@nkwapa.local
+      # The portal identity. Without it every spec runs as staff and the patient portal has no
+      # coverage at all.
+      E2E_PATIENT_SUB: 00000000-0000-4000-8000-000000000046
+      E2E_PATIENT_USERNAME: e2e.patient
+      E2E_PATIENT_PASSWORD: NkwapaPatient!23
+      E2E_PATIENT_NAME: E2E Patient
+      E2E_PATIENT_EMAIL: e2e.patient@nkwapa.local
+      # The same patient one step earlier: invited, not yet linked. A claimed account is
+      # redirected off /claim-record, so the claim page had no identity that could reach it.
+      E2E_CLAIMANT_SUB: 00000000-0000-4000-8000-000000000047
+      E2E_CLAIMANT_USERNAME: e2e.claimant
+      E2E_CLAIMANT_PASSWORD: NkwapaClaimant!23
+      E2E_CLAIMANT_NAME: E2E Claimant
+      E2E_CLAIMANT_EMAIL: e2e.claimant@nkwapa.local
+      MAILPIT_BASE_URL: http://localhost:8025
+      # The API sends through Mailpit rather than the fake provider, so this job is the
+      # only place the real nodemailer path is exercised before staging. No SMTP_USER or
+      # SMTP_PASS: proving the unauthenticated relay case is the point.
+      EMAIL_PROVIDER: nodemailer
+      SMTP_HOST: localhost
+      SMTP_PORT: '1025'
+      EMAIL_FROM: info@akomapa.org
+      APP_PUBLIC_URL: http://localhost:3000
+      # Seeded addresses use .local, which has no MX record, and portal invites verify
+      # MX before accepting an address.
+      EMAIL_DELIVERABILITY_ALLOWED_DOMAINS: nkwapa.local
+      CORS_ALLOWED_ORIGINS: http://localhost:3000
+      PLAYWRIGHT_BASE_URL: http://localhost:3000
+      # The rate limiter is a production safety control, and the E2E suite is deliberately one
+      # user hammering the app: every page load calls /auth/whoami, whose default budget is 60 a
+      # minute. A long sequential run exhausts it and then fails whichever spec happens to be
+      # running, at ~34s, with "We couldn't confirm your access" -- a 429 resolves to `unavailable`.
+      # It has bitten this suite before; see the note in responsive-migration.spec.js. Raised for
+      # the E2E job only, so the limits themselves stay under test elsewhere.
+      RATE_LIMIT_AUTH_WHOAMI_LIMIT: '100000'
+      RATE_LIMIT_AUTH_ME_LIMIT: '100000'
+      RATE_LIMIT_SYNC_PULL_LIMIT: '100000'
+      RATE_LIMIT_SYNC_PUSH_LIMIT: '100000'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Prisma generate
+        run: npm run db:generate
+
+      - name: Build @nkwapa/db
+        run: npm run build --workspace=@nkwapa/db
+
+      - name: Build @nkwapa/api
+        run: npm run build --workspace=@nkwapa/api
+
+      - name: Build @nkwapa/web
+        run: npm run build --workspace=@nkwapa/web
+
+      - name: Start local infra
+        run: docker compose -f infra/nkwapa/docker-compose.yml up -d postgres redis mailpit keycloak
+
+      - name: Wait for infra health
+        run: |
+          for container in nkwapa-postgres nkwapa-redis nkwapa-mailpit nkwapa-keycloak; do
+            until [ "$(docker inspect -f '{{.State.Health.Status}}' "$container")" = "healthy" ]; do
+              echo "Waiting for $container..."
+              sleep 2
+            done
+          done
+
+      - name: Prisma migrate deploy
+        run: npm run db:migrate:deploy
+
+      - name: Provision the unprivileged application database role
+        run: node scripts/provision-app-db-role.mjs
+
+      - name: Create deterministic Keycloak user
+        run: npm run e2e:keycloak-user
+
+      - name: Seed deterministic dashboard staff, single-role users, and appointments
+        run: npm run db:seed
+        env:
+          SEED_SAMPLE_APPOINTMENTS: ${{ env.SEED_SAMPLE_APPOINTMENTS }}
+          SEED_SAMPLE_DUPLICATES: ${{ env.SEED_SAMPLE_DUPLICATES }}
+          SEED_SAMPLE_CROSS_CLINIC: ${{ env.SEED_SAMPLE_CROSS_CLINIC }}
+          SEED_SAMPLE_IDENTITY: ${{ env.SEED_SAMPLE_IDENTITY }}
+          # No SEED_E2E_CLAIMANT_SUB on purpose. Keycloak does not always honour the requested
+          # user id, so the provisioning step writes the real one back over E2E_CLAIMANT_SUB
+          # through GITHUB_ENV, and the seed falls back to it -- the same path the other four
+          # identities take. Passing the requested id here would pin the stale value.
+          SEED_E2E_CLAIMANT_EMAIL: ${{ env.E2E_CLAIMANT_EMAIL }}
+          SEED_E2E_CLAIMANT_NAME: ${{ env.E2E_CLAIMANT_NAME }}
+          SEED_E2E_STAFF_NAME: ${{ env.E2E_STAFF_NAME }}
+          SEED_E2E_STAFF_EMAIL: ${{ env.E2E_STAFF_EMAIL }}
+          SEED_E2E_DOCTOR_NAME: ${{ env.E2E_DOCTOR_NAME }}
+          SEED_E2E_DOCTOR_EMAIL: ${{ env.E2E_DOCTOR_EMAIL }}
+          SEED_E2E_VOLUNTEER_NAME: ${{ env.E2E_VOLUNTEER_NAME }}
+          SEED_E2E_VOLUNTEER_EMAIL: ${{ env.E2E_VOLUNTEER_EMAIL }}
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright smoke suite
+        run: npm run e2e --workspace=@nkwapa/web
+
+      # The station line (#167) replaces manager assignment while its flag is on, so it cannot
+      # share a build with the assignment specs above. NEXT_PUBLIC_* flags are inlined at build
+      # time: rebuild the web app with the flag on, then run only the station spec, which skips
+      # itself everywhere else.
+      - name: Build @nkwapa/web with the station workflow on
+        run: npm run build --workspace=@nkwapa/web
+        env:
+          NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED: true
+
+      - name: Run the station workflow spec
+        run: npm run e2e --workspace=@nkwapa/web -- e2e/station-workflow.spec.js
+        env:
+          FEATURE_STATION_WORKFLOW_ENABLED: true
+          NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED: true
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+          retention-days: 14
+
+      - name: Stop local infra
+        if: always()
+        run: docker compose -f infra/nkwapa/docker-compose.yml down -v
 
   # ──────────────────────────────────────────────
   # Build (depends on lint + typecheck + test)
@@ -151,7 +436,7 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, test, security]
+    needs: [lint, typecheck, test, security, e2e]
     steps:
       - uses: actions/checkout@v4
 
@@ -170,17 +455,3 @@ jobs:
 
       - name: Build all workspaces
         run: npm run build --workspaces --if-present
-
-      - name: Upload API build
-        uses: actions/upload-artifact@v4
-        with:
-          name: api-build
-          path: apps/api/dist/
-          retention-days: 7
-
-      - name: Upload Web build
-        uses: actions/upload-artifact@v4
-        with:
-          name: web-build
-          path: apps/web/.next/
-          retention-days: 7

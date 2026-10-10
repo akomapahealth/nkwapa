@@ -3,12 +3,18 @@ node_modules
 .pnpm-store
 
 # Environment (never commit secrets)
+#
+# The wildcard matters as much as the exact names. The list used to enumerate .env.local,
+# .env.development, .env.production and .env.test, which left an editor swap file, a .env.old, or
+# a timestamped .env.bak sitting in the working tree fully committable -- and this repo has already
+# lost a scratch file to a wide "git add -A" once.
 .env
-.env.local
-.env.*.local
-.env.development
-.env.production
-.env.test
+.env.*
+!.env.example
+!.env.*.example
+.envrc
+*.secret
+*.secrets.*
 
 # Build outputs
 dist
@@ -20,6 +26,9 @@ out
 # Test & coverage
 coverage
 *.lcov
+apps/web/playwright/.auth/
+apps/web/playwright-report/
+apps/web/test-results/
 
 # Logs & temp
 *.log
@@ -31,6 +40,16 @@ yarn-error.log*
 # OS
 .DS_Store
 Thumbs.db
+
+# Certificates / keys
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+id_rsa
+id_ed25519
 
 # IDE (optional: remove .vscode if you commit workspace settings)
 .idea
@@ -50,7 +69,18 @@ data/
 # AI / agent memory (local only)
 memory/
 memory.md
+github_issues/
 
 # Stale lockfiles (repo uses npm workspaces + package-lock.json)
 pnpm-lock.yaml
 apps/web/pnpm-lock.yaml
+
+.claude/
+.codex/
+
+# Playwright run artifacts
+test-results/
+playwright-report/
+
+# Local presentation material
+/docs/demo/

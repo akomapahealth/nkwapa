@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import type {
   DashboardResponse,
   DashboardSummary,
   DoctorMetrics,
-  PreceptorMetrics,
+  ReviewMetrics,
   DirectorMetrics,
   VolunteerMetrics,
   SystemAdminMetrics,
@@ -12,7 +13,17 @@ import type {
   TrendPoint,
   StaffActivityRow,
   ClinicComparisonRow,
+  ClinicalMeasurementMetrics,
 } from './dto/dashboard-response.dto';
+import { isApiFeatureEnabled } from '../common/feature-flags';
+import { parseZoneFilter, summarizeZones, zoneFilterMatches, type ZoneFilter } from '@nkwapa/db';
+
+export const FLAGGED_DIABETES_WHERE = {
+  OR: [
+    { glucoseType: 'FASTING', glucoseMgDl: { gte: 126 } },
+    { glucoseType: 'RANDOM', glucoseMgDl: { gte: 200 } },
+  ],
+} satisfies Prisma.DiabetesScreeningWhereInput;
 
 @Injectable()
 export class DashboardService {
@@ -22,6 +33,7 @@ export class DashboardService {
     clinicId: string,
     roles: string[],
     userId: string,
+    filters?: { zoneCode?: string | null },
   ): Promise<DashboardResponse> {
     const summary = await this.getSummary(clinicId);
 
@@ -29,27 +41,73 @@ export class DashboardService {
 
     const isAdmin = roles.includes('SYSTEM_ADMIN');
     const isDoctor = roles.includes('DOCTOR');
-    const isPreceptor = roles.includes('PRECEPTOR');
     const isDirector = roles.includes('DIRECTOR') || roles.includes('MANAGER');
     const isVolunteer = roles.includes('VOLUNTEER');
+    const clinicalMeasurements =
+      isDoctor || isDirector || isVolunteer
+        ? await this.getClinicalMeasurementMetrics(clinicId)
+        : null;
 
     if (isAdmin) {
-      response.systemAdmin = await this.getSystemAdminMetrics();
+      response.systemAdmin = await this.getSystemAdminMetrics(parseZoneFilter(filters?.zoneCode));
     }
     if (isDoctor) {
-      response.doctor = await this.getDoctorMetrics(clinicId, userId);
-    }
-    if (isPreceptor) {
-      response.preceptor = await this.getPreceptorMetrics(clinicId, userId);
+      const pendingClinicalNoteCosigns = isApiFeatureEnabled('clinicalNotes')
+        ? await this.prisma.clinicalNote.count({
+            where: {
+              clinicId,
+              status: 'PENDING_COSIGN',
+              // Station-line notes name no doctor and are every doctor's to cosign (#167).
+              OR: [{ assignedDoctorId: userId }, { assignedDoctorId: null }],
+            },
+          })
+        : undefined;
+      response.doctor = {
+        ...(await this.getDoctorMetrics(clinicId, userId)),
+        clinicalMeasurements: clinicalMeasurements!,
+        ...(pendingClinicalNoteCosigns === undefined ? {} : { pendingClinicalNoteCosigns }),
+      };
+      response.review = {
+        ...(await this.getReviewMetrics(clinicId, userId)),
+        clinicalMeasurements: clinicalMeasurements!,
+      };
     }
     if (isDirector) {
-      response.director = await this.getDirectorMetrics(clinicId);
+      const pendingClinicalNoteCosigns = isApiFeatureEnabled('clinicalNotes')
+        ? await this.getPendingClinicalNoteCount(clinicId)
+        : undefined;
+      response.director = {
+        ...(await this.getDirectorMetrics(clinicId)),
+        clinicalMeasurements: clinicalMeasurements!,
+        ...(pendingClinicalNoteCosigns === undefined ? {} : { pendingClinicalNoteCosigns }),
+      };
     }
     if (isVolunteer) {
-      response.volunteer = await this.getVolunteerMetrics(clinicId, userId);
+      const clinicalNotes = isApiFeatureEnabled('clinicalNotes')
+        ? {
+            drafts: await this.prisma.clinicalNote.count({
+              where: { clinicId, authorUserId: userId, status: 'DRAFT' },
+            }),
+            pendingCosign: await this.prisma.clinicalNote.count({
+              where: { clinicId, authorUserId: userId, status: 'PENDING_COSIGN' },
+            }),
+          }
+        : undefined;
+      response.volunteer = {
+        ...(await this.getVolunteerMetrics(clinicId, userId)),
+        clinicalMeasurements: clinicalMeasurements!,
+        ...(clinicalNotes ? { clinicalNotes } : {}),
+      };
     }
 
     return response;
+  }
+
+  private async getPendingClinicalNoteCount(clinicId: string): Promise<number> {
+    const rows = await this.prisma.$queryRaw<Array<{ count: number }>>`
+      SELECT app.clinical_note_pending_count(${clinicId}::uuid) AS count
+    `;
+    return Number(rows[0]?.count ?? 0);
   }
 
   private async getSummary(clinicId: string): Promise<DashboardSummary> {
@@ -84,7 +142,10 @@ export class DashboardService {
     return { totalPatients, encountersToday, pendingDrafts, pendingReview, readyToFinalize };
   }
 
-  private async getDoctorMetrics(clinicId: string, userId: string): Promise<DoctorMetrics> {
+  private async getDoctorMetrics(
+    clinicId: string,
+    userId: string,
+  ): Promise<Omit<DoctorMetrics, 'clinicalMeasurements'>> {
     const now = new Date();
     const todayStart = startOfDay(now);
     const weekStart = startOfWeek(now);
@@ -127,10 +188,7 @@ export class DashboardService {
       this.prisma.diabetesScreening.count({
         where: {
           clinicId,
-          OR: [
-            { glucoseType: 'FASTING', glucoseMgDl: { gte: 126 } },
-            { glucoseType: 'RANDOM', glucoseMgDl: { gte: 200 } },
-          ],
+          ...FLAGGED_DIABETES_WHERE,
         },
       }),
       this.prisma.diabetesScreening.count({ where: { clinicId } }),
@@ -190,7 +248,10 @@ export class DashboardService {
     };
   }
 
-  private async getPreceptorMetrics(clinicId: string, userId: string): Promise<PreceptorMetrics> {
+  private async getReviewMetrics(
+    clinicId: string,
+    userId: string,
+  ): Promise<Omit<ReviewMetrics, 'clinicalMeasurements'>> {
     const now = new Date();
     const todayStart = startOfDay(now);
     const weekStart = startOfWeek(now);
@@ -259,7 +320,9 @@ export class DashboardService {
     };
   }
 
-  private async getDirectorMetrics(clinicId: string): Promise<DirectorMetrics> {
+  private async getDirectorMetrics(
+    clinicId: string,
+  ): Promise<Omit<DirectorMetrics, 'clinicalMeasurements'>> {
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
@@ -368,7 +431,10 @@ export class DashboardService {
     };
   }
 
-  private async getVolunteerMetrics(clinicId: string, userId: string): Promise<VolunteerMetrics> {
+  private async getVolunteerMetrics(
+    clinicId: string,
+    userId: string,
+  ): Promise<Omit<VolunteerMetrics, 'clinicalMeasurements'>> {
     const now = new Date();
     const todayStart = startOfDay(now);
     const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
@@ -429,10 +495,7 @@ export class DashboardService {
         where: {
           clinicId,
           encounter: { createdByUserId: userId },
-          OR: [
-            { glucoseType: 'FASTING', glucoseMgDl: { gte: 126 } },
-            { glucoseType: 'RANDOM', glucoseMgDl: { gte: 200 } },
-          ],
+          ...FLAGGED_DIABETES_WHERE,
         },
       }),
       this.prisma.diabetesScreening.count({
@@ -471,7 +534,16 @@ export class DashboardService {
     };
   }
 
-  private async getSystemAdminMetrics(): Promise<SystemAdminMetrics> {
+  /**
+   * The cross-clinic block, optionally narrowed to one zone.
+   *
+   * The zone filter is a reporting lens, not an access decision: the read is already bounded by
+   * row level security, and `zoneFilterWhere` only ever adds a `zoneCode` constraint on top.
+   * `zones` is deliberately built from the unfiltered clinic set, so the rollup still names
+   * every zone while the comparison shows one -- a filter that hid its own options would leave
+   * no way back.
+   */
+  private async getSystemAdminMetrics(zoneFilter: ZoneFilter): Promise<SystemAdminMetrics> {
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
@@ -489,7 +561,7 @@ export class DashboardService {
       this.prisma.encounter.count(),
       this.prisma.clinic.findMany({
         where: { isActive: true },
-        select: { id: true, name: true },
+        select: { id: true, name: true, zoneCode: true, isActive: true },
       }),
       this.prisma.encounter.groupBy({
         by: ['createdAt'],
@@ -504,21 +576,46 @@ export class DashboardService {
       now,
     );
 
-    const clinicComparison: ClinicComparisonRow[] = [];
-    for (const clinic of clinics) {
-      const [patients, encounters, finalized] = await Promise.all([
-        this.prisma.patient.count({ where: { primaryClinicId: clinic.id } }),
-        this.prisma.encounter.count({ where: { clinicId: clinic.id } }),
-        this.prisma.encounter.count({ where: { clinicId: clinic.id, status: 'FINALIZED' } }),
-      ]);
-      clinicComparison.push({
-        clinicId: clinic.id,
-        clinicName: clinic.name,
-        totalPatients: patients,
-        totalEncounters: encounters,
-        totalFinalized: finalized,
-      });
-    }
+    const zones = summarizeZones(clinics);
+    const comparedClinics = clinics.filter((clinic) =>
+      zoneFilterMatches(clinic.zoneCode, zoneFilter),
+    );
+    const comparedClinicIds = comparedClinics.map((clinic) => clinic.id);
+
+    // Three grouped reads rather than three counts per clinic. The loop this replaces issued
+    // 3N queries, which the zone rollup would only have made wider.
+    const [patientsByClinic, encountersByClinic, finalizedByClinic] = await Promise.all([
+      this.prisma.patient.groupBy({
+        by: ['primaryClinicId'],
+        where: { primaryClinicId: { in: comparedClinicIds } },
+        _count: true,
+      }),
+      this.prisma.encounter.groupBy({
+        by: ['clinicId'],
+        where: { clinicId: { in: comparedClinicIds } },
+        _count: true,
+      }),
+      this.prisma.encounter.groupBy({
+        by: ['clinicId'],
+        where: { clinicId: { in: comparedClinicIds }, status: 'FINALIZED' },
+        _count: true,
+      }),
+    ]);
+
+    const patientCounts = countsByKey(patientsByClinic, 'primaryClinicId');
+    const encounterCounts = countsByKey(encountersByClinic, 'clinicId');
+    const finalizedCounts = countsByKey(finalizedByClinic, 'clinicId');
+
+    const clinicComparison: ClinicComparisonRow[] = comparedClinics.map((clinic) => ({
+      clinicId: clinic.id,
+      clinicName: clinic.name,
+      zoneCode: clinic.zoneCode ?? null,
+      // A clinic with no rows is absent from a groupBy rather than present with zero, so the
+      // fallback is what keeps an empty clinic in the table instead of dropping it.
+      totalPatients: patientCounts.get(clinic.id) ?? 0,
+      totalEncounters: encounterCounts.get(clinic.id) ?? 0,
+      totalFinalized: finalizedCounts.get(clinic.id) ?? 0,
+    }));
 
     return {
       totalClinics,
@@ -527,6 +624,86 @@ export class DashboardService {
       systemWideEncounters,
       clinicComparison,
       systemEncountersTrend,
+      zones,
+      appliedZoneCode: zoneFilter,
+    };
+  }
+
+  private async getClinicalMeasurementMetrics(
+    clinicId: string,
+  ): Promise<ClinicalMeasurementMetrics> {
+    const windowStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const [totalEncounters, vitals, tobaccoScreens, tobaccoGroups] = await Promise.all([
+      this.prisma.encounter.count({ where: { clinicId, createdAt: { gte: windowStart } } }),
+      this.prisma.vitals.findMany({
+        where: { clinicId, encounter: { createdAt: { gte: windowStart } } },
+        select: {
+          temperatureCelsius: true,
+          respiratoryRate: true,
+          spo2Percent: true,
+          bmi: true,
+        },
+      }),
+      this.prisma.tobaccoScreening.findMany({
+        where: { clinicId, encounter: { createdAt: { gte: windowStart } } },
+        select: {
+          smokingStatus: true,
+          smokelessTobaccoStatus: true,
+          passiveExposure: true,
+          counselingGiven: true,
+          reviewedAt: true,
+        },
+      }),
+      this.prisma.tobaccoScreening.groupBy({
+        by: ['smokingStatus'],
+        where: { clinicId, encounter: { createdAt: { gte: windowStart } } },
+        _count: true,
+      }),
+    ]);
+
+    const assessed = tobaccoScreens.filter(
+      (screen) =>
+        screen.smokingStatus !== 'NOT_ASSESSED' ||
+        screen.smokelessTobaccoStatus !== 'NOT_ASSESSED' ||
+        screen.passiveExposure !== 'NOT_ASSESSED',
+    ).length;
+    const currentUsers = tobaccoScreens.filter(
+      (screen) => screen.smokingStatus === 'CURRENT' || screen.smokelessTobaccoStatus === 'CURRENT',
+    );
+    const counselingDocumented = currentUsers.filter(
+      (screen) => screen.counselingGiven !== 'NOT_ASSESSED',
+    ).length;
+    const rate = (numerator: number, denominator: number) =>
+      denominator > 0 ? Math.round((numerator / denominator) * 100) : 0;
+    const aggregate = (values: Array<number | null>) => {
+      const recorded = values.filter((value): value is number => value != null);
+      return {
+        count: recorded.length,
+        average:
+          recorded.length > 0
+            ? Math.round((recorded.reduce((sum, value) => sum + value, 0) / recorded.length) * 10) /
+              10
+            : null,
+      };
+    };
+    const tobaccoStatusDistribution: Record<string, number> = {};
+    for (const group of tobaccoGroups)
+      tobaccoStatusDistribution[group.smokingStatus] = group._count;
+
+    return {
+      windowDays: 30,
+      sampleSize: totalEncounters,
+      vitalsCaptureRate: rate(vitals.length, totalEncounters),
+      tobaccoAssessmentRate: rate(assessed, totalEncounters),
+      counselingDocumentationRate: rate(counselingDocumented, currentUsers.length),
+      pendingTobaccoReviews: tobaccoScreens.filter((screen) => screen.reviewedAt == null).length,
+      measurements: {
+        temperatureCelsius: aggregate(vitals.map((record) => record.temperatureCelsius)),
+        respiratoryRate: aggregate(vitals.map((record) => record.respiratoryRate)),
+        spo2Percent: aggregate(vitals.map((record) => record.spo2Percent)),
+        bmi: aggregate(vitals.map((record) => record.bmi)),
+      },
+      tobaccoStatusDistribution,
     };
   }
 }
@@ -555,6 +732,26 @@ function startOfMonth(d: Date): Date {
 
 function formatDate(d: Date): string {
   return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Folds a Prisma `groupBy` result into a lookup.
+ *
+ * `_count` is a number when `groupBy` is given `_count: true` and an object when it is given a
+ * field selection. Only the first form is used here, and the guard keeps a future caller of the
+ * second form from silently reading `NaN`.
+ */
+function countsByKey<K extends string>(
+  rows: ({ _count: number | Record<string, number> } & { [P in K]: string | null })[],
+  key: K,
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const id = row[key];
+    if (id === null) continue;
+    counts.set(id, typeof row._count === 'number' ? row._count : 0);
+  }
+  return counts;
 }
 
 function aggregateByDay(rows: { date: Date; count: number }[], from: Date, to: Date): TrendPoint[] {

@@ -1,14 +1,8 @@
-"use client";
+'use client';
 
-import {
-  createContext,
-  useContext,
-  useCallback,
-  useState,
-  useMemo,
-} from "react";
-import type { Locale } from "./i18n";
-import { defaultLocale, t as translate } from "./i18n";
+import { createContext, useContext, useCallback, useState, useMemo } from 'react';
+import type { Locale } from './i18n';
+import { defaultLocale, t as translate } from './i18n';
 
 type LocaleContextValue = {
   locale: Locale;
@@ -29,24 +23,16 @@ export function LocaleProvider({
 
   const setLocale = useCallback((l: Locale) => {
     setLocaleState(l);
-    if (typeof window !== "undefined") {
+    if (typeof window !== 'undefined') {
       document.documentElement.lang = l;
     }
   }, []);
 
-  const t = useCallback(
-    (key: string) => translate(locale, key),
-    [locale]
-  );
+  const t = useCallback((key: string) => translate(locale, key), [locale]);
 
-  const value = useMemo(
-    () => ({ locale, setLocale, t }),
-    [locale, setLocale, t]
-  );
+  const value = useMemo(() => ({ locale, setLocale, t }), [locale, setLocale, t]);
 
-  return (
-    <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>
-  );
+  return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
 }
 
 export function useLocale() {

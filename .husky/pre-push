@@ -1,4 +1,8 @@
 #!/usr/bin/env sh
+set -e
+
+npm run security:scan
+npm run lint --workspaces --if-present
 npm run db:generate
 npm run typecheck
 npm run test

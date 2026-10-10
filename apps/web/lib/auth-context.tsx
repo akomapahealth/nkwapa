@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { createContext, useContext, useMemo } from "react";
-import type { GetToken } from "./api";
+import { createContext, useContext, useMemo } from 'react';
+import type { GetToken } from './api';
 
 const AuthContext = createContext<{ getToken?: GetToken } | null>(null);
 
@@ -13,9 +13,7 @@ export function AuthProvider({
   getToken?: GetToken;
 }) {
   const value = useMemo(() => ({ getToken }), [getToken]);
-  return (
-    <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

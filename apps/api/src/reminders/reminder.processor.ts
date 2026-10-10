@@ -1,15 +1,109 @@
-import { Processor, WorkerHost } from "@nestjs/bullmq";
-import { Job } from "bullmq";
-import { ReminderService } from "./reminder.service";
+import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { DelayedError, Job } from 'bullmq';
+import { jobAttempt } from '../common/job-attempt';
+import { JobTenantContextRunner } from '../prisma/job-tenant-context.runner';
+import { reminderRetryDelay } from './reminder-retry';
+import { ReminderService, type ReminderRunOutcome } from './reminder.service';
 
-@Processor("reminders")
+export type ReminderJobData = {
+  reminderId: string;
+  clinicId?: string;
+  userId?: string | null;
+  /**
+   * Which tenant context the job needs.
+   *
+   * A missing clinicId used to mean one thing only: a payload queued before tenant
+   * context was carried in the job, which the runner resolves from the row and
+   * discards if it cannot. Now that a notification may legitimately have no clinic —
+   * a global account deactivation belongs to none — that ambiguity would send those
+   * jobs down the discard path and drop the mail with a single warn line. `global`
+   * says the absence is deliberate; an absent `scope` keeps the legacy behaviour for
+   * jobs already queued when this deploys.
+   */
+  scope?: 'clinic' | 'global';
+};
+
+/*
+  Concurrency and rate are set here rather than left to BullMQ's defaults.
+
+  The default worker concurrency is 1, so every notification waited on the full SMTP round trip of
+  the one in front of it. A clinic session's worth of invites delivered strictly serially, which is
+  the dominant cost in the common case and the reason mail read as lost.
+
+  Five at a time, capped at five per second. Sends are IO-bound, so the concurrency itself is cheap;
+  the cap is what keeps it safe. Resend documents 10 requests per second per team, and the Keycloak
+  service sends verify-email and password resets through the same account, so half the budget is
+  deliberately left for it. The limiter is per worker process: running more than one API instance
+  multiplies the effective rate, and these numbers would need revisiting.
+
+  This changes the rate, never the volume. The account's daily cap is unaffected by how fast the
+  queue drains.
+*/
+const REMINDER_CONCURRENCY = 5;
+const REMINDER_RATE_LIMIT = { max: 5, duration: 1_000 };
+
+@Processor('reminders', {
+  concurrency: REMINDER_CONCURRENCY,
+  limiter: REMINDER_RATE_LIMIT,
+  settings: { backoffStrategy: reminderRetryDelay },
+})
 export class ReminderProcessor extends WorkerHost {
-  constructor(private readonly reminderService: ReminderService) {
+  constructor(
+    private readonly reminderService: ReminderService,
+    private readonly tenantContext: JobTenantContextRunner,
+  ) {
     super();
   }
 
-  async process(job: Job<{ reminderId: string }>): Promise<void> {
-    const { reminderId } = job.data;
-    await this.reminderService.processReminder(reminderId);
+  async process(job: Job<ReminderJobData>, token?: string): Promise<void> {
+    const outcome = await this.run(job);
+    if (outcome?.notDueUntil) {
+      // Back to delayed until the reminder's time (#165). DelayedError tells the worker the job
+      // was moved, not finished, and spends no attempt.
+      await job.moveToDelayed(outcome.notDueUntil.getTime(), token);
+      throw new DelayedError();
+    }
+  }
+
+  private async run(job: Job<ReminderJobData>): Promise<ReminderRunOutcome | undefined> {
+    const { reminderId, clinicId, userId, scope } = job.data;
+    const attempt = jobAttempt(job);
+
+    // Steps, not one transaction: the provider call must happen with no transaction open (#164).
+    if (scope === 'global') {
+      return this.tenantContext.runSystemJobSteps(
+        {
+          queueName: 'reminders',
+          jobId: job.id,
+          resourceId: reminderId,
+          userId: userId ?? null,
+          systemReason: 'Deliver a notification that is not scoped to a single clinic',
+        },
+        (step) => this.reminderService.processReminder(reminderId, attempt, step),
+      );
+    }
+
+    return this.tenantContext.runClinicJobSteps(
+      {
+        queueName: 'reminders',
+        jobId: job.id,
+        resourceId: reminderId,
+        tenant: clinicId ? { clinicId, userId: userId ?? null } : null,
+        legacy: {
+          systemReason: 'Resolve tenant for a legacy reminder payload',
+          resolveTenant: async () => {
+            const resolvedClinicId = await this.reminderService.findReminderClinicId(reminderId);
+            return resolvedClinicId
+              ? {
+                  clinicId: resolvedClinicId,
+                  userId: null,
+                }
+              : null;
+          },
+        },
+        unresolvedTenant: 'discard',
+      },
+      (step) => this.reminderService.processReminder(reminderId, attempt, step),
+    );
   }
 }

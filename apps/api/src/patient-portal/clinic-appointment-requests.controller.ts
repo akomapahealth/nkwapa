@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  Query,
-  Request,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Request, UseGuards } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ClinicScopeGuard } from '../auth/guards/clinic-scope.guard';
@@ -21,28 +12,35 @@ import {
   ListAppointmentRequestsQueryDto,
   RejectAppointmentRequestDto,
 } from './dto/appointment-requests.dto';
+import { Track } from '../telemetry/track.decorator';
+import { appointmentRequestKind } from '../telemetry/track-descriptors';
 
 @Controller('clinics/:clinicId/appointment-requests')
 @UseGuards(JwtAuthGuard, ClinicScopeGuard, RbacGuard)
 export class ClinicAppointmentRequestsController {
   constructor(private readonly patientPortalService: PatientPortalService) {}
 
+  /**
+   * Read the requests patients have sent this clinic.
+   *
+   * `APPOINTMENT.READ` rather than `CLINIC_READ`: confirming and rejecting below require
+   * `APPOINTMENT.WRITE`, which a doctor holds and `CLINIC_READ` does not grant. Gating the list
+   * on `CLINIC_READ` let a doctor act on a request they could not open.
+   */
   @Get()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
-  @RequirePermission(PERMISSIONS.CLINIC_READ)
+  @RequirePermission(PERMISSIONS.APPOINTMENT_READ)
   async listAppointmentRequests(
     @Param('clinicId') clinicId: string,
     @Query() query: ListAppointmentRequestsQueryDto,
   ) {
-    return this.patientPortalService.listAppointmentRequestsForClinic(
-      clinicId,
-      query,
-    );
+    return this.patientPortalService.listAppointmentRequestsForClinic(clinicId, query);
   }
 
   @Post(':requestId/confirm')
+  @Track('appointment.request.confirm', { describe: appointmentRequestKind })
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
-  @RequirePermission(PERMISSIONS.CLINIC_READ)
+  @RequirePermission(PERMISSIONS.APPOINTMENT_WRITE)
   async confirmAppointmentRequest(
     @Param('clinicId') clinicId: string,
     @Param('requestId') requestId: string,
@@ -59,8 +57,9 @@ export class ClinicAppointmentRequestsController {
   }
 
   @Post(':requestId/reject')
+  @Track('appointment.request.reject', { describe: appointmentRequestKind })
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
-  @RequirePermission(PERMISSIONS.CLINIC_READ)
+  @RequirePermission(PERMISSIONS.APPOINTMENT_WRITE)
   async rejectAppointmentRequest(
     @Param('clinicId') clinicId: string,
     @Param('requestId') requestId: string,

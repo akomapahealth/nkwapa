@@ -1,11 +1,36 @@
+import {
+  BadRequestException,
+  ExecutionContext,
+  ForbiddenException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ExecutionContext, UnauthorizedException } from '@nestjs/common';
-import request from 'supertest';
-import { AppModule } from '../app.module';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { SyncService } from './sync.service';
 import { UserRole } from '@prisma/client';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ClinicScopeGuard } from '../auth/guards/clinic-scope.guard';
+import { RbacGuard } from '../auth/guards/rbac.guard';
 import { SYNC_MUTATION_RESULT_STATUS } from './dto/sync-push-response.dto';
+import { SYNC_PUSH_BODY_PIPE, SyncController } from './sync.controller';
+import { SyncService } from './sync.service';
+import { ClinicianPlanSealService } from './clinician-plan-seal.service';
+import {
+  CLINIC_A1,
+  CLINIC_B1,
+  OUTSIDER,
+  PORTAL_PATIENT,
+  buildRequest,
+  createExecutionContext as createHarnessContext,
+  inClinic,
+  type TestActor,
+} from '../testing/rbac-harness';
+
+type RequestShape = {
+  query?: Record<string, string>;
+  headers?: Record<string, string>;
+  ip?: string;
+  user?: typeof mockUserWithRoles;
+};
 
 const mockUserWithRoles = {
   user: {
@@ -24,9 +49,26 @@ const mockUserWithRoles = {
   ],
 };
 
+const mutations = [
+  {
+    id: 'mut-1',
+    entityType: 'patient',
+    entityId: 'patient-1',
+    operation: 'UPSERT' as const,
+    clinicId: 'clinic-1',
+    payloadJson: {
+      nationalId: '123',
+      primaryClinicId: 'clinic-1',
+      firstName: 'J',
+      lastName: 'D',
+    },
+    idempotencyKey: 'idem-1',
+  },
+];
+
 const createAuthGuard = () => ({
   canActivate: (context: ExecutionContext) => {
-    const req = context.switchToHttp().getRequest();
+    const req = context.switchToHttp().getRequest<RequestShape>();
     const auth = req.headers?.authorization;
     if (auth?.startsWith('Bearer ')) {
       req.user = mockUserWithRoles;
@@ -36,147 +78,302 @@ const createAuthGuard = () => ({
   },
 });
 
+function createExecutionContext(
+  controller: SyncController,
+  handlerName: keyof SyncController,
+  request: RequestShape,
+): ExecutionContext {
+  return {
+    getHandler: () => controller[handlerName] as unknown as (...args: unknown[]) => unknown,
+    getClass: () => SyncController,
+    switchToHttp: () => ({
+      getRequest: () => request,
+      getResponse: () => undefined,
+      getNext: () => undefined,
+    }),
+  } as unknown as ExecutionContext;
+}
+
 describe('SyncController', () => {
-  let app: INestApplication;
-  let syncService: SyncService;
+  let controller: SyncController;
+  let syncService: {
+    applyMutations: jest.Mock;
+    pull: jest.Mock;
+  };
+  let clinicScopeGuard: ClinicScopeGuard;
+  let rbacGuard: RbacGuard;
 
-  const mutations = [
-    {
-      id: 'mut-1',
-      entityType: 'patient',
-      entityId: 'patient-1',
-      operation: 'UPSERT',
-      clinicId: 'clinic-1',
-      payloadJson: { nationalId: '123', primaryClinicId: 'clinic-1', firstName: 'J', lastName: 'D' },
-      idempotencyKey: 'idem-1',
-    },
-  ];
+  beforeEach(async () => {
+    syncService = {
+      applyMutations: jest.fn(),
+      pull: jest.fn(),
+    };
 
-  beforeAll(async () => {
-    const applyMutationsMock = jest.fn();
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [SyncController],
+      providers: [
+        Reflector,
+        JwtAuthGuard,
+        ClinicScopeGuard,
+        RbacGuard,
+        { provide: SyncService, useValue: syncService },
+        ClinicianPlanSealService,
+      ],
+    }).compile();
 
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    })
-      .overrideGuard(JwtAuthGuard)
-      .useValue(createAuthGuard())
-      .overrideProvider(SyncService)
-      .useValue({ applyMutations: applyMutationsMock, pull: jest.fn() })
-      .compile();
-
-    app = moduleFixture.createNestApplication();
-    syncService = moduleFixture.get(SyncService);
-    await app.init();
+    controller = module.get(SyncController);
+    clinicScopeGuard = module.get(ClinicScopeGuard);
+    rbacGuard = module.get(RbacGuard);
   });
 
-  afterAll(async () => {
-    await app.close();
+  it('rejects unauthenticated sync push attempts', () => {
+    const authGuard = createAuthGuard();
+    const request: RequestShape = {
+      headers: {},
+      query: { clinicId: 'clinic-1' },
+    };
+    const context = createExecutionContext(controller, 'push', request);
+
+    expect(() => authGuard.canActivate(context)).toThrow(UnauthorizedException);
   });
 
-  describe('POST /sync/push', () => {
-    it('returns 401 without token', () => {
-      return request(app.getHttpServer())
-        .post('/sync/push?clinicId=clinic-1')
-        .send(mutations)
-        .expect(401);
+  it('returns idempotent push results when guards pass', async () => {
+    const authGuard = createAuthGuard();
+    const request: RequestShape = {
+      headers: { authorization: 'Bearer token', 'user-agent': 'jest' },
+      query: { clinicId: 'clinic-1' },
+      ip: '127.0.0.1',
+    };
+    const context = createExecutionContext(controller, 'push', request);
+    const appliedResults = [{ id: 'mut-1', status: SYNC_MUTATION_RESULT_STATUS.APPLIED }];
+
+    expect(authGuard.canActivate(context)).toBe(true);
+    expect(clinicScopeGuard.canActivate(context)).toBe(true);
+    expect(rbacGuard.canActivate(context)).toBe(true);
+
+    syncService.applyMutations.mockResolvedValue(appliedResults);
+
+    await expect(
+      controller.push({ clinicId: 'clinic-1' }, mutations, {
+        user: request.user!,
+        ip: request.ip,
+        headers: { 'user-agent': request.headers?.['user-agent'] },
+      }),
+    ).resolves.toEqual({ results: appliedResults });
+
+    expect(syncService.applyMutations).toHaveBeenCalledWith('clinic-1', request.user, mutations, {
+      ipAddress: '127.0.0.1',
+      userAgent: 'jest',
     });
+  });
 
-    it('returns idempotent results on repeated calls with same idempotency key', async () => {
-      const appliedResults = [
-        { id: 'mut-1', status: SYNC_MUTATION_RESULT_STATUS.APPLIED },
-      ];
-      (syncService.applyMutations as jest.Mock).mockResolvedValue(appliedResults);
-
-      const res1 = await request(app.getHttpServer())
-        .post('/sync/push?clinicId=clinic-1')
-        .set('Authorization', 'Bearer token')
-        .send(mutations)
-        .expect(200);
-
-      expect(res1.body.results).toEqual(appliedResults);
-
-      (syncService.applyMutations as jest.Mock).mockResolvedValue(appliedResults);
-
-      const res2 = await request(app.getHttpServer())
-        .post('/sync/push?clinicId=clinic-1')
-        .set('Authorization', 'Bearer token')
-        .send(mutations)
-        .expect(200);
-
-      expect(res2.body.results).toEqual(appliedResults);
-      expect(syncService.applyMutations).toHaveBeenCalledTimes(2);
-    });
-
-    it('returns DUPLICATE_NATIONAL_ID conflict when service returns it', async () => {
-      (syncService.applyMutations as jest.Mock).mockResolvedValue([
-        {
-          id: 'mut-1',
-          status: SYNC_MUTATION_RESULT_STATUS.CONFLICT,
-          conflictType: 'DUPLICATE_NATIONAL_ID',
-          conflictDetails: { existingPatientId: 'existing-1', patientCode: 'NKP-2025-000001' },
+  it('returns duplicate-national-id conflicts from the sync service', async () => {
+    const authGuard = createAuthGuard();
+    const request: RequestShape = {
+      headers: { authorization: 'Bearer token' },
+      query: { clinicId: 'clinic-1' },
+    };
+    const context = createExecutionContext(controller, 'push', request);
+    const conflictResults = [
+      {
+        id: 'mut-1',
+        status: SYNC_MUTATION_RESULT_STATUS.CONFLICT,
+        conflictType: 'DUPLICATE_NATIONAL_ID',
+        conflictDetails: {
+          existingPatientId: 'existing-1',
+          patientCode: 'NKP-2025-000001',
         },
-      ]);
+      },
+    ];
 
-      const res = await request(app.getHttpServer())
-        .post('/sync/push?clinicId=clinic-1')
-        .set('Authorization', 'Bearer token')
-        .send(mutations)
-        .expect(200);
+    expect(authGuard.canActivate(context)).toBe(true);
+    expect(clinicScopeGuard.canActivate(context)).toBe(true);
+    expect(rbacGuard.canActivate(context)).toBe(true);
 
-      expect(res.body.results).toHaveLength(1);
-      expect(res.body.results[0].status).toBe('CONFLICT');
-      expect(res.body.results[0].conflictType).toBe('DUPLICATE_NATIONAL_ID');
-      expect(res.body.results[0].conflictDetails).toEqual({
-        existingPatientId: 'existing-1',
-        patientCode: 'NKP-2025-000001',
-      });
-    });
+    syncService.applyMutations.mockResolvedValue(conflictResults);
 
-    it('returns 403 when clinicId query param is missing (clinic scope required)', () => {
-      return request(app.getHttpServer())
-        .post('/sync/push')
-        .set('Authorization', 'Bearer token')
-        .send(mutations)
-        .expect(403);
-    });
+    await expect(
+      controller.push({ clinicId: 'clinic-1' }, mutations, {
+        user: request.user!,
+        ip: undefined,
+        headers: {},
+      }),
+    ).resolves.toEqual({ results: conflictResults });
   });
 
-  describe('GET /sync/pull', () => {
-    beforeAll(() => {
-      (syncService.pull as jest.Mock).mockResolvedValue({
-        cursor: '2025-01-01T00:00:00.000Z|last-id',
-        patients: [],
-        encounters: [],
-        vitals: [],
-        diabetesScreenings: [],
-        hypertensionAssessments: [],
-        carePlans: [],
-        patientConsents: [],
-      });
-    });
+  it('rejects sync push requests without a clinic scope', () => {
+    const authGuard = createAuthGuard();
+    const request: RequestShape = {
+      headers: { authorization: 'Bearer token' },
+      query: {},
+    };
+    const context = createExecutionContext(controller, 'push', request);
 
-    it('returns 401 without token', () => {
-      return request(app.getHttpServer())
-        .get('/sync/pull?clinicId=clinic-1')
-        .expect(401);
-    });
+    expect(authGuard.canActivate(context)).toBe(true);
+    expect(() => clinicScopeGuard.canActivate(context)).toThrow('Clinic scope required');
+  });
 
-    it('returns pull response with cursor', async () => {
-      const res = await request(app.getHttpServer())
-        .get('/sync/pull?clinicId=clinic-1')
-        .set('Authorization', 'Bearer token')
-        .expect(200);
+  it('rejects unauthenticated sync pull attempts', () => {
+    const authGuard = createAuthGuard();
+    const request: RequestShape = {
+      headers: {},
+      query: { clinicId: 'clinic-1' },
+    };
+    const context = createExecutionContext(controller, 'pull', request);
 
-      expect(res.body).toHaveProperty('cursor');
-      expect(res.body).toHaveProperty('patients');
-      expect(res.body).toHaveProperty('encounters');
-    });
+    expect(() => authGuard.canActivate(context)).toThrow(UnauthorizedException);
+  });
 
-    it('returns 403 when clinicId query param is missing (clinic scope required)', () => {
-      return request(app.getHttpServer())
-        .get('/sync/pull')
-        .set('Authorization', 'Bearer token')
-        .expect(403);
+  it('returns pull results when guards pass', async () => {
+    const authGuard = createAuthGuard();
+    const request: RequestShape = {
+      headers: { authorization: 'Bearer token' },
+      query: { clinicId: 'clinic-1' },
+    };
+    const context = createExecutionContext(controller, 'pull', request);
+    const pullResult = {
+      cursor: '2025-01-01T00:00:00.000Z|last-id',
+      patients: [],
+      encounters: [],
+      vitals: [],
+      tobaccoScreenings: [],
+      diabetesScreenings: [],
+      hypertensionAssessments: [],
+      carePlans: [],
+      patientConsents: [],
+    };
+
+    expect(authGuard.canActivate(context)).toBe(true);
+    expect(clinicScopeGuard.canActivate(context)).toBe(true);
+    expect(rbacGuard.canActivate(context)).toBe(true);
+
+    syncService.pull.mockResolvedValue(pullResult);
+
+    await expect(controller.pull({ clinicId: 'clinic-1' })).resolves.toEqual(pullResult);
+  });
+
+  it('rejects sync pull requests without a clinic scope', () => {
+    const authGuard = createAuthGuard();
+    const request: RequestShape = {
+      headers: { authorization: 'Bearer token' },
+      query: {},
+    };
+    const context = createExecutionContext(controller, 'pull', request);
+
+    expect(authGuard.canActivate(context)).toBe(true);
+    expect(() => clinicScopeGuard.canActivate(context)).toThrow('Clinic scope required');
+  });
+});
+
+describe('sync push body validation', () => {
+  const validate = async (body: unknown) =>
+    SYNC_PUSH_BODY_PIPE.transform(
+      body as never,
+      {
+        type: 'body',
+        metatype: Array,
+      } as never,
+    );
+
+  const mutation = (overrides: Record<string, unknown> = {}) => ({
+    id: '11111111-1111-4111-8111-111111111111',
+    entityType: 'vitals',
+    entityId: '22222222-2222-4222-8222-222222222222',
+    operation: 'UPSERT',
+    clinicId: '33333333-3333-4333-8333-333333333333',
+    idempotencyKey: 'idem-1',
+    ...overrides,
+  });
+
+  it('accepts a well-formed mutation', async () => {
+    await expect(validate([mutation()])).resolves.toHaveLength(1);
+  });
+
+  it('rejects a clinic id that is not a uuid', async () => {
+    // Before an explicit pipe, Nest could not infer the element type from the array annotation, so
+    // every constraint on SyncMutationDto was declared and never applied.
+    await expect(validate([mutation({ clinicId: 'not-a-uuid' })])).rejects.toThrow(
+      BadRequestException,
+    );
+  });
+
+  it('rejects an entity id that is not a uuid', async () => {
+    // entityId is written straight into a primary key.
+    await expect(validate([mutation({ entityId: "'; DROP TABLE" })])).rejects.toThrow(
+      BadRequestException,
+    );
+  });
+
+  it('rejects an unrecognised entity type', async () => {
+    await expect(validate([mutation({ entityType: 'clinical_note' })])).rejects.toThrow(
+      BadRequestException,
+    );
+  });
+
+  it('rejects an unknown property', async () => {
+    await expect(validate([mutation({ isAdmin: true })])).rejects.toThrow(BadRequestException);
+  });
+
+  it('reports which field failed', async () => {
+    await expect(validate([mutation({ clinicId: 'nope' })])).rejects.toMatchObject({
+      response: {
+        code: 'VALIDATION_ERROR',
+        fieldErrors: expect.arrayContaining([expect.objectContaining({ field: 'clinicId' })]),
+      },
     });
+  });
+});
+
+/**
+ * A device keeps a clinic's queue after the account loses its seat there, or after the active
+ * clinic changes underneath it. Whatever the device still holds, the route decides on the roles
+ * the account has now, at the clinic the push names.
+ */
+describe('SyncController stale clinic scope', () => {
+  let controller: SyncController;
+  let clinicScopeGuard: ClinicScopeGuard;
+  let rbacGuard: RbacGuard;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [SyncController],
+      providers: [
+        Reflector,
+        ClinicScopeGuard,
+        RbacGuard,
+        { provide: SyncService, useValue: { applyMutations: jest.fn(), pull: jest.fn() } },
+        ClinicianPlanSealService,
+      ],
+    }).compile();
+    controller = module.get(SyncController);
+    clinicScopeGuard = module.get(ClinicScopeGuard);
+    rbacGuard = module.get(RbacGuard);
+  });
+
+  const admits = (user: TestActor, handler: 'push' | 'pull', clinicId: string) => {
+    const context = createHarnessContext(
+      controller,
+      handler,
+      buildRequest(user, { params: {}, query: { clinicId } }),
+    );
+    return clinicScopeGuard.canActivate(context) && rbacGuard.canActivate(context);
+  };
+
+  it.each(['push', 'pull'] as const)(
+    'refuses a %s for a clinic the account holds no seat at',
+    (handler) => {
+      expect(() => admits(OUTSIDER, handler, CLINIC_A1)).toThrow(ForbiddenException);
+    },
+  );
+
+  it('refuses a push for the other clinic of an account that holds a seat at only one', () => {
+    expect(admits(inClinic(UserRole.VOLUNTEER, CLINIC_A1), 'push', CLINIC_A1)).toBe(true);
+    expect(() => admits(inClinic(UserRole.VOLUNTEER, CLINIC_A1), 'push', CLINIC_B1)).toThrow(
+      ForbiddenException,
+    );
+  });
+
+  it('refuses a push from a portal patient, even at their own clinic', () => {
+    expect(() => admits(PORTAL_PATIENT, 'push', CLINIC_A1)).toThrow(ForbiddenException);
   });
 });

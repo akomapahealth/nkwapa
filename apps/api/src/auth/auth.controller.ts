@@ -1,8 +1,17 @@
-import { Controller, Get, Request, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Request, UseGuards } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { ClinicService } from '../clinics/clinic.service';
 import { computeEffectivePermissions } from './constants/permissions';
+import { PrismaService } from '../prisma/prisma.service';
+import { RateLimit } from '../common/rate-limit.decorator';
+import { claimableInviteForIdentityWhere } from '../common/portal-invite-lifecycle';
+import { IncludeStaffInviteScope } from '../staff-invites/staff-invite-scope.decorator';
+import { CompleteWelcomeTourDto } from './dto/welcome-tour.dto';
+import {
+  findAcceptableStaffInvites,
+  type AcceptableStaffInvite,
+} from '../staff-invites/staff-invite.queries';
 
 export interface ReqUser {
   user: { id: string; keycloakSub: string; displayName: string; email: string | null };
@@ -12,7 +21,16 @@ export interface ReqUser {
 export interface Membership {
   clinicId: string;
   clinicName: string;
+  /** The clinic's reporting zone, or `null`. Context for the UI, never a permission. */
+  zoneCode: string | null;
   roles: string[];
+}
+
+export interface AvailableClinic {
+  clinicId: string;
+  clinicName: string;
+  /** The clinic's reporting zone, or `null`. Context for the UI, never a permission. */
+  zoneCode: string | null;
 }
 
 export interface WhoAmIResponse {
@@ -20,25 +38,65 @@ export interface WhoAmIResponse {
   keycloakSub: string;
   displayName: string;
   memberships: Membership[];
+  availableClinics: AvailableClinic[];
   globalRoles: string[];
   activeClinicId: string | null;
   effectiveRolesForActiveClinic: string[];
   effectivePermissionsForActiveClinic: string[];
+  /**
+   * Staff invitations this person can accept, whatever roles they already hold.
+   *
+   * Separate from `onboarding` because an existing colleague invited to a second clinic is not
+   * onboarding: they keep working, and the app offers the invitation alongside. Only someone
+   * with no role at all is routed to it.
+   */
+  pendingStaffInvites: AcceptableStaffInvite[];
+  onboarding:
+    | { state: 'STAFF_INVITE_ACCEPT_REQUIRED' }
+    | {
+        state: 'PATIENT_CLAIM_REQUIRED';
+        pendingInvites: Array<{
+          id: string;
+          clinicId: string;
+          clinicName: string;
+          patientId: string;
+          patientName: string;
+          patientCode: string;
+          email: string | null;
+          phoneE164: string | null;
+          createdAt: string;
+          expiresAt: string | null;
+        }>;
+      }
+    | null;
+  /**
+   * The welcome tour version this person last finished or skipped, or null if never. The web app
+   * offers the tour while this is below its current version. Not onboarding: it gates nothing.
+   */
+  welcomeTour: { completedVersion: number | null };
 }
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly clinicService: ClinicService) {}
+  constructor(
+    private readonly clinicService: ClinicService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @UseGuards(JwtAuthGuard)
   @Get('me')
+  @RateLimit({ key: 'auth_me', limit: 120, windowSeconds: 60, scope: 'user-or-ip' })
   getProfile(@Request() req: { user: ReqUser }) {
     return req.user;
   }
 
   @UseGuards(JwtAuthGuard)
   @Get('whoami')
-  async whoami(@Request() req: { user: ReqUser; headers?: { 'x-clinic-id'?: string } }): Promise<WhoAmIResponse> {
+  @IncludeStaffInviteScope()
+  @RateLimit({ key: 'auth_whoami', limit: 60, windowSeconds: 60, scope: 'user-or-ip' })
+  async whoami(
+    @Request() req: { user: ReqUser; headers?: { 'x-clinic-id'?: string } },
+  ): Promise<WhoAmIResponse> {
     const { user, roles } = req.user;
 
     const byClinicId = new Map<string | 'global', { clinicId: string | null; role: string }[]>();
@@ -49,9 +107,7 @@ export class AuthController {
       byClinicId.set(key, list);
     }
 
-    const clinicIds = [...byClinicId.keys()].filter(
-      (k): k is string => k !== 'global'
-    );
+    const clinicIds = [...byClinicId.keys()].filter((k): k is string => k !== 'global');
     const clinics = clinicIds.length > 0 ? await this.clinicService.findByIds(clinicIds) : [];
     const clinicMap = new Map(clinics.map((c) => [c.id, c]));
 
@@ -59,29 +115,40 @@ export class AuthController {
       ? [...new Set((byClinicId.get('global') ?? []).map((r) => r.role))]
       : [];
 
+    const isSystemAdmin = roles.some((r) => r.role === 'SYSTEM_ADMIN' && r.clinicId === null);
+    const availableClinicRows = await this.clinicService.listActiveSwitchableClinics(
+      isSystemAdmin ? undefined : clinicIds,
+    );
+    const availableClinics: AvailableClinic[] = availableClinicRows.map((clinic) => ({
+      clinicId: clinic.id,
+      clinicName: clinic.name,
+      zoneCode: clinic.zoneCode ?? null,
+    }));
+    const availableClinicIds = new Set(availableClinics.map((clinic) => clinic.clinicId));
+
     const memberships: Membership[] = [];
     for (const cid of clinicIds.sort()) {
       const roleEntries = byClinicId.get(cid) ?? [];
       const roleNames = [...new Set(roleEntries.map((r) => r.role))];
       const clinic = clinicMap.get(cid) ?? null;
+      if (!clinic) {
+        continue;
+      }
       memberships.push({
         clinicId: cid,
-        clinicName: clinic?.name ?? '',
+        clinicName: clinic.name,
+        zoneCode: clinic.zoneCode ?? null,
         roles: roleNames,
       });
     }
 
-    const sortedClinicIds = [...clinicIds].sort();
     const headerClinicId = req.headers?.['x-clinic-id']?.trim();
-    const isSystemAdmin = roles.some((r) => r.role === 'SYSTEM_ADMIN' && r.clinicId === null);
-    const hasMembership = (cid: string) =>
-      roles.some((r) => r.clinicId === cid) || isSystemAdmin;
 
     let activeClinicId: string | null;
-    if (headerClinicId && hasMembership(headerClinicId)) {
+    if (headerClinicId && availableClinicIds.has(headerClinicId)) {
       activeClinicId = headerClinicId;
     } else {
-      activeClinicId = sortedClinicIds.length > 0 ? sortedClinicIds[0] : null;
+      activeClinicId = availableClinics[0]?.clinicId ?? null;
     }
 
     const activeRoles =
@@ -92,16 +159,138 @@ export class AuthController {
     const allEffectiveRoles = [...new Set([...activeRoles, ...globalRoleList])];
     const effectiveRolesForActiveClinic = allEffectiveRoles;
     const effectivePermissionsForActiveClinic = computeEffectivePermissions(allEffectiveRoles);
+    const pendingStaffInvites = await findAcceptableStaffInvites(this.prisma, user.id, new Date());
+    /*
+      Someone with no role anywhere can do nothing in the app but accept, so they are sent to do
+      it. A staff invitation outranks a patient claim here only because the pair is vanishingly
+      rare and one has to win; once accepted, the account holds a role and the claim onboarding
+      below no longer applies to it.
+    */
+    const onboarding: WhoAmIResponse['onboarding'] =
+      roles.length > 0
+        ? null
+        : pendingStaffInvites.length > 0
+          ? { state: 'STAFF_INVITE_ACCEPT_REQUIRED' }
+          : await this.findPendingPatientClaimOnboarding(user.id);
+
+    const tour = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: { welcomeTourVersion: true },
+    });
 
     return {
       userId: user.id,
       keycloakSub: user.keycloakSub,
       displayName: user.displayName,
       memberships,
+      availableClinics,
       globalRoles,
       activeClinicId,
       effectiveRolesForActiveClinic,
       effectivePermissionsForActiveClinic,
+      pendingStaffInvites,
+      onboarding,
+      welcomeTour: { completedVersion: tour?.welcomeTourVersion ?? null },
+    };
+  }
+
+  /**
+   * Record that the caller finished or skipped the welcome tour.
+   *
+   * Writes only the caller's own row -- the id comes from the token, never the body -- and only
+   * moves forward: a stale tab finishing an older version cannot re-offer a tour this person has
+   * already seen a newer one of. Idempotent, so the client can retry blindly.
+   */
+  @UseGuards(JwtAuthGuard)
+  @Post('welcome-tour')
+  @HttpCode(200)
+  @RateLimit({ key: 'auth_welcome_tour', limit: 20, windowSeconds: 60, scope: 'user-or-ip' })
+  async completeWelcomeTour(
+    @Request() req: { user: ReqUser },
+    @Body() dto: CompleteWelcomeTourDto,
+  ): Promise<{ completedVersion: number }> {
+    await this.prisma.user.updateMany({
+      where: {
+        id: req.user.user.id,
+        OR: [{ welcomeTourVersion: null }, { welcomeTourVersion: { lt: dto.version } }],
+      },
+      data: { welcomeTourVersion: dto.version, welcomeTourCompletedAt: new Date() },
+    });
+    const row = await this.prisma.user.findUnique({
+      where: { id: req.user.user.id },
+      select: { welcomeTourVersion: true },
+    });
+    return { completedVersion: row?.welcomeTourVersion ?? dto.version };
+  }
+
+  private async findPendingPatientClaimOnboarding(
+    userId: string,
+  ): Promise<Extract<WhoAmIResponse['onboarding'], { state: 'PATIENT_CLAIM_REQUIRED' }> | null> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        email: true,
+        phoneE164: true,
+        isActive: true,
+      },
+    });
+
+    if (!user?.isActive) {
+      return null;
+    }
+
+    // An expired invite must not route someone into claim onboarding. They would land on
+    // /claim-record, fill in a patient code and date of birth, and be refused by the API
+    // with no way forward — the shape of dead end this lifecycle work exists to remove.
+    const claimable = claimableInviteForIdentityWhere(user, new Date());
+    if (!claimable) {
+      return null;
+    }
+
+    const invites = await this.prisma.patientPortalInvite.findMany({
+      where: {
+        ...claimable,
+        patient: {
+          mergedIntoPatientId: null,
+        },
+      },
+      include: {
+        clinic: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        patient: {
+          select: {
+            id: true,
+            patientCode: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+      orderBy: [{ createdAt: 'desc' }],
+    });
+
+    if (invites.length === 0) {
+      return null;
+    }
+
+    return {
+      state: 'PATIENT_CLAIM_REQUIRED',
+      pendingInvites: invites.map((invite) => ({
+        id: invite.id,
+        clinicId: invite.clinicId,
+        clinicName: invite.clinic.name,
+        patientId: invite.patientId,
+        patientName: `${invite.patient.firstName} ${invite.patient.lastName}`.trim(),
+        patientCode: invite.patient.patientCode,
+        email: invite.email,
+        phoneE164: invite.phoneE164,
+        createdAt: invite.createdAt.toISOString(),
+        expiresAt: invite.expiresAt?.toISOString() ?? null,
+      })),
     };
   }
 }

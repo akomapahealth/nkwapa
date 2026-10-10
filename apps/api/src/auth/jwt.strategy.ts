@@ -10,6 +10,8 @@ export interface JwtPayload {
   given_name?: string;
   family_name?: string;
   email?: string;
+  email_verified?: boolean;
+  phone_number?: string;
   realm_access?: { roles?: string[] };
   resource_access?: Record<string, { roles?: string[] }>;
 }
@@ -17,7 +19,9 @@ export interface JwtPayload {
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(private readonly userService: UserService) {
-    const jwksUri = process.env.KEYCLOAK_JWKS_URI ?? 'http://localhost:8080/realms/nkwapa/protocol/openid-connect/certs';
+    const jwksUri =
+      process.env.KEYCLOAK_JWKS_URI ??
+      'http://localhost:8080/realms/nkwapa/protocol/openid-connect/certs';
     const issuer = process.env.KEYCLOAK_ISSUER ?? 'http://localhost:8080/realms/nkwapa';
     // Audience optional: Keycloak may omit `aud` or use different values. Set KEYCLOAK_AUDIENCE to enforce.
     const audience = process.env.KEYCLOAK_AUDIENCE?.trim();
@@ -40,9 +44,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     return this.userService.findOrCreateByKeycloakSub(
       payload.sub,
       payload.preferred_username ?? undefined,
-      payload.email ?? undefined,
+      payload.email_verified === true ? (payload.email ?? undefined) : undefined,
       payload.given_name ?? undefined,
-      payload.family_name ?? undefined
+      payload.family_name ?? undefined,
+      payload.phone_number ?? undefined,
     );
   }
 }

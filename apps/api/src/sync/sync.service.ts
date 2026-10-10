@@ -1,11 +1,21 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import {
   SyncOperation,
   SyncMutationStatus,
   EncounterStatus,
-  HypertensionClassification,
+  GhanaRegion,
   NationalIdType,
+  PatientLocationStatus,
   Sex,
+  MedicalHistoryCategory,
+  MedicalHistoryStatus,
 } from '@prisma/client';
 import {
   encryptNationalId,
@@ -14,32 +24,66 @@ import {
   nationalIdLast4,
   normalizePhoneToE164,
 } from '@nkwapa/db';
+import { assertPermissionAtClinic, type ScopedRole } from '../auth/clinic-roles';
+import type { EntityType as SyncEntityType } from './entity-types';
+import { SYNC_ENTITY_PERMISSIONS, isSyncEntityType } from './sync-permissions';
+import { recordAppliedSyncMutation } from './applied-sync-mutation';
+import { ClinicianPlanSealService } from './clinician-plan-seal.service';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+import { UpsertHypertensionClinicianPlanDto } from '../hypertension-assessment/dto/hypertension-assessment.dto';
+import { UpsertDiabetesClinicianPlanDto } from '../diabetes-screening/dto/diabetes-screening.dto';
+import { flattenValidationErrors } from '../common/validation';
+import {
+  classifySyncFailure,
+  isTerminalOutcome,
+  replayStoredOutcome,
+  syncRefusal,
+  type SyncOutcome,
+} from './sync-outcome';
+import {
+  SYNC_DIABETES_SCREENING_SELECT,
+  SYNC_ENCOUNTER_MEDICATION_ADHERENCE_SELECT,
+  SYNC_HYPERTENSION_ASSESSMENT_SELECT,
+  SYNC_PATIENT_SELECT,
+} from './sync-projection';
 import { PrismaService } from '../prisma/prisma.service';
+import { lockForTransaction } from '../prisma/transaction-lock';
+import { TelemetryService } from '../telemetry/telemetry.service';
 import { AuditService } from '../audit/audit.service';
 import { PatientRepository } from '../patients/patient.repository';
+import { resolveResidentialLocation } from '../patients/residential-location.util';
 import { EncounterRepository } from '../encounters/encounter.repository';
-import {
-  SyncMutationDto,
-  SYNC_OPERATION,
-} from './dto/sync-mutation.dto';
-import {
-  SyncMutationResultDto,
-  SYNC_MUTATION_RESULT_STATUS,
-} from './dto/sync-push-response.dto';
+import { SyncMutationDto, SYNC_OPERATION } from './dto/sync-mutation.dto';
+import { SyncMutationResultDto, SYNC_MUTATION_RESULT_STATUS } from './dto/sync-push-response.dto';
 import { SyncPullResponseDto } from './dto/sync-pull-response.dto';
+import { MedicalHistoryService } from '../medical-history/medical-history.service';
+import { isApiFeatureEnabled } from '../common/feature-flags';
+import { ClinicalMeasurementsService } from './clinical-measurements.service';
+import { MedicationReconciliationService } from '../medication-reconciliation/medication-reconciliation.service';
+import type {
+  CreatePatientMedicationDto,
+  CreatePatientPharmacyDto,
+  EndPreferredPharmacyDto,
+  ReconcileMedicationListDto,
+  RevisePatientMedicationDto,
+  RevisePatientPharmacyDto,
+  SetPreferredPharmacyDto,
+} from '../medication-reconciliation/dto/medication-reconciliation.dto';
+import { DiabetesScreeningService } from '../diabetes-screening/diabetes-screening.service';
+import { HypertensionAssessmentService } from '../hypertension-assessment/hypertension-assessment.service';
+import { PrescriptionService } from '../prescriptions/prescription.service';
+import { MedicationAdherenceService } from '../medication-adherence/medication-adherence.service';
+import { OpsService, type OpsWriteContext } from '../ops/ops.service';
+import {
+  PatientCheckInReplayPayload,
+  ShiftCheckInReplayPayload,
+  ShiftCheckOutReplayPayload,
+} from '../ops/dto/ops-replay.dto';
+import { validatePayload } from '../common/validation';
+import { serializeLegacyDiabetesSymptoms } from '@nkwapa/db';
 
-const ENTITY_TYPES = [
-  'patient',
-  'encounter',
-  'vitals',
-  'diabetes_screening',
-  'hypertension_assessment',
-  'care_plan',
-  'patient_consent',
-  'prescription',
-] as const;
-
-export type EntityType = (typeof ENTITY_TYPES)[number];
+export type { EntityType } from './entity-types';
 
 export interface RequestMetadata {
   ipAddress?: string;
@@ -48,7 +92,7 @@ export interface RequestMetadata {
 
 export interface UserWithId {
   user: { id: string };
-  roles: unknown[];
+  roles: ScopedRole[];
 }
 
 @Injectable()
@@ -57,28 +101,44 @@ export class SyncService {
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
     private readonly patientRepository: PatientRepository,
-    private readonly encounterRepository: EncounterRepository
+    private readonly encounterRepository: EncounterRepository,
+    private readonly medicalHistoryService: MedicalHistoryService,
+    private readonly clinicalMeasurementsService: ClinicalMeasurementsService,
+    private readonly medicationReconciliationService: MedicationReconciliationService,
+    private readonly diabetesScreeningService: DiabetesScreeningService,
+    private readonly hypertensionAssessmentService: HypertensionAssessmentService,
+    private readonly medicationAdherenceService: MedicationAdherenceService,
+    private readonly prescriptionService: PrescriptionService,
+    private readonly opsService: OpsService,
+    private readonly clinicianPlanSeal: ClinicianPlanSealService,
+    @Optional() private readonly telemetry?: TelemetryService,
   ) {}
 
   async applyMutations(
     clinicId: string,
     user: UserWithId,
     mutations: SyncMutationDto[],
-    metadata?: RequestMetadata
+    metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto[]> {
     const actorUserId = user.user.id;
     const results: SyncMutationResultDto[] = [];
 
     for (const mut of mutations) {
       if (mut.clinicId !== clinicId) {
-        results.push({
-          id: mut.id,
-          status: SYNC_MUTATION_RESULT_STATUS.ERROR,
-          conflictType: 'CLINIC_MISMATCH',
-          conflictDetails: { message: 'Mutation clinicId does not match query' },
-        });
+        results.push(
+          syncRefusal(mut.id, SYNC_MUTATION_RESULT_STATUS.ERROR, 'CLINIC_MISMATCH', {
+            message: 'Mutation clinicId does not match query',
+          }),
+        );
         continue;
       }
+
+      // Two pushes of the same change (two tabs, or a retried request that had in fact landed)
+      // used to both find no record, both apply, and then collide on the record's unique key,
+      // which aborted the request's transaction and failed the whole push with a 500. Holding the
+      // key until this request commits makes the second one wait and then read the first's
+      // answer, so a change applies once and both callers are told the same thing.
+      await lockForTransaction(this.prisma, `sync-mutation:${clinicId}:${mut.idempotencyKey}`);
 
       const existing = await this.prisma.syncMutation.findUnique({
         where: {
@@ -89,85 +149,419 @@ export class SyncService {
         },
       });
 
-      if (existing) {
-        results.push({
-          id: mut.id,
-          status: existing.status as SyncMutationResultDto['status'],
-          conflictType: existing.conflictType ?? undefined,
-          conflictDetails: existing.conflictDetailsJson
-            ? (JSON.parse(existing.conflictDetailsJson) as Record<string, unknown>)
-            : undefined,
-        });
+      if (existing && isTerminalOutcome(existing.status, existing.conflictType)) {
+        results.push(replayStoredOutcome(mut.id, existing));
         continue;
       }
 
+      if (existing) {
+        // A recorded failure that a replay could still resolve: the payload may have been fixed,
+        // a permission granted, or a feature flag turned on. Leaving the row in place would make
+        // the outcome permanent and the client's queue undrainable, which is the mechanism behind
+        // the poisoned outbox. The row is cleared so the mutation is genuinely re-attempted.
+        await this.prisma.syncMutation.delete({
+          where: { clinicId_idempotencyKey: { clinicId, idempotencyKey: mut.idempotencyKey } },
+        });
+      }
+
       try {
-        const result = await this.applyOne(
-          clinicId,
-          actorUserId,
-          mut,
-          metadata
-        );
+        const result = await this.applyOne(clinicId, actorUserId, user, mut, metadata);
         results.push(result);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        results.push({
-          id: mut.id,
-          status: SYNC_MUTATION_RESULT_STATUS.ERROR,
-          conflictType: 'APPLICATION_ERROR',
-          conflictDetails: { message: msg },
-        });
-        await this.prisma.syncMutation.create({
-          data: {
-            clinicId,
-            entityType: mut.entityType,
-            entityId: mut.entityId,
-            operation: mut.operation === 'UPSERT' ? SyncOperation.UPSERT : SyncOperation.DELETE,
-            idempotencyKey: mut.idempotencyKey,
-            status: SyncMutationStatus.ERROR,
-            conflictType: 'APPLICATION_ERROR',
-            conflictDetailsJson: JSON.stringify({ message: msg }),
-          },
-        });
+        const outcome = classifySyncFailure(err, mut.entityType);
+        results.push({ id: mut.id, ...outcome });
+        await this.recordRefusal(clinicId, mut, outcome);
       }
     }
 
+    this.recordRefusalTelemetry(clinicId, mutations, results);
     return results;
+  }
+
+  /**
+   * One event per refused change: its code, its entity type and whether it will be retried. The
+   * batch's totals are recorded by the push route itself; this is what explains them.
+   */
+  private recordRefusalTelemetry(
+    clinicId: string,
+    mutations: SyncMutationDto[],
+    results: SyncMutationResultDto[],
+  ): void {
+    if (!this.telemetry) return;
+    const entityTypes = new Map(mutations.map((mut) => [mut.id, mut.entityType]));
+    for (const result of results) {
+      if (result.status === SYNC_MUTATION_RESULT_STATUS.APPLIED) continue;
+      const entityType = entityTypes.get(result.id);
+      this.telemetry.record('sync.mutation.refuse', {
+        clinicId,
+        reason: result.conflictType,
+        entityType: entityType && isSyncEntityType(entityType) ? entityType : 'other',
+        retryable: result.retryable === true,
+      });
+    }
+  }
+
+  /**
+   * Record a refusal so an operator can see what a client tried to replay.
+   *
+   * Only a terminal one is allowed to short-circuit the next attempt; see isTerminalOutcome.
+   */
+  private async recordRefusal(
+    clinicId: string,
+    mut: SyncMutationDto,
+    outcome: SyncOutcome,
+  ): Promise<void> {
+    await this.prisma.syncMutation.create({
+      data: {
+        clinicId,
+        entityType: mut.entityType,
+        entityId: mut.entityId,
+        operation: mut.operation === 'UPSERT' ? SyncOperation.UPSERT : SyncOperation.DELETE,
+        idempotencyKey: mut.idempotencyKey,
+        status:
+          outcome.status === SYNC_MUTATION_RESULT_STATUS.CONFLICT
+            ? SyncMutationStatus.CONFLICT
+            : SyncMutationStatus.ERROR,
+        conflictType: outcome.conflictType,
+        conflictDetailsJson: JSON.stringify(outcome.conflictDetails),
+      },
+    });
+  }
+
+  /** Refuse a mutation a handler detected itself, recorded the same way as a thrown refusal. */
+  private async refuse(
+    clinicId: string,
+    mut: SyncMutationDto,
+    status: Exclude<SyncMutationResultDto['status'], 'APPLIED'>,
+    conflictType: string,
+    conflictDetails: Record<string, unknown>,
+  ): Promise<SyncMutationResultDto> {
+    const result = syncRefusal(mut.id, status, conflictType, conflictDetails);
+    await this.recordRefusal(clinicId, mut, result);
+    return result;
+  }
+
+  /**
+   * Authorize an offline mutation against the roles the actor holds *at the target clinic*.
+   *
+   * `POST /sync/push` only proves the caller may synchronize; it says nothing about which records
+   * they may write. Every entity type is therefore mapped back to the permission its online REST
+   * route requires, so a queued write is never more powerful than the same write made live.
+   */
+  private async assertMutationPermitted(
+    clinicId: string,
+    user: UserWithId,
+    mut: SyncMutationDto,
+  ): Promise<void> {
+    if (!isSyncEntityType(mut.entityType)) {
+      throw new BadRequestException(`Unknown entity type: ${mut.entityType}`);
+    }
+    const policy = SYNC_ENTITY_PERMISSIONS[mut.entityType];
+
+    if (mut.operation === SYNC_OPERATION.DELETE) {
+      // A non-deletable type is reported as DELETE_NOT_SUPPORTED by applyDelete, which records the
+      // attempt. Failing here instead would lose that record.
+      if (policy.delete === null) return;
+      assertPermissionAtClinic(
+        user.roles,
+        clinicId,
+        policy.delete,
+        `${policy.delete} permission is required to delete ${mut.entityType} in this clinic`,
+      );
+      return;
+    }
+
+    const required =
+      policy.create === policy.update
+        ? policy.create
+        : (await this.mutationTargetExists(mut.entityType, mut.entityId))
+          ? policy.update
+          : policy.create;
+
+    assertPermissionAtClinic(
+      user.roles,
+      clinicId,
+      required,
+      `${required} permission is required to write ${mut.entityType} in this clinic`,
+    );
+  }
+
+  /**
+   * Whether an upsert will update rather than create, for the entity types whose create and update
+   * permissions differ. Registering a patient and editing an existing chart are separate
+   * permissions over REST, and a volunteer holds only the first.
+   */
+  private async mutationTargetExists(
+    entityType: SyncEntityType,
+    entityId: string,
+  ): Promise<boolean> {
+    if (entityType !== 'patient') return false;
+    // Same lookup applyPatientUpsert performs, through the repository, so the create/update
+    // decision here and the upsert below can never disagree.
+    const existing = await this.patientRepository.findById(entityId);
+    return Boolean(existing);
   }
 
   private async applyOne(
     clinicId: string,
     actorUserId: string,
+    user: UserWithId,
     mut: SyncMutationDto,
-    metadata?: RequestMetadata
+    metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
     const payload = mut.payloadJson ?? {};
     const idempotencyKey = mut.idempotencyKey;
 
-    if (mut.operation === SYNC_OPERATION.DELETE) {
-      return this.applyDelete(clinicId, actorUserId, mut, metadata);
+    await this.assertMutationPermitted(clinicId, user, mut);
+
+    // Every patient-scoped change, not only the ones whose handler looks the chart up itself: a
+    // medical history or medication change queued against a chart that has since been merged
+    // would otherwise come back as "not found" and be retried forever.
+    if (
+      mut.operation === SYNC_OPERATION.UPSERT &&
+      mut.entityType !== 'patient' &&
+      mut.entityType !== 'encounter' &&
+      typeof payload.patientId === 'string'
+    ) {
+      await this.assertPatientNotMerged(payload.patientId, clinicId, 'This change');
     }
 
-    switch (mut.entityType as EntityType) {
+    if (mut.operation === SYNC_OPERATION.DELETE) {
+      return this.applyDelete(clinicId, actorUserId, user, mut, metadata);
+    }
+
+    switch (mut.entityType as SyncEntityType) {
       case 'patient':
-        return this.applyPatientUpsert(clinicId, actorUserId, mut, payload, idempotencyKey, metadata);
+        return this.applyPatientUpsert(
+          clinicId,
+          actorUserId,
+          mut,
+          payload,
+          idempotencyKey,
+          metadata,
+        );
       case 'encounter':
-        return this.applyEncounterUpsert(clinicId, actorUserId, mut, payload, idempotencyKey, metadata);
+        return this.applyEncounterUpsert(
+          clinicId,
+          actorUserId,
+          mut,
+          payload,
+          idempotencyKey,
+          metadata,
+        );
       case 'vitals':
-        return this.applyVitalsUpsert(clinicId, actorUserId, mut, payload, idempotencyKey, metadata);
+        return this.applyVitalsUpsert(
+          clinicId,
+          actorUserId,
+          user,
+          mut,
+          payload,
+          idempotencyKey,
+          metadata,
+        );
+      case 'encounter_vitals_bundle':
+        return this.applyVitalsBundle(
+          clinicId,
+          actorUserId,
+          user,
+          mut,
+          payload,
+          idempotencyKey,
+          metadata,
+        );
       case 'diabetes_screening':
-        return this.applyDiabetesScreeningUpsert(clinicId, actorUserId, mut, payload, idempotencyKey, metadata);
+        return this.applyDiabetesScreeningUpsert(
+          clinicId,
+          actorUserId,
+          user,
+          mut,
+          payload,
+          idempotencyKey,
+          metadata,
+        );
+      case 'diabetes_glucose_reading':
+        return this.applyGlucoseReading(
+          clinicId,
+          actorUserId,
+          user,
+          mut,
+          payload,
+          idempotencyKey,
+          metadata,
+        );
       case 'hypertension_assessment':
-        return this.applyHypertensionAssessmentUpsert(clinicId, actorUserId, mut, payload, idempotencyKey, metadata);
+        return this.applyHypertensionAssessmentUpsert(
+          clinicId,
+          actorUserId,
+          user,
+          mut,
+          payload,
+          idempotencyKey,
+          metadata,
+        );
+      case 'clinician_plan':
+        return this.applySealedClinicianPlan(
+          clinicId,
+          actorUserId,
+          user,
+          mut,
+          payload,
+          idempotencyKey,
+          metadata,
+        );
+      case 'encounter_medication_adherence':
+        return this.applyMedicationAdherenceReplace(
+          clinicId,
+          actorUserId,
+          user,
+          mut,
+          payload,
+          idempotencyKey,
+          metadata,
+        );
       case 'care_plan':
-        return this.applyCarePlanUpsert(clinicId, actorUserId, mut, payload, idempotencyKey, metadata);
+        return this.applyCarePlanUpsert(
+          clinicId,
+          actorUserId,
+          mut,
+          payload,
+          idempotencyKey,
+          metadata,
+        );
       case 'patient_consent':
-        return this.applyPatientConsentUpsert(clinicId, actorUserId, mut, payload, idempotencyKey, metadata);
+        return this.applyPatientConsentUpsert(
+          clinicId,
+          actorUserId,
+          mut,
+          payload,
+          idempotencyKey,
+          metadata,
+        );
       case 'prescription':
-        return this.applyPrescriptionUpsert(clinicId, actorUserId, mut, payload, idempotencyKey, metadata);
+        return this.applyPrescriptionUpsert(
+          clinicId,
+          actorUserId,
+          user,
+          mut,
+          payload,
+          idempotencyKey,
+          metadata,
+        );
+      case 'medical_history_revision':
+        return this.applyMedicalHistoryRevision(
+          clinicId,
+          actorUserId,
+          user,
+          mut,
+          payload,
+          idempotencyKey,
+        );
+      case 'patient_medication_revision':
+        return this.applyPatientMedicationRevision(
+          clinicId,
+          actorUserId,
+          user,
+          mut,
+          payload,
+          idempotencyKey,
+        );
+      case 'medication_reconciliation':
+        return this.applyMedicationReconciliation(
+          clinicId,
+          actorUserId,
+          user,
+          mut,
+          payload,
+          idempotencyKey,
+        );
+      case 'patient_pharmacy_revision':
+        return this.applyPatientPharmacyRevision(
+          clinicId,
+          actorUserId,
+          user,
+          mut,
+          payload,
+          idempotencyKey,
+        );
+      case 'patient_pharmacy_preference':
+        return this.applyPatientPharmacyPreference(
+          clinicId,
+          actorUserId,
+          user,
+          mut,
+          payload,
+          idempotencyKey,
+        );
+      case 'shift_check_in':
+      case 'shift_check_out':
+      case 'patient_check_in':
+        return this.applyOpsReplay(clinicId, actorUserId, mut, payload, metadata);
       default:
         throw new Error(`Unknown entity type: ${mut.entityType}`);
     }
+  }
+
+  /**
+   * Replay a clinic-operations action through the same service the REST route uses.
+   *
+   * The service writes the record, its audit event and the idempotency record in one transaction,
+   * and treats a write that already applied under this id as applied. A check-in that reached the
+   * server online before the connection dropped therefore comes back as applied, not duplicated.
+   */
+  private async applyOpsReplay(
+    clinicId: string,
+    actorUserId: string,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+    metadata?: RequestMetadata,
+  ): Promise<SyncMutationResultDto> {
+    const context = (occurredAt: string): OpsWriteContext => ({
+      requestId: mut.idempotencyKey,
+      replay: {
+        occurredAt: new Date(occurredAt),
+        syncMutation: {
+          entityType: mut.entityType,
+          entityId: mut.entityId,
+          idempotencyKey: mut.idempotencyKey,
+        },
+        ipAddress: metadata?.ipAddress,
+        userAgent: metadata?.userAgent,
+      },
+    });
+    const invalid = 'Queued clinic operation failed validation';
+
+    switch (mut.entityType as SyncEntityType) {
+      case 'shift_check_in': {
+        const dto = await validatePayload(ShiftCheckInReplayPayload, payload, invalid);
+        await this.opsService.checkIn(
+          clinicId,
+          actorUserId,
+          { id: mut.entityId, roleAtShift: dto.roleAtShift, notes: dto.notes },
+          context(dto.occurredAt),
+        );
+        break;
+      }
+      case 'shift_check_out': {
+        const dto = await validatePayload(ShiftCheckOutReplayPayload, payload, invalid);
+        await this.opsService.checkOut(
+          clinicId,
+          mut.entityId,
+          actorUserId,
+          context(dto.occurredAt),
+        );
+        break;
+      }
+      default: {
+        const dto = await validatePayload(PatientCheckInReplayPayload, payload, invalid);
+        await this.opsService.createCheckIn(
+          clinicId,
+          actorUserId,
+          { id: mut.entityId, patientId: dto.patientId, source: dto.source, notes: dto.notes },
+          context(dto.occurredAt),
+        );
+      }
+    }
+    return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
   }
 
   private async applyPatientUpsert(
@@ -176,83 +570,104 @@ export class SyncService {
     mut: SyncMutationDto,
     payload: Record<string, unknown>,
     idempotencyKey: string,
-    metadata?: RequestMetadata
+    metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
     const nationalId = payload.nationalId as string | undefined;
-    if (!nationalId) {
-      throw new Error('Patient payload must include nationalId');
-    }
-    const hash = hashNationalId(nationalId);
-    const existingByHash = await this.patientRepository.findByNationalIdHash(hash);
     const existingById = await this.patientRepository.findById(mut.entityId);
 
-    if (existingByHash && existingByHash.id !== mut.entityId) {
-      const conflictDetails = {
-        existingPatientId: existingByHash.id,
-        patientCode: existingByHash.patientCode,
-      };
-      await this.prisma.syncMutation.create({
-        data: {
-          clinicId,
-          entityType: 'patient',
-          entityId: mut.entityId,
-          operation: SyncOperation.UPSERT,
-          idempotencyKey,
-          status: SyncMutationStatus.CONFLICT,
-          conflictType: 'DUPLICATE_NATIONAL_ID',
-          conflictDetailsJson: JSON.stringify(conflictDetails),
-        },
+    // The chart id comes from the device. Without this, a queued edit could rewrite a patient at a
+    // clinic the request was never scoped to, simply by naming its id.
+    if (existingById && existingById.primaryClinicId !== clinicId) {
+      throw new NotFoundException('Patient not found in the active clinic');
+    }
+
+    // A merge retires a chart for good. Writing to it would put demographics on a tombstone no
+    // screen shows, so the edit is refused and the clinician is pointed at the surviving chart.
+    if (existingById?.mergedIntoPatientId) {
+      throw await this.patientMergedConflict(
+        existingById.mergedIntoPatientId,
+        'This chart was merged into another chart.',
+      );
+    }
+
+    // The device stopped keeping national IDs (Dexie v8), so an offline edit of an existing chart
+    // never carries one. It used to be refused with a plain Error, which classified as retryable
+    // and re-sent forever. An edit leaves the stored identifier alone; only a new chart needs one.
+    if (!nationalId && !existingById) {
+      throw new BadRequestException({
+        code: 'PATIENT_NATIONAL_ID_REQUIRED',
+        message: 'A new patient needs a national ID before the chart can sync.',
       });
-      return {
-        id: mut.id,
-        status: SYNC_MUTATION_RESULT_STATUS.CONFLICT,
-        conflictType: 'DUPLICATE_NATIONAL_ID',
-        conflictDetails: conflictDetails,
-      };
+    }
+
+    const hash = nationalId ? hashNationalId(nationalId) : null;
+    const existingByHash = hash ? await this.patientRepository.findByNationalIdHash(hash) : null;
+
+    if (existingByHash && existingByHash.id !== mut.entityId) {
+      return this.refuse(
+        clinicId,
+        mut,
+        SYNC_MUTATION_RESULT_STATUS.CONFLICT,
+        'DUPLICATE_NATIONAL_ID',
+        {
+          message: 'Another chart already uses this national ID.',
+          existingPatientId: existingByHash.id,
+          patientCode: existingByHash.patientCode,
+        },
+      );
     }
 
     const patientCode =
       (payload.patientCode as string) ??
-      (existingById?.patientCode) ??
+      existingById?.patientCode ??
       (await generatePatientCode(this.prisma));
-    const primaryClinicId = (payload.primaryClinicId as string) ?? clinicId;
+    this.assertPayloadClinicMatches(payload.primaryClinicId, clinicId, 'Patient');
+    const primaryClinicId = clinicId;
     const createdByUserId = (payload.createdByUserId as string) ?? actorUserId;
 
-    const rawPhone =
-      (payload.phoneE164 as string) ?? (payload.phone as string) ?? null;
-    const phoneE164 = rawPhone
-      ? (normalizePhoneToE164(rawPhone, 'GH') ?? null)
-      : null;
+    const rawPhone = (payload.phoneE164 as string) ?? (payload.phone as string) ?? null;
+    const phoneE164 = rawPhone ? (normalizePhoneToE164(rawPhone, 'GH') ?? null) : null;
+
+    // Residential location is resolved through the shared invariant so an
+    // offline-synced patient stores the same consistent shape as a REST write.
+    const location = resolveResidentialLocation({
+      residentialLocationStatus: payload.residentialLocationStatus as
+        | PatientLocationStatus
+        | undefined,
+      residentialRegion: payload.residentialRegion as GhanaRegion | undefined,
+      residentialDistrict: payload.residentialDistrict as string | undefined,
+      residentialCommunity: payload.residentialCommunity as string | undefined,
+      residentialAddressNote: payload.residentialAddressNote as string | undefined,
+    });
 
     const before = existingById ? JSON.stringify(existingById) : null;
-    const patient = await this.prisma.patient.upsert({
-      where: { id: mut.entityId },
-      create: {
-        id: mut.entityId,
-        patientCode,
-        primaryClinic: { connect: { id: primaryClinicId } },
-        firstName: payload.firstName as string,
-        lastName: payload.lastName as string,
-        dob: payload.dob ? new Date(payload.dob as string) : null,
-        sex: (payload.sex as Sex) ?? 'UNKNOWN',
-        phoneE164,
-        email: (payload.email as string) ?? null,
-        nationalIdType: (payload.nationalIdType as NationalIdType) ?? 'OTHER',
-        nationalIdCiphertext: encryptNationalId(nationalId),
-        nationalIdHash: hash,
-        nationalIdLast4: nationalIdLast4(nationalId),
-        createdBy: createdByUserId ? { connect: { id: createdByUserId } } : undefined,
-      },
-      update: {
-        patientCode,
-        firstName: payload.firstName as string,
-        lastName: payload.lastName as string,
-        dob: payload.dob ? new Date(payload.dob as string) : null,
-        sex: (payload.sex as Sex) ?? 'UNKNOWN',
-        phoneE164,
-        email: (payload.email as string) ?? null,
-      },
-    });
+    const demographics = {
+      patientCode,
+      firstName: payload.firstName as string,
+      lastName: payload.lastName as string,
+      dob: payload.dob ? new Date(payload.dob as string) : null,
+      sex: (payload.sex as Sex) ?? 'UNKNOWN',
+      phoneE164,
+      email: (payload.email as string) ?? null,
+      ...location,
+    };
+    const patient =
+      nationalId && hash
+        ? await this.prisma.patient.upsert({
+            where: { id: mut.entityId },
+            create: {
+              id: mut.entityId,
+              ...demographics,
+              primaryClinic: { connect: { id: primaryClinicId } },
+              nationalIdType: (payload.nationalIdType as NationalIdType) ?? 'OTHER',
+              nationalIdCiphertext: encryptNationalId(nationalId),
+              nationalIdHash: hash,
+              nationalIdLast4: nationalIdLast4(nationalId),
+              createdBy: createdByUserId ? { connect: { id: createdByUserId } } : undefined,
+            },
+            update: demographics,
+          })
+        : await this.prisma.patient.update({ where: { id: mut.entityId }, data: demographics });
 
     await this.auditService.logWrite({
       clinicId: patient.primaryClinicId,
@@ -290,49 +705,41 @@ export class SyncService {
     mut: SyncMutationDto,
     payload: Record<string, unknown>,
     idempotencyKey: string,
-    metadata?: RequestMetadata
+    metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
     const existing = await this.encounterRepository.findById(mut.entityId);
     if (existing && existing.status === EncounterStatus.FINALIZED) {
-      const conflictDetails = {
-        message: 'Cannot edit finalized encounter',
-        existingStatus: existing.status,
-      };
-      await this.prisma.syncMutation.create({
-        data: {
-          clinicId,
-          entityType: 'encounter',
-          entityId: mut.entityId,
-          operation: SyncOperation.UPSERT,
-          idempotencyKey,
-          status: SyncMutationStatus.CONFLICT,
-          conflictType: 'CONFLICT_FINALIZED',
-          conflictDetailsJson: JSON.stringify(conflictDetails),
+      return this.refuse(
+        clinicId,
+        mut,
+        SYNC_MUTATION_RESULT_STATUS.CONFLICT,
+        'CONFLICT_FINALIZED',
+        {
+          message: 'Cannot edit finalized encounter',
+          existingStatus: existing.status,
         },
-      });
-      return {
-        id: mut.id,
-        status: SYNC_MUTATION_RESULT_STATUS.CONFLICT,
-        conflictType: 'CONFLICT_FINALIZED',
-        conflictDetails: conflictDetails,
-      };
+      );
     }
 
     const before = existing ? JSON.stringify(existing) : null;
-    const encClinicId = (payload.clinicId as string) ?? clinicId;
+    // The encounter belongs to the clinic the request was scoped to. Taking the clinic from the
+    // payload would let a client queue an encounter into a clinic it was never admitted to.
+    this.assertPayloadClinicMatches(payload.clinicId, clinicId, 'Encounter');
     const encPatientId = payload.patientId as string;
+    await this.assertPatientInClinic(encPatientId, clinicId, 'Encounter');
     const encCreatedBy = (payload.createdByUserId as string) ?? actorUserId;
+    const status = this.resolveSyncedEncounterStatus(payload.status, existing?.status ?? null);
     const encounter = await this.prisma.encounter.upsert({
       where: { id: mut.entityId },
       create: {
         id: mut.entityId,
-        clinic: { connect: { id: encClinicId } },
+        clinic: { connect: { id: clinicId } },
         patient: { connect: { id: encPatientId } },
-        status: (payload.status as EncounterStatus) ?? 'DRAFT',
+        status,
         createdBy: { connect: { id: encCreatedBy } },
       },
       update: {
-        status: (payload.status as EncounterStatus) ?? existing!.status,
+        status,
       },
     });
 
@@ -366,210 +773,396 @@ export class SyncService {
     };
   }
 
+  /**
+   * Reject a payload that names a different clinic than the request was scoped to.
+   *
+   * `applyMutations` already compares the mutation envelope's `clinicId`, but the payload carries
+   * its own copy, and writing that one would place the record outside the clinic the caller was
+   * admitted to.
+   */
+  private assertPayloadClinicMatches(
+    payloadClinicId: unknown,
+    clinicId: string,
+    entityLabel: string,
+  ): void {
+    if (payloadClinicId != null && payloadClinicId !== clinicId) {
+      throw new ForbiddenException(
+        `${entityLabel} payload names a different clinic than the active clinic`,
+      );
+    }
+  }
+
+  private async assertPatientInClinic(
+    patientId: string | undefined,
+    clinicId: string,
+    entityLabel: string,
+  ): Promise<void> {
+    if (!patientId) throw new BadRequestException(`${entityLabel} payload must include patientId`);
+    const merged = await this.assertPatientNotMerged(patientId, clinicId, entityLabel);
+    if (!merged) {
+      throw new NotFoundException(`${entityLabel} patient not found in the active clinic`);
+    }
+  }
+
+  /**
+   * Refuse a change queued against a chart that has since been merged. It would otherwise attach
+   * to the retired record, invisible from the surviving chart; the clinician re-enters it there.
+   *
+   * Resolves to whether the chart exists at this clinic at all, so a caller that needs it can say
+   * so without a second query.
+   */
+  private async assertPatientNotMerged(
+    patientId: string,
+    clinicId: string,
+    entityLabel: string,
+  ): Promise<boolean> {
+    const patient = await this.prisma.patient.findFirst({
+      where: { id: patientId, primaryClinicId: clinicId },
+      select: { id: true, mergedIntoPatientId: true },
+    });
+    if (patient?.mergedIntoPatientId) {
+      throw await this.patientMergedConflict(
+        patient.mergedIntoPatientId,
+        `${entityLabel} belongs to a chart that was merged into another chart.`,
+      );
+    }
+    return Boolean(patient);
+  }
+
+  /** PATIENT_MERGED, pointing at the chart at the end of the merge chain. */
+  private async patientMergedConflict(
+    mergedIntoPatientId: string,
+    message: string,
+  ): Promise<ConflictException> {
+    const canonical = await this.patientRepository.findById(mergedIntoPatientId, {
+      resolveMerged: true,
+    });
+    return new ConflictException({
+      code: 'PATIENT_MERGED',
+      message,
+      canonicalPatientId: canonical?.id ?? mergedIntoPatientId,
+      ...(canonical?.patientCode ? { patientCode: canonical.patientCode } : {}),
+    });
+  }
+
+  /**
+   * The encounter status an offline replay may set.
+   *
+   * Finalization is a doctor's deliberate, audited act that locks vitals, screenings, and clinical
+   * notes. It has its own route and its own permission, and it must not be reachable by replaying
+   * a queued payload. Review submission likewise belongs to the online workflow.
+   */
+  private resolveSyncedEncounterStatus(
+    requested: unknown,
+    existingStatus: EncounterStatus | null,
+  ): EncounterStatus {
+    if (requested == null) return existingStatus ?? EncounterStatus.DRAFT;
+    if (requested !== EncounterStatus.DRAFT) {
+      throw new ConflictException({
+        code: 'UNSUPPORTED_STATUS_TRANSITION',
+        message: 'Encounter status changes are made online, not through offline replay.',
+        requestedStatus: String(requested),
+        existingStatus: existingStatus ?? EncounterStatus.DRAFT,
+      });
+    }
+    // A queued draft must not silently reopen an encounter that has since moved on.
+    return existingStatus ?? EncounterStatus.DRAFT;
+  }
+
+  /**
+   * Refuse a write against a locked encounter.
+   *
+   * Reported as a conflict rather than a plain error, matching what the vitals, diabetes, and
+   * encounter paths already do. The client treats a conflict as recoverable and an error as a hard
+   * rejection that halts the whole sync pass, so signalling the same condition two different ways
+   * meant a care plan or prescription queued against a finalized encounter wedged the outbox while
+   * a vitals row against the same encounter recovered cleanly.
+   */
   private async ensureEncounterNotFinalized(encounterId: string): Promise<void> {
     const encounter = await this.prisma.encounter.findUnique({
       where: { id: encounterId },
       select: { status: true },
     });
     if (encounter?.status === EncounterStatus.FINALIZED) {
-      throw new Error('Cannot modify encounter data: encounter is finalized');
+      throw new ConflictException({
+        code: 'CONFLICT_FINALIZED',
+        message: 'Cannot modify encounter data: encounter is finalized',
+        existingStatus: EncounterStatus.FINALIZED,
+      });
     }
   }
 
   private async applyVitalsUpsert(
     clinicId: string,
     actorUserId: string,
+    user: UserWithId,
     mut: SyncMutationDto,
     payload: Record<string, unknown>,
     idempotencyKey: string,
-    metadata?: RequestMetadata
+    metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
-    const encounterId = payload.encounterId as string;
-    if (!encounterId) throw new Error('Vitals payload must include encounterId');
-    await this.ensureEncounterNotFinalized(encounterId);
-
-    const existing = await this.prisma.vitals.findUnique({
-      where: { encounterId },
-    });
-    const before = existing ? JSON.stringify(existing) : null;
-
-    const vitals = await this.prisma.vitals.upsert({
-      where: { encounterId },
-      create: {
-        id: mut.entityId,
-        clinicId,
-        encounterId,
-        systolicBp: (payload.systolicBp as number) ?? null,
-        diastolicBp: (payload.diastolicBp as number) ?? null,
-        heartRate: (payload.heartRate as number) ?? null,
-        weightKg: (payload.weightKg as number) ?? null,
-        heightCm: (payload.heightCm as number) ?? null,
-        bmi: (payload.bmi as number) ?? null,
-        notes: (payload.notes as string) ?? null,
-      },
-      update: {
-        systolicBp: (payload.systolicBp as number) ?? existing?.systolicBp ?? null,
-        diastolicBp: (payload.diastolicBp as number) ?? existing?.diastolicBp ?? null,
-        heartRate: (payload.heartRate as number) ?? existing?.heartRate ?? null,
-        weightKg: (payload.weightKg as number) ?? existing?.weightKg ?? null,
-        heightCm: (payload.heightCm as number) ?? existing?.heightCm ?? null,
-        bmi: (payload.bmi as number) ?? existing?.bmi ?? null,
-        notes: (payload.notes as string) ?? existing?.notes ?? null,
-      },
-    });
-
-    await this.auditService.logWrite({
+    await this.clinicalMeasurementsService.applyBundle({
       clinicId,
       actorUserId,
-      action: existing ? 'VITALS.UPSERT' : 'VITALS.CREATE',
-      entityType: 'Vitals',
-      entityId: vitals.id,
-      beforeJson: before,
-      afterJson: JSON.stringify(vitals),
-      requestId: idempotencyKey,
-      ipAddress: metadata?.ipAddress,
-      userAgent: metadata?.userAgent,
+      user,
+      mutation: mut,
+      payload,
+      metadata,
+      legacy: true,
     });
+    return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
+  }
 
-    await this.prisma.syncMutation.create({
-      data: {
-        clinicId,
-        entityType: 'vitals',
-        entityId: mut.entityId,
-        operation: SyncOperation.UPSERT,
-        idempotencyKey,
-        status: SyncMutationStatus.APPLIED,
-      },
+  private async applyVitalsBundle(
+    clinicId: string,
+    actorUserId: string,
+    user: UserWithId,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+    _idempotencyKey: string,
+    metadata?: RequestMetadata,
+  ): Promise<SyncMutationResultDto> {
+    await this.clinicalMeasurementsService.applyBundle({
+      clinicId,
+      actorUserId,
+      user,
+      mutation: mut,
+      payload,
+      metadata,
     });
-
     return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
   }
 
   private async applyDiabetesScreeningUpsert(
     clinicId: string,
     actorUserId: string,
+    user: UserWithId,
     mut: SyncMutationDto,
     payload: Record<string, unknown>,
     idempotencyKey: string,
-    metadata?: RequestMetadata
+    metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
     const encounterId = payload.encounterId as string;
     if (!encounterId) throw new Error('DiabetesScreening payload must include encounterId');
-    await this.ensureEncounterNotFinalized(encounterId);
-
-    const existing = await this.prisma.diabetesScreening.findUnique({
-      where: { encounterId },
-    });
-    const before = existing ? JSON.stringify(existing) : null;
-
-    const screening = await this.prisma.diabetesScreening.upsert({
-      where: { encounterId },
-      create: {
-        id: mut.entityId,
-        clinicId,
-        encounterId,
-        glucoseMgDl: (payload.glucoseMgDl as number) ?? null,
-        glucoseType: (payload.glucoseType as 'FASTING' | 'RANDOM' | 'UNKNOWN') ?? 'UNKNOWN',
-        hba1cPercent: (payload.hba1cPercent as number) ?? null,
-        symptomsJson: (payload.symptomsJson as string) ?? null,
-        notes: (payload.notes as string) ?? null,
-      },
-      update: {
-        glucoseMgDl: (payload.glucoseMgDl as number) ?? existing?.glucoseMgDl ?? null,
-        glucoseType: (payload.glucoseType as 'FASTING' | 'RANDOM' | 'UNKNOWN') ?? existing?.glucoseType ?? 'UNKNOWN',
-        hba1cPercent: (payload.hba1cPercent as number) ?? existing?.hba1cPercent ?? null,
-        symptomsJson: (payload.symptomsJson as string) ?? existing?.symptomsJson ?? null,
-        notes: (payload.notes as string) ?? existing?.notes ?? null,
-      },
-    });
-
-    await this.auditService.logWrite({
+    const normalized = await this.diabetesScreeningService.validateSyncPayload(
+      payload,
+      mut.createdAt ?? new Date().toISOString(),
+    );
+    await this.diabetesScreeningService.upsert(
       clinicId,
-      actorUserId,
-      action: existing ? 'DIABETES_SCREENING.UPSERT' : 'DIABETES_SCREENING.CREATE',
-      entityType: 'DiabetesScreening',
-      entityId: screening.id,
-      beforeJson: before,
-      afterJson: JSON.stringify(screening),
-      requestId: idempotencyKey,
-      ipAddress: metadata?.ipAddress,
-      userAgent: metadata?.userAgent,
-    });
-
-    await this.prisma.syncMutation.create({
-      data: {
-        clinicId,
-        entityType: 'diabetes_screening',
-        entityId: mut.entityId,
-        operation: SyncOperation.UPSERT,
-        idempotencyKey,
-        status: SyncMutationStatus.APPLIED,
+      encounterId,
+      { userId: actorUserId, roles: user.roles },
+      normalized.dto,
+      {
+        requestId: idempotencyKey,
+        ipAddress: metadata?.ipAddress,
+        userAgent: metadata?.userAgent,
+        syncMutation: {
+          entityType: mut.entityType,
+          entityId: mut.entityId,
+          idempotencyKey,
+        },
       },
-    });
+      mut.entityId,
+      normalized.compatibility,
+    );
 
     return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
   }
 
-  private async applyHypertensionAssessmentUpsert(
+  /** Replay a glucose-station reading. `entityId` is the screening row's id. */
+  private async applyGlucoseReading(
     clinicId: string,
     actorUserId: string,
+    user: UserWithId,
     mut: SyncMutationDto,
     payload: Record<string, unknown>,
     idempotencyKey: string,
-    metadata?: RequestMetadata
+    metadata?: RequestMetadata,
+  ): Promise<SyncMutationResultDto> {
+    const encounterId = payload.encounterId as string;
+    if (!encounterId) throw new Error('Glucose reading payload must include encounterId');
+    const dto = await this.diabetesScreeningService.validateGlucoseReadingSyncPayload(
+      payload,
+      mut.createdAt ?? new Date().toISOString(),
+    );
+    await this.diabetesScreeningService.recordGlucoseReading(
+      clinicId,
+      encounterId,
+      { userId: actorUserId, roles: user.roles },
+      dto,
+      {
+        requestId: idempotencyKey,
+        ipAddress: metadata?.ipAddress,
+        userAgent: metadata?.userAgent,
+        syncMutation: {
+          entityType: mut.entityType,
+          entityId: mut.entityId,
+          idempotencyKey,
+        },
+      },
+      mut.entityId,
+    );
+
+    return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
+  }
+
+  /**
+   * Replay a hypertension assessment through the same service the REST route uses.
+   *
+   * This used to be an inline upsert that cast `payload.classification` straight to the enum and
+   * coalesced every other field with `?? existing?.x ?? default`. It validated nothing: a mutation
+   * carrying `{ classification: 'BOGUS' }` was accepted here and failed later, and a device could
+   * assert `urgentReviewRequired` for itself. Diabetes has delegated like this since its module
+   * landed; the two conditions now reject the same payloads for the same reasons whether they
+   * arrive online or through the outbox.
+   */
+  private async applyHypertensionAssessmentUpsert(
+    clinicId: string,
+    actorUserId: string,
+    user: UserWithId,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+    idempotencyKey: string,
+    metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
     const encounterId = payload.encounterId as string;
     if (!encounterId) throw new Error('HypertensionAssessment payload must include encounterId');
-    await this.ensureEncounterNotFinalized(encounterId);
-
-    const existing = await this.prisma.hypertensionAssessment.findUnique({
-      where: { encounterId },
-    });
-    const before = existing ? JSON.stringify(existing) : null;
-
-    const classification = (payload.classification as HypertensionClassification) ?? HypertensionClassification.UNKNOWN;
-    const assessment = await this.prisma.hypertensionAssessment.upsert({
-      where: { encounterId },
-      create: {
-        id: mut.entityId,
-        clinicId,
-        encounterId,
-        classification,
-        suspected: (payload.suspected as boolean) ?? false,
-        confirmed: (payload.confirmed as boolean) ?? false,
-        notes: (payload.notes as string) ?? null,
-      },
-      update: {
-        classification: (payload.classification as HypertensionClassification) ?? existing?.classification ?? HypertensionClassification.UNKNOWN,
-        suspected: (payload.suspected as boolean) ?? existing?.suspected ?? false,
-        confirmed: (payload.confirmed as boolean) ?? existing?.confirmed ?? false,
-        notes: (payload.notes as string) ?? existing?.notes ?? null,
-      },
-    });
-
-    await this.auditService.logWrite({
+    const normalized = await this.hypertensionAssessmentService.validateSyncPayload(
+      payload,
+      mut.createdAt ?? new Date().toISOString(),
+    );
+    await this.hypertensionAssessmentService.upsert(
       clinicId,
-      actorUserId,
-      action: existing ? 'HYPERTENSION_ASSESSMENT.UPSERT' : 'HYPERTENSION_ASSESSMENT.CREATE',
-      entityType: 'HypertensionAssessment',
-      entityId: assessment.id,
-      beforeJson: before,
-      afterJson: JSON.stringify(assessment),
+      encounterId,
+      { userId: actorUserId, roles: user.roles },
+      normalized.dto,
+      {
+        requestId: idempotencyKey,
+        ipAddress: metadata?.ipAddress,
+        userAgent: metadata?.userAgent,
+        syncMutation: {
+          entityType: mut.entityType,
+          entityId: mut.entityId,
+          idempotencyKey,
+        },
+      },
+      mut.entityId,
+    );
+
+    return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
+  }
+
+  /**
+   * Open and apply a clinician plan a doctor queued without signal (#131).
+   *
+   * The device queued only routing (encounter, condition), when the doctor decided, and an envelope
+   * sealed to this server's key; it never held the plan in a form it could read back. The envelope
+   * opens only for the clinic, encounter, condition and author it was sealed for -- the pushing
+   * account is the author it is checked against -- and then goes through the same DTO and the same
+   * `upsertClinicianPlan` as the online route: doctor-only, refused on a finalized encounter, and
+   * resolving the follow-up window to `CarePlan.followUpDate` in the same transaction.
+   */
+  private async applySealedClinicianPlan(
+    clinicId: string,
+    actorUserId: string,
+    user: UserWithId,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+    idempotencyKey: string,
+    metadata?: RequestMetadata,
+  ): Promise<SyncMutationResultDto> {
+    const encounterId = payload.encounterId;
+    const condition = payload.condition;
+    if (typeof encounterId !== 'string' || !encounterId) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'A queued clinician plan must name its encounter.',
+      });
+    }
+    if (condition !== 'HYPERTENSION' && condition !== 'DIABETES') {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'A queued clinician plan must be for hypertension or diabetes.',
+      });
+    }
+
+    const plain = this.clinicianPlanSeal.open(payload.sealed, {
+      clinicId,
+      encounterId,
+      condition,
+      authorUserId: actorUserId,
+    });
+    const serviceMetadata = {
       requestId: idempotencyKey,
       ipAddress: metadata?.ipAddress,
       userAgent: metadata?.userAgent,
-    });
-
-    await this.prisma.syncMutation.create({
-      data: {
+      syncMutation: { entityType: mut.entityType, entityId: mut.entityId, idempotencyKey },
+    };
+    const options = { decidedAt: clampDecidedAt(payload.decidedAt, new Date()) };
+    const actor = { userId: actorUserId, roles: user.roles };
+    if (condition === 'HYPERTENSION') {
+      const dto = await validateClinicianPlan(UpsertHypertensionClinicianPlanDto, plain);
+      await this.hypertensionAssessmentService.upsertClinicianPlan(
         clinicId,
-        entityType: 'hypertension_assessment',
-        entityId: mut.entityId,
-        operation: SyncOperation.UPSERT,
-        idempotencyKey,
-        status: SyncMutationStatus.APPLIED,
+        encounterId,
+        actor,
+        dto,
+        serviceMetadata,
+        options,
+      );
+    } else {
+      const dto = await validateClinicianPlan(UpsertDiabetesClinicianPlanDto, plain);
+      await this.diabetesScreeningService.upsertClinicianPlan(
+        clinicId,
+        encounterId,
+        actor,
+        dto,
+        serviceMetadata,
+        options,
+      );
+    }
+    return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
+  }
+
+  /**
+   * Replay a whole adherence set through the same service the REST route uses.
+   *
+   * The mutation carries the set for one encounter and one condition, not a row, because that is
+   * what the write is: a medication dropped from the reconciled list has to lose its observation,
+   * and a per-row replay could never express that. `entityId` identifies the set, so two contexts
+   * on one encounter replay independently.
+   */
+  private async applyMedicationAdherenceReplace(
+    clinicId: string,
+    actorUserId: string,
+    user: UserWithId,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+    idempotencyKey: string,
+    metadata?: RequestMetadata,
+  ): Promise<SyncMutationResultDto> {
+    const encounterId = payload.encounterId as string;
+    if (!encounterId) {
+      throw new Error('EncounterMedicationAdherence payload must include encounterId');
+    }
+    const normalized = await this.medicationAdherenceService.validateSyncPayload(payload);
+    await this.medicationAdherenceService.replaceForEncounter(
+      clinicId,
+      encounterId,
+      { userId: actorUserId, roles: user.roles },
+      normalized.dto,
+      {
+        requestId: idempotencyKey,
+        ipAddress: metadata?.ipAddress,
+        userAgent: metadata?.userAgent,
+        syncMutation: {
+          entityType: mut.entityType,
+          entityId: mut.entityId,
+          idempotencyKey,
+        },
       },
-    });
+    );
 
     return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
   }
@@ -580,7 +1173,7 @@ export class SyncService {
     mut: SyncMutationDto,
     payload: Record<string, unknown>,
     idempotencyKey: string,
-    metadata?: RequestMetadata
+    metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
     const encounterId = payload.encounterId as string;
     if (!encounterId) throw new Error('CarePlan payload must include encounterId');
@@ -604,8 +1197,11 @@ export class SyncService {
       },
       update: {
         counselingGiven: (payload.counselingGiven as boolean) ?? existing?.counselingGiven ?? false,
-        medicationPrescribed: (payload.medicationPrescribed as boolean) ?? existing?.medicationPrescribed ?? false,
-        followUpDate: payload.followUpDate ? new Date(payload.followUpDate as string) : existing?.followUpDate ?? null,
+        medicationPrescribed:
+          (payload.medicationPrescribed as boolean) ?? existing?.medicationPrescribed ?? false,
+        followUpDate: payload.followUpDate
+          ? new Date(payload.followUpDate as string)
+          : (existing?.followUpDate ?? null),
         notes: (payload.notes as string) ?? existing?.notes ?? null,
       },
     });
@@ -643,7 +1239,7 @@ export class SyncService {
     mut: SyncMutationDto,
     payload: Record<string, unknown>,
     idempotencyKey: string,
-    metadata?: RequestMetadata
+    metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
     const patientId = payload.patientId as string;
     const consentType = payload.consentType as string;
@@ -689,7 +1285,11 @@ export class SyncService {
             entityType: 'PatientConsent',
             entityId: g.id,
             beforeJson: beforeRevoke,
-            afterJson: JSON.stringify({ ...g, status: 'REVOKED', revokedAt: new Date().toISOString() }),
+            afterJson: JSON.stringify({
+              ...g,
+              status: 'REVOKED',
+              revokedAt: new Date().toISOString(),
+            }),
             requestId: idempotencyKey,
             ipAddress: metadata?.ipAddress,
             userAgent: metadata?.userAgent,
@@ -718,10 +1318,13 @@ export class SyncService {
         consentVersion,
         consentTextSnapshot,
         grantedAt: payload.grantedAt ? new Date(payload.grantedAt as string) : existing!.grantedAt,
-        revokedAt: payload.revokedAt ? new Date(payload.revokedAt as string) : existing?.revokedAt ?? null,
+        revokedAt: payload.revokedAt
+          ? new Date(payload.revokedAt as string)
+          : (existing?.revokedAt ?? null),
         status: status as 'GRANTED' | 'REVOKED',
         witnessName: (payload.witnessName as string) ?? existing?.witnessName ?? null,
-        witnessPhoneE164: (payload.witnessPhoneE164 as string) ?? existing?.witnessPhoneE164 ?? null,
+        witnessPhoneE164:
+          (payload.witnessPhoneE164 as string) ?? existing?.witnessPhoneE164 ?? null,
       },
     });
 
@@ -753,61 +1356,53 @@ export class SyncService {
     return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
   }
 
+  /**
+   * Replay a prescription through the same service the REST route uses.
+   *
+   * This was an inline Prisma upsert that validated almost nothing. It accepted a drug belonging
+   * to another clinic, an empty dosage and frequency, a quantity below one, free text with no
+   * length cap and no sanitising, and -- the part worth closing regardless of likelihood -- a
+   * `prescribedByUserId` chosen by the payload, so a replay could attribute a prescription to a
+   * clinician who did not write it.
+   *
+   * The finalized-encounter and allergy checks were here and are now the service's, which is where
+   * the REST route already got them. See #134, and the identical fix #114 made for hypertension.
+   */
   private async applyPrescriptionUpsert(
     clinicId: string,
     actorUserId: string,
+    user: UserWithId,
     mut: SyncMutationDto,
     payload: Record<string, unknown>,
     idempotencyKey: string,
-    metadata?: RequestMetadata
+    metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
     const encounterId = payload.encounterId as string;
     if (!encounterId) throw new Error('Prescription payload must include encounterId');
-    await this.ensureEncounterNotFinalized(encounterId);
 
-    const drugId = payload.drugId as string;
-    if (!drugId) throw new Error('Prescription payload must include drugId');
-
-    const existing = await this.prisma.prescription.findUnique({
-      where: { id: mut.entityId },
-    });
-    const before = existing ? JSON.stringify(existing) : null;
-
-    const prescription = await this.prisma.prescription.upsert({
-      where: { id: mut.entityId },
-      create: {
-        id: mut.entityId,
-        clinicId,
-        encounterId,
-        drugId,
-        dosage: (payload.dosage as string) ?? '',
-        frequency: (payload.frequency as string) ?? '',
-        duration: (payload.duration as string) ?? null,
-        quantity: (payload.quantity as number) ?? null,
-        instructions: (payload.instructions as string) ?? null,
-        prescribedByUserId: (payload.prescribedByUserId as string) ?? actorUserId,
-      },
-      update: {
-        dosage: (payload.dosage as string) ?? existing?.dosage ?? '',
-        frequency: (payload.frequency as string) ?? existing?.frequency ?? '',
-        duration: (payload.duration as string) ?? existing?.duration ?? null,
-        quantity: (payload.quantity as number) ?? existing?.quantity ?? null,
-        instructions: (payload.instructions as string) ?? existing?.instructions ?? null,
-      },
-    });
-
-    await this.auditService.logWrite({
+    const normalized = await this.prescriptionService.validateSyncPayload(payload);
+    await this.prescriptionService.upsertFromSync(
       clinicId,
-      actorUserId,
-      action: existing ? 'PRESCRIPTION.UPSERT' : 'PRESCRIPTION.CREATE',
-      entityType: 'Prescription',
-      entityId: prescription.id,
-      beforeJson: before,
-      afterJson: JSON.stringify(prescription),
-      requestId: idempotencyKey,
-      ipAddress: metadata?.ipAddress,
-      userAgent: metadata?.userAgent,
-    });
+      encounterId,
+      mut.entityId,
+      normalized.dto,
+      {
+        clinicId,
+        actorUserId,
+        /*
+          The replay's own roles, so the service decides for itself.
+
+          `SYNC_ENTITY_PERMISSIONS` has already refused a role that may not queue a prescription.
+          Passing them on means the service refuses too, rather than trusting that whoever called
+          it checked -- which is the second layer, and the reason this handler was worth fixing in
+          the first place.
+        */
+        roles: user.roles,
+        requestId: idempotencyKey,
+        ipAddress: metadata?.ipAddress,
+        userAgent: metadata?.userAgent,
+      },
+    );
 
     await this.prisma.syncMutation.create({
       data: {
@@ -823,16 +1418,223 @@ export class SyncService {
     return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
   }
 
+  private async applyMedicalHistoryRevision(
+    clinicId: string,
+    actorUserId: string,
+    user: UserWithId,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+    idempotencyKey: string,
+  ): Promise<SyncMutationResultDto> {
+    if (!isApiFeatureEnabled('medicalHistory')) {
+      throw new Error('Medical history is not enabled');
+    }
+    const patientId = payload.patientId as string | undefined;
+    const revisionId = payload.revisionId as string | undefined;
+    if (!patientId || !revisionId) {
+      throw new Error('Medical history payload must include patientId and revisionId');
+    }
+    const snapshot = {
+      revisionId,
+      status: payload.status as MedicalHistoryStatus,
+      onsetDate: payload.onsetDate as string | undefined,
+      occurrenceDate: payload.occurrenceDate as string | undefined,
+      resolvedDate: payload.resolvedDate as string | undefined,
+      details: (payload.details ?? {}) as Record<string, never>,
+      notes: payload.notes as string | undefined,
+      sourceEncounterId: payload.sourceEncounterId as string | undefined,
+    };
+    const expectedCurrentRevisionId = payload.expectedCurrentRevisionId as string | undefined;
+    if (expectedCurrentRevisionId) {
+      await this.medicalHistoryService.revise(
+        clinicId,
+        patientId,
+        mut.entityId,
+        actorUserId,
+        { ...snapshot, expectedCurrentRevisionId },
+        idempotencyKey,
+      );
+    } else {
+      const category = payload.category as MedicalHistoryCategory | undefined;
+      if (!category) throw new Error('New medical history records require a category');
+      await this.medicalHistoryService.create(
+        clinicId,
+        patientId,
+        actorUserId,
+        { ...snapshot, recordId: mut.entityId, category },
+        idempotencyKey,
+      );
+    }
+
+    await this.prisma.syncMutation.create({
+      data: {
+        clinicId,
+        entityType: 'medical_history_revision',
+        entityId: mut.entityId,
+        operation: SyncOperation.UPSERT,
+        idempotencyKey,
+        status: SyncMutationStatus.APPLIED,
+      },
+    });
+    return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
+  }
+
+  private async applyPatientMedicationRevision(
+    clinicId: string,
+    actorUserId: string,
+    user: UserWithId,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+    idempotencyKey: string,
+  ): Promise<SyncMutationResultDto> {
+    this.requireMedicationReconciliationEnabled();
+    const patientId = payload.patientId as string | undefined;
+    const revisionId = payload.revisionId as string | undefined;
+    if (!patientId || !revisionId)
+      throw new Error('Medication payload requires patientId and revisionId');
+    const expected = payload.expectedCurrentRevisionId as string | undefined;
+    const snapshot = { ...payload, revisionId };
+    if (expected) {
+      await this.medicationReconciliationService.reviseMedication(
+        clinicId,
+        patientId,
+        mut.entityId,
+        actorUserId,
+        snapshot as unknown as RevisePatientMedicationDto,
+        { requestId: idempotencyKey },
+      );
+    } else {
+      await this.medicationReconciliationService.createMedication(
+        clinicId,
+        patientId,
+        actorUserId,
+        { ...snapshot, recordId: mut.entityId } as unknown as CreatePatientMedicationDto,
+        { requestId: idempotencyKey },
+      );
+    }
+    return this.recordAppliedMutation(clinicId, mut, idempotencyKey);
+  }
+
+  private async applyMedicationReconciliation(
+    clinicId: string,
+    actorUserId: string,
+    user: UserWithId,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+    idempotencyKey: string,
+  ): Promise<SyncMutationResultDto> {
+    this.requireMedicationReconciliationEnabled();
+    const patientId = payload.patientId as string | undefined;
+    if (!patientId) throw new Error('Reconciliation payload requires patientId');
+    await this.medicationReconciliationService.reconcile(
+      clinicId,
+      patientId,
+      actorUserId,
+      { ...payload, eventId: mut.entityId } as unknown as ReconcileMedicationListDto,
+      { requestId: idempotencyKey },
+    );
+    return this.recordAppliedMutation(clinicId, mut, idempotencyKey);
+  }
+
+  private async applyPatientPharmacyRevision(
+    clinicId: string,
+    actorUserId: string,
+    user: UserWithId,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+    idempotencyKey: string,
+  ): Promise<SyncMutationResultDto> {
+    this.requireMedicationReconciliationEnabled();
+    const patientId = payload.patientId as string | undefined;
+    const revisionId = payload.revisionId as string | undefined;
+    if (!patientId || !revisionId)
+      throw new Error('Pharmacy payload requires patientId and revisionId');
+    const expected = payload.expectedCurrentRevisionId as string | undefined;
+    if (expected) {
+      await this.medicationReconciliationService.revisePharmacy(
+        clinicId,
+        patientId,
+        mut.entityId,
+        actorUserId,
+        payload as unknown as RevisePatientPharmacyDto,
+        { requestId: idempotencyKey },
+      );
+    } else {
+      await this.medicationReconciliationService.createPharmacy(
+        clinicId,
+        patientId,
+        actorUserId,
+        { ...payload, recordId: mut.entityId } as unknown as CreatePatientPharmacyDto,
+        { requestId: idempotencyKey },
+      );
+    }
+    return this.recordAppliedMutation(clinicId, mut, idempotencyKey);
+  }
+
+  private async applyPatientPharmacyPreference(
+    clinicId: string,
+    actorUserId: string,
+    user: UserWithId,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+    idempotencyKey: string,
+  ): Promise<SyncMutationResultDto> {
+    this.requireMedicationReconciliationEnabled();
+    const patientId = payload.patientId as string | undefined;
+    const action = payload.action as string | undefined;
+    if (!patientId) throw new Error('Pharmacy preference payload requires patientId');
+    if (action === 'END') {
+      await this.medicationReconciliationService.endPreferredPharmacy(
+        clinicId,
+        patientId,
+        actorUserId,
+        payload as unknown as EndPreferredPharmacyDto,
+        { requestId: idempotencyKey },
+      );
+    } else {
+      const pharmacyRecordId = payload.pharmacyRecordId as string | undefined;
+      if (!pharmacyRecordId) throw new Error('Preference SET requires pharmacyRecordId');
+      await this.medicationReconciliationService.setPreferredPharmacy(
+        clinicId,
+        patientId,
+        pharmacyRecordId,
+        actorUserId,
+        { ...payload, preferenceId: mut.entityId } as unknown as SetPreferredPharmacyDto,
+        { requestId: idempotencyKey },
+      );
+    }
+    return this.recordAppliedMutation(clinicId, mut, idempotencyKey);
+  }
+
+  private requireMedicationReconciliationEnabled() {
+    if (!isApiFeatureEnabled('medicationReconciliation'))
+      throw new Error('Medication reconciliation is not enabled');
+  }
+
+  private async recordAppliedMutation(
+    clinicId: string,
+    mut: SyncMutationDto,
+    idempotencyKey: string,
+  ) {
+    await recordAppliedSyncMutation(this.prisma, clinicId, {
+      entityType: mut.entityType,
+      entityId: mut.entityId,
+      idempotencyKey,
+    });
+    return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
+  }
+
   private async applyDelete(
     clinicId: string,
     actorUserId: string,
+    user: UserWithId,
     mut: SyncMutationDto,
-    metadata?: RequestMetadata
+    metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
-    const entityType = mut.entityType as EntityType;
+    const entityType = mut.entityType as SyncEntityType;
     const idempotencyKey = mut.idempotencyKey;
 
-    const deletableTypes: EntityType[] = [
+    const deletableTypes: SyncEntityType[] = [
       'vitals',
       'diabetes_screening',
       'hypertension_assessment',
@@ -841,54 +1643,68 @@ export class SyncService {
       'prescription',
     ];
     if (!deletableTypes.includes(entityType)) {
-      const msg = `DELETE not supported for entity type: ${entityType}`;
-      await this.prisma.syncMutation.create({
-        data: {
-          clinicId,
-          entityType: mut.entityType,
-          entityId: mut.entityId,
-          operation: SyncOperation.DELETE,
-          idempotencyKey,
-          status: SyncMutationStatus.ERROR,
-          conflictType: 'DELETE_NOT_SUPPORTED',
-          conflictDetailsJson: JSON.stringify({ message: msg }),
-        },
+      return this.refuse(clinicId, mut, SYNC_MUTATION_RESULT_STATUS.ERROR, 'DELETE_NOT_SUPPORTED', {
+        message: `DELETE not supported for entity type: ${entityType}`,
       });
-      return {
-        id: mut.id,
-        status: SYNC_MUTATION_RESULT_STATUS.ERROR,
-        conflictType: 'DELETE_NOT_SUPPORTED',
-        conflictDetails: { message: msg },
-      };
+    }
+
+    if (entityType === 'vitals') {
+      const vitals = await this.prisma.vitals.findFirst({
+        where: { id: mut.entityId, clinicId },
+        select: { encounter: { select: { status: true } } },
+      });
+      if (!vitals) throw new NotFoundException('Vitals not found in the active clinic');
+      if (vitals.encounter.status === EncounterStatus.FINALIZED) {
+        throw new ConflictException({
+          code: 'CONFLICT_FINALIZED',
+          message: 'Cannot delete measurements for a finalized encounter',
+          existingStatus: EncounterStatus.FINALIZED,
+        });
+      }
+    }
+
+    if (entityType === 'diabetes_screening') {
+      const screening = await this.prisma.diabetesScreening.findFirst({
+        where: { id: mut.entityId, clinicId },
+        select: { encounter: { select: { status: true } } },
+      });
+      if (!screening) {
+        throw new NotFoundException('Diabetes screening not found in the active clinic');
+      }
+      if (screening.encounter.status === EncounterStatus.FINALIZED) {
+        throw new ConflictException({
+          code: 'CONFLICT_FINALIZED',
+          message: 'Cannot delete diabetes screening for a finalized encounter',
+          existingStatus: EncounterStatus.FINALIZED,
+        });
+      }
     }
 
     const beforeMap: Record<string, (id: string) => Promise<unknown>> = {
-      vitals: (id) => this.prisma.vitals.findUnique({ where: { id } }),
+      vitals: (id) => this.prisma.vitals.findFirst({ where: { id, clinicId } }),
       diabetes_screening: (id) =>
-        this.prisma.diabetesScreening.findUnique({ where: { id } }),
+        this.prisma.diabetesScreening.findFirst({ where: { id, clinicId } }),
       hypertension_assessment: (id) =>
-        this.prisma.hypertensionAssessment.findUnique({ where: { id } }),
-      care_plan: (id) => this.prisma.carePlan.findUnique({ where: { id } }),
-      patient_consent: (id) =>
-        this.prisma.patientConsent.findUnique({ where: { id } }),
-      prescription: (id) =>
-        this.prisma.prescription.findUnique({ where: { id } }),
+        this.prisma.hypertensionAssessment.findFirst({ where: { id, clinicId } }),
+      care_plan: (id) => this.prisma.carePlan.findFirst({ where: { id, clinicId } }),
+      patient_consent: (id) => this.prisma.patientConsent.findFirst({ where: { id, clinicId } }),
+      prescription: (id) => this.prisma.prescription.findFirst({ where: { id, clinicId } }),
     };
     const finder = beforeMap[entityType];
     const beforeRecord = finder ? await finder(mut.entityId) : null;
     const before = beforeRecord ? JSON.stringify(beforeRecord) : null;
 
     const deleteMap: Record<string, () => Promise<unknown>> = {
-      vitals: () => this.prisma.vitals.deleteMany({ where: { id: mut.entityId } }),
+      vitals: () => this.prisma.vitals.deleteMany({ where: { id: mut.entityId, clinicId } }),
       diabetes_screening: () =>
-        this.prisma.diabetesScreening.deleteMany({ where: { id: mut.entityId } }),
+        this.prisma.diabetesScreening.deleteMany({ where: { id: mut.entityId, clinicId } }),
       hypertension_assessment: () =>
-        this.prisma.hypertensionAssessment.deleteMany({ where: { id: mut.entityId } }),
-      care_plan: () => this.prisma.carePlan.deleteMany({ where: { id: mut.entityId } }),
+        this.prisma.hypertensionAssessment.deleteMany({ where: { id: mut.entityId, clinicId } }),
+      care_plan: () => this.prisma.carePlan.deleteMany({ where: { id: mut.entityId, clinicId } }),
       patient_consent: () =>
-        this.prisma.patientConsent.deleteMany({ where: { id: mut.entityId } }),
+        this.prisma.patientConsent.deleteMany({ where: { id: mut.entityId, clinicId } }),
       prescription: () =>
-        this.prisma.prescription.deleteMany({ where: { id: mut.entityId } }),
+        this.prisma.prescription.deleteMany({ where: { id: mut.entityId, clinicId } }),
     };
     await deleteMap[entityType]!();
 
@@ -927,10 +1743,7 @@ export class SyncService {
     return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
   }
 
-  async pull(
-    clinicId: string,
-    since?: string
-  ): Promise<SyncPullResponseDto> {
+  async pull(clinicId: string, since?: string): Promise<SyncPullResponseDto> {
     const sinceDate = since
       ? (() => {
           const [ts] = since.split('|');
@@ -942,46 +1755,143 @@ export class SyncService {
     const where = { clinicId };
     const updatedAtFilter = sinceDate ? { updatedAt: { gt: sinceDate } } : {};
 
-    const [patients, encounters, vitals, diabetesScreenings, hypertensionAssessments, carePlans, patientConsents, prescriptions] =
-      await Promise.all([
-        this.prisma.patient.findMany({
-          where: {
-            primaryClinicId: clinicId,
-            ...updatedAtFilter,
-          },
-        }),
-        this.prisma.encounter.findMany({
-          where: { ...where, ...updatedAtFilter },
-        }),
-        this.prisma.vitals.findMany({
-          where: { ...where, ...updatedAtFilter },
-        }),
-        this.prisma.diabetesScreening.findMany({
-          where: { ...where, ...updatedAtFilter },
-        }),
-        this.prisma.hypertensionAssessment.findMany({
-          where: { ...where, ...updatedAtFilter },
-        }),
-        this.prisma.carePlan.findMany({
-          where: { ...where, ...updatedAtFilter },
-        }),
-        this.prisma.patientConsent.findMany({
-          where: { ...where, ...updatedAtFilter },
-        }),
-        this.prisma.prescription.findMany({
-          where: { ...where, ...updatedAtFilter },
-        }),
-      ]);
+    const [
+      patients,
+      mergedPatientRows,
+      encounters,
+      vitalsRows,
+      tobaccoScreenings,
+      diabetesScreenings,
+      hypertensionAssessments,
+      medicationAdherence,
+      carePlans,
+      patientConsents,
+      prescriptions,
+      medicalHistoryRecords,
+      medicalHistoryRevisions,
+      patientMedicationRecords,
+      patientMedicationRevisions,
+      medicationReconciliationEvents,
+      patientPharmacyRecords,
+      patientPharmacyRevisions,
+      patientPharmacyPreferences,
+    ] = await Promise.all([
+      this.prisma.patient.findMany({
+        where: {
+          primaryClinicId: clinicId,
+          mergedIntoPatientId: null,
+          ...updatedAtFilter,
+        },
+        select: SYNC_PATIENT_SELECT,
+      }),
+      this.prisma.patient.findMany({
+        where: {
+          primaryClinicId: clinicId,
+          mergedIntoPatientId: { not: null },
+          ...updatedAtFilter,
+        },
+        select: { id: true, mergedIntoPatientId: true, updatedAt: true },
+      }),
+      this.prisma.encounter.findMany({
+        where: { ...where, ...updatedAtFilter },
+      }),
+      this.prisma.vitals.findMany({
+        where: { ...where, ...updatedAtFilter },
+      }),
+      this.prisma.tobaccoScreening.findMany({
+        where: { ...where, ...updatedAtFilter },
+      }),
+      this.prisma.diabetesScreening.findMany({
+        where: { ...where, ...updatedAtFilter },
+        select: SYNC_DIABETES_SCREENING_SELECT,
+      }),
+      this.prisma.hypertensionAssessment.findMany({
+        where: { ...where, ...updatedAtFilter },
+        select: SYNC_HYPERTENSION_ASSESSMENT_SELECT,
+      }),
+      this.prisma.encounterMedicationAdherence.findMany({
+        where: { ...where, ...updatedAtFilter },
+        select: SYNC_ENCOUNTER_MEDICATION_ADHERENCE_SELECT,
+      }),
+      this.prisma.carePlan.findMany({
+        where: { ...where, ...updatedAtFilter },
+      }),
+      this.prisma.patientConsent.findMany({
+        where: { ...where, ...updatedAtFilter },
+      }),
+      this.prisma.prescription.findMany({
+        where: { ...where, ...updatedAtFilter },
+      }),
+      this.prisma.medicalHistoryRecord.findMany({
+        where: { ...where, ...updatedAtFilter },
+      }),
+      this.prisma.medicalHistoryRevision.findMany({
+        where: {
+          record: { clinicId },
+          ...(sinceDate ? { createdAt: { gt: sinceDate } } : {}),
+        },
+      }),
+      this.prisma.patientMedicationRecord.findMany({ where: { ...where, ...updatedAtFilter } }),
+      this.prisma.patientMedicationRevision.findMany({
+        where: { record: { clinicId }, ...(sinceDate ? { createdAt: { gt: sinceDate } } : {}) },
+      }),
+      this.prisma.medicationReconciliationEvent.findMany({
+        where: { ...where, ...(sinceDate ? { createdAt: { gt: sinceDate } } : {}) },
+      }),
+      this.prisma.patientPharmacyRecord.findMany({ where: { ...where, ...updatedAtFilter } }),
+      this.prisma.patientPharmacyRevision.findMany({
+        where: { record: { clinicId }, ...(sinceDate ? { createdAt: { gt: sinceDate } } : {}) },
+      }),
+      this.prisma.patientPharmacyPreference.findMany({ where: { ...where, ...updatedAtFilter } }),
+    ]);
+    const vitals = vitalsRows.map((record) => ({
+      ...record,
+      heartRate: record.pulseBpm,
+    }));
+
+    const diabetesScreeningRecords = diabetesScreenings.map((record) => ({
+      ...record,
+      symptomsJson: serializeLegacyDiabetesSymptoms(record.symptoms),
+    }));
 
     const allRows = [
       ...patients.map((p) => ({ updatedAt: p.updatedAt, id: p.id })),
+      ...mergedPatientRows.map((p) => ({ updatedAt: p.updatedAt, id: p.id })),
       ...encounters.map((e) => ({ updatedAt: e.updatedAt, id: e.id })),
       ...vitals.map((v) => ({ updatedAt: v.updatedAt, id: v.id })),
+      ...tobaccoScreenings.map((t) => ({ updatedAt: t.updatedAt, id: t.id })),
       ...diabetesScreenings.map((d) => ({ updatedAt: d.updatedAt, id: d.id })),
       ...hypertensionAssessments.map((h) => ({ updatedAt: h.updatedAt, id: h.id })),
+      ...medicationAdherence.map((a) => ({ updatedAt: a.updatedAt, id: a.id })),
       ...carePlans.map((c) => ({ updatedAt: c.updatedAt, id: c.id })),
       ...patientConsents.map((pc) => ({ updatedAt: pc.updatedAt, id: pc.id })),
       ...prescriptions.map((p) => ({ updatedAt: p.updatedAt, id: p.id })),
+      ...medicalHistoryRecords.map((record) => ({
+        updatedAt: record.updatedAt,
+        id: record.id,
+      })),
+      ...medicalHistoryRevisions.map((revision) => ({
+        updatedAt: revision.createdAt,
+        id: revision.id,
+      })),
+      ...patientMedicationRecords.map((record) => ({ updatedAt: record.updatedAt, id: record.id })),
+      ...patientMedicationRevisions.map((revision) => ({
+        updatedAt: revision.createdAt,
+        id: revision.id,
+      })),
+      ...medicationReconciliationEvents.map((event) => ({
+        updatedAt: event.createdAt,
+        id: event.id,
+      })),
+      ...patientPharmacyRecords.map((record) => ({ updatedAt: record.updatedAt, id: record.id })),
+      ...patientPharmacyRevisions.map((revision) => ({
+        updatedAt: revision.createdAt,
+        id: revision.id,
+      })),
+      ...patientPharmacyPreferences.map((preference) => ({
+        updatedAt: preference.updatedAt,
+        id: preference.id,
+      })),
     ];
     const maxRow = allRows.reduce(
       (acc, r) =>
@@ -990,22 +1900,75 @@ export class SyncService {
           : acc.updatedAt.getTime() === r.updatedAt.getTime() && r.id > acc.id
             ? r
             : acc,
-      null as { updatedAt: Date; id: string } | null
+      null as { updatedAt: Date; id: string } | null,
     );
-    const nextCursor = maxRow
-      ? `${maxRow.updatedAt.toISOString()}|${maxRow.id}`
-      : since ?? '';
+    const nextCursor = maxRow ? `${maxRow.updatedAt.toISOString()}|${maxRow.id}` : (since ?? '');
 
     return {
       cursor: nextCursor,
       patients,
+      mergedPatients: mergedPatientRows.flatMap((row) =>
+        row.mergedIntoPatientId
+          ? [{ id: row.id, mergedIntoPatientId: row.mergedIntoPatientId }]
+          : [],
+      ),
       encounters,
       vitals,
-      diabetesScreenings,
+      tobaccoScreenings,
+      diabetesScreenings: diabetesScreeningRecords,
       hypertensionAssessments,
+      medicationAdherence,
       carePlans,
       patientConsents,
       prescriptions,
+      medicalHistoryRecords,
+      medicalHistoryRevisions,
+      patientMedicationRecords,
+      patientMedicationRevisions,
+      medicationReconciliationEvents,
+      patientPharmacyRecords,
+      patientPharmacyRevisions,
+      patientPharmacyPreferences,
     };
   }
+}
+
+/** How far back a queued plan's decision time is believed. Beyond this the device clock is wrong. */
+const DECIDED_AT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * When a replayed plan's decision was made, as far as the server will believe the device.
+ *
+ * The follow-up window counts from it, so a plan decided on Monday and synced on Wednesday still
+ * means "a month from Monday". A device clock cannot push it into the future, and an implausibly
+ * old one (a laptop that lost its time) falls back to now rather than scheduling a reminder that
+ * has already passed.
+ */
+export function clampDecidedAt(value: unknown, now: Date): Date {
+  const parsed = typeof value === 'string' ? new Date(value) : null;
+  if (!parsed || Number.isNaN(parsed.getTime())) return now;
+  if (parsed > now) return now;
+  if (now.getTime() - parsed.getTime() > DECIDED_AT_MAX_AGE_MS) return now;
+  return parsed;
+}
+
+/** The opened plan, through the same DTO and the same strictness as the REST route. */
+async function validateClinicianPlan<T extends object>(
+  DtoClass: new () => T,
+  plain: Record<string, unknown>,
+): Promise<T> {
+  const dto = plainToInstance(DtoClass, plain);
+  const errors = await validate(dto, {
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    forbidUnknownValues: true,
+  });
+  if (errors.length) {
+    throw new BadRequestException({
+      code: 'VALIDATION_ERROR',
+      message: 'Clinician plan validation failed.',
+      fieldErrors: flattenValidationErrors(errors),
+    });
+  }
+  return dto;
 }

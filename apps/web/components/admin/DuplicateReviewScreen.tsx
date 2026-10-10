@@ -1,0 +1,647 @@
+'use client';
+
+import { useCallback, useMemo, useState } from 'react';
+import Link from 'next/link';
+import {
+  AlertTriangle,
+  ArrowRight,
+  Building2,
+  CopyCheck,
+  RefreshCw,
+  ShieldCheck,
+  Users,
+} from 'lucide-react';
+import { apiFetch } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
+import { useBootstrap } from '@/lib/bootstrap-context';
+import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
+import { readApiError } from '@/lib/ops';
+import { useAsyncResource } from '@/lib/use-async-resource';
+import {
+  buildDuplicateQuery,
+  confidenceBadgeVariant,
+  DEFAULT_DUPLICATE_FILTERS,
+  DUPLICATE_CONFIDENCE_LABELS,
+  DUPLICATE_MATCH_REASON_LABELS,
+  duplicateFiltersAreDefault,
+  formatReasons,
+  patientDisplayName,
+  type DuplicateCandidate,
+  type DuplicateCandidatePage,
+  type DuplicateFilters,
+  type DuplicateReviewStatus,
+} from '@/lib/patient-duplicates';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
+import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
+import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
+import { SectionSkeleton, SelectClinicState } from '@/components/feedback/AppState';
+import { ResourceState } from '@/components/feedback/ResourceState';
+import { InlineNotice } from '@/components/ops/OpsShared';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { ProgressiveHelp } from '@/components/ui/progressive-help';
+import { Textarea } from '@/components/ui/textarea';
+import { DuplicateComparisonSheet } from './duplicates/DuplicateComparisonSheet';
+import { DuplicateFilterFields } from './duplicates/DuplicateFilterFields';
+import { DuplicatePairCard } from './duplicates/DuplicatePairCard';
+import { MergeUnavailableBadge } from './duplicates/MergeAvailability';
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
+
+type ScopeMode = 'clinic' | 'all';
+/**
+ * What each decision says, in one place.
+ *
+ * Every string names what will change and, just as importantly, what will not. A confirmation
+ * that does not say "neither chart changes" leaves an operator guessing whether they have just
+ * merged two people's records.
+ */
+const DECISION_COPY: Record<
+  DuplicateReviewStatus,
+  { title: string; description: string; confirm: string; notice: string }
+> = {
+  DISMISSED: {
+    title: 'Mark as not a duplicate',
+    description:
+      'This records your decision and takes the pair out of the review list. Neither chart changes.',
+    confirm: 'Not a duplicate',
+    notice: 'Marked as not a duplicate. It will stay out of the review list.',
+  },
+  CONFIRMED: {
+    title: 'Confirm these are the same person',
+    description:
+      'This records your decision so the pair is queued for a merge. Neither chart changes until a system administrator merges them.',
+    confirm: 'Confirm duplicate',
+    notice: 'Marked as a confirmed duplicate, ready for a merge.',
+  },
+  OPEN: {
+    title: 'Move this pair back to review',
+    description:
+      'This clears the earlier decision and puts the pair back in the review list. Neither chart changes.',
+    confirm: 'Move back to review',
+    notice: 'Moved back to the review list.',
+  },
+};
+
+/**
+ * The suspected duplicate review queue.
+ *
+ * Read-only by construction: the list endpoint computes candidates from columns that already
+ * exist and writes nothing, and the only mutation on this screen records a review decision
+ * against a separate table. Merging two charts stays on the patient chart, behind the existing
+ * system-admin dialog, and this screen links into it rather than reimplementing it.
+ */
+export function DuplicateReviewScreen() {
+  const getToken = useAuth();
+  const bootstrap = useBootstrap()?.bootstrap ?? null;
+  const activeClinicId = getBootstrapActiveClinicId(bootstrap);
+  const isSystemAdmin = bootstrap?.globalRoles?.includes('SYSTEM_ADMIN') ?? false;
+
+  const [scope, setScope] = useState<ScopeMode>('clinic');
+  const [filters, setFilters] = useState<DuplicateFilters>(DEFAULT_DUPLICATE_FILTERS);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [selected, setSelected] = useState<DuplicateCandidate | null>(null);
+  const [pendingDecision, setPendingDecision] = useState<DuplicateReviewStatus | null>(null);
+  const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const effectiveScope: ScopeMode = isSystemAdmin ? scope : 'clinic';
+  const clinicId = effectiveScope === 'clinic' ? activeClinicId : null;
+  const scopeReady = effectiveScope === 'all' || Boolean(clinicId);
+
+  const basePath = useMemo(
+    () =>
+      effectiveScope === 'all'
+        ? '/admin/patients/duplicates'
+        : `/clinics/${encodeURIComponent(clinicId ?? '')}/patients/duplicates`,
+    [effectiveScope, clinicId],
+  );
+
+  const query = useMemo(
+    () => buildDuplicateQuery(filters, page, pageSize),
+    [filters, page, pageSize],
+  );
+
+  const queue = useAsyncResource<DuplicateCandidatePage>({
+    resourceKey: [basePath, query, scopeReady].join('|'),
+    enabled: scopeReady,
+    errorMessage: 'The duplicate review queue could not be loaded.',
+    fetcher: async (token, signal) => {
+      const response = await apiFetch(`${basePath}?${query}`, {
+        getToken: token,
+        signal,
+        ...(effectiveScope === 'all'
+          ? { skipClinicHeader: true }
+          : { activeClinicId: clinicId ?? undefined }),
+      });
+      if (!response.ok) {
+        throw new Error(await readApiError(response));
+      }
+      return (await response.json()) as DuplicateCandidatePage;
+    },
+  });
+
+  const summary = queue.data?.summary ?? { open: 0, high: 0, crossClinic: 0, dismissed: 0 };
+
+  const closeSheet = useCallback(() => {
+    setSelected(null);
+    setPendingDecision(null);
+    setNote('');
+    setReviewError(null);
+  }, []);
+
+  const submitDecision = useCallback(async () => {
+    if (!selected || !pendingDecision) return;
+    setSaving(true);
+    setReviewError(null);
+    try {
+      const response = await apiFetch(`${basePath}/review`, {
+        method: 'POST',
+        body: JSON.stringify({
+          patientAId: selected.patients[0].id,
+          patientBId: selected.patients[1].id,
+          status: pendingDecision,
+          note: note.trim() || undefined,
+        }),
+        getToken,
+        ...(effectiveScope === 'all'
+          ? { skipClinicHeader: true }
+          : { activeClinicId: clinicId ?? undefined }),
+      });
+      if (!response.ok) {
+        throw new Error(await readApiError(response));
+      }
+      setNotice(DECISION_COPY[pendingDecision].notice);
+      closeSheet();
+      queue.refresh();
+    } catch (error) {
+      setReviewError(
+        error instanceof Error ? error.message : 'The decision could not be recorded.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  }, [
+    selected,
+    pendingDecision,
+    basePath,
+    note,
+    getToken,
+    effectiveScope,
+    clinicId,
+    closeSheet,
+    queue,
+  ]);
+
+  /*
+    Column widths are chosen to fit, not to be generous. The grid gets roughly 880px inside the
+    two-column layout at 1440, and an earlier set summing to 928 pushed the Actions cell -- the
+    only way into the comparison -- off the right edge behind a scrollbar nobody scrolls.
+  */
+  const columns: DataTableColumn<DuplicateCandidate>[] = useMemo(
+    () => [
+      {
+        id: 'confidence',
+        accessorKey: 'confidence',
+        header: 'Strength',
+        enableSorting: false,
+        cell: ({ row: params }) => (
+          <Badge variant={confidenceBadgeVariant(params.original.confidence)}>
+            {DUPLICATE_CONFIDENCE_LABELS[params.original.confidence]}
+          </Badge>
+        ),
+      },
+      {
+        id: 'patients',
+        accessorKey: 'patients',
+        header: 'Charts',
+        enableSorting: false,
+        cell: ({ row: params }) => (
+          <div className="py-2 text-sm leading-5">
+            {params.original.patients.map((patient, index) => (
+              <p key={patient.id} className={index === 0 ? 'text-foreground' : 'text-foreground'}>
+                <span className="font-medium">{patientDisplayName(patient)}</span>
+                <span className="text-muted-foreground"> · {patient.patientCode}</span>
+              </p>
+            ))}
+          </div>
+        ),
+      },
+      {
+        id: 'reasons',
+        accessorKey: 'reasons',
+        header: 'Why it matched',
+        enableSorting: false,
+        // The strongest reason in full, with a count for the rest. The joined list ran to three
+        // wrapped lines in a 64px row and clipped; the comparison sheet spells all of them out.
+        cell: ({ row: params }) => (
+          <div className="min-w-0 py-2 text-sm leading-5">
+            <p className="truncate text-foreground" title={formatReasons(params.original.reasons)}>
+              {DUPLICATE_MATCH_REASON_LABELS[params.original.reasons[0]]}
+            </p>
+            {params.original.reasons.length > 1 ? (
+              <p className="text-muted-foreground">and {params.original.reasons.length - 1} more</p>
+            ) : null}
+          </div>
+        ),
+      },
+      {
+        id: 'clinic',
+        accessorKey: 'clinic',
+        header: 'Scope',
+        enableSorting: false,
+        // Which clinic a same-clinic pair sits in is always the clinic already named in the
+        // header, so the column earns its width only by calling out the pairs that span two.
+        // The clinic and organisation names for both charts are in the comparison sheet.
+        cell: ({ row: params }) =>
+          params.original.crossClinic ? (
+            <Badge variant="warning">Across clinics</Badge>
+          ) : params.original.mergeEligible ? (
+            <span className="text-muted-foreground">This clinic</span>
+          ) : (
+            <MergeUnavailableBadge candidate={params.original} />
+          ),
+      },
+      {
+        id: 'lastUpdatedAt',
+        accessorKey: 'lastUpdatedAt',
+        header: 'Updated',
+        enableSorting: false,
+        cell: ({ row: params }) => (
+          <span className="tabular-nums text-muted-foreground">
+            {params.original.lastUpdatedAt.slice(0, 10)}
+          </span>
+        ),
+      },
+      {
+        id: 'actions',
+
+        header: () => <span className="sr-only">Actions</span>,
+        enableSorting: false,
+        meta: { align: 'right' },
+        cell: ({ row: params }) => (
+          <Button variant="ghost" size="sm" onClick={() => setSelected(params.original)}>
+            Compare
+          </Button>
+        ),
+      },
+    ],
+    [],
+  );
+
+  const filtersAreDefault = duplicateFiltersAreDefault(filters);
+
+  return (
+    <div className="space-y-6">
+      <AppPageHeader
+        eyebrow="Patient identity"
+        title="Duplicate review"
+        description="Charts that look like the same person, ranked by how strong the match is. Nothing here changes a record."
+        actions={
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            {isSystemAdmin ? (
+              <SegmentedControl
+                label="Which clinics to search"
+                value={scope}
+                onChange={(next) => {
+                  setScope(next);
+                  setPage(0);
+                }}
+                options={[
+                  { value: 'clinic', label: 'This clinic' },
+                  {
+                    value: 'all',
+                    label: 'All clinics',
+                    description: 'Includes pairs that span two clinics.',
+                  },
+                ]}
+                className="sm:w-72"
+              />
+            ) : null}
+            {/*
+              The label does not change while a refresh is in flight. Swapping it for "Refreshing"
+              resizes the control and moves everything beside it, which the design system forbids;
+              the icon spins and an sr-only live region carries the state instead.
+            */}
+            <Button
+              variant="outline"
+              onClick={() => queue.refresh()}
+              disabled={queue.isRefreshing || !scopeReady}
+            >
+              <RefreshCw
+                aria-hidden="true"
+                className={`mr-2 h-4 w-4 ${queue.isRefreshing ? 'animate-spin' : ''}`}
+              />
+              Refresh
+              <span aria-live="polite" className="sr-only">
+                {queue.isRefreshing ? 'Refreshing the duplicate queue' : ''}
+              </span>
+            </Button>
+          </div>
+        }
+      />
+
+      {/* Required reading, not header help: #63 keeps it visible on the page. */}
+      <ProgressiveHelp title="How candidates are found">
+        <div className="space-y-2">
+          <p>
+            Every pair below matched at least one conservative rule: the same national ID, the same
+            name and date of birth, the same ID type and last four digits with a matching date of
+            birth, the same phone number, or the same email address. A first name that is close but
+            not identical counts only when the surname and date of birth already agree.
+          </p>
+          <p>
+            This screen never merges anything. Marking a pair only records what you decided, so the
+            queue gets shorter as it is worked instead of resetting each time it is opened. Merging
+            two charts is a separate, irreversible step on the patient chart itself, and is limited
+            to system administrators.
+          </p>
+        </div>
+      </ProgressiveHelp>
+
+      <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
+        <AppMetricCard
+          title="Needs review"
+          value={summary.open}
+          icon={CopyCheck}
+          detail="Pairs nobody has decided on yet."
+        />
+        <AppMetricCard
+          title="Very likely"
+          value={summary.high}
+          icon={AlertTriangle}
+          detail="Open pairs with the strongest signals."
+        />
+        <AppMetricCard
+          title="Across clinics"
+          value={summary.crossClinic}
+          icon={Building2}
+          detail="Cannot be merged until a clinic owns the chart."
+        />
+        <AppMetricCard
+          title="Ruled out"
+          value={summary.dismissed}
+          icon={ShieldCheck}
+          detail="Already checked and marked as different people."
+        />
+      </AppMetricGroup>
+
+      {notice ? (
+        <InlineNotice tone="success" live>
+          {notice}
+        </InlineNotice>
+      ) : null}
+
+      {/*
+        Pairs across clinics are listed here so they can be decided on, but this queue cannot
+        say how big the cross-clinic problem is. The investigation can, so it is one click away
+        whenever this view could be showing such a pair.
+      */}
+      {effectiveScope === 'all' ? (
+        <div className="flex flex-col gap-3 rounded-lg border border-border/70 bg-card/90 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <Building2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+            <p className="text-sm leading-5 text-muted-foreground">
+              <span className="font-medium text-foreground">
+                Sizing up duplicates across clinics?
+              </span>{' '}
+              The cross-clinic investigation counts them per clinic pair and explains why they
+              cannot be merged yet.
+            </p>
+          </div>
+          <Button asChild variant="outline" className="shrink-0">
+            <Link href="/admin/duplicates/cross-clinic">
+              Open investigation
+              <ArrowRight aria-hidden="true" className="ml-2 h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
+      ) : null}
+
+      {/*
+        min-w-0 on both columns. A CSS grid track defaults to min-width:auto, so a wide table in
+        the right column pushes the whole grid past the viewport at 768 and 1024 instead of
+        scrolling inside its own container.
+      */}
+      <section className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
+        <Card className="min-w-0">
+          <CardHeader>
+            <CardTitle className="text-lg">Filters</CardTitle>
+            <CardDescription>Narrow the queue to the work in front of you.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <DuplicateFilterFields
+              idPrefix="duplicate"
+              filters={filters}
+              onChange={(next) => {
+                setFilters(next);
+                setPage(0);
+              }}
+              onReset={() => {
+                setFilters(DEFAULT_DUPLICATE_FILTERS);
+                setPage(0);
+              }}
+              emptyLabel="Showing every open candidate"
+            />
+
+            <ProgressiveHelp title="What a match strength means">
+              <p>
+                Strength is the sum of the rules a pair matched, so two weak signals together
+                outrank either one alone. It is a prompt to look, never a decision: a shared phone
+                number can be a household, and two siblings can share a surname and a birthday.
+                Always open the comparison before you act.
+              </p>
+            </ProgressiveHelp>
+          </CardContent>
+        </Card>
+
+        <Card className="min-w-0">
+          <CardHeader className="space-y-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-1.5">
+                <CardTitle className="text-xl">Candidates</CardTitle>
+                <CardDescription>
+                  Open a pair to compare the two charts side by side.
+                </CardDescription>
+              </div>
+              <div className="rounded-lg border border-border/70 bg-background/75 px-4 py-3 text-sm">
+                <p className="text-muted-foreground">Showing</p>
+                <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
+                  {queue.data?.items.length ?? 0} of {queue.data?.total ?? 0}
+                </p>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {!scopeReady ? (
+              <SelectClinicState surface="The duplicate review queue" />
+            ) : (
+              <ResourceState
+                state={queue}
+                errorTitle="We couldn't load the duplicate review queue"
+                skeleton={
+                  <SectionSkeleton lines={5} className="border-0 bg-transparent p-0 shadow-none" />
+                }
+                isEmpty={(data) => data.items.length === 0}
+                empty={{
+                  title:
+                    filters.status === 'OPEN' && filtersAreDefault
+                      ? 'No suspected duplicates'
+                      : 'No candidates match these filters',
+                  description:
+                    filters.status === 'OPEN' && filtersAreDefault
+                      ? 'Every chart in scope looks like a distinct person. New candidates appear here as patients are registered.'
+                      : 'Try a broader decision or match strength, or clear the search term.',
+                  icon: Users,
+                }}
+              >
+                {(data) => (
+                  <>
+                    {data.truncated ? (
+                      <InlineNotice tone="warning">
+                        There were more candidates than one page can scan. Narrow to a single
+                        clinic, or work through these first and refresh.
+                      </InlineNotice>
+                    ) : null}
+
+                    {/*
+                      Cards until lg, not md. Every other grid in the product switches at md
+                      because its row is one record; a row here is a pair, and the columns need
+                      roughly 830px to keep both chart codes and the Compare action on screen. At
+                      768 that leaves the only way into the comparison behind a horizontal
+                      scrollbar, which is the same failure the column widths above were rebalanced
+                      to fix.
+                    */}
+                    <div className="space-y-3 lg:hidden">
+                      {data.items.map((candidate) => (
+                        <DuplicatePairCard
+                          key={candidate.pairKey}
+                          candidate={candidate}
+                          onCompare={setSelected}
+                        />
+                      ))}
+                    </div>
+
+                    {/*
+                      A bounded height rather than autoHeight: the sticky column headers in
+                      dataGridSx only stick against the grid's own scroll container.
+                    */}
+                    <div className="hidden lg:block">
+                      <DataTable
+                        caption="Possible duplicate charts"
+                        columns={columns}
+                        data={data.items}
+                        getRowId={(row) => row.pairKey}
+                        isRefreshing={queue.isRefreshing}
+                        pageSizeOptions={[10, 25, 50]}
+                        rowCount={data.total}
+                        pagination={{ pageIndex: page, pageSize }}
+                        onPaginationChange={(next) => {
+                          setPage(next.pageIndex);
+                          setPageSize(next.pageSize);
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-lg border border-border/70 bg-background/70 px-4 py-3 text-sm lg:hidden">
+                      <p className="tabular-nums text-muted-foreground">
+                        Showing {data.items.length} of {data.total}
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={page === 0 || queue.isRefreshing}
+                          onClick={() => setPage((current) => Math.max(0, current - 1))}
+                        >
+                          Previous
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={(page + 1) * pageSize >= data.total || queue.isRefreshing}
+                          onClick={() => setPage((current) => current + 1)}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </ResourceState>
+            )}
+          </CardContent>
+        </Card>
+      </section>
+
+      <DuplicateComparisonSheet
+        candidate={selected}
+        onClose={closeSheet}
+        onDecide={(status) => {
+          setPendingDecision(status);
+          setReviewError(null);
+        }}
+      />
+
+      <Dialog
+        open={pendingDecision !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDecision(null);
+            setNote('');
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{DECISION_COPY[pendingDecision ?? 'DISMISSED'].title}</DialogTitle>
+            <DialogDescription>
+              {DECISION_COPY[pendingDecision ?? 'DISMISSED'].description}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <Label htmlFor="duplicate-note">Note for whoever reads this next (optional)</Label>
+            <Textarea
+              id="duplicate-note"
+              value={note}
+              maxLength={280}
+              rows={3}
+              placeholder="e.g. Twins, confirmed with the family."
+              onChange={(event) => setNote(event.target.value)}
+            />
+          </div>
+
+          {reviewError ? <InlineNotice tone="error">{reviewError}</InlineNotice> : null}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPendingDecision(null);
+                setNote('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={() => void submitDecision()} disabled={saving}>
+              {DECISION_COPY[pendingDecision ?? 'DISMISSED'].confirm}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

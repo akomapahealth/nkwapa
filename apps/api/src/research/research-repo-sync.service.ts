@@ -1,9 +1,7 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
-import { ResearchExport } from "@prisma/client";
-import {
-  GeneratedResearchPack,
-  ResearchRepoSyncResult,
-} from "./research-policy";
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { ResearchExport } from '@prisma/client';
+import { redactLogValue } from '../common/redaction';
+import { GeneratedResearchPack, ResearchRepoSyncResult } from './research-policy';
 
 interface GitHubRefResponse {
   object: { sha: string };
@@ -15,22 +13,61 @@ interface GitHubCommitResponse {
 
 @Injectable()
 export class ResearchRepoSyncService {
+  private readonly logger = new Logger(ResearchRepoSyncService.name);
+
+  /**
+   * Where `sync` will put this pack. Recorded on the export before the push (#164), so that if
+   * the worker loses track of the push, `findPushedCommit` can ask GitHub whether it landed.
+   */
+  plannedRepoPath(
+    exportRecord: Pick<ResearchExport, 'id'>,
+    pack: { manifest: Pick<GeneratedResearchPack['manifest'], 'clinicKey' | 'generatedAt'> },
+  ): string {
+    const config = this.getConfig();
+    const snapshotName = `${pack.manifest.generatedAt.replace(/[:.]/g, '-')}__${exportRecord.id}`;
+    return `${config.basePath}/${pack.manifest.clinicKey}/exports/${snapshotName}`;
+  }
+
+  /**
+   * The commit that put a snapshot at `repoPath` on the export branch, or null if none did.
+   *
+   * The snapshot directory is unique to one run of one export, so a commit touching it is that
+   * run's push. This is how a push whose outcome was lost is settled without pushing again.
+   * Throws if GitHub cannot be asked, which leaves the outcome unknown for a later try.
+   */
+  async findPushedCommit(repoPath: string): Promise<ResearchRepoSyncResult | null> {
+    const config = this.getConfig();
+    const query = new URLSearchParams({ sha: config.branch, path: repoPath, per_page: '1' });
+    const commits = await this.request<
+      Array<{ sha: string; commit: { committer?: { date?: string } } }>
+    >('GET', `/commits?${query.toString()}`);
+    const [commit] = commits ?? [];
+    if (!commit) return null;
+    const committedAt = commit.commit.committer?.date;
+    return {
+      provider: 'GITHUB',
+      repoPath,
+      commitSha: commit.sha,
+      commitUrl: `https://github.com/${config.owner}/${config.repo}/commit/${commit.sha}`,
+      syncedAt: committedAt ? new Date(committedAt) : new Date(),
+    };
+  }
+
   async sync(
-    exportRecord: Pick<ResearchExport, "id" | "fromDate" | "toDate">,
-    pack: GeneratedResearchPack
+    exportRecord: Pick<ResearchExport, 'id' | 'fromDate' | 'toDate'>,
+    pack: GeneratedResearchPack,
   ): Promise<ResearchRepoSyncResult> {
     const config = this.getConfig();
     this.assertFileSizes(config.maxFileBytes, config.maxTotalBytes, pack);
 
-    const snapshotName = `${pack.manifest.generatedAt.replace(/[:.]/g, "-")}__${exportRecord.id}`;
-    const repoPath = `${config.basePath}/${pack.manifest.clinicKey}/exports/${snapshotName}`;
+    const repoPath = this.plannedRepoPath(exportRecord, pack);
     const latestPath = `${config.basePath}/${pack.manifest.clinicKey}/latest.json`;
 
-    const ref = await this.request<GitHubRefResponse>("GET", `/git/ref/heads/${config.branch}`);
+    const ref = await this.request<GitHubRefResponse>('GET', `/git/ref/heads/${config.branch}`);
     const baseCommitSha = ref.object.sha;
     const baseCommit = await this.request<GitHubCommitResponse>(
-      "GET",
-      `/git/commits/${baseCommitSha}`
+      'GET',
+      `/git/commits/${baseCommitSha}`,
     );
 
     const latestContent = `${JSON.stringify(
@@ -43,7 +80,7 @@ export class ResearchRepoSyncService {
         rowCounts: pack.rowCounts,
       },
       null,
-      2
+      2,
     )}\n`;
 
     const tree = [];
@@ -54,37 +91,37 @@ export class ResearchRepoSyncService {
       })),
       { path: latestPath, content: latestContent },
     ]) {
-      const blob = await this.request<{ sha: string }>("POST", "/git/blobs", {
-        content: Buffer.from(file.content, "utf-8").toString("base64"),
-        encoding: "base64",
+      const blob = await this.request<{ sha: string }>('POST', '/git/blobs', {
+        content: Buffer.from(file.content, 'utf-8').toString('base64'),
+        encoding: 'base64',
       });
 
       tree.push({
         path: file.path,
-        mode: "100644",
-        type: "blob",
+        mode: '100644',
+        type: 'blob',
         sha: blob.sha,
       });
     }
 
-    const createdTree = await this.request<{ sha: string }>("POST", "/git/trees", {
+    const createdTree = await this.request<{ sha: string }>('POST', '/git/trees', {
       base_tree: baseCommit.tree.sha,
       tree,
     });
 
-    const createdCommit = await this.request<{ sha: string }>("POST", "/git/commits", {
+    const createdCommit = await this.request<{ sha: string }>('POST', '/git/commits', {
       message: `research-export: ${pack.manifest.clinicKey} ${exportRecord.fromDate}..${exportRecord.toDate} ${exportRecord.id}`,
       tree: createdTree.sha,
       parents: [baseCommitSha],
     });
 
-    await this.request("PATCH", `/git/refs/heads/${config.branch}`, {
+    await this.request('PATCH', `/git/refs/heads/${config.branch}`, {
       sha: createdCommit.sha,
       force: false,
     });
 
     return {
-      provider: "GITHUB",
+      provider: 'GITHUB',
       repoPath,
       commitSha: createdCommit.sha,
       commitUrl: `https://github.com/${config.owner}/${config.repo}/commit/${createdCommit.sha}`,
@@ -95,19 +132,19 @@ export class ResearchRepoSyncService {
   private assertFileSizes(
     maxFileBytes: number,
     maxTotalBytes: number,
-    pack: GeneratedResearchPack
+    pack: GeneratedResearchPack,
   ) {
     const totalBytes = pack.repoFiles.reduce((sum, file) => sum + file.bytes, 0);
     if (totalBytes > maxTotalBytes) {
       throw new BadRequestException(
-        `Research export exceeds the configured GitHub total size guard (${maxTotalBytes} bytes)`
+        `Research export exceeds the configured GitHub total size guard (${maxTotalBytes} bytes)`,
       );
     }
 
     const oversized = pack.repoFiles.find((file) => file.bytes > maxFileBytes);
     if (oversized) {
       throw new BadRequestException(
-        `${oversized.name} exceeds the configured GitHub file size guard (${maxFileBytes} bytes)`
+        `${oversized.name} exceeds the configured GitHub file size guard (${maxFileBytes} bytes)`,
       );
     }
   }
@@ -115,15 +152,15 @@ export class ResearchRepoSyncService {
   private getConfig() {
     const owner = process.env.RESEARCH_GITHUB_REPO_OWNER?.trim();
     const repo = process.env.RESEARCH_GITHUB_REPO_NAME?.trim();
-    const branch = process.env.RESEARCH_GITHUB_REPO_BRANCH?.trim() || "main";
-    const basePath = process.env.RESEARCH_GITHUB_REPO_BASE_PATH?.trim() || "clinics";
+    const branch = process.env.RESEARCH_GITHUB_REPO_BRANCH?.trim() || 'main';
+    const basePath = process.env.RESEARCH_GITHUB_REPO_BASE_PATH?.trim() || 'clinics';
     const token = process.env.RESEARCH_GITHUB_TOKEN?.trim();
     const maxFileBytes = Number(process.env.RESEARCH_GITHUB_MAX_FILE_BYTES ?? 95 * 1024 * 1024);
     const maxTotalBytes = Number(process.env.RESEARCH_GITHUB_MAX_TOTAL_BYTES ?? 250 * 1024 * 1024);
 
     if (!owner || !repo || !token) {
       throw new BadRequestException(
-        "RESEARCH_GITHUB_REPO_OWNER, RESEARCH_GITHUB_REPO_NAME, and RESEARCH_GITHUB_TOKEN must be configured"
+        'RESEARCH_GITHUB_REPO_OWNER, RESEARCH_GITHUB_REPO_NAME, and RESEARCH_GITHUB_TOKEN must be configured',
       );
     }
 
@@ -131,9 +168,9 @@ export class ResearchRepoSyncService {
   }
 
   private async request<T = unknown>(
-    method: "GET" | "POST" | "PATCH",
+    method: 'GET' | 'POST' | 'PATCH',
     endpoint: string,
-    body?: Record<string, unknown>
+    body?: Record<string, unknown>,
   ): Promise<T> {
     const config = this.getConfig();
     const response = await fetch(
@@ -142,19 +179,26 @@ export class ResearchRepoSyncService {
         method,
         headers: {
           Authorization: `Bearer ${config.token}`,
-          Accept: "application/vnd.github+json",
-          "Content-Type": "application/json",
-          "User-Agent": "nkwapa-research-export",
-          "X-GitHub-Api-Version": "2022-11-28",
+          Accept: 'application/vnd.github+json',
+          'Content-Type': 'application/json',
+          'User-Agent': 'nkwapa-research-export',
+          'X-GitHub-Api-Version': '2022-11-28',
         },
         body: body ? JSON.stringify(body) : undefined,
-      }
+      },
     );
 
     if (!response.ok) {
-      throw new BadRequestException(
-        `GitHub sync failed (${response.status}): ${await response.text()}`
+      const responseText = await response.text();
+      this.logger.warn(
+        JSON.stringify({
+          message: 'GitHub research sync request failed',
+          status: response.status,
+          endpoint,
+          error: redactLogValue(responseText),
+        }),
       );
+      throw new BadRequestException(`GitHub sync failed (${response.status})`);
     }
 
     if (response.status === 204) {
@@ -164,4 +208,3 @@ export class ResearchRepoSyncService {
     return (await response.json()) as T;
   }
 }
-

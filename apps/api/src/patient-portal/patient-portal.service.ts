@@ -1,3 +1,4 @@
+import { claimRefusal, expiredInviteRefusal, normalizePhoneToE164 } from '@nkwapa/db';
 import {
   BadRequestException,
   ConflictException,
@@ -7,16 +8,20 @@ import {
 } from '@nestjs/common';
 import {
   AppointmentRequestStatus,
+  AppointmentRequestType,
   AppointmentStatus,
   EncounterStatus,
   PatientMeasurementSource,
   PatientMeasurementType,
   PatientSelfReportType,
+  PortalInviteIdentityStatus,
   Prisma,
+  UserRole,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ReminderService } from '../reminders/reminder.service';
+import { EmailDeliverabilityService } from '../common/email-policy';
 import type { CreateSelfReportDto } from './dto/create-self-report.dto';
 import type {
   CreatePatientMeasurementDto,
@@ -24,13 +29,41 @@ import type {
 } from './dto/patient-measurements.dto';
 import type { ListPatientTrendsQueryDto } from './dto/patient-trends.dto';
 import type {
+  CancelAppointmentDto,
+  CompleteAppointmentDto,
   ConfirmAppointmentRequestDto,
   CreateAppointmentRequestDto,
+  ListAppointmentsQueryDto,
   ListAppointmentRequestsQueryDto,
+  MarkNoShowAppointmentDto,
+  PatientCancelAppointmentRequestDto,
+  PatientRescheduleAppointmentRequestDto,
   RejectAppointmentRequestDto,
+  RescheduleAppointmentDto,
 } from './dto/appointment-requests.dto';
+import type { CreatePatientPortalInviteDto } from './dto/portal-invite.dto';
+import {
+  APPOINTMENT_REMINDER_TEMPLATE_KEY,
+  PATIENT_REMINDER_TEMPLATE_KEYS,
+} from '../notifications/templates';
+import { resolveAppPublicUrl } from '../notifications/email/email-config';
+import type { ClaimPatientRecordDto } from './dto/claim-record.dto';
+import {
+  buildPortalClaimRedirectUri,
+  buildPortalClaimUrl,
+  claimableInviteForIdentityWhere,
+  claimableInviteWhere,
+  isPortalInviteExpired,
+  resolveIdentityActionLifespanSeconds,
+  resolvePortalInviteExpiry,
+} from '../common/portal-invite-lifecycle';
+import { describeInviteAccountSetup } from '../common/invite-account-setup';
+import { KeycloakAdminService } from '../keycloak/keycloak-admin.service';
+import type { ProvisionInvitedIdentityResult } from '../keycloak/keycloak-admin.service';
+import { describeInviteStateForStaff, formatInviteExpiryDate } from './portal-invite-presentation';
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+export const PATIENT_PORTAL_LINK_MISSING = 'PATIENT_PORTAL_LINK_MISSING';
 
 const appointmentRequestInclude = {
   patient: {
@@ -50,11 +83,51 @@ const appointmentRequestInclude = {
       assignedVolunteer: { select: { id: true, displayName: true } },
     },
   },
+  sourceAppointment: {
+    include: {
+      assignedDoctor: { select: { id: true, displayName: true } },
+      assignedVolunteer: { select: { id: true, displayName: true } },
+    },
+  },
 } satisfies Prisma.AppointmentRequestInclude;
+
+const appointmentScheduleInclude = {
+  patient: {
+    select: {
+      id: true,
+      patientCode: true,
+      firstName: true,
+      lastName: true,
+      phoneE164: true,
+      email: true,
+    },
+  },
+  assignedDoctor: { select: { id: true, displayName: true } },
+  assignedVolunteer: { select: { id: true, displayName: true } },
+  reminders: {
+    select: {
+      id: true,
+      status: true,
+      channel: true,
+      templateKey: true,
+      scheduledAt: true,
+      failureReason: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+    orderBy: { createdAt: 'desc' },
+  },
+} satisfies Prisma.AppointmentInclude;
 
 type AppointmentRequestWithRelations = Prisma.AppointmentRequestGetPayload<{
   include: typeof appointmentRequestInclude;
 }>;
+
+type AppointmentScheduleWithRelations = Prisma.AppointmentGetPayload<{
+  include: typeof appointmentScheduleInclude;
+}>;
+
+type AppointmentLifecycleAction = 'reschedule' | 'cancel' | 'complete' | 'no-show';
 
 interface PortalPatientSummary {
   id: string;
@@ -86,6 +159,16 @@ interface GlucoseTrendPoint {
   source: 'ENCOUNTER' | 'PATIENT';
 }
 
+interface ExpandedVitalsTrendPoint {
+  t: string;
+  temperatureCelsius: number | null;
+  respiratoryRate: number | null;
+  spo2Percent: number | null;
+  weightKg: number | null;
+  bmi: number | null;
+  source: 'ENCOUNTER';
+}
+
 interface FollowUpSummary {
   requested: number;
   confirmed: number;
@@ -94,10 +177,42 @@ interface FollowUpSummary {
   closed: number;
 }
 
+export interface AppointmentReminderSummary {
+  total: number;
+  queued: number;
+  sent: number;
+  delivered: number;
+  failed: number;
+  nextQueuedAt: string | null;
+  channels: string[];
+  latestFailureReason: string | null;
+}
+
+interface AppointmentRange {
+  from: string;
+  to: string;
+  start: Date;
+  end: Date;
+}
+
 export interface PatientTrendsResponse {
   bp: BloodPressureTrendPoint[];
   glucose: GlucoseTrendPoint[];
+  measurements?: ExpandedVitalsTrendPoint[];
   followUp: FollowUpSummary;
+}
+
+/**
+ * What provisioning left on the invite, carried back to the caller.
+ *
+ * Returned rather than re-read: the update above has already written these, and a second
+ * read inside the request's transaction only adds a round trip to say the same thing.
+ */
+interface PortalInviteIdentityFields {
+  identityStatus: PortalInviteIdentityStatus;
+  keycloakUserId?: string | null;
+  identityProvisionedAt?: Date | null;
+  identityFailureReason?: string | null;
 }
 
 @Injectable()
@@ -106,6 +221,8 @@ export class PatientPortalService {
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
     private readonly reminderService: ReminderService,
+    private readonly emailDeliverabilityService: EmailDeliverabilityService,
+    private readonly keycloakAdminService: KeycloakAdminService,
   ) {}
 
   async getMe(clinicId: string, userId: string) {
@@ -134,7 +251,15 @@ export class PatientPortalService {
       : null;
 
     const reminders = await this.prisma.reminder.findMany({
-      where: { patientId: patient.id, clinicId },
+      // Explicitly the reminder templates. The ledger now also carries portal invites
+      // and appointment lifecycle mail, and a patient's own feed showing "invite sent"
+      // after they already claimed the record would be noise at best.
+      where: {
+        patientId: patient.id,
+        clinicId,
+        recipientType: 'PATIENT',
+        templateKey: { in: [...PATIENT_REMINDER_TEMPLATE_KEYS] },
+      },
       orderBy: { scheduledAt: 'asc' },
       take: 10,
       select: {
@@ -188,12 +313,12 @@ export class PatientPortalService {
     query: ListPatientTrendsQueryDto,
   ) {
     const patient = await this.resolvePortalPatient(clinicId, userId);
-    return this.listTrends(patient.id, clinicId, query, ['FINALIZED']);
+    return this.listTrends(patient.id, clinicId, query, ['FINALIZED'], false);
   }
 
   async listTrendsForStaff(patientId: string, clinicId: string, query: ListPatientTrendsQueryDto) {
     await this.assertPatientInClinic(patientId, clinicId);
-    return this.listTrends(patientId, clinicId, query, ['DRAFT', 'IN_REVIEW', 'FINALIZED']);
+    return this.listTrends(patientId, clinicId, query, ['DRAFT', 'IN_REVIEW', 'FINALIZED'], true);
   }
 
   async createMeasurementForAuthenticatedPatient(
@@ -241,6 +366,7 @@ export class PatientPortalService {
       data: {
         clinicId: requestClinicId,
         patientId: patient.id,
+        requestType: AppointmentRequestType.NEW_APPOINTMENT,
         preferredStartDate,
         preferredEndDate,
         reason: dto.reason?.trim() || null,
@@ -279,6 +405,138 @@ export class PatientPortalService {
     return items.map((item) => this.serializeAppointmentRequest(item));
   }
 
+  async listAppointmentsForAuthenticatedPatient(
+    clinicId: string,
+    userId: string,
+    query: ListAppointmentsQueryDto,
+  ) {
+    const patient = await this.resolvePortalPatient(clinicId, userId);
+    const range = query.from || query.to ? this.resolveAppointmentRange(query) : null;
+    const where: Prisma.AppointmentWhereInput = range
+      ? this.buildAppointmentWhere(clinicId, query, range, patient.id)
+      : {
+          clinicId,
+          patientId: patient.id,
+          ...(query.status ? { status: query.status } : {}),
+        };
+    const items = await this.prisma.appointment.findMany({
+      where,
+      include: appointmentScheduleInclude,
+      orderBy: [{ startsAt: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    return {
+      range: {
+        from: range?.from ?? null,
+        to: range?.to ?? null,
+      },
+      timezone: 'Africa/Accra',
+      summary: this.summarizeAppointments(items),
+      items: items.map((item) => this.serializeAppointment(item)),
+    };
+  }
+
+  async createCancelAppointmentRequestForAuthenticatedPatient(
+    clinicId: string,
+    userId: string,
+    appointmentId: string,
+    dto: PatientCancelAppointmentRequestDto,
+    requestId?: string,
+  ) {
+    const reason = dto.reason?.trim();
+    if (!reason) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Request validation failed.',
+        fieldErrors: [{ field: 'reason', message: 'reason should not be empty' }],
+        recoveryAction: 'Add a cancellation reason and try again.',
+      });
+    }
+
+    const { patient, appointment } = await this.resolvePatientChangeRequestAppointment(
+      clinicId,
+      userId,
+      appointmentId,
+      'cancel',
+    );
+
+    const appointmentDate = this.toDateOnly(appointment.startsAt);
+    const created = await this.prisma.appointmentRequest.create({
+      data: {
+        clinicId,
+        patientId: patient.id,
+        requestType: AppointmentRequestType.CANCEL_APPOINTMENT,
+        sourceAppointmentId: appointment.id,
+        preferredStartDate: appointmentDate,
+        preferredEndDate: appointmentDate,
+        reason,
+        notes: dto.notes?.trim() || null,
+        status: AppointmentRequestStatus.REQUESTED,
+      },
+      include: appointmentRequestInclude,
+    });
+
+    await this.auditService.logWrite({
+      clinicId,
+      actorUserId: userId,
+      action: 'APPT.REQUEST.CANCEL_REQUEST.CREATE',
+      entityType: 'AppointmentRequest',
+      entityId: created.id,
+      afterJson: JSON.stringify(created),
+      requestId,
+    });
+
+    return this.serializeAppointmentRequest(created);
+  }
+
+  async createRescheduleAppointmentRequestForAuthenticatedPatient(
+    clinicId: string,
+    userId: string,
+    appointmentId: string,
+    dto: PatientRescheduleAppointmentRequestDto,
+    requestId?: string,
+  ) {
+    const preferredStartDate = this.parseDateOnly(dto.preferredStartDate, 'preferredStartDate');
+    const preferredEndDate = this.parseDateOnly(dto.preferredEndDate, 'preferredEndDate');
+    if (preferredEndDate < preferredStartDate) {
+      throw new BadRequestException('preferredEndDate must be on or after preferredStartDate');
+    }
+
+    const { patient, appointment } = await this.resolvePatientChangeRequestAppointment(
+      clinicId,
+      userId,
+      appointmentId,
+      'reschedule',
+    );
+
+    const created = await this.prisma.appointmentRequest.create({
+      data: {
+        clinicId,
+        patientId: patient.id,
+        requestType: AppointmentRequestType.RESCHEDULE_APPOINTMENT,
+        sourceAppointmentId: appointment.id,
+        preferredStartDate,
+        preferredEndDate,
+        reason: dto.reason?.trim() || null,
+        notes: dto.notes?.trim() || null,
+        status: AppointmentRequestStatus.REQUESTED,
+      },
+      include: appointmentRequestInclude,
+    });
+
+    await this.auditService.logWrite({
+      clinicId,
+      actorUserId: userId,
+      action: 'APPT.REQUEST.RESCHEDULE_REQUEST.CREATE',
+      entityType: 'AppointmentRequest',
+      entityId: created.id,
+      afterJson: JSON.stringify(created),
+      requestId,
+    });
+
+    return this.serializeAppointmentRequest(created);
+  }
+
   async listAppointmentRequestsForClinic(clinicId: string, query: ListAppointmentRequestsQueryDto) {
     const where = this.buildAppointmentRequestWhere(clinicId, query);
     const items = await this.prisma.appointmentRequest.findMany({
@@ -288,6 +546,263 @@ export class PatientPortalService {
     });
 
     return items.map((item) => this.serializeAppointmentRequest(item, true));
+  }
+
+  async listAppointmentsForClinic(clinicId: string, query: ListAppointmentsQueryDto) {
+    const range = this.resolveAppointmentRange(query);
+    const where = this.buildAppointmentWhere(clinicId, query, range);
+    const items = await this.prisma.appointment.findMany({
+      where,
+      include: appointmentScheduleInclude,
+      orderBy: [{ startsAt: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    return {
+      range: {
+        from: range.from,
+        to: range.to,
+      },
+      timezone: 'Africa/Accra',
+      summary: this.summarizeAppointments(items),
+      items: items.map((item) => this.serializeScheduledAppointment(item)),
+    };
+  }
+
+  async listAppointmentStaffOptionsForClinic(clinicId: string) {
+    const rows = await this.prisma.userClinicRole.findMany({
+      where: {
+        clinicId,
+        role: { in: [UserRole.DOCTOR, UserRole.VOLUNTEER] },
+        user: { isActive: true },
+      },
+      include: {
+        user: { select: { id: true, displayName: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const doctors = new Map<string, { id: string; displayName: string }>();
+    const volunteers = new Map<string, { id: string; displayName: string }>();
+
+    for (const row of rows) {
+      const option = { id: row.user.id, displayName: row.user.displayName };
+      if (row.role === UserRole.DOCTOR) {
+        doctors.set(option.id, option);
+      }
+      if (row.role === UserRole.VOLUNTEER) {
+        volunteers.set(option.id, option);
+      }
+    }
+
+    const byName = (left: { displayName: string }, right: { displayName: string }) =>
+      left.displayName.localeCompare(right.displayName);
+
+    return {
+      doctors: [...doctors.values()].sort(byName),
+      volunteers: [...volunteers.values()].sort(byName),
+    };
+  }
+
+  async rescheduleAppointment(
+    clinicId: string,
+    appointmentId: string,
+    actorUserId: string,
+    dto: RescheduleAppointmentDto,
+    requestId?: string,
+  ) {
+    const startsAt = this.parseDateTime(dto.startsAt, 'startsAt');
+    const endsAt = this.parseDateTime(dto.endsAt, 'endsAt');
+    if (endsAt <= startsAt) {
+      throw new BadRequestException('endsAt must be after startsAt');
+    }
+
+    await Promise.all([
+      dto.assignedDoctorId
+        ? this.assertAppointmentAssignee(clinicId, dto.assignedDoctorId, 'DOCTOR')
+        : Promise.resolve(),
+      dto.assignedVolunteerId
+        ? this.assertAppointmentAssignee(clinicId, dto.assignedVolunteerId, 'VOLUNTEER')
+        : Promise.resolve(),
+    ]);
+
+    const { before, after } = await this.mutateConfirmedAppointment({
+      clinicId,
+      appointmentId,
+      action: 'reschedule',
+      data: {
+        startsAt,
+        endsAt,
+        assignedDoctorId: dto.assignedDoctorId ?? null,
+        assignedVolunteerId: dto.assignedVolunteerId ?? null,
+        ...(dto.notes !== undefined ? { notes: dto.notes.trim() || null } : {}),
+      },
+    });
+
+    await this.auditAppointmentLifecycle({
+      clinicId,
+      actorUserId,
+      action: 'APPT.RESCHEDULE',
+      before,
+      after,
+      requestId,
+      metadata: {
+        previousStatus: before.status,
+        newStatus: after.status,
+        previousStartsAt: before.startsAt.toISOString(),
+        previousEndsAt: before.endsAt.toISOString(),
+        newStartsAt: after.startsAt.toISOString(),
+        newEndsAt: after.endsAt.toISOString(),
+      },
+    });
+
+    await this.reminderService.suppressQueuedAppointmentReminders(
+      clinicId,
+      appointmentId,
+      actorUserId,
+      'APPOINTMENT_RESCHEDULED',
+      requestId,
+    );
+    await this.scheduleAppointmentReminder(after.patient, after, actorUserId, requestId);
+    await this.sendAppointmentLifecycleEmail(
+      'APPOINTMENT_RESCHEDULED_V1',
+      after.patient,
+      after,
+      actorUserId,
+      { previousStartsAt: before.startsAt },
+      requestId,
+    );
+
+    return this.serializeScheduledAppointment(after);
+  }
+
+  async cancelAppointment(
+    clinicId: string,
+    appointmentId: string,
+    actorUserId: string,
+    dto: CancelAppointmentDto,
+    requestId?: string,
+  ) {
+    const reason = dto.reason?.trim();
+    if (!reason) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Request validation failed.',
+        fieldErrors: [{ field: 'reason', message: 'reason should not be empty' }],
+        recoveryAction: 'Add a cancellation reason and try again.',
+      });
+    }
+
+    const { before, after } = await this.mutateConfirmedAppointment({
+      clinicId,
+      appointmentId,
+      action: 'cancel',
+      data: { status: 'CANCELLED' },
+    });
+
+    await this.auditAppointmentLifecycle({
+      clinicId,
+      actorUserId,
+      action: 'APPT.CANCEL',
+      before,
+      after,
+      requestId,
+      metadata: { previousStatus: before.status, newStatus: after.status, reason },
+    });
+    await this.reminderService.suppressQueuedAppointmentReminders(
+      clinicId,
+      appointmentId,
+      actorUserId,
+      'APPOINTMENT_CANCELLED',
+      requestId,
+    );
+    await this.sendAppointmentLifecycleEmail(
+      'APPOINTMENT_CANCELLED_V1',
+      after.patient,
+      after,
+      actorUserId,
+      { reason },
+      requestId,
+    );
+
+    return this.serializeScheduledAppointment(after);
+  }
+
+  async completeAppointment(
+    clinicId: string,
+    appointmentId: string,
+    actorUserId: string,
+    dto: CompleteAppointmentDto,
+    requestId?: string,
+  ) {
+    const { before, after } = await this.mutateConfirmedAppointment({
+      clinicId,
+      appointmentId,
+      action: 'complete',
+      requireStarted: true,
+      data: {
+        status: 'COMPLETED',
+        ...(dto.notes !== undefined ? { notes: dto.notes.trim() || null } : {}),
+      },
+    });
+
+    await this.auditAppointmentLifecycle({
+      clinicId,
+      actorUserId,
+      action: 'APPT.COMPLETE',
+      before,
+      after,
+      requestId,
+      metadata: {
+        previousStatus: before.status,
+        newStatus: after.status,
+        notes: dto.notes?.trim() || null,
+      },
+    });
+    await this.reminderService.suppressQueuedAppointmentReminders(
+      clinicId,
+      appointmentId,
+      actorUserId,
+      'APPOINTMENT_COMPLETED',
+      requestId,
+    );
+
+    return this.serializeScheduledAppointment(after);
+  }
+
+  async markAppointmentNoShow(
+    clinicId: string,
+    appointmentId: string,
+    actorUserId: string,
+    dto: MarkNoShowAppointmentDto,
+    requestId?: string,
+  ) {
+    const reason = dto.reason?.trim() || null;
+    const { before, after } = await this.mutateConfirmedAppointment({
+      clinicId,
+      appointmentId,
+      action: 'no-show',
+      requireStarted: true,
+      data: { status: 'NO_SHOW' },
+    });
+
+    await this.auditAppointmentLifecycle({
+      clinicId,
+      actorUserId,
+      action: 'APPT.NO_SHOW',
+      before,
+      after,
+      requestId,
+      metadata: { previousStatus: before.status, newStatus: after.status, reason },
+    });
+    await this.reminderService.suppressQueuedAppointmentReminders(
+      clinicId,
+      appointmentId,
+      actorUserId,
+      'APPOINTMENT_NO_SHOW',
+      requestId,
+    );
+
+    return this.serializeScheduledAppointment(after);
   }
 
   async confirmAppointmentRequest(
@@ -379,6 +894,14 @@ export class PatientPortalService {
       updatedRequest.patient,
       appointment,
       actorUserId,
+      requestId,
+    );
+    await this.sendAppointmentLifecycleEmail(
+      'APPOINTMENT_CONFIRMED_V1',
+      updatedRequest.patient,
+      appointment,
+      actorUserId,
+      {},
       requestId,
     );
 
@@ -548,6 +1071,18 @@ export class PatientPortalService {
         update: {},
       });
 
+      await tx.patientPortalInvite.updateMany({
+        where: {
+          patientId,
+          clinicId,
+          status: 'PENDING',
+        },
+        data: {
+          status: 'CANCELLED',
+          cancelledAt: new Date(),
+        },
+      });
+
       return link;
     });
 
@@ -562,6 +1097,843 @@ export class PatientPortalService {
     });
 
     return { success: true, patientId, userId, keycloakSub: user.keycloakSub };
+  }
+
+  async listPortalLinkCandidates(clinicId: string, patientId: string, q?: string) {
+    const patient = await this.prisma.patient.findFirst({
+      where: {
+        id: patientId,
+        primaryClinicId: clinicId,
+        mergedIntoPatientId: null,
+      },
+      select: {
+        id: true,
+        email: true,
+        phoneE164: true,
+        portalUserId: true,
+      },
+    });
+    if (!patient) {
+      throw new NotFoundException('Patient not found');
+    }
+
+    const trimmedQuery = q?.trim() ?? '';
+    const queryPhone = trimmedQuery
+      ? (normalizePhoneToE164(trimmedQuery, 'GH') ?? trimmedQuery.replace(/\s+/g, ''))
+      : null;
+
+    const clauses: Prisma.UserWhereInput[] = [];
+
+    if (patient.portalUserId) {
+      clauses.push({ id: patient.portalUserId });
+    }
+
+    if (trimmedQuery) {
+      clauses.push(
+        { email: { contains: trimmedQuery, mode: 'insensitive' } },
+        { displayName: { contains: trimmedQuery, mode: 'insensitive' } },
+        { firstName: { contains: trimmedQuery, mode: 'insensitive' } },
+        { lastName: { contains: trimmedQuery, mode: 'insensitive' } },
+      );
+      if (queryPhone) {
+        clauses.push({ phoneE164: { contains: queryPhone } });
+      }
+    } else {
+      if (patient.email) {
+        clauses.push({ email: { equals: patient.email, mode: 'insensitive' } });
+      }
+      if (patient.phoneE164) {
+        clauses.push({ phoneE164: patient.phoneE164 });
+      }
+    }
+
+    if (clauses.length === 0) {
+      return [];
+    }
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        isActive: true,
+        OR: clauses,
+      },
+      select: {
+        id: true,
+        keycloakSub: true,
+        displayName: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phoneE164: true,
+      },
+      orderBy: [{ displayName: 'asc' }, { createdAt: 'asc' }],
+      take: 20,
+    });
+
+    if (users.length === 0) {
+      return [];
+    }
+
+    const userIds = users.map((user) => user.id);
+    const keycloakSubs = [
+      ...new Set(
+        users.map((user) => user.keycloakSub).filter((value): value is string => Boolean(value)),
+      ),
+    ];
+
+    const [accountLinks, legacyLinks] = await Promise.all([
+      keycloakSubs.length > 0
+        ? this.prisma.patientAccountLink.findMany({
+            where: {
+              keycloakSub: { in: keycloakSubs },
+            },
+            select: {
+              keycloakSub: true,
+              patientId: true,
+              patient: {
+                select: {
+                  patientCode: true,
+                },
+              },
+            },
+          })
+        : Promise.resolve([]),
+      userIds.length > 0
+        ? this.prisma.patient.findMany({
+            where: {
+              portalUserId: { in: userIds },
+            },
+            select: {
+              id: true,
+              portalUserId: true,
+              patientCode: true,
+            },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const linkedByKeycloakSub = new Map(
+      accountLinks.map((link) => [
+        link.keycloakSub,
+        {
+          patientId: link.patientId,
+          patientCode: link.patient.patientCode,
+        },
+      ]),
+    );
+    const linkedByUserId = new Map(
+      legacyLinks
+        .filter((linkedPatient) => Boolean(linkedPatient.portalUserId))
+        .map((linkedPatient) => [
+          linkedPatient.portalUserId as string,
+          {
+            patientId: linkedPatient.id,
+            patientCode: linkedPatient.patientCode,
+          },
+        ]),
+    );
+
+    const normalizedPatientEmail = patient.email?.trim().toLowerCase() ?? null;
+    const normalizedPatientPhone = patient.phoneE164 ?? null;
+
+    return users
+      .map((user) => {
+        const existingLink =
+          linkedByKeycloakSub.get(user.keycloakSub) ?? linkedByUserId.get(user.id) ?? null;
+
+        if (existingLink && existingLink.patientId !== patientId) {
+          return null;
+        }
+
+        let score = 0;
+        if (patient.portalUserId && user.id === patient.portalUserId) {
+          score += 100;
+        }
+        if (normalizedPatientEmail && user.email?.trim().toLowerCase() === normalizedPatientEmail) {
+          score += 50;
+        }
+        if (normalizedPatientPhone && user.phoneE164 === normalizedPatientPhone) {
+          score += 40;
+        }
+        if (trimmedQuery) {
+          const loweredQuery = trimmedQuery.toLowerCase();
+          if (user.email?.trim().toLowerCase() === loweredQuery) {
+            score += 25;
+          }
+          if (queryPhone && user.phoneE164 === queryPhone) {
+            score += 20;
+          }
+        }
+
+        return {
+          id: user.id,
+          displayName:
+            user.displayName ||
+            `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() ||
+            user.email ||
+            user.keycloakSub,
+          email: user.email,
+          phoneE164: user.phoneE164,
+          alreadyLinked: existingLink?.patientId === patientId,
+          isSuggestedMatch: score >= 40,
+          score,
+        };
+      })
+      .filter(
+        (
+          user,
+        ): user is {
+          id: string;
+          displayName: string;
+          email: string | null;
+          phoneE164: string | null;
+          alreadyLinked: boolean;
+          isSuggestedMatch: boolean;
+          score: number;
+        } => Boolean(user),
+      )
+      .sort((left, right) => {
+        if (right.score !== left.score) {
+          return right.score - left.score;
+        }
+        return left.displayName.localeCompare(right.displayName);
+      });
+  }
+
+  async createPortalInvite(
+    clinicId: string,
+    patientId: string,
+    dto: CreatePatientPortalInviteDto,
+    actorUserId: string,
+    requestId?: string,
+  ) {
+    const patient = await this.prisma.patient.findFirst({
+      where: {
+        id: patientId,
+        primaryClinicId: clinicId,
+        mergedIntoPatientId: null,
+      },
+      select: {
+        id: true,
+        portalUserId: true,
+      },
+    });
+    if (!patient) {
+      throw new NotFoundException('Patient not found');
+    }
+
+    const email = dto.email?.trim().toLowerCase() || null;
+    const phoneE164 = dto.phoneE164
+      ? (normalizePhoneToE164(dto.phoneE164, 'GH') ?? dto.phoneE164.trim())
+      : null;
+
+    if (!email && !phoneE164) {
+      throw new BadRequestException('Provide an email or phone number to create a portal invite');
+    }
+    if (email) {
+      await this.emailDeliverabilityService.assertDomainAcceptsEmail(email);
+    }
+
+    const existingLink = await this.prisma.patientAccountLink.findUnique({
+      where: { patientId },
+      select: { id: true },
+    });
+    if (existingLink || patient.portalUserId) {
+      throw new ConflictException('This patient already has a linked portal account');
+    }
+
+    // Every invite issued from here has a lifetime. `expiresAt` used to be passed
+    // through as null whenever staff did not type a date, which is how invites became
+    // open-ended in the first place; the resolver holds the precedence rule instead.
+    const expiresAt = resolvePortalInviteExpiry(
+      {
+        expiresAt: dto.expiresAt ? this.parseDateTime(dto.expiresAt, 'expiresAt') : null,
+        ttlDays: dto.ttlDays ?? null,
+      },
+      new Date(),
+    );
+
+    const invite = await this.prisma.$transaction(async (tx) => {
+      await tx.patientPortalInvite.updateMany({
+        where: {
+          patientId,
+          clinicId,
+          status: 'PENDING',
+        },
+        data: {
+          status: 'CANCELLED',
+          cancelledAt: new Date(),
+        },
+      });
+
+      return tx.patientPortalInvite.create({
+        data: {
+          patientId,
+          clinicId,
+          email,
+          phoneE164,
+          expiresAt,
+          createdByUserId: actorUserId,
+        },
+      });
+    });
+
+    await this.auditService.logWrite({
+      clinicId,
+      actorUserId,
+      action: 'PATIENT.PORTAL.INVITE',
+      entityType: 'PatientPortalInvite',
+      entityId: invite.id,
+      afterJson: JSON.stringify(invite),
+      requestId,
+    });
+
+    // Before the email, so the message never arrives ahead of the account it describes.
+    const identity = await this.provisionInviteIdentity(invite, actorUserId, requestId);
+    const delivery = await this.sendPortalInviteEmail(
+      invite,
+      actorUserId,
+      false,
+      identity.identityStatus,
+      requestId,
+    );
+
+    return this.serializePortalInvite({ ...invite, ...identity }, delivery);
+  }
+
+  /**
+   * Send the invitation again, for the common case where the first one was missed.
+   *
+   * Staff previously had to cancel and recreate the invite to get another email out,
+   * which changes the invite id and reads as a second invitation in the audit trail.
+   */
+  async resendPortalInvite(
+    clinicId: string,
+    patientId: string,
+    inviteId: string,
+    actorUserId: string,
+    requestId?: string,
+  ) {
+    const invite = await this.prisma.patientPortalInvite.findFirst({
+      where: { id: inviteId, patientId, clinicId },
+    });
+    if (!invite) {
+      throw new NotFoundException('Portal invite not found');
+    }
+    if (invite.status !== 'PENDING') {
+      throw new BadRequestException(
+        `This invite is ${describeInviteStateForStaff(invite.status)}. Issue a new invite instead.`,
+      );
+    }
+    // Resending an invite that can no longer be claimed would put a live-looking email in
+    // front of a patient who is about to be refused.
+    //
+    // Deliberately does not settle the row on the way out. The RLS interceptor wraps the
+    // whole request in one interactive transaction, so any write made here is rolled back
+    // by the very exception it accompanies — it would look correct in review, pass a mocked
+    // unit test, and persist nothing. The hourly sweep owns the stored status; this path
+    // owns the refusal.
+    if (isPortalInviteExpired(invite, new Date())) {
+      throw new BadRequestException(
+        'This invite has expired and can no longer be claimed. Issue a new invite instead.',
+      );
+    }
+    if (!invite.email) {
+      throw new BadRequestException('This invite has no email address to resend to');
+    }
+
+    await this.auditService.logWrite({
+      clinicId,
+      actorUserId,
+      action: 'PATIENT.PORTAL.INVITE.RESEND',
+      entityType: 'PatientPortalInvite',
+      entityId: invite.id,
+      afterJson: JSON.stringify({ email: invite.email }),
+      requestId,
+    });
+
+    // Idempotent by construction: provisioning reads Keycloak's own state, so a resend
+    // re-sends only what is still outstanding and never resets a chosen password.
+    const identity = await this.provisionInviteIdentity(invite, actorUserId, requestId);
+    const delivery = await this.sendPortalInviteEmail(
+      invite,
+      actorUserId,
+      true,
+      identity.identityStatus,
+      requestId,
+    );
+
+    return this.serializePortalInvite({ ...invite, ...identity }, delivery);
+  }
+
+  /**
+   * Make sure the invited address can actually sign in, and record what happened.
+   *
+   * This is the step that closes the gap the whole feature exists for. Before it, an invite
+   * told a patient to "create an account using this email address" against a realm with
+   * registration disabled -- a dead end that staff worked around by building identities in
+   * Keycloak by hand.
+   *
+   * Three things are deliberately true here.
+   *
+   * It never throws. A clinic must be able to invite a patient while Keycloak is unreachable
+   * or unconfigured; the invitation still exists, the chart says the account could not be
+   * created, and a resend finishes the job. Refusing the invite instead would put a Keycloak
+   * outage directly in the way of clinic work.
+   *
+   * It runs after the invite row exists, on the success path. Writes made on a refusal path
+   * are rolled back by the exception that accompanies them, because the RLS interceptor wraps
+   * the request in one interactive transaction -- the same trap documented on the resend
+   * refusals below.
+   *
+   * The action link is tied to the invitation's own expiry, so the two die together rather
+   * than leaving a patient able to set a password and then be refused at the claim step.
+   */
+  private async provisionInviteIdentity(
+    invite: {
+      id: string;
+      clinicId: string;
+      patientId: string;
+      email: string | null;
+      expiresAt: Date | null;
+    },
+    actorUserId: string,
+    requestId?: string,
+  ): Promise<PortalInviteIdentityFields> {
+    if (!invite.email) {
+      // Phone-only invites have no address to provision against. Not a failure.
+      return { identityStatus: 'NOT_REQUESTED' };
+    }
+
+    const appPublicUrl = resolveAppPublicUrl();
+    if (!appPublicUrl) {
+      // Keycloak must be told where to send the patient back to, and there is no honest
+      // guess available. Same reasoning as the null claimUrl in the invite template.
+      return this.recordInviteIdentity(
+        invite,
+        actorUserId,
+        {
+          outcome: 'SKIPPED',
+          keycloakUserId: null,
+          actionsSent: [],
+          failureReason: 'APP_PUBLIC_URL_UNSET',
+        },
+        requestId,
+      );
+    }
+
+    const patient = await this.prisma.patient.findUnique({
+      where: { id: invite.patientId },
+      select: { firstName: true, lastName: true },
+    });
+
+    const result = await this.keycloakAdminService.provisionInvitedIdentity({
+      email: invite.email,
+      firstName: patient?.firstName ?? null,
+      lastName: patient?.lastName ?? null,
+      claimRedirectUri: buildPortalClaimRedirectUri(appPublicUrl),
+      lifespanSeconds: resolveIdentityActionLifespanSeconds(invite.expiresAt, new Date()),
+    });
+
+    return this.recordInviteIdentity(invite, actorUserId, result, requestId);
+  }
+
+  private async recordInviteIdentity(
+    invite: { id: string; clinicId: string },
+    actorUserId: string,
+    result: ProvisionInvitedIdentityResult,
+    requestId?: string,
+  ): Promise<PortalInviteIdentityFields> {
+    const identityProvisionedAt = new Date();
+    await this.prisma.patientPortalInvite.update({
+      where: { id: invite.id },
+      data: {
+        identityStatus: result.outcome,
+        keycloakUserId: result.keycloakUserId,
+        identityProvisionedAt,
+        identityFailureReason: result.failureReason,
+      },
+    });
+
+    await this.auditService.logWrite({
+      clinicId: invite.clinicId,
+      actorUserId,
+      action: 'PATIENT.PORTAL.INVITE.IDENTITY',
+      entityType: 'PatientPortalInvite',
+      entityId: invite.id,
+      // Codes and the Keycloak id only. The address being provisioned is already on the
+      // invite row, and repeating it here would spread it through the audit trail.
+      afterJson: JSON.stringify({
+        outcome: result.outcome,
+        actionsSent: result.actionsSent,
+        failureReason: result.failureReason,
+        keycloakUserId: result.keycloakUserId,
+      }),
+      requestId,
+    });
+
+    return {
+      identityStatus: result.outcome,
+      keycloakUserId: result.keycloakUserId,
+      identityProvisionedAt,
+      identityFailureReason: result.failureReason,
+    };
+  }
+
+  private async sendPortalInviteEmail(
+    invite: {
+      id: string;
+      clinicId: string;
+      patientId: string;
+      email: string | null;
+      expiresAt: Date | null;
+    },
+    actorUserId: string,
+    resend: boolean,
+    identityStatus: PortalInviteIdentityStatus,
+    requestId?: string,
+  ) {
+    if (!invite.email) {
+      // A phone-only invite is a legitimate choice, not a failure to record.
+      return null;
+    }
+
+    const [clinic, patient] = await Promise.all([
+      this.prisma.clinic.findUnique({
+        where: { id: invite.clinicId },
+        select: { name: true, timezone: true },
+      }),
+      this.prisma.patient.findUnique({
+        where: { id: invite.patientId },
+        select: { patientCode: true, firstName: true },
+      }),
+    ]);
+
+    const appPublicUrl = resolveAppPublicUrl();
+
+    return this.reminderService.sendNotificationNow({
+      clinicId: invite.clinicId,
+      recipientType: 'PATIENT',
+      patientId: invite.patientId,
+      portalInviteId: invite.id,
+      toAddress: invite.email,
+      templateKey: 'PORTAL_INVITE_V1',
+      payload: {
+        clinicName: clinic?.name ?? 'Your clinic',
+        timezone: clinic?.timezone ?? undefined,
+        patientCode: patient?.patientCode ?? null,
+        patientFirstName: patient?.firstName ?? null,
+        claimUrl: appPublicUrl ? buildPortalClaimUrl(appPublicUrl) : null,
+        expiresAt: invite.expiresAt?.toISOString() ?? null,
+        resend,
+        accountSetup: describeInviteAccountSetup(identityStatus),
+      },
+      actorUserId,
+      requestId,
+    });
+  }
+
+  async cancelPortalInvite(
+    clinicId: string,
+    patientId: string,
+    inviteId: string,
+    actorUserId: string,
+    requestId?: string,
+  ) {
+    const invite = await this.prisma.patientPortalInvite.findFirst({
+      where: {
+        id: inviteId,
+        patientId,
+        clinicId,
+      },
+    });
+    if (!invite) {
+      throw new NotFoundException('Portal invite not found');
+    }
+    // An expired invite is already inert: cancelling it would change nothing a patient
+    // can observe, and the honest recovery is a new invite.
+    const lapsed = isPortalInviteExpired(invite, new Date());
+    if (invite.status !== 'PENDING' || lapsed) {
+      const state = lapsed ? 'expired' : describeInviteStateForStaff(invite.status);
+      throw new BadRequestException(
+        `This invite is ${state} and no longer grants access. There is nothing to cancel.`,
+      );
+    }
+
+    const updated = await this.prisma.patientPortalInvite.update({
+      where: { id: inviteId },
+      data: {
+        status: 'CANCELLED',
+        cancelledAt: new Date(),
+      },
+    });
+
+    await this.auditService.logWrite({
+      clinicId,
+      actorUserId,
+      action: 'PATIENT.PORTAL.INVITE.CANCEL',
+      entityType: 'PatientPortalInvite',
+      entityId: updated.id,
+      beforeJson: JSON.stringify(invite),
+      afterJson: JSON.stringify(updated),
+      requestId,
+    });
+
+    return this.serializePortalInvite(updated);
+  }
+
+  async listPendingInvitesForUser(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        isActive: true,
+        email: true,
+        phoneE164: true,
+      },
+    });
+    if (!user?.isActive) {
+      return [];
+    }
+
+    const claimable = claimableInviteForIdentityWhere(user, new Date());
+    if (!claimable) {
+      return [];
+    }
+
+    const invites = await this.prisma.patientPortalInvite.findMany({
+      where: {
+        ...claimable,
+        patient: {
+          mergedIntoPatientId: null,
+        },
+      },
+      include: {
+        clinic: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        patient: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            patientCode: true,
+            primaryClinicId: true,
+          },
+        },
+      },
+      orderBy: [{ createdAt: 'desc' }],
+    });
+
+    return invites.map((invite) => ({
+      id: invite.id,
+      clinicId: invite.clinicId,
+      clinicName: invite.clinic.name,
+      patientId: invite.patientId,
+      patientName: `${invite.patient.firstName} ${invite.patient.lastName}`.trim(),
+      patientCode: invite.patient.patientCode,
+      email: invite.email,
+      phoneE164: invite.phoneE164,
+      createdAt: invite.createdAt.toISOString(),
+      expiresAt: invite.expiresAt?.toISOString() ?? null,
+    }));
+  }
+
+  async claimPatientRecord(userId: string, dto: ClaimPatientRecordDto, requestId?: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        keycloakSub: true,
+        isActive: true,
+        email: true,
+        phoneE164: true,
+      },
+    });
+    if (!user?.isActive) {
+      throw new NotFoundException(claimRefusal('ACCOUNT_INACTIVE'));
+    }
+
+    const now = new Date();
+    const invite = await this.prisma.patientPortalInvite.findFirst({
+      where: {
+        id: dto.inviteId,
+        ...claimableInviteWhere(now),
+      },
+      include: {
+        patient: {
+          include: {
+            codeAliases: {
+              select: {
+                code: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!invite) {
+      // A flat "not found" here would be a dead end: the patient is holding a real
+      // invitation email and has no way to learn that the reason it will not work is
+      // that it lapsed. Re-read by id so the refusal can name the date and the recovery.
+      const lapsed = await this.prisma.patientPortalInvite.findUnique({
+        where: { id: dto.inviteId },
+        select: { id: true, clinicId: true, status: true, expiresAt: true },
+      });
+      // As in resendPortalInvite: no write on the way out, because the request's
+      // transaction rolls it back along with everything else when this throws.
+      if (lapsed && isPortalInviteExpired(lapsed, now)) {
+        throw new BadRequestException(
+          expiredInviteRefusal(formatInviteExpiryDate(lapsed.expiresAt)),
+        );
+      }
+      if (lapsed?.status === 'EXPIRED') {
+        throw new BadRequestException(claimRefusal('INVITE_EXPIRED'));
+      }
+      if (lapsed?.status === 'CANCELLED') {
+        throw new BadRequestException(claimRefusal('INVITE_CANCELLED'));
+      }
+      if (lapsed?.status === 'CLAIMED') {
+        throw new ConflictException(claimRefusal('INVITE_ALREADY_USED'));
+      }
+      throw new NotFoundException(claimRefusal('INVITE_NOT_FOUND'));
+    }
+    if (invite.patient.mergedIntoPatientId) {
+      throw new ConflictException(claimRefusal('RECORD_MERGED'));
+    }
+
+    const matchesEmail =
+      Boolean(invite.email) &&
+      Boolean(user.email) &&
+      invite.email!.toLowerCase() === user.email!.toLowerCase();
+    const matchesPhone =
+      Boolean(invite.phoneE164) && Boolean(user.phoneE164) && invite.phoneE164 === user.phoneE164;
+
+    if (!matchesEmail && !matchesPhone) {
+      throw new ForbiddenException(claimRefusal('CONTACT_MISMATCH'));
+    }
+
+    const acceptedCodes = new Set([
+      invite.patient.patientCode.toUpperCase(),
+      ...invite.patient.codeAliases.map((alias) => alias.code.toUpperCase()),
+    ]);
+    if (!acceptedCodes.has(dto.patientCode.trim().toUpperCase())) {
+      throw new BadRequestException(claimRefusal('PATIENT_CODE_MISMATCH'));
+    }
+
+    const expectedDob = invite.patient.dob?.toISOString().slice(0, 10) ?? null;
+    if (!expectedDob) {
+      throw new BadRequestException(claimRefusal('DATE_OF_BIRTH_MISSING'));
+    }
+    if (dto.dob !== expectedDob) {
+      throw new BadRequestException(claimRefusal('DATE_OF_BIRTH_MISMATCH'));
+    }
+
+    const existingLink = await this.prisma.patientAccountLink.findUnique({
+      where: { keycloakSub: user.keycloakSub },
+    });
+    if (existingLink && existingLink.patientId !== invite.patientId) {
+      throw new ConflictException(claimRefusal('ACCOUNT_ALREADY_LINKED'));
+    }
+
+    /*
+      The mirror of the check above, and the one that was missing.
+
+      `PatientAccountLink` is unique on both `patientId` and `keycloakSub`, and the upsert below
+      keys on `patientId`. So a chart already linked to somebody else did not collide: it was
+      quietly updated to point at whoever presented an invitation for it, `portalUserId` was
+      overwritten in the same transaction, and the previous owner kept a `PATIENT` role granting
+      them nothing. One person's record moved to another person's sign-in, with an audit event
+      recording it as an ordinary claim.
+
+      `createPortalInvite` refuses to issue an invitation for a linked chart, which is why this
+      was hard to reach -- but an invitation issued before the link, or carried onto a linked
+      chart by a merge, reaches it, and those are exactly the situations where two people are
+      already confused about who owns the record.
+    */
+    const chartLink = await this.prisma.patientAccountLink.findUnique({
+      where: { patientId: invite.patientId },
+    });
+    if (chartLink && chartLink.keycloakSub !== user.keycloakSub) {
+      throw new ConflictException(claimRefusal('RECORD_ALREADY_LINKED'));
+    }
+
+    const link = await this.prisma.$transaction(async (tx) => {
+      const createdLink = await tx.patientAccountLink.upsert({
+        where: { patientId: invite.patientId },
+        create: {
+          patientId: invite.patientId,
+          keycloakSub: user.keycloakSub,
+        },
+        update: {
+          keycloakSub: user.keycloakSub,
+        },
+      });
+
+      await tx.patient.update({
+        where: { id: invite.patientId },
+        data: { portalUserId: user.id },
+      });
+
+      await tx.userClinicRole.upsert({
+        where: {
+          userId_clinicId_role: {
+            userId,
+            clinicId: invite.clinicId,
+            role: 'PATIENT',
+          },
+        },
+        create: {
+          userId,
+          clinicId: invite.clinicId,
+          role: 'PATIENT',
+        },
+        update: {},
+      });
+
+      await tx.patientPortalInvite.update({
+        where: { id: invite.id },
+        data: {
+          status: 'CLAIMED',
+          claimedByUserId: user.id,
+          claimedAt: new Date(),
+        },
+      });
+
+      await tx.patientPortalInvite.updateMany({
+        where: {
+          patientId: invite.patientId,
+          clinicId: invite.clinicId,
+          status: 'PENDING',
+          id: { not: invite.id },
+        },
+        data: {
+          status: 'CANCELLED',
+          cancelledAt: new Date(),
+        },
+      });
+
+      return createdLink;
+    });
+
+    await this.auditService.logWrite({
+      clinicId: invite.clinicId,
+      actorUserId: user.id,
+      action: 'PATIENT.PORTAL.CLAIM',
+      entityType: 'PatientAccountLink',
+      entityId: link.id,
+      afterJson: JSON.stringify(link),
+      requestId,
+    });
+
+    return {
+      success: true,
+      clinicId: invite.clinicId,
+      patientId: invite.patientId,
+      patientCode: invite.patient.patientCode,
+    };
   }
 
   async listSelfReportsForStaff(patientId: string, clinicId: string) {
@@ -625,6 +1997,41 @@ export class PatientPortalService {
       return legacyPatient;
     }
 
+    const [clinicPatientRole, linkedPatientAnywhere, legacyPatientAnywhere] = await Promise.all([
+      this.prisma.userClinicRole.findFirst({
+        where: {
+          userId,
+          clinicId,
+          role: UserRole.PATIENT,
+        },
+        select: { id: true },
+      }),
+      this.prisma.patientAccountLink.findFirst({
+        where: { keycloakSub: user.keycloakSub },
+        select: {
+          patient: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      }),
+      this.prisma.patient.findFirst({
+        where: { portalUserId: userId },
+        select: { id: true },
+      }),
+    ]);
+
+    if (clinicPatientRole || linkedPatientAnywhere?.patient || legacyPatientAnywhere) {
+      throw new NotFoundException({
+        statusCode: 404,
+        error: 'Not Found',
+        code: PATIENT_PORTAL_LINK_MISSING,
+        message:
+          'This patient account is not linked to a patient record for the active clinic. Ask clinic staff to link portal access from the patient record.',
+      });
+    }
+
     throw new NotFoundException('Patient record not found for this clinic');
   }
 
@@ -662,12 +2069,14 @@ export class PatientPortalService {
     clinicId: string,
     query: ListPatientTrendsQueryDto,
     encounterStatuses: EncounterStatus[],
+    includeExpandedVitals: boolean,
   ): Promise<PatientTrendsResponse> {
     const dateFilter = this.buildRecordedAtFilter(query.from, query.to);
 
     const [
       measurements,
       encounters,
+      diabetesScreenings,
       requested,
       confirmed,
       completed,
@@ -697,15 +2106,25 @@ export class PatientPortalService {
             select: {
               systolicBp: true,
               diastolicBp: true,
+              temperatureCelsius: true,
+              respiratoryRate: true,
+              spo2Percent: true,
+              weightKg: true,
+              bmi: true,
             },
           },
-          diabetesScreening: {
-            select: {
-              glucoseMgDl: true,
-              glucoseType: true,
-            },
+          hypertensionAssessment: {
+            select: { repeatSystolicBp: true, repeatDiastolicBp: true },
           },
         },
+      }),
+      this.prisma.diabetesScreening.findMany({
+        where: {
+          clinicId,
+          encounter: { patientId, status: { in: encounterStatuses } },
+          ...(dateFilter ? { collectedAt: dateFilter } : {}),
+        },
+        select: { collectedAt: true, glucoseMgDl: true, glucoseType: true },
       }),
       this.prisma.appointmentRequest.count({
         where: {
@@ -759,15 +2178,39 @@ export class PatientPortalService {
 
     const bp: BloodPressureTrendPoint[] = [
       ...encounters.flatMap((encounter) => {
-        if (encounter.vitals?.systolicBp == null || encounter.vitals.diastolicBp == null) {
-          return [];
-        }
+        /*
+          A confirmed repeat outranks the reading that prompted it.
+
+          When an initial reading crosses the threshold, the volunteer is asked to rest the patient
+          and measure again with the right cuff, precisely because a single high reading is often
+          the walk into the room rather than the patient. Plotting the initial value would put the
+          measurement the system itself judged unreliable into the trend a clinician uses to decide
+          whether treatment is working -- and would show a spike on exactly the visits where
+          somebody did the careful thing.
+
+          The initial reading is not lost: it stays on Vitals, which is still the only place
+          today's measurement is stored. This decides which of two genuinely different measurements
+          the trend line draws.
+        */
+        const repeat = encounter.hypertensionAssessment;
+        const hasCompleteRepeat =
+          repeat?.repeatSystolicBp != null && repeat?.repeatDiastolicBp != null;
+        /*
+          The repeat is taken as a pair or not at all.
+
+          Falling back value by value would pair a repeat systolic with the initial diastolic and
+          plot a blood pressure nobody ever measured. A half-entered repeat is not a reading, so the
+          complete initial pair is the honest thing to draw.
+        */
+        const sys = hasCompleteRepeat ? repeat.repeatSystolicBp : encounter.vitals?.systolicBp;
+        const dia = hasCompleteRepeat ? repeat.repeatDiastolicBp : encounter.vitals?.diastolicBp;
+        if (sys == null || dia == null) return [];
 
         return [
           {
             t: encounter.createdAt.toISOString(),
-            sys: encounter.vitals.systolicBp,
-            dia: encounter.vitals.diastolicBp,
+            sys,
+            dia,
             source: 'ENCOUNTER' as const,
           },
         ];
@@ -796,16 +2239,16 @@ export class PatientPortalService {
     ].sort((left, right) => new Date(left.t).getTime() - new Date(right.t).getTime());
 
     const glucose: GlucoseTrendPoint[] = [
-      ...encounters.flatMap((encounter) => {
-        if (encounter.diabetesScreening?.glucoseMgDl == null) {
+      ...diabetesScreenings.flatMap((screening) => {
+        if (screening.glucoseMgDl == null) {
           return [];
         }
 
         return [
           {
-            t: encounter.createdAt.toISOString(),
-            value: encounter.diabetesScreening.glucoseMgDl,
-            type: this.normalizeTrendGlucoseType(encounter.diabetesScreening.glucoseType),
+            t: screening.collectedAt.toISOString(),
+            value: screening.glucoseMgDl,
+            type: this.normalizeTrendGlucoseType(screening.glucoseType),
             source: 'ENCOUNTER' as const,
           },
         ];
@@ -832,9 +2275,39 @@ export class PatientPortalService {
       }),
     ].sort((left, right) => new Date(left.t).getTime() - new Date(right.t).getTime());
 
+    const expandedMeasurements: ExpandedVitalsTrendPoint[] = includeExpandedVitals
+      ? encounters.flatMap((encounter) => {
+          const vitals = encounter.vitals;
+          if (
+            !vitals ||
+            [
+              vitals.temperatureCelsius,
+              vitals.respiratoryRate,
+              vitals.spo2Percent,
+              vitals.weightKg,
+              vitals.bmi,
+            ].every((value) => value == null)
+          ) {
+            return [];
+          }
+          return [
+            {
+              t: encounter.createdAt.toISOString(),
+              temperatureCelsius: vitals.temperatureCelsius,
+              respiratoryRate: vitals.respiratoryRate,
+              spo2Percent: vitals.spo2Percent,
+              weightKg: vitals.weightKg,
+              bmi: vitals.bmi,
+              source: 'ENCOUNTER' as const,
+            },
+          ];
+        })
+      : [];
+
     return {
       bp,
       glucose,
+      ...(includeExpandedVitals ? { measurements: expandedMeasurements } : {}),
       followUp: {
         requested,
         confirmed,
@@ -961,6 +2434,222 @@ export class PatientPortalService {
     };
   }
 
+  private resolveAppointmentRange(query: Pick<ListAppointmentsQueryDto, 'from' | 'to'>) {
+    const today = new Date().toISOString().slice(0, 10);
+    const from = query.from ?? query.to ?? today;
+    const to = query.to ?? query.from ?? today;
+    const start = this.parseDateOnly(from, 'from');
+    const end = this.parseFlexibleDate(to, 'to', true);
+
+    if (end < start) {
+      throw new BadRequestException('to must be on or after from');
+    }
+
+    return {
+      from,
+      to,
+      start,
+      end,
+    };
+  }
+
+  private buildAppointmentWhere(
+    clinicId: string,
+    query: ListAppointmentsQueryDto,
+    range: AppointmentRange,
+    patientId?: string,
+  ): Prisma.AppointmentWhereInput {
+    const patientSearch = query.patientSearch?.trim();
+
+    return {
+      clinicId,
+      ...(patientId ? { patientId } : {}),
+      startsAt: { lte: range.end },
+      endsAt: { gte: range.start },
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.assignedDoctorId ? { assignedDoctorId: query.assignedDoctorId } : {}),
+      ...(query.assignedVolunteerId ? { assignedVolunteerId: query.assignedVolunteerId } : {}),
+      ...(patientSearch
+        ? {
+            patient: {
+              OR: [
+                { patientCode: { contains: patientSearch, mode: 'insensitive' } },
+                { firstName: { contains: patientSearch, mode: 'insensitive' } },
+                { lastName: { contains: patientSearch, mode: 'insensitive' } },
+              ],
+            },
+          }
+        : {}),
+    };
+  }
+
+  private async resolvePatientChangeRequestAppointment(
+    clinicId: string,
+    userId: string,
+    appointmentId: string,
+    action: 'cancel' | 'reschedule',
+  ) {
+    const patient = await this.resolvePortalPatient(clinicId, userId);
+    const appointment = await this.prisma.appointment.findFirst({
+      where: {
+        id: appointmentId,
+        clinicId,
+        patientId: patient.id,
+      },
+      include: appointmentScheduleInclude,
+    });
+    if (!appointment) {
+      throw new NotFoundException('Appointment not found');
+    }
+    if (appointment.status !== AppointmentStatus.CONFIRMED) {
+      throw new BadRequestException({
+        code: 'APPOINTMENT_CHANGE_REQUEST_NOT_ALLOWED',
+        message: `Only confirmed appointments can receive patient ${action} requests.`,
+        appointmentId,
+        currentStatus: appointment.status,
+        attemptedAction: action,
+        recoveryAction: 'Refresh appointments and choose an upcoming confirmed appointment.',
+      });
+    }
+    if (appointment.startsAt <= new Date()) {
+      throw new BadRequestException({
+        code: 'APPOINTMENT_CHANGE_REQUEST_TOO_LATE',
+        message: `Patient ${action} requests are only available for future appointments.`,
+        appointmentId,
+        startsAt: appointment.startsAt.toISOString(),
+        attemptedAction: action,
+        recoveryAction: 'Contact the clinic if this appointment already started or passed.',
+      });
+    }
+
+    return { patient, appointment };
+  }
+
+  private async mutateConfirmedAppointment(params: {
+    clinicId: string;
+    appointmentId: string;
+    action: AppointmentLifecycleAction;
+    data: Prisma.AppointmentUncheckedUpdateManyInput;
+    requireStarted?: boolean;
+  }) {
+    const before = await this.prisma.appointment.findFirst({
+      where: { id: params.appointmentId, clinicId: params.clinicId },
+      include: appointmentScheduleInclude,
+    });
+    if (!before) {
+      throw new NotFoundException('Appointment not found');
+    }
+
+    if (before.status !== 'CONFIRMED') {
+      throw this.invalidAppointmentTransition(before.status, params.action);
+    }
+
+    if (params.requireStarted && before.startsAt > new Date()) {
+      throw new BadRequestException({
+        code: 'APPOINTMENT_ACTION_TOO_EARLY',
+        message: 'Appointment action is only available after the appointment start time.',
+        attemptedAction: params.action,
+        appointmentId: params.appointmentId,
+        clinicId: params.clinicId,
+        startsAt: before.startsAt.toISOString(),
+        recoveryAction: 'Wait until the appointment has started, then try again.',
+      });
+    }
+
+    const after = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.appointment.updateMany({
+        where: {
+          id: params.appointmentId,
+          clinicId: params.clinicId,
+          status: 'CONFIRMED',
+        },
+        data: params.data,
+      });
+
+      if (result.count !== 1) {
+        throw this.invalidAppointmentTransition(before.status, params.action);
+      }
+
+      const updated = await tx.appointment.findFirst({
+        where: { id: params.appointmentId, clinicId: params.clinicId },
+        include: appointmentScheduleInclude,
+      });
+      if (!updated) {
+        throw new NotFoundException('Appointment not found');
+      }
+
+      return updated;
+    });
+
+    return { before, after };
+  }
+
+  private invalidAppointmentTransition(
+    currentStatus: AppointmentStatus,
+    attemptedAction: AppointmentLifecycleAction,
+  ) {
+    return new BadRequestException({
+      code: 'APPOINTMENT_INVALID_TRANSITION',
+      message: `Cannot ${attemptedAction} an appointment with status ${currentStatus}.`,
+      currentStatus,
+      attemptedAction,
+      allowedSourceStatuses: ['CONFIRMED'],
+      recoveryAction:
+        'Refresh the appointment schedule and choose an eligible confirmed appointment.',
+    });
+  }
+
+  private async auditAppointmentLifecycle(params: {
+    clinicId: string;
+    actorUserId: string;
+    action: 'APPT.RESCHEDULE' | 'APPT.CANCEL' | 'APPT.COMPLETE' | 'APPT.NO_SHOW';
+    before: AppointmentScheduleWithRelations;
+    after: AppointmentScheduleWithRelations;
+    requestId?: string;
+    metadata: Record<string, unknown>;
+  }) {
+    const baseContext = {
+      actorUserId: params.actorUserId,
+      clinicId: params.clinicId,
+      appointmentId: params.after.id,
+      patientId: params.after.patientId,
+      ...params.metadata,
+    };
+
+    await this.auditService.logWrite({
+      clinicId: params.clinicId,
+      actorUserId: params.actorUserId,
+      action: params.action,
+      entityType: 'Appointment',
+      entityId: params.after.id,
+      beforeJson: JSON.stringify({
+        ...baseContext,
+        appointment: this.serializeAuditAppointment(params.before),
+      }),
+      afterJson: JSON.stringify({
+        ...baseContext,
+        appointment: this.serializeAuditAppointment(params.after),
+      }),
+      requestId: params.requestId,
+    });
+  }
+
+  private serializeAuditAppointment(appointment: AppointmentScheduleWithRelations) {
+    return {
+      id: appointment.id,
+      clinicId: appointment.clinicId,
+      patientId: appointment.patientId,
+      startsAt: appointment.startsAt.toISOString(),
+      endsAt: appointment.endsAt.toISOString(),
+      status: appointment.status,
+      linkedRequestId: appointment.linkedRequestId,
+      assignedDoctorId: appointment.assignedDoctorId,
+      assignedVolunteerId: appointment.assignedVolunteerId,
+      notes: appointment.notes,
+      updatedAt: appointment.updatedAt.toISOString(),
+    };
+  }
+
   private async scheduleAppointmentReminder(
     patient: {
       id: string;
@@ -978,13 +2667,14 @@ export class PatientPortalService {
   ) {
     const clinic = await this.prisma.clinic.findUnique({
       where: { id: appointment.clinicId },
-      select: { name: true },
+      select: { name: true, timezone: true },
     });
 
     if (patient.phoneE164) {
       await this.reminderService.scheduleAppointmentReminder({
         clinicId: appointment.clinicId,
         clinicName: clinic?.name ?? 'Clinic',
+        clinicTimezone: clinic?.timezone,
         patientId: patient.id,
         patientCode: patient.patientCode,
         phoneE164: patient.phoneE164,
@@ -1009,6 +2699,7 @@ export class PatientPortalService {
       await this.reminderService.scheduleAppointmentEmailReminder({
         clinicId: appointment.clinicId,
         clinicName: clinic?.name ?? 'Clinic',
+        clinicTimezone: clinic?.timezone,
         patientId: patient.id,
         patientCode: patient.patientCode,
         email: patient.email,
@@ -1018,6 +2709,56 @@ export class PatientPortalService {
         requestId,
       });
     }
+  }
+
+  /**
+   * Tell the patient their appointment changed.
+   *
+   * Distinct from the 24-hour reminder: a patient who learns of a cancellation only by
+   * opening the portal has effectively not been told. Linked to the appointment for
+   * traceability, but excluded from its reminder counts by template key.
+   */
+  private async sendAppointmentLifecycleEmail(
+    templateKey:
+      | 'APPOINTMENT_CONFIRMED_V1'
+      | 'APPOINTMENT_RESCHEDULED_V1'
+      | 'APPOINTMENT_CANCELLED_V1',
+    patient: { id: string; patientCode: string; firstName?: string | null; email: string | null },
+    appointment: { id: string; clinicId: string; startsAt: Date },
+    actorUserId: string,
+    extra: { previousStartsAt?: Date | null; reason?: string | null } = {},
+    requestId?: string,
+  ) {
+    if (!patient.email) {
+      // Not a failure worth recording: a patient with no email on file is a normal
+      // registration, and the SMS reminder path already covers them.
+      return;
+    }
+
+    const clinic = await this.prisma.clinic.findUnique({
+      where: { id: appointment.clinicId },
+      select: { name: true, timezone: true },
+    });
+
+    await this.reminderService.sendNotificationNow({
+      clinicId: appointment.clinicId,
+      recipientType: 'PATIENT',
+      patientId: patient.id,
+      appointmentId: appointment.id,
+      toAddress: patient.email,
+      templateKey,
+      payload: {
+        clinicName: clinic?.name ?? 'Your clinic',
+        timezone: clinic?.timezone ?? undefined,
+        patientCode: patient.patientCode,
+        patientFirstName: patient.firstName ?? null,
+        startsAt: appointment.startsAt.toISOString(),
+        previousStartsAt: extra.previousStartsAt?.toISOString() ?? null,
+        reason: extra.reason ?? null,
+      },
+      actorUserId,
+      requestId,
+    });
   }
 
   private async assertAppointmentAssignee(
@@ -1138,6 +2879,71 @@ export class PatientPortalService {
     };
   }
 
+  private serializePortalInvite(
+    invite: {
+      id: string;
+      patientId: string;
+      clinicId: string;
+      status: string;
+      email: string | null;
+      phoneE164: string | null;
+      claimedByUserId?: string | null;
+      claimedAt?: Date | null;
+      cancelledAt?: Date | null;
+      expiresAt?: Date | null;
+      createdAt: Date;
+      updatedAt?: Date;
+      identityStatus?: PortalInviteIdentityStatus | null;
+      keycloakUserId?: string | null;
+      identityProvisionedAt?: Date | null;
+      identityFailureReason?: string | null;
+    },
+    delivery?: {
+      status: string;
+      failureReason: string | null;
+      sentAt: Date | null;
+      createdAt: Date;
+    } | null,
+  ) {
+    return {
+      id: invite.id,
+      patientId: invite.patientId,
+      clinicId: invite.clinicId,
+      status: invite.status,
+      email: invite.email,
+      phoneE164: invite.phoneE164,
+      claimedByUserId: invite.claimedByUserId ?? null,
+      claimedAt: invite.claimedAt?.toISOString() ?? null,
+      cancelledAt: invite.cancelledAt?.toISOString() ?? null,
+      expiresAt: invite.expiresAt?.toISOString() ?? null,
+      createdAt: invite.createdAt.toISOString(),
+      updatedAt: invite.updatedAt?.toISOString() ?? null,
+      /*
+        Whether there is an account behind this invitation.
+
+        Deliberately separate from emailDelivery. A delivered invite pointing at an identity
+        that was never created is the exact failure this feature was built to remove, and
+        collapsing the two would hide it again. keycloakUserId is omitted: it is support
+        data, and the browser has no use for it.
+      */
+      identity: {
+        status: invite.identityStatus ?? 'NOT_REQUESTED',
+        provisionedAt: invite.identityProvisionedAt?.toISOString() ?? null,
+        failureReason: invite.identityFailureReason ?? null,
+      },
+      // Null when nothing was sent: either the invite is phone-only, or this response
+      // predates a send. Staff need the difference between "not sent" and "failed".
+      emailDelivery: delivery
+        ? {
+            status: delivery.status,
+            failureReason: delivery.failureReason,
+            sentAt: delivery.sentAt?.toISOString() ?? null,
+            createdAt: delivery.createdAt.toISOString(),
+          }
+        : null,
+    };
+  }
+
   private serializeAppointmentRequest(
     request: AppointmentRequestWithRelations,
     includePatient = false,
@@ -1156,6 +2962,8 @@ export class PatientPortalService {
             },
           }
         : {}),
+      requestType: request.requestType,
+      sourceAppointmentId: request.sourceAppointmentId ?? null,
       preferredStartDate: request.preferredStartDate.toISOString().slice(0, 10),
       preferredEndDate: request.preferredEndDate.toISOString().slice(0, 10),
       reason: request.reason,
@@ -1169,6 +2977,9 @@ export class PatientPortalService {
       createdAt: request.createdAt.toISOString(),
       updatedAt: request.updatedAt.toISOString(),
       appointment: request.appointment ? this.serializeAppointment(request.appointment) : null,
+      sourceAppointment: request.sourceAppointment
+        ? this.serializeAppointment(request.sourceAppointment)
+        : null,
     };
   }
 
@@ -1216,6 +3027,138 @@ export class PatientPortalService {
       createdAt: appointment.createdAt.toISOString(),
       updatedAt: appointment.updatedAt.toISOString(),
     };
+  }
+
+  private serializeScheduledAppointment(appointment: AppointmentScheduleWithRelations) {
+    return {
+      id: appointment.id,
+      clinicId: appointment.clinicId,
+      patientId: appointment.patientId,
+      startsAt: appointment.startsAt.toISOString(),
+      endsAt: appointment.endsAt.toISOString(),
+      status: appointment.status,
+      linkedRequestId: appointment.linkedRequestId ?? null,
+      patient: {
+        id: appointment.patient.id,
+        patientCode: appointment.patient.patientCode,
+        firstName: appointment.patient.firstName,
+        lastName: appointment.patient.lastName,
+        displayName: `${appointment.patient.firstName} ${appointment.patient.lastName}`.trim(),
+      },
+      assignedDoctor: appointment.assignedDoctor
+        ? {
+            id: appointment.assignedDoctor.id,
+            displayName: appointment.assignedDoctor.displayName,
+          }
+        : appointment.assignedDoctorId
+          ? { id: appointment.assignedDoctorId, displayName: null }
+          : null,
+      assignedVolunteer: appointment.assignedVolunteer
+        ? {
+            id: appointment.assignedVolunteer.id,
+            displayName: appointment.assignedVolunteer.displayName,
+          }
+        : appointment.assignedVolunteerId
+          ? { id: appointment.assignedVolunteerId, displayName: null }
+          : null,
+      notes: appointment.notes,
+      reminderSummary: this.summarizeAppointmentReminders(appointment.reminders ?? []),
+      createdAt: appointment.createdAt.toISOString(),
+      updatedAt: appointment.updatedAt.toISOString(),
+    };
+  }
+
+  private summarizeAppointmentReminders(
+    allRows: Array<{
+      status: string;
+      channel: string;
+      templateKey: string;
+      scheduledAt: Date;
+      failureReason: string | null;
+      updatedAt: Date;
+    }>,
+  ): AppointmentReminderSummary {
+    // Only the 24-hour reminder counts here. Confirmation and cancellation mail is
+    // linked to the same appointment, and counting it would tell an operator that an
+    // appointment had three delivered reminders when it had one.
+    const reminders = allRows.filter(
+      (row) => row.templateKey === APPOINTMENT_REMINDER_TEMPLATE_KEY,
+    );
+    const summary: AppointmentReminderSummary = {
+      total: reminders.length,
+      queued: 0,
+      sent: 0,
+      delivered: 0,
+      failed: 0,
+      nextQueuedAt: null,
+      channels: [],
+      latestFailureReason: null,
+    };
+    const channels = new Set<string>();
+    let nextQueuedAt: Date | null = null;
+    let latestFailedAt: Date | null = null;
+
+    for (const reminder of reminders) {
+      channels.add(reminder.channel);
+      switch (reminder.status) {
+        case 'QUEUED':
+          summary.queued += 1;
+          if (!nextQueuedAt || reminder.scheduledAt < nextQueuedAt) {
+            nextQueuedAt = reminder.scheduledAt;
+          }
+          break;
+        case 'SENT':
+          summary.sent += 1;
+          break;
+        case 'DELIVERED':
+          summary.delivered += 1;
+          break;
+        case 'FAILED':
+          summary.failed += 1;
+          if (
+            reminder.failureReason &&
+            (!latestFailedAt || reminder.updatedAt.getTime() > latestFailedAt.getTime())
+          ) {
+            latestFailedAt = reminder.updatedAt;
+            summary.latestFailureReason = reminder.failureReason;
+          }
+          break;
+      }
+    }
+
+    summary.channels = [...channels].sort();
+    summary.nextQueuedAt = nextQueuedAt?.toISOString() ?? null;
+    return summary;
+  }
+
+  private summarizeAppointments(appointments: Array<{ status: AppointmentStatus }>) {
+    return appointments.reduce(
+      (summary, appointment) => {
+        summary.total += 1;
+        switch (appointment.status) {
+          case 'CONFIRMED':
+            summary.confirmed += 1;
+            break;
+          case 'CANCELLED':
+            summary.cancelled += 1;
+            break;
+          case 'COMPLETED':
+            summary.completed += 1;
+            break;
+          case 'NO_SHOW':
+            summary.noShow += 1;
+            break;
+        }
+        return summary;
+      },
+      {
+        total: 0,
+        confirmed: 0,
+        cancelled: 0,
+        completed: 0,
+        noShow: 0,
+      },
+    );
   }
 
   private serializeLegacySelfReport(report: {
@@ -1317,6 +3260,10 @@ export class PatientPortalService {
       throw new BadRequestException(`${fieldName} must be YYYY-MM-DD`);
     }
     return new Date(`${value}T00:00:00.000Z`);
+  }
+
+  private toDateOnly(value: Date) {
+    return new Date(`${value.toISOString().slice(0, 10)}T00:00:00.000Z`);
   }
 
   private parseDateTime(value: string, fieldName: string) {

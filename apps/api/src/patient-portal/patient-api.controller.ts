@@ -24,8 +24,14 @@ import {
 import { ListPatientTrendsQueryDto } from './dto/patient-trends.dto';
 import {
   CreateAppointmentRequestDto,
+  ListAppointmentsQueryDto,
   ListAppointmentRequestsQueryDto,
+  PatientCancelAppointmentRequestDto,
+  PatientRescheduleAppointmentRequestDto,
 } from './dto/appointment-requests.dto';
+import { PatientIdParamDto } from '../common/request-dto';
+import { RateLimit } from '../common/rate-limit.decorator';
+import { Track } from '../telemetry/track.decorator';
 
 type RequestWithUser = {
   clinicId?: string;
@@ -41,6 +47,12 @@ export class PatientApiController {
   @Post('me/measurements')
   @ClinicScoped({ type: 'header', headerKey: 'x-clinic-id' })
   @RequirePermission(PERMISSIONS.PATIENT_PORTAL_WRITE_SELF_REPORT)
+  @RateLimit({
+    key: 'patient_portal_measurement_write',
+    limit: 20,
+    windowSeconds: 60,
+    scope: 'user-or-ip',
+  })
   async createMeasurement(
     @Body() dto: CreatePatientMeasurementDto,
     @Request() req: RequestWithUser,
@@ -76,10 +88,7 @@ export class PatientApiController {
   @Get('me/trends')
   @ClinicScoped({ type: 'header', headerKey: 'x-clinic-id' })
   @RequirePermission(PERMISSIONS.PATIENT_PORTAL_READ_SELF)
-  async listTrends(
-    @Query() query: ListPatientTrendsQueryDto,
-    @Request() req: RequestWithUser,
-  ) {
+  async listTrends(@Query() query: ListPatientTrendsQueryDto, @Request() req: RequestWithUser) {
     if (!req.clinicId) {
       throw new BadRequestException('X-Clinic-Id header is required');
     }
@@ -91,8 +100,15 @@ export class PatientApiController {
   }
 
   @Post('me/appointment-requests')
+  @Track('appointment.request.submit', { properties: { kind: 'NEW' } })
   @ClinicScoped({ type: 'header', headerKey: 'x-clinic-id' })
   @RequirePermission(PERMISSIONS.PATIENT_PORTAL_WRITE_SELF_REPORT)
+  @RateLimit({
+    key: 'patient_portal_appointment_request_write',
+    limit: 10,
+    windowSeconds: 300,
+    scope: 'user-or-ip',
+  })
   async createAppointmentRequest(
     @Body() dto: CreateAppointmentRequestDto,
     @Request() req: RequestWithUser,
@@ -125,38 +141,104 @@ export class PatientApiController {
     );
   }
 
+  @Get('me/appointments')
+  @ClinicScoped({ type: 'header', headerKey: 'x-clinic-id' })
+  @RequirePermission(PERMISSIONS.PATIENT_PORTAL_READ_SELF)
+  async listAppointments(
+    @Query() query: ListAppointmentsQueryDto,
+    @Request() req: RequestWithUser,
+  ) {
+    if (!req.clinicId) {
+      throw new BadRequestException('X-Clinic-Id header is required');
+    }
+    return this.patientPortalService.listAppointmentsForAuthenticatedPatient(
+      req.clinicId,
+      req.user.user.id,
+      query,
+    );
+  }
+
+  @Post('me/appointments/:appointmentId/cancel-request')
+  @Track('appointment.request.submit', { properties: { kind: 'CANCEL' } })
+  @ClinicScoped({ type: 'header', headerKey: 'x-clinic-id' })
+  @RequirePermission(PERMISSIONS.PATIENT_PORTAL_WRITE_SELF_REPORT)
+  @RateLimit({
+    key: 'patient_portal_appointment_change_request_write',
+    limit: 10,
+    windowSeconds: 300,
+    scope: 'user-or-ip',
+  })
+  async createCancelAppointmentRequest(
+    @Param('appointmentId') appointmentId: string,
+    @Body() dto: PatientCancelAppointmentRequestDto,
+    @Request() req: RequestWithUser,
+  ) {
+    if (!req.clinicId) {
+      throw new BadRequestException('X-Clinic-Id header is required');
+    }
+    return this.patientPortalService.createCancelAppointmentRequestForAuthenticatedPatient(
+      req.clinicId,
+      req.user.user.id,
+      appointmentId,
+      dto,
+      req.headers?.['x-request-id'] ?? randomUUID(),
+    );
+  }
+
+  @Post('me/appointments/:appointmentId/reschedule-request')
+  @Track('appointment.request.submit', { properties: { kind: 'RESCHEDULE' } })
+  @ClinicScoped({ type: 'header', headerKey: 'x-clinic-id' })
+  @RequirePermission(PERMISSIONS.PATIENT_PORTAL_WRITE_SELF_REPORT)
+  @RateLimit({
+    key: 'patient_portal_appointment_change_request_write',
+    limit: 10,
+    windowSeconds: 300,
+    scope: 'user-or-ip',
+  })
+  async createRescheduleAppointmentRequest(
+    @Param('appointmentId') appointmentId: string,
+    @Body() dto: PatientRescheduleAppointmentRequestDto,
+    @Request() req: RequestWithUser,
+  ) {
+    if (!req.clinicId) {
+      throw new BadRequestException('X-Clinic-Id header is required');
+    }
+    return this.patientPortalService.createRescheduleAppointmentRequestForAuthenticatedPatient(
+      req.clinicId,
+      req.user.user.id,
+      appointmentId,
+      dto,
+      req.headers?.['x-request-id'] ?? randomUUID(),
+    );
+  }
+
   @Get(':patientId/measurements')
   @ClinicScoped({ type: 'query', queryKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.PATIENT_READ)
   async listMeasurementsForStaff(
-    @Param('patientId') patientId: string,
+    @Param() params: PatientIdParamDto,
     @Query() query: ListPatientMeasurementsQueryDto,
   ) {
     if (!query.clinicId) {
       throw new BadRequestException('clinicId query parameter is required');
     }
     return this.patientPortalService.listMeasurementsForStaff(
-      patientId,
+      params.patientId,
       query.clinicId,
       query,
     );
   }
 
   @Get(':patientId/trends')
-  @ClinicScoped({ type: 'header', headerKey: 'x-clinic-id' })
+  @ClinicScoped({ type: 'query', queryKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.PATIENT_READ)
   async listTrendsForStaff(
-    @Param('patientId') patientId: string,
+    @Param() params: PatientIdParamDto,
     @Query() query: ListPatientTrendsQueryDto,
-    @Request() req: RequestWithUser,
   ) {
-    if (!req.clinicId) {
-      throw new BadRequestException('X-Clinic-Id header is required');
+    if (!query.clinicId) {
+      throw new BadRequestException('clinicId query parameter is required');
     }
-    return this.patientPortalService.listTrendsForStaff(
-      patientId,
-      req.clinicId,
-      query,
-    );
+    return this.patientPortalService.listTrendsForStaff(params.patientId, query.clinicId, query);
   }
 }

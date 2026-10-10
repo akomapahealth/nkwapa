@@ -12,6 +12,14 @@ export interface SyncMutationResultDto {
   status: SyncMutationResultStatus;
   conflictType?: string;
   conflictDetails?: Record<string, unknown>;
+  /**
+   * Whether replaying this exact mutation could still succeed.
+   *
+   * A client keeps a retryable row queued and tries again; a non-retryable one needs the clinician
+   * to repair or discard it. Without the distinction every failure looked permanent, so one bad
+   * row wedged the whole outbox.
+   */
+  retryable?: boolean;
 }
 
 export interface SyncPushResponseDto {

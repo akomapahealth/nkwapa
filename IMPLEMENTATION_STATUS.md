@@ -1,691 +1,326 @@
 # Nkwapa EMR - Implementation Status
 
-> Last updated: 2026-03-22
+> Last updated: 2026-10-08
 >
-> This document reflects the current codebase in the repository, not the older branch-by-branch rollout plan.
+> This document reflects the live repository state in `release/dev` up to PR #188, including station-based patient flow, staff invites, organization reporting and cohort analytics, group chat, and offline clinic operations.
+
+---
+
+## Legend
+
+| Emoji | Meaning                        |
+| ----- | ------------------------------ |
+| ✅    | Fully Implemented (90-100%)    |
+| 🚧    | Partially Implemented (with %) |
+| ❌    | Not Implemented (0%)           |
+| 🚀    | Future / Planned               |
 
 ---
 
 ## Executive Summary
 
-Nkwapa is now a clinic-scoped EMR platform with:
+Nkwapa is a multi-surface clinical platform with:
 
-- staff-facing patient and encounter workflows
-- consent-aware research settings and export pipeline
-- offline-first sync foundations for core EMR records
-- follow-up and appointment reminder infrastructure
-- medication catalog and prescribing
-- role-aware dashboards and analytics
-- clinic operations tooling for shifts, patient check-ins, and assignments
-- patient portal surfaces for measurements, trends, self-reports, and appointment requests
-- user lifecycle and access management for clinic and system administrators
-
-The codebase is no longer a minimal EMR. It is now a multi-surface system spanning staff operations, patient self-service, and research-safe data movement.
+- organization-aware clinic/location modeling
+- Keycloak-backed authentication with local RBAC and clinic memberships
+- Postgres-backed request-scoped RLS for clinic data isolation
+- patient registry, encounter, consent, reminder, research export, and prescribing flows
+- clinic operations tooling for shifts, check-ins, assignments, station-based patient flow, and dashboards
+- organization-wide reporting and cohort analytics across clinics
+- patient portal claim, measurements, self-reports, trends, and appointment request flows
+- clinic-scoped real-time staff messaging (direct and group) via WebSocket
+- app-wide loading, empty, retry, and error fallback states
 
 ---
 
-## Monorepo and Runtime
+## Runtime Snapshot
 
-### Repository layout
+### Repository Layout
 
 ```text
 nkwapa/
 ├── apps/
-│   ├── api/                NestJS API
+│   ├── api/                NestJS API + workers + WebSocket gateway
 │   └── web/                Next.js App Router frontend
 ├── packages/
-│   └── db/                 Prisma schema, migrations, seed scripts, shared helpers
+│   └── db/                 Prisma schema, migrations, seed scripts
 ├── infra/
-│   └── nkwapa/             Docker Compose for Postgres, Redis, Keycloak
-├── docs/                   Specs, guides, workflow docs
-├── memory.md               Agent memory index
-└── memory/                 Detailed codebase memory files
+│   └── nkwapa/             Docker Compose, Keycloak realm/theme
+├── docs/                   Operational guides, specs, audits
+└── memory/                 Agent memory and implementation notes
 ```
 
-### Runtime services
+### Core Runtime Services
 
-| Service | Default |
-| --- | --- |
-| Web app | `http://localhost:3000` |
-| API | `http://localhost:4000` |
-| Postgres | `localhost:5433` |
-| Redis | `localhost:6379` |
+| Service  | Default                 |
+| -------- | ----------------------- |
+| Web app  | `http://localhost:3000` |
+| API      | `http://localhost:4000` |
+| Postgres | `localhost:5433`        |
+| Redis    | `localhost:6379`        |
 | Keycloak | `http://localhost:8080` |
 
-### Core stack
+### Core Stack
 
-| Layer | Technology |
-| --- | --- |
-| Backend | NestJS 10, TypeScript, BullMQ |
-| Frontend | Next.js 14, React 18, Tailwind, shadcn/ui, MUI DataGrid |
-| Database | PostgreSQL + Prisma 7 |
-| Auth | Keycloak JWT + local DB-backed RBAC |
-| Offline | Dexie IndexedDB + outbox sync |
-| Charts | Recharts |
-| Messaging | Twilio-compatible SMS, Nodemailer email |
-| Research sync | GitHub API-based snapshot sync |
-
----
-
-## Core Architectural Rules
-
-1. Keycloak is the identity provider only. App roles are stored in `UserClinicRole`.
-2. `X-Clinic-Id` is part of the normal request contract for clinic-scoped features.
-3. `/auth/whoami` is the main frontend bootstrap endpoint.
-4. Redis is required for reminders and research export background processing.
-5. The API process currently hosts both HTTP routes and queue workers.
-6. Research exports are now asynchronous and approval-aware.
-7. Core EMR surfaces are more offline-capable than the newer ops and portal pages.
+| Layer           | Technology                                                         |
+| --------------- | ------------------------------------------------------------------ |
+| Backend         | NestJS 11, TypeScript, BullMQ                                      |
+| Frontend        | Next.js 16 App Router, React 18, Tailwind, shadcn/ui, MUI DataGrid |
+| Database        | PostgreSQL + Prisma 7                                              |
+| Auth            | Keycloak OIDC/JWKS + local DB-backed roles                         |
+| Real-time       | Socket.IO via @nestjs/websockets + Redis adapter                   |
+| Offline         | Dexie IndexedDB + outbox sync                                      |
+| Search/indexing | B-tree + keyset-friendly indexes + trigram indexes                 |
+| Messaging       | Twilio-compatible SMS, Nodemailer email                            |
+| Background jobs | Redis + BullMQ                                                     |
 
 ---
 
-## What Is Implemented
-
-### 1. Authentication and RBAC
-
-Status: implemented
-
-Backend:
-
-- JWT auth via Keycloak JWKS
-- local user hydration and provisioning
-- clinic-scoped and global role support
-- effective permission computation
-- disabled user handling
-- clinic scope guard and permission decorators
-
-Frontend:
-
-- Keycloak login bootstrap
-- active clinic persistence
-- route-level permission gating
-- role-aware sidebar and navigation
-
-Current roles:
-
-- `SYSTEM_ADMIN`
-- `DIRECTOR`
-- `MANAGER`
-- `DOCTOR`
-- `PRECEPTOR`
-- `VOLUNTEER`
-- `PATIENT`
-
-### 2. Patient Management
-
-Status: implemented
-
-Backend:
-
-- create patient
-- update patient demographics
-- patient search
-- patient detail reads
-- patient code generation
-- phone normalization
-- encrypted national ID storage with hash-based duplicate protection
-
-Frontend:
-
-- patient list/search
-- new patient form
-- patient detail page
-- clinic-prefixed patient route variants
-- edit patient page under clinic-prefixed route
-
-### 3. Encounter Workflow and Clinical Forms
-
-Status: implemented
-
-Workflow:
-
-- draft encounter creation
-- volunteer/intake data entry
-- preceptor review
-- doctor finalize
-- finalized read-only behavior
-
-Clinical forms persisted as separate relational models:
-
-- `Vitals`
-- `DiabetesScreening`
-- `HypertensionAssessment`
-- `CarePlan`
-
-Frontend includes:
-
-- encounter detail page
-- vitals form
-- diabetes screening form
-- hypertension form
-- care plan form
-
-### 4. Consent Management
-
-Status: implemented
-
-Capabilities:
-
-- grant research consent
-- revoke consent
-- store witness data and consent snapshots
-- surface patient consent workflow in UI
-- use consent as a gate for research export inclusion
-
-### 5. Offline Sync Foundations
-
-Status: implemented for core EMR surfaces
-
-Current offline-oriented local stores:
-
-- patients
-- encounters
-- vitals
-- diabetes screenings
-- hypertension assessments
-- care plans
-- patient consents
-- prescriptions
-- outbox
-- sync state
-
-Current sync features:
-
-- outbox mutation construction
-- idempotency keys
-- sync push/pull endpoints
-- conflict tracking via `SyncMutation`
-
-Note:
-
-- the newest ops and portal screens are more online-first than the older EMR flow
-
-### 6. Audit Trail
-
-Status: implemented
-
-Capabilities:
-
-- write audit events for major mutations
-- filterable audit history
-- cursor-based or paginated read flows
-- surfaced in management UI
-
-### 7. Clinic and Admin Management
-
-Status: implemented
-
-Capabilities:
-
-- clinic list/create/update for admin
-- clinic roster views
-- user role assignment
-- user role revocation
-- clinic-scoped deactivation
-- global user deactivation
-- lifecycle safety rules to prevent unsafe self-action
-
-Frontend:
-
-- `/admin/clinics`
-- `/admin/users`
-
-### 8. Research Settings
-
-Status: implemented
-
-Per-clinic settings:
-
-- `researchEnabled`
-- `requiresDirectorApprovalEachExport`
-
-Frontend:
-
-- clinic settings page for research settings
-
-### 9. Reminder Infrastructure
-
-Status: implemented
-
-Reminder features:
-
-- BullMQ queue processing
-- reminder list UI
-- fake and real SMS providers
-- fake and real email providers
-- Twilio delivery callback route
-- follow-up reminder scheduling
-- appointment reminder scaffolding and templates
-
-Channels:
-
-- SMS
-- email
-
-### 10. Drug Catalog and Prescriptions
-
-Status: implemented
-
-Drug catalog:
-
-- clinic-scoped drugs
-- create/update/list/read APIs
-
-Prescriptions:
-
-- create/read/update/delete on encounter
-- finalized encounter lock
-- dedicated frontend components for list and form
-
-### 11. Dashboard Analytics
-
-Status: implemented
-
-Backend:
-
-- clinic summary metrics
-- doctor metrics
-- preceptor metrics
-- director/manager metrics
-- volunteer metrics
-- system admin metrics
-- trend series and distributions
-
-Frontend:
-
-- role-aware dashboard page
-- KPI cards
-- chart cards
-- distribution and trend charts
-
-### 12. Clinic Ops: Shifts, Check-Ins, Assignments
-
-Status: implemented
-
-Backend models:
-
-- `StaffShift`
-- `PatientCheckIn`
-- `PatientAssignment`
-
-Capabilities:
-
-- staff shift check-in
-- shift check-out
-- list active shifts
-- create patient check-in
-- list check-ins
-- create assignments
-- reassign assignments with history preservation
-- list clinic assignments
-- list my assignments
-- start intake from a check-in
-
-Frontend:
-
-- `/today` manager-oriented operations board
-- `/my/assigned` staff worklist
-- shift controls
-- assignment modal
-- grouped check-in views
-
-### 13. Patient Portal
-
-Status: implemented for core portal flows
-
-Portal features:
-
-- patient overview page
-- measurement logging
-- trend visualization
-- self-reports
-- appointment request creation
-- appointment request history
-- recommendation and reminder summary
-
-Portal-related backend models:
-
-- `PatientAccountLink`
-- `PatientMeasurement`
-- `PatientSelfReport`
-- `AppointmentRequest`
-- `Appointment`
-
-Portal routes:
-
-- `/portal`
-- `/portal/health`
-- `/portal/self-reports`
-- `/portal/self-reports/new`
-- `/portal/appointments`
-- `/portal/appointments/request`
-
-Staff-facing portal-related capabilities:
-
-- read patient measurements
-- read patient trends
-- list patient self-reports
-- link portal account to patient
-- confirm or reject appointment requests via API
-
-### 14. Research Export Pipeline V1
-
-Status: implemented
-
-Current v1 design:
-
-- export request requires clinic research enablement
-- separate request and approval permissions
-- auto-approval supported per clinic settings
-- async processing via BullMQ
-- stable clinic-scoped HMAC research keys
-- 15-minute timestamp rounding
-- PII and free-text stripping
-- fixed CSV pack + `manifest.json` + `SHA256SUMS.txt`
-- local ZIP artifact generation
-- GitHub repo snapshot sync
-- failure tracking and retry flow
-
-Current fixed pack files:
-
-- `manifest.json`
-- `SHA256SUMS.txt`
-- `research_subjects.csv`
-- `research_ops_checkins.csv`
-- `research_ops_assignments.csv`
-- `research_clinical_vitals.csv`
-- `research_clinical_screenings.csv`
-- `research_measurements.csv`
-- `research_appointments.csv`
-- `research_revocations.csv`
-
-Frontend:
-
-- research export console with date presets
-- approve, reject, retry, and download actions
-- row counts and repo commit metadata
+## Current Architectural Rules
+
+1. Keycloak owns identity, password hashing, session expiry, password reset, and brute-force protection.
+2. Nkwapa owns authorization through `UserClinicRole`, effective permissions, clinic context, and RLS-scoped data access.
+3. `Organization -> Clinic(Location)` is the current tenant model. `Clinic.zoneCode` is a reporting and filtering dimension, never a permission scope.
+4. Clinic-scoped HTTP traffic is expected to run through the request-scoped Prisma RLS context.
+5. `/auth/whoami` remains the frontend bootstrap contract for memberships, active clinic, permissions, and onboarding state.
+6. The API returns structured error envelopes with request IDs and recovery actions instead of raw exception payloads.
+7. Root loading, error, and not-found boundaries are part of the product contract and should be preserved on new pages.
+8. WebSocket connections authenticate via JWT handshake and scope to clinic rooms.
 
 ---
 
-## Backend Route Surface
+## Status Matrix
 
-### Auth
+### Identity, Auth & Access Control
 
-- `GET /auth/me`
-- `GET /auth/whoami`
+| Feature                          | Status | %    | Notes                                                                                             |
+| -------------------------------- | ------ | ---- | ------------------------------------------------------------------------------------------------- |
+| Keycloak OIDC login              | ✅     | 100% | JWT verification through JWKS                                                                     |
+| Local user hydration             | ✅     | 100% | Auto-create on first Keycloak login                                                               |
+| Clinic-scoped and global roles   | ✅     | 100% | Via `UserClinicRole` with 6 role types                                                            |
+| Effective permission computation | ✅     | 100% | Union across roles, `*` wildcard for SYSTEM_ADMIN                                                 |
+| Disabled-user handling           | ✅     | 100% | `isActive` flag on User model                                                                     |
+| Patient claim onboarding state   | ✅     | 100% | Returned by `/auth/whoami`                                                                        |
+| Zone reporting filters           | ✅     | 100% | Filter on registry, network overview, roster                                                      |
+| Zone-scoped RBAC                 | ❌     | 0%   | Deliberately not built; zone is a filter in V1                                                    |
+| Organization-level permissions   | 🚧     | 40%  | Admin filters by organization; `ORGANIZATION.REPORT.READ` exists but is held only by SYSTEM_ADMIN |
+| Staff invites by email           | ✅     | 100% | Directors invite managers, doctors, volunteers                                                    |
+| Deactivation disables sign-in    | ✅     | 100% | Keycloak identity synced with `isActive`                                                          |
 
-### Clinics and admin
+### Data Isolation & Infrastructure
 
-- `GET /clinics/:id`
-- `GET /admin/clinics`
-- `POST /admin/clinics`
-- `GET /admin/users`
-- `GET /admin/users/:userId/roles`
-- `POST /admin/users/:userId/roles`
-- `DELETE /admin/users/:userId/roles`
-- `GET /clinics/:clinicId/users`
-- `PATCH /clinics/:clinicId/users/:userId/deactivate`
-- `DELETE /clinics/:clinicId/users/:userId/roles/:role`
-- `PATCH /users/:userId/deactivate`
+| Feature                              | Status | %    | Notes                                                        |
+| ------------------------------------ | ------ | ---- | ------------------------------------------------------------ |
+| Postgres RLS on clinic-scoped tables | ✅     | 100% | Transaction-local context via Prisma                         |
+| Request-scoped Prisma context        | ✅     | 100% | User, org, clinic list, active clinic, system admin flags    |
+| Keyset-friendly indexes              | ✅     | 100% | On hot list tables                                           |
+| Trigram/text-search indexes          | ✅     | 100% | For human-facing search paths                                |
+| API validation & sanitization        | ✅     | 100% | DTO validation, request normalization, structured errors     |
+| API security hardening               | ✅     | 100% | CORS allowlist, security headers, request IDs, rate limiting |
+| Organization & clinic location model | ✅     | 100% | `organizationId`, `timezone`, `locationCode`, `zoneCode`     |
 
-### Patients
+### Clinical Workflows
 
-- `GET /patients/:patientId`
-- `POST /clinics/:clinicId/patients`
-- `PATCH /clinics/:clinicId/patients/:patientId`
-- `GET /clinics/:clinicId/patients/search`
-- `POST /clinics/:clinicId/patients/:patientId/portal-link`
-- `GET /clinics/:clinicId/patients/:patientId/self-reports`
+| Feature                                           | Status | %    | Notes                                                                                                                                                                                                                                 |
+| ------------------------------------------------- | ------ | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Patient registry (create, update, search, detail) | ✅     | 100% | Code generation, encrypted national ID                                                                                                                                                                                                |
+| Patient merge & code alias                        | ✅     | 100% | SYSTEM_ADMIN-only, previewed before commit, blocked conditions, alias and record preserved                                                                                                                                            |
+| Portal link/invite                                | ✅     | 100% | Link, invite, claim; enforced expiry, resend/cancel, audited lifecycle                                                                                                                                                                |
+| Duplicate review queue                            | ✅     | 100% | Scored candidates, reviewable decisions, links into the merge preview                                                                                                                                                                 |
+| Cross-clinic chart consolidation                  | ❌     | 0%   | Merge is clinic-local only                                                                                                                                                                                                            |
+| Encounter workflow (draft -> review -> finalize)  | ✅     | 100% | Full state machine with role-based transitions                                                                                                                                                                                        |
+| Role-aware patient chart and longitudinal history | ✅     | 100% | Deep-linked lazy tabs, server-enforced sections, cursor-paginated vitals and visits                                                                                                                                                   |
+| HAP clinical notes, cosign, and addenda           | ✅     | 100% | Flagged online-only HAP lifecycle with immutable signing and assigned-doctor cosign                                                                                                                                                   |
+| Vitals recording                                  | ✅     | 100% | Contextual BP, pulse, temperature, respiration, SpO2, anthropometrics, tobacco screening                                                                                                                                              |
+| Diabetes screening                                | ✅     | 100% | Glucose, HbA1c, symptoms, DM suspicion                                                                                                                                                                                                |
+| Hypertension assessment                           | ✅     | 100% | BP classification per thresholds                                                                                                                                                                                                      |
+| Guided chronic-disease interviews                 | ✅     | 100% | Both tabs, server-side derivation, clinician plan, generated note. Thresholds approved 2026-09-13; validated end to end in a clinic session 2026-09-24 and enabled. The pre-interview forms stay behind the flag as the rollback path |
+| Care plan creation                                | ✅     | 100% | Counseling, medication, follow-up date                                                                                                                                                                                                |
+| Prescription & drug catalog                       | ✅     | 100% | Clinic-scoped drug catalog, encounter prescriptions                                                                                                                                                                                   |
+| Medication reconciliation & pharmacy history      | ✅     | 100% | Patient-level revisions, reconciliation, preference periods, offline sync                                                                                                                                                             |
+| Consent grant/revoke                              | ✅     | 100% | Witness fields, snapshot text, offline supported                                                                                                                                                                                      |
 
-### Encounter workflow
+### Clinic Operations
 
-- `GET /clinics/:clinicId/encounters`
-- `GET /clinics/:clinicId/encounters/:encounterId`
-- `POST /clinics/:clinicId/encounters`
-- `POST /clinics/:clinicId/encounters/:encounterId/submit`
-- `POST /clinics/:clinicId/encounters/:encounterId/preceptor-review`
-- `POST /clinics/:clinicId/encounters/:encounterId/finalize`
-- duplicate by-id convenience routes under `/encounters/:encounterId/...`
+| Feature                          | Status | %    | Notes                                                      |
+| -------------------------------- | ------ | ---- | ---------------------------------------------------------- |
+| Staff shift check-in/out         | ✅     | 100% | One ACTIVE per user/clinic, audit logged                   |
+| Patient check-in                 | ✅     | 100% | WAITING -> ASSIGNED -> IN_PROGRESS -> COMPLETED            |
+| Staff assignments (manager-only) | ✅     | 100% | Volunteer + Doctor, reassign with reason                   |
+| Today board                      | ✅     | 100% | Manager view of shifts + check-ins kanban                  |
+| My Assigned worklist             | ✅     | 100% | Staff-specific filtered view                               |
+| Station-based patient flow       | ✅     | 100% | Claim, hand off, counsel, doctor review (#167); flag-gated |
+| Eye station                      | ✅     | 100% | Eye screening on the station line (#174)                   |
+| Wait-time analytics              | ✅     | 100% | Station wait and throughput on `/metrics` (#24)            |
+| Room/resource capacity           | ✅     | 100% | Station capacity and `/stations/setup` (#32)               |
 
-### Consents
+### Patient Portal
 
-- `POST /clinics/:clinicId/patients/:patientId/consents`
-- `POST /clinics/:clinicId/patients/:patientId/consents/revoke`
+| Feature                                 | Status | %    | Notes                                 |
+| --------------------------------------- | ------ | ---- | ------------------------------------- |
+| Claim record & onboarding               | ✅     | 100% | Username/password via Keycloak        |
+| Self-measurements (BP, glucose, weight) | ✅     | 100% | Validation, source tracking           |
+| Trends (line charts, 30/90/180 day)     | ✅     | 100% | Combined encounter + self-report data |
+| Self-reports                            | ✅     | 100% | Patient-submitted health data         |
+| Appointment requests                    | ✅     | 100% | Date range request -> clinic confirms |
+| Portal overview                         | ✅     | 100% | Summary view                          |
+| Reschedule/cancel by patient            | ✅     | 100% | Change requests; staff decide         |
+| Patient-to-staff messaging              | 🚀     | 0%   | Future consideration                  |
 
-### Sync
+### Appointment Scheduling
 
-- `POST /sync/push`
-- `GET /sync/pull`
+| Feature                               | Status | %    | Notes                                                |
+| ------------------------------------- | ------ | ---- | ---------------------------------------------------- |
+| Appointment request (patient)         | ✅     | 100% | Date range + reason                                  |
+| Confirm/reject by staff               | ✅     | 100% | Triage panel on `/appointments`; schedules reminder  |
+| Appointment persistence               | ✅     | 100% | CONFIRMED, CANCELLED, COMPLETED, NO_SHOW statuses    |
+| Staff calendar view                   | ✅     | 100% | `/appointments`, day and week, filters, card + table |
+| Reschedule/cancel flows               | ✅     | 100% | Staff lifecycle actions; patient change requests     |
+| No-show handling & reporting          | ✅     | 100% | Refused before the start time; counted in summary    |
+| Reminder automation tied to lifecycle | ✅     | 100% | Suppressed on every transition, re-checked at send   |
 
-### Audit
+### Reminders & Notifications
 
-- `GET /clinics/:clinicId/audit`
+| Feature                               | Status | %    | Notes                                                                      |
+| ------------------------------------- | ------ | ---- | -------------------------------------------------------------------------- |
+| Follow-up reminder scheduling         | ✅     | 100% | BullMQ queue, triggered on encounter finalize                              |
+| Appointment reminders                 | ✅     | 100% | Triggered on appointment confirm                                           |
+| SMS delivery (Twilio + fake provider) | ✅     | 100% | Env-flagged provider selection                                             |
+| Email delivery                        | ✅     | 100% | Reminders, portal/staff invites, appointment updates, staff access notices |
+| Delivery status tracking              | ✅     | 100% | QUEUED, SENT, DELIVERED, FAILED                                            |
+| Webhook ingestion (SMS status)        | ✅     | 100% | `/webhooks/sms/status`                                                     |
 
-### Reminders
+### Research & Exports
 
-- `GET /clinics/:clinicId/reminders`
-- `POST /webhooks/sms/status`
+| Feature                                      | Status | %    | Notes                                                   |
+| -------------------------------------------- | ------ | ---- | ------------------------------------------------------- |
+| Research settings (per clinic)               | ✅     | 100% | Director configures                                     |
+| Export request/approval flow                 | ✅     | 100% | PENDING_APPROVAL -> APPROVED -> PROCESSING -> COMPLETED |
+| De-identification (HMAC, timestamp rounding) | ✅     | 100% | Stable clinic-scoped keys                               |
+| ZIP artifact generation                      | ✅     | 100% | Fixed pack contract with manifest                       |
+| GitHub repo sync                             | ✅     | 100% | Implemented with mocked tests (no live creds in dev)    |
+| Consent gating on export                     | ✅     | 100% | Only GRANTED patients included                          |
 
-### Drugs and prescriptions
+### Dashboard & Analytics
 
-- `GET /clinics/:clinicId/drugs`
-- `GET /clinics/:clinicId/drugs/:drugId`
-- `POST /clinics/:clinicId/drugs`
-- `PATCH /clinics/:clinicId/drugs/:drugId`
-- `POST /clinics/:clinicId/encounters/:encounterId/prescriptions`
-- `GET /clinics/:clinicId/encounters/:encounterId/prescriptions`
-- `PATCH /clinics/:clinicId/encounters/:encounterId/prescriptions/:id`
-- `DELETE /clinics/:clinicId/encounters/:encounterId/prescriptions/:id`
+| Feature                     | Status | %    | Notes                                          |
+| --------------------------- | ------ | ---- | ---------------------------------------------- |
+| Role-aware summary metrics  | ✅     | 100% | Per-clinic dashboard                           |
+| Trend/distribution cards    | ✅     | 100% | Recharts visualizations                        |
+| Staff activity visibility   | ✅     | 100% | `/staff-activity` by person and by day (#33)   |
+| Organization-wide rollups   | ✅     | 100% | `/reports/organization`, SYSTEM_ADMIN only     |
+| Cohort/population analytics | ✅     | 100% | Analytics tab on the organization report (#25) |
 
-### Dashboard
+### Admin & Lifecycle
 
-- `GET /clinics/:clinicId/dashboard`
+| Feature                         | Status | %    | Notes                    |
+| ------------------------------- | ------ | ---- | ------------------------ |
+| Clinic management (CRUD)        | ✅     | 100% | Organization-aware       |
+| User role assignment            | ✅     | 100% | Per-clinic role granting |
+| User deactivation (soft delete) | ✅     | 100% | Global and clinic-level  |
+| Role revocation                 | ✅     | 100% | Remove clinic membership |
+| Audit trail                     | ✅     | 100% | Filterable audit log UI  |
 
-### Ops
+### Offline & Sync
 
-- `POST /clinics/:clinicId/shifts/check-in`
-- `POST /clinics/:clinicId/shifts/:shiftId/check-out`
-- `GET /clinics/:clinicId/shifts/active`
-- `POST /clinics/:clinicId/checkins`
-- `GET /clinics/:clinicId/checkins`
-- `POST /clinics/:clinicId/assignments`
-- `PATCH /clinics/:clinicId/assignments/:assignmentId/reassign`
-- `GET /clinics/:clinicId/assignments`
-- `GET /clinics/:clinicId/my/assignments`
-- `POST /clinics/:clinicId/checkins/:checkinId/start-intake`
+| Feature                                        | Status | %    | Notes                                                                                                        |
+| ---------------------------------------------- | ------ | ---- | ------------------------------------------------------------------------------------------------------------ |
+| Core EMR offline (patients, encounters, forms) | ✅     | 100% | Dexie IndexedDB + outbox                                                                                     |
+| Consent offline                                | ✅     | 100% | Included in sync scope                                                                                       |
+| Prescription offline                           | ✅     | 100% | Included in sync scope                                                                                       |
+| Conflict tracking & resolution                 | ✅     | 100% | SyncMutation model, APPLIED/CONFLICT/ERROR                                                                   |
+| Ops pages offline                              | 🚧     | 60%  | Shift start/end and patient check-in queue offline (#17); assignment and station moves stay online by design |
+| Clinician plan offline                         | ✅     | 100% | Doctor's plan queued offline, sealed to the server (#131)                                                    |
+| Other-clinic outbox visibility                 | ✅     | 100% | Changes queued for other clinics are shown (#163)                                                            |
+| Portal flows offline                           | 🚧     | 20%  | Portal history survives a dropped connection (#18); writes require the live API                              |
+| Admin/research offline                         | ❌     | 0%   | Online-only by design                                                                                        |
 
-### Patient portal and appointments
+### Clinic Messaging / Chat
 
-- `GET /clinics/:clinicId/patient-portal/me`
-- `GET /clinics/:clinicId/patient-portal/self-reports`
-- `POST /clinics/:clinicId/patient-portal/self-reports`
-- `POST /patients/me/measurements`
-- `GET /patients/me/measurements`
-- `GET /patients/me/trends`
-- `POST /patients/me/appointment-requests`
-- `GET /patients/me/appointment-requests`
-- `GET /patients/:patientId/measurements`
-- `GET /patients/:patientId/trends`
-- `GET /clinics/:clinicId/appointment-requests`
-- `POST /clinics/:clinicId/appointment-requests/:requestId/confirm`
-- `POST /clinics/:clinicId/appointment-requests/:requestId/reject`
+| Feature                        | Status | %    | Notes                                             |
+| ------------------------------ | ------ | ---- | ------------------------------------------------- |
+| Clinic-scoped direct messaging | ✅     | 100% | 1:1 conversations, clinic-isolated                |
+| WebSocket real-time delivery   | ✅     | 100% | Socket.IO with Redis adapter                      |
+| Floating chat widget           | ✅     | 100% | Bottom-right, expandable panel                    |
+| Online presence indicators     | ✅     | 100% | Redis-backed, green/gray dots                     |
+| Unread message badges          | ✅     | 100% | Per-conversation and global count                 |
+| Typing indicators              | ✅     | 100% | Real-time broadcast                               |
+| Message history & pagination   | ✅     | 100% | Cursor-based REST fallback                        |
+| RLS on chat tables             | ✅     | 100% | Conversation + Message policies                   |
+| Group chat                     | ✅     | 100% | Group conversations, last seen, live typing (#30) |
+| E2E encryption                 | 🚀     | 0%   | `encrypted` field reserved, TLS-only for v1       |
 
-### Research
+### UX Resilience
 
-- `GET /clinics/:clinicId/research/settings`
-- `PUT /clinics/:clinicId/research/settings`
-- `POST /clinics/:clinicId/research/exports`
-- `GET /clinics/:clinicId/research/exports`
-- `GET /clinics/:clinicId/research/exports/:exportId`
-- `POST /clinics/:clinicId/research/exports/:exportId/approve`
-- `POST /clinics/:clinicId/research/exports/:exportId/reject`
-- `PATCH /clinics/:clinicId/research/exports/:exportId/retry`
-- `GET /clinics/:clinicId/research/exports/:exportId/download`
+| Feature                                 | Status | %    | Notes                          |
+| --------------------------------------- | ------ | ---- | ------------------------------ |
+| Root loading/error/not-found boundaries | ✅     | 100% | App-wide route boundaries      |
+| Shared skeleton components              | ✅     | 100% | PageSkeleton, SectionSkeleton  |
+| Inline error & retry states             | ✅     | 100% | InlineErrorState, RetryAction  |
+| Normalized ApiError handling            | ✅     | 100% | Timeout/network/retry metadata |
+| Route-specific stale-while-refresh      | 🚧     | 40%  | Not all pages have this polish |
+| Optimistic mutations                    | 🚧     | 30%  | Limited to core EMR surfaces   |
 
----
+### Design System Compliance
 
-## Frontend Route Surface
+| Feature                          | Status | %    | Notes                                                                                     |
+| -------------------------------- | ------ | ---- | ----------------------------------------------------------------------------------------- |
+| Flat/minimal design language     | ✅     | 100% | Verified by scan, not by eye: 0 arbitrary radii, 0 gradients on clinical views            |
+| Lucide icon set (no emoji icons) | ✅     | 100% | Consistent iconography                                                                    |
+| Semantic token coverage          | ✅     | 100% | 0 raw-palette status colours and 0 live `dark:` utilities outside the landing page        |
+| Responsive breakpoints           | ✅     | 95%  | 15 routes at 375/640/768/1024/1440 on every push; 640 is 1280 at 200% zoom                |
+| Animation/transition standards   | ✅     | 90%  | Motion settled in MASTER.md §7; charts do not animate, `prefers-reduced-motion` is tested |
+| Dark mode                        | ✅     | 90%  | Renders on 9 routes under axe on every push; no `dark:` patches left, only tokens         |
+| WCAG accessibility baseline      | 🚧     | 85%  | axe, focus visibility and keyboard reach automated. No screen-reader pass yet             |
 
-### Public and shell
+**What "automated" means here.** These are checked by `apps/web/e2e/` on every push, not asserted
+by review: `responsive-migration.spec.js` (breakpoints, staff and portal), `dark-mode.spec.js`,
+`accessibility.spec.js`, `portal.spec.js`, `login-theme.spec.js`, `route-fallbacks.spec.js`, and
+`npm run design:check-charts` for the chart palette's contrast and colour-blind separation.
 
-- `/`
-
-### Staff and admin
-
-- `/queues`
-- `/patients`
-- `/patients/new`
-- `/patients/[patientId]`
-- `/patients/[patientId]/consent`
-- `/patients/[patientId]/encounters/new`
-- `/encounters/[encounterId]`
-- `/dashboard`
-- `/audit`
-- `/reminders`
-- `/settings/clinic`
-- `/today`
-- `/my/assigned`
-- `/admin/clinics`
-- `/admin/users`
-
-### Clinic-prefixed aliases
-
-- `/clinics/[clinicId]/patients`
-- `/clinics/[clinicId]/patients/new`
-- `/clinics/[clinicId]/patients/[patientId]`
-- `/clinics/[clinicId]/patients/[patientId]/edit`
-- `/clinics/[clinicId]/patients/[patientId]/consent`
-- `/clinics/[clinicId]/encounters`
-- `/clinics/[clinicId]/encounters/[encounterId]`
-- `/clinics/[clinicId]/research/exports`
-
-### Patient portal
-
-- `/portal`
-- `/portal/health`
-- `/portal/self-reports`
-- `/portal/self-reports/new`
-- `/portal/appointments`
-- `/portal/appointments/request`
-
----
-
-## Background Jobs and Integrations
-
-### Queues
-
-| Queue | Purpose |
-| --- | --- |
-| `reminders` | send follow-up and appointment reminders |
-| `research-exports` | generate pack, zip artifact, and GitHub snapshot |
-
-### External services
-
-| Integration | Current role |
-| --- | --- |
-| Keycloak | identity provider |
-| PostgreSQL | primary operational database |
-| Redis | BullMQ broker/state |
-| Twilio-compatible SMS | optional real SMS provider |
-| SMTP/Nodemailer | optional real email provider |
-| GitHub | research export data repo sync target |
-
----
-
-## Database and Migration Status
-
-### Major model families present in schema
-
-- organization and access
-- patients and consents
-- encounters and clinical forms
-- medications
-- reminders
-- ops
-- patient portal and appointments
-- research settings and exports
-- audit and sync
-
-### Current migration history in repo
-
-- `20250225120000_add_patient_code_sequence`
-- `20250226000000_init`
-- `20260226142050_add_sync_mutation`
-- `20260228205620_add_user_first_last_name`
-- `20260302000000_add_reminder_delivered_status`
-- `20260302010000_add_drug_prescription_models`
-- `20260303000000_extend_research_export`
-- `20260304063017_prescriptions_and_research`
-- `20260319000000_patient_portal_and_self_reports`
-- `20260321000000_ops_api_v1`
-- `20260321100000_patient_api_v1`
-- `20260321120000_research_export_pipeline_v1`
+The 15% still outstanding on the accessibility line is the part no rule can measure: whether focus
+order matches reading order, whether a label means anything to a clinician, and a real screen reader
+through one encounter. Those are listed in `docs/USER_TESTING_GUIDE.md` section 3.
 
 ---
 
-## Testing Coverage Snapshot
+## Overall Progress Summary
 
-### API test files currently present
+Counted from the rows of the status matrix above, one row per feature.
 
-- auth controller and permission tests
-- clinics controller/admin controller tests
-- patient service tests
-- encounter service tests
-- sync controller/service tests
-- drug service tests
-- prescription service tests
-- reminder provider and webhook tests
-- admin service tests
-- ops controller/service tests
-- patient portal service and patient-api controller tests
-- research de-identification, transform, repo sync, and export service tests
-- user service tests
+| Category                 | Features |
+| ------------------------ | -------- |
+| ✅ Fully Implemented     | 101      |
+| 🚧 Partially Implemented | 6        |
+| ❌ Not Implemented       | 3        |
+| 🚀 Future / Planned      | 2        |
 
-### Web test files currently present
-
-- `lib/outbox.test.ts`
-- `lib/patient-portal.test.ts`
-- `lib/patient-trends.test.ts`
-
-### Shared utility tests currently present
-
-- `packages/db/src/phone.spec.ts`
-- `packages/db/src/patient-code.spec.ts`
+**101 of 112 tracked features are fully implemented.** The ❌ rows are deliberate (zone-scoped RBAC, admin/research offline) or scoped follow-ups (cross-clinic consolidation).
 
 ---
 
-## Current Documentation and Memory Surface
+## Recommended Next Additions
 
-Primary docs now intended to stay current:
+1. 🚀 **UI polish and overhaul** - Popover help, a first-run welcome tour, a shared sortable/filterable table, pending and optimistic feedback across all roles (#189).
 
-- `IMPLEMENTATION_STATUS.md`
-- `memory.md`
-- `memory/01_architecture_runtime.md`
-- `memory/02_backend_api_modules.md`
-- `memory/03_frontend_routes_state.md`
-- `memory/04_domain_models_workflows.md`
+2. 🚀 **Organization-level leadership role** - Grant `ORGANIZATION.REPORT.READ` to a role other than SYSTEM_ADMIN.
+
+3. 🚀 **Cross-clinic chart consolidation** - Merge is clinic-local today; cross-clinic investigation (#9) finds candidates but cannot merge them.
+
+4. 🚀 **Expand portal offline** - Queue portal writes (self-reports, appointment requests) through the outbox.
+
+5. 🚀 **Patient-to-staff messaging** - Reuse the chat infrastructure for the portal.
+
+6. 🚀 **Standardize UX resilience** - Apply shared skeleton/empty/retry states to every major screen.
+
+---
+
+## Key Docs To Read Next
+
+- `docs/specs/01_ARCHITECTURE_OVERVIEW.md`
+- `docs/specs/02_DOMAIN_MODEL_AND_DATA_DICTIONARY.md`
+- `docs/specs/03_AUTH_AND_RBAC.md`
+- `docs/specs/04_OFFLINE_FIRST_AND_SYNC.md`
 - `docs/FEATURE_WORKFLOWS_GUIDE.md`
-- `docs/USER_AND_ROLE_SETUP_GUIDE.md`
-- `docs/USER_TESTING_GUIDE.md`
-- `docs/clinic-ops/26_RESEARCH_EXPORT_TRANSFORMS_V1.md`
-
----
-
-## Partial or Still-Evolving Areas
-
-These are important to describe precisely:
-
-1. Staff appointment triage is implemented in the backend API, but there is not yet a dedicated staff appointment management calendar page in the web app.
-2. Offline capability is strongest in the original patient and encounter flow; newer ops and portal surfaces are more online-first.
-3. Research GitHub sync is implemented and tested with mocks, but live credentials and a live repo were not exercised in this workspace session.
-4. Older spec documents outside the updated guide set may still describe an earlier design shape.
-
----
-
-## Immediate Operational Next Steps for Any Deployment
-
-1. Ensure `.env` includes research GitHub settings before using research exports in non-fake mode.
-2. Run Prisma migrate flow against the target database.
-3. Seed or manually create a system admin and clinic memberships.
-4. Confirm Keycloak users log in once before expecting them in app admin tables.
-5. Keep Redis running if reminders or research exports are expected to process.
+- `docs/FEATURE_GAPS_AND_NEXT_ADDITIONS.md`
+- `docs/security-audit-2026-04-04.md`

@@ -17,8 +17,7 @@ export const PERMISSIONS = {
   // Screening
   SCREENING_WRITE: 'SCREENING.WRITE',
   SCREENING_READ: 'SCREENING.READ',
-  // Preceptor
-  PRECEPTOR_REVIEW: 'PRECEPTOR.REVIEW',
+  ENCOUNTER_REVIEW: 'ENCOUNTER.REVIEW',
   // Doctor
   DOCTOR_FINALIZE: 'DOCTOR.FINALIZE',
   CAREPLAN_WRITE: 'CAREPLAN.WRITE',
@@ -31,15 +30,57 @@ export const PERMISSIONS = {
   // Prescription
   PRESCRIPTION_WRITE: 'PRESCRIPTION.WRITE',
   PRESCRIPTION_READ: 'PRESCRIPTION.READ',
+  // Longitudinal medical history
+  MEDICAL_HISTORY_READ: 'MEDICAL_HISTORY.READ',
+  MEDICAL_HISTORY_WRITE: 'MEDICAL_HISTORY.WRITE',
+  // Patient-reported medication reconciliation and pharmacy history
+  MEDICATION_RECONCILIATION_READ: 'MEDICATION_RECONCILIATION.READ',
+  MEDICATION_RECONCILIATION_WRITE: 'MEDICATION_RECONCILIATION.WRITE',
+  // Clinical HAP notes
+  CLINICAL_NOTE_READ: 'CLINICAL_NOTE.READ',
+  CLINICAL_NOTE_WRITE: 'CLINICAL_NOTE.WRITE',
+  CLINICAL_NOTE_COSIGN: 'CLINICAL_NOTE.COSIGN',
+  CLINICAL_NOTE_ADDENDUM: 'CLINICAL_NOTE.ADDENDUM',
+  CLINICAL_NOTE_STATUS_READ: 'CLINICAL_NOTE.STATUS.READ',
   // Drug
   DRUG_READ: 'DRUG.READ',
   DRUG_MANAGE: 'DRUG.MANAGE',
+  /**
+   * The supervising clinician's assessment and plan inside a chronic-disease interview.
+   *
+   * Separate from CAREPLAN.WRITE, which is also doctor-only and would work mechanically. That
+   * one names the `CarePlan` record; reusing it to gate a section of a screening record would
+   * make the generated role matrix describe a permission that does not mean what it says.
+   *
+   * One permission governs reading and writing the block together. A volunteer is not shown a
+   * disabled clinician plan -- a disabled section still tells them what a doctor may do -- and the
+   * sync pull omits those columns entirely, so a volunteer's device never caches them either.
+   */
+  CAREPLAN_CLINICIAN_PLAN: 'CAREPLAN.CLINICIAN_PLAN',
   // Reminder
   REMINDER_CREATE: 'REMINDER.CREATE',
   REMINDER_READ: 'REMINDER.READ',
+  /**
+   * Staff lifecycle notices in the reminder ledger: invites, role grants and revocations,
+   * deactivations. About colleagues, not patients, so held by the roles that already saw them
+   * rather than by everyone who can read patient reminders (#116).
+   */
+  REMINDER_READ_STAFF_NOTICES: 'REMINDER.READ_STAFF_NOTICES',
+  /** Cancel a colleague's staff-scheduled reminder, not only one's own (#116). */
+  REMINDER_CANCEL_ANY: 'REMINDER.CANCEL_ANY',
+  // Appointment schedule
+  APPOINTMENT_READ: 'APPOINTMENT.READ',
+  APPOINTMENT_WRITE: 'APPOINTMENT.WRITE',
   // Clinic
   CLINIC_READ: 'CLINIC.READ',
   CLINIC_MANAGE: 'CLINIC.MANAGE',
+  /*
+    Invite someone onto a clinic's staff by email. DIRECTOR and SYSTEM_ADMIN only, and narrower
+    than CLINIC_MANAGE on purpose: a manager can deactivate a volunteer, but an invitation hands
+    a stranger a role with nothing but an inbox as proof, so it sits with the two seats that
+    already decide who works in a clinic. StaffInviteService also applies the role ceiling itself.
+  */
+  CLINIC_STAFF_INVITE: 'CLINIC.STAFF.INVITE',
   // Ops
   OPS_SHIFT_WRITE: 'OPS.SHIFT.WRITE',
   OPS_SHIFT_READ: 'OPS.SHIFT.READ',
@@ -47,8 +88,22 @@ export const PERMISSIONS = {
   OPS_CHECKIN_READ: 'OPS.CHECKIN.READ',
   OPS_ASSIGNMENT_MANAGE: 'OPS.ASSIGNMENT.MANAGE',
   OPS_ASSIGNMENT_READ_SELF: 'OPS.ASSIGNMENT.READ_SELF',
+  /** The station line (#167): station list, queues, and a check-in's timeline. */
+  OPS_STATION_READ: 'OPS.STATION.READ',
+  /** Choose my station; claim, release, complete and skip my own station visits. */
+  OPS_STATION_WORK: 'OPS.STATION.WORK',
+  /** Move a patient, release someone else's claim, record a patient leaving, edit stations. */
+  OPS_STATION_MANAGE: 'OPS.STATION.MANAGE',
+  /** What the review station told the patient. Same audience as clinical note content. */
+  COUNSELLING_READ: 'COUNSELLING.READ',
+  COUNSELLING_WRITE: 'COUNSELLING.WRITE',
   // Audit
   AUDIT_READ: 'AUDIT.READ',
+  /*
+    Product and operational metrics: counts and failure codes, never records. Held by the roles
+    that already read the audit trail, because a funnel is a summary of the same activity.
+  */
+  METRICS_READ: 'METRICS.READ',
   // Sync
   SYNC_PUSH: 'SYNC.PUSH',
   SYNC_PULL: 'SYNC.PULL',
@@ -61,6 +116,30 @@ export const PERMISSIONS = {
   PATIENT_SELF_REPORT_READ: 'PATIENT.SELF_REPORT.READ',
   // Admin: link patient to portal user
   PATIENT_PORTAL_LINK: 'PATIENT.PORTAL.LINK',
+  // Admin: review suspected duplicate charts. Read-only; merging stays SYSTEM_ADMIN only.
+  PATIENT_DUPLICATE_REVIEW: 'PATIENT.DUPLICATE.REVIEW',
+  /*
+    Admin: preview and execute a chart merge.
+
+    Granted to no role in ROLE_PERMISSIONS below. SYSTEM_ADMIN holds it through its '*' wildcard
+    and nobody else can, which is the point: merge previously sat behind the class-level
+    CLINIC_MANAGE on AdminController, so a director reached the service and was turned away there.
+    Naming the permission moves that refusal up to the guard, and PatientMergeService still
+    asserts the seat itself -- a boundary that depends on one layer is one refactor from not
+    being a boundary.
+  */
+  PATIENT_MERGE: 'PATIENT.MERGE',
+  /*
+    Read an organization's rollup across all of its clinics (#13).
+
+    Granted to no role, like PATIENT_MERGE: SYSTEM_ADMIN holds it through '*' and nobody else can.
+    It exists as a name so an organization-level leadership role can be given exactly this later,
+    rather than a director's clinic permissions being stretched across an organization.
+  */
+  ORGANIZATION_REPORT_READ: 'ORGANIZATION.REPORT.READ',
+  // Chat
+  CHAT_SEND: 'CHAT.SEND',
+  CHAT_READ: 'CHAT.READ',
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -71,13 +150,18 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   [UserRole.DIRECTOR]: [
     PERMISSIONS.CLINIC_READ,
     PERMISSIONS.CLINIC_MANAGE,
+    PERMISSIONS.CLINIC_STAFF_INVITE,
     PERMISSIONS.OPS_SHIFT_READ,
     PERMISSIONS.OPS_CHECKIN_CREATE,
     PERMISSIONS.OPS_CHECKIN_READ,
     PERMISSIONS.OPS_ASSIGNMENT_MANAGE,
+    PERMISSIONS.OPS_STATION_READ,
+    PERMISSIONS.OPS_STATION_MANAGE,
     PERMISSIONS.AUDIT_READ,
+    PERMISSIONS.METRICS_READ,
     PERMISSIONS.PATIENT_SELF_REPORT_READ,
     PERMISSIONS.PATIENT_PORTAL_LINK,
+    PERMISSIONS.PATIENT_DUPLICATE_REVIEW,
     PERMISSIONS.RESEARCH_SETTINGS_UPDATE,
     PERMISSIONS.RESEARCH_EXPORT_REQUEST,
     PERMISSIONS.RESEARCH_EXPORT_APPROVE,
@@ -87,12 +171,20 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     PERMISSIONS.ENCOUNTER_READ,
     PERMISSIONS.SCREENING_READ,
     PERMISSIONS.PRESCRIPTION_READ,
+    PERMISSIONS.MEDICAL_HISTORY_READ,
+    PERMISSIONS.MEDICATION_RECONCILIATION_READ,
     PERMISSIONS.DRUG_READ,
     PERMISSIONS.DRUG_MANAGE,
     PERMISSIONS.REMINDER_READ,
+    PERMISSIONS.REMINDER_READ_STAFF_NOTICES,
+    PERMISSIONS.REMINDER_CANCEL_ANY,
+    PERMISSIONS.APPOINTMENT_READ,
     PERMISSIONS.SYNC_PUSH,
     PERMISSIONS.SYNC_PULL,
     PERMISSIONS.DASHBOARD_READ,
+    PERMISSIONS.CLINICAL_NOTE_STATUS_READ,
+    PERMISSIONS.CHAT_SEND,
+    PERMISSIONS.CHAT_READ,
   ],
   [UserRole.MANAGER]: [
     PERMISSIONS.CLINIC_READ,
@@ -102,9 +194,14 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     PERMISSIONS.OPS_CHECKIN_CREATE,
     PERMISSIONS.OPS_CHECKIN_READ,
     PERMISSIONS.OPS_ASSIGNMENT_MANAGE,
+    PERMISSIONS.OPS_STATION_READ,
+    PERMISSIONS.OPS_STATION_WORK,
+    PERMISSIONS.OPS_STATION_MANAGE,
     PERMISSIONS.AUDIT_READ,
+    PERMISSIONS.METRICS_READ,
     PERMISSIONS.PATIENT_SELF_REPORT_READ,
     PERMISSIONS.PATIENT_PORTAL_LINK,
+    PERMISSIONS.PATIENT_DUPLICATE_REVIEW,
     PERMISSIONS.PATIENT_READ,
     PERMISSIONS.PATIENT_CREATE,
     PERMISSIONS.PATIENT_UPDATE,
@@ -114,12 +211,21 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     PERMISSIONS.ENCOUNTER_SUBMIT_FOR_REVIEW,
     PERMISSIONS.SCREENING_READ,
     PERMISSIONS.PRESCRIPTION_READ,
+    PERMISSIONS.MEDICAL_HISTORY_READ,
+    PERMISSIONS.MEDICATION_RECONCILIATION_READ,
     PERMISSIONS.DRUG_READ,
     PERMISSIONS.DRUG_MANAGE,
     PERMISSIONS.REMINDER_READ,
+    PERMISSIONS.REMINDER_READ_STAFF_NOTICES,
+    PERMISSIONS.REMINDER_CANCEL_ANY,
+    PERMISSIONS.APPOINTMENT_READ,
+    PERMISSIONS.APPOINTMENT_WRITE,
     PERMISSIONS.SYNC_PUSH,
     PERMISSIONS.SYNC_PULL,
     PERMISSIONS.DASHBOARD_READ,
+    PERMISSIONS.CLINICAL_NOTE_STATUS_READ,
+    PERMISSIONS.CHAT_SEND,
+    PERMISSIONS.CHAT_READ,
   ],
   [UserRole.DOCTOR]: [
     PERMISSIONS.PATIENT_READ,
@@ -130,39 +236,42 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     PERMISSIONS.ENCOUNTER_CREATE,
     PERMISSIONS.ENCOUNTER_READ,
     PERMISSIONS.ENCOUNTER_SUBMIT_FOR_REVIEW,
+    PERMISSIONS.ENCOUNTER_REVIEW,
+    PERMISSIONS.SCREENING_WRITE,
     PERMISSIONS.DOCTOR_FINALIZE,
     PERMISSIONS.CAREPLAN_WRITE,
+    PERMISSIONS.CAREPLAN_CLINICIAN_PLAN,
     PERMISSIONS.OPS_SHIFT_WRITE,
     PERMISSIONS.OPS_SHIFT_READ,
     PERMISSIONS.OPS_CHECKIN_CREATE,
     PERMISSIONS.OPS_ASSIGNMENT_READ_SELF,
     PERMISSIONS.PRESCRIPTION_WRITE,
     PERMISSIONS.PRESCRIPTION_READ,
+    PERMISSIONS.MEDICAL_HISTORY_READ,
+    PERMISSIONS.MEDICAL_HISTORY_WRITE,
+    PERMISSIONS.MEDICATION_RECONCILIATION_READ,
+    PERMISSIONS.MEDICATION_RECONCILIATION_WRITE,
     PERMISSIONS.DRUG_READ,
     PERMISSIONS.REMINDER_CREATE,
     PERMISSIONS.REMINDER_READ,
+    PERMISSIONS.REMINDER_READ_STAFF_NOTICES,
+    PERMISSIONS.APPOINTMENT_READ,
+    PERMISSIONS.APPOINTMENT_WRITE,
     PERMISSIONS.SCREENING_READ,
     PERMISSIONS.SYNC_PUSH,
     PERMISSIONS.SYNC_PULL,
     PERMISSIONS.DASHBOARD_READ,
-  ],
-  [UserRole.PRECEPTOR]: [
-    PERMISSIONS.PATIENT_READ,
-    PERMISSIONS.PATIENT_SELF_REPORT_READ,
-    PERMISSIONS.PATIENT_CREATE,
-    PERMISSIONS.SCREENING_READ,
-    PERMISSIONS.SCREENING_WRITE,
-    PERMISSIONS.PRECEPTOR_REVIEW,
-    PERMISSIONS.PATIENT_READ,
-    PERMISSIONS.PATIENT_SEARCH,
-    PERMISSIONS.ENCOUNTER_READ,
-    PERMISSIONS.OPS_SHIFT_WRITE,
-    PERMISSIONS.OPS_SHIFT_READ,
-    PERMISSIONS.PRESCRIPTION_READ,
-    PERMISSIONS.DRUG_READ,
-    PERMISSIONS.SYNC_PUSH,
-    PERMISSIONS.SYNC_PULL,
-    PERMISSIONS.DASHBOARD_READ,
+    PERMISSIONS.CLINICAL_NOTE_READ,
+    PERMISSIONS.CLINICAL_NOTE_WRITE,
+    PERMISSIONS.OPS_STATION_READ,
+    PERMISSIONS.OPS_STATION_WORK,
+    PERMISSIONS.COUNSELLING_READ,
+    PERMISSIONS.COUNSELLING_WRITE,
+    PERMISSIONS.CLINICAL_NOTE_COSIGN,
+    PERMISSIONS.CLINICAL_NOTE_ADDENDUM,
+    PERMISSIONS.CLINICAL_NOTE_STATUS_READ,
+    PERMISSIONS.CHAT_SEND,
+    PERMISSIONS.CHAT_READ,
   ],
   [UserRole.VOLUNTEER]: [
     PERMISSIONS.PATIENT_READ,
@@ -172,6 +281,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     PERMISSIONS.ENCOUNTER_READ,
     PERMISSIONS.ENCOUNTER_SUBMIT_FOR_REVIEW,
     PERMISSIONS.SCREENING_WRITE,
+    PERMISSIONS.SCREENING_READ,
     PERMISSIONS.CONSENT_RECORD,
     PERMISSIONS.OPS_SHIFT_WRITE,
     PERMISSIONS.OPS_SHIFT_READ,
@@ -181,7 +291,24 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     PERMISSIONS.SYNC_PUSH,
     PERMISSIONS.SYNC_PULL,
     PERMISSIONS.DASHBOARD_READ,
+    PERMISSIONS.CLINICAL_NOTE_READ,
+    PERMISSIONS.CLINICAL_NOTE_WRITE,
+    PERMISSIONS.OPS_STATION_READ,
+    PERMISSIONS.OPS_STATION_WORK,
+    PERMISSIONS.COUNSELLING_READ,
+    PERMISSIONS.COUNSELLING_WRITE,
+    PERMISSIONS.CLINICAL_NOTE_STATUS_READ,
     PERMISSIONS.PATIENT_SELF_REPORT_READ,
+    PERMISSIONS.MEDICAL_HISTORY_READ,
+    PERMISSIONS.MEDICAL_HISTORY_WRITE,
+    PERMISSIONS.MEDICATION_RECONCILIATION_READ,
+    PERMISSIONS.MEDICATION_RECONCILIATION_WRITE,
+    // Read before write, as for screening: whoever may schedule a reminder may read it back.
+    PERMISSIONS.REMINDER_READ,
+    PERMISSIONS.REMINDER_CREATE,
+    PERMISSIONS.APPOINTMENT_READ,
+    PERMISSIONS.CHAT_SEND,
+    PERMISSIONS.CHAT_READ,
   ],
   [UserRole.PATIENT]: [
     PERMISSIONS.PATIENT_PORTAL_READ_SELF,
@@ -189,10 +316,22 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   ],
 };
 
-export function hasPermission(
-  userRoles: { role: UserRole }[],
-  required: string
-): boolean {
+/**
+ * Which roles hold a permission, derived from the table above rather than restated.
+ *
+ * For the places that need to filter *by* a permission rather than check one -- a user picker
+ * that should only offer people who can actually receive a message, say. Deriving it means a
+ * change to `ROLE_PERMISSIONS` is reflected everywhere, instead of leaving a hand-written role
+ * list to drift out of agreement with the permission it was meant to mirror.
+ */
+export function rolesWithPermission(required: string): UserRole[] {
+  return (Object.keys(ROLE_PERMISSIONS) as UserRole[]).filter((role) => {
+    const granted = ROLE_PERMISSIONS[role];
+    return granted.includes('*') || granted.includes(required);
+  });
+}
+
+export function hasPermission(userRoles: { role: UserRole }[], required: string): boolean {
   for (const { role } of userRoles) {
     const perms = ROLE_PERMISSIONS[role];
     if (perms.includes('*') || perms.includes(required)) {

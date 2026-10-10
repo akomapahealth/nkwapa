@@ -1,11 +1,13 @@
-const CACHE_NAME = 'nkwapa-shell-v1';
-const SHELL_ROUTES = ['/', '/_next/static'];
+// v2 precaches the offline page. Bumping the name also clears v1, whose fallback served the
+// marketing home page for every uncached route, so going offline looked like being signed out.
+const CACHE_NAME = 'nkwapa-shell-v2';
+const OFFLINE_URL = '/offline.html';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(['/']);
-    })
+      return cache.addAll(['/', OFFLINE_URL]);
+    }),
   );
   self.skipWaiting();
 });
@@ -13,10 +15,8 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((names) => {
-      return Promise.all(
-        names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n))
-      );
-    })
+      return Promise.all(names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n)));
+    }),
   );
   self.clients.claim();
 });
@@ -37,7 +37,11 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
           return res;
         })
-        .catch(() => caches.match(request).then((r) => r || caches.match('/')))
+        .catch(() =>
+          caches
+            .match(request)
+            .then((cached) => cached || (isNav ? caches.match(OFFLINE_URL) : undefined)),
+        ),
     );
   }
 });

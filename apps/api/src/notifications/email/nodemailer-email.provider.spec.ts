@@ -1,0 +1,256 @@
+import { Logger } from '@nestjs/common';
+import { NodemailerEmailProvider, type SmtpTransportConfig } from './nodemailer-email.provider';
+import { FakeEmailProvider } from './fake-email.provider';
+
+function createTransporterSpy(overrides: Partial<{ sendMail: jest.Mock; verify: jest.Mock }> = {}) {
+  return {
+    sendMail: overrides.sendMail ?? jest.fn().mockResolvedValue({ messageId: '<abc@relay>' }),
+    verify: overrides.verify ?? jest.fn().mockResolvedValue(true),
+  };
+}
+
+describe('NodemailerEmailProvider', () => {
+  it('sends html, text, and reply-to through the transport', async () => {
+    const transporter = createTransporterSpy();
+    const provider = new NodemailerEmailProvider(
+      {
+        transport: { host: 'smtp.test', port: 587, secure: false },
+        from: 'info@akomapa.org',
+        replyTo: 'support@akomapa.org',
+      },
+      () => transporter as never,
+    );
+
+    const result = await provider.send('p@example.org', 'Subject', '<p>Hi</p>', 'Hi');
+
+    expect(result).toEqual({ success: true, providerMessageId: '<abc@relay>' });
+    expect(transporter.sendMail).toHaveBeenCalledWith({
+      from: 'info@akomapa.org',
+      to: 'p@example.org',
+      subject: 'Subject',
+      html: '<p>Hi</p>',
+      text: 'Hi',
+      replyTo: 'support@akomapa.org',
+    });
+  });
+
+  it('passes a named sender through to the transport untouched', async () => {
+    // Nodemailer owns the RFC 5322 quoting, so the pair must reach sendMail intact
+    // rather than being flattened into a header string on the way.
+    const transporter = createTransporterSpy();
+    const provider = new NodemailerEmailProvider(
+      {
+        transport: { host: 'smtp.test', port: 2587, secure: false },
+        from: { name: 'Nkwapa', address: 'no-reply@akomapa.org' },
+      },
+      () => transporter as never,
+    );
+
+    await provider.send('p@example.org', 'Subject', '<p>Hi</p>');
+
+    expect(transporter.sendMail.mock.calls[0][0].from).toEqual({
+      name: 'Nkwapa',
+      address: 'no-reply@akomapa.org',
+    });
+  });
+
+  it('omits optional fields rather than sending them empty', async () => {
+    const transporter = createTransporterSpy();
+    const provider = new NodemailerEmailProvider(
+      { transport: { host: 'smtp.test', port: 587, secure: false }, from: 'info@akomapa.org' },
+      () => transporter as never,
+    );
+
+    await provider.send('p@example.org', 'Subject', '<p>Hi</p>');
+
+    const payload = transporter.sendMail.mock.calls[0][0];
+    expect(payload).not.toHaveProperty('text');
+    expect(payload).not.toHaveProperty('replyTo');
+  });
+
+  it('builds a transport with no auth block when no credentials are configured', () => {
+    // The defect this guards: passing `auth: { user: '', pass: '' }` makes nodemailer
+    // attempt AUTH against relays that accept unauthenticated mail, so local Mailpit
+    // and internal relays reject every message.
+    let seen: SmtpTransportConfig | null = null;
+    new NodemailerEmailProvider(
+      { transport: { host: 'localhost', port: 1025, secure: false }, from: 'info@akomapa.org' },
+      (config) => {
+        seen = config;
+        return createTransporterSpy() as never;
+      },
+    );
+
+    expect(seen).not.toBeNull();
+    expect(seen!).not.toHaveProperty('auth');
+  });
+
+  it('passes credentials through when they are configured', () => {
+    let seen: SmtpTransportConfig | null = null;
+    new NodemailerEmailProvider(
+      {
+        transport: {
+          host: 'smtp.test',
+          port: 465,
+          secure: true,
+          auth: { user: 'u', pass: 'p' },
+        },
+        from: 'info@akomapa.org',
+      },
+      (config) => {
+        seen = config;
+        return createTransporterSpy() as never;
+      },
+    );
+
+    expect(seen!.auth).toEqual({ user: 'u', pass: 'p' });
+  });
+
+  it('reports a stable failure code and never leaks the transport error', async () => {
+    // SMTP rejections routinely quote the envelope, and the recipient address is PHI.
+    const transporter = createTransporterSpy({
+      sendMail: jest.fn().mockRejectedValue(new Error('550 5.1.1 <p@example.org> unknown')),
+    });
+    const provider = new NodemailerEmailProvider(
+      { transport: { host: 'smtp.test', port: 587, secure: false }, from: 'info@akomapa.org' },
+      () => transporter as never,
+    );
+
+    const result = await provider.send('p@example.org', 'Subject', '<p>Hi</p>');
+
+    expect(result).toMatchObject({ success: false, error: 'EMAIL_SEND_FAILED' });
+    expect(JSON.stringify(result)).not.toContain('p@example.org');
+  });
+
+  it('names the port and error code on a failed send', async () => {
+    // A blocked SMTP port and a wrong password both surfaced as the same opaque sentence.
+    // The code is what tells an operator which one they are looking at, and the port is
+    // what tells them the egress rule they tripped over. Neither is PHI.
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      const timeout = Object.assign(new Error('Connection timeout'), { code: 'ETIMEDOUT' });
+      const provider = new NodemailerEmailProvider(
+        {
+          transport: { host: 'smtp.resend.com', port: 2587, secure: false },
+          from: 'info@akomapa.org',
+        },
+        () => createTransporterSpy({ sendMail: jest.fn().mockRejectedValue(timeout) }) as never,
+      );
+
+      await provider.send('p@example.org', 'Subject', '<p>Hi</p>');
+
+      const payload = JSON.parse(warn.mock.calls[0][0] as string) as Record<string, unknown>;
+      expect(payload).toMatchObject({
+        message: 'SMTP send failed',
+        host: 'smtp.resend.com',
+        port: 2587,
+        code: 'ETIMEDOUT',
+      });
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('keeps the recipient out of the failure log even when the relay quotes it back', async () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      const provider = new NodemailerEmailProvider(
+        { transport: { host: 'smtp.test', port: 587, secure: false }, from: 'info@akomapa.org' },
+        () =>
+          createTransporterSpy({
+            sendMail: jest
+              .fn()
+              .mockRejectedValue(new Error('550 5.1.1 <p@example.org> unknown user')),
+          }) as never,
+      );
+
+      await provider.send('p@example.org', 'Subject', '<p>Hi</p>');
+
+      expect(warn.mock.calls[0][0] as string).not.toContain('p@example.org');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  describe('classifying a failure as worth retrying', () => {
+    async function sendFailingWith(error: unknown) {
+      const provider = new NodemailerEmailProvider(
+        { transport: { host: 'smtp.test', port: 2587, secure: false }, from: 'info@akomapa.org' },
+        () => createTransporterSpy({ sendMail: jest.fn().mockRejectedValue(error) }) as never,
+      );
+      return provider.send('p@example.org', 'Subject', '<p>Hi</p>');
+    }
+
+    it.each(['ETIMEDOUT', 'ECONNECTION', 'ECONNREFUSED', 'ECONNRESET', 'ESOCKET', 'EDNS', 'EPIPE'])(
+      'calls %s transient, because the relay never took the message',
+      async (code) => {
+        const result = await sendFailingWith(Object.assign(new Error('nope'), { code }));
+        expect(result).toMatchObject({ success: false, retryable: true });
+      },
+    );
+
+    it.each(['EAUTH', 'EENVELOPE', 'EMESSAGE'])(
+      'calls %s terminal, because trying again cannot change the answer',
+      async (code) => {
+        const result = await sendFailingWith(Object.assign(new Error('nope'), { code }));
+        expect(result.retryable).toBe(false);
+      },
+    );
+
+    it('follows the SMTP reply code when there is one: 4xx transient, 5xx permanent', async () => {
+      const transient = await sendFailingWith(
+        Object.assign(new Error('451 try again later'), { responseCode: 451 }),
+      );
+      const permanent = await sendFailingWith(
+        Object.assign(new Error('550 recipient rejected'), { responseCode: 550 }),
+      );
+
+      expect(transient.retryable).toBe(true);
+      expect(permanent.retryable).toBe(false);
+    });
+
+    it('lets the reply code override a transient-looking error code', async () => {
+      // A 550 arriving on a socket that then dropped is still a refusal, not a blip.
+      const result = await sendFailingWith(
+        Object.assign(new Error('550 rejected'), { code: 'ESOCKET', responseCode: 550 }),
+      );
+      expect(result.retryable).toBe(false);
+    });
+
+    it('treats an unrecognised failure as terminal rather than inventing a retry', async () => {
+      const result = await sendFailingWith(new Error('something new'));
+      expect(result.retryable).toBe(false);
+    });
+  });
+
+  it('reports verification failure without throwing, so a bad host cannot stop boot', async () => {
+    const transporter = createTransporterSpy({
+      verify: jest.fn().mockRejectedValue(new Error('ECONNREFUSED')),
+    });
+    const provider = new NodemailerEmailProvider(
+      { transport: { host: 'nope.invalid', port: 587, secure: false }, from: 'info@akomapa.org' },
+      () => transporter as never,
+    );
+
+    await expect(provider.verify()).resolves.toBe(false);
+  });
+});
+
+describe('FakeEmailProvider', () => {
+  it('sends email successfully', async () => {
+    const provider = new FakeEmailProvider();
+    const result = await provider.send('test@example.com', 'Test Subject', '<p>Hello</p>');
+    expect(result.success).toBe(true);
+    expect(result.providerMessageId).toMatch(/^fake-email:/);
+  });
+
+  it('never logs the recipient address', async () => {
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined);
+    try {
+      await new FakeEmailProvider().send('patient@example.org', 'Subject', '<p>Hi</p>');
+      expect(log.mock.calls.flat().join(' ')).not.toContain('patient@example.org');
+    } finally {
+      log.mockRestore();
+    }
+  });
+});

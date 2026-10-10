@@ -4,10 +4,30 @@ import { SyncService } from './sync.service';
 import { AuthModule } from '../auth/auth.module';
 import { PatientModule } from '../patients/patient.module';
 import { EncounterModule } from '../encounters/encounter.module';
+import { MedicalHistoryModule } from '../medical-history/medical-history.module';
+import { ClinicalMeasurementsService } from './clinical-measurements.service';
+import { ClinicianPlanSealService } from './clinician-plan-seal.service';
+import { MedicationReconciliationModule } from '../medication-reconciliation/medication-reconciliation.module';
+import { DiabetesScreeningModule } from '../diabetes-screening/diabetes-screening.module';
+import { HypertensionAssessmentModule } from '../hypertension-assessment/hypertension-assessment.module';
+import { MedicationAdherenceModule } from '../medication-adherence/medication-adherence.module';
+import { PrescriptionModule } from '../prescriptions/prescription.module';
+import { OpsModule } from '../ops/ops.module';
 
 @Module({
-  imports: [AuthModule, PatientModule, EncounterModule],
+  imports: [
+    AuthModule,
+    PatientModule,
+    EncounterModule,
+    MedicalHistoryModule,
+    MedicationReconciliationModule,
+    DiabetesScreeningModule,
+    HypertensionAssessmentModule,
+    MedicationAdherenceModule,
+    PrescriptionModule,
+    OpsModule,
+  ],
   controllers: [SyncController],
-  providers: [SyncService],
+  providers: [SyncService, ClinicalMeasurementsService, ClinicianPlanSealService],
 })
 export class SyncModule {}

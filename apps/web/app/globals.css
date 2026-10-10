@@ -1,34 +1,129 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Poppins:wght@400;500;600;700;800;900&family=Source+Serif+4:wght@200..900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
+    --font-heading: 'Source Serif 4';
+    --font-body: 'IBM Plex Sans';
+    --font-landing: 'Poppins';
     --background: 54 63% 97%;
     --foreground: 200 25% 15%;
     --card: 50 33% 98%;
     --card-foreground: 200 25% 15%;
     --popover: 50 33% 98%;
     --popover-foreground: 200 25% 15%;
-    --primary: 191 98% 36%;
+    /* Derived from the logo teal hsl(188 100% 32%) by the rule in docs/design-system/MASTER.md
+       section 2: keep hue and saturation exactly, move lightness only, by the minimum needed to
+       clear AA. The logo colour itself measures 3.91:1 with white and cannot be used as a fill.
+       At 27% it measures 5.22:1 with white, 5.04:1 as text on the canvas, and 4.58:1 as text on
+       --muted, which is where MUI DataGrid column headers live. 28% would fail that last case
+       at 4.31:1. Previously 191 98% 30%, which was 9.7 deltaE from the logo. */
+    --primary: 188 100% 27%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 43 84% 55%;
+    /* Exactly the logo gold. Dark ink on it measures 9.90:1, so no accessibility compromise is
+       needed. Previously 43 84% 55%, which was 6.5 deltaE from the logo. */
+    --secondary: 47 100% 55%;
     --secondary-foreground: 200 25% 15%;
     --muted: 45 30% 93%;
-    --muted-foreground: 200 10% 45%;
-    --accent: 43 60% 92%;
+    /* 40% rather than 45%: secondary text measured 4.51:1 on card and 4.09:1 on the muted fill,
+       either side of the 4.5:1 line depending on which surface it lands on. Five points darker
+       clears it on every surface the app actually uses. */
+    --muted-foreground: 200 10% 40%;
+    /* Hue moved 43 -> 47 to sit in the same family as the logo gold. */
+    --accent: 47 60% 92%;
     --accent-foreground: 200 25% 15%;
+    /* Success and warning are new. Warning is orange at hue 32 rather than amber, because
+       --secondary is gold at hue 47: sharing a hue would make a warning badge indistinguishable
+       from decorative brand furniture. Separation is 24.2 deltaE. White on success measures
+       5.05:1; dark ink on warning measures 5.39:1. */
+    --success: 152 65% 30%;
+    --success-foreground: 0 0% 100%;
+    --warning: 32 90% 48%;
+    --warning-foreground: 200 25% 15%;
+    /* Info carries the "awaiting review" workflow state, which is neither success, warning, nor
+       destructive. It is not a brand colour and must not be used for actions. */
+    --info: 200 60% 40%;
+    --info-foreground: 0 0% 100%;
+    /* Ink for tinted status badges (bg-<token>/12 + text-<token>-ink), the pattern the badge
+       component already used via bg-emerald-100 / text-emerald-800.
+       Reusing the fill token as the text colour on its own tint FAILS AA: measured 4.28:1 for
+       success and 2.42:1 for warning, because the tint lightens the ground while the ink stays
+       put. These are darkened until they clear on their own tint with headroom: success 5.20:1,
+       warning 5.94:1, info 7.52:1. */
+    --success-ink: 152 65% 26%;
+    --warning-ink: 32 90% 28%;
+    --info-ink: 200 60% 26%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
+    /* The fourth ink, and the one that was missing while the rule above already forbade its
+       absence. --destructive is fine as text on a neutral surface (4.64:1 on the card) and fails
+       on every tint of itself: 4.29:1 at /5, 3.99:1 at /10, 3.13:1 at /25, 2.66:1 at /35. Same
+       hue and saturation, lightness moved only; measures 6.20:1 on a 10% tint over the card. */
+    --destructive-ink: 0 72% 38%;
+    /* --border stays soft at 1.26:1 on the canvas. WCAG 1.4.11 requires 3:1 only for boundaries
+       needed to identify a control; card edges and decorative dividers are exempt. Do not
+       "fix" this value. --input is NOT exempt, which is why it is now split away from --border:
+       previously both were 45 20% 87%, so every text input, select, and textarea in the product
+       had an effectively invisible boundary. At 200 15% 52% it measures 3.47:1. */
     --border: 45 20% 87%;
-    --input: 45 20% 87%;
-    --ring: 191 98% 36%;
+    --input: 200 15% 52%;
+    --ring: 188 100% 27%;
+    /* Pale sage nav rail. 88% is the shallowest tint that still reads as a separate panel
+       against the cream canvas (1.21:1); at 91% it drops to 1.14:1 and the surfaces merge,
+       failing issue #66. Lab hue sits 60 degrees from the logo teal, so it does not read as a
+       washed-out brand colour. At 88% the standard --muted-foreground lands at 4.49:1 and fails
+       by 0.01, so the sidebar carries its own muted ink at 6.13:1 instead of lightening the
+       panel. --sidebar-border is a decorative divider and is exempt from 1.4.11. */
+    --sidebar: 148 32% 88%;
+    --sidebar-border: 148 24% 70%;
+    --sidebar-muted-foreground: 200 14% 32%;
     --radius: 0.625rem;
-    --chart-1: 191 98% 36%;
-    --chart-2: 43 84% 55%;
-    --chart-3: 191 60% 25%;
-    --chart-4: 43 60% 70%;
-    --chart-5: 200 25% 45%;
+    /*
+      Motion, per MASTER.md section 7: 150ms for colour and opacity, 200ms for position, nothing
+      longer in a clinical view. The curves are stronger than the CSS keywords, which start too
+      slowly to read as a response to the user: an ease-out that moves most of the way in the
+      first frames feels faster at the same duration.
+    */
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+    --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+    --duration-fast: 150ms;
+    --duration-base: 200ms;
+    /*
+      Five series, derived and then measured -- see scripts/check-chart-palette.mjs, which runs
+      these same checks in CI. The palette this replaced was two brand hues at two lightnesses
+      plus a desaturated neighbour of the first, which put --chart-1 and --chart-5 at deltaE 6.1
+      under *normal* vision: two series a full-colour reader could not reliably separate.
+
+      Slots 1 and 2 keep the brand hues exactly (teal 188, gold 48) and move only lightness and
+      saturation, which is the derivation rule in MASTER.md section 2. They are no longer byte
+      equal to --primary and --secondary: at 27% the teal's chroma fell below the floor where a
+      hue stops carrying identity, and the gold at 55% was too light to be a reliable mark.
+    */
+    --chart-1: 188 99% 33%; /* #0191A7 teal    3.62:1 */
+    --chart-2: 48 97% 43%; /* #D8AD03 gold    2.05:1, see below */
+    --chart-3: 321 97% 29%; /* #92025F magenta 8.47:1 */
+    --chart-4: 246 99% 75%; /* #8D80FE violet  3.05:1 */
+    --chart-5: 20 99% 36%; /* #B73E01 rust    5.48:1 */
+
+    /*
+      The landing page's fourth accent, at the value it has always rendered.
+
+      It used to reach for --chart-3, which pinned a chart series token to marketing furniture and
+      meant the series ramp could not be re-derived without repainting the landing page. The
+      landing page is a Persuade surface with its own treatment (MASTER.md section 3), so it gets
+      its own token. Do not use it on a clinical view.
+    */
+    --landing-accent: 191 60% 25%;
+
+    /*
+      --chart-2 is the one slot below 3:1 on the card, and no yellow can clear it on a near-white
+      ground while still reading as yellow. Every chart that uses it therefore names its series in
+      a legend and labels the marks directly, so colour is never the only channel.
+    */
   }
 
   .dark {
@@ -38,24 +133,73 @@
     --card-foreground: 54 20% 92%;
     --popover: 200 20% 11%;
     --popover-foreground: 54 20% 92%;
-    --primary: 191 80% 45%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 43 70% 50%;
-    --secondary-foreground: 0 0% 100%;
+    /* Dark mode keeps the fills bright so they read against the background, which means their
+       text has to be dark rather than white: white measured 2.66:1 on primary and 2.22:1 on
+       secondary. Hues moved to 188 and 47 to match the logo, per MASTER.md section 2. Dark ink
+       now measures 7.77:1 on primary and 10.00:1 on secondary. */
+    --primary: 188 80% 47%;
+    --primary-foreground: 200 25% 10%;
+    --secondary: 47 85% 52%;
+    --secondary-foreground: 200 25% 10%;
     --muted: 200 15% 18%;
     --muted-foreground: 200 10% 60%;
     --accent: 200 15% 18%;
     --accent-foreground: 54 20% 92%;
-    --destructive: 0 62% 45%;
-    --destructive-foreground: 0 0% 100%;
+    /* Dark ink measures 7.89:1 on success and 8.43:1 on warning. Warning stays clear of the
+       gold secondary in dark as well. */
+    --success: 152 55% 50%;
+    --success-foreground: 200 25% 10%;
+    --warning: 35 90% 58%;
+    --warning-foreground: 200 25% 10%;
+    --info: 200 60% 58%;
+    --info-foreground: 200 25% 10%;
+    /* Dark inverts the badge: a dark tint of the hue carrying light ink. Measured on a 22% tint
+       over the dark card: success 6.82:1, warning 6.74:1, info 6.49:1. */
+    --success-ink: 152 40% 74%;
+    --warning-ink: 35 75% 74%;
+    --info-ink: 200 45% 74%;
+    /* 8.06:1 on a 10% tint over the dark card. --destructive itself already clears that ground
+       here (4.79:1) after this mode's retune, but the token exists in both so a call site never
+       needs a `dark:` override -- the app has none left and should keep none. */
+    --destructive-ink: 0 50% 80%;
+    /*
+      Lighter than light mode's, and carrying dark ink rather than white.
+
+      `text-destructive` is how every field error, error notice and destructive menu item colours
+      itself -- 32 call sites -- and at `0 62% 45%` it measured 3.02:1 on the dark canvas. Every
+      destructive word in the product failed AA in dark mode. Found by e2e/dark-mode.spec.js on
+      /appointments, where the "Decline" action is the first one axe reaches.
+
+      One token cannot serve both uses at 45%: text on the card needs L >= 60 and white on the
+      fill needs L <= 54, and the windows do not overlap. Flipping the on-colour to dark ink is
+      the usual dark-theme answer and clears all four pairings at 66%:
+
+        text on --background   5.92:1
+        text on --card         5.48:1
+        text on its own 12% tint  4.67:1   (the InlineNotice error tone)
+        --destructive-foreground on the fill  5.60:1
+    */
+    --destructive: 0 62% 66%;
+    --destructive-foreground: 200 25% 10%;
+    /* Same split as light mode: --border stays a soft decorative divider, --input carries the
+       3:1 control boundary and measures 4.74:1 against the dark canvas. */
     --border: 200 15% 20%;
-    --input: 200 15% 20%;
-    --ring: 191 80% 45%;
-    --chart-1: 191 80% 50%;
-    --chart-2: 43 80% 60%;
-    --chart-3: 191 50% 35%;
-    --chart-4: 43 50% 45%;
-    --chart-5: 200 20% 55%;
+    --input: 200 14% 50%;
+    --ring: 188 80% 47%;
+    /* Dark counterpart of the sage nav rail: 1.23:1 against the dark canvas, which reads as a
+       distinct panel at these luminances. Body ink measures 12.68:1 on it and the sidebar's own
+       muted ink 6.51:1. */
+    --sidebar: 155 20% 14%;
+    --sidebar-border: 155 18% 26%;
+    --sidebar-muted-foreground: 155 8% 66%;
+    /* Re-stepped for the dark card, not flipped from light: the band is narrower here
+       (OKLCH L 0.48-0.67) and every slot clears 3:1 on this surface. */
+    --chart-1: 188 100% 37%; /* #00A4BD teal    5.67:1 */
+    --chart-2: 48 99% 35%; /* #B28E01 gold    5.44:1 */
+    --chart-3: 326 55% 46%; /* #B6357E magenta 3.06:1 */
+    --chart-4: 246 96% 74%; /* #8A7DFC violet  5.17:1 */
+    --chart-5: 20 96% 41%; /* #CD4704 rust    3.62:1 */
+    --landing-accent: 191 50% 35%;
   }
 }
 
@@ -66,46 +210,13 @@
   body {
     @apply bg-background text-foreground font-body antialiased;
   }
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     @apply font-heading;
-  }
-}
-
-/* MUI DataGrid global overrides */
-.MuiDataGrid-root {
-  font-family: var(--font-body), system-ui, sans-serif !important;
-  border-color: hsl(var(--border)) !important;
-  border-radius: var(--radius) !important;
-}
-.MuiDataGrid-columnHeaders {
-  background-color: hsl(var(--muted)) !important;
-  font-family: var(--font-body), system-ui, sans-serif !important;
-}
-.MuiDataGrid-columnHeaderTitle {
-  font-weight: 600 !important;
-  color: hsl(var(--foreground)) !important;
-}
-.MuiDataGrid-cell {
-  border-color: hsl(var(--border)) !important;
-  color: hsl(var(--foreground)) !important;
-  font-family: var(--font-body), system-ui, sans-serif !important;
-}
-.MuiDataGrid-row:hover {
-  background-color: hsl(var(--accent)) !important;
-}
-.MuiDataGrid-footerContainer {
-  border-color: hsl(var(--border)) !important;
-}
-.MuiTablePagination-root {
-  color: hsl(var(--muted-foreground)) !important;
-}
-.MuiDataGrid-overlay {
-  background-color: hsl(var(--background) / 0.8) !important;
-}
-
-@media (max-width: 768px) {
-  .MuiDataGrid-root {
-    --DataGrid-rowHeight: 52px;
   }
 }
 
@@ -114,6 +225,22 @@
   .touch-target {
     min-height: 44px;
     min-width: 44px;
+  }
+
+  /*
+    One uppercase micro-label treatment.
+
+    Eight different tracking values were in use across the product (0.14em through 0.3em) on what
+    is visually the same element: the small caps label above a heading, a metric, or a section.
+    Eight values is noise, not hierarchy. 0.14em is the widest setting that still reads as one
+    word at 12px on a clinic screen; 0.3em was splitting labels into letters.
+
+    Colour is deliberately left to the caller: this label is --primary above a page title and
+    --muted-foreground above a metric, and both are correct.
+  */
+  .text-eyebrow {
+    @apply text-xs font-semibold uppercase;
+    letter-spacing: 0.14em;
   }
   .bg-clinical-grid {
     background-image: radial-gradient(circle, hsl(var(--border)) 1px, transparent 1px);
@@ -126,7 +253,43 @@
     background-image:
       radial-gradient(ellipse 80% 60% at 70% 0%, hsl(var(--primary) / 0.12) 0%, transparent 55%),
       radial-gradient(ellipse 60% 50% at 10% 90%, hsl(var(--secondary) / 0.14) 0%, transparent 50%),
-      radial-gradient(ellipse 50% 40% at 90% 70%, hsl(191 60% 92% / 0.8) 0%, transparent 45%);
+      /* Was a literal hsl(191 60% 92%), the only hard-coded colour left in the utility layer and
+         the reason the mesh drifted from the brand when --primary moved onto the logo hue. */
+        radial-gradient(ellipse 50% 40% at 90% 70%, hsl(var(--primary) / 0.08) 0%, transparent 45%);
+  }
+
+  /* Landing: secondary-biased gradient mesh */
+  .landing-gradient-mesh-alt {
+    background-color: hsl(var(--background));
+    background-image:
+      radial-gradient(ellipse 70% 50% at 20% 10%, hsl(var(--secondary) / 0.1) 0%, transparent 55%),
+      radial-gradient(ellipse 60% 50% at 80% 80%, hsl(var(--primary) / 0.08) 0%, transparent 50%);
+  }
+
+  /* Landing: glass morphism utilities.
+     Built on --card rather than literal white so the panel survives dark mode; the previous
+     `bg-white/70` rendered a white slab on a dark canvas. */
+  .landing-glass {
+    @apply border border-border/60 shadow-lg backdrop-blur-xl;
+    background-color: hsl(var(--card) / 0.7);
+  }
+  .landing-glass-dark {
+    background: hsl(var(--foreground) / 0.85);
+    backdrop-filter: blur(24px);
+    border: 1px solid hsl(var(--foreground) / 0.2);
+    color: hsl(var(--primary-foreground));
+  }
+}
+
+@keyframes loading-bar {
+  0% {
+    transform: translateX(-110%);
+  }
+  52% {
+    transform: translateX(80%);
+  }
+  100% {
+    transform: translateX(230%);
   }
 }
 

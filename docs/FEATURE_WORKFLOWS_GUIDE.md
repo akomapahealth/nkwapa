@@ -1,560 +1,639 @@
-# Nkwapa Feature Workflows Guide
+# Feature Workflows Guide
 
-This guide explains how the currently implemented product is meant to be used.
+This guide explains how the currently implemented product is intended to work across staff, admin, and patient surfaces.
 
-It is written for operators, implementers, QA, and future agents who need a practical understanding of the current user flow rather than only the code structure.
-
----
-
-## 1. Who Uses Which Parts of the Product
-
-### Staff roles
-
-- `VOLUNTEER`
-- `PRECEPTOR`
-- `DOCTOR`
-- `MANAGER`
-- `DIRECTOR`
-- `SYSTEM_ADMIN`
-
-### Patient role
-
-- `PATIENT`
-
-### High-level route ownership
-
-
-| User type    | Main surfaces                                              |
-| ------------ | ---------------------------------------------------------- |
-| Volunteer    | patients, encounters, queues, my assigned                  |
-| Preceptor    | queues, encounters, dashboard                              |
-| Doctor       | queues, encounters, dashboard, reminders, my assigned      |
-| Manager      | today board, patients, admin users, audit, dashboard       |
-| Director     | settings, research exports, dashboard, admin users, audit  |
-| System admin | all clinics, all users, clinic lifecycle, global oversight |
-| Patient      | portal overview, health, self-reports, appointments        |
-
+It focuses on real workflow behavior, not internal code structure.
 
 ---
 
-## 2. Login and App Entry Flow
+## 1. Who Uses What
 
-1. User authenticates through Keycloak.
-2. The web app initializes bootstrap by calling `/auth/whoami`.
-3. The app selects an active clinic from the stored clinic or the first available membership.
-4. Navigation, route access, and buttons are permission-driven from the bootstrap response.
+Navigation is gated by permission, not by role name, so a person with two roles at a clinic sees
+the union. The table shows what each role reaches at its own clinic. Routes behind a feature flag
+are marked with the flag.
 
-Important note:
+| User type    | Main surfaces                                                                                                                                                                                       |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Volunteer    | dashboard, patients, new patient, appointments, my assigned, queues, stations (`stationWorkflow`), chat                                                                                             |
+| Doctor       | dashboard, patients, new patient, appointments, my assigned, queues (review and cosign), stations (`stationWorkflow`), chat                                                                         |
+| Manager      | dashboard, today board, stations and station setup, patients, appointments, audit, staff activity, metrics, notifications, staff (`/admin/users`), duplicate review, chat                           |
+| Director     | dashboard, today board, patients, appointments, audit, staff activity, metrics, notifications, clinic settings and research exports, staff and clinics admin, staff invites, duplicate review, chat |
+| System admin | everything above at every active clinic, plus organization report and analytics (`/reports/organization`), cross-clinic duplicates, merge, clinic lifecycle                                         |
+| Patient      | claim record, portal overview, health, self-reports, appointments and change requests                                                                                                               |
 
-- user roles are stored in Nkwapa, not in Keycloak
-- if a Keycloak user has never logged into Nkwapa, they may not yet appear in the local user tables
-
----
-
-## 3. Standard Staff Workflow
-
-The product now has two major staff entry patterns:
-
-1. classic clinical queues
-2. clinic operations board and assignment flow
-
-Both coexist and should be understood together.
-
-### 3.1 Classic clinical workflow
-
-Use this when moving a patient through clinical documentation:
-
-1. search or create patient
-2. open patient profile
-3. start a new visit
-4. complete screening and assessment sections
-5. submit encounter for review
-6. preceptor reviews
-7. doctor finalizes and sets care plan
-
-### 3.2 Operations-first workflow
-
-Use this when running the daily clinic floor:
-
-1. staff checks in for shift
-2. patient is checked in on arrival
-3. manager assigns patient to volunteer and doctor
-4. volunteer opens "My Assigned" and starts intake
-5. encounter is created/linked
-6. doctor later finalizes encounter
+When the station workflow is on, **My Assigned** is hidden and **Stations** replaces it (section 4).
 
 ---
 
-## 4. Patient Creation and Search
+## 2. Login And App Entry
 
-### Create a patient
+1. The user signs in through Keycloak.
+2. The web app calls `/auth/whoami`.
+3. The API returns memberships, active clinic, effective permissions, and onboarding state.
+4. The app sends the last clinic it used as the `x-clinic-id` header. The API honours it only if
+   it is one of the clinics this user may switch to; otherwise the first of those clinics becomes
+   active.
+5. If the user is a patient with a pending invite, the app routes them to `/claim-record`.
 
-1. Open `/patients/new` or the clinic-prefixed new patient route.
-2. Enter demographics and contact details.
-3. If national ID is captured, the backend stores encrypted and hashed forms.
-4. Submit the form.
-5. On success, the app redirects to the patient profile.
+Important rules:
 
-Expected behaviors:
+- identity is managed by Keycloak
+- permissions and clinic memberships are stored in Nkwapa
+- a user usually needs to log in once before appearing in local admin tables
 
-- duplicate national ID entries should be blocked or surfaced as duplicates
-- phone numbers are normalized
-- patient code is generated automatically
+### Switching clinics
 
-### Search for a patient
+Staff with roles at more than one clinic, and every system admin, see a clinic picker in the
+header (in the menu sheet on small screens). Switching changes the records, queues, notifications
+and dashboard shown across the workspace.
 
-1. Open `/patients`.
-2. Search by code, name, or other allowed fields supported by the API.
-3. Open the patient profile from results.
+- A staff member can switch only between active clinics where they hold a role.
+- A system admin can switch to **any active clinic**, with or without a role there, and holds
+  every permission once there. Treat switching as entering that clinic's records: every read and
+  write is scoped to it and audited against it.
+- The choice is remembered on the device (`nkwapa:activeClinicId`). If that clinic is later
+  deactivated or the role is removed, the API ignores it and falls back to the first available
+  clinic.
+
+### Forgot password
+
+1. The user opens the Keycloak Forgot Password link from the sign-in page.
+2. Keycloak asks for username or email and sends the reset email through the realm SMTP settings.
+3. The reset link opens the themed Keycloak update-password flow.
+4. After the password is changed, Keycloak forces a fresh login and returns the user through the
+   normal app redirect.
+
+Recovery behavior:
+
+- local development uses Mailpit at `http://localhost:8025`
+- staging and production require real `KC_SMTP_*` secrets on the Keycloak service
+- expired or invalid reset links show the branded recovery page with actions to request a new link
+  or return to sign in
+- admins should trigger password reset emails with Keycloak Admin REST `execute-actions-email` and
+  `["UPDATE_PASSWORD"]`
 
 ---
 
-## 5. Encounter Workflow
+## 3. Staff Clinical Workflow
 
-### Start a new encounter from patient chart
+Use this when the primary task is documenting care.
 
-1. Open the patient profile.
-2. Click the action to begin a new visit.
-3. Fill clinical forms in the encounter page.
-4. Save or submit as appropriate.
-
-### Submit for review
-
-Volunteer or staff with appropriate permissions:
-
-1. finish the draft data entry
-2. use the submit action
-3. encounter moves from `DRAFT` to `IN_REVIEW`
-
-### Preceptor review
-
-Preceptor:
-
-1. open an encounter in review
-2. review the clinical content
-3. use the preceptor review action
-
-### Finalization
-
-Doctor:
-
-1. review the encounter
-2. complete or update care plan
-3. add prescriptions if needed
-4. finalize the encounter
+1. Search for an existing patient or create a new one.
+2. Open the patient chart.
+3. Start a new encounter.
+4. Complete vitals and screening data.
+5. Submit the encounter for review.
+6. A doctor reviews the encounter from **Queues → Needs Review**.
+7. A doctor finalizes the encounter, completes the care plan, and adds prescriptions if needed.
 
 Finalization effects:
 
-- encounter becomes read-only
-- reminders may be scheduled if follow-up date exists
-- operational check-in state may be completed downstream
+- the encounter becomes read-only
+- follow-up reminders can be scheduled
+- downstream ops status can be advanced by staff workflows
 
 ---
 
-## 6. Consent Workflow
+## 4. Operations-First Workflow
 
-### Record consent
+Use this when the clinic is working from the floor-management view.
 
-1. Open the patient consent page.
-2. Choose grant or revoke flow.
-3. Fill witness and related required information.
-4. Save.
+1. Staff checks in for a shift.
+2. Patients are checked in as they arrive.
+3. A manager assigns a volunteer and doctor.
+4. Volunteers or doctors open `/my/assigned`.
+5. The volunteer starts intake from the assigned patient.
+6. The workflow enters the regular encounter flow.
 
-Why this matters:
+Main pages:
 
-- research consent affects export eligibility
-- the latest effective consent is what matters at export execution time
+- `/today`
+- `/my/assigned`
+
+### When the station workflow is on
+
+Clinics that run screening as a line of stations enable `FEATURE_STATION_WORKFLOW_ENABLED` and
+`NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED` together (the web flag needs a rebuild). Then:
+
+1. Check-in queues the patient at the first active station. No manager assignment is needed.
+2. Whoever is free at a station opens `/stations` and presses **Take patient**. If two people take
+   the same patient, one wins and the other is told who has them.
+3. The volunteer records that station's data and hands the patient on with an optional note.
+   Skipping a station asks for a reason.
+4. The last station (Counselling and clinical review) records counselling and completes the
+   session. A doctor reviews it afterwards from **Queues → Needs Review**.
+5. Managers can Move, Release or mark a patient as Left from `/today`, each with a reason.
+6. The old manager Assign flow is refused with `409 STATION_WORKFLOW_ACTIVE`.
+
+Managers rename, reorder, close, add and set capacity for stations on `/stations/setup`. See
+`docs/clinic-ops/27_STATION_WORKFLOW_V1.md`.
 
 ---
 
-## 7. Reminders Workflow
+## 5. Patient Registry Workflow
+
+### Create patient
+
+1. Open `/patients/new`.
+2. Enter demographics and contact details.
+3. If national ID is provided, the backend stores encrypted and hashed values.
+4. Submit the form.
+5. The app redirects to the patient chart.
+
+### Search or browse registry
+
+1. Open `/patients`.
+2. Search by name, patient code, phone, or related terms.
+3. Use either classic paged browsing or the newer cursor-ready list API behavior behind the page.
+4. Open the selected chart.
+
+### Update chart
+
+1. Open the patient detail page.
+2. Use edit actions for demographics or chart maintenance.
+3. Save changes.
+
+---
+
+## 6. Portal Link, Invite, And Claim Flow
+
+There are two supported staff-side patterns for patient access:
+
+### Direct link
+
+Use when the patient already has a local Nkwapa user account.
+
+1. Open the patient chart.
+2. Use the portal-link action.
+3. Search for eligible local users.
+4. Link the correct identity to the chart.
+
+### Invite and claim
+
+Use when you want the patient to claim access later.
+
+1. Open the patient chart.
+2. Create a portal invite with email and/or phone, and choose how long it stays valid.
+3. If an email address was given, an invitation email is sent to it.
+4. The invite remains claimable until it is claimed, cancelled, or reaches its expiry.
+5. When the patient logs in, `/auth/whoami` can return `PATIENT_CLAIM_REQUIRED`.
+6. The user completes `/claim-record`.
+7. The patient record becomes linked to that portal account.
+
+A claim is accepted on a matching email address or a matching phone number -- either alone is
+enough, and email is compared without regard to case. The patient code may be the one the record
+holds now or any code it answered to before a merge. Every refusal says what happened and what to
+do next: an expired invitation names the date it lapsed, a record with no date of birth on file
+tells the patient to ask staff to add one, and a record already connected to a different sign-in is
+refused rather than taken over.
+
+What the invitation email contains:
+
+- the clinic name and the patient's first name
+- the patient code, which the claim step requires
+- a link to sign in, when a public web address is configured
+- the invite expiry
+
+It deliberately contains no other identifying detail. The address is supplied by staff
+and is unverified until the account is claimed.
+
+### Invite lifetime
+
+Every invite has an expiry. Staff choose 7, 14, or 30 days when creating one; the default
+is 14 and comes from `PORTAL_INVITE_TTL_DAYS`.
+
+Once an invite passes its expiry it stops working everywhere at once. It cannot be
+claimed, it stops putting the patient into claim onboarding at sign-in, it stops granting
+that clinic's records to the account holding the address, and it cannot be resent. The
+recovery is a new invite, which the chart offers.
+
+A background sweep marks lapsed invites `EXPIRED` every hour. Nothing depends on it having
+run — the rules above are enforced when an invite is used, not when it is swept — so a
+Redis outage delays the label and never the rule.
+
+### What the chart shows
+
+The portal card carries the state of access and the invitation in one place:
+
+- whether the patient is linked, has an invitation waiting, or has no access at all
+- for the live invitation: how long it has left, which address or number it was staged
+  against, who issued it, and whether the email was queued, sent, or failed
+- previous invitations, behind a disclosure — claimed, cancelled, and expired ones, with
+  who issued them
+
+Staff can resend the invitation email, cancel the invitation, or replace it with a new
+one. Cancelling asks for confirmation first and names what stops working. Every one of
+these actions is written to the audit trail, as is the expiry transition itself.
+
+### When email cannot carry the invitation
+
+The invitation is valid whether or not an email carried it. Three situations produce no
+email, and the card distinguishes them because only one is worth chasing an administrator
+about:
+
+- the invite was staged against a phone number only, so nothing was sent by design
+- the server has no working SMTP configuration
+- the mail server refused the message
+
+In each case the card offers the claim details as copyable text — the clinic name, the
+patient code, the sign-in address, and the expiry date — for staff to read out or send by
+another channel. It carries no patient name or date of birth.
+
+Important safety rules:
+
+- merged charts cannot be claimed
+- charts missing required identity details can block claim completion
+- clinic staff should always link or invite from the correct chart
+- an invite email alone never grants access; the claim step still matches email, patient
+  code, and date of birth
+- an expired invitation is refused with the date it expired and what to do next, rather
+  than a bare "not found"
+
+---
+
+## 7. Duplicate Patient Merge Workflow
+
+Duplicate chart merge is currently a system-admin action.
+
+1. Open the canonical patient chart.
+2. Launch the merge dialog.
+3. Search for the duplicate source chart.
+4. Confirm the merge.
+5. The source chart is marked as merged into the canonical chart.
+6. The old patient code is retained as an alias for lookup and historical references.
+
+Current constraint:
+
+- merges are limited to records in the same clinic
+
+### When a merge is refused
+
+The preview reports everything that would stop the merge before anything changes, and each refusal
+names what to do instead. The ones staff meet in practice: the two charts belong to different
+clinics, one of them has already been merged, both hold an open preferred pharmacy period, each is
+linked to a different app account with no choice made between them, or the duplicate's code is
+already recorded against a third chart.
+
+A refusal is not a disabled button. The step that commits is not offered at all.
+
+### After a merge
+
+The retired chart is not deleted, so both its address and the code it gave up keep working:
+
+- opening the retired chart's link lands on the surviving record, and says so
+- the old patient code still finds the surviving record, and a patient can still claim with it
+- the retired chart no longer appears in the patient list or in search
+- everything filed under it -- visits, measurements, invitations, appointments -- is on the
+  survivor
+
+`docs/security/patient-identity-matrix.md` lists every duplicate rule, every merge refusal and
+every claim outcome, and is generated from the table the API tests assert against.
+
+---
+
+## 8. Patient Portal Workflow
+
+Once a patient account is linked or claimed, the patient can:
+
+- open `/portal`
+- log measurements in `/portal/health`
+- submit self-reports in `/portal/self-reports`
+- request appointments in `/portal/appointments`
+- review trends, recent readings, recommendations, and reminders
+
+Staff-facing related reads include:
+
+- patient measurements
+- patient trends
+- patient self-reports
+- appointment request review and confirmation/rejection
+
+---
+
+## 9. Research Export Workflow
+
+1. A director or other authorized user opens the clinic research export console.
+2. They request an export for a date range.
+3. If the clinic requires approval, an approver approves it.
+4. A background job creates the de-identified ZIP artifact.
+5. The result can be downloaded and, when configured, synced to GitHub.
+
+Gate checks:
+
+- clinic research must be enabled
+- requester needs `RESEARCH.EXPORT.REQUEST`
+- approver needs `RESEARCH.EXPORT.APPROVE` when approval is required
+- patient consent is evaluated at execution time
+
+---
+
+## 10. Notification Workflow
+
+Every message the clinic sends is recorded in one place and reviewed from the
+notifications surface. Reminders, portal invites, appointment updates, and staff access
+notices all appear there.
 
 ### Follow-up reminders
 
-1. During encounter finalization, set a follow-up date.
-2. Finalize the encounter.
+1. A doctor sets a follow-up date in the care plan.
+2. The encounter is finalized.
 3. Reminder records are created.
-4. Queue worker sends them through configured provider.
+4. BullMQ workers deliver them through the configured SMS or email provider.
 
 ### Appointment reminders
 
-1. Patient requests appointment.
-2. Clinic confirms appointment time.
-3. Appointment-linked reminders can be scheduled.
+1. Staff confirm an appointment request.
+2. Reminder records are created for available contact channels and linked to the appointment.
+3. Rescheduling suppresses queued reminders for the previous appointment time and creates replacement reminders for the new time.
+4. Cancellation, completion, and no-show states suppress future queued appointment reminders.
+5. If a patient has no usable contact method, a failed reminder record is kept with `NO_CONTACT_METHOD`.
+6. Workers re-check appointment state before sending, so cancelled, completed, no-show, or stale rescheduled reminders are not delivered.
 
-### View reminder status
+### Appointment updates
 
-1. Open `/reminders`.
-2. Filter by status or date range.
-3. Inspect queued, sent, delivered, or failed items.
+1. Confirming, rescheduling, or cancelling an appointment emails the patient, when an
+   address is on file.
+2. A reschedule email names both the previous and the new time.
+3. A cancellation email carries the reason staff entered.
+4. Completion and no-show send nothing. They are internal outcomes.
 
----
+### Staff access notices
 
-## 8. Today Board Workflow
+1. Granting or removing a clinic role emails the staff member.
+2. Deactivating an account emails them, saying whether it applies to one clinic or to
+   the whole account.
+3. Re-granting a role somebody already holds sends nothing, because nothing changed.
+4. A staff member with no email address on file still has their access changed; the
+   ledger records that no message could be sent.
 
-Route:
+### Status review
 
-- `/today`
+Staff review queued, sent, delivered, or failed messages from the notifications surface,
+filtered by status, channel, type, or date. Appointment rows also summarize reminder
+state with queued, delivered, and failed counts, so operators can spot delivery issues
+without leaving the schedule. Those counts include only the 24-hour reminder, not the
+appointment update emails.
 
-Audience:
+Two things worth knowing when reading a status:
 
-- primarily managers, directors, and other ops-capable staff
+- **Only SMS reports Delivered.** The SMS provider sends a delivery receipt; SMTP has no
+  equivalent, so an email that was accepted stops at Sent. That is success, not a stall.
+- **A failed row explains itself.** Each failure names what went wrong and what to do,
+  and says nothing about retrying where retrying cannot help, such as a reminder
+  suppressed because its appointment was cancelled.
 
-### What the page shows
+### When email is unavailable
 
-- active shifts for the selected day
-- patient check-ins grouped by status
-- assignment state on check-ins
-- assignment actions and reassignment flow
+If the server is set to send real email but the SMTP settings are incomplete, the
+notifications surface shows a banner naming the missing settings, and affected messages
+are recorded as failed with `EMAIL_NOT_CONFIGURED` rather than disappearing. The API
+still starts and every other workflow continues to work.
 
-### Staff shift flow
+Outside production the fake provider is normal: messages are recorded and logged but not
+delivered, and the banner says so rather than reporting a fault.
 
-1. Open `/today`.
-2. Select a role-at-shift.
-3. Click check-in.
-4. The active shift appears in the staff roster.
-5. At end of shift, check out.
+### Email configuration
 
-### Manager patient assignment flow
+Application email is configured with `EMAIL_PROVIDER`, `SMTP_HOST`, `SMTP_PORT`,
+`SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE`, `EMAIL_FROM`, `EMAIL_REPLY_TO`, and
+`APP_PUBLIC_URL`. See `.env.example` for the full annotated list.
 
-1. Create or view today’s patient check-ins.
-2. For a `WAITING` patient, click assign.
-3. Select an active volunteer and active doctor.
-4. Save.
-5. The patient moves into the assigned state.
+- `SMTP_USER` and `SMTP_PASS` are optional, but only as a pair. Leave both blank for an
+  unauthenticated relay; setting one without the other is reported as a misconfiguration.
+- `APP_PUBLIC_URL` is what links in outbound mail are built from. When it is unset, mail
+  is sent without a link rather than with a broken one.
+- Locally, point the app at the Mailpit in `infra/nkwapa/docker-compose.yml`
+  (`SMTP_HOST=localhost`, `SMTP_PORT=1025`) and read the inbox at http://localhost:8025.
 
-### Reassignment flow
+### Authenticating the sending domain
 
-1. Open an already assigned patient.
-2. Choose reassign.
-3. Select new staff and provide reason if required.
-4. Save.
+Configuring SMTP makes the app able to send. It does not make receiving providers trust
+what arrives. Since 2024 Gmail and Yahoo reject or spam-folder unauthenticated mail, so the
+domain in `EMAIL_FROM` needs three DNS records before patient mail is reliable:
 
-Expected behavior:
+- **SPF** — one TXT record at the apex naming every service allowed to send. For Google
+  Workspace that is `v=spf1 include:_spf.google.com ~all`. Exactly one SPF record per
+  domain; adding a second is a permanent error that fails worse than having none.
+- **DKIM** — generated in the Google Admin console under Apps → Google Workspace → Gmail →
+  Authenticate email, then published as a `google._domainkey` TXT record. Publish the
+  record first and start authentication only once it resolves.
+- **DMARC** — a `_dmarc` TXT record saying what to do when the first two fail.
 
-- only actively checked-in staff are valid assignment choices
+**Publish DKIM before tightening DMARC.** A policy of `p=quarantine` or `p=reject` with no
+DKIM record leaves SPF alignment as the only thing standing between a patient invite and
+the spam folder. Start at `p=none` with a `rua=` reporting address, confirm from the
+reports that mail authenticates, and only then tighten.
 
----
+This failure is invisible from inside the product, which is what makes it worth stating
+here. The delivery ledger records `SENT` when the relay accepts a message, and SMTP offers
+no delivery receipt, so an invite that was quarantined looks exactly like one that arrived.
+Staff will chase the patient rather than the DNS. Verify with an external mailbox and read
+the raw headers for `spf=pass` and `dkim=pass`; mail between two addresses inside the same
+Workspace tenant can pass internally while failing for everyone else.
 
-## 9. My Assigned Workflow
-
-Route:
-
-- `/my/assigned`
-
-Audience:
-
-- volunteers and doctors
-
-### Volunteer flow
-
-1. Check in for shift if not already active.
-2. Open `/my/assigned`.
-3. Review assigned patients.
-4. Click `Start Intake` for a patient.
-5. The app creates or links the encounter and routes into the encounter UI.
-
-### Doctor flow
-
-1. Open `/my/assigned`.
-2. Review assigned patients.
-3. Open the linked encounter when ready to continue clinical work.
-
-Operational note:
-
-- this page is effectively online-only
-
----
-
-## 10. Dashboard Workflow
-
-Route:
-
-- `/dashboard`
-
-What changes by role:
-
-- doctor sees finalization workload and clinical patterns
-- preceptor sees review workload
-- manager/director sees clinic and operational metrics
-- volunteer sees task-oriented summaries
-- system admin sees broader admin-oriented views
-
-How to use it:
-
-1. Open dashboard after login.
-2. Confirm the active clinic is correct.
-3. Read summary counts first.
-4. Use charts and recent activity sections to identify backlog or trends.
+**Keycloak email is configured separately.** Verify-email and password-reset messages are
+sent by Keycloak using the `KC_SMTP_*` settings on the Keycloak service. Those are a
+different service, a different mailbox configuration, and are not affected by any of the
+variables above.
 
 ---
 
-## 11. Admin Users and Access Workflow
+## 11. Current UX Recovery Expectations
 
-Route:
+Users should not hit raw blank screens for normal failures.
 
-- `/admin/users`
+Current product behavior includes:
 
-### Assign a role
+- root loading skeletons while a route is still resolving
+- app-wide error boundaries with retry actions
+- inline API error messaging with recovery guidance
+- not-found fallback state
+- timeout and network-aware frontend API errors
 
-1. Open staff access page.
-2. Find a user.
-3. Open the details sheet.
-4. Choose role and clinic.
-5. Save assignment.
-
-### Revoke a role
-
-1. Open the same user details sheet.
-2. Inspect current roles.
-3. Revoke the selected role.
-
-### Deactivate a user
-
-1. Open the user row.
-2. Choose deactivate.
-3. Confirm the action.
-
-Expected system behavior:
-
-- deactivated users should lose access through auth/bootstrap
-- self-deactivation should be blocked
-- actor authority is constrained by clinic/global role rules
+This baseline exists across the app, though some newer pages still need more route-specific polish.
 
 ---
 
-## 12. Clinic Settings Workflow
+## 12. Feature Flag Convention
 
-Route:
+Feature flags are temporary rollout controls for changes where independently enabling or disabling
+the API and web experience reduces release risk. V1 flags use environment variables and the typed
+readers in `apps/api/src/common/feature-flags.ts` and `apps/web/lib/feature-flags.ts`; do not read
+feature-flag environment variables directly at call sites.
 
-- `/settings/clinic`
+### Naming and defaults
 
-Current purpose:
+- API flags use `FEATURE_<DOMAIN>_<CAPABILITY>_ENABLED`.
+- Browser-visible flags use the paired
+  `NEXT_PUBLIC_FEATURE_<DOMAIN>_<CAPABILITY>_ENABLED` name.
+- Only a trimmed, case-insensitive `true` enables a flag.
+- Missing, empty, `false`, and invalid values fail closed to disabled in every environment.
+- Public `NEXT_PUBLIC_*` values are embedded when Next.js builds. Changing one requires rebuilding
+  and redeploying the web app.
 
-- manage research settings for the clinic
+The medical history and allergies workflow uses the first registered pair:
 
-Actions:
+```dotenv
+FEATURE_MEDICAL_HISTORY_ENABLED=false
+NEXT_PUBLIC_FEATURE_MEDICAL_HISTORY_ENABLED=false
+```
 
-1. open clinic settings
-2. turn research on or off
-3. decide whether every export needs director approval
-4. save changes
+### Reading flags
 
----
+The API is authoritative. A disabled API feature must reject access before running feature logic;
+the web flag only controls whether the corresponding entry point is shown.
 
-## 13. Research Export Workflow
+```ts
+import { NotFoundException } from '@nestjs/common';
+import { isApiFeatureEnabled } from '../common/feature-flags';
 
-Route:
+export function assertMedicalHistoryEnabled() {
+  if (!isApiFeatureEnabled('medicalHistory')) {
+    throw new NotFoundException();
+  }
+}
+```
 
-- `/clinics/[clinicId]/research/exports`
+```tsx
+import { isWebFeatureEnabled } from '@/lib/feature-flags';
 
-### Request an export
+export function MedicalHistoryEntry() {
+  return isWebFeatureEnabled('medicalHistory') ? <MedicalHistoryTab /> : null;
+}
+```
 
-1. Open the research export console.
-2. Pick a date range or preset.
-3. Review the de-identification summary.
-4. Submit export request.
+Never use a browser flag as authorization or as a substitute for permissions, tenant isolation,
+validation, or audit controls.
 
-### Approve or reject
+### Adding and rolling out a flag
 
-If the clinic requires approval:
+1. Confirm that independent rollback materially reduces risk and name an owner in the feature issue.
+2. Register the typed key and explicit environment-variable reader in each affected app.
+3. Add the variable with a `false` default to local, staging, and production environment templates.
+4. Test parsing, mapping, disabled behavior, and both enabled and disabled feature paths.
+5. Enable and validate the API first. Then enable, rebuild, and deploy the web app.
 
-1. a director opens the request row
-2. chooses approve or reject
-3. approval queues processing automatically
+For medical history, validation includes clinic isolation, immutable revision conflicts,
+no-known-allergies transitions, offline replay, and prescription acknowledgement. The complete
+clinical rollout checklist is in `docs/specs/07_MEDICAL_HISTORY_AND_ALLERGIES.md`.
 
-### Processing flow
+Medication reconciliation uses a separate pair:
 
-Once approved:
+```dotenv
+FEATURE_MEDICATION_RECONCILIATION_ENABLED=false
+NEXT_PUBLIC_FEATURE_MEDICATION_RECONCILIATION_ENABLED=false
+```
 
-1. export moves to `PROCESSING`
-2. backend generates the fixed v1 research pack
-3. ZIP artifact is written locally
-4. GitHub repo snapshot sync is attempted
-5. export becomes `COMPLETED` or `FAILED`
+Its release validation covers exact-list reconciliation, no-known-current attestation,
+preferred-pharmacy uniqueness and transitions, prescription-permission separation, offline replay,
+and clinic isolation. See `docs/specs/08_MEDICATION_RECONCILIATION_AND_PHARMACIES.md`.
 
-### Retry
+HAP clinical notes use an online-only pair:
 
-If export failed:
+```dotenv
+FEATURE_CLINICAL_NOTES_ENABLED=false
+NEXT_PUBLIC_FEATURE_CLINICAL_NOTES_ENABLED=false
+```
 
-1. use retry action
-2. export is re-queued
-3. status progresses again through processing
+The API flag protects every note route, while the web flag controls encounter, patient-chart,
+dashboard, and cosign-queue entry points. Enable the API first, then rebuild with the web flag.
+Rollback occurs in the opposite order. Clinical-note validation includes database immutability,
+explicit clinic clinical roles, assignment snapshots, idempotent signing, audit redaction, downstream
+exclusion, offline content removal, and responsive browser coverage. See
+`docs/specs/10_CLINICAL_NOTES.md`.
 
-### Download
+If rollback is needed, disable and redeploy the web app first, then disable the API after clients no
+longer expose the feature.
 
-When completed:
+### Removing a flag
 
-1. use download action
-2. ZIP artifact downloads locally
-
-### What is inside the v1 pack
-
-- de-identified CSV tables
-- manifest metadata
-- checksums
-- stable research keys
-- no direct identifiers
-
----
-
-## 14. Patient Portal Workflow
-
-Routes:
-
-- `/portal`
-- `/portal/health`
-- `/portal/self-reports`
-- `/portal/self-reports/new`
-- `/portal/appointments`
-- `/portal/appointments/request`
-
-### Portal overview
-
-1. patient logs in
-2. opens `/portal`
-3. sees summary, reminders, recent data, and shortcuts
-
-### Log a measurement
-
-1. open health or self-report creation
-2. choose BP, glucose, or weight style entry
-3. enter data
-4. submit
-5. trend views update
-
-### Review trends
-
-1. open `/portal/health`
-2. inspect BP and glucose trends
-3. compare recent readings and follow-up context
-
-### Request appointment
-
-1. open `/portal/appointments/request`
-2. choose date range
-3. provide optional reason or notes
-4. submit
-
-### Review appointments
-
-1. open `/portal/appointments`
-2. inspect pending requests and confirmed appointments
+Flags are not permanent application settings. After full rollout and the agreed rollback window,
+the owning feature issue must schedule removal. The removal change deletes the disabled branch,
+typed registry entries, environment variables, flag-specific tests, and stale documentation
+together. Do not add flags for authorization policy, permanent tenant configuration, or low-risk
+changes that can ship normally.
 
 ---
 
-## 15. Staff Use of Portal-Related Data
+## 13. Staff Appointment Workflow
 
-Staff can use patient portal data through:
+Patients request a date range from the portal; staff decide the exact time.
 
-- patient self-report listing
-- patient trend views
-- patient measurement reads
-- portal account linking
-- clinic appointment request APIs
+1. Open `/appointments`. Pending requests appear in the triage panel.
+2. **Confirm** a request with an exact start time, or **Reject** it. Confirming creates the
+   appointment and schedules its reminders.
+3. Use the day or week view and the filters to work the schedule.
+4. From an appointment's actions: **Reschedule** (asks for the new time), **Complete**, **Mark
+   no-show** (refused before the start time), or **Cancel appointment** (asks for a reason, which
+   the patient receives by email).
+5. Patient change requests (reschedule or cancel) appear for staff to decide; the patient cannot
+   change a confirmed appointment directly.
 
-Current product note:
-
-- clinic-side appointment triage APIs exist
-- a dedicated staff calendar UI is still a good next UI layer
-
----
-
-## 16. Recommended Daily User Flow by Role
-
-### Volunteer
-
-1. log in
-2. check in for shift
-3. review my assigned patients
-4. start intake
-5. complete encounter draft
-6. submit for review
-
-### Preceptor
-
-1. log in
-2. open queue or dashboard
-3. review in-review encounters
-4. complete preceptor review
-
-### Doctor
-
-1. log in
-2. review assigned or ready-to-finalize cases
-3. inspect trends if needed
-4. add care plan and prescriptions
-5. finalize encounter
-6. confirm reminders are scheduled if follow-up is needed
-
-### Manager
-
-1. log in
-2. open today board
-3. confirm who is on duty
-4. monitor check-ins
-5. assign patients
-6. monitor audit and operational progress
-
-### Director
-
-1. monitor dashboard and audit
-2. manage staff access where allowed
-3. manage research settings
-4. approve or reject research exports
-
-### System admin
-
-1. manage clinics
-2. manage global or cross-clinic user access
-3. deactivate users when required
-
-### Patient
-
-1. open portal overview
-2. log readings
-3. review trends
-4. request appointment
-5. watch for reminder and follow-up information
+Reading the schedule needs `APPOINTMENT.READ` (director, manager, doctor, volunteer). Triage and
+every lifecycle change need `APPOINTMENT.WRITE` (manager, doctor). See
+`docs/clinic-ops/22_APPOINTMENTS_CALENDAR_V1.md` and section 10 for the emails each step sends.
 
 ---
 
-## 17. Features That Need Special Deployment Attention
+## 14. Staff Invites
 
-### Reminder flows
-
-Need:
-
-- Redis
-- provider env configuration
-- API worker running
-
-### Research export flows
-
-Need:
-
-- research env configuration
-- `RESEARCH_HMAC_KEY`
-- GitHub repo settings and token
-- Redis
-
-### Portal flows
-
-Need:
-
-- `PATIENT` role
-- patient account link
-- patient active clinic alignment
+Directors (for their own clinic) and system admins invite managers, doctors and volunteers by
+email from `/admin/users` → **Invite a colleague**. The invite creates the Keycloak account,
+emails a password-setup link, and grants the role when the colleague accepts on `/accept-invite`.
+Director and System Admin are never granted by invite. Full rules, refusals and audit events are
+in `docs/USER_AND_ROLE_SETUP_GUIDE.md` section 6.
 
 ---
 
-## 18. When a Workflow Changes
+## 15. Organization Reporting And Cohort Analytics
 
-If you change a user-visible workflow, update all relevant docs:
+System admins only (`ORGANIZATION.REPORT.READ`, held through the `*` wildcard).
 
-1. `IMPLEMENTATION_STATUS.md`
-2. `docs/FEATURE_WORKFLOWS_GUIDE.md`
-3. `docs/USER_AND_ROLE_SETUP_GUIDE.md`
-4. `docs/USER_TESTING_GUIDE.md`
-5. feature-specific docs like the research export spec
+1. Open `/reports/organization` and pick the organization.
+2. The **Report** tab rolls up every clinic in the organization, one row per clinic with its zone.
+   **Open dashboard** switches to that clinic's dashboard.
+3. The **Cohort analytics** tab builds an encounter cohort for a date range and can narrow it by
+   clinic, zone, encounter status and condition workflow. **Only this clinic** on a row narrows the
+   cohort to that clinic. It shows counts only; no patient is ever listed.
 
+Zone is a reporting filter, never a permission. See `docs/specs/02_DOMAIN_MODEL_AND_DATA_DICTIONARY.md`
+(Organization analytics) for how the cohort and each measure are defined.
+
+---
+
+## 16. Clinic Oversight: Staff Activity And Metrics
+
+- `/staff-activity` (`AUDIT.READ`: manager, director) shows activity at the active clinic by
+  person and by day, with a per-person drill-down.
+- `/metrics` (`METRICS.READ`: manager, director) shows station wait time and throughput and the
+  instrumented product events.
+
+---
+
+## 17. Offline Work And Sync Recovery
+
+Core clinical work (patients, encounters, forms, consent, prescriptions), shift start and end,
+patient check-in, and a doctor's clinician plan can be saved while offline. They queue on the
+device and send when the connection returns.
+
+- The sync status bar shows what is waiting, sending, or needs attention.
+- A change that conflicts with the server is held for review; the user can retry it or discard it
+  (discarding asks for confirmation).
+- Changes queued while working in another clinic are listed separately and are sent as the account
+  and clinic that queued them.
+- Assigning a patient, starting a visit, and handing a patient between stations stay online-only,
+  because they depend on who is on duty at that moment.
+
+See `docs/specs/04_OFFLINE_FIRST_AND_SYNC.md`.
+
+---
+
+## 18. Staff Chat
+
+Staff with `CHAT.SEND` open the chat panel from the bottom-right of the workspace. Conversations
+are scoped to the active clinic.
+
+- Direct messages between two staff members, and group conversations of up to 50 people. Any
+  member can add people or rename a group; someone who left and is added back keeps their history.
+- Online presence, last seen, typing indicators and unread counts update live.
+- Messages are TLS-protected in transit; they are not end-to-end encrypted.

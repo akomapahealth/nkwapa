@@ -14,8 +14,16 @@ export function ClinicScoped(source?: ClinicIdSource) {
     return SetMetadata(CLINIC_SCOPED_KEY, true);
   }
   return (target: object, key?: string | symbol, descriptor?: PropertyDescriptor) => {
-    SetMetadata(CLINIC_SCOPED_KEY, true)(target, key!, descriptor as TypedPropertyDescriptor<unknown>);
-    SetMetadata(CLINIC_ID_SOURCE_KEY, source)(target, key!, descriptor as TypedPropertyDescriptor<unknown>);
+    SetMetadata(CLINIC_SCOPED_KEY, true)(
+      target,
+      key!,
+      descriptor as TypedPropertyDescriptor<unknown>,
+    );
+    SetMetadata(CLINIC_ID_SOURCE_KEY, source)(
+      target,
+      key!,
+      descriptor as TypedPropertyDescriptor<unknown>,
+    );
     return descriptor;
   };
 }

@@ -1,4 +1,4 @@
-# 26. Research Export Transforms V1
+# 26. Research Export Transforms V1 And V2
 
 ## Status
 
@@ -53,7 +53,7 @@ The v1 sync target is one private GitHub repository.
 
 ## Fixed Pack Contract
 
-Every completed v1 export pack contains:
+Every completed export pack includes:
 
 - `manifest.json`
 - `SHA256SUMS.txt`
@@ -61,17 +61,60 @@ Every completed v1 export pack contains:
 - `research_ops_checkins.csv`
 - `research_ops_assignments.csv`
 - `research_clinical_vitals.csv`
+- `research_clinical_tobacco.csv`
 - `research_clinical_screenings.csv`
+- `research_medication_adherence.csv`
 - `research_measurements.csv`
 - `research_appointments.csv`
 - `research_revocations.csv`
+- `research_medical_history.csv`
 
 The contract is versioned as:
 
 - `policyVersion = research-export-v1`
-- `datasetVersion = 1`
+- `datasetVersion = 5`
 
-Any future schema change to the pack should increment the dataset version.
+Consumers must select transforms by dataset version.
+
+**Version 3** expands the canonical vitals columns, renames `heart_rate` to `pulse_bpm`, and adds
+the structured tobacco dataset. Reviewer identity is excluded; only reviewed state and rounded
+review time are exported.
+
+**Version 4** adds a coarse `residential_region` column to `research_subjects.csv`.
+
+**Version 5** realises the guided chronic-disease interviews (#114). It is additive: every column a
+v4 consumer reads is unchanged, and the only file that has to be read for the first time is the
+new one.
+
+- `research_clinical_screenings.csv` gains forty hypertension columns, all prefixed
+  `hypertension_`. It carried three -- classification, suspected, confirmed -- while the interview
+  behind it recorded sixty fields, because `HypertensionAssessment` had no entry in the research
+  field registry at all. Notably it now carries `hypertension_derived_classification` and
+  `hypertension_classification_overridden` alongside `hypertension_classification`: given only the
+  recorded value, an analysis cannot tell a threshold result from a clinician disagreeing with one.
+- `research_medication_adherence.csv` is new, one row per medication observed at one visit. The
+  medication is never named: `research_medication_record_key` and
+  `research_observed_revision_key` join to the reconciled medication list, where the coded `drugId`
+  is the analysable form and the patient-reported name is excluded as free text.
+- Multi-valued columns (symptoms, barriers, review reasons) are pipe-joined, so a spreadsheet reads
+  them without a JSON parser.
+- `hypertension_year_diagnosed` is banded to five years. An exact diagnosis year combined with an
+  age is frequently unique in a clinic of a few hundred, and the analysis it supports -- disease
+  duration -- a band answers as well.
+- The supervising clinician plan stays out, as it does for diabetes: it is a decision about one
+  identified patient, and a research export is the widest reader there is. The numeric blood
+  pressure goal is exported, because a target on a shared scale is a different kind of fact from
+  the list of actions a named doctor chose.
+
+Which columns of which tables are exported, coarsened or excluded -- and why, for every column of
+every clinical model -- is recorded in `apps/api/src/research/research-field-registry.ts`. Since
+v5 that file also names every model that is deliberately _out_ of scope, and a test fails unless
+every table in the schema appears in exactly one of the two lists.
+
+The medical-history dataset contains current and historical revisions within the requested range.
+It includes de-identified patient, clinic, record, revision, and source-encounter keys; category,
+status, clinical dates, revision/schema metadata, approved categorical details, and rounded
+timestamps. It excludes notes, substance names, reactions, descriptions, and other free text.
 
 ---
 
@@ -151,6 +194,7 @@ The transform currently draws from:
 - consents
 - encounters
 - vitals
+- tobacco screenings
 - diabetes screenings
 - care context needed for encounter relation
 - staff shifts and patient check-ins through ops data
@@ -215,11 +259,42 @@ Current status progression:
 - `FAILED`
 - `REJECTED`
 
+A run is a series of short clinic-scoped transactions, never one around the GitHub push (#164):
+
+1. **Claim**: `APPROVED` -> `PROCESSING`, committed.
+2. **Generate** the pack in a read-only transaction, which may run for up to two minutes because
+   reading twice is harmless.
+3. **Plan**: record the pack metadata and the repository path the push will write to.
+4. **Push** to GitHub with no transaction open.
+5. **Record** `COMPLETED` with the commit.
+
+A failure behaves as follows:
+
+- **Before the push, attempts left:** the export is handed back (`PROCESSING` -> `APPROVED`) and
+  the run is thrown to the queue, which runs it again (three attempts, exponential from 60 seconds).
+- **Before the push, last attempt:** the run records `FAILED` and its `RESEARCH_EXPORT.FAIL` audit
+  entry, then returns.
+- **The push fails, or COMPLETED cannot be recorded:** the planned path settles it. The snapshot
+  directory is unique to the run, so a commit touching it on the export branch is that run's push,
+  and the export completes from it without pushing again. No commit means the push did not land,
+  and the run fails or retries as above. If GitHub cannot be asked, the export stays `PROCESSING`.
+- **Two deliveries of one export:** a duplicate finds `PROCESSING` and stands down, and one that
+  arrives after completion finds `COMPLETED` and does nothing. The pack is pushed once.
+- **A run that never finished:** the reconciliation sweep (every fifteen minutes) settles exports
+  still `PROCESSING` an hour after they started, the same way: a commit at the planned path
+  completes it (`RESEARCH_EXPORT.RECONCILE`); none, or no planned path, fails it with
+  `RESEARCH_EXPORT_INTERRUPTED`, which an operator can retry.
+
 ### 4. Retry failures
 
 Route:
 
 - `PATCH /clinics/:clinicId/research/exports/:exportId/retry`
+
+Retry is offered only for a `FAILED` export. It puts the export back to `APPROVED` and queues it
+under a new job id (`<exportId>-retry-<timestamp>`). BullMQ keeps a finished job under its id and
+ignores an add that reuses one, so re-queueing under the export's own id once left the export
+`APPROVED` with nothing queued to run it.
 
 ### 5. Download
 

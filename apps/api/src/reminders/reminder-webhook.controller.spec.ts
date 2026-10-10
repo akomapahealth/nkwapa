@@ -1,10 +1,10 @@
-import { Test, TestingModule } from "@nestjs/testing";
-import { ForbiddenException } from "@nestjs/common";
-import { createHmac } from "crypto";
-import { ReminderWebhookController } from "./reminder-webhook.controller";
-import { ReminderService } from "./reminder.service";
+import { Test, TestingModule } from '@nestjs/testing';
+import { ForbiddenException } from '@nestjs/common';
+import { createHmac } from 'crypto';
+import { ReminderWebhookController } from './reminder-webhook.controller';
+import { ReminderService } from './reminder.service';
 
-describe("ReminderWebhookController", () => {
+describe('ReminderWebhookController', () => {
   let controller: ReminderWebhookController;
   let mockUpdateDeliveryStatus: jest.Mock;
   const originalEnv = process.env;
@@ -25,7 +25,7 @@ describe("ReminderWebhookController", () => {
     }).compile();
 
     controller = module.get(ReminderWebhookController);
-    process.env = { ...originalEnv, TWILIO_AUTH_TOKEN: "testtoken" };
+    process.env = { ...originalEnv, TWILIO_AUTH_TOKEN: 'testtoken' };
   });
 
   afterEach(() => {
@@ -34,70 +34,70 @@ describe("ReminderWebhookController", () => {
 
   function buildSignedRequest(
     body: Record<string, string>,
-    url = "https://example.com/webhooks/sms/status"
+    url = 'https://example.com/webhooks/sms/status',
   ) {
     const sortedParams = Object.keys(body)
       .sort()
-      .reduce((acc, key) => acc + key + body[key], "");
-    const signature = createHmac("sha1", "testtoken")
+      .reduce((acc, key) => acc + key + body[key], '');
+    const signature = createHmac('sha1', 'testtoken')
       .update(url + sortedParams)
-      .digest("base64");
+      .digest('base64');
 
     return {
-      headers: { "x-twilio-signature": signature, host: "example.com" },
-      protocol: "https",
+      headers: { 'x-twilio-signature': signature, host: 'example.com' },
+      protocol: 'https',
       get: (name: string) => {
-        if (name === "host") return "example.com";
-        if (name === "x-twilio-signature") return signature;
+        if (name === 'host') return 'example.com';
+        if (name === 'x-twilio-signature') return signature;
         return undefined;
       },
-      originalUrl: "/webhooks/sms/status",
+      originalUrl: '/webhooks/sms/status',
     };
   }
 
-  it("updates status to DELIVERED on valid callback", async () => {
-    const body = { MessageSid: "SM123", MessageStatus: "delivered" };
+  it('updates status to DELIVERED on valid callback', async () => {
+    const body = { MessageSid: 'SM123', MessageStatus: 'delivered' };
     const req = buildSignedRequest(body as Record<string, string>);
 
     const result = await controller.handleTwilioStatus(
       body as unknown as { MessageSid: string; MessageStatus: string },
-      req
+      req,
     );
 
     expect(result).toEqual({ received: true });
-    expect(mockUpdateDeliveryStatus).toHaveBeenCalledWith("SM123", "DELIVERED", undefined);
+    expect(mockUpdateDeliveryStatus).toHaveBeenCalledWith('SM123', 'DELIVERED', undefined);
   });
 
-  it("updates status to FAILED on undelivered", async () => {
-    const body = { MessageSid: "SM456", MessageStatus: "failed", ErrorCode: "30006" };
+  it('updates status to FAILED on undelivered', async () => {
+    const body = { MessageSid: 'SM456', MessageStatus: 'failed', ErrorCode: '30006' };
     const req = buildSignedRequest(body as Record<string, string>);
 
     await controller.handleTwilioStatus(
       body as unknown as { MessageSid: string; MessageStatus: string; ErrorCode: string },
-      req
+      req,
     );
 
-    expect(mockUpdateDeliveryStatus).toHaveBeenCalledWith("SM456", "FAILED", "30006");
+    expect(mockUpdateDeliveryStatus).toHaveBeenCalledWith('SM456', 'FAILED', '30006');
   });
 
-  it("rejects invalid signature", async () => {
-    const body = { MessageSid: "SM789", MessageStatus: "delivered" };
+  it('rejects invalid signature', async () => {
+    const body = { MessageSid: 'SM789', MessageStatus: 'delivered' };
     const req = {
-      headers: { "x-twilio-signature": "invalidsig", host: "example.com" },
-      protocol: "https",
+      headers: { 'x-twilio-signature': 'invalidsig', host: 'example.com' },
+      protocol: 'https',
       get: (name: string) => {
-        if (name === "host") return "example.com";
-        if (name === "x-twilio-signature") return "invalidsig";
+        if (name === 'host') return 'example.com';
+        if (name === 'x-twilio-signature') return 'invalidsig';
         return undefined;
       },
-      originalUrl: "/webhooks/sms/status",
+      originalUrl: '/webhooks/sms/status',
     };
 
     await expect(
       controller.handleTwilioStatus(
         body as unknown as { MessageSid: string; MessageStatus: string },
-        req
-      )
+        req,
+      ),
     ).rejects.toThrow(ForbiddenException);
   });
 });

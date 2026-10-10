@@ -1,48 +1,921 @@
 // packages/db/prisma/seed.ts
-import "dotenv/config";
-import { PrismaClient, UserRole, Sex, NationalIdType, EncounterStatus } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
+/**
+ * TENANT SAFETY: privileged system bootstrap.
+ *
+ * This script intentionally uses a direct Prisma client because it creates the organization,
+ * clinic, initial users, roles, and clinic seed data needed before an application tenant context
+ * can exist. Run it only with an approved administrative database credential. It is not a pattern
+ * for clinic maintenance or data repair scripts.
+ */
+import 'dotenv/config';
+import {
+  CLINIC_DEFAULT_COUNTRY_CODE,
+  CLINIC_DEFAULT_ORGANIZATION_NAME,
+  CLINIC_DEFAULT_ORGANIZATION_SLUG,
+  CLINIC_DEFAULT_TIMEZONE,
+  evaluateClinicMetadata,
+  normalizeCountryCode,
+  normalizeZoneCode,
+  toLocationCode,
+} from '../src/clinic-metadata';
+import {
+  PrismaClient,
+  UserRole,
+  Sex,
+  NationalIdType,
+  EncounterStatus,
+  GhanaRegion,
+  PatientLocationStatus,
+  AppointmentStatus,
+  AppointmentRequestStatus,
+  AppointmentRequestType,
+  PatientPortalInviteStatus,
+} from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 import {
   encryptNationalId,
   hashNationalId,
   nationalIdLast4,
   hasEncryptionKey,
   generatePatientCode,
-} from "../index";
-import { seedDrugs } from "./seed-drugs";
+  confirmedVisitStart,
+  terminalVisitStart,
+} from '../index';
+import { seedDrugs } from './seed-drugs';
+import { DEFAULT_CLINIC_STATIONS } from '../src/clinic-stations';
 
+/**
+ * Seeding creates the organization and clinic that a tenant context is later derived from, so it
+ * has to run before one can exist. Every tenant-scoped table forces row level security, and the
+ * insert policies require `app.is_system_admin`, so the flag is set as a connection option: that
+ * applies it when each pooled connection is opened rather than relying on which connection a
+ * given statement happens to get.
+ */
 const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL ?? "",
+  connectionString: process.env.DATABASE_URL ?? '',
+  options: '-c app.is_system_admin=true',
 });
 const prisma = new PrismaClient({ adapter });
 
+/** Seed fixtures are dated relative to the run, so they never drift into the past on a re-seed. */
+function daysFromNow(days: number): Date {
+  return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+}
+
+/**
+ * The settled invitations a portal-invite chart is defined by.
+ *
+ * One cancelled and one expired, and no live invitation, so a chart reads as not "invited" and
+ * its previous-invitations list holds both settled states. Shared by the read-only history chart
+ * and the mutable lifecycle chart, and used both to create a fixture and to re-establish it.
+ */
+function settledInviteFixtures(clinicId: string, patientId: string, createdByUserId: string) {
+  return [
+    {
+      clinicId,
+      patientId,
+      status: PatientPortalInviteStatus.CANCELLED,
+      email: 'wrong.address@nkwapa.local',
+      createdByUserId,
+      cancelledAt: daysFromNow(-9),
+      expiresAt: daysFromNow(4),
+    },
+    {
+      clinicId,
+      patientId,
+      status: PatientPortalInviteStatus.EXPIRED,
+      email: 'e2e.lifecycle@nkwapa.local',
+      createdByUserId,
+      expiresAt: daysFromNow(-3),
+    },
+  ];
+}
+
+async function ensureGlobalRole(prisma: PrismaClient, userId: string, role: UserRole) {
+  const existingRole = await prisma.userClinicRole.findFirst({
+    where: { userId, clinicId: null, role },
+  });
+
+  if (!existingRole) {
+    await prisma.userClinicRole.create({
+      data: { userId, clinicId: null, role },
+    });
+  }
+}
+
+async function ensureClinicRole(
+  prisma: PrismaClient,
+  userId: string,
+  clinicId: string,
+  role: UserRole,
+) {
+  await prisma.userClinicRole.upsert({
+    where: {
+      userId_clinicId_role: { userId, clinicId, role },
+    },
+    update: {},
+    create: { userId, clinicId, role },
+  });
+}
+
+async function ensureResearchSettings(
+  prisma: PrismaClient,
+  clinicId: string,
+  updatedByUserId: string,
+) {
+  await prisma.clinicResearchSettings.upsert({
+    where: { clinicId },
+    update: {
+      updatedByUserId,
+      researchEnabled: false,
+      requiresDirectorApprovalEachExport: true,
+    },
+    create: {
+      clinicId,
+      updatedByUserId,
+      researchEnabled: false,
+      requiresDirectorApprovalEachExport: true,
+    },
+  });
+}
+
+/**
+ * A staff identity holding exactly one clinic role.
+ *
+ * The multi-role E2E user is convenient for walking the product and useless for proving what a
+ * single role can see, because it holds every role at once. These identities exist so the browser
+ * can show what a doctor and a volunteer actually get, including what they are refused.
+ */
+async function ensureSingleRoleUser(params: {
+  sub: string;
+  displayName: string;
+  email: string;
+  clinicId: string;
+  role: UserRole;
+}) {
+  const [firstName, ...lastNameParts] = params.displayName.trim().split(/\s+/);
+  const user = await prisma.user.upsert({
+    where: { keycloakSub: params.sub },
+    update: {
+      displayName: params.displayName,
+      firstName: firstName || 'E2E',
+      lastName: lastNameParts.join(' ') || 'User',
+      email: params.email,
+      isActive: true,
+    },
+    create: {
+      keycloakSub: params.sub,
+      displayName: params.displayName,
+      firstName: firstName || 'E2E',
+      lastName: lastNameParts.join(' ') || 'User',
+      email: params.email,
+      isActive: true,
+    },
+  });
+
+  await ensureClinicRole(prisma, user.id, params.clinicId, params.role);
+  return user;
+}
+
+/**
+ * A deterministic appointment fixture set for the acceptance suite.
+ *
+ * Nothing seeds appointments today, which is why the workflow had no end-to-end coverage: a
+ * confirmed appointment can only be created by confirming a request, and until this release no
+ * staff screen could do that. Rather than leave the suite unable to reach its own subject, seed one
+ * appointment in each state plus the two request shapes a patient can open.
+ *
+ * Times are placed against the Monday-start week the staff schedule renders, not against the
+ * clock, because the schedule only ever shows the week containing today. See
+ * `src/appointment-fixture-window.ts`.
+ *
+ * The guard below is on the demo *patient*, not on the appointments, so deleting appointments
+ * alone will not cause this to run again -- remove the patient, which cascades.
+ */
+async function seedSampleAppointments(
+  prisma: PrismaClient,
+  clinicId: string,
+  createdByUserId: string,
+) {
+  const existing = await prisma.patient.findFirst({
+    where: { primaryClinicId: clinicId, firstName: 'Appointment', lastName: 'Demo' },
+  });
+  if (existing) {
+    console.log('Sample appointments already exist; skipping.');
+    return;
+  }
+
+  const nationalIdPlain = 'GH-APPT-DEMO-1';
+  const patient = await prisma.patient.create({
+    data: {
+      patientCode: await generatePatientCode(prisma),
+      primaryClinicId: clinicId,
+      firstName: 'Appointment',
+      lastName: 'Demo',
+      dob: new Date('1985-02-11'),
+      sex: Sex.FEMALE,
+      phoneE164: '+233200000111',
+      nationalIdType: NationalIdType.NATIONAL_ID,
+      nationalIdCiphertext: encryptNationalId(nationalIdPlain),
+      nationalIdHash: hashNationalId(nationalIdPlain),
+      nationalIdLast4: nationalIdLast4(nationalIdPlain),
+      createdByUserId,
+      residentialLocationStatus: PatientLocationStatus.RECORDED,
+      residentialRegion: GhanaRegion.GREATER_ACCRA,
+      residentialDistrict: 'Accra Metropolitan',
+      residentialCommunity: 'Osu',
+    },
+  });
+
+  const hours = (offset: number) => new Date(Date.now() + offset * 60 * 60 * 1000);
+  const dateOnly = (date: Date) => new Date(`${date.toISOString().slice(0, 10)}T00:00:00.000Z`);
+  const plusHours = (from: Date, offset: number) =>
+    new Date(from.getTime() + offset * 60 * 60 * 1000);
+
+  /*
+    Placed against the week the schedule actually shows, not against the clock.
+
+    The staff schedule renders exactly one Monday-start week, the one containing today. These
+    fixtures used to sit at `now + 26h` and `now - 48h`, which fall outside that week near its
+    edges -- the confirmed row crossed into next Monday on any Sunday, and the terminal rows fell
+    into the previous week on a Monday or Tuesday. See appointment-fixture-window.ts, which keeps
+    the original offsets wherever they are safe and clamps them where they are not.
+  */
+  const seededAt = new Date();
+  const confirmedStart = confirmedVisitStart(seededAt);
+  const terminalStart = terminalVisitStart(seededAt);
+
+  // Confirmed and still ahead: the row every lifecycle action is applied to.
+  const confirmed = await prisma.appointment.create({
+    data: {
+      clinicId,
+      patientId: patient.id,
+      startsAt: confirmedStart,
+      endsAt: plusHours(confirmedStart, 1),
+      status: AppointmentStatus.CONFIRMED,
+      notes: 'Blood pressure review',
+    },
+  });
+
+  // One row in each terminal state, so the schedule filters and the read-only rendering have
+  // something to show without a test having to create them first.
+  await prisma.appointment.createMany({
+    data: [
+      // Staggered by an hour rather than by a day: a day apart put the older two outside the
+      // visible week for most of it, and nothing depends on the spacing, only on the statuses.
+      {
+        clinicId,
+        patientId: patient.id,
+        startsAt: terminalStart,
+        endsAt: plusHours(terminalStart, 1),
+        status: AppointmentStatus.COMPLETED,
+        notes: 'Reviewed home readings',
+      },
+      {
+        clinicId,
+        patientId: patient.id,
+        startsAt: plusHours(terminalStart, 1),
+        endsAt: plusHours(terminalStart, 2),
+        status: AppointmentStatus.CANCELLED,
+      },
+      {
+        clinicId,
+        patientId: patient.id,
+        startsAt: plusHours(terminalStart, 2),
+        endsAt: plusHours(terminalStart, 3),
+        status: AppointmentStatus.NO_SHOW,
+      },
+    ],
+  });
+
+  // Two requests awaiting triage: a new visit, and a change against the confirmed appointment.
+  await prisma.appointmentRequest.create({
+    data: {
+      clinicId,
+      patientId: patient.id,
+      requestType: AppointmentRequestType.NEW_APPOINTMENT,
+      preferredStartDate: dateOnly(hours(24 * 7)),
+      preferredEndDate: dateOnly(hours(24 * 10)),
+      reason: 'Routine follow-up',
+      status: AppointmentRequestStatus.REQUESTED,
+    },
+  });
+  await prisma.appointmentRequest.create({
+    data: {
+      clinicId,
+      patientId: patient.id,
+      requestType: AppointmentRequestType.RESCHEDULE_APPOINTMENT,
+      sourceAppointmentId: confirmed.id,
+      preferredStartDate: dateOnly(hours(24 * 14)),
+      preferredEndDate: dateOnly(hours(24 * 17)),
+      reason: 'Travelling that week',
+      status: AppointmentRequestStatus.REQUESTED,
+    },
+  });
+
+  console.log('Seeded appointment demo patient, 4 appointments, and 2 pending requests.');
+}
+
+/**
+ * Fixtures for the identity workflows that cannot be produced by using the product.
+ *
+ * A merge is irreversible, so manual QA of canonical redirects has only two options: perform one
+ * and destroy the duplicate review fixtures with it, or be handed a chart that was already
+ * merged. This seeds the second. The same reasoning applies to the blocked merge: an operator
+ * needs to meet a refusal at least once to know what one looks like, and manufacturing an alias
+ * collision by hand means writing SQL.
+ *
+ * Every chart here is guarded on its own national ID hash, which is globally unique, so re-seeding
+ * is a no-op rather than a duplicate.
+ */
+async function seedIdentityFixtures(
+  prisma: PrismaClient,
+  clinicId: string,
+  ownerUserId: string,
+): Promise<void> {
+  /** Create a chart, or return the one already seeded under this national ID. */
+  async function ensureChart(input: {
+    firstName: string;
+    lastName: string;
+    dob: Date | null;
+    sex: Sex;
+    phoneE164: string | null;
+    email: string | null;
+    nationalId: string;
+  }) {
+    const nationalIdHash = hashNationalId(input.nationalId);
+    const existing = await prisma.patient.findUnique({ where: { nationalIdHash } });
+    if (existing) return { patient: existing, created: false };
+
+    const patient = await prisma.patient.create({
+      data: {
+        patientCode: await generatePatientCode(prisma),
+        primaryClinicId: clinicId,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        dob: input.dob,
+        sex: input.sex,
+        phoneE164: input.phoneE164,
+        email: input.email,
+        nationalIdType: NationalIdType.NATIONAL_ID,
+        nationalIdCiphertext: encryptNationalId(input.nationalId),
+        nationalIdHash,
+        nationalIdLast4: nationalIdLast4(input.nationalId),
+      },
+    });
+    return { patient, created: true };
+  }
+
+  /*
+    An already-merged pair.
+
+    "E2E Merged" is the survivor; "E2E Retired" is the tombstone, renamed the way the merge
+    renames one and carrying a pointer at the survivor. The survivor holds an alias for the code
+    the retired chart gave up, which is what makes both the canonical redirect and the
+    claim-by-old-code path reachable without performing a merge.
+  */
+  const survivor = await ensureChart({
+    firstName: 'E2E',
+    lastName: 'Merged',
+    dob: new Date('1981-02-14'),
+    sex: Sex.FEMALE,
+    phoneE164: '+233201234599',
+    email: 'e2e.merged@nkwapa.local',
+    nationalId: 'GH-E2E-MERGED-220017',
+  });
+  const retired = await ensureChart({
+    firstName: 'E2E',
+    lastName: 'Retired',
+    dob: new Date('1981-02-14'),
+    sex: Sex.FEMALE,
+    phoneE164: '+233201234599',
+    email: null,
+    nationalId: 'GH-E2E-RETIRED-220018',
+  });
+
+  if (retired.created) {
+    const retiredCode = retired.patient.patientCode;
+    const mergedAt = daysFromNow(-5);
+
+    await prisma.patient.update({
+      where: { id: retired.patient.id },
+      data: {
+        patientCode: `${retiredCode}-M-SEEDED01`.slice(0, 32),
+        mergedIntoPatientId: survivor.patient.id,
+        mergedAt,
+        mergedByUserId: ownerUserId,
+        portalUserId: null,
+      },
+    });
+    await prisma.patientCodeAlias.upsert({
+      where: { code: retiredCode },
+      create: { patientId: survivor.patient.id, code: retiredCode },
+      update: { patientId: survivor.patient.id },
+    });
+    await prisma.patientMergeRecord.upsert({
+      where: { sourcePatientId: retired.patient.id },
+      create: {
+        clinicId,
+        canonicalPatientId: survivor.patient.id,
+        sourcePatientId: retired.patient.id,
+        sourcePatientCode: retiredCode,
+        tombstonePatientCode: `${retiredCode}-M-SEEDED01`.slice(0, 32),
+        portalLinkStrategy: 'CANONICAL',
+        inviteStrategy: 'MERGE',
+        movedCountsJson: JSON.stringify({ encounter: 0, patientCodeAlias: 1 }),
+        warningCodesJson: JSON.stringify(['WEAK_DUPLICATE_SIGNAL']),
+        mergedByUserId: ownerUserId,
+        mergedAt,
+      },
+      update: {},
+    });
+    console.log(
+      `Seeded a merged identity pair: ${retiredCode} now resolves to ${survivor.patient.patientCode}.`,
+    );
+  }
+
+  /*
+    A pair whose merge is refused.
+
+    A third chart already answers to the duplicate's code, so previewing the merge reports
+    ALIAS_CODE_COLLISION and offers no way forward. Without this, the only refusal an operator
+    can reach from a seeded database is "same chart on both sides".
+  */
+  // The two names differ so a test, or a person, can say which chart they meant. They still
+  // share a surname, a birthday and a phone number, so the pair still scores as a duplicate.
+  const blockedSurvivor = await ensureChart({
+    firstName: 'E2E Keep',
+    lastName: 'Blocked',
+    dob: new Date('1994-06-30'),
+    sex: Sex.MALE,
+    phoneE164: '+233201234577',
+    email: null,
+    nationalId: 'GH-E2E-BLOCKED-330019',
+  });
+  const blockedDuplicate = await ensureChart({
+    firstName: 'E2E Duplicate',
+    lastName: 'Blocked',
+    dob: new Date('1994-06-30'),
+    sex: Sex.MALE,
+    phoneE164: '+233201234577',
+    email: null,
+    nationalId: 'GH-E2E-BLOCKED-330020',
+  });
+  const collisionHolder = await ensureChart({
+    firstName: 'E2E',
+    lastName: 'Collision',
+    dob: new Date('1966-10-02'),
+    sex: Sex.FEMALE,
+    phoneE164: null,
+    email: null,
+    nationalId: 'GH-E2E-COLLISION-440021',
+  });
+
+  if (blockedDuplicate.created) {
+    await prisma.patientCodeAlias.upsert({
+      where: { code: blockedDuplicate.patient.patientCode },
+      create: {
+        patientId: collisionHolder.patient.id,
+        code: blockedDuplicate.patient.patientCode,
+      },
+      update: {},
+    });
+    console.log(
+      `Seeded a blocked merge: ${blockedSurvivor.patient.patientCode} <- ${blockedDuplicate.patient.patientCode} collides on a third chart's alias.`,
+    );
+  }
+
+  /*
+    Two charts that refuse a claim for reasons the invitation itself cannot show.
+
+    "E2E No Birthday" has a live invitation and no date of birth, so the claim form accepts the
+    code and then refuses -- the one claim refusal a patient can do nothing about alone. "E2E By
+    Phone" carries a phone-only invitation, which is the ordinary case for a patient with no email
+    address and had no fixture at all.
+  */
+  const noBirthday = await ensureChart({
+    firstName: 'E2E',
+    lastName: 'No Birthday',
+    dob: null,
+    sex: Sex.UNKNOWN,
+    phoneE164: null,
+    email: 'e2e.nobirthday@nkwapa.local',
+    nationalId: 'GH-E2E-NODOB-550022',
+  });
+  const byPhone = await ensureChart({
+    firstName: 'E2E',
+    lastName: 'By Phone',
+    dob: new Date('1977-12-01'),
+    sex: Sex.MALE,
+    phoneE164: '+233201234566',
+    email: null,
+    nationalId: 'GH-E2E-BYPHONE-660023',
+  });
+
+  for (const [chart, contact] of [
+    [noBirthday, { email: 'e2e.nobirthday@nkwapa.local', phoneE164: null }],
+    [byPhone, { email: null, phoneE164: '+233201234566' }],
+  ] as const) {
+    if (!chart.created) continue;
+    await prisma.patientPortalInvite.create({
+      data: {
+        patientId: chart.patient.id,
+        clinicId,
+        status: PatientPortalInviteStatus.PENDING,
+        email: contact.email,
+        phoneE164: contact.phoneE164,
+        createdByUserId: ownerUserId,
+        expiresAt: daysFromNow(14),
+      },
+    });
+    console.log(`Seeded a claim edge-case invitation for ${chart.patient.patientCode}.`);
+  }
+
+  /*
+    The account that can actually reach /claim-record.
+
+    Deliberately roleless: `whoami` computes claim onboarding only when a user holds no roles at
+    all, and `SyncWithAuth` routes on that answer. Give this user a clinic role and it stops being
+    a claimant -- it lands on a dashboard instead, and the page under test becomes unreachable
+    again. There is no `PatientAccountLink` and no `portalUserId` for the same reason.
+  */
+  const claimantSub = process.env.SEED_E2E_CLAIMANT_SUB ?? process.env.E2E_CLAIMANT_SUB;
+  const claimantEmail =
+    process.env.SEED_E2E_CLAIMANT_EMAIL ??
+    process.env.E2E_CLAIMANT_EMAIL ??
+    'e2e.claimant@nkwapa.local';
+
+  if (claimantSub) {
+    const claimantName = process.env.SEED_E2E_CLAIMANT_NAME ?? 'E2E Claimant';
+    const [firstName, ...lastNameParts] = claimantName.trim().split(/\s+/);
+    await prisma.user.upsert({
+      where: { keycloakSub: claimantSub },
+      update: { email: claimantEmail, isActive: true },
+      create: {
+        keycloakSub: claimantSub,
+        displayName: claimantName,
+        firstName: firstName || 'E2E',
+        lastName: lastNameParts.join(' ') || 'Claimant',
+        email: claimantEmail,
+        isActive: true,
+      },
+    });
+
+    const unclaimed = await ensureChart({
+      firstName: 'E2E',
+      lastName: 'Claimable',
+      dob: new Date('1993-08-19'),
+      sex: Sex.FEMALE,
+      phoneE164: '+233201234555',
+      email: claimantEmail,
+      nationalId: 'GH-E2E-CLAIMABLE-770024',
+    });
+
+    /*
+      Put the claimant back to unclaimed, every time.
+
+      A successful claim is not reversible from the product: it links the account, stamps
+      `portalUserId`, grants a PATIENT role and settles the invitation. Leave any of that in place
+      and the fixture is single-use -- the second run signs in, gets redirected off /claim-record
+      because the account already holds a record, and every assertion in the spec fails for a
+      reason that has nothing to do with the code under test.
+
+      That is the trap the appointment fixtures already fall into, and it is written up in the
+      testing guide as something to work around. Worth not repeating: a fixture re-seeding cannot
+      restore is a fixture that silently expires.
+    */
+    await prisma.patientAccountLink.deleteMany({ where: { patientId: unclaimed.patient.id } });
+    await prisma.patient.updateMany({
+      where: { id: unclaimed.patient.id },
+      data: { portalUserId: null },
+    });
+    await prisma.userClinicRole.deleteMany({
+      where: { user: { keycloakSub: claimantSub }, role: UserRole.PATIENT },
+    });
+
+    const live = await prisma.patientPortalInvite.findFirst({
+      where: { patientId: unclaimed.patient.id, status: PatientPortalInviteStatus.PENDING },
+    });
+    if (!live) {
+      await prisma.patientPortalInvite.create({
+        data: {
+          patientId: unclaimed.patient.id,
+          clinicId,
+          status: PatientPortalInviteStatus.PENDING,
+          email: claimantEmail,
+          phoneE164: null,
+          createdByUserId: ownerUserId,
+          expiresAt: daysFromNow(14),
+        },
+      });
+      console.log(
+        `Seeded a claimable invitation for ${unclaimed.patient.patientCode} against ${claimantEmail}.`,
+      );
+    }
+  }
+}
+
+/** The SEED_* variable an operator would have to correct for each metadata field. */
+const SEED_VARIABLE_FOR_FIELD: Record<string, string> = {
+  organizationId: 'SEED_ORGANIZATION_SLUG',
+  timezone: 'SEED_CLINIC_TIMEZONE (or SEED_ORGANIZATION_TIMEZONE)',
+  locationCode: 'SEED_CLINIC_LOCATION_CODE',
+  zoneCode: 'SEED_CLINIC_ZONE_CODE',
+  countryCode: 'SEED_CLINIC_COUNTRY',
+};
+
+/**
+ * Refuses to seed a clinic whose metadata the rest of the product cannot use.
+ *
+ * The seed is where most environments get their only clinic, so a typo in SEED_CLINIC_TIMEZONE
+ * used to be written silently and only surface much later as reminders quietly sent in the
+ * wrong zone. Failing here names the variable to fix instead.
+ *
+ * Only errors stop the seed. A missing zone code is a warning by design -- zoneCode stays
+ * optional until zone RBAC exists, and a demo environment should not need one.
+ */
+/** A synthetic chart for the duplicate fixtures, identified by a national ID that ends in digits. */
+interface FixtureChart {
+  firstName: string;
+  lastName: string;
+  dob: Date;
+  sex: Sex;
+  phoneE164: string | null;
+  email: string | null;
+  nationalId: string;
+}
+
+/**
+ * Create one fixture chart unless it already exists, reporting whether it did.
+ *
+ * Guarded on the national ID hash rather than the name, because the whole point of these fixtures
+ * is that two of them share a name.
+ */
+async function ensureFixtureChart(
+  prisma: PrismaClient,
+  clinicId: string,
+  chart: FixtureChart,
+): Promise<boolean> {
+  const existing = await prisma.patient.findUnique({
+    where: { nationalIdHash: hashNationalId(chart.nationalId) },
+  });
+  if (existing) return false;
+
+  await prisma.patient.create({
+    data: {
+      patientCode: await generatePatientCode(prisma),
+      primaryClinicId: clinicId,
+      firstName: chart.firstName,
+      lastName: chart.lastName,
+      dob: chart.dob,
+      sex: chart.sex,
+      phoneE164: chart.phoneE164,
+      email: chart.email,
+      nationalIdType: NationalIdType.NATIONAL_ID,
+      nationalIdCiphertext: encryptNationalId(chart.nationalId),
+      nationalIdHash: hashNationalId(chart.nationalId),
+      nationalIdLast4: nationalIdLast4(chart.nationalId),
+    },
+  });
+  return true;
+}
+
+/** Find a fixture clinic by its location code, creating it, and holding it to `isActive`. */
+async function ensureFixtureClinic(
+  prisma: PrismaClient,
+  params: {
+    organizationId: string;
+    name: string;
+    region: string;
+    timezone: string;
+    isActive: boolean;
+  },
+) {
+  const locationCode = toLocationCode(params.name);
+  const data = {
+    organizationId: params.organizationId,
+    name: params.name,
+    region: params.region,
+    countryCode: CLINIC_DEFAULT_COUNTRY_CODE,
+    timezone: params.timezone,
+    locationCode,
+    isActive: params.isActive,
+  };
+  const existing = await prisma.clinic.findFirst({
+    where: { organizationId: params.organizationId, locationCode },
+  });
+  return existing
+    ? prisma.clinic.update({ where: { id: existing.id }, data })
+    : prisma.clinic.create({ data });
+}
+
+/*
+  Charts that look like the same person but sit in different clinics.
+
+  The cross-clinic investigation has nothing to show on a one-clinic seed, so this stages a second,
+  active clinic and a third, inactive one, and three pairs across them:
+
+    - Efua Asante, demo clinic and Kumasi: same name, birthday and phone -> HIGH
+    - Yaw / Yao Darko, demo clinic and Kumasi: similar name, same birthday and email -> MEDIUM
+    - Abena Sarpong, Kumasi and the closed Tamale clinic: same name, birthday and phone, but one
+      clinic is inactive, so the investigation must not show it at all
+
+  No staff seat is granted at either new clinic, so every clinic switcher and roster stays as it
+  was; only a system administrator's all-clinics views see them. Both names also sort after
+  "Nkwapa Clinic - Demo", so a system administrator's fallback active clinic -- the first by name
+  -- stays the demo clinic every other spec expects to land in.
+*/
+async function seedCrossClinicFixtures(
+  prisma: PrismaClient,
+  params: { organizationId: string; homeClinicId: string; timezone: string },
+) {
+  const kumasi = await ensureFixtureClinic(prisma, {
+    organizationId: params.organizationId,
+    name: 'Nkwapa Clinic - Kumasi',
+    region: 'Ashanti',
+    timezone: params.timezone,
+    isActive: true,
+  });
+  const tamale = await ensureFixtureClinic(prisma, {
+    organizationId: params.organizationId,
+    name: 'Nkwapa Clinic - Tamale',
+    region: 'Northern',
+    timezone: params.timezone,
+    isActive: false,
+  });
+
+  const efua = {
+    firstName: 'Efua',
+    lastName: 'Asante',
+    dob: new Date('1985-02-11'),
+    sex: Sex.FEMALE,
+    phoneE164: '+233241110001',
+    email: null,
+  };
+  const darko = {
+    lastName: 'Darko',
+    dob: new Date('1979-09-23'),
+    sex: Sex.MALE,
+    phoneE164: null,
+    email: 'yaw.darko@nkwapa.local',
+  };
+  const abena = {
+    firstName: 'Abena',
+    lastName: 'Sarpong',
+    dob: new Date('1993-12-02'),
+    sex: Sex.FEMALE,
+    phoneE164: '+233241110003',
+    email: null,
+  };
+
+  const fixtures: { clinicId: string; chart: FixtureChart }[] = [
+    { clinicId: params.homeClinicId, chart: { ...efua, nationalId: 'GH-XC-EFUA-207741' } },
+    { clinicId: kumasi.id, chart: { ...efua, nationalId: 'GH-XC-EFUA-207742' } },
+    {
+      clinicId: params.homeClinicId,
+      chart: { ...darko, firstName: 'Yaw', nationalId: 'GH-XC-DARKO-319951' },
+    },
+    {
+      clinicId: kumasi.id,
+      chart: { ...darko, firstName: 'Yao', nationalId: 'GH-XC-DARKO-319952' },
+    },
+    { clinicId: kumasi.id, chart: { ...abena, nationalId: 'GH-XC-ABENA-428861' } },
+    { clinicId: tamale.id, chart: { ...abena, nationalId: 'GH-XC-ABENA-428862' } },
+  ];
+
+  let seeded = 0;
+  for (const { clinicId, chart } of fixtures) {
+    if (await ensureFixtureChart(prisma, clinicId, chart)) seeded += 1;
+  }
+
+  console.log(
+    seeded === 0
+      ? 'Sample cross-clinic charts already exist; skipping.'
+      : `Seeded ${seeded} sample cross-clinic chart(s) across Kumasi and the inactive Tamale clinic.`,
+  );
+}
+
+function assertSeedMetadataIsValid(input: Parameters<typeof evaluateClinicMetadata>[0]) {
+  const blocking = evaluateClinicMetadata(input).filter((issue) => issue.severity === 'error');
+  if (blocking.length === 0) return;
+
+  console.error('Seed clinic metadata is not valid:\n');
+  for (const issue of blocking) {
+    const variable = SEED_VARIABLE_FOR_FIELD[issue.field] ?? issue.field;
+    const fix = issue.suggestion ? ` Try ${issue.suggestion}.` : '';
+    console.error(`  ${variable}: ${issue.message}${fix}`);
+  }
+  console.error('\nFix the environment variables above and run npm run db:seed again.');
+  process.exit(1);
+}
+
+/**
+ * Every clinic runs the station line (#167). A reseed must not duplicate stations, and a clinic a
+ * manager has already reshaped keeps its own order: `skipDuplicates` leaves any existing
+ * (clinicId, sortOrder) alone.
+ */
+async function seedClinicStations(prisma: PrismaClient) {
+  const clinics = await prisma.clinic.findMany({ select: { id: true } });
+  for (const clinic of clinics) {
+    const existing = await prisma.clinicStation.count({ where: { clinicId: clinic.id } });
+    if (existing > 0) continue;
+    await prisma.clinicStation.createMany({
+      data: DEFAULT_CLINIC_STATIONS.map((station) => ({ ...station, clinicId: clinic.id })),
+      skipDuplicates: true,
+    });
+  }
+}
+
 async function main() {
-  const clinicName = process.env.SEED_CLINIC_NAME ?? "Nkwapa Clinic - Demo";
-  const clinicRegion = process.env.SEED_CLINIC_REGION ?? "Greater Accra";
-  const clinicCountry = process.env.SEED_CLINIC_COUNTRY ?? "GH";
+  const organizationName = process.env.SEED_ORGANIZATION_NAME ?? CLINIC_DEFAULT_ORGANIZATION_NAME;
+  const organizationSlug = process.env.SEED_ORGANIZATION_SLUG ?? CLINIC_DEFAULT_ORGANIZATION_SLUG;
+  const organizationTimezone = process.env.SEED_ORGANIZATION_TIMEZONE ?? CLINIC_DEFAULT_TIMEZONE;
+  const clinicName = process.env.SEED_CLINIC_NAME ?? 'Nkwapa Clinic - Demo';
+  const clinicRegion = process.env.SEED_CLINIC_REGION ?? 'Greater Accra';
+  const clinicCountry = normalizeCountryCode(
+    process.env.SEED_CLINIC_COUNTRY ?? CLINIC_DEFAULT_COUNTRY_CODE,
+  );
+  const clinicTimezone = process.env.SEED_CLINIC_TIMEZONE ?? organizationTimezone;
+  const clinicLocationCode = process.env.SEED_CLINIC_LOCATION_CODE ?? toLocationCode(clinicName);
+  const clinicZoneCode = normalizeZoneCode(process.env.SEED_CLINIC_ZONE_CODE);
+
+  assertSeedMetadataIsValid({
+    name: clinicName,
+    organizationId: organizationSlug,
+    organizationTimezone,
+    timezone: clinicTimezone,
+    locationCode: clinicLocationCode,
+    zoneCode: clinicZoneCode,
+    countryCode: clinicCountry,
+    isActive: true,
+  });
+  let researchSettingsOwnerId: string | null = null;
+
+  const organization = await prisma.organization.upsert({
+    where: { slug: organizationSlug },
+    update: {
+      name: organizationName,
+      timezone: organizationTimezone,
+    },
+    create: {
+      name: organizationName,
+      slug: organizationSlug,
+      timezone: organizationTimezone,
+    },
+  });
 
   // Clinic.name is not unique; use findFirst + create/update instead of upsert
   let clinic = await prisma.clinic.findFirst({
-    where: { name: clinicName },
+    where: {
+      organizationId: organization.id,
+      locationCode: clinicLocationCode,
+    },
   });
   if (clinic) {
     clinic = await prisma.clinic.update({
       where: { id: clinic.id },
-      data: { region: clinicRegion, countryCode: clinicCountry, isActive: true },
+      data: {
+        organizationId: organization.id,
+        name: clinicName,
+        region: clinicRegion,
+        countryCode: clinicCountry,
+        timezone: clinicTimezone,
+        locationCode: clinicLocationCode,
+        zoneCode: clinicZoneCode,
+        isActive: true,
+      },
     });
   } else {
     clinic = await prisma.clinic.create({
       data: {
+        organizationId: organization.id,
         name: clinicName,
         region: clinicRegion,
         countryCode: clinicCountry,
+        timezone: clinicTimezone,
+        locationCode: clinicLocationCode,
+        zoneCode: clinicZoneCode,
         isActive: true,
       },
     });
   }
 
+  /*
+    The drug catalogue belongs to the clinic, not to the system admin.
+
+    It used to sit inside the `if (sysAdminSub)` block below, alongside that user's roles and the
+    research settings, so a deployment that did not configure `SEED_SYSTEM_ADMIN_SUB` came up with
+    no medicines at all. CI is exactly that deployment: every drug-backed path -- prescribing, and
+    the chronic interviews' medication grouping -- was silently running against an empty catalogue
+    there, which is why a spec that needed one passed locally and timed out in CI.
+
+    `seedDrugs` skips a medicine it already has, so moving it is additive for an environment that
+    was seeded under the old arrangement.
+  */
+  await seedDrugs(prisma, clinic.id);
+
   const sysAdminSub = process.env.SEED_SYSTEM_ADMIN_SUB;
-  const sysAdminName = process.env.SEED_SYSTEM_ADMIN_NAME ?? "System Admin";
+  const sysAdminName = process.env.SEED_SYSTEM_ADMIN_NAME ?? 'System Admin';
 
   if (sysAdminSub) {
     const user = await prisma.user.upsert({
@@ -50,81 +923,65 @@ async function main() {
       update: { displayName: sysAdminName, isActive: true },
       create: { keycloakSub: sysAdminSub, displayName: sysAdminName, isActive: true },
     });
+    researchSettingsOwnerId = user.id;
 
     // Global SYSTEM_ADMIN role (clinicId = null)
     // Prisma upsert doesn't support null in compound unique; use findFirst + create
-    const existingSystemAdmin = await prisma.userClinicRole.findFirst({
-      where: { userId: user.id, clinicId: null, role: UserRole.SYSTEM_ADMIN },
-    });
-    if (!existingSystemAdmin) {
-      await prisma.userClinicRole.create({
-        data: { userId: user.id, clinicId: null, role: UserRole.SYSTEM_ADMIN },
-      });
-    }
+    await ensureGlobalRole(prisma, user.id, UserRole.SYSTEM_ADMIN);
 
     // Also give a DIRECTOR role for demo on the demo clinic (optional convenience)
-    await prisma.userClinicRole.upsert({
-      where: { userId_clinicId_role: { userId: user.id, clinicId: clinic.id, role: UserRole.DIRECTOR } },
-      update: {},
-      create: { userId: user.id, clinicId: clinic.id, role: UserRole.DIRECTOR },
-    });
+    await ensureClinicRole(prisma, user.id, clinic.id, UserRole.DIRECTOR);
 
     // Default research settings for clinic
-    await prisma.clinicResearchSettings.upsert({
-      where: { clinicId: clinic.id },
-      update: { updatedByUserId: user.id, researchEnabled: false, requiresDirectorApprovalEachExport: true },
-      create: {
-        clinicId: clinic.id,
-        updatedByUserId: user.id,
-        researchEnabled: false,
-        requiresDirectorApprovalEachExport: true,
-      },
-    });
+    await ensureResearchSettings(prisma, clinic.id, user.id);
 
-    // Seed drug catalog for the clinic
-    await seedDrugs(prisma, clinic.id);
-
-    console.log("Seeded clinic + system admin user + roles + clinic research settings.");
+    console.log('Seeded clinic + system admin user + roles + clinic research settings.');
 
     // Sample patient + encounters when SEED_SAMPLE_PATIENT=true and encryption key is set
-    const seedSamplePatient = process.env.SEED_SAMPLE_PATIENT === "true";
+    const seedSamplePatient = process.env.SEED_SAMPLE_PATIENT === 'true';
     if (seedSamplePatient && hasEncryptionKey()) {
       const existingDemo = await prisma.patient.findFirst({
         where: {
           primaryClinicId: clinic.id,
-          firstName: "Demo",
-          lastName: "Patient",
+          firstName: 'Demo',
+          lastName: 'Patient',
         },
       });
       if (existingDemo) {
-        console.log("Sample patient already exists; skipping.");
+        console.log('Sample patient already exists; skipping.');
       } else {
-        const nationalIdPlain = "GH-123456789-0"; // placeholder for demo
+        const nationalIdPlain = 'GH-123456789-0'; // placeholder for demo
         const patientCode = await generatePatientCode(prisma);
         const patient = await prisma.patient.create({
           data: {
             patientCode,
             primaryClinicId: clinic.id,
-            firstName: "Demo",
-            lastName: "Patient",
-            dob: new Date("1990-05-15"),
+            firstName: 'Demo',
+            lastName: 'Patient',
+            dob: new Date('1990-05-15'),
             sex: Sex.MALE,
-            phoneE164: "+233201234567",
+            phoneE164: '+233201234567',
             nationalIdType: NationalIdType.NATIONAL_ID,
             nationalIdCiphertext: encryptNationalId(nationalIdPlain),
             nationalIdHash: hashNationalId(nationalIdPlain),
             nationalIdLast4: nationalIdLast4(nationalIdPlain),
             createdByUserId: user.id,
+            // Demonstrates a deliberately recorded residential location. Other
+            // patients default to NOT_RECORDED (the safe migration state).
+            residentialLocationStatus: PatientLocationStatus.RECORDED,
+            residentialRegion: GhanaRegion.GREATER_ACCRA,
+            residentialDistrict: 'Accra Metropolitan',
+            residentialCommunity: 'Osu',
           },
         });
-      await prisma.encounter.create({
-        data: {
-          clinicId: clinic.id,
-          patientId: patient.id,
-          status: EncounterStatus.DRAFT,
-          createdByUserId: user.id,
-        },
-      });
+        await prisma.encounter.create({
+          data: {
+            clinicId: clinic.id,
+            patientId: patient.id,
+            status: EncounterStatus.DRAFT,
+            createdByUserId: user.id,
+          },
+        });
         await prisma.encounter.create({
           data: {
             clinicId: clinic.id,
@@ -134,19 +991,440 @@ async function main() {
             preceptorReviewedById: user.id,
           },
         });
-        console.log("Seeded sample patient + 2 encounters.");
+        console.log('Seeded sample patient + 2 encounters.');
       }
     } else if (seedSamplePatient && !hasEncryptionKey()) {
       console.warn(
-        "SEED_SAMPLE_PATIENT=true but NATIONAL_ID_ENCRYPTION_KEY not set; skipping sample patient."
+        'SEED_SAMPLE_PATIENT=true but NATIONAL_ID_ENCRYPTION_KEY not set; skipping sample patient.',
       );
     }
   } else {
     // Create disabled research settings without updatedBy (needs a user), so skip.
-    console.log("SEED_SYSTEM_ADMIN_SUB not provided; seeded clinic only. Research settings will be created after first Director exists.");
+    console.log(
+      'SEED_SYSTEM_ADMIN_SUB not provided; seeded clinic only. Research settings will be created after first Director exists.',
+    );
   }
 
-  console.log({ clinicId: clinic.id, clinicName: clinic.name });
+  const e2eStaffSub = (process.env.SEED_E2E_STAFF_SUB ?? process.env.E2E_STAFF_SUB)?.trim();
+  const e2eStaffName = process.env.SEED_E2E_STAFF_NAME ?? 'E2E Staff';
+  const e2eStaffEmail = process.env.SEED_E2E_STAFF_EMAIL ?? 'e2e.staff@nkwapa.local';
+
+  if (e2eStaffSub) {
+    const [firstName, ...lastNameParts] = e2eStaffName.trim().split(/\s+/);
+    const user = await prisma.user.upsert({
+      where: { keycloakSub: e2eStaffSub },
+      update: {
+        displayName: e2eStaffName,
+        firstName: firstName || 'E2E',
+        lastName: lastNameParts.join(' ') || 'Staff',
+        email: e2eStaffEmail,
+        isActive: true,
+      },
+      create: {
+        keycloakSub: e2eStaffSub,
+        displayName: e2eStaffName,
+        firstName: firstName || 'E2E',
+        lastName: lastNameParts.join(' ') || 'Staff',
+        email: e2eStaffEmail,
+        isActive: true,
+      },
+    });
+    researchSettingsOwnerId ??= user.id;
+
+    await ensureGlobalRole(prisma, user.id, UserRole.SYSTEM_ADMIN);
+    await Promise.all([
+      ensureClinicRole(prisma, user.id, clinic.id, UserRole.DIRECTOR),
+      ensureClinicRole(prisma, user.id, clinic.id, UserRole.DOCTOR),
+      ensureClinicRole(prisma, user.id, clinic.id, UserRole.VOLUNTEER),
+    ]);
+
+    console.log('Seeded deterministic multi-role E2E staff user.');
+  }
+
+  /*
+    Two plausible duplicate pairs, for the duplicate review queue.
+
+    Nothing else in the repo can produce one. Patient.nationalIdHash is globally unique, so the
+    seed physically cannot write two charts that share a national ID, and every other seeded
+    patient differs on name, birthday and phone. Without these the populated state of
+    /admin/duplicates is untestable and the empty state is the only one anyone ever sees.
+
+    The pairs are chosen to exercise different rules and different strengths:
+      - Akua Boateng, twice, same birthday and phone -> name + dob and phone, "very likely"
+      - Kwabena / Kwabina Owusu, same birthday and email -> similar name and email, "possible"
+
+    The second pair is deliberately the ambiguous kind. A queue that only ever shows obvious
+    duplicates teaches an operator to trust it, which is the wrong lesson.
+  */
+  const seedSampleDuplicates = process.env.SEED_SAMPLE_DUPLICATES === 'true';
+  if (seedSampleDuplicates && hasEncryptionKey()) {
+    // The identifiers end in digits on purpose: nationalIdLast4 takes the last four
+    // characters, so a placeholder like "GH-DUP-AKUA-1" renders as "UA-1" in the comparison
+    // panel and reads as corrupt data rather than a partial ID.
+    const duplicateCharts = [
+      {
+        firstName: 'Akua',
+        lastName: 'Boateng',
+        dob: new Date('1988-07-04'),
+        sex: Sex.FEMALE,
+        phoneE164: '+233209876543',
+        email: null,
+        nationalId: 'GH-DUP-AKUA-004471',
+      },
+      {
+        firstName: 'Akua',
+        lastName: 'Boateng',
+        dob: new Date('1988-07-04'),
+        sex: Sex.FEMALE,
+        phoneE164: '+233209876543',
+        email: null,
+        nationalId: 'GH-DUP-AKUA-004472',
+      },
+      {
+        firstName: 'Kwabena',
+        lastName: 'Owusu',
+        dob: new Date('1972-11-19'),
+        sex: Sex.MALE,
+        phoneE164: null,
+        email: 'k.owusu@nkwapa.local',
+        nationalId: 'GH-DUP-OWUSU-118835',
+      },
+      {
+        firstName: 'Kwabina',
+        lastName: 'Owusu',
+        dob: new Date('1972-11-19'),
+        sex: Sex.MALE,
+        phoneE164: null,
+        email: 'K.Owusu@nkwapa.local',
+        nationalId: 'GH-DUP-OWUSU-118836',
+      },
+    ];
+
+    let seededDuplicates = 0;
+    for (const chart of duplicateCharts) {
+      if (await ensureFixtureChart(prisma, clinic.id, chart)) seededDuplicates += 1;
+    }
+
+    console.log(
+      seededDuplicates === 0
+        ? 'Sample duplicate charts already exist; skipping.'
+        : `Seeded ${seededDuplicates} sample duplicate chart(s).`,
+    );
+  } else if (seedSampleDuplicates && !hasEncryptionKey()) {
+    console.warn(
+      'SEED_SAMPLE_DUPLICATES=true but NATIONAL_ID_ENCRYPTION_KEY not set; skipping duplicates.',
+    );
+  }
+
+  const seedSampleCrossClinic = process.env.SEED_SAMPLE_CROSS_CLINIC === 'true';
+  if (seedSampleCrossClinic && hasEncryptionKey()) {
+    await seedCrossClinicFixtures(prisma, {
+      organizationId: organization.id,
+      homeClinicId: clinic.id,
+      timezone: clinicTimezone,
+    });
+  } else if (seedSampleCrossClinic && !hasEncryptionKey()) {
+    console.warn(
+      'SEED_SAMPLE_CROSS_CLINIC=true but NATIONAL_ID_ENCRYPTION_KEY not set; skipping cross-clinic charts.',
+    );
+  }
+
+  const e2eDoctorSub = (process.env.SEED_E2E_DOCTOR_SUB ?? process.env.E2E_DOCTOR_SUB)?.trim();
+  if (e2eDoctorSub) {
+    await ensureSingleRoleUser({
+      sub: e2eDoctorSub,
+      displayName: process.env.SEED_E2E_DOCTOR_NAME ?? 'E2E Doctor',
+      email: process.env.SEED_E2E_DOCTOR_EMAIL ?? 'e2e.doctor@nkwapa.local',
+      clinicId: clinic.id,
+      role: UserRole.DOCTOR,
+    });
+    console.log('Seeded deterministic single-role E2E doctor.');
+  }
+
+  const e2eVolunteerSub = (
+    process.env.SEED_E2E_VOLUNTEER_SUB ?? process.env.E2E_VOLUNTEER_SUB
+  )?.trim();
+  if (e2eVolunteerSub) {
+    await ensureSingleRoleUser({
+      sub: e2eVolunteerSub,
+      displayName: process.env.SEED_E2E_VOLUNTEER_NAME ?? 'E2E Volunteer',
+      email: process.env.SEED_E2E_VOLUNTEER_EMAIL ?? 'e2e.volunteer@nkwapa.local',
+      clinicId: clinic.id,
+      role: UserRole.VOLUNTEER,
+    });
+    console.log('Seeded deterministic single-role E2E volunteer.');
+  }
+
+  /*
+    The portal identity, and the patient record it opens.
+
+    The Playwright suite had no patient, so every spec signed in as staff and the portal -- about
+    2,900 lines migrated in #86 -- had no automated coverage at all. A portal user is not just a
+    role: `Patient.portalUserId` is what makes the portal show a chart rather than the
+    "ask your clinic to link this account" state, so the seed has to create both and join them.
+
+    Also stages a PENDING invite for a second, unclaimed patient, which is the only way to reach
+    the /claim-record screen.
+  */
+  const e2ePatientSub = (process.env.SEED_E2E_PATIENT_SUB ?? process.env.E2E_PATIENT_SUB)?.trim();
+  if (e2ePatientSub && researchSettingsOwnerId && hasEncryptionKey()) {
+    const portalUser = await ensureSingleRoleUser({
+      sub: e2ePatientSub,
+      displayName: process.env.SEED_E2E_PATIENT_NAME ?? 'E2E Patient',
+      email: process.env.SEED_E2E_PATIENT_EMAIL ?? 'e2e.patient@nkwapa.local',
+      clinicId: clinic.id,
+      role: UserRole.PATIENT,
+    });
+
+    const linked = await prisma.patient.findFirst({ where: { portalUserId: portalUser.id } });
+    if (linked) {
+      console.log('Portal-linked E2E patient already exists; skipping.');
+    } else {
+      const nationalIdPlain = 'GH-E2E-PORTAL-1';
+      const patient = await prisma.patient.create({
+        data: {
+          patientCode: await generatePatientCode(prisma),
+          primaryClinicId: clinic.id,
+          firstName: 'E2E',
+          lastName: 'Portal',
+          dob: new Date('1988-03-11'),
+          sex: Sex.FEMALE,
+          phoneE164: '+233201234599',
+          nationalIdType: NationalIdType.NATIONAL_ID,
+          nationalIdCiphertext: encryptNationalId(nationalIdPlain),
+          nationalIdHash: hashNationalId(nationalIdPlain),
+          nationalIdLast4: nationalIdLast4(nationalIdPlain),
+          createdByUserId: researchSettingsOwnerId,
+          portalUserId: portalUser.id,
+          residentialLocationStatus: PatientLocationStatus.RECORDED,
+          residentialRegion: GhanaRegion.GREATER_ACCRA,
+          residentialDistrict: 'Accra Metropolitan',
+          residentialCommunity: 'Osu',
+        },
+      });
+      console.log(`Seeded portal-linked E2E patient ${patient.patientCode}.`);
+    }
+
+    /*
+      Scoped to this chart, not to the clinic.
+
+      Asking whether the clinic holds any pending invitation meant a leftover one on another
+      fixture chart - the lifecycle chart issues and replaces invitations on every run - answered
+      for this one, and the unclaimed chart the claim journey needs was silently skipped.
+    */
+    const existingInvite = await prisma.patientPortalInvite.findFirst({
+      where: {
+        clinicId: clinic.id,
+        status: PatientPortalInviteStatus.PENDING,
+        patient: { firstName: 'E2E', lastName: 'Unclaimed' },
+      },
+    });
+    if (existingInvite) {
+      console.log('Pending portal invite already exists; skipping.');
+    } else {
+      const invitePlain = 'GH-E2E-UNCLAIMED-1';
+      const unclaimed = await prisma.patient.create({
+        data: {
+          patientCode: await generatePatientCode(prisma),
+          primaryClinicId: clinic.id,
+          firstName: 'E2E',
+          lastName: 'Unclaimed',
+          dob: new Date('1975-09-02'),
+          sex: Sex.MALE,
+          nationalIdType: NationalIdType.NATIONAL_ID,
+          nationalIdCiphertext: encryptNationalId(invitePlain),
+          nationalIdHash: hashNationalId(invitePlain),
+          nationalIdLast4: nationalIdLast4(invitePlain),
+          createdByUserId: researchSettingsOwnerId,
+        },
+      });
+      await prisma.patientPortalInvite.create({
+        data: {
+          clinicId: clinic.id,
+          patientId: unclaimed.id,
+          status: PatientPortalInviteStatus.PENDING,
+          email: process.env.SEED_E2E_CLAIM_EMAIL ?? 'e2e.claim@nkwapa.local',
+          createdByUserId: researchSettingsOwnerId,
+          // Explicit rather than left null. Every invite the application issues now carries
+          // an expiry, and a fixture that does not would be testing a shape production no
+          // longer produces.
+          expiresAt: daysFromNow(14),
+        },
+      });
+      console.log(`Seeded a pending portal invite for ${unclaimed.patientCode}.`);
+    }
+
+    /*
+      A second unclaimed chart, carrying a settled invite of every kind.
+
+      The lifecycle specs need a chart whose previous-invitations list is deterministic, and
+      they need one they can mutate freely: the chart above must keep a claimable invite for
+      the Mailpit resend spec, and the suites share one database.
+    */
+    const lifecyclePatient = await prisma.patient.findFirst({
+      where: { primaryClinicId: clinic.id, firstName: 'E2E', lastName: 'Lifecycle' },
+    });
+    if (lifecyclePatient) {
+      /*
+        Reset the invite history rather than skipping the chart.
+
+        Skipping made the fixture accumulate instead of settle. The lifecycle spec issues a
+        replacement invitation on every run, which cancels its predecessor, so each run left one
+        more CANCELLED row behind. `PORTAL_INVITE_HISTORY_LIMIT` is 5 and the chart reads the
+        newest settled invites first, so after about three runs the seeded EXPIRED invite was
+        pushed off the end of the list and the spec's "Expired" assertion found nothing.
+
+        The failure looked like a flake and was not: it was deterministic, it survived a reseed
+        because this branch skipped, and only dropping the database restored it. Re-seeding the
+        two known invites makes `db:seed` authoritative again, which is what the comment above
+        already claimed it was.
+      */
+      await prisma.patientPortalInvite.deleteMany({ where: { patientId: lifecyclePatient.id } });
+      await prisma.patientPortalInvite.createMany({
+        data: settledInviteFixtures(clinic.id, lifecyclePatient.id, researchSettingsOwnerId),
+      });
+      console.log('Reset portal invite lifecycle E2E fixture to its seeded invitations.');
+    } else {
+      const lifecyclePlain = 'GH-E2E-LIFECYCLE-1';
+      const patient = await prisma.patient.create({
+        data: {
+          patientCode: await generatePatientCode(prisma),
+          primaryClinicId: clinic.id,
+          firstName: 'E2E',
+          lastName: 'Lifecycle',
+          dob: new Date('1969-04-17'),
+          sex: Sex.FEMALE,
+          email: 'e2e.lifecycle@nkwapa.local',
+          phoneE164: '+233201234588',
+          nationalIdType: NationalIdType.NATIONAL_ID,
+          nationalIdCiphertext: encryptNationalId(lifecyclePlain),
+          nationalIdHash: hashNationalId(lifecyclePlain),
+          nationalIdLast4: nationalIdLast4(lifecyclePlain),
+          createdByUserId: researchSettingsOwnerId,
+        },
+      });
+
+      await prisma.patientPortalInvite.createMany({
+        data: settledInviteFixtures(clinic.id, patient.id, researchSettingsOwnerId),
+      });
+      console.log(`Seeded portal invite lifecycle E2E patient ${patient.patientCode}.`);
+    }
+
+    /*
+      A chart nothing mutates, holding the same two settled invitations.
+
+      The lifecycle chart below cannot answer "does the previous-invitations list render a
+      cancelled and an expired invitation", because the specs that use it issue a replacement on
+      every run and each replacement cancels its predecessor. `PORTAL_INVITE_HISTORY_LIMIT` is 5
+      and the newest settled invitations win, so after about four runs the seeded EXPIRED row is
+      pushed off the end and the assertion fails on a database that has simply been used.
+
+      Re-seeding restores it, but a read-only chart means the assertion never depends on how many
+      times the suite has run. The mutations keep the chart below; the reading happens here.
+    */
+    const inviteHistoryPatient = await prisma.patient.findFirst({
+      where: { primaryClinicId: clinic.id, firstName: 'E2E', lastName: 'InviteHistory' },
+    });
+    if (inviteHistoryPatient) {
+      console.log('Portal invite history E2E patient already exists; skipping.');
+    } else {
+      const historyPlain = 'GH-E2E-INVITEHISTORY-1';
+      const patient = await prisma.patient.create({
+        data: {
+          patientCode: await generatePatientCode(prisma),
+          primaryClinicId: clinic.id,
+          firstName: 'E2E',
+          lastName: 'InviteHistory',
+          dob: new Date('1972-11-03'),
+          sex: Sex.FEMALE,
+          email: 'e2e.invitehistory@nkwapa.local',
+          phoneE164: '+233201234587',
+          nationalIdType: NationalIdType.NATIONAL_ID,
+          nationalIdCiphertext: encryptNationalId(historyPlain),
+          nationalIdHash: hashNationalId(historyPlain),
+          nationalIdLast4: nationalIdLast4(historyPlain),
+          createdByUserId: researchSettingsOwnerId,
+        },
+      });
+
+      await prisma.patientPortalInvite.createMany({
+        data: settledInviteFixtures(clinic.id, patient.id, researchSettingsOwnerId),
+      });
+      console.log(`Seeded portal invite history E2E patient ${patient.patientCode}.`);
+    }
+
+    /*
+      A chart for the cold-from-email journey: invited by staff during the test, claimed by
+      a patient who had no account until the invitation created one.
+
+      Its own chart rather than a shared one. "E2E Unclaimed" has to keep a claimable invite
+      for the Mailpit resend spec, and the lifecycle chart above is mutated by the lifecycle
+      spec; the suites share one database, so a spec that issues a fresh invite would settle
+      an invitation another spec is relying on.
+
+      It is seeded with no invite at all, because the invite is what the test creates.
+    */
+    const signupPatient = await prisma.patient.findFirst({
+      where: { primaryClinicId: clinic.id, firstName: 'E2E', lastName: 'Signup' },
+    });
+    if (signupPatient) {
+      console.log('Portal signup E2E patient already exists; skipping.');
+    } else {
+      const signupPlain = 'GH-E2E-SIGNUP-1';
+      const patient = await prisma.patient.create({
+        data: {
+          patientCode: await generatePatientCode(prisma),
+          primaryClinicId: clinic.id,
+          firstName: 'E2E',
+          lastName: 'Signup',
+          // The spec types this date back. Changing it here breaks that spec and nothing else.
+          dob: new Date('1981-06-24'),
+          sex: Sex.FEMALE,
+          nationalIdType: NationalIdType.NATIONAL_ID,
+          nationalIdCiphertext: encryptNationalId(signupPlain),
+          nationalIdHash: hashNationalId(signupPlain),
+          nationalIdLast4: nationalIdLast4(signupPlain),
+          createdByUserId: researchSettingsOwnerId,
+        },
+      });
+      console.log(`Seeded portal signup E2E patient ${patient.patientCode}.`);
+    }
+  }
+
+  if (researchSettingsOwnerId) {
+    await ensureResearchSettings(prisma, clinic.id, researchSettingsOwnerId);
+  }
+
+  const seedSampleIdentity = process.env.SEED_SAMPLE_IDENTITY === 'true';
+  if (seedSampleIdentity && researchSettingsOwnerId && hasEncryptionKey()) {
+    await seedIdentityFixtures(prisma, clinic.id, researchSettingsOwnerId);
+  } else if (seedSampleIdentity) {
+    console.warn(
+      hasEncryptionKey()
+        ? 'SEED_SAMPLE_IDENTITY=true but no seeded staff user exists to own the records; skipping.'
+        : 'SEED_SAMPLE_IDENTITY=true but NATIONAL_ID_ENCRYPTION_KEY not set; skipping.',
+    );
+  }
+
+  const seedSampleAppointmentData = process.env.SEED_SAMPLE_APPOINTMENTS === 'true';
+  if (seedSampleAppointmentData && researchSettingsOwnerId && hasEncryptionKey()) {
+    await seedSampleAppointments(prisma, clinic.id, researchSettingsOwnerId);
+  } else if (seedSampleAppointmentData) {
+    console.warn(
+      hasEncryptionKey()
+        ? 'SEED_SAMPLE_APPOINTMENTS=true but no seeded staff user exists to own the records; skipping.'
+        : 'SEED_SAMPLE_APPOINTMENTS=true but NATIONAL_ID_ENCRYPTION_KEY not set; skipping.',
+    );
+  }
+
+  await seedClinicStations(prisma);
+
+  console.log({
+    organizationId: organization.id,
+    organizationName: organization.name,
+    clinicId: clinic.id,
+    clinicName: clinic.name,
+  });
 }
 
 main()

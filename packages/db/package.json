@@ -4,6 +4,96 @@
   "private": true,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./clinic-metadata": {
+      "types": "./dist/src/clinic-metadata.d.ts",
+      "default": "./dist/src/clinic-metadata.js"
+    },
+    "./telemetry-events": {
+      "types": "./dist/src/telemetry-events.d.ts",
+      "default": "./dist/src/telemetry-events.js"
+    },
+    "./sync-conflicts": {
+      "types": "./dist/src/sync-conflicts.d.ts",
+      "default": "./dist/src/sync-conflicts.js"
+    },
+    "./clinic-day": {
+      "types": "./dist/src/clinic-day.d.ts",
+      "default": "./dist/src/clinic-day.js"
+    },
+    "./clinic-zones": {
+      "types": "./dist/src/clinic-zones.d.ts",
+      "default": "./dist/src/clinic-zones.js"
+    },
+    "./clinic-stations": {
+      "types": "./dist/src/clinic-stations.d.ts",
+      "default": "./dist/src/clinic-stations.js"
+    },
+    "./clinical-measurements": {
+      "types": "./dist/src/clinical-measurements.d.ts",
+      "default": "./dist/src/clinical-measurements.js"
+    },
+    "./eye-screening": {
+      "types": "./dist/src/eye-screening.d.ts",
+      "default": "./dist/src/eye-screening.js"
+    },
+    "./clinician-plan-seal": {
+      "types": "./dist/src/clinician-plan-seal.d.ts",
+      "default": "./dist/src/clinician-plan-seal.js"
+    },
+    "./diabetes-screening": {
+      "types": "./dist/src/diabetes-screening.d.ts",
+      "default": "./dist/src/diabetes-screening.js"
+    },
+    "./clinical-notes": {
+      "types": "./dist/src/clinical-notes.d.ts",
+      "default": "./dist/src/clinical-notes.js"
+    },
+    "./patient-chart-sections": {
+      "types": "./dist/src/patient-chart-sections.d.ts",
+      "default": "./dist/src/patient-chart-sections.js"
+    },
+    "./clinical-vocabulary": {
+      "types": "./dist/src/clinical-vocabulary.d.ts",
+      "default": "./dist/src/clinical-vocabulary.js"
+    },
+    "./bp-classification": {
+      "types": "./dist/src/bp-classification.d.ts",
+      "default": "./dist/src/bp-classification.js"
+    },
+    "./phq2": {
+      "types": "./dist/src/phq2.d.ts",
+      "default": "./dist/src/phq2.js"
+    },
+    "./diabetes-thresholds": {
+      "types": "./dist/src/diabetes-thresholds.d.ts",
+      "default": "./dist/src/diabetes-thresholds.js"
+    },
+    "./medication-classes": {
+      "types": "./dist/src/medication-classes.d.ts",
+      "default": "./dist/src/medication-classes.js"
+    },
+    "./payload-contract": {
+      "types": "./dist/src/payload-contract.d.ts",
+      "default": "./dist/src/payload-contract.js"
+    },
+    "./hypertension-interview": {
+      "types": "./dist/src/hypertension-interview.d.ts",
+      "default": "./dist/src/hypertension-interview.js"
+    },
+    "./diabetes-interview": {
+      "types": "./dist/src/diabetes-interview.d.ts",
+      "default": "./dist/src/diabetes-interview.js"
+    },
+    "./medication-adherence": {
+      "types": "./dist/src/medication-adherence.d.ts",
+      "default": "./dist/src/medication-adherence.js"
+    }
+  },
   "scripts": {
     "build": "tsc",
     "lint": "eslint \"src/**/*.ts\" \"index.ts\" --max-warnings 0",
@@ -11,8 +101,8 @@
     "test": "jest"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "^7.4.2",
-    "@prisma/client": "^7.4.2",
+    "@prisma/adapter-pg": "7.9.1",
+    "@prisma/client": "7.9.1",
     "libphonenumber-js": "^1.11.15",
     "pg": "^8.19.0"
   },
@@ -20,8 +110,8 @@
     "@types/jest": "^29.5.14",
     "@types/pg": "^8.18.0",
     "jest": "^29.7.0",
-    "prisma": "^7.4.2",
-    "ts-jest": "^29.4.6",
+    "prisma": "7.9.1",
+    "ts-jest": "^29.4.11",
     "typescript": "^5.3.3"
   },
   "prisma": {

@@ -11,9 +11,18 @@
     "db:migrate:deploy": "prisma migrate deploy --schema=packages/db/prisma/schema.prisma",
     "db:seed": "ts-node --transpile-only packages/db/prisma/seed.ts",
     "db:assign-system-admin": "ts-node --transpile-only packages/db/prisma/assign-system-admin.ts",
+    "db:audit-clinics": "ts-node --transpile-only packages/db/prisma/audit-clinic-metadata.ts",
+    "keycloak:validate-realm": "node scripts/validate-keycloak-realm.mjs",
+    "keycloak:apply-service-account": "node scripts/apply-keycloak-service-account.mjs",
+    "design:check-charts": "node scripts/check-chart-palette.mjs",
+    "security:audit": "npm audit --omit=dev --workspaces --audit-level=moderate && npm audit --workspaces --audit-level=critical",
+    "security:scan": "node scripts/check-secrets.mjs",
+    "security:scan:staged": "node scripts/check-secrets.mjs --staged",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
+    "e2e": "npm run e2e --workspace=@nkwapa/web",
+    "e2e:keycloak-user": "node scripts/create-keycloak-e2e-user.mjs",
     "build": "npm run build --workspaces --if-present",
     "prepare": "husky",
     "format": "prettier --write .",
@@ -21,22 +30,86 @@
     "postinstall": "npm run db:generate"
   },
   "devDependencies": {
+    "@nestjs/platform-express": "^11.1.28",
+    "@typescript-eslint/eslint-plugin": "^8.65.0",
+    "@typescript-eslint/parser": "^8.65.0",
     "dotenv": "^17.3.1",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.3.3",
-    "eslint": "^8.57.0",
-    "@typescript-eslint/eslint-plugin": "^7.18.0",
-    "@typescript-eslint/parser": "^7.18.0",
-    "eslint-config-prettier": "^9.1.0",
-    "prettier": "^3.3.3",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^16.4.0",
     "husky": "^9.1.7",
-    "lint-staged": "^15.2.11"
+    "lint-staged": "^15.2.11",
+    "next": "16.3.0-canary.104",
+    "postcss": "8.5.25",
+    "prettier": "3.8.1",
+    "prisma": "7.9.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "dependencies": {
-    "@prisma/client": "^7.4.2"
+    "@prisma/client": "7.9.1"
+  },
+  "overrides": {
+    "@babel/core": "7.29.7",
+    "@istanbuljs/load-nyc-config": {
+      "js-yaml": "5.2.3"
+    },
+    "@nestjs/common": "11.1.28",
+    "@nestjs/core": "11.1.28",
+    "@opentelemetry/core": "2.8.0",
+    "@opentelemetry/resources": "2.8.0",
+    "@opentelemetry/sdk-trace-base": "2.8.0",
+    "@tootallnate/once": "3.0.1",
+    "anymatch": {
+      "picomatch": "2.3.2"
+    },
+    "cosmiconfig": {
+      "js-yaml": "5.2.3",
+      "yaml": "1.10.3"
+    },
+    "deepmerge-ts": "8.0.1",
+    "effect": "3.20.0",
+    "engine.io": {
+      "ws": "8.21.0"
+    },
+    "engine.io-client": {
+      "ws": "8.21.0"
+    },
+    "fast-uri": "3.1.8",
+    "file-type": "21.3.4",
+    "form-data": "4.0.6",
+    "jest-util": {
+      "picomatch": "2.3.2"
+    },
+    "js-yaml": "5.2.3",
+    "lodash": "4.18.1",
+    "micromatch": {
+      "picomatch": "2.3.2"
+    },
+    "multer": "2.4.0",
+    "mysql2": "3.24.2",
+    "nanoid": "3.3.18",
+    "next": {
+      ".": "16.3.0-canary.104"
+    },
+    "postcss": "8.5.25",
+    "qs": "6.16.0",
+    "readdirp": {
+      "picomatch": "2.3.2"
+    },
+    "rxjs": "7.8.2",
+    "sharp": "0.35.5",
+    "socket.io-adapter": {
+      "ws": "8.21.0"
+    },
+    "tailwindcss": {
+      "picomatch": "2.3.2"
+    },
+    "webpack": "5.107.2",
+    "ws": "8.21.0"
   },
   "lint-staged": {
     "*.{ts,tsx}": [

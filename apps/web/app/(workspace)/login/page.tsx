@@ -1,0 +1,232 @@
+'use client';
+
+import Image from 'next/image';
+import Link from 'next/link';
+import { useEffect, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useBootstrap } from '@/lib/bootstrap-context';
+import { getPostAuthPath, getSafeNextPath, shouldAutoContinue } from '@/lib/auth-routing';
+import { useKeycloak } from '@/app/KeycloakProvider';
+import { PageSkeleton } from '@/components/feedback/AppState';
+import { Button } from '@/components/ui/button';
+import { AlertTriangle, ArrowRight, CheckCircle2, ShieldCheck, Wifi } from 'lucide-react';
+
+export default function LoginPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const bootstrapCtx = useBootstrap();
+  const bootstrap = bootstrapCtx?.bootstrap ?? null;
+  const isBootstrapLoading = bootstrapCtx?.isLoading ?? false;
+  const { isAuthenticated, login, error } = useKeycloak() ?? {
+    isAuthenticated: false,
+    login: () => undefined,
+    error: null as string | null,
+  };
+
+  const nextPath = getSafeNextPath(searchParams.get('next'));
+
+  /*
+    A patient returning from Keycloak, having just chosen their password, arrives here
+    holding a live SSO session -- and is shown a page asking them to sign in.
+
+    The silent check-sso that would have noticed the session runs in an iframe, which the
+    third-party cookie defaults in Safari and Firefox block outright, so for most patients
+    this is not a redundant click but the only way through, on a screen that gives no hint
+    that clicking is safe. A top-level redirect is not subject to those cookie rules.
+
+    Started once, from a ref rather than state, so a re-render cannot fire a second
+    navigation. When sign-in itself is failing we fall through to the normal page, because
+    an automatic retry loop is worse than a button.
+  */
+  const autoContinue = shouldAutoContinue(searchParams.get('next')) && !error;
+  const autoContinueStarted = useRef(false);
+
+  useEffect(() => {
+    if (isAuthenticated || !autoContinue || autoContinueStarted.current) {
+      return;
+    }
+    autoContinueStarted.current = true;
+    login();
+  }, [autoContinue, isAuthenticated, login]);
+
+  useEffect(() => {
+    if (!isAuthenticated || isBootstrapLoading) {
+      return;
+    }
+
+    /*
+      A client-side navigation, not a page load (#172). Keycloak hands back to this page, which
+      has already initialised Keycloak, exchanged the code for tokens and fetched whoami.
+      `window.location.replace` threw all of that away and ran it again on the destination: a
+      second Keycloak start-up, token exchange, whoami and first sync on every sign-in.
+    */
+    const destination = getPostAuthPath(bootstrap, nextPath);
+    if (typeof window !== 'undefined' && window.location.pathname !== destination) {
+      router.replace(destination);
+    }
+  }, [bootstrap, isAuthenticated, isBootstrapLoading, nextPath, router]);
+
+  if (isAuthenticated) {
+    return (
+      <PageSkeleton
+        title="Opening your workspace"
+        description="Your session is active. We are selecting the right clinic context and opening your workspace."
+        steps={['Session restored', 'Clinic selected', 'Dashboard loading']}
+        className="min-h-screen"
+      />
+    );
+  }
+
+  // Showing the sign-in page for the instant before the redirect fires would flash a
+  // screen the patient is not meant to act on, and invite a click that cancels nothing.
+  if (autoContinue) {
+    return (
+      <PageSkeleton
+        title="Finishing your account setup"
+        description="Your password is saved. Taking you to secure sign-in, so you can confirm your details and open your record."
+        steps={['Password saved', 'Secure sign-in', 'Confirming your details']}
+        className="min-h-screen"
+      />
+    );
+  }
+
+  const destinationCopy = nextPath
+    ? 'Continue where you left off after secure sign-in.'
+    : 'Open your Nkwapa clinic workspace after secure sign-in.';
+
+  return (
+    <main className="min-h-dvh bg-clinical-grid px-4 py-5 sm:px-6 lg:flex lg:h-dvh lg:items-center lg:overflow-hidden lg:py-6">
+      <section className="mx-auto grid w-full max-w-6xl overflow-hidden rounded-xl border border-border bg-card shadow-sm lg:max-h-[calc(100dvh-3rem)] lg:grid-cols-[0.9fr_1.1fr]">
+        <aside className="relative hidden overflow-hidden bg-primary text-primary-foreground lg:block">
+          <div className="relative flex h-full min-h-[560px] flex-col justify-between gap-8 p-8 xl:p-10">
+            <div className="relative h-14 w-64">
+              <Image
+                src="/images/nkwapa_logo-2.png"
+                alt="Nkwapa"
+                fill
+                priority
+                sizes="256px"
+                className="object-contain object-left"
+              />
+            </div>
+
+            <div className="max-w-md space-y-5">
+              <p className="inline-flex items-center gap-2 rounded-full border border-primary-foreground/25 bg-primary-foreground/10 px-3 py-1 text-eyebrow text-primary-foreground/90">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Protected workspace
+              </p>
+              <div className="space-y-3">
+                <h1 className="font-heading text-4xl font-semibold leading-tight tracking-tight xl:text-5xl">
+                  Secure access for patient-safe clinic work.
+                </h1>
+                <p className="text-base leading-7 text-primary-foreground/85">
+                  Sign in once to reach clinic-scoped records, queues, follow-up, and dashboard
+                  context without exposing sensitive patient data on this page.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-3 text-sm text-primary-foreground/85">
+              {[
+                'Keycloak verifies your identity before records load.',
+                'Clinic permissions decide what you can view and update.',
+                'Offline sync keeps available tools clear when networks change.',
+              ].map((item) => (
+                <div
+                  key={item}
+                  className="flex items-start gap-3 rounded-lg bg-primary-foreground/10 p-3"
+                >
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-secondary" />
+                  <span className="leading-6">{item}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </aside>
+
+        <section className="flex min-h-[100dvh] flex-col justify-center px-5 py-8 sm:px-8 lg:min-h-0 lg:px-12 lg:py-10">
+          <div className="mx-auto w-full max-w-md space-y-7">
+            <div className="space-y-5">
+              <div className="relative h-12 w-56 lg:hidden">
+                <Image
+                  src="/images/nkwapa_logo-2.png"
+                  alt="Nkwapa"
+                  fill
+                  priority
+                  sizes="224px"
+                  className="object-contain object-left"
+                />
+              </div>
+
+              <div className="space-y-3">
+                <p className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-eyebrow text-primary">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Secure sign in
+                </p>
+                <div className="space-y-2">
+                  <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+                    {error
+                      ? "We couldn't start secure sign-in"
+                      : nextPath
+                        ? 'Sign in to continue'
+                        : 'Sign in to Nkwapa'}
+                  </h1>
+                  <p className="text-sm leading-6 text-muted-foreground sm:text-base">
+                    {error
+                      ? 'The secure sign-in service did not respond. Your workspace data has not loaded, and you can retry without losing your place.'
+                      : destinationCopy}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {error ? (
+              <div
+                className="rounded-lg border border-destructive/25 bg-destructive/10 p-4"
+                role="alert"
+              >
+                <div className="flex gap-3">
+                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-foreground">
+                      Secure sign-in is affected
+                    </p>
+                    <p className="text-sm leading-6 text-muted-foreground">
+                      {error} The public home page is still available, but clinic records stay
+                      protected until sign-in reconnects.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="grid gap-3 rounded-lg border border-border bg-background p-4">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Wifi className="h-4 w-4" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">What happens next</p>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    Nkwapa sends you to secure sign-in, then returns you to the right clinic
+                    workspace after your session is verified.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Button onClick={login} className="h-12 flex-1 rounded-lg">
+                {error ? 'Try secure sign in again' : 'Continue to secure sign in'}
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+              <Button asChild variant="outline" className="h-12 rounded-lg">
+                <Link href="/">Back to home</Link>
+              </Button>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+  );
+}

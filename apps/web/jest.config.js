@@ -6,6 +6,7 @@ const config = {
   transform: {
     '^.+\\.(t|j)sx?$': 'ts-jest',
   },
+  testPathIgnorePatterns: ['/node_modules/', '/e2e/'],
   testEnvironment: 'node',
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
