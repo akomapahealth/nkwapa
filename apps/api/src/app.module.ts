@@ -3,6 +3,9 @@ import { BullModule } from '@nestjs/bullmq';
 import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { RedisModule } from './redis/redis.module';
+import { MaintenanceModule } from './maintenance/maintenance.module';
+import { bullQueueConnection } from './common/redis';
 import { AuditModule } from './audit/audit.module';
 import { TelemetryModule } from './telemetry/telemetry.module';
 import { NotificationModule } from './notifications/notification.module';
@@ -38,14 +41,16 @@ import { CounsellingModule } from './counselling/counselling.module';
 import { EyeScreeningModule } from './eye-screening/eye-screening.module';
 import { StaffActivityModule } from './staff-activity/staff-activity.module';
 
-const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
-
 @Module({
   imports: [
+    // Queues get a connection that reconnects forever on a capped backoff; workers set their own
+    // in `workerOptions` (#199).
     BullModule.forRoot({
-      connection: { url: REDIS_URL },
+      connection: bullQueueConnection(),
     }),
     PrismaModule,
+    RedisModule,
+    MaintenanceModule,
     HealthModule,
     AuthModule,
     AuditModule,

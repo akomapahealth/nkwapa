@@ -90,6 +90,7 @@ describe('appointment reminders across the lifecycle', () => {
       smsProvider,
       emailProvider,
       reminderQueue as never,
+      { isReady: () => true, assertReady: () => undefined } as never,
     );
   });
 

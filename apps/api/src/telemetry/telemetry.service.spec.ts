@@ -4,7 +4,7 @@ import {
   DEFAULT_TELEMETRY_RETENTION_DAYS,
   telemetryRetentionCutoff,
   telemetryRetentionDays,
-} from './telemetry-retention.processor';
+} from './telemetry-retention.sweep';
 
 function setup() {
   const createMany = jest.fn().mockResolvedValue({ count: 0 });

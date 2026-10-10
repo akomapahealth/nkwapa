@@ -10,6 +10,7 @@ import {
   type IdentityAccessResult,
 } from '../keycloak/keycloak-admin.service';
 import { redactLogValue } from '../common/redaction';
+import { RedisService } from '../redis/redis.service';
 
 export const IDENTITY_SYNC_QUEUE = 'identity-sync';
 export const IDENTITY_SYNC_JOB = 'sync-identity';
@@ -80,6 +81,7 @@ export class IdentitySyncService {
     private readonly keycloakAdminService: KeycloakAdminService,
     private readonly tenantContext: JobTenantContextRunner,
     @InjectQueue(IDENTITY_SYNC_QUEUE) private readonly queue: Queue<IdentitySyncJobData>,
+    private readonly redis: RedisService,
   ) {}
 
   /**
@@ -100,6 +102,8 @@ export class IdentitySyncService {
     });
 
     try {
+      // BullMQ waits for Redis rather than failing; a request must not wait with it (#199).
+      this.redis.assertReady();
       await this.queue.add(IDENTITY_SYNC_JOB, data, {
         delay: IDENTITY_SYNC_DELAY_MS,
         attempts: IDENTITY_SYNC_MAX_ATTEMPTS,

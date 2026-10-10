@@ -38,6 +38,7 @@ import {
 } from '../notifications/templates';
 import { DEFAULT_TIMEZONE } from '../notifications/templates/partials';
 import { SYSTEM_ACTOR_USER_ID } from '../common/system-actor';
+import { RedisService, RedisUnavailableError } from '../redis/redis.service';
 
 const REMINDER_QUEUE_NAME = 'reminders';
 const FOLLOWUP_TEMPLATE_KEY = 'FOLLOWUP_REMINDER_V1';
@@ -305,6 +306,7 @@ export class ReminderService {
     @Inject(EMAIL_PROVIDER)
     private readonly emailProvider: EmailProvider | null,
     @InjectQueue(REMINDER_QUEUE_NAME) private readonly reminderQueue: Queue,
+    private readonly redis: RedisService,
   ) {}
 
   /**
@@ -410,7 +412,7 @@ export class ReminderService {
     });
 
     await this.auditReminderCreate(params.clinicId, params.actorUserId, reminder, params.requestId);
-    await this.queueReminder(reminder.id, params.followUpDate, params.clinicId);
+    await this.queueScheduledReminder(reminder.id, params.followUpDate, params.clinicId);
     return reminder;
   }
 
@@ -440,7 +442,7 @@ export class ReminderService {
     });
 
     await this.auditReminderCreate(params.clinicId, params.actorUserId, reminder, params.requestId);
-    await this.queueReminder(reminder.id, params.followUpDate, params.clinicId);
+    await this.queueScheduledReminder(reminder.id, params.followUpDate, params.clinicId);
     return reminder;
   }
 
@@ -1206,7 +1208,7 @@ export class ReminderService {
 
     await this.auditReminderCreate(params.clinicId, params.actorUserId, reminder, params.requestId);
     if (params.status === 'QUEUED') {
-      await this.queueReminder(reminder.id, scheduledAt, params.clinicId);
+      await this.queueScheduledReminder(reminder.id, scheduledAt, params.clinicId);
     }
   }
 
@@ -1308,7 +1310,33 @@ export class ReminderService {
     return target > new Date() ? target : new Date();
   }
 
+  /**
+   * Queue a reminder that goes out later, or leave it QUEUED for `requeueOverdue` when Redis is
+   * down (#199). Its time is usually hours away, and the sweep re-queues a QUEUED row with no job
+   * once it is due, so a Redis outage should not fail the visit or appointment that scheduled it.
+   */
+  private async queueScheduledReminder(
+    reminderId: string,
+    scheduledAt: Date,
+    clinicId: string | null,
+  ) {
+    try {
+      await this.queueReminder(reminderId, scheduledAt, clinicId);
+    } catch (err) {
+      if (!(err instanceof RedisUnavailableError)) throw err;
+      this.logger.warn(
+        JSON.stringify({
+          message: 'Reminder left for reconciliation: Redis unavailable',
+          reminderId,
+          clinicId,
+        }),
+      );
+    }
+  }
+
   private async queueReminder(reminderId: string, scheduledAt: Date, clinicId: string | null) {
+    // BullMQ waits for Redis rather than failing; a request must not wait with it (#199).
+    this.redis.assertReady();
     const delayMs = Math.max(0, scheduledAt.getTime() - Date.now());
     await this.reminderQueue.add(
       'send',
@@ -1329,6 +1357,7 @@ export class ReminderService {
 
   private async removeQueuedReminderJob(reminderId: string): Promise<void> {
     try {
+      this.redis.assertReady();
       const job = await this.reminderQueue.getJob(this.getReminderJobId(reminderId));
       await job?.remove();
     } catch (err) {

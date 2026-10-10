@@ -4,6 +4,7 @@ import { jobAttempt } from '../common/job-attempt';
 import { JobTenantContextRunner } from '../prisma/job-tenant-context.runner';
 import { reminderRetryDelay } from './reminder-retry';
 import { ReminderService, type ReminderRunOutcome } from './reminder.service';
+import { workerOptions } from '../common/redis';
 
 export type ReminderJobData = {
   reminderId: string;
@@ -42,11 +43,14 @@ export type ReminderJobData = {
 const REMINDER_CONCURRENCY = 5;
 const REMINDER_RATE_LIMIT = { max: 5, duration: 1_000 };
 
-@Processor('reminders', {
-  concurrency: REMINDER_CONCURRENCY,
-  limiter: REMINDER_RATE_LIMIT,
-  settings: { backoffStrategy: reminderRetryDelay },
-})
+@Processor(
+  'reminders',
+  workerOptions({
+    concurrency: REMINDER_CONCURRENCY,
+    limiter: REMINDER_RATE_LIMIT,
+    settings: { backoffStrategy: reminderRetryDelay },
+  }),
+)
 export class ReminderProcessor extends WorkerHost {
   constructor(
     private readonly reminderService: ReminderService,

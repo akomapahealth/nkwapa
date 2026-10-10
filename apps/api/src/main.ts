@@ -10,6 +10,15 @@ import { flattenValidationErrors } from './common/validation';
 import { ApiExceptionFilter } from './common/http-exception.filter';
 import { getAllowedCorsOrigins } from './common/api-config';
 import { RateLimitGuard } from './common/rate-limit.guard';
+import { installRedisRejectionGuard } from './common/redis';
+
+// Before anything connects, so even a rejection during boot is covered (#199).
+installRedisRejectionGuard((error) => {
+  if (!process.env.SENTRY_DSN) return;
+  void import('@sentry/nestjs')
+    .then((Sentry) => Sentry.captureException(error))
+    .catch(() => undefined);
+});
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {

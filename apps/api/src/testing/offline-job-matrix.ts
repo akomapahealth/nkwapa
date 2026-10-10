@@ -71,7 +71,8 @@ export const OWNER_SURFACES = {
   'job-runner': 'Job tenant runner (`apps/api/src/prisma/job-tenant-context.runner.ts`)',
   'reminders-worker': 'Reminders worker (`apps/api/src/reminders`)',
   'research-worker': 'Research export worker (`apps/api/src/research`)',
-  'maintenance-jobs': 'Maintenance schedulers (portal invite expiry, telemetry retention)',
+  'maintenance-jobs':
+    'Maintenance sweeps on one shared queue (invite expiry, telemetry retention, reconciliation)',
   'database-rls': 'Row-level security (`packages/db/prisma/migrations`)',
 } as const;
 export type OwnerSurface = keyof typeof OWNER_SURFACES;
@@ -966,24 +967,29 @@ export const OFFLINE_JOB_SCENARIOS: readonly MatrixScenario[] = [
     risk: 'medium',
     surface: 'maintenance-jobs',
     scenario: 'Scheduled maintenance across several API instances and a Redis outage',
-    fixture: 'The portal invite expiry and telemetry retention schedulers',
+    fixture:
+      'The shared maintenance queue and its sweeps (portal invite expiry, telemetry retention)',
     expected:
       'One scheduler per cluster held in Redis, boot survives an unreachable queue, each sweep runs as system work and is safe to run twice.',
     automated: [
       ref(
-        'apps/api/src/patient-portal/portal-invite-maintenance.processor.spec.ts',
-        'registers one hourly scheduler, held in Redis rather than per instance',
+        'apps/api/src/maintenance/maintenance-scheduler.spec.ts',
+        'holds each sweep as one scheduler in Redis, so several instances produce one run',
       ),
       ref(
-        'apps/api/src/patient-portal/portal-invite-maintenance.processor.spec.ts',
-        'sweeps under a system tenant context',
-      ),
-      ref(
-        'apps/api/src/telemetry/telemetry-retention.processor.spec.ts',
+        'apps/api/src/maintenance/maintenance-scheduler.spec.ts',
         'boots even when the queue is unreachable',
       ),
       ref(
-        'apps/api/src/telemetry/telemetry-retention.processor.spec.ts',
+        'apps/api/src/maintenance/maintenance-scheduler.spec.ts',
+        'does not wait for Redis to register a scheduler',
+      ),
+      ref(
+        'apps/api/src/patient-portal/portal-invite-expiry.sweep.spec.ts',
+        'sweeps under a system tenant context',
+      ),
+      ref(
+        'apps/api/src/telemetry/telemetry-retention.sweep.spec.ts',
         'is safe to run twice, because it only ever deletes by age',
       ),
     ],

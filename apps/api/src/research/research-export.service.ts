@@ -20,6 +20,7 @@ import { redactLogValue } from '../common/redaction';
 import { SINGLE_FINAL_ATTEMPT, hasAttemptsLeft, type JobAttempt } from '../common/job-attempt';
 import { tryLockForTransaction } from '../prisma/transaction-lock';
 import type { JobStep } from '../prisma/job-tenant-context.runner';
+import { RedisService } from '../redis/redis.service';
 
 export interface ExportAuditContext {
   clinicId: string;
@@ -81,6 +82,7 @@ export class ResearchExportService {
     private readonly repoSyncService: ResearchRepoSyncService,
     @InjectQueue(RESEARCH_EXPORT_QUEUE_NAME)
     private readonly exportQueue: Queue,
+    private readonly redis: RedisService,
   ) {}
 
   async requestExport(
@@ -601,6 +603,8 @@ export class ResearchExportService {
     jobId: string = exportRecord.id,
   ) {
     try {
+      // BullMQ waits for Redis rather than failing; a request must not wait with it (#199).
+      this.redis.assertReady();
       await this.exportQueue.add(
         'process',
         {
