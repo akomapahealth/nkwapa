@@ -107,7 +107,7 @@ BullMQ workers: reminders, research exports, and the maintenance sweeps. Each is
 | JOB-05 | A failed research export is retried | A FAILED export whose first job BullMQ still holds under the export id | Retry queues it under a fresh job id, so it actually runs, instead of reading APPROVED with nothing queued. | Research export worker (`apps/api/src/research`) | high | Unit, Manual |
 | JOB-06 | A research export run fails | Pack generation or the GitHub push throws, with attempts left and on the last attempt | With attempts left the run is handed back to the queue and nothing is recorded. The last attempt records FAILED and its audit entry, and they commit. | Research export worker (`apps/api/src/research`) | high | Unit, Manual |
 | JOB-07 | A research export job is delivered twice | Two deliveries of one export, concurrently or after completion | The pack is built and pushed to the research repository once. | Research export worker (`apps/api/src/research`) | high | Unit |
-| JOB-08 | Scheduled maintenance across several API instances and a Redis outage | The portal invite expiry and telemetry retention schedulers | One scheduler per cluster held in Redis, boot survives an unreachable queue, each sweep runs as system work and is safe to run twice. | Maintenance schedulers (portal invite expiry, telemetry retention) | medium | Unit |
+| JOB-08 | Scheduled maintenance across several API instances and a Redis outage | The shared maintenance queue and its sweeps (portal invite expiry, telemetry retention) | One scheduler per cluster held in Redis, boot survives an unreachable queue, each sweep runs as system work and is safe to run twice. | Maintenance sweeps on one shared queue (invite expiry, telemetry retention, reconciliation) | medium | Unit |
 | JOB-09 | A send or export outlasts the job transaction | A slow SMTP relay, or a large clinic export pushed to a slow GitHub | No provider call or push runs inside a transaction (#164). The row is claimed (SENDING, PROCESSING) and committed first, the call runs with no transaction open, and the outcome is recorded in a second step. A lost outcome is never retried blindly: a reminder is recorded as SEND_OUTCOME_UNKNOWN, and an export is settled by asking GitHub for a commit at its planned path. | Research export worker (`apps/api/src/research`) | high | Unit |
 
 ## Known risks
@@ -245,10 +245,11 @@ The exact tests behind each row.
   - Unit: `apps/api/src/research/research-export.service.spec.ts` "claims the export before it reads it"
   - Unit: `apps/api/src/research/research-export.service.spec.ts` "does nothing for a delivery that arrives after the export completed"
 - **JOB-08** Scheduled maintenance across several API instances and a Redis outage
-  - Unit: `apps/api/src/patient-portal/portal-invite-maintenance.processor.spec.ts` "registers one hourly scheduler, held in Redis rather than per instance"
-  - Unit: `apps/api/src/patient-portal/portal-invite-maintenance.processor.spec.ts` "sweeps under a system tenant context"
-  - Unit: `apps/api/src/telemetry/telemetry-retention.processor.spec.ts` "boots even when the queue is unreachable"
-  - Unit: `apps/api/src/telemetry/telemetry-retention.processor.spec.ts` "is safe to run twice, because it only ever deletes by age"
+  - Unit: `apps/api/src/maintenance/maintenance-scheduler.spec.ts` "holds each sweep as one scheduler in Redis, so several instances produce one run"
+  - Unit: `apps/api/src/maintenance/maintenance-scheduler.spec.ts` "boots even when the queue is unreachable"
+  - Unit: `apps/api/src/maintenance/maintenance-scheduler.spec.ts` "does not wait for Redis to register a scheduler"
+  - Unit: `apps/api/src/patient-portal/portal-invite-expiry.sweep.spec.ts` "sweeps under a system tenant context"
+  - Unit: `apps/api/src/telemetry/telemetry-retention.sweep.spec.ts` "is safe to run twice, because it only ever deletes by age"
 - **JOB-09** A send or export outlasts the job transaction
   - Unit: `apps/api/src/reminders/reminder-send-steps.spec.ts` "claims, sends with no transaction open, then records SENT"
   - Unit: `apps/api/src/reminders/reminder-send-steps.spec.ts` "sends exactly once however long the provider takes"

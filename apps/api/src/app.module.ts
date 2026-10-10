@@ -4,6 +4,7 @@ import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
+import { MaintenanceModule } from './maintenance/maintenance.module';
 import { bullQueueConnection } from './common/redis';
 import { AuditModule } from './audit/audit.module';
 import { TelemetryModule } from './telemetry/telemetry.module';
@@ -49,6 +50,7 @@ import { StaffActivityModule } from './staff-activity/staff-activity.module';
     }),
     PrismaModule,
     RedisModule,
+    MaintenanceModule,
     HealthModule,
     AuthModule,
     AuditModule,
