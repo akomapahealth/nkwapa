@@ -111,25 +111,64 @@ Each of these is audited. Before doing one, confirm the active clinic in the hea
 
 1. Create the user in Keycloak.
 2. Obtain the user's `sub`.
-3. Set:
+3. Run the seed with every variable on the command line. Against staging or production it reads
+   nothing from `.env`, and refuses to start unless the environment, the database name and the
+   clinic name are given explicitly:
 
 ```bash
-SEED_SYSTEM_ADMIN_SUB=<keycloak-sub>
-SEED_SYSTEM_ADMIN_NAME="System Admin"
-```
-
-4. Run:
-
-```bash
+SEED_ENVIRONMENT=production \
+DATABASE_URL='<owner connection string>' \
+SEED_CONFIRM=<database name from that URL> \
+SEED_CLINIC_NAME='<real clinic name>' \
+SEED_SYSTEM_ADMIN_SUB=<keycloak-sub> \
+SEED_SYSTEM_ADMIN_NAME="System Admin" \
 npm run db:seed
 ```
 
-The seed now also creates or updates:
+Locally, `npm run db:seed:local` sets `SEED_ENVIRONMENT=local` and reads `.env` as before.
+
+| Variable            | Meaning                                                                                 |
+| ------------------- | --------------------------------------------------------------------------------------- |
+| `SEED_ENVIRONMENT`  | Required. `local`, `ci`, `staging` or `production`. Only `local` loads `.env`.          |
+| `SEED_CONFIRM`      | Required for `staging` and `production`: the database name in `DATABASE_URL`.           |
+| `SEED_CLINIC_NAME`  | Required for `staging` and `production`, so the demo name is never used there.          |
+| `SEED_DRUG_CATALOG` | `true` to seed the demo drug catalogue in production. Other environments always get it. |
+
+The seed prints a summary (target host and database, environment, what it will create) before it
+writes anything. In `production` it refuses to start if any `SEED_SAMPLE_*`, `SEED_E2E_*` or
+`E2E_*` variable is set, and names each one. It also refuses `production` against `localhost`,
+and `local` or `ci` against a `neon.tech` host.
+
+The seed creates or updates:
 
 - the default organization
 - the default clinic/location
 - the clinic research settings when a seed admin exists
-- demo drug catalog
+- the demo drug catalogue, except in production without `SEED_DRUG_CATALOG=true`
+
+### Removing seed fixtures from a deployed database
+
+If fixtures reached a deployed database (#200), report them first. The report changes nothing:
+
+```bash
+DATABASE_URL='<owner connection string>' npm run db:purge-seed-fixtures
+```
+
+It lists fixture users (`@nkwapa.local` email or an `E2E ` display name) and fixture patients
+(the chart names in `packages/db/src/seed-plan.ts`) with their dependent rows. It also lists, for
+review only, every global system admin and every clinic, because a local `SEED_SYSTEM_ADMIN_SUB`
+or `SEED_CLINIC_NAME` would show up there and a name match cannot tell which one is wrong.
+
+When the report shows only fixtures, apply it:
+
+```bash
+DATABASE_URL='<owner connection string>' SEED_CONFIRM=<database name> \
+  npm run db:purge-seed-fixtures -- --apply
+```
+
+In one transaction, it deletes the fixture patients (their encounters, appointments, requests and
+invites cascade) and removes every role from the fixture users and deactivates them. A fixture
+chart that has a clinical note is reported and kept, because notes are immutable.
 
 ### Later elevation path
 
