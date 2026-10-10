@@ -714,6 +714,6 @@ replaced sat wrong for as long as it existed precisely because nothing measured 
 
 A local full-suite run is only trustworthy against a fresh database. The two `patient request
 triage` specs in `appointments.spec.js` consume the pending requests they act on, and
-`npm run db:seed` will not put them back: it guards on presence, not state, and reports "Sample
+`npm run db:seed:local` will not put them back: it guards on presence, not state, and reports "Sample
 appointments already exist; skipping". Reset Postgres, or expect exactly those two to fail on a
 second run.

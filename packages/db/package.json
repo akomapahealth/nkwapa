@@ -116,6 +116,6 @@
   },
   "prisma": {
     "schema": "prisma/schema.prisma",
-    "seed": "ts-node --transpile-only prisma/seed.ts"
+    "seed": "SEED_ENVIRONMENT=local ts-node --transpile-only prisma/seed.ts"
   }
 }

@@ -175,7 +175,7 @@ confirming that a row exists elsewhere is itself a disclosure.
 The suite cannot reach its own subject without fixtures, because a confirmed appointment is
 produced only by confirming a request.
 
-`SEED_SAMPLE_APPOINTMENTS=true` on `npm run db:seed` creates, alongside the existing seed:
+`SEED_SAMPLE_APPOINTMENTS=true` on `npm run db:seed:local` creates, alongside the existing seed:
 
 | Fixture                                 | Purpose                                               |
 | --------------------------------------- | ----------------------------------------------------- |
@@ -205,7 +205,7 @@ isolation suites.
    `CLINIC.READ` to `APPOINTMENT.READ`, which widens access to doctors and volunteers and narrows
    it for nobody.
 3. Seed the acceptance fixtures in non-production environments:
-   `SEED_SAMPLE_APPOINTMENTS=true npm run db:seed`. Do not set this in production.
+   `SEED_SAMPLE_APPOINTMENTS=true npm run db:seed:local`. Do not set this in production.
 4. Confirm `npm run docs:appointment-matrix --workspace=@nkwapa/api` leaves the generated matrix
    unchanged.
 5. Validate keyboard and focus behaviour, and layouts at 375, 768, 1024, and 1440 pixels.

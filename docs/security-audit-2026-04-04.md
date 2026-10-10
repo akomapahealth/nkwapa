@@ -55,7 +55,7 @@
 
 ## Residual Risks / Follow-up
 
-- Exact staging and production frontend domains in the Keycloak export are currently assumed to be `https://staging.nkwapa.app` and `https://app.nkwapa.app`; update these if your real domains differ.
+- The Keycloak export names the staging and production frontend domains as `https://staging.nkwapa.app` and `https://nkwapa.app`. Production moved from the `app.` subdomain to the apex `https://nkwapa.app` for 1.0.0 (#198); `npm run keycloak:validate-realm` enforces both.
 - RLS protection depends on every execution path establishing context. HTTP requests use the Prisma interceptor, queue processors use `JobTenantContextRunner`, and privileged standalone database scripts are explicitly documented exceptions.
 - Full end-to-end validation of Keycloak action token overrides should be confirmed in a running Keycloak environment after import.
 

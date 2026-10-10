@@ -135,7 +135,7 @@ scheduling, suppression on every transition, and the send-time re-check
 triage, the lifecycle dialogs, role gating, the portal views, and the four supported widths
 
 Test data
-• SEED_SAMPLE_APPOINTMENTS=true npm run db:seed
+• SEED_SAMPLE_APPOINTMENTS=true npm run db:seed:local
 • one appointment in each of the four states plus two pending requests, times relative to the run
 
 Manual QA
