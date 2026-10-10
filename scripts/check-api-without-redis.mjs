@@ -94,8 +94,10 @@ async function main() {
 
   const { status, body } = last;
   if (status !== 200) fail(`/health returned HTTP ${status}`);
-  if (body?.checks?.redis !== 'disconnected') fail(`expected checks.redis "disconnected", got ${JSON.stringify(body?.checks)}`);
-  if (body?.checks?.db !== 'connected') fail(`expected checks.db "connected", got ${JSON.stringify(body?.checks)}`);
+  if (body?.checks?.redis !== 'disconnected')
+    fail(`expected checks.redis "disconnected", got ${JSON.stringify(body?.checks)}`);
+  if (body?.checks?.db !== 'connected')
+    fail(`expected checks.db "connected", got ${JSON.stringify(body?.checks)}`);
   if (body?.status !== 'degraded') fail(`expected status "degraded", got "${body?.status}"`);
 
   console.log(`PASS: still up after ${holdMs / 1000} s without Redis: ${JSON.stringify(body)}`);
