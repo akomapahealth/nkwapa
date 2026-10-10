@@ -169,26 +169,24 @@
   "clients": [
     {
       "clientId": "nkwapa-web",
+      "rootUrl": "https://nkwapa.app",
+      "baseUrl": "https://nkwapa.app",
       "enabled": true,
       "publicClient": true,
       "directAccessGrantsEnabled": true,
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,
       "redirectUris": [
-        "https://app.nkwapa.app/*",
-        "https://app.nkwapa.app",
+        "https://nkwapa.app/*",
+        "https://nkwapa.app",
         "https://staging.nkwapa.app/*",
         "https://staging.nkwapa.app",
         "http://localhost:3000/*",
         "http://localhost:3000"
       ],
-      "webOrigins": [
-        "https://app.nkwapa.app",
-        "https://staging.nkwapa.app",
-        "http://localhost:3000"
-      ],
+      "webOrigins": ["https://nkwapa.app", "https://staging.nkwapa.app", "http://localhost:3000"],
       "attributes": {
-        "post.logout.redirect.uris": "https://app.nkwapa.app/*##https://app.nkwapa.app##https://staging.nkwapa.app/*##https://staging.nkwapa.app##http://localhost:3000/*##http://localhost:3000"
+        "post.logout.redirect.uris": "https://nkwapa.app/*##https://nkwapa.app##https://staging.nkwapa.app/*##https://staging.nkwapa.app##http://localhost:3000/*##http://localhost:3000"
       },
       "protocol": "openid-connect",
       "fullScopeAllowed": true

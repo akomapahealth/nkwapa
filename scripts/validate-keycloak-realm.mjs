@@ -164,19 +164,44 @@ assert(
 
 const client = realm.clients?.find((candidate) => candidate.clientId === 'nkwapa-web');
 assert(Boolean(client), 'nkwapa-web client must be present');
-for (const redirectUri of [
-  'http://localhost:3000',
-  'http://localhost:3000/*',
-  'https://staging.nkwapa.app',
-  'https://staging.nkwapa.app/*',
-  'https://app.nkwapa.app',
-  'https://app.nkwapa.app/*',
-]) {
-  assert(
-    client?.redirectUris?.includes(redirectUri),
-    `nkwapa-web redirectUris must include ${redirectUri}`,
-  );
+/*
+  Every web origin must appear in all three lists, or login and logout disagree.
+
+  Production moved from the app. subdomain to the apex for 1.0.0 (#198). The redirect URIs were
+  fixed by hand in the live realm, but webOrigins and the post-logout list are separate fields,
+  so the export could pass a redirect-only check while CORS or sign-out still named the old
+  host. Checking each origin against all three keeps them from drifting apart again.
+*/
+const webOrigins = ['http://localhost:3000', 'https://staging.nkwapa.app', 'https://nkwapa.app'];
+const postLogoutRedirectUris = (client?.attributes?.['post.logout.redirect.uris'] ?? '').split(
+  '##',
+);
+for (const origin of webOrigins) {
+  for (const uri of [origin, `${origin}/*`]) {
+    assert(client?.redirectUris?.includes(uri), `nkwapa-web redirectUris must include ${uri}`);
+    assert(
+      postLogoutRedirectUris.includes(uri),
+      `nkwapa-web post.logout.redirect.uris must include ${uri}`,
+    );
+  }
+  assert(client?.webOrigins?.includes(origin), `nkwapa-web webOrigins must include ${origin}`);
 }
+const allClientUris = [
+  client?.rootUrl,
+  client?.baseUrl,
+  ...(client?.redirectUris ?? []),
+  ...(client?.webOrigins ?? []),
+  ...postLogoutRedirectUris,
+].filter(Boolean);
+assert(
+  !allClientUris.some((uri) => /\/\/app\.nkwapa\.app/.test(uri)),
+  'nkwapa-web must not name the retired app. subdomain',
+);
+// A wildcard in the host (say, *.vercel.app) would hand an auth code to any preview build.
+assert(
+  !allClientUris.some((uri) => /^[a-z]+:\/\/[^/]*\*/.test(uri)),
+  'nkwapa-web must not use a wildcard host',
+);
 
 /*
   The public client must gain nothing from the service account being added beside it.

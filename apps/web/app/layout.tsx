@@ -19,7 +19,7 @@ document.documentElement.style.colorScheme=d?'dark':'light';
 }catch(e){}})();
 `.trim();
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://app.nkwapa.app';
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://nkwapa.app';
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
