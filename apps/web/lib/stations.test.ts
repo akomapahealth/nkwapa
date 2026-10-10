@@ -1,6 +1,7 @@
 import {
   assignableStaff,
   formatMinutes,
+  isStationBoard,
   moveStation,
   minutesSince,
   stationsPassedOver,
@@ -99,5 +100,20 @@ describe('assignableStaff', () => {
 
   it('offers nobody when nobody is on shift', () => {
     expect(assignableStaff([], 'bp')).toEqual({ atStation: [], elsewhere: [] });
+  });
+});
+
+describe('isStationBoard (#197)', () => {
+  const board = { date: '2026-03-21', timezone: 'Africa/Accra', stations: [] };
+
+  it('accepts a board', () => {
+    expect(isStationBoard(board)).toBe(true);
+  });
+
+  it("rejects the stations page's board-plus-shifts and anything else", () => {
+    expect(isStationBoard({ board, shifts: { items: [] } })).toBe(false);
+    expect(isStationBoard(null)).toBe(false);
+    expect(isStationBoard([])).toBe(false);
+    expect(isStationBoard({ timezone: 'Africa/Accra' })).toBe(false);
   });
 });

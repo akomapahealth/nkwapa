@@ -38,6 +38,7 @@ export function useOpsView<T>({
   fetcher,
   errorMessage,
   pendingIds = [],
+  isValid,
 }: {
   clinicId: string | null;
   kind: OpsCacheKind;
@@ -45,6 +46,11 @@ export function useOpsView<T>({
   fetcher: (getToken: GetToken, signal: AbortSignal) => Promise<T>;
   errorMessage: string;
   pendingIds?: readonly string[];
+  /**
+   * Whether a saved copy is the shape this view renders. One that is not is never shown, and is
+   * removed from the device. Pass a module-level function: it is read once per clinic day.
+   */
+  isValid?: (data: unknown) => data is T;
 }): OpsViewState<T> {
   const live = useAsyncResource<{ date: string; data: T; loadedAt: string }>({
     fetcher: async (getToken, signal) => {
@@ -64,7 +70,7 @@ export function useOpsView<T>({
   useEffect(() => {
     if (!clinicId) return;
     let current = true;
-    void readOpsCache<T>(db, { clinicId, kind, date }).then((record) => {
+    void readOpsCache<T>(db, { clinicId, kind, date, isValid }).then((record) => {
       if (!current) return;
       setSaved(record);
       setCheckedKey(cacheKey);
@@ -72,6 +78,9 @@ export function useOpsView<T>({
     return () => {
       current = false;
     };
+    // isValid is a module-level guard; re-reading the cache when its identity changes would only
+    // repeat the same read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cacheKey, clinicId, kind, date]);
 
   // A queued change that left the queue has applied (or been discarded): reload for the truth.

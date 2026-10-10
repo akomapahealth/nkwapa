@@ -74,6 +74,16 @@ export interface StationBoard {
   onShift?: OnShiftStaff[];
 }
 
+/**
+ * Whether a value is a station board, for checking a copy saved on the device before it is drawn.
+ * Structural only: it tells a board apart from another view's shape, not a well-formed board.
+ */
+export function isStationBoard(value: unknown): value is StationBoard {
+  if (typeof value !== 'object' || value === null) return false;
+  const board = value as Partial<StationBoard>;
+  return typeof board.timezone === 'string' && Array.isArray(board.stations);
+}
+
 export interface OnShiftStaff {
   user: StaffSummary;
   roleAtShift: 'VOLUNTEER' | 'DOCTOR' | 'MANAGER';

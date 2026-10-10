@@ -23,6 +23,7 @@ import {
   StationRequestError,
   claimStationVisit,
   fetchStationBoard,
+  isStationBoard,
   minutesSince,
   patientName,
   setShiftStation,
@@ -49,6 +50,13 @@ import { cn } from '@/lib/utils';
 interface StationsView {
   board: StationBoard;
   shifts: ActiveShiftsResponse;
+}
+
+/** Whether a copy saved on the device is this page's shape, not the manager's bare board (#197). */
+function isStationsView(value: unknown): value is StationsView {
+  if (typeof value !== 'object' || value === null) return false;
+  const view = value as Partial<StationsView>;
+  return isStationBoard(view.board) && Array.isArray(view.shifts?.items);
 }
 
 /**
@@ -80,7 +88,7 @@ export default function StationsPage() {
   const pendingIds = useMemo(() => pendingWrites.map((write) => write.entityId), [pendingWrites]);
   const view = useOpsView<StationsView>({
     clinicId: enabled ? clinicId : null,
-    kind: 'station-board',
+    kind: 'station-workspace',
     date,
     errorMessage: 'The station line could not be loaded.',
     pendingIds,
@@ -91,18 +99,19 @@ export default function StationsPage() {
       ]);
       return { board, shifts };
     },
+    isValid: isStationsView,
   });
   const { isOnline, refresh } = view;
   usePolling(refresh, enabled && isOnline && Boolean(clinicId));
 
-  const timezone = view.data?.board.timezone ?? OPS_DEFAULT_TIMEZONE;
+  const timezone = view.data?.board?.timezone ?? OPS_DEFAULT_TIMEZONE;
   const stations = useMemo(
-    () => (view.data?.board.stations ?? []).filter((station) => station.active),
+    () => (view.data?.board?.stations ?? []).filter((station) => station.active),
     [view.data],
   );
   const shifts = useMemo(
     () =>
-      overlayPendingShifts(view.data?.shifts.items ?? [], pendingWrites, {
+      overlayPendingShifts(view.data?.shifts?.items ?? [], pendingWrites, {
         userId: bootstrap?.userId,
         displayName: bootstrap?.displayName,
       }),

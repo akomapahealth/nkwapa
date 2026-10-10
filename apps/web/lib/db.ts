@@ -486,8 +486,14 @@ export interface SyncStateRecord {
   updatedAt: string;
 }
 
-/** The clinic-operations views a device keeps its last good copy of. */
-export type OpsCacheKind = 'today-board' | 'my-assigned' | 'station-board';
+/**
+ * The clinic-operations views a device keeps its last good copy of.
+ *
+ * One kind per data shape: two screens that cache different shapes under one kind overwrite each
+ * other's copy, and the next screen to read it renders the wrong shape (#197). `station-board` is
+ * the manager's bare board on /today; `station-workspace` is the board plus shifts on /stations.
+ */
+export type OpsCacheKind = 'today-board' | 'my-assigned' | 'station-board' | 'station-workspace';
 
 /**
  * The last copy of a clinic-operations view this device loaded, so it still renders offline.
