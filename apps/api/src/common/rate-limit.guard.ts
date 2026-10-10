@@ -8,12 +8,12 @@ import {
   Optional,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import Redis from 'ioredis';
 import { getRateLimitValue } from './api-config';
 import { RATE_LIMIT_METADATA_KEY, type RateLimitConfig } from './rate-limit.decorator';
 import { getRequestId, getRequestIp } from './request-context';
 import { redactLogValue, redactUrl } from './redaction';
 import { TelemetryService } from '../telemetry/telemetry.service';
+import { RedisService } from '../redis/redis.service';
 
 type RequestWithUser = {
   user?: { user?: { id?: string } };
@@ -27,14 +27,10 @@ type RequestWithUser = {
 @Injectable()
 export class RateLimitGuard implements CanActivate {
   private readonly logger = new Logger(RateLimitGuard.name);
-  private readonly redis = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379', {
-    lazyConnect: true,
-    maxRetriesPerRequest: 1,
-  });
-  private redisReady = false;
 
   constructor(
     private readonly reflector: Reflector,
+    private readonly redisService: RedisService,
     @Optional() private readonly telemetry?: TelemetryService,
   ) {}
 
@@ -54,11 +50,14 @@ export class RateLimitGuard implements CanActivate {
       return true;
     }
 
+    // Fails open while Redis is down (#199), and quietly: the client already logs the outage, so a
+    // line per request would only bury it.
+    if (!this.redisService.isReady()) {
+      return true;
+    }
+
     try {
-      if (!this.redisReady) {
-        await this.redis.connect();
-        this.redisReady = true;
-      }
+      const redis = this.redisService.client;
 
       const limit = getRateLimitValue(
         `RATE_LIMIT_${config.key.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}_LIMIT`,
@@ -70,9 +69,9 @@ export class RateLimitGuard implements CanActivate {
       );
 
       const bucketKey = `rate-limit:${config.key}:${identity}`;
-      const usage = await this.redis.incr(bucketKey);
+      const usage = await redis.incr(bucketKey);
       if (usage === 1) {
-        await this.redis.expire(bucketKey, windowSeconds);
+        await redis.expire(bucketKey, windowSeconds);
       }
 
       if (usage > limit) {
@@ -108,7 +107,6 @@ export class RateLimitGuard implements CanActivate {
           error: redactLogValue(error),
         }),
       );
-      this.redisReady = false;
       return true;
     }
   }

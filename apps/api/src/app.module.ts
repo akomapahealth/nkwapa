@@ -3,6 +3,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { RedisModule } from './redis/redis.module';
 import { AuditModule } from './audit/audit.module';
 import { TelemetryModule } from './telemetry/telemetry.module';
 import { NotificationModule } from './notifications/notification.module';
@@ -46,6 +47,7 @@ const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
       connection: { url: REDIS_URL },
     }),
     PrismaModule,
+    RedisModule,
     HealthModule,
     AuthModule,
     AuditModule,
