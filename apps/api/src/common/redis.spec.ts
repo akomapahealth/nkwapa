@@ -1,6 +1,8 @@
 import { EventEmitter } from 'events';
 import {
   attachRedisErrorLogging,
+  installRedisRejectionGuard,
+  isRedisConnectionError,
   bullWorkerConnection,
   REDIS_ERROR_LOG_INTERVAL_MS,
   REDIS_MAX_RECONNECT_DELAY_MS,
@@ -73,5 +75,61 @@ describe('redisRetryStrategy', () => {
 describe('bullWorkerConnection', () => {
   it('meets BullMQ worker requirements', () => {
     expect(bullWorkerConnection().maxRetriesPerRequest).toBeNull();
+  });
+});
+
+describe('isRedisConnectionError', () => {
+  it('recognises what ioredis rejects with when Redis is unreachable', () => {
+    const maxRetries = new Error('Reached the max retries per request limit (which is 20).');
+    maxRetries.name = 'MaxRetriesPerRequestError';
+    expect(isRedisConnectionError(maxRetries)).toBe(true);
+    expect(isRedisConnectionError(new Error('Connection is closed.'))).toBe(true);
+    expect(
+      isRedisConnectionError(
+        new Error("Stream isn't writeable and enableOfflineQueue options is false"),
+      ),
+    ).toBe(true);
+    expect(isRedisConnectionError(new Error('Command timed out'))).toBe(true);
+  });
+
+  it('leaves every other failure alone', () => {
+    expect(isRedisConnectionError(new TypeError('x is undefined'))).toBe(false);
+    expect(isRedisConnectionError(new Error('Connection is closed by the database'))).toBe(false);
+    expect(isRedisConnectionError('Connection is closed.')).toBe(false);
+  });
+});
+
+describe('installRedisRejectionGuard', () => {
+  let added: ((reason: unknown) => void) | undefined;
+  afterEach(() => {
+    if (added) process.removeListener('unhandledRejection', added);
+    added = undefined;
+  });
+
+  function guard() {
+    const before = process.listeners('unhandledRejection');
+    const report = jest.fn();
+    const logger = { error: jest.fn() };
+    installRedisRejectionGuard(report, logger);
+    const handler = process
+      .listeners('unhandledRejection')
+      .find((listener) => !before.includes(listener)) as (reason: unknown) => void;
+    added = handler;
+    return { handler, report, logger };
+  }
+
+  it('logs and reports a Redis rejection instead of ending the process', () => {
+    const { handler, report, logger } = guard();
+    const error = new Error('Connection is closed.');
+    expect(() => handler(error)).not.toThrow();
+    expect(report).toHaveBeenCalledWith(error);
+    expect(logger.error).toHaveBeenCalledTimes(1);
+  });
+
+  it('rethrows anything else, so Node still exits on it', () => {
+    const { handler, report } = guard();
+    const error = new TypeError('x is undefined');
+    expect(() => handler(error)).toThrow(error);
+    expect(report).not.toHaveBeenCalled();
   });
 });

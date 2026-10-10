@@ -158,3 +158,45 @@ export function workerOptions<T extends object>(options?: T) {
     ...options,
   };
 }
+
+/*
+  Errors ioredis and BullMQ reject with when Redis is unreachable. Most are plain `Error`s, so
+  they are told apart by name and message.
+*/
+const REDIS_ERROR_NAMES = new Set(['MaxRetriesPerRequestError', 'ConnectionClosedError']);
+const REDIS_ERROR_MESSAGES = [
+  /^Connection is closed\.?$/,
+  /^Stream isn't writeable and enableOfflineQueue options is false$/,
+  /^Command timed out$/,
+  /^Reached the max retries per request limit/,
+];
+
+export function isRedisConnectionError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return (
+    REDIS_ERROR_NAMES.has(error.name) ||
+    REDIS_ERROR_MESSAGES.some((pattern) => pattern.test(error.message))
+  );
+}
+
+/**
+ * The last line of defence (#199): a Redis rejection that nothing awaited is logged and reported
+ * instead of ending the process. Every client is meant to handle its own failures, so reaching
+ * this is a bug to fix, but not one worth an outage. Any other unhandled rejection is rethrown,
+ * which ends the process exactly as Node would have.
+ */
+export function installRedisRejectionGuard(
+  report: (error: unknown) => void,
+  logger: Pick<Logger, 'error'> = new Logger('Redis'),
+) {
+  process.on('unhandledRejection', (reason) => {
+    if (!isRedisConnectionError(reason)) throw reason;
+    logger.error(
+      JSON.stringify({
+        message: 'Unhandled Redis rejection; the API stays up',
+        error: redactLogValue(reason),
+      }),
+    );
+    report(reason);
+  });
+}
