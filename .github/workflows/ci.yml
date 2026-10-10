@@ -388,6 +388,8 @@ jobs:
       - name: Seed deterministic dashboard staff, single-role users, and appointments
         run: npm run db:seed
         env:
+          # The seed refuses to run without one, and only `local` reads .env (#200).
+          SEED_ENVIRONMENT: ci
           SEED_SAMPLE_APPOINTMENTS: ${{ env.SEED_SAMPLE_APPOINTMENTS }}
           SEED_SAMPLE_DUPLICATES: ${{ env.SEED_SAMPLE_DUPLICATES }}
           SEED_SAMPLE_CROSS_CLINIC: ${{ env.SEED_SAMPLE_CROSS_CLINIC }}

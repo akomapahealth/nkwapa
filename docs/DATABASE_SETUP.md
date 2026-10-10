@@ -65,12 +65,17 @@ npm run db:generate
 3. Seed the default organization, clinic, and starter data if needed:
 
 ```bash
-npm run db:seed
+npm run db:seed:local
 ```
 
 ---
 
 ## Seed Inputs
+
+`SEED_ENVIRONMENT` is required: `local`, `ci`, `staging` or `production`. Only `local` reads the
+repo-root `.env`; every other environment gets its variables from the shell. `npm run
+db:seed:local` sets it for you. For staging and production, see
+[USER_AND_ROLE_SETUP_GUIDE.md §5](./USER_AND_ROLE_SETUP_GUIDE.md#5-first-system-admin-setup).
 
 Common seed variables:
 

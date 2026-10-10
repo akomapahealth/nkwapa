@@ -25,13 +25,13 @@ const PRODUCTION = {
   SEED_SYSTEM_ADMIN_SUB: 'prod-admin-sub',
 };
 
-function expectPlan(env: Record<string, string>): SeedPlan {
+function expectPlan(env: Record<string, string | undefined>): SeedPlan {
   const result = planSeed(env);
   if (!result.ok) throw new Error(`expected a plan, got: ${result.errors.join(' | ')}`);
   return result.plan;
 }
 
-function expectErrors(env: Record<string, string>): string {
+function expectErrors(env: Record<string, string | undefined>): string {
   const result = planSeed(env);
   if (result.ok) throw new Error('expected the seed to be refused');
   return result.errors.join('\n');
@@ -85,8 +85,9 @@ describe('planSeed', () => {
   });
 
   it('requires SEED_CONFIRM to name the target database for staging and production', () => {
-    const { SEED_CONFIRM: _omit, ...unconfirmed } = PRODUCTION;
-    expect(expectErrors(unconfirmed)).toMatch(/Set SEED_CONFIRM=nkwapa/);
+    expect(expectErrors({ ...PRODUCTION, SEED_CONFIRM: undefined })).toMatch(
+      /Set SEED_CONFIRM=nkwapa/,
+    );
     expect(expectErrors({ ...PRODUCTION, SEED_CONFIRM: 'nkwapa_dev' })).toMatch(
       /Set SEED_CONFIRM=nkwapa/,
     );
@@ -96,8 +97,9 @@ describe('planSeed', () => {
   });
 
   it('requires a clinic name for a deployed environment', () => {
-    const { SEED_CLINIC_NAME: _omit, ...unnamed } = PRODUCTION;
-    expect(expectErrors(unnamed)).toMatch(/SEED_CLINIC_NAME is required for production/);
+    expect(expectErrors({ ...PRODUCTION, SEED_CLINIC_NAME: undefined })).toMatch(
+      /SEED_CLINIC_NAME is required for production/,
+    );
   });
 
   it('refuses production pointed at localhost', () => {
