@@ -4,6 +4,7 @@ import { jobAttempt } from '../common/job-attempt';
 import { JobTenantContextRunner } from '../prisma/job-tenant-context.runner';
 import { ResearchExportService } from './research-export.service';
 import { RESEARCH_EXPORT_QUEUE_NAME } from './research-policy';
+import { workerOptions } from '../common/redis';
 
 export type ResearchExportJobData = {
   exportId: string;
@@ -11,7 +12,7 @@ export type ResearchExportJobData = {
   userId?: string | null;
 };
 
-@Processor(RESEARCH_EXPORT_QUEUE_NAME)
+@Processor(RESEARCH_EXPORT_QUEUE_NAME, workerOptions())
 export class ResearchExportProcessor extends WorkerHost {
   constructor(
     private readonly researchExportService: ResearchExportService,

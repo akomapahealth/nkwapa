@@ -4,6 +4,7 @@ import { Queue } from 'bullmq';
 import { JobTenantContextRunner } from '../prisma/job-tenant-context.runner';
 import { redactLogValue } from '../common/redaction';
 import { ResearchExportService } from './research-export.service';
+import { workerOptions } from '../common/redis';
 
 export const RESEARCH_EXPORT_RECONCILIATION_QUEUE = 'research-export-reconciliation';
 export const RESEARCH_EXPORT_RECONCILE_JOB = 'reconcile-stale-exports';
@@ -17,7 +18,7 @@ export const RESEARCH_EXPORT_RECONCILE_INTERVAL_MS = 15 * 60 * 1000;
  * system context; each one is settled under its own clinic's context, after asking GitHub with no
  * transaction open.
  */
-@Processor(RESEARCH_EXPORT_RECONCILIATION_QUEUE)
+@Processor(RESEARCH_EXPORT_RECONCILIATION_QUEUE, workerOptions())
 export class ResearchExportReconciliationProcessor extends WorkerHost implements OnModuleInit {
   private readonly logger = new Logger(ResearchExportReconciliationProcessor.name);
 
@@ -29,7 +30,16 @@ export class ResearchExportReconciliationProcessor extends WorkerHost implements
     super();
   }
 
-  async onModuleInit(): Promise<void> {
+  /*
+    Not awaited (#199). BullMQ waits for its connection instead of failing, so awaiting this while
+    Redis is down held up boot until Redis came back. Left running, it registers the scheduler
+    as soon as Redis is reachable, with no restart.
+  */
+  onModuleInit(): void {
+    void this.scheduleSweep();
+  }
+
+  private async scheduleSweep(): Promise<void> {
     try {
       await this.queue.upsertJobScheduler(
         RESEARCH_EXPORT_RECONCILE_JOB,

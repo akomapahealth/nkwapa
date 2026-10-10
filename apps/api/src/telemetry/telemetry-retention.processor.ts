@@ -3,6 +3,7 @@ import { Logger, type OnModuleInit } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import { JobTenantContextRunner } from '../prisma/job-tenant-context.runner';
 import { redactLogValue } from '../common/redaction';
+import { workerOptions } from '../common/redis';
 
 export const TELEMETRY_MAINTENANCE_QUEUE = 'telemetry-maintenance';
 export const TELEMETRY_RETENTION_JOB = 'purge-expired-telemetry';
@@ -27,7 +28,7 @@ export function telemetryRetentionCutoff(now: Date, days = telemetryRetentionDay
  * would only grow the table and the amount of operational detail at rest. A BullMQ scheduler for
  * the same reason the portal invite sweep uses one: several API instances produce one purge.
  */
-@Processor(TELEMETRY_MAINTENANCE_QUEUE)
+@Processor(TELEMETRY_MAINTENANCE_QUEUE, workerOptions())
 export class TelemetryRetentionProcessor extends WorkerHost implements OnModuleInit {
   private readonly logger = new Logger(TelemetryRetentionProcessor.name);
 
@@ -38,7 +39,16 @@ export class TelemetryRetentionProcessor extends WorkerHost implements OnModuleI
     super();
   }
 
-  async onModuleInit(): Promise<void> {
+  /*
+    Not awaited (#199). BullMQ waits for its connection instead of failing, so awaiting this while
+    Redis is down held up boot until Redis came back. Left running, it registers the scheduler
+    as soon as Redis is reachable, with no restart.
+  */
+  onModuleInit(): void {
+    void this.scheduleSweep();
+  }
+
+  private async scheduleSweep(): Promise<void> {
     try {
       await this.queue.upsertJobScheduler(
         TELEMETRY_RETENTION_JOB,

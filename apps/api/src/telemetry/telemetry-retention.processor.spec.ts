@@ -39,8 +39,8 @@ describe('TelemetryRetentionProcessor', () => {
     else process.env.TELEMETRY_RETENTION_DAYS = originalDays;
   });
 
-  it('registers one daily scheduler, held in Redis rather than per instance', async () => {
-    await processor.onModuleInit();
+  it('registers one daily scheduler, held in Redis rather than per instance', () => {
+    processor.onModuleInit();
 
     expect(queue.upsertJobScheduler).toHaveBeenCalledWith(
       TELEMETRY_RETENTION_JOB,
@@ -49,10 +49,19 @@ describe('TelemetryRetentionProcessor', () => {
     );
   });
 
+  // BullMQ waits for Redis rather than failing, so a pending upsert must not hold up boot (#199).
+  it('does not wait for Redis to register the scheduler', () => {
+    queue.upsertJobScheduler.mockReturnValue(new Promise(() => {}));
+
+    expect(processor.onModuleInit()).toBeUndefined();
+    expect(queue.upsertJobScheduler).toHaveBeenCalled();
+  });
+
   it('boots even when the queue is unreachable', async () => {
     queue.upsertJobScheduler.mockRejectedValue(new Error('ECONNREFUSED'));
 
-    await expect(processor.onModuleInit()).resolves.toBeUndefined();
+    expect(() => processor.onModuleInit()).not.toThrow();
+    await new Promise((resolve) => setImmediate(resolve));
   });
 
   // Telemetry spans every clinic, so the purge cannot run inside any one tenant's context.

@@ -4,6 +4,7 @@ import { Queue } from 'bullmq';
 import { JobTenantContextRunner } from '../prisma/job-tenant-context.runner';
 import { redactLogValue } from '../common/redaction';
 import { ReminderService } from './reminder.service';
+import { workerOptions } from '../common/redis';
 
 export const REMINDER_RECONCILIATION_QUEUE = 'reminder-reconciliation';
 export const REMINDER_RECONCILE_JOB = 'reconcile-stale-sends';
@@ -20,7 +21,7 @@ export const REMINDER_RECONCILE_INTERVAL_MS = 5 * 60 * 1000;
  * `ReminderService.requeueOverdue`. A BullMQ job scheduler, like the invite expiry sweep, so
  * several API instances produce one sweep.
  */
-@Processor(REMINDER_RECONCILIATION_QUEUE)
+@Processor(REMINDER_RECONCILIATION_QUEUE, workerOptions())
 export class ReminderReconciliationProcessor extends WorkerHost implements OnModuleInit {
   private readonly logger = new Logger(ReminderReconciliationProcessor.name);
 
@@ -32,7 +33,16 @@ export class ReminderReconciliationProcessor extends WorkerHost implements OnMod
     super();
   }
 
-  async onModuleInit(): Promise<void> {
+  /*
+    Not awaited (#199). BullMQ waits for its connection instead of failing, so awaiting this while
+    Redis is down held up boot until Redis came back. Left running, it registers the scheduler
+    as soon as Redis is reachable, with no restart.
+  */
+  onModuleInit(): void {
+    void this.scheduleSweep();
+  }
+
+  private async scheduleSweep(): Promise<void> {
     try {
       await this.queue.upsertJobScheduler(
         REMINDER_RECONCILE_JOB,

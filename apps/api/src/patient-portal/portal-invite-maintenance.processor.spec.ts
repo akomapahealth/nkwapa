@@ -32,8 +32,8 @@ describe('PortalInviteMaintenanceProcessor', () => {
     );
   });
 
-  it('registers one hourly scheduler, held in Redis rather than per instance', async () => {
-    await processor.onModuleInit();
+  it('registers one hourly scheduler, held in Redis rather than per instance', () => {
+    processor.onModuleInit();
 
     expect(queue.upsertJobScheduler).toHaveBeenCalledWith(
       PORTAL_INVITE_EXPIRY_JOB,
@@ -45,10 +45,19 @@ describe('PortalInviteMaintenanceProcessor', () => {
   // A Redis outage must degrade this sweep, not stop the API booting. Without it lapsed
   // invites keep reading PENDING in the operator view and every path that can act on one
   // still refuses it, which is a label being stale rather than a rule going unenforced.
+  // BullMQ waits for Redis rather than failing, so a pending upsert must not hold up boot (#199).
+  it('does not wait for Redis to register the scheduler', () => {
+    queue.upsertJobScheduler.mockReturnValue(new Promise(() => {}));
+
+    expect(processor.onModuleInit()).toBeUndefined();
+    expect(queue.upsertJobScheduler).toHaveBeenCalled();
+  });
+
   it('boots even when the queue is unreachable', async () => {
     queue.upsertJobScheduler.mockRejectedValue(new Error('ECONNREFUSED'));
 
-    await expect(processor.onModuleInit()).resolves.toBeUndefined();
+    expect(() => processor.onModuleInit()).not.toThrow();
+    await new Promise((resolve) => setImmediate(resolve));
   });
 
   // It crosses every clinic, so it cannot run inside any one tenant's context.

@@ -5,6 +5,7 @@ import { JobTenantContextRunner } from '../prisma/job-tenant-context.runner';
 import { redactLogValue } from '../common/redaction';
 import { PortalInviteExpiryService } from './portal-invite-expiry.service';
 import { StaffInviteExpiryService } from '../staff-invites/staff-invite-expiry.service';
+import { workerOptions } from '../common/redis';
 
 export const PORTAL_INVITE_MAINTENANCE_QUEUE = 'portal-invite-maintenance';
 export const PORTAL_INVITE_EXPIRY_JOB = 'expire-overdue-invites';
@@ -26,7 +27,7 @@ export const PORTAL_INVITE_EXPIRY_INTERVAL_MS = 60 * 60 * 1000;
  * Redis: several API instances behind a load balancer produce one sweep, not one per
  * instance.
  */
-@Processor(PORTAL_INVITE_MAINTENANCE_QUEUE)
+@Processor(PORTAL_INVITE_MAINTENANCE_QUEUE, workerOptions())
 export class PortalInviteMaintenanceProcessor extends WorkerHost implements OnModuleInit {
   private readonly logger = new Logger(PortalInviteMaintenanceProcessor.name);
 
@@ -39,7 +40,16 @@ export class PortalInviteMaintenanceProcessor extends WorkerHost implements OnMo
     super();
   }
 
-  async onModuleInit(): Promise<void> {
+  /*
+    Not awaited (#199). BullMQ waits for its connection instead of failing, so awaiting this while
+    Redis is down held up boot until Redis came back. Left running, it registers the scheduler
+    as soon as Redis is reachable, with no restart.
+  */
+  onModuleInit(): void {
+    void this.scheduleSweep();
+  }
+
+  private async scheduleSweep(): Promise<void> {
     try {
       await this.queue.upsertJobScheduler(
         PORTAL_INVITE_EXPIRY_JOB,

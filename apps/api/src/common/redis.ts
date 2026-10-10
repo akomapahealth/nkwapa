@@ -133,3 +133,28 @@ export function bullQueueConnection() {
 export function bullWorkerConnection() {
   return { ...BULL_BASE, maxRetriesPerRequest: null };
 }
+
+/*
+  Worker options that keep an idle API's command count down (#199).
+
+  An idle worker still talks to Redis: it long-polls for work (one BZPOPMIN per `drainDelay`
+  seconds, or every 10 s at most while the queue holds a delayed job, which every scheduler queue
+  always does) and runs a stalled-job check every `stalledInterval`. With seven workers at
+  BullMQ's defaults that is well over a hundred thousand commands a day doing nothing, which is
+  what used up staging's Upstash free tier. A job added to an empty queue still wakes its worker at
+  once; `drainDelay` only stretches the wait when there is nothing to do. A job whose worker died
+  is now recovered within five minutes instead of thirty seconds, which none of these queues
+  notices.
+*/
+export const IDLE_WORKER_DRAIN_DELAY_SECONDS = 30;
+export const IDLE_WORKER_STALLED_INTERVAL_MS = 5 * 60 * 1000;
+
+export function workerOptions<T extends object>(options?: T) {
+  return {
+    connection: bullWorkerConnection(),
+    drainDelay: IDLE_WORKER_DRAIN_DELAY_SECONDS,
+    stalledInterval: IDLE_WORKER_STALLED_INTERVAL_MS,
+    maxStalledCount: 1,
+    ...options,
+  };
+}
