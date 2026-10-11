@@ -78,6 +78,25 @@ export function mapPatient(sheet: SheetPatient, sessionDate: string): PatientPla
       return undefined;
     }
   };
+  /** Notes per record, for words the sheet holds that a field cannot. */
+  const kept = { glucose: [] as string[], eye: [] as string[], review: [] as string[] };
+  const keep = (section: keyof typeof kept, header: string, note: string | null) => {
+    if (note) kept[section].push(`${header} (as written on the sheet): ${note}`);
+  };
+  /** A value with no obvious Nkwapa equivalent is stored blank and its words kept, never rejected. */
+  const soft = <T>(
+    table: Readonly<Record<string, T>>,
+    section: keyof typeof kept,
+    row: TabRow,
+    header: string,
+  ): T | undefined => {
+    try {
+      return L.label(table, header, row[header] ?? '');
+    } catch {
+      keep(section, header, row[header]);
+      return undefined;
+    }
+  };
   const num = (tab: string, row: TabRow, header: string, integer = false): number | null => {
     const raw = (row[header] ?? '').trim();
     if (!raw) return null;
@@ -108,17 +127,25 @@ export function mapPatient(sheet: SheetPatient, sessionDate: string): PatientPla
   if (!lastName) issues.push('Check-In "Last name" is blank');
 
   let dob: Date | undefined;
+  let partialDob: string | null = null;
   if (checkIn['Date of birth']) {
     dob = parseDate(checkIn['Date of birth']) ?? undefined;
-    if (!dob)
-      issues.push(
-        `Check-In "Date of birth" is not a dd/mm/yyyy date: "${checkIn['Date of birth']}"`,
-      );
+    // "1980" or "March 1980" is part of a date: kept as written, never padded into a full one.
+    if (!dob && /^([a-z]{3,}\.?,?\s+)?\d{4}$/i.test(checkIn['Date of birth'])) {
+      partialDob = checkIn['Date of birth'];
+    } else if (!dob) {
+      issues.push(`Check-In "Date of birth" is not a date: "${checkIn['Date of birth']}"`);
+    }
   }
   const age = num('Check-In', checkIn, 'Age (yrs)');
 
   const idNumber = checkIn['ID number'];
   let nationalIdType: NationalIdType | undefined = pick(L.ID_TYPE, 'Check-In', checkIn, 'ID type');
+  // A Ghana Card number has one shape (GHA-#########-#), so the card is known from the number.
+  if (!checkIn['ID type'] && /^GHA-?\d{9}-?\d$/i.test(idNumber)) {
+    nationalIdType = 'NATIONAL_ID';
+    warnings.push('No ID type; the number is a Ghana Card number');
+  }
   if (nationalIdType === 'NONE' && idNumber) {
     issues.push('Check-In "ID type" is None but an ID number is filled in');
   } else if (!nationalIdType && idNumber) {
@@ -138,11 +165,20 @@ export function mapPatient(sheet: SheetPatient, sessionDate: string): PatientPla
   }
 
   const region = pick(L.REGION, 'Check-In', checkIn, 'Region');
+  // Volunteers typed the patient's sex into "Status" on most rows; the visit status itself was
+  // never recorded. A sex there is used only where "Sex" is blank, and the visit counts as done.
+  const statusAsSex = (() => {
+    try {
+      return L.label(L.SEX, 'Status', checkIn.Status);
+    } catch {
+      return undefined;
+    }
+  })();
   const patient: PatientPlan['patient'] = {
     firstName,
     lastName,
     dob,
-    sex: pick(L.SEX, 'Check-In', checkIn, 'Sex'),
+    sex: pick(L.SEX, 'Check-In', checkIn, 'Sex') ?? statusAsSex,
     phoneE164: checkIn.Phone || undefined,
     nationalIdType: nationalIdType ?? 'NONE',
     nationalId: nationalIdType === 'NONE' ? '' : idNumber,
@@ -154,18 +190,23 @@ export function mapPatient(sheet: SheetPatient, sessionDate: string): PatientPla
         }
       : {}),
   };
-  const consent = pick(L.YES_NO, 'Check-In', checkIn, 'Research consent') === true;
-  pick(L.STATION, 'Check-In', checkIn, 'Current station');
+  const consent = pick(L.CONSENT, 'Check-In', checkIn, 'Research consent') === true;
 
   // ---- Check-In → PatientCheckIn
-  const status = pick(L.CHECK_IN_STATUS, 'Check-In', checkIn, 'Status') ?? 'COMPLETED';
+  const status = statusAsSex
+    ? 'COMPLETED'
+    : (pick(L.CHECK_IN_STATUS, 'Check-In', checkIn, 'Status') ?? 'COMPLETED');
   const stationTimes = [intake, bp, glucose, body, eye, review]
     .map((row) => (row.Time ? atTime(sessionDate, row.Time) : null))
     .filter((t): t is Date => t !== null)
     .sort((a, b) => a.getTime() - b.getTime());
   let checkedInAt = time('Check-In', checkIn, 'Arrived');
+  let arrivalNote: string | null = null;
   if (!checkedInAt && !issues.some((i) => i.includes('"Arrived"'))) {
     checkedInAt = stationTimes[0] ?? atTime(sessionDate, '00:00');
+    arrivalNote = stationTimes[0]
+      ? 'Arrival time not recorded; the first station time is used.'
+      : 'Arrival time not recorded; the visit is dated the start of the day.';
     warnings.push(
       stationTimes[0]
         ? 'No arrival time; used the first station time'
@@ -176,8 +217,13 @@ export function mapPatient(sheet: SheetPatient, sessionDate: string): PatientPla
   const checkInNotes = join(
     checkIn.Notes,
     mainConcern && `Main concern: ${mainConcern}`,
-    !dob && age !== null && `Age given at screening: ${age} years (no date of birth).`,
-    checkIn.Status && checkIn.Status !== 'Completed' && `Status on the sheet: ${checkIn.Status}.`,
+    arrivalNote,
+    partialDob && `Date of birth as written on the sheet: ${partialDob}.`,
+    !dob && age !== null && `Age given at screening: ${age} years (no full date of birth).`,
+    !statusAsSex &&
+      checkIn.Status &&
+      checkIn.Status !== 'Completed' &&
+      `Status on the sheet: ${checkIn.Status}.`,
     `Imported from the ${sessionDate} screening sheet, visit ${visitId}.${checkIn['Checked in by'] ? ` Checked in by ${checkIn['Checked in by']}.` : ''}`,
   );
 
@@ -191,7 +237,9 @@ export function mapPatient(sheet: SheetPatient, sessionDate: string): PatientPla
   const pulse2 = num('2 Blood Pressure', bp, 'Pulse 2', true);
   let bpSite = pick(L.ARM, '2 Blood Pressure', bp, 'Arm');
   const position = pick(L.POSITION, '2 Blood Pressure', bp, 'Position');
-  const cuff = pick(L.CUFF, '2 Blood Pressure', bp, 'Cuff size');
+  // A cuff written as its range in cm ("22-42") is recorded as exactly that.
+  const cuffRange = /^(\d{2})\s*-+\s*(\d{2})(\s*cm)?$/i.exec(bp['Cuff size']);
+  const cuff = cuffRange ? 'OTHER' : pick(L.CUFF, '2 Blood Pressure', bp, 'Cuff size');
   if (sys1 !== null && !bpSite) {
     warnings.push('BP recorded without the arm; stored as "Other: not recorded"');
     bpSite = 'OTHER';
@@ -220,7 +268,8 @@ export function mapPatient(sheet: SheetPatient, sessionDate: string): PatientPla
           repeatSystolicBp: sys2,
           repeatDiastolicBp: dia2,
           repeatPosition: hasRepeat ? (position ?? null) : null,
-          repeatCuffSize: hasRepeat ? (cuff ?? null) : null,
+          // The repeat reading has no "other" text, so a cuff range is only on Vitals.
+          repeatCuffSize: hasRepeat && cuff !== 'OTHER' ? (cuff ?? null) : null,
           repeatMeasuredAt: hasRepeat && bpAt ? bpAt.toISOString() : null,
           repeatPromptShown: false,
           homeMonitorStatus: 'NOT_ASSESSED',
@@ -289,7 +338,12 @@ export function mapPatient(sheet: SheetPatient, sessionDate: string): PatientPla
     patientPosition: sys1 !== null ? (position ?? null) : null,
     patientPositionOther: null,
     cuffSize: sys1 !== null ? (cuff ?? null) : null,
-    cuffSizeOther: sys1 !== null ? otherNote(cuff, bp['Cuff size']) : null,
+    cuffSizeOther:
+      sys1 === null
+        ? null
+        : cuffRange
+          ? `${cuffRange[1]}-${cuffRange[2]} cm cuff`
+          : otherNote(cuff, bp['Cuff size']),
     pulseBpm: num('2 Blood Pressure', bp, 'Pulse 1', true),
     temperatureValue: temp,
     temperatureUnit: temp !== null ? 'CELSIUS' : null,
@@ -328,20 +382,38 @@ export function mapPatient(sheet: SheetPatient, sessionDate: string): PatientPla
     ['Weight loss (unexplained)', 'WEIGHT_LOSS'],
     ['Blurred vision', 'BLURRED_VISION'],
   ];
-  const symptoms = symptomAnswers
-    .filter(([header]) => pick(L.YES_NO, '3 Glucose', glucose, header) === true)
-    .map(([, value]) => value);
-  const slowWounds = pick(L.YES_NO, '3 Glucose', glucose, 'Slow-healing wounds');
-  const numbFeet = pick(L.YES_NO, '3 Glucose', glucose, 'Numb / tingling feet');
+  const said = (header: string) => {
+    const a = L.answer(glucose[header]);
+    keep('glucose', header, a.note);
+    return a.value;
+  };
+  const symptoms = symptomAnswers.filter(([header]) => said(header) === true).map(([, v]) => v);
+  const slowWounds = said('Slow-healing wounds');
+  const numbFeet = said('Numb / tingling feet');
   const allSymptomsAnswered = [
     ...symptomAnswers.map(([h]) => h),
     'Slow-healing wounds',
     'Numb / tingling feet',
-  ].every((h) => glucose[h]);
-  const footWound = pick(L.YES_NO, '3 Glucose', glucose, 'Foot wound now?');
+  ].every((h) => L.answer(glucose[h]).value !== undefined);
+  const footWound = said('Foot wound now?');
   const dmStatus = pick(L.DIABETES_STATUS, '1 Intake', intake, 'Known diabetes?');
-  const glucoseType = pick(L.GLUCOSE_TYPE, '3 Glucose', glucose, 'Test type');
-  const glucoseValue = num('3 Glucose', glucose, 'Glucose (mg/dL)', true);
+  const glucoseType = soft(L.GLUCOSE_TYPE, 'glucose', glucose, 'Test type');
+  let glucoseValue = num('3 Glucose', glucose, 'Glucose (mg/dL)', true);
+  // The meters read mmol/L, and volunteers typed the reading over the grey mmol/L formula instead
+  // of converting it. Converted the way the sheet told them to: × 18.
+  if (glucoseValue === null && glucose['mmol/L']) {
+    const m = /^(\d+(?:[.,]\d+)?)(?:\s*\/\s*(\d+(?:[.,]\d+)?))?$/.exec(glucose['mmol/L']);
+    if (!m) {
+      issues.push(`3 Glucose "mmol/L" is not a reading: "${glucose['mmol/L']}"`);
+    } else {
+      glucoseValue = Math.round(Number(m[1].replace(',', '.')) * 18);
+      kept.glucose.push(
+        m[2]
+          ? `Two readings written on the sheet: ${glucose['mmol/L']} mmol/L; the first is stored (${glucoseValue} mg/dL).`
+          : `Reading written on the sheet: ${glucose['mmol/L']} mmol/L (stored as ${glucoseValue} mg/dL).`,
+      );
+    }
+  }
   const diabetes =
     hasEntries(glucose) || dmStatus
       ? {
@@ -357,6 +429,7 @@ export function mapPatient(sheet: SheetPatient, sessionDate: string): PatientPla
             join(
               slowWounds && 'Reports slow-healing wounds.',
               numbFeet && 'Reports numb or tingling feet.',
+              ...kept.glucose,
               glucose['Last ate (time)'] && `Last ate at ${glucose['Last ate (time)']}.`,
               glucose.Notes,
               hasEntries(glucose) && byline(glucose, 'Recorded by'),
@@ -372,17 +445,34 @@ export function mapPatient(sheet: SheetPatient, sessionDate: string): PatientPla
   // ---- 5 Eye → EyeScreening
   let eyeScreening: Record<string, unknown> | null = null;
   if (hasEntries(eye)) {
-    const yn = (header: string) => {
-      const value = pick(L.YES_NO, '5 Eye', eye, header);
-      if (value === undefined) warnings.push(`5 Eye "${header}" is blank; stored as No`);
-      return value ?? false;
+    const yn = (header: string, read: typeof L.answer = L.answer) => {
+      const a = read(eye[header]);
+      keep('eye', header, a.note);
+      if (a.value === undefined) {
+        if (!eye[header]) kept.eye.push(`${header}: not recorded on the sheet (stored as No).`);
+        warnings.push(
+          `5 Eye "${header}" ${eye[header] ? 'is not a yes or no' : 'is blank'}; stored as No`,
+        );
+      }
+      return a.value ?? false;
     };
-    const complaint = yn('Eye complaint?');
+    // The complaint itself was often written in "Eye complaint?".
+    const complaintFlag = L.flag(eye['Eye complaint?']);
+    const complaint = complaintFlag.value ?? false;
+    if (complaintFlag.value === undefined)
+      kept.eye.push('Eye complaint?: not recorded on the sheet (stored as No).');
+    if (complaintFlag.value === undefined)
+      warnings.push('5 Eye "Eye complaint?" is blank; stored as No');
+    const complaintText = join(complaintFlag.note, eye['Complaint details']);
     const referral = yn('Referral?');
-    const va = (header: string) => pick(L.ACUITY, '5 Eye', eye, header) ?? null;
+    const va = (header: string) => {
+      const a = L.acuity(eye[header]);
+      keep('eye', header, a.note);
+      return a.value;
+    };
     eyeScreening = {
       hasEyeComplaint: complaint,
-      complaintHistory: complaint ? eye['Complaint details'] || null : null,
+      complaintHistory: complaint ? complaintText || null : null,
       wearsCorrection: yn('Wears glasses?'),
       vaOdUnaided: va('VA right (OD) unaided'),
       vaOsUnaided: va('VA left (OS) unaided'),
@@ -394,16 +484,15 @@ export function mapPatient(sheet: SheetPatient, sessionDate: string): PatientPla
       cupDiscRatioOd: num('5 Eye', eye, 'Cup:disc right'),
       cupDiscRatioOs: num('5 Eye', eye, 'Cup:disc left'),
       findings: [],
-      visionLossCause: pick(L.VISION_CAUSE, '5 Eye', eye, 'Likely cause of reduced vision') ?? null,
-      diabeticSignsSeen: yn('Diabetic signs?'),
-      hypertensiveSignsSeen: yn('Hypertensive signs?'),
+      visionLossCause: soft(L.VISION_CAUSE, 'eye', eye, 'Likely cause of reduced vision') ?? null,
+      diabeticSignsSeen: yn('Diabetic signs?', L.flag),
+      hypertensiveSignsSeen: yn('Hypertensive signs?', L.flag),
       referralRecommended: referral,
       referralNote: referral ? eye['Referral note'] || null : null,
       notes:
         join(
-          !complaint &&
-            eye['Complaint details'] &&
-            `Complaint details: ${eye['Complaint details']}`,
+          !complaint && complaintText && `Complaint details: ${complaintText}`,
+          ...kept.eye,
           eye['Abnormal findings (eye + structure)'] &&
             `Abnormal findings (as written on the sheet): ${eye['Abnormal findings (eye + structure)']}`,
           !referral && eye['Referral note'] && `Referral note: ${eye['Referral note']}`,
@@ -426,18 +515,45 @@ export function mapPatient(sheet: SheetPatient, sessionDate: string): PatientPla
       ['Alcohol', 'ALCOHOL'],
       ['Medicines', 'MEDICATION_ADHERENCE'],
     ];
-    const topics = ticks.filter(([h]) => pick(L.TICK, '6 Review', review, h)).map(([, t]) => t);
+    // The topic boxes were mostly used to write what was discussed ("108/67" under BP).
+    const discussed: string[] = [];
+    const topics = ticks
+      .filter(([h]) => {
+        const f = L.flag(review[h]);
+        if (f.note) discussed.push(`${h}: ${f.note}`);
+        return f.value === true;
+      })
+      .map(([, t]) => t);
     if (review['Other topic']) topics.push('OTHER');
 
-    const followUp = pick(L.YES_NO, '6 Review', review, 'Follow-up?') ?? false;
-    let followUpWindow = pick(L.FOLLOW_UP, '6 Review', review, 'Follow-up when') ?? 'NOT_ASSESSED';
+    const followUpFlag = L.flag(review['Follow-up?']);
+    keep('review', 'Follow-up?', followUpFlag.note);
+    let followUp = followUpFlag.value ?? false;
+    let followUpWindow: string = 'NOT_ASSESSED';
     let followUpOther: string | null = null;
+    if (review['Follow-up when']) {
+      try {
+        followUpWindow =
+          L.label(L.FOLLOW_UP, 'Follow-up when', review['Follow-up when']) ?? 'NOT_ASSESSED';
+        if (followUpWindow === 'OTHER') followUpOther = 'Other (screening sheet)';
+      } catch {
+        // Any other timing ("2 weeks", "At clinic") is kept word for word.
+        followUpWindow = 'OTHER';
+        followUpOther = review['Follow-up when'];
+      }
+    }
     const extra: string[] = [];
+    if (!followUp && followUpFlag.value === undefined && followUpWindow !== 'NOT_ASSESSED') {
+      warnings.push(
+        'Follow-up timing given with "Follow-up?" blank; recorded as follow-up recommended',
+      );
+      followUp = true;
+    }
     if (followUp && followUpWindow === 'NOT_ASSESSED') {
       warnings.push('Follow-up recommended without a timing; stored as Other: not recorded');
       followUpWindow = 'OTHER';
       followUpOther = 'Timing not recorded on the screening sheet';
-    } else if (followUpWindow === 'OTHER') {
+    } else if (followUpWindow === 'OTHER' && !followUpOther) {
       followUpOther = 'Other (screening sheet)';
     } else if (!followUp && followUpWindow !== 'NOT_ASSESSED') {
       warnings.push(
@@ -447,8 +563,10 @@ export function mapPatient(sheet: SheetPatient, sessionDate: string): PatientPla
       followUpWindow = 'NOT_ASSESSED';
     }
 
-    const referral = pick(L.YES_NO, '6 Review', review, 'Referral?') ?? false;
-    const urgency = pick(L.URGENCY, '6 Review', review, 'Urgency');
+    const referralFlag = L.flag(review['Referral?']);
+    keep('review', 'Referral?', referralFlag.note);
+    const referral = referralFlag.value ?? false;
+    const urgency = soft(L.URGENCY, 'review', review, 'Urgency');
     let referralTo = review['Referred to'] || null;
     if (referral && !referralTo) {
       warnings.push('Referral recommended without a destination; stored as not recorded');
@@ -472,7 +590,9 @@ export function mapPatient(sheet: SheetPatient, sessionDate: string): PatientPla
         review['Advice given'],
         medicinesGiven &&
           `Medicines prescribed or given on the day (not recorded as Nkwapa prescriptions): ${medicinesGiven}`,
+        discussed.length > 0 && `Discussed:\n${discussed.join('\n')}`,
         ...extra,
+        ...kept.review,
         review.Notes && `Notes: ${review.Notes}`,
         byline(review, 'Reviewed by').replace('Recorded', 'Reviewed'),
       ),
@@ -481,7 +601,7 @@ export function mapPatient(sheet: SheetPatient, sessionDate: string): PatientPla
       followUpOther,
       referralRecommended: referral,
       referralTo: referral ? referralTo : null,
-      referralReason: referral ? review['Referral reason'] || null : null,
+      referralReason: referral ? review['Referral reason'] || referralFlag.note || null : null,
       referralUrgency: referral ? (urgency ?? null) : null,
     };
   }
@@ -597,12 +717,41 @@ export function atTime(sessionDate: string, raw: string): Date | null {
   return Number.isNaN(at.getTime()) ? null : at;
 }
 
-/** dd/mm/yyyy (the sheet's format) or yyyy-mm-dd; a real calendar date only. */
+const MONTHS = [
+  'january',
+  'february',
+  'march',
+  'april',
+  'may',
+  'june',
+  'july',
+  'august',
+  'september',
+  'october',
+  'november',
+  'december',
+];
+
+/**
+ * dd/mm/yyyy (the sheet's format), yyyy-mm-dd, or written out ("2 April 1984", "15th March 1977",
+ * "1st Jan, 1972"); a real calendar date only.
+ */
 export function parseDate(raw: string): Date | null {
-  const text = raw.trim();
+  const text = raw.trim().replace(/\s+/g, ' ');
   const dmy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(text);
   const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
-  const [y, mo, d] = dmy ? [dmy[3], dmy[2], dmy[1]] : ymd ? [ymd[1], ymd[2], ymd[3]] : [];
+  const dayFirst = /^(\d{1,2})(?:st|nd|rd|th)?\s+([a-z]{3,})\.?,?\s*(\d{4})$/i.exec(text);
+  const monthFirst = /^([a-z]{3,})\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s*(\d{4})$/i.exec(text);
+  const words = dayFirst ?? (monthFirst && [text, monthFirst[2], monthFirst[1], monthFirst[3]]);
+  // A month name or its abbreviation ("Sept", "Jan"), never a guess at a misspelling.
+  const month = words ? MONTHS.findIndex((m) => m.startsWith(words[2].toLowerCase())) + 1 : 0;
+  const [y, mo, d] = dmy
+    ? [dmy[3], dmy[2], dmy[1]]
+    : ymd
+      ? [ymd[1], ymd[2], ymd[3]]
+      : month > 0 && words
+        ? [words[3], String(month), words[1]]
+        : [];
   if (!y) return null;
   const date = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d)));
   return date.getUTCDate() === Number(d) && date.getUTCMonth() === Number(mo) - 1 ? date : null;

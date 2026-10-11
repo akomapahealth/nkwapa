@@ -38,14 +38,64 @@ export class UnknownLabelError extends Error {
 
 type LabelTable<T> = Readonly<Record<string, T>>;
 
+/** Case and spacing never change an answer: "Left  arm", "left arm" and "LEFT ARM" are one label. */
+export const normalize = (text: string) => text.trim().replace(/\s+/g, ' ').toLowerCase();
+
 /** The Nkwapa value for a dropdown cell; undefined for a blank cell, which means "not asked". */
 export function label<T>(table: LabelTable<T>, column: string, raw: string): T | undefined {
-  const value = raw.trim();
+  const value = normalize(raw);
   if (value === '') return undefined;
-  if (!Object.prototype.hasOwnProperty.call(table, value)) {
-    throw new UnknownLabelError(column, value);
-  }
-  return table[value];
+  const key = Object.keys(table).find((k) => normalize(k) === value);
+  if (key === undefined) throw new UnknownLabelError(column, raw.trim());
+  return table[key];
+}
+
+/**
+ * A yes/no cell that volunteers often filled with words. Plain yes/no (and "normal" or "none",
+ * which on this sheet mean no) map directly. "Yes, during the night" is yes, and the words are kept.
+ * Anything else ("sometimes", "wears glasses") is not an answer: undefined, with the words kept.
+ */
+export function answer(raw: string): { value: boolean | undefined; note: string | null } {
+  const text = normalize(raw);
+  if (text === '') return { value: undefined, note: null };
+  if (YES_WORDS.has(text)) return { value: true, note: null };
+  if (NO_WORDS.has(text)) return { value: false, note: null };
+  if (/^yes\b/.test(text)) return { value: true, note: raw.trim() };
+  if (/^no\b/.test(text)) return { value: false, note: raw.trim() };
+  return { value: undefined, note: raw.trim() };
+}
+
+/**
+ * A tick box or yes/no cell that volunteers used to write what they found or discussed ("108/67"
+ * under BP, "copper wiring present ou" under hypertensive signs). Writing something there means
+ * yes, and the words are kept; only an explicit no/none means no.
+ */
+export function flag(raw: string): { value: boolean | undefined; note: string | null } {
+  const text = normalize(raw);
+  if (text === '') return { value: undefined, note: null };
+  if (YES_WORDS.has(text)) return { value: true, note: null };
+  if (NO_WORDS.has(text)) return { value: false, note: null };
+  return { value: true, note: raw.trim() };
+}
+
+const YES_WORDS = new Set(['yes', 'y']);
+const NO_WORDS = new Set(['no', 'n', 'none', 'normal', 'nil', 'n/a', 'na', 'nope']);
+
+/**
+ * Visual acuity as the eye team wrote it: a Snellen line, optionally with letters missed or gained
+ * ("6/6-2" is the 6/6 line less two letters). Nkwapa stores whole lines, so the line is kept and
+ * the exact notation goes to the notes. A line Nkwapa does not list (6/4) is not stored.
+ */
+export function acuity(raw: string): { value: VisualAcuity | null; note: string | null } {
+  const text = raw.trim().replace(/\s+/g, '');
+  if (text === '') return { value: null, note: null };
+  const exact = (VISUAL_ACUITY_VALUES as readonly string[]).find(
+    (v) => v.toLowerCase() === text.toLowerCase(),
+  );
+  if (exact) return { value: exact as VisualAcuity, note: null };
+  const m = /^(6\/\d+(?:\.\d)?)[+-]\d$/.exec(text);
+  const line = m && (VISUAL_ACUITY_VALUES as readonly string[]).find((v) => v === m[1]);
+  return { value: (line as VisualAcuity | undefined) ?? null, note: raw.trim() };
 }
 
 export const YES_NO: LabelTable<boolean> = { Yes: true, No: false };
@@ -56,6 +106,8 @@ export const SEX: LabelTable<Sex> = {
   Male: 'MALE',
   Other: 'OTHER',
   Unknown: 'UNKNOWN',
+  F: 'FEMALE',
+  M: 'MALE',
 };
 
 export const ID_TYPE: LabelTable<NationalIdType> = {
@@ -64,7 +116,14 @@ export const ID_TYPE: LabelTable<NationalIdType> = {
   Passport: 'PASSPORT',
   Other: 'OTHER',
   None: 'NONE',
+  // Written by hand on the day.
+  Ghana: 'NATIONAL_ID',
+  'NHIS card': 'OTHER',
+  NHIS: 'OTHER',
 };
+
+/** Consent is a yes the patient gave; only the spellings seen on the sheet are accepted. */
+export const CONSENT: LabelTable<boolean> = { Yes: true, No: false, Yea: true };
 
 export const REGION: LabelTable<GhanaRegion> = {
   Ahafo: 'AHAFO',
@@ -96,20 +155,6 @@ export const CHECK_IN_STATUS: LabelTable<CheckInStatus> = {
   Completed: 'COMPLETED',
   'Left before finishing': 'CANCELLED',
 };
-
-/** Validated only: the station queue of a finished day is not imported. */
-export const STATION: LabelTable<string> = Object.fromEntries(
-  [
-    'Check-in',
-    '1 Intake & history',
-    '2 Blood pressure',
-    '3 Glucose',
-    '4 Body & vitals',
-    '5 Eye',
-    '6 Counselling & review',
-    'Done',
-  ].map((s) => [s, s]),
-);
 
 export const HYPERTENSION_STATUS: LabelTable<HypertensionStatus> = {
   Yes: 'KNOWN_HYPERTENSION',
@@ -188,6 +233,9 @@ export const GLUCOSE_TYPE: LabelTable<GlucoseType> = {
   '2h after meal': 'POST_PRANDIAL_2H',
   Random: 'RANDOM',
   Unknown: 'UNKNOWN',
+  // The lab abbreviations the glucose station used.
+  RBS: 'RANDOM',
+  FBS: 'FASTING',
 };
 
 export const ACUITY: LabelTable<VisualAcuity> = Object.fromEntries(
@@ -198,6 +246,7 @@ export const VISION_CAUSE: LabelTable<VisionLossCause> = {
   'Refractive (glasses)': 'REFRACTIVE',
   'Pathological (doctor)': 'PATHOLOGICAL',
   Undetermined: 'UNDETERMINED',
+  'Refractive error': 'REFRACTIVE',
 };
 
 export const FOLLOW_UP: LabelTable<FollowUpWindow> = {
@@ -206,10 +255,16 @@ export const FOLLOW_UP: LabelTable<FollowUpWindow> = {
   'Within 1 month': 'WITHIN_1_MONTH',
   'Within 3 months': 'WITHIN_3_MONTHS',
   Other: 'OTHER',
+  '1 week': 'WITHIN_1_WEEK',
+  'In a week': 'WITHIN_1_WEEK',
+  'A week': 'WITHIN_1_WEEK',
+  '1 month': 'WITHIN_1_MONTH',
+  '3 months': 'WITHIN_3_MONTHS',
 };
 
 export const URGENCY: LabelTable<ReferralUrgency> = {
   Routine: 'ROUTINE',
   Soon: 'SOON',
   Urgent: 'URGENT',
+  'Very urgent': 'URGENT',
 };
