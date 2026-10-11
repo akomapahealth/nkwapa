@@ -172,6 +172,9 @@ jobs:
   # ──────────────────────────────────────────────
   # Tag release on main
   # ──────────────────────────────────────────────
+  # Semantic versions from the merged PR's release:* label (#202, scripts/next-version.mjs).
+  # Runs only after every deploy succeeds, so a failed deploy is never tagged. A re-run reuses
+  # the tag already on the commit and only creates the GitHub Release if it is missing.
   tag-release:
     name: Tag Release
     runs-on: ubuntu-latest
@@ -179,12 +182,43 @@ jobs:
     needs: [deploy-web, deploy-api, deploy-auth]
     permissions:
       contents: write
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Create release tag
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Tag and publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="v$(date +%Y%m%d.%H%M%S)"
-          git tag "$TAG"
-          git push origin "$TAG"
-          echo "### Release tagged: $TAG" >> "$GITHUB_STEP_SUMMARY"
+          # The labels of the PR merged as this commit; empty for a direct push to main (no PR).
+          PR_LABELS=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" \
+            --jq '[.[] | select(.merge_commit_sha == env.GITHUB_SHA) | .labels | map(.name)][0]')
+          PLAN=$(PR_LABELS="$PR_LABELS" node scripts/next-version.mjs release)
+
+          SKIP=$(jq -r '.skip // empty' <<<"$PLAN")
+          if [ -n "$SKIP" ]; then
+            echo "::warning::${SKIP}"
+            echo "### Release not tagged: ${SKIP}" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          TAG=$(jq -r .tag <<<"$PLAN")
+          PREVIOUS=$(jq -r '.previous // empty' <<<"$PLAN")
+          if [ "$(jq -r .isNew <<<"$PLAN")" = "true" ]; then
+            # git refuses a tag that already exists, so two releases can never share a version.
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
+
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            # Marked pre-release while Nkwapa is in beta.
+            gh release create "$TAG" --verify-tag --prerelease --title "$TAG (beta)" \
+              --generate-notes ${PREVIOUS:+--notes-start-tag "$PREVIOUS"}
+          fi
+          echo "### Release: $TAG" >> "$GITHUB_STEP_SUMMARY"
