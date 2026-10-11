@@ -1,0 +1,42 @@
+name: Release Label
+
+# A pull request into main needs exactly one release:major, release:minor or release:patch label
+# (#202). deploy.yml's Tag Release job reads it to pick the next version, so make this check
+# required on main. When the commits suggest a bigger bump than the label, it comments a hint
+# but does not block: the label decides.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  release-label:
+    name: Release label
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check the release label
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          RANGE: ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          HINT=$(node scripts/next-version.mjs check "$RANGE")
+          if [ -n "$HINT" ]; then
+            echo "::warning::${HINT}"
+            # Edits its own earlier hint instead of adding one per push.
+            gh pr comment "$PR" --edit-last --create-if-none --body "$HINT"
+          fi
