@@ -1,0 +1,35 @@
+name: Keep Warm
+
+# The production API runs on a Render free instance, which spins down after 15 minutes idle.
+# Its first request after that took 42 s (#172). This pings it every 10 minutes during clinic
+# hours so the first sign-in of the day doesn't wait for a cold boot.
+#
+# Clinic hours only, not 24/7: Render gives 750 free instance-hours a month per workspace,
+# shared with the staging services. 13 h x 26 days is about 338 h; 24/7 would be about 744 h
+# and suspend every free service before the month ends. Nights and Sundays stay cold by design.
+#
+# Not pinged: production Keycloak is on a paid instance and never spins down. Staging is left
+# cold to stay inside the free hours.
+#
+# GitHub runs scheduled workflows only from the default branch (main), and cron may run late.
+
+on:
+  schedule:
+    # 06:00-18:59 UTC (Ghana time), Monday to Saturday.
+    - cron: '*/10 6-18 * * 1-6'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    name: Ping production API
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Ping /health
+        # /health runs SELECT 1, so this also wakes the Neon database.
+        run: |
+          RESULT=$(curl --fail --silent --show-error --max-time 120 \
+            --retry 3 --retry-all-errors --retry-delay 20 \
+            --output /dev/null --write-out '%{http_code} in %{time_total}s' \
+            https://api.nkwapa.app/health)
+          echo "api.nkwapa.app/health: ${RESULT}" | tee -a "$GITHUB_STEP_SUMMARY"
