@@ -13,6 +13,13 @@ export class HealthController {
     private readonly redis: RedisService,
   ) {}
 
+  // Proves the process is up without touching the database, so the keep-warm ping (#172)
+  // doesn't wake Neon out of auto-suspend every 10 minutes.
+  @Get('live')
+  live() {
+    return { status: 'ok' };
+  }
+
   @Get()
   async check() {
     const checks: Record<string, string> = {};

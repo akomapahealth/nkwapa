@@ -47,6 +47,20 @@ describe('HealthController', () => {
     }
   });
 
+  it('answers liveness without touching the database or Redis (#172)', () => {
+    const prisma = { $queryRaw: jest.fn() };
+    const redis = { ping: jest.fn() };
+    const controller = new HealthController(
+      prisma as never,
+      new EmailStatusService(resolveEmailConfig({} as NodeJS.ProcessEnv)),
+      redis as never,
+    );
+
+    expect(controller.live()).toEqual({ status: 'ok' });
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(redis.ping).not.toHaveBeenCalled();
+  });
+
   it('reports Redis disconnected as degraded rather than failing (#199)', async () => {
     const result = await controllerWith({} as NodeJS.ProcessEnv, false).check();
     expect(result.checks.redis).toBe('disconnected');
