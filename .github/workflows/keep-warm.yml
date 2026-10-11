@@ -25,11 +25,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Ping /health
-        # /health runs SELECT 1, so this also wakes the Neon database.
+      - name: Ping /health/live
+        # /health/live, not /health: /health runs SELECT 1 and would wake Neon from auto-suspend.
         run: |
           RESULT=$(curl --fail --silent --show-error --max-time 120 \
             --retry 3 --retry-all-errors --retry-delay 20 \
             --output /dev/null --write-out '%{http_code} in %{time_total}s' \
-            https://api.nkwapa.app/health)
-          echo "api.nkwapa.app/health: ${RESULT}" | tee -a "$GITHUB_STEP_SUMMARY"
+            https://api.nkwapa.app/health/live)
+          echo "api.nkwapa.app/health/live: ${RESULT}" | tee -a "$GITHUB_STEP_SUMMARY"
