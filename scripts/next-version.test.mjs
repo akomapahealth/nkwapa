@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import {
   bumpFromLabels,
   labelHint,
@@ -95,4 +97,18 @@ test('no merged pull request means no tag, never a guessed bump', () => {
 
 test('a missing baseline tag is an error, not v0.0.1', () => {
   assert.throws(() => release(['release:patch'], ['v20261010.001944']), /No vX.Y.Z tag/);
+});
+
+test('the CLI skips, not crashes, when gh prints nothing for a commit with no PR', () => {
+  const out = execFileSync(
+    'node',
+    [fileURLToPath(new URL('./next-version.mjs', import.meta.url)), 'release'],
+    {
+      env: { ...process.env, PR_LABELS: '' },
+      encoding: 'utf8',
+    },
+  );
+  const plan = JSON.parse(out);
+  // On a commit already tagged the plan reuses that tag; otherwise it must skip.
+  assert.ok(plan.skip || plan.isNew === false, out);
 });

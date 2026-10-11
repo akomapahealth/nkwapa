@@ -8,7 +8,8 @@
 //                                                       bigger bump than the label.
 //   node scripts/next-version.mjs release                deploy.yml: prints the release plan as JSON.
 //
-// Both read the PR's label names from PR_LABELS, a JSON array (or null when no PR was found).
+// Both read the PR's label names from PR_LABELS, a JSON array. Empty or null means no PR was found
+// (gh --jq prints nothing for null).
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
@@ -112,7 +113,7 @@ function lines(text) {
 }
 
 function main([command, range]) {
-  const labels = JSON.parse(process.env.PR_LABELS ?? 'null');
+  const labels = JSON.parse(process.env.PR_LABELS || 'null');
 
   if (command === 'check') {
     if (!range) throw new Error('Usage: next-version.mjs check <base>..<head>');
