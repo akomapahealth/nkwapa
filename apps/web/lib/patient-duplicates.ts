@@ -326,6 +326,7 @@ const NATIONAL_ID_TYPE_LABELS: Record<string, string> = {
   VOTER_ID: 'Voter ID',
   PASSPORT: 'Passport',
   OTHER: 'Other',
+  NONE: 'No ID',
 };
 
 const SEX_LABELS: Record<string, string> = {
