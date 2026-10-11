@@ -39,6 +39,9 @@ jobs:
       - name: Validate chart series palette
         run: npm run design:check-charts
 
+      - name: Test repo scripts
+        run: npm run test:scripts
+
       - name: Build @nkwapa/db
         run: npm run build --workspace=@nkwapa/db
 
