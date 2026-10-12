@@ -31,6 +31,7 @@ import { MergePreviewQueryDto } from '../patients/dto/merge-preview.query.dto';
 import { LinkPortalDto } from '../patient-portal/dto/link-portal.dto';
 import { CreatePatientPortalInviteDto } from '../patient-portal/dto/portal-invite.dto';
 import { UpdatePatientBodyDto } from '../patients/dto/update-patient-body.dto';
+import { ChangeNationalIdBodyDto } from '../patients/dto/change-national-id.dto';
 import { PERMISSIONS } from '../auth/constants/permissions';
 import { RateLimit } from '../common/rate-limit.decorator';
 import {
@@ -200,6 +201,32 @@ export class ClinicsPatientsController {
       clinicId: params.clinicId,
       actorUserId: req.user.user.id,
     });
+  }
+
+  /** Record, add or correct the chart's ID document (#214); audited with type, last 4 and reason. */
+  @Patch(':patientId/national-id')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.PATIENT_UPDATE)
+  async changeNationalId(
+    @Param() params: ClinicAndPatientParamsDto,
+    @Body() body: ChangeNationalIdBodyDto,
+    @Request() req: { user: { user: { id: string }; roles: unknown[] } },
+  ) {
+    const updated = await this.patientService.changeNationalId(
+      params.clinicId,
+      params.patientId,
+      body,
+      {
+        clinicId: params.clinicId,
+        actorUserId: req.user.user.id,
+      },
+    );
+    return {
+      id: updated.id,
+      patientCode: updated.patientCode,
+      nationalIdType: updated.nationalIdType,
+      nationalIdLast4: updated.nationalIdLast4,
+    };
   }
 
   @Get('search')

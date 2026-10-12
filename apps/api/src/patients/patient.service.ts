@@ -1,5 +1,11 @@
-import { ConflictException, Injectable } from '@nestjs/common';
-import { Encounter, Patient } from '@prisma/client';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Encounter, NationalIdType, Patient } from '@prisma/client';
+import { isUniqueViolation } from '../common/prisma-errors';
 import { EncounterService } from '../encounters/encounter.service';
 import { ConsentService } from '../consents/consent.service';
 import {
@@ -164,13 +170,28 @@ export class PatientService {
   async create(dto: CreatePatientDto, auditContext?: AuditContext): Promise<Patient> {
     // A patient with no ID document has nothing to collide on; their code becomes the stored ID.
     const noId = dto.nationalIdType === 'NONE';
+    const givenId = dto.nationalId?.trim() ?? '';
+    if (noId && givenId) {
+      throw new BadRequestException({
+        code: 'NATIONAL_ID_WITH_NO_ID_TYPE',
+        message: 'A patient with no ID document has no ID number. Choose the ID type instead.',
+      });
+    }
+    if (!noId && !givenId) {
+      throw new BadRequestException({
+        code: 'NATIONAL_ID_REQUIRED',
+        message: 'Enter the ID number, or choose "No ID document".',
+      });
+    }
     const existing = noId
       ? null
-      : await this.patientRepository.findByNationalIdHash(hashNationalId(dto.nationalId));
+      : await this.patientRepository.findByNationalIdHash(hashNationalId(givenId));
     if (existing) {
+      // Under `details`: the API's exception filter drops every other extra key from the body.
       throw new ConflictException({
+        code: 'DUPLICATE_NATIONAL_ID',
         message: 'Patient with this national ID already exists',
-        existingPatient: this.toPatientSummary(existing),
+        details: { existingPatient: this.toPatientSummary(existing) },
       });
     }
 
@@ -187,7 +208,7 @@ export class PatientService {
         update: { lastNumber: { increment: 1 } },
       });
       const patientCode = `NKP-${year}-${String(row.lastNumber).padStart(6, '0')}`;
-      const nationalId = noId ? patientCode : dto.nationalId;
+      const nationalId = noId ? patientCode : givenId;
       return tx.patient.create({
         data: {
           patientCode,
@@ -421,6 +442,101 @@ export class PatientService {
       });
     }
 
+    return updated;
+  }
+
+  /**
+   * Record, add or correct a chart's ID document (#214): a patient registered with no ID who comes
+   * back with a Ghana Card, or an ID typed wrong at registration.
+   *
+   * The new number is checked against every chart before it is stored, exactly as registration
+   * checks it, so a change can never give two charts one ID; a clash is answered with the existing
+   * chart, for the duplicate review to take over. The audit keeps the type and last 4 on each side
+   * and the reason, never a full number.
+   */
+  async changeNationalId(
+    clinicId: string,
+    patientId: string,
+    dto: { nationalIdType: NationalIdType; nationalId?: string; reason: string },
+    auditContext: AuditContext,
+  ): Promise<Patient> {
+    const noId = dto.nationalIdType === 'NONE';
+    const givenId = dto.nationalId?.trim() ?? '';
+    if (noId && givenId) {
+      throw new BadRequestException({
+        code: 'NATIONAL_ID_WITH_NO_ID_TYPE',
+        message: 'A patient with no ID document has no ID number. Choose the ID type instead.',
+      });
+    }
+    if (!noId && !givenId) {
+      throw new BadRequestException({
+        code: 'NATIONAL_ID_REQUIRED',
+        message: 'Enter the ID number, or choose "No ID document".',
+      });
+    }
+
+    const existing = await this.patientRepository.findById(patientId);
+    if (!existing || existing.primaryClinicId !== clinicId) {
+      throw new NotFoundException('Patient not found');
+    }
+    if (existing.mergedIntoPatientId) {
+      throw new ConflictException({
+        code: 'PATIENT_MERGED',
+        message: 'This chart was merged into another chart. Change the ID on the current chart.',
+        canonicalPatientId: existing.mergedIntoPatientId,
+      });
+    }
+
+    const nationalId = noId ? existing.patientCode : givenId;
+    const hash = hashNationalId(nationalId);
+    const clash = await this.patientRepository.findByNationalIdHash(hash);
+    if (clash && clash.id !== patientId) {
+      throw new ConflictException({
+        code: 'DUPLICATE_NATIONAL_ID',
+        message: 'Another patient already has this national ID',
+        details: { existingPatient: this.toPatientSummary(clash) },
+      });
+    }
+
+    const before = {
+      nationalIdType: existing.nationalIdType,
+      nationalIdLast4: existing.nationalIdLast4,
+    };
+    const updated = await this.prisma.patient
+      .update({
+        where: { id: patientId },
+        data: {
+          nationalIdType: dto.nationalIdType,
+          nationalIdCiphertext: encryptNationalId(nationalId),
+          nationalIdHash: hash,
+          nationalIdLast4: noId ? null : nationalIdLast4(nationalId),
+        },
+      })
+      .catch((error: unknown) => {
+        // A registration that took the same ID between the check and this write.
+        if (isUniqueViolation(error)) {
+          throw new ConflictException({
+            code: 'DUPLICATE_NATIONAL_ID',
+            message: 'Another patient already has this national ID',
+          });
+        }
+        throw error;
+      });
+
+    await this.auditService.logWrite({
+      clinicId: auditContext.clinicId,
+      actorUserId: auditContext.actorUserId,
+      action: 'PATIENT.NATIONAL_ID_CHANGE',
+      entityType: 'Patient',
+      entityId: patientId,
+      beforeJson: JSON.stringify(before),
+      afterJson: JSON.stringify({
+        nationalIdType: updated.nationalIdType,
+        nationalIdLast4: updated.nationalIdLast4,
+        reason: dto.reason,
+      }),
+      requestId: auditContext.requestId,
+    });
     return updated;
   }
 

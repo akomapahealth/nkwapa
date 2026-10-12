@@ -369,6 +369,60 @@ describe('mapPatient on a sheet filled by hand', () => {
   });
 });
 
+describe('clinician review flags', () => {
+  const visit = (values: Parameters<typeof sheetPatient>[1]) =>
+    mapPatient(
+      sheetPatient('V-040', { checkIn: { 'First name': 'A', 'Last name': 'B' }, ...values }),
+      DATE,
+    ).encounter!;
+
+  it('requests review for a low glucose the sheet never flagged', async () => {
+    const e = visit({ glucose: { 'mmol/L': '3.3', 'Test type': 'RBS' } });
+    expect(e.diabetes).toMatchObject({
+      glucoseMgDl: 59,
+      clinicianReviewRequested: true,
+      reviewReasons: ['HYPOGLYCEMIA_SYMPTOMS'],
+    });
+    await validateDto(UpsertDiabetesScreeningDto, e.diabetes!);
+  });
+
+  it('requests review for a suspected diabetes reading', async () => {
+    const e = visit({ glucose: { 'mmol/L': '11.2', 'Test type': 'RBS' } });
+    expect(e.diabetes).toMatchObject({
+      glucoseMgDl: 202,
+      clinicianReviewRequested: true,
+      reviewReasons: ['ABNORMAL_GLUCOSE'],
+    });
+    await validateDto(UpsertDiabetesScreeningDto, e.diabetes!);
+  });
+
+  it('requests review for a severely elevated BP, judged on the repeat reading as the app does', async () => {
+    const crisis = visit({
+      bp: {
+        'Systolic 1': '170',
+        'Diastolic 1': '100',
+        'Systolic 2': '185',
+        'Diastolic 2': '110',
+        Arm: 'Left arm',
+      },
+    });
+    expect(crisis.hypertension).toMatchObject({
+      clinicianReviewRequested: true,
+      reviewReasons: ['SEVERELY_ELEVATED_BP'],
+    });
+    await validateDto(UpsertHypertensionAssessmentDto, crisis.hypertension!);
+  });
+
+  it('leaves an unremarkable visit unflagged', () => {
+    const e = visit({
+      bp: { 'Systolic 1': '124', 'Diastolic 1': '78', Arm: 'Left arm' },
+      glucose: { 'mmol/L': '5.4', 'Test type': 'RBS' },
+    });
+    expect(e.hypertension).toMatchObject({ clinicianReviewRequested: false, reviewReasons: [] });
+    expect(e.diabetes).toMatchObject({ clinicianReviewRequested: false, reviewReasons: [] });
+  });
+});
+
 describe('validateDto', () => {
   it('refuses what the HTTP ValidationPipe would refuse', async () => {
     await expect(validateDto(UpsertCounsellingDto, { topics: ['NOT_A_TOPIC'] })).rejects.toThrow(

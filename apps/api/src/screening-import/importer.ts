@@ -204,7 +204,7 @@ export async function importPatient(
         const byId =
           plan.patient.nationalIdType !== 'NONE'
             ? await tx.patient.findUnique({
-                where: { nationalIdHash: hashNationalId(plan.patient.nationalId) },
+                where: { nationalIdHash: hashNationalId(plan.patient.nationalId ?? '') },
                 select,
               })
             : null;

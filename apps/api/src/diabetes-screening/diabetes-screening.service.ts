@@ -196,7 +196,12 @@ export class DiabetesScreeningService {
         ),
         bpCheckedToday: dto.bpCheckedToday,
         currentFootWound: dto.currentFootWound,
-        volunteerActions: (dto.volunteerActions ?? null) as Prisma.InputJsonValue,
+        // Prisma stores a JS null in a Json column as the JSON value null, which the table's
+        // jsonb_object_check refuses (#213); an absent value is SQL NULL.
+        volunteerActions:
+          dto.volunteerActions == null
+            ? Prisma.DbNull
+            : (dto.volunteerActions as Prisma.InputJsonValue),
         clinicianReviewRequested: dto.clinicianReviewRequested,
         reviewReasons: dto.reviewReasons,
         reviewReasonOther: dto.reviewReasonOther,

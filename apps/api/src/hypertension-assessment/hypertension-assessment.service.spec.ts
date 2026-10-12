@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { HypertensionAssessmentService } from './hypertension-assessment.service';
 
 const volunteer = {
@@ -180,6 +181,23 @@ describe('HypertensionAssessmentService', () => {
 
       // 152/94 is stage 2 under the documented bands.
       expect(writtenTo(tx)).toMatchObject({ derivedClassification: 'STAGE2' });
+    });
+
+    // #213: a JS null is stored as JSON null, which HypertensionAssessment_jsonb_object_check refuses.
+    it('stores an omitted volunteerActions as SQL NULL, and a sent one as given', async () => {
+      const omitted = setup();
+      await omitted.service.upsert('clinic-1', 'encounter-1', volunteer, {
+        ...dto,
+        volunteerActions: undefined,
+      } as never);
+      expect(writtenTo(omitted.tx).volunteerActions).toBe(Prisma.DbNull);
+
+      const sent = setup();
+      await sent.service.upsert('clinic-1', 'encounter-1', volunteer, {
+        ...dto,
+        volunteerActions: { selected: [] },
+      } as never);
+      expect(writtenTo(sent.tx).volunteerActions).toEqual({ selected: [] });
     });
 
     it('ignores a classification the client sent when it did not claim an override', async () => {

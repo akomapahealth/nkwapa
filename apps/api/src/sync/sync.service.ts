@@ -572,7 +572,8 @@ export class SyncService {
     idempotencyKey: string,
     metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
-    const nationalId = payload.nationalId as string | undefined;
+    const noId = payload.nationalIdType === 'NONE';
+    const sentId = ((payload.nationalId as string | undefined) ?? '').trim() || undefined;
     const existingById = await this.patientRepository.findById(mut.entityId);
 
     // The chart id comes from the device. Without this, a queued edit could rewrite a patient at a
@@ -593,14 +594,21 @@ export class SyncService {
     // The device stopped keeping national IDs (Dexie v8), so an offline edit of an existing chart
     // never carries one. It used to be refused with a plain Error, which classified as retryable
     // and re-sent forever. An edit leaves the stored identifier alone; only a new chart needs one.
-    if (!nationalId && !existingById) {
+    if (noId && sentId) {
+      throw new BadRequestException({
+        code: 'NATIONAL_ID_WITH_NO_ID_TYPE',
+        message: 'A patient with no ID document has no ID number.',
+      });
+    }
+    if (!sentId && !noId && !existingById) {
       throw new BadRequestException({
         code: 'PATIENT_NATIONAL_ID_REQUIRED',
-        message: 'A new patient needs a national ID before the chart can sync.',
+        message:
+          'A new patient needs a national ID, or "No ID document", before the chart can sync.',
       });
     }
 
-    const hash = nationalId ? hashNationalId(nationalId) : null;
+    const hash = sentId ? hashNationalId(sentId) : null;
     const existingByHash = hash ? await this.patientRepository.findByNationalIdHash(hash) : null;
 
     if (existingByHash && existingByHash.id !== mut.entityId) {
@@ -651,23 +659,24 @@ export class SyncService {
       email: (payload.email as string) ?? null,
       ...location,
     };
-    const patient =
-      nationalId && hash
-        ? await this.prisma.patient.upsert({
-            where: { id: mut.entityId },
-            create: {
-              id: mut.entityId,
-              ...demographics,
-              primaryClinic: { connect: { id: primaryClinicId } },
-              nationalIdType: (payload.nationalIdType as NationalIdType) ?? 'OTHER',
-              nationalIdCiphertext: encryptNationalId(nationalId),
-              nationalIdHash: hash,
-              nationalIdLast4: nationalIdLast4(nationalId),
-              createdBy: createdByUserId ? { connect: { id: createdByUserId } } : undefined,
-            },
-            update: demographics,
-          })
-        : await this.prisma.patient.update({ where: { id: mut.entityId }, data: demographics });
+    // A new chart with no ID document stores its own patient code as the ID, as REST does (#214).
+    const nationalId = sentId ?? (noId && !existingById ? patientCode : undefined);
+    const patient = nationalId
+      ? await this.prisma.patient.upsert({
+          where: { id: mut.entityId },
+          create: {
+            id: mut.entityId,
+            ...demographics,
+            primaryClinic: { connect: { id: primaryClinicId } },
+            nationalIdType: (payload.nationalIdType as NationalIdType) ?? 'OTHER',
+            nationalIdCiphertext: encryptNationalId(nationalId),
+            nationalIdHash: hashNationalId(nationalId),
+            nationalIdLast4: noId ? null : nationalIdLast4(nationalId),
+            createdBy: createdByUserId ? { connect: { id: createdByUserId } } : undefined,
+          },
+          update: demographics,
+        })
+      : await this.prisma.patient.update({ where: { id: mut.entityId }, data: demographics });
 
     await this.auditService.logWrite({
       clinicId: patient.primaryClinicId,

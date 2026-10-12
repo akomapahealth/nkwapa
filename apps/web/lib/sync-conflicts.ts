@@ -91,9 +91,16 @@ const CODE_COPY: Partial<Record<SyncConflictCode, Partial<SyncFailureCopy>>> = {
     nextStep: 'Open the current chart and re-enter this change there, then discard this copy.',
   },
   PATIENT_NATIONAL_ID_REQUIRED: {
-    title: 'This new patient needs a national ID',
-    explanation: 'A chart cannot be created without a national ID.',
+    title: 'This new patient needs an ID',
+    explanation: 'A chart needs an ID number, or "No ID document" for a patient who has none.',
     nextStep: 'Register the patient again while online, then discard this copy.',
+    tone: 'danger',
+  },
+  NATIONAL_ID_WITH_NO_ID_TYPE: {
+    title: 'This patient has an ID number and "No ID document"',
+    explanation: 'A chart marked "No ID document" cannot also carry an ID number.',
+    nextStep:
+      'Register the patient again while online with the right ID type, then discard this copy.',
     tone: 'danger',
   },
   UNSUPPORTED_STATUS_TRANSITION: {
