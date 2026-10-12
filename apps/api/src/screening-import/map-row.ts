@@ -1,4 +1,11 @@
 import type { CheckInStatus, NationalIdType } from '@prisma/client';
+import {
+  deriveDiabetesEscalation,
+  deriveHypertensionEscalation,
+  evaluateGlucoseSuspicion,
+  reviewReasonsForDiabetesEscalation,
+  reviewReasonsForEscalation,
+} from '@nkwapa/db';
 import { v5 as uuidv5 } from 'uuid';
 import type { CreatePatientDto } from '../patients/dto/create-patient.dto';
 import * as L from './labels';
@@ -254,6 +261,20 @@ export function mapPatient(sheet: SheetPatient, sessionDate: string): PatientPla
   const htnStatus = pick(L.HYPERTENSION_STATUS, '1 Intake', intake, 'Known high BP?');
   const pregnant = pick(L.PREGNANT, '1 Intake', intake, 'Pregnant?');
   const hasRepeat = sys2 !== null || dia2 !== null;
+  /*
+    The sheet's alert formulas never ran for many rows, so nothing on the day flagged them. Request
+    clinician review the way the encounter form preselects it: the reasons the shared escalation
+    rules imply, so these visits stand out in the drafts queue and on the chart.
+  */
+  const htnReview = reviewReasonsForEscalation(
+    deriveHypertensionEscalation({
+      symptoms: [],
+      systolicBp: sys1,
+      diastolicBp: dia1,
+      repeatSystolicBp: sys2,
+      repeatDiastolicBp: dia2,
+    }),
+  );
   const hypertension =
     hasEntries(intake) || hasEntries(bp)
       ? {
@@ -291,8 +312,8 @@ export function mapPatient(sheet: SheetPatient, sessionDate: string): PatientPla
           ecgCompleted: 'NOT_ASSESSED',
           statinUse: 'NOT_ASSESSED',
           aspirinUse: 'NOT_ASSESSED',
-          clinicianReviewRequested: false,
-          reviewReasons: [],
+          clinicianReviewRequested: htnReview.length > 0,
+          reviewReasons: htnReview,
           reviewReasonOther: null,
           // What the encounter form sends; an omitted value is stored as JSON null and fails the table's check.
           volunteerActions: { selected: [] },
@@ -414,6 +435,18 @@ export function mapPatient(sheet: SheetPatient, sessionDate: string): PatientPla
       );
     }
   }
+  const dmReview = [
+    ...reviewReasonsForDiabetesEscalation(
+      deriveDiabetesEscalation({
+        currentFootWound: footWound === undefined ? undefined : footWound ? 'YES' : 'NO',
+        glucoseMgDl: glucoseValue,
+        glucoseContext: glucoseType ?? 'UNKNOWN',
+      }),
+    ),
+    ...(evaluateGlucoseSuspicion(glucoseValue, glucoseType ?? 'UNKNOWN') === 'SUSPECTED'
+      ? ['ABNORMAL_GLUCOSE']
+      : []),
+  ];
   const diabetes =
     hasEntries(glucose) || dmStatus
       ? {
@@ -421,6 +454,8 @@ export function mapPatient(sheet: SheetPatient, sessionDate: string): PatientPla
           glucoseType: glucoseType ?? 'UNKNOWN',
           hba1cPercent: null,
           volunteerActions: { selected: [] },
+          clinicianReviewRequested: dmReview.length > 0,
+          reviewReasons: dmReview,
           symptoms:
             symptoms.length === 0 && allSymptomsAnswered && !slowWounds && !numbFeet
               ? ['NONE']
