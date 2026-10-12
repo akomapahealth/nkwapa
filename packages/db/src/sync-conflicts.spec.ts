@@ -45,6 +45,7 @@ describe('sync conflict catalog', () => {
     'FORBIDDEN',
     'VALIDATION_ERROR',
     'PATIENT_NATIONAL_ID_REQUIRED',
+    'NATIONAL_ID_WITH_NO_ID_TYPE',
   ] as const)('never caches %s', (key) => {
     expect(DETERMINISTIC_SYNC_CONFLICT_CODES.has(key)).toBe(false);
   });
@@ -77,6 +78,7 @@ describe('sync conflict catalog', () => {
     it('never retries content the server refuses, since the payload cannot change by itself', () => {
       expect(isRetryableSyncOutcome('ERROR', 'VALIDATION_ERROR')).toBe(false);
       expect(isRetryableSyncOutcome('ERROR', 'PATIENT_NATIONAL_ID_REQUIRED')).toBe(false);
+      expect(isRetryableSyncOutcome('ERROR', 'NATIONAL_ID_WITH_NO_ID_TYPE')).toBe(false);
       expect(isRetryableSyncOutcome('ERROR', 'DELETE_NOT_SUPPORTED')).toBe(false);
     });
 

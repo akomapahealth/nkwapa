@@ -1,5 +1,14 @@
 import { NationalIdType, Sex } from '@prisma/client';
-import { IsDateString, IsEmail, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsDateString,
+  IsEmail,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+  ValidateIf,
+} from 'class-validator';
 import { IsAllowedEmailDomain } from '../../common/email-policy';
 import { ToNormalizedEmail, ToSanitizedString } from '../../common/validation';
 import { ResidentialLocationDto } from './residential-location.dto';
@@ -40,8 +49,11 @@ export class CreatePatientBodyDto extends ResidentialLocationDto {
   @IsEnum(NationalIdType)
   nationalIdType!: NationalIdType;
 
+  /** Required for every ID type except NONE, where there is no number to give (#214). */
   @ToSanitizedString({ maxLength: 160 })
+  @ValidateIf((o: CreatePatientBodyDto) => o.nationalIdType !== NationalIdType.NONE)
   @IsString()
+  @IsNotEmpty()
   @MaxLength(160)
-  nationalId!: string;
+  nationalId?: string;
 }

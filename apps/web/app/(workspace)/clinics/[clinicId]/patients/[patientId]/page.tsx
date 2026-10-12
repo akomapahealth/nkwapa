@@ -85,6 +85,7 @@ interface PatientWithEncounters {
     sex: string;
     phoneE164?: string | null;
     email?: string | null;
+    nationalIdType?: string | null;
     nationalIdLast4?: string | null;
     residentialLocationStatus?: string | null;
     residentialRegion?: string | null;
@@ -731,11 +732,13 @@ function PatientChartWorkspace() {
                             <p className="text-eyebrow text-muted-foreground">Sex</p>
                             <p className="mt-2 text-sm text-foreground">{patient.sex}</p>
                           </div>
-                          {patient.nationalIdLast4 ? (
+                          {patient.nationalIdLast4 || patient.nationalIdType === 'NONE' ? (
                             <div className="rounded-lg border border-border bg-background p-4 sm:col-span-2">
                               <p className="text-eyebrow text-muted-foreground">National ID</p>
                               <p className="mt-2 text-sm text-foreground">
-                                ...{patient.nationalIdLast4}
+                                {patient.nationalIdType === 'NONE'
+                                  ? 'No ID document'
+                                  : `...${patient.nationalIdLast4}`}
                               </p>
                             </div>
                           ) : null}

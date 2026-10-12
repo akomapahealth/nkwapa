@@ -10,7 +10,8 @@ export interface CreatePatientDto {
   phoneE164?: string;
   email?: string;
   nationalIdType: NationalIdType;
-  nationalId: string; // plaintext, encrypted/hashed by service
+  /** Plaintext, encrypted and hashed by the service. Absent for NONE, which stores the patient code. */
+  nationalId?: string;
   createdByUserId?: string;
   // Residential location (see ResidentialLocationDto); resolved by service.
   residentialLocationStatus?: PatientLocationStatus;
