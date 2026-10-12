@@ -1,6 +1,7 @@
 import { ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Patient } from '@prisma/client';
+import { decryptNationalId, hashNationalId } from '@nkwapa/db';
 import { PORTAL_INVITE_HISTORY_LIMIT, PatientService } from './patient.service';
 import { PatientRepository } from './patient.repository';
 import { PrismaService } from '../prisma/prisma.service';
@@ -53,6 +54,7 @@ const mockPatient: Patient = {
 
 describe('PatientService - national_id dedup conflict', () => {
   let service: PatientService;
+  let prisma: { $transaction: jest.Mock };
 
   beforeEach(async () => {
     const mockFindByNationalIdHash = jest.fn();
@@ -108,8 +110,35 @@ describe('PatientService - national_id dedup conflict', () => {
     }).compile();
 
     service = module.get(PatientService);
+    prisma = module.get(PrismaService);
     const patientRepository = module.get(PatientRepository);
     jest.spyOn(patientRepository, 'findByNationalIdHash').mockResolvedValue(mockPatient);
+  });
+
+  it('stores a no-ID patient under their own code, with no last 4 to collide on', async () => {
+    process.env.NATIONAL_ID_ENCRYPTION_KEY = 'a'.repeat(64);
+    const create = jest.fn().mockResolvedValue(mockPatient);
+    prisma.$transaction.mockImplementation((cb) =>
+      cb({
+        patientCodeSequence: { upsert: jest.fn().mockResolvedValue({ lastNumber: 42 }) },
+        patient: { create },
+      }),
+    );
+
+    // The repository would report a hash collision; a NONE patient must never be checked against it.
+    await service.create({
+      primaryClinicId: 'clinic-1',
+      firstName: 'Ama',
+      lastName: 'Mensah',
+      nationalIdType: 'NONE',
+      nationalId: '',
+    });
+
+    const { data } = create.mock.calls[0][0];
+    expect(data.nationalIdType).toBe('NONE');
+    expect(data.nationalIdHash).toBe(hashNationalId(data.patientCode));
+    expect(decryptNationalId(data.nationalIdCiphertext)).toBe(data.patientCode);
+    expect(data.nationalIdLast4).toBeNull();
   });
 
   it('throws ConflictException with existing patient summary when national ID already exists', async () => {

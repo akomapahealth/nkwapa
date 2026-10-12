@@ -162,8 +162,11 @@ export class PatientService {
   ) {}
 
   async create(dto: CreatePatientDto, auditContext?: AuditContext): Promise<Patient> {
-    const hash = hashNationalId(dto.nationalId);
-    const existing = await this.patientRepository.findByNationalIdHash(hash);
+    // A patient with no ID document has nothing to collide on; their code becomes the stored ID.
+    const noId = dto.nationalIdType === 'NONE';
+    const existing = noId
+      ? null
+      : await this.patientRepository.findByNationalIdHash(hashNationalId(dto.nationalId));
     if (existing) {
       throw new ConflictException({
         message: 'Patient with this national ID already exists',
@@ -184,6 +187,7 @@ export class PatientService {
         update: { lastNumber: { increment: 1 } },
       });
       const patientCode = `NKP-${year}-${String(row.lastNumber).padStart(6, '0')}`;
+      const nationalId = noId ? patientCode : dto.nationalId;
       return tx.patient.create({
         data: {
           patientCode,
@@ -195,9 +199,10 @@ export class PatientService {
           phoneE164,
           email: dto.email,
           nationalIdType: dto.nationalIdType,
-          nationalIdCiphertext: encryptNationalId(dto.nationalId),
-          nationalIdHash: hash,
-          nationalIdLast4: nationalIdLast4(dto.nationalId),
+          nationalIdCiphertext: encryptNationalId(nationalId),
+          nationalIdHash: hashNationalId(nationalId),
+          // No last 4 for a code: it would collide across years in search and duplicate review.
+          nationalIdLast4: noId ? null : nationalIdLast4(nationalId),
           createdByUserId: dto.createdByUserId,
           ...location,
         },
