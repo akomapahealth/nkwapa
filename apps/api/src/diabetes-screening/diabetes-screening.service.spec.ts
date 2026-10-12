@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import {
   BadRequestException,
   ConflictException,
@@ -230,6 +231,23 @@ describe('DiabetesScreeningService', () => {
     function writtenTo(tx: { diabetesScreening: { upsert: jest.Mock } }) {
       return tx.diabetesScreening.upsert.mock.calls[0][0].create;
     }
+
+    // #213: a JS null is stored as JSON null, which DiabetesScreening_jsonb_object_check refuses.
+    it('stores an omitted volunteerActions as SQL NULL, and a sent one as given', async () => {
+      const omitted = setup();
+      await omitted.service.upsert('clinic-1', 'encounter-1', doctor, {
+        ...dto,
+        volunteerActions: undefined,
+      } as never);
+      expect(writtenTo(omitted.tx).volunteerActions).toBe(Prisma.DbNull);
+
+      const sent = setup();
+      await sent.service.upsert('clinic-1', 'encounter-1', doctor, {
+        ...dto,
+        volunteerActions: { selected: [] },
+      } as never);
+      expect(writtenTo(sent.tx).volunteerActions).toEqual({ selected: [] });
+    });
 
     it('classifies suspicion from the reading and its timing', async () => {
       const { service, tx } = setup();
