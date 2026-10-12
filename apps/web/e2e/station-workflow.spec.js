@@ -568,3 +568,164 @@ test('a manager hands a waiting patient to a volunteer on shift', async ({ page 
   );
   expect(left.ok(), left.text()).toBeTruthy();
 });
+
+test.describe('the station screens keep separate offline copies (#197)', () => {
+  /*
+    /today (the station line board) and /stations used to cache different shapes under one key.
+    Opening one after the other in the same browser handed /stations the board's bare shape and
+    it threw on render. Every role below holds OPS.STATION.READ, so each can open both screens.
+  */
+
+  /** The device's ops_cache rows, keyed by `${clinicId}|${kind}`. */
+  async function readOpsCacheRows(page) {
+    return page.evaluate(
+      () =>
+        new Promise((resolve, reject) => {
+          const request = indexedDB.open('NkwapaDb');
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => {
+            const db = request.result;
+            const all = db.transaction('ops_cache', 'readonly').objectStore('ops_cache').getAll();
+            all.onsuccess = () => {
+              db.close();
+              resolve(Object.fromEntries(all.result.map((row) => [row.key, row])));
+            };
+            all.onerror = () => reject(all.error);
+          };
+        }),
+    );
+  }
+
+  async function putOpsCacheRows(page, rows) {
+    await page.evaluate(
+      (records) =>
+        new Promise((resolve, reject) => {
+          const request = indexedDB.open('NkwapaDb');
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => {
+            const db = request.result;
+            const tx = db.transaction('ops_cache', 'readwrite');
+            for (const record of records) tx.objectStore('ops_cache').put(record);
+            tx.oncomplete = () => {
+              db.close();
+              resolve();
+            };
+            tx.onerror = () => reject(tx.error);
+          };
+        }),
+      rows,
+    );
+  }
+
+  /** A page that records every uncaught error, so a crash fails the test even if it recovers. */
+  async function watchedPage(browser, role) {
+    const context = await browser.newContext({ storageState: storageStateFor(role) });
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    return { context, page, errors };
+  }
+
+  async function openBoard(page) {
+    const loaded = page.waitForResponse((res) => res.url().includes('/stations/board'));
+    await page.goto('/today');
+    await expect(page.getByRole('heading', { name: 'Station line' })).toBeVisible({
+      timeout: 20_000,
+    });
+    await loaded;
+  }
+
+  async function openStations(page) {
+    await page.goto('/stations');
+    await expect(page.getByRole('heading', { name: 'Stations' })).toBeVisible({
+      timeout: 20_000,
+    });
+  }
+
+  for (const role of ['staff', 'doctor', 'volunteer']) {
+    test(`${role}: the board, then stations, then the board again, in one browser`, async ({
+      browser,
+    }) => {
+      const { context, page, errors } = await watchedPage(browser, role);
+
+      await openBoard(page);
+      // Let the board's copy reach the device before the next screen reads the cache.
+      await expect
+        .poll(async () => Object.keys(await readOpsCacheRows(page)).join(','))
+        .toContain('|station-board');
+      await openStations(page);
+      await expect(page.getByText('This page ran into a problem')).toHaveCount(0);
+      await openBoard(page);
+      await expect(page.getByText('This page ran into a problem')).toHaveCount(0);
+
+      // One row per screen, each its own shape.
+      await expect
+        .poll(async () => Object.keys(await readOpsCacheRows(page)).join(','))
+        .toContain('|station-workspace');
+      const rows = Object.values(await readOpsCacheRows(page));
+      const board = rows.find((row) => row.kind === 'station-board');
+      const workspace = rows.find((row) => row.kind === 'station-workspace');
+      expect(typeof board.data.timezone).toBe('string');
+      expect(typeof workspace.data.board.timezone).toBe('string');
+      expect(Array.isArray(workspace.data.shifts.items)).toBe(true);
+
+      expect(errors).toEqual([]);
+      await context.close();
+    });
+  }
+
+  test('a device already holding wrong-shaped copies recovers on its first visit', async ({
+    browser,
+  }) => {
+    const { context, page, errors } = await watchedPage(browser, 'staff');
+    await openBoard(page);
+    await expect
+      .poll(async () => Object.keys(await readOpsCacheRows(page)).join(','))
+      .toContain('|station-board');
+    const good = Object.values(await readOpsCacheRows(page)).find(
+      (row) => row.kind === 'station-board',
+    );
+    const clinicId = good.clinicId;
+
+    // Each screen's row holds the other screen's shape, as a device in the field might.
+    await putOpsCacheRows(page, [
+      { ...good, key: `${clinicId}|station-workspace`, kind: 'station-workspace' },
+      {
+        ...good,
+        data: { board: good.data, shifts: { date: good.date, timezone: 'x', items: [] } },
+      },
+    ]);
+
+    // Hold the live board back, so each screen can only draw what the device saved.
+    await context.route('**/stations/board*', (route) => route.abort());
+    await page.goto('/stations');
+    await expect(page.getByText('This page ran into a problem')).toHaveCount(0);
+    await expect
+      .poll(async () => Boolean((await readOpsCacheRows(page))[`${clinicId}|station-workspace`]))
+      .toBe(false);
+    await page.goto('/today');
+    await expect(page.getByRole('heading', { name: 'Station line' })).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.getByText('This page ran into a problem')).toHaveCount(0);
+    await expect
+      .poll(async () => Boolean((await readOpsCacheRows(page))[`${clinicId}|station-board`]))
+      .toBe(false);
+
+    // Back online, both screens load and save their own shapes again.
+    await context.unroute('**/stations/board*');
+    await openStations(page);
+    await openBoard(page);
+    await expect
+      .poll(async () => {
+        const rows = await readOpsCacheRows(page);
+        return [`${clinicId}|station-board`, `${clinicId}|station-workspace`].every(
+          (key) => rows[key],
+        );
+      })
+      .toBe(true);
+
+    expect(errors).toEqual([]);
+    await context.close();
+  });
+});

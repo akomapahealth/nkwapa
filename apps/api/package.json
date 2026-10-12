@@ -8,6 +8,7 @@
     "docs:appointment-matrix": "ts-node --transpile-only scripts/generate-appointment-matrix.ts",
     "docs:identity-matrix": "ts-node --transpile-only scripts/generate-identity-matrix.ts",
     "docs:offline-job-matrix": "ts-node --transpile-only scripts/generate-offline-job-matrix.ts",
+    "screening:import": "ts-node --transpile-only scripts/import-screening-sheet.ts",
     "dev": "nest start --watch",
     "start": "nest start",
     "start:prod": "node dist/main",

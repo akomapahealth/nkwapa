@@ -2,13 +2,11 @@ import { HttpException, type ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
 const mockIncr = jest.fn();
-jest.mock('ioredis', () =>
-  jest.fn().mockImplementation(() => ({
-    connect: jest.fn().mockResolvedValue(undefined),
-    incr: mockIncr,
-    expire: jest.fn().mockResolvedValue(1),
-  })),
-);
+let redisReady = true;
+const redisService = {
+  isReady: () => redisReady,
+  client: { incr: mockIncr, expire: jest.fn().mockResolvedValue(1) },
+};
 
 import { RateLimitGuard } from './rate-limit.guard';
 import { RateLimit } from './rate-limit.decorator';
@@ -36,11 +34,14 @@ describe('RateLimitGuard telemetry', () => {
     params: { clinicId: 'clinic-1' },
   };
 
-  beforeEach(() => mockIncr.mockReset());
+  beforeEach(() => {
+    mockIncr.mockReset();
+    redisReady = true;
+  });
 
   it('records a throttled request by bucket and scope, never by who made it', async () => {
     const telemetry = { record: jest.fn() };
-    const guard = new RateLimitGuard(new Reflector(), telemetry as never);
+    const guard = new RateLimitGuard(new Reflector(), redisService as never, telemetry as never);
     mockIncr.mockResolvedValue(3);
 
     await expect(guard.canActivate(contextFor(request))).rejects.toBeInstanceOf(HttpException);
@@ -57,7 +58,7 @@ describe('RateLimitGuard telemetry', () => {
 
   it('records nothing for a request within its limit', async () => {
     const telemetry = { record: jest.fn() };
-    const guard = new RateLimitGuard(new Reflector(), telemetry as never);
+    const guard = new RateLimitGuard(new Reflector(), redisService as never, telemetry as never);
     mockIncr.mockResolvedValue(1);
 
     await expect(guard.canActivate(contextFor(request))).resolves.toBe(true);
@@ -65,8 +66,21 @@ describe('RateLimitGuard telemetry', () => {
   });
 
   it('still throttles when telemetry is not wired in', async () => {
-    const guard = new RateLimitGuard(new Reflector());
+    const guard = new RateLimitGuard(new Reflector(), redisService as never);
     mockIncr.mockResolvedValue(3);
     await expect(guard.canActivate(contextFor(request))).rejects.toBeInstanceOf(HttpException);
+  });
+
+  it('lets the request through without touching Redis while Redis is down', async () => {
+    redisReady = false;
+    const guard = new RateLimitGuard(new Reflector(), redisService as never);
+    await expect(guard.canActivate(contextFor(request))).resolves.toBe(true);
+    expect(mockIncr).not.toHaveBeenCalled();
+  });
+
+  it('fails open when a command fails', async () => {
+    mockIncr.mockRejectedValue(new Error('Command timed out'));
+    const guard = new RateLimitGuard(new Reflector(), redisService as never);
+    await expect(guard.canActivate(contextFor(request))).resolves.toBe(true);
   });
 });

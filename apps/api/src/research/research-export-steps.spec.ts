@@ -108,6 +108,7 @@ function setup(initial: Row = {}) {
     transformService as never,
     repoSyncService as never,
     { add: jest.fn() } as never,
+    { isReady: () => true, assertReady: () => undefined } as never,
   );
   return {
     service,

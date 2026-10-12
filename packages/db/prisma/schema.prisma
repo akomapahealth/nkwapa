@@ -331,6 +331,8 @@ enum NationalIdType {
   NATIONAL_ID
   PASSPORT
   OTHER
+  /// No ID document. The ciphertext and hash hold the patient's own patientCode (#204).
+  NONE
 }
 
 enum ConversationType {

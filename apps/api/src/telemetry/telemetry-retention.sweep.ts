@@ -1,10 +1,11 @@
-import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger, type OnModuleInit } from '@nestjs/common';
-import { Queue } from 'bullmq';
+import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import { JobTenantContextRunner } from '../prisma/job-tenant-context.runner';
-import { redactLogValue } from '../common/redaction';
+import {
+  MAINTENANCE_QUEUE,
+  MaintenanceScheduler,
+  type MaintenanceSweep,
+} from '../maintenance/maintenance-scheduler';
 
-export const TELEMETRY_MAINTENANCE_QUEUE = 'telemetry-maintenance';
 export const TELEMETRY_RETENTION_JOB = 'purge-expired-telemetry';
 export const TELEMETRY_RETENTION_INTERVAL_MS = 24 * 60 * 60 * 1000;
 export const DEFAULT_TELEMETRY_RETENTION_DAYS = 180;
@@ -26,40 +27,27 @@ export function telemetryRetentionCutoff(now: Date, days = telemetryRetentionDay
  * Telemetry exists to show trends, not to keep a history of the clinic; holding it indefinitely
  * would only grow the table and the amount of operational detail at rest. A BullMQ scheduler for
  * the same reason the portal invite sweep uses one: several API instances produce one purge.
+ * Housekeeping only, so a purge that cannot be scheduled costs nothing but a larger table.
  */
-@Processor(TELEMETRY_MAINTENANCE_QUEUE)
-export class TelemetryRetentionProcessor extends WorkerHost implements OnModuleInit {
-  private readonly logger = new Logger(TelemetryRetentionProcessor.name);
+@Injectable()
+export class TelemetryRetentionSweep implements MaintenanceSweep, OnModuleInit {
+  readonly jobName = TELEMETRY_RETENTION_JOB;
+  readonly everyMs = TELEMETRY_RETENTION_INTERVAL_MS;
+  private readonly logger = new Logger(TelemetryRetentionSweep.name);
 
   constructor(
-    @InjectQueue(TELEMETRY_MAINTENANCE_QUEUE) private readonly queue: Queue,
+    private readonly scheduler: MaintenanceScheduler,
     private readonly tenantContext: JobTenantContextRunner,
-  ) {
-    super();
+  ) {}
+
+  onModuleInit(): void {
+    this.scheduler.register(this);
   }
 
-  async onModuleInit(): Promise<void> {
-    try {
-      await this.queue.upsertJobScheduler(
-        TELEMETRY_RETENTION_JOB,
-        { every: TELEMETRY_RETENTION_INTERVAL_MS },
-        { name: TELEMETRY_RETENTION_JOB },
-      );
-    } catch (err) {
-      // Housekeeping only; Redis must not be in the blast radius of API boot.
-      this.logger.error(
-        JSON.stringify({
-          message: 'Telemetry retention purge could not be scheduled',
-          error: redactLogValue(err),
-        }),
-      );
-    }
-  }
-
-  async process(): Promise<void> {
+  async run(): Promise<void> {
     await this.tenantContext.runSystemJob(
       {
-        queueName: TELEMETRY_MAINTENANCE_QUEUE,
+        queueName: MAINTENANCE_QUEUE,
         resourceId: TELEMETRY_RETENTION_JOB,
         systemReason: 'Delete telemetry older than the retention window',
       },

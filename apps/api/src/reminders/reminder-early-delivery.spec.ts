@@ -55,6 +55,7 @@ function service({
     smsProvider,
     null,
     queue as never,
+    { isReady: () => true, assertReady: () => undefined } as never,
   );
   return { reminders, smsProvider, queue, prisma, removed };
 }

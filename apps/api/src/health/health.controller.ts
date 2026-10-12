@@ -1,6 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailStatusService } from '../notifications/email/email-status.service';
+import { RedisService } from '../redis/redis.service';
 
 @Controller('health')
 export class HealthController {
@@ -9,7 +10,15 @@ export class HealthController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailStatus: EmailStatusService,
+    private readonly redis: RedisService,
   ) {}
+
+  // Proves the process is up without touching the database, so the keep-warm ping (#172)
+  // doesn't wake Neon out of auto-suspend every 10 minutes.
+  @Get('live')
+  live() {
+    return { status: 'ok' };
+  }
 
   @Get()
   async check() {
@@ -22,18 +31,9 @@ export class HealthController {
       checks.db = 'disconnected';
     }
 
-    try {
-      const { default: Redis } = await import('ioredis');
-      const redis = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379', {
-        connectTimeout: 2000,
-        lazyConnect: true,
-      });
-      await redis.ping();
-      await redis.quit();
-      checks.redis = 'connected';
-    } catch {
-      checks.redis = 'disconnected';
-    }
+    // The shared client, never a new connection per probe (#199): the deploy probe and uptime
+    // checks call this constantly, and each fresh connection cost a handshake and commands.
+    checks.redis = (await this.redis.ping()) ? 'connected' : 'disconnected';
 
     // Reported but deliberately not part of the verdict. This endpoint gates the
     // Playwright web server and the deploy probe, and the fake provider is the correct

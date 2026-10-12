@@ -1,5 +1,4 @@
 import { Module, forwardRef } from '@nestjs/common';
-import { BullModule } from '@nestjs/bullmq';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
 import { AuditModule } from '../audit/audit.module';
@@ -14,10 +13,7 @@ import { ClinicAppointmentRequestsController } from './clinic-appointment-reques
 import { PatientClaimController } from './patient-claim.controller';
 import { PatientPortalService } from './patient-portal.service';
 import { PortalInviteExpiryService } from './portal-invite-expiry.service';
-import {
-  PORTAL_INVITE_MAINTENANCE_QUEUE,
-  PortalInviteMaintenanceProcessor,
-} from './portal-invite-maintenance.processor';
+import { PortalInviteExpirySweep } from './portal-invite-expiry.sweep';
 
 @Module({
   imports: [
@@ -27,7 +23,6 @@ import {
     ReminderModule,
     KeycloakModule,
     StaffInviteModule,
-    BullModule.registerQueue({ name: PORTAL_INVITE_MAINTENANCE_QUEUE }),
   ],
   controllers: [
     PatientPortalController,
@@ -40,7 +35,7 @@ import {
     EmailDeliverabilityService,
     PatientPortalService,
     PortalInviteExpiryService,
-    PortalInviteMaintenanceProcessor,
+    PortalInviteExpirySweep,
   ],
   exports: [PatientPortalService, PortalInviteExpiryService],
 })

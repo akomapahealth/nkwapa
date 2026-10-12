@@ -92,9 +92,16 @@ function setup(initial: Row = {}) {
     }),
   };
   const audit = { logWrite: jest.fn().mockResolvedValue(undefined) };
-  const service = new ReminderService(prisma as never, audit as never, smsProvider, null, {
-    add: jest.fn(),
-  } as never);
+  const service = new ReminderService(
+    prisma as never,
+    audit as never,
+    smsProvider,
+    null,
+    {
+      add: jest.fn(),
+    } as never,
+    { isReady: () => true, assertReady: () => undefined } as never,
+  );
   return {
     service,
     step,

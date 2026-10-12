@@ -6,18 +6,19 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
-import { UseInterceptors } from '@nestjs/common';
+import { Logger, UseInterceptors, type OnModuleDestroy } from '@nestjs/common';
 import { Namespace, Socket } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
-import Redis from 'ioredis';
+import type Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { PrismaRlsInterceptor } from '../prisma/prisma-rls.interceptor';
 import { ChatService } from './chat.service';
 import { createWsAuthMiddleware, WsAuthData } from './chat-ws-auth.middleware';
 import { getAllowedCorsOrigins } from '../common/api-config';
 import { randomUUID } from 'crypto';
-
-const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
+import { createRedisClient } from '../common/redis';
+import { redactLogValue } from '../common/redaction';
+import { RedisService } from '../redis/redis.service';
 
 /*
   Presence (#30).
@@ -31,6 +32,8 @@ const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
 */
 export const PRESENCE_HEARTBEAT_MS = 25_000;
 export const PRESENCE_TTL_MS = 60_000;
+/** How long a disconnect waits on Redis to count a user's other sockets before counting locally. */
+const SOCKETS_LOOKUP_TIMEOUT_MS = 3_000;
 const presenceKey = (clinicId: string) => `chat:clinic:${clinicId}:presence`;
 const lastSeenKey = (clinicId: string) => `chat:clinic:${clinicId}:last-seen`;
 
@@ -52,31 +55,117 @@ const lastSeenKey = (clinicId: string) => `chat:clinic:${clinicId}:last-seen`;
     credentials: true,
   },
 })
-export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
+export class ChatGateway
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy
+{
   @WebSocketServer()
   server!: Namespace;
 
-  private pubClient!: Redis;
-  private subClient!: Redis;
+  private readonly logger = new Logger(ChatGateway.name);
+  private adapterClients: Redis[] = [];
+  private redisAdapterInstalled = false;
 
   constructor(
     private readonly chatService: ChatService,
     private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
   ) {}
 
   afterInit(server: Namespace) {
-    // Set up Redis adapter for multi-instance WebSocket support.
-    // Because this gateway uses a namespace, `server` is a Namespace; the
-    // adapter must be installed on the parent Server (affects all namespaces).
-    this.pubClient = new Redis(REDIS_URL);
-    this.subClient = this.pubClient.duplicate();
-
-    server.server.adapter(
-      createAdapter(this.pubClient, this.subClient) as ReturnType<typeof createAdapter>,
-    );
-
     // Register auth middleware on this namespace
     server.use(createWsAuthMiddleware(this.prisma));
+    this.useRedisAdapterWhenReady(server);
+  }
+
+  onModuleDestroy() {
+    for (const client of this.adapterClients) client.disconnect();
+  }
+
+  /*
+    The Redis adapter fans messages out across API instances. It is installed only once both of
+    its clients are connected (#199).
+
+    Installed eagerly, as it used to be, its subscribe call was never awaited, and the default
+    client gave up after twenty retries. With Redis unreachable the rejection went unhandled and
+    took the process down twelve seconds after boot. Until Redis is reachable chat uses Socket.IO's
+    in-memory adapter, which is exact for a single instance; that is all staging and the current
+    production deploy run.
+
+    Swapping adapters forgets which rooms each connected socket is in, so sockets already
+    connected when Redis arrives are disconnected. Their clients reconnect on their own, and
+    `handleConnection` puts them back in their rooms. Later outages leave the adapter in place:
+    its clients reconnect and resubscribe without help.
+  */
+  private useRedisAdapterWhenReady(nsp: Namespace) {
+    const pub = createRedisClient('chat-pub', 'pubsub');
+    const sub = createRedisClient('chat-sub', 'pubsub');
+    this.adapterClients = [pub, sub];
+
+    const install = () => {
+      if (this.redisAdapterInstalled || pub.status !== 'ready' || sub.status !== 'ready') return;
+      this.redisAdapterInstalled = true;
+      const connected = [...nsp.sockets.values()];
+      // Because this gateway uses a namespace, the adapter goes on the parent Server.
+      nsp.server.adapter(createAdapter(pub, sub) as ReturnType<typeof createAdapter>);
+      for (const socket of connected) socket.disconnect(true);
+      this.logger.log(
+        JSON.stringify({
+          message: 'Chat Redis adapter installed',
+          reconnectedSockets: connected.length,
+        }),
+      );
+    };
+    pub.on('ready', install);
+    sub.on('ready', install);
+    pub.once('error', () => {
+      if (this.redisAdapterInstalled) return;
+      this.logger.warn(
+        JSON.stringify({
+          message: 'Chat is running on the in-memory adapter until Redis is reachable',
+        }),
+      );
+    });
+  }
+
+  /**
+   * Presence is best effort (#199): it uses the fail-fast client, and a Redis outage makes it
+   * stale rather than failing the connect, send or disconnect around it.
+   */
+  private async presence<T>(operation: (redis: Redis) => Promise<T>): Promise<T | null> {
+    if (!this.redis.isReady()) return null;
+    try {
+      return await operation(this.redis.client);
+    } catch (error) {
+      this.logger.warn(
+        JSON.stringify({ message: 'Chat presence unavailable', error: redactLogValue(error) }),
+      );
+      return null;
+    }
+  }
+
+  /** Every socket of a user, across instances when Redis allows, else this instance's. */
+  private async socketsOfUser(userId: string) {
+    const room = `user:${userId}`;
+    if (!this.redisAdapterInstalled || !this.redis.isReady()) {
+      return this.server.local.in(room).fetchSockets();
+    }
+    // The Redis adapter's count of instances waits for Redis rather than failing.
+    let timer: NodeJS.Timeout | undefined;
+    const timedOut = new Promise<null>((resolve) => {
+      timer = setTimeout(() => resolve(null), SOCKETS_LOOKUP_TIMEOUT_MS);
+    });
+    try {
+      const sockets = await Promise.race([
+        this.server
+          .in(room)
+          .fetchSockets()
+          .catch(() => null),
+        timedOut,
+      ]);
+      return sockets ?? (await this.server.local.in(room).fetchSockets());
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   async handleConnection(client: Socket) {
@@ -92,7 +181,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     await client.join(`clinic:${clinicId}`);
     await client.join(`user:${userId}`);
 
-    await this.pubClient.zadd(presenceKey(clinicId), Date.now(), userId);
+    await this.presence((redis) => redis.zadd(presenceKey(clinicId), Date.now(), userId));
 
     // Broadcast presence to clinic
     client.to(`clinic:${clinicId}`).emit('presence:online', {
@@ -109,13 +198,15 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
     // Check if user has other active connections before removing presence
     const clinicRoom = `clinic:${clinicId}`;
-    const sockets = await this.server.in(`user:${userId}`).fetchSockets();
+    const sockets = await this.socketsOfUser(userId);
 
     // Only remove presence if this is the last connection for this user
     if (sockets.length <= 1) {
       const lastSeenAt = new Date().toISOString();
-      await this.pubClient.zrem(presenceKey(clinicId), userId);
-      await this.pubClient.hset(lastSeenKey(clinicId), userId, lastSeenAt);
+      await this.presence(async (redis) => {
+        await redis.zrem(presenceKey(clinicId), userId);
+        await redis.hset(lastSeenKey(clinicId), userId, lastSeenAt);
+      });
       this.server.to(clinicRoom).emit('presence:offline', { userId, lastSeenAt });
     }
   }
@@ -262,7 +353,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   async handlePresenceHeartbeat(client: Socket) {
     const auth: WsAuthData = client.data.auth;
     if (!auth) return;
-    await this.pubClient.zadd(presenceKey(auth.clinicId), Date.now(), auth.userId);
+    await this.presence((redis) => redis.zadd(presenceKey(auth.clinicId), Date.now(), auth.userId));
   }
 
   /** Who is online at this clinic now, and when everyone else was last seen. */
@@ -273,14 +364,17 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
     const now = Date.now();
     const key = presenceKey(auth.clinicId);
-    // Entries older than the TTL belong to tabs that stopped without saying so.
-    await this.pubClient.zremrangebyscore(key, '-inf', now - PRESENCE_TTL_MS);
-    const [onlineUserIds, lastSeen] = await Promise.all([
-      this.pubClient.zrangebyscore(key, now - PRESENCE_TTL_MS, '+inf'),
-      this.pubClient.hgetall(lastSeenKey(auth.clinicId)),
-    ]);
-
-    client.emit('presence:list', { onlineUserIds, lastSeen });
+    const listed = await this.presence(async (redis) => {
+      // Entries older than the TTL belong to tabs that stopped without saying so.
+      await redis.zremrangebyscore(key, '-inf', now - PRESENCE_TTL_MS);
+      const [onlineUserIds, lastSeen] = await Promise.all([
+        redis.zrangebyscore(key, now - PRESENCE_TTL_MS, '+inf'),
+        redis.hgetall(lastSeenKey(auth.clinicId)),
+      ]);
+      return { onlineUserIds, lastSeen };
+    });
+    // Nothing rather than an empty list, which the client would show as everyone offline.
+    if (listed) client.emit('presence:list', listed);
   }
 
   /**

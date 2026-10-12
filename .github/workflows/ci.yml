@@ -39,6 +39,9 @@ jobs:
       - name: Validate chart series palette
         run: npm run design:check-charts
 
+      - name: Test repo scripts
+        run: npm run test:scripts
+
       - name: Build @nkwapa/db
         run: npm run build --workspace=@nkwapa/db
 
@@ -188,6 +191,16 @@ jobs:
         run: npm run test --workspaces --if-present -- --coverage --ci
         env:
           DATABASE_URL: ${{ env.DATABASE_URL }}
+
+      # This job has Postgres and no Redis, which is exactly the outage to survive (#199): the API
+      # must boot, answer /health as degraded, and still be up after the hold.
+      - name: Build @nkwapa/api
+        run: npm run build --workspace=@nkwapa/api
+
+      - name: API stays up without Redis
+        run: node scripts/check-api-without-redis.mjs
+        env:
+          HOLD_SECONDS: '90'
 
       - name: Upload coverage artifacts
         if: always()
@@ -378,6 +391,8 @@ jobs:
       - name: Seed deterministic dashboard staff, single-role users, and appointments
         run: npm run db:seed
         env:
+          # The seed refuses to run without one, and only `local` reads .env (#200).
+          SEED_ENVIRONMENT: ci
           SEED_SAMPLE_APPOINTMENTS: ${{ env.SEED_SAMPLE_APPOINTMENTS }}
           SEED_SAMPLE_DUPLICATES: ${{ env.SEED_SAMPLE_DUPLICATES }}
           SEED_SAMPLE_CROSS_CLINIC: ${{ env.SEED_SAMPLE_CROSS_CLINIC }}

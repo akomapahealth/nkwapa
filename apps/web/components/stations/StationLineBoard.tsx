@@ -13,6 +13,7 @@ import {
   assignStationVisit,
   cancelCheckIn,
   fetchStationBoard,
+  isStationBoard,
   minutesSince,
   moveCheckIn,
   patientName,
@@ -88,6 +89,7 @@ export function StationLineBoard() {
     date,
     errorMessage: 'The station line could not be loaded.',
     fetcher: (token, signal) => fetchStationBoard(clinicId ?? '', date, token, signal),
+    isValid: isStationBoard,
   });
   const { isOnline, refresh } = view;
   const isToday = date === getTodayInTimeZone(view.data?.timezone ?? OPS_DEFAULT_TIMEZONE);

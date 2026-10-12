@@ -1,0 +1,137 @@
+Tab,Column,Header,Nkwapa field,Type / allowed values
+Check-In,A,Visit ID,PatientCheckIn (sheet key),key V-001..V-150 (joins every tab)
+Check-In,B,Arrived,PatientCheckIn.checkedInAt,time hh:mm (session date on Start Here)
+Check-In,C,First name,Patient.firstName,free text
+Check-In,D,Last name,Patient.lastName,free text
+Check-In,E,Full name,(derived),formula - recompute on import
+Check-In,F,Sex,Patient.sex,one of: Female | Male | Other | Unknown
+Check-In,G,Date of birth,Patient.dob,date dd/mm/yyyy
+Check-In,H,Age (yrs),(derived from dob),number
+Check-In,I,Phone,Patient.phoneE164,free text
+Check-In,J,ID type,Patient.nationalIdType,one of: Ghana Card | Voter ID | Passport | Other | None
+Check-In,K,ID number,Patient.nationalIdCiphertext / Hash,free text
+Check-In,L,Region,Patient.residentialRegion,one of: Ahafo | Ashanti | Bono | Bono East | Central | Eastern | Greater Accra | North East | Northern | Oti | Savannah | Upper East | Upper West | Volta | Western | Western North
+Check-In,M,District,Patient.residentialDistrict,free text
+Check-In,N,Community / town,Patient.residentialCommunity,free text
+Check-In,O,Research consent,PatientConsent (RESEARCH_DEIDENTIFIED),one of: Yes | No
+Check-In,P,Nkwapa code (returning),Patient.patientCode,free text
+Check-In,Q,Checked in by,PatientCheckIn.createdBy,volunteer name (Volunteers!A)
+Check-In,R,Current station,PatientStationVisit.station,one of: Check-in | 1 Intake & history | 2 Blood pressure | 3 Glucose | 4 Body & vitals | 5 Eye | 6 Counselling & review | Done
+Check-In,S,Status,PatientCheckIn.status,one of: Waiting | In progress | Completed | Left before finishing
+Check-In,T,Now with,PatientStationVisit.claimedBy,volunteer name (Volunteers!A)
+Check-In,U,Alerts,(derived),formula - recompute on import
+Check-In,V,Notes,PatientCheckIn.notes,free text
+1 Intake,A,Visit ID,Encounter (sheet key),key V-001..V-150 (joins every tab)
+1 Intake,B,Patient,(lookup),formula - recompute on import
+1 Intake,C,Known high BP?,HypertensionAssessment.hypertensionStatus,one of: Yes | No | Unsure
+1 Intake,D,Known diabetes?,DiabetesScreening.diabetesStatus,one of: Yes | No | Unsure
+1 Intake,E,Other conditions,MedicalHistoryRecord (CONDITION),free text
+1 Intake,F,Current medicines,PatientMedicationRecord,free text
+1 Intake,G,Takes medicines as prescribed?,EncounterMedicationAdherence,one of: Always | Sometimes misses | Often misses | Not on medication
+1 Intake,H,Allergies,MedicalHistoryRecord (ALLERGY),free text
+1 Intake,I,"Family history (BP, diabetes, stroke, heart)",MedicalHistoryRecord (FAMILY_HISTORY),free text
+1 Intake,J,Smoking,TobaccoScreening.smokingStatus,one of: Never | Former | Current - occasional | Current - daily
+1 Intake,K,Smokeless tobacco,TobaccoScreening.smokelessTobaccoStatus,one of: Never | Former | Current - occasional | Current - daily
+1 Intake,L,Second-hand smoke,TobaccoScreening.passiveExposure,one of: Yes | No
+1 Intake,M,Ready to quit?,TobaccoScreening.readinessToQuit,one of: Not ready | Considering | Ready | Not applicable
+1 Intake,N,Alcohol,MedicalHistoryRecord (SOCIAL_HISTORY),one of: None | Occasional | Weekly | Daily
+1 Intake,O,Pregnant?,MedicalHistoryRecord,one of: Yes | No | Unsure | Not applicable
+1 Intake,P,Main concern today,Encounter note,free text
+1 Intake,Q,Recorded by,Encounter.createdBy,volunteer name (Volunteers!A)
+1 Intake,R,Time,,time hh:mm (session date on Start Here)
+2 Blood Pressure,A,Visit ID,Encounter (sheet key),key V-001..V-150 (joins every tab)
+2 Blood Pressure,B,Patient,(lookup),formula - recompute on import
+2 Blood Pressure,C,Systolic 1,Vitals.systolicBp (reading 1),number
+2 Blood Pressure,D,Diastolic 1,Vitals.diastolicBp (reading 1),number
+2 Blood Pressure,E,Pulse 1,Vitals.pulseBpm,number
+2 Blood Pressure,F,Systolic 2,PatientMeasurement (reading 2),number
+2 Blood Pressure,G,Diastolic 2,PatientMeasurement (reading 2),number
+2 Blood Pressure,H,Pulse 2,PatientMeasurement (reading 2),number
+2 Blood Pressure,I,Arm,Vitals.bpSite,one of: Left arm | Right arm | Other
+2 Blood Pressure,J,Position,Vitals.patientPosition,one of: Sitting | Standing | Lying down
+2 Blood Pressure,K,Cuff size,Vitals.cuffSize,one of: Small adult | Adult | Large adult | Thigh | Other
+2 Blood Pressure,L,Avg systolic,(derived),formula - recompute on import
+2 Blood Pressure,M,Avg diastolic,(derived),formula - recompute on import
+2 Blood Pressure,N,Category,HypertensionClassification (derived),formula - recompute on import
+2 Blood Pressure,O,Alert,(derived),formula - recompute on import
+2 Blood Pressure,P,Recorded by,Vitals author,volunteer name (Volunteers!A)
+2 Blood Pressure,Q,Time,,time hh:mm (session date on Start Here)
+2 Blood Pressure,R,Notes,Vitals.notes,free text
+3 Glucose,A,Visit ID,Encounter (sheet key),key V-001..V-150 (joins every tab)
+3 Glucose,B,Patient,(lookup),formula - recompute on import
+3 Glucose,C,Glucose (mg/dL),DiabetesScreening.glucoseMgDl,number
+3 Glucose,D,mmol/L,(derived),formula - recompute on import
+3 Glucose,E,Test type,DiabetesScreening.glucoseType,one of: Fasting (8h+) | Before meal | 2h after meal | Random | Unknown
+3 Glucose,F,Last ate (time),,time hh:mm (session date on Start Here)
+3 Glucose,G,Frequent urination,DiabetesScreening.symptoms (POLYURIA),one of: Yes | No
+3 Glucose,H,Excess thirst,DiabetesScreening.symptoms (POLYDIPSIA),one of: Yes | No
+3 Glucose,I,Weight loss (unexplained),DiabetesScreening.symptoms (WEIGHT_LOSS),one of: Yes | No
+3 Glucose,J,Blurred vision,DiabetesScreening.symptoms (BLURRED_VISION),one of: Yes | No
+3 Glucose,K,Slow-healing wounds,DiabetesScreening.symptoms,one of: Yes | No
+3 Glucose,L,Numb / tingling feet,DiabetesScreening.symptoms,one of: Yes | No
+3 Glucose,M,Foot wound now?,DiabetesScreening.currentFootWound,one of: Yes | No
+3 Glucose,N,Result,DiabetesScreening.derivedSuspicion,formula - recompute on import
+3 Glucose,O,Alert,(derived),formula - recompute on import
+3 Glucose,P,Recorded by,DiabetesScreening.authoredBy,volunteer name (Volunteers!A)
+3 Glucose,Q,Time,DiabetesScreening.collectedAt,time hh:mm (session date on Start Here)
+3 Glucose,R,Notes,DiabetesScreening.notes,free text
+4 Body & Vitals,A,Visit ID,Encounter (sheet key),key V-001..V-150 (joins every tab)
+4 Body & Vitals,B,Patient,(lookup),formula - recompute on import
+4 Body & Vitals,C,Weight (kg),Vitals.weightKg,number
+4 Body & Vitals,D,Height (cm),Vitals.heightCm,number
+4 Body & Vitals,E,BMI,Vitals.bmi,formula - recompute on import
+4 Body & Vitals,F,BMI category,(derived),formula - recompute on import
+4 Body & Vitals,G,Waist (cm),PatientMeasurement,number
+4 Body & Vitals,H,Temp (°C),Vitals.temperatureCelsius,number
+4 Body & Vitals,I,SpO₂ (%),Vitals.spo2Percent,number
+4 Body & Vitals,J,Resp. rate,Vitals.respiratoryRate,number
+4 Body & Vitals,K,Alert,(derived),formula - recompute on import
+4 Body & Vitals,L,Recorded by,Vitals author,volunteer name (Volunteers!A)
+4 Body & Vitals,M,Time,,time hh:mm (session date on Start Here)
+4 Body & Vitals,N,Notes,Vitals.notes,free text
+5 Eye,A,Visit ID,Encounter (sheet key),key V-001..V-150 (joins every tab)
+5 Eye,B,Patient,(lookup),formula - recompute on import
+5 Eye,C,Eye complaint?,EyeScreening.hasEyeComplaint,one of: Yes | No
+5 Eye,D,Complaint details,EyeScreening.complaintHistory,free text
+5 Eye,E,Wears glasses?,EyeScreening.wearsCorrection,one of: Yes | No
+5 Eye,F,VA right (OD) unaided,EyeScreening.vaOdUnaided,one of: 6/5 | 6/6 | 6/7.5 | 6/9 | 6/12 | 6/18 | 6/24 | 6/36 | 6/60 | CF | HM | PL | NPL
+5 Eye,G,VA left (OS) unaided,EyeScreening.vaOsUnaided,one of: 6/5 | 6/6 | 6/7.5 | 6/9 | 6/12 | 6/18 | 6/24 | 6/36 | 6/60 | CF | HM | PL | NPL
+5 Eye,H,VA both (OU) unaided,EyeScreening.vaOuUnaided,one of: 6/5 | 6/6 | 6/7.5 | 6/9 | 6/12 | 6/18 | 6/24 | 6/36 | 6/60 | CF | HM | PL | NPL
+5 Eye,I,VA right with glasses,EyeScreening.vaOdAided,one of: 6/5 | 6/6 | 6/7.5 | 6/9 | 6/12 | 6/18 | 6/24 | 6/36 | 6/60 | CF | HM | PL | NPL
+5 Eye,J,VA left with glasses,EyeScreening.vaOsAided,one of: 6/5 | 6/6 | 6/7.5 | 6/9 | 6/12 | 6/18 | 6/24 | 6/36 | 6/60 | CF | HM | PL | NPL
+5 Eye,K,VA right pinhole,EyeScreening.vaOdPinhole,one of: 6/5 | 6/6 | 6/7.5 | 6/9 | 6/12 | 6/18 | 6/24 | 6/36 | 6/60 | CF | HM | PL | NPL
+5 Eye,L,VA left pinhole,EyeScreening.vaOsPinhole,one of: 6/5 | 6/6 | 6/7.5 | 6/9 | 6/12 | 6/18 | 6/24 | 6/36 | 6/60 | CF | HM | PL | NPL
+5 Eye,M,Cup:disc right,EyeScreening.cupDiscRatioOd,number
+5 Eye,N,Cup:disc left,EyeScreening.cupDiscRatioOs,number
+5 Eye,O,Abnormal findings (eye + structure),"EyeExamFinding (eye, structure, note)",free text
+5 Eye,P,Likely cause of reduced vision,EyeScreening.visionLossCause,one of: Refractive (glasses) | Pathological (doctor) | Undetermined
+5 Eye,Q,Diabetic signs?,EyeScreening.diabeticSignsSeen,one of: Yes | No
+5 Eye,R,Hypertensive signs?,EyeScreening.hypertensiveSignsSeen,one of: Yes | No
+5 Eye,S,Referral?,EyeScreening.referralRecommended,one of: Yes | No
+5 Eye,T,Referral note,EyeScreening.referralNote,free text
+5 Eye,U,Alert,(derived),formula - recompute on import
+5 Eye,V,Examined by,EyeScreening.authorUserId,volunteer name (Volunteers!A)
+5 Eye,W,Time,,time hh:mm (session date on Start Here)
+5 Eye,X,Notes,EyeScreening.notes,free text
+6 Review,A,Visit ID,Encounter (sheet key),key V-001..V-150 (joins every tab)
+6 Review,B,Patient,(lookup),formula - recompute on import
+6 Review,C,Today's alerts,(lookup),formula - recompute on import
+6 Review,D,BP,CounsellingRecord.topics (BLOOD_PRESSURE),one of: Yes
+6 Review,E,Diabetes,CounsellingRecord.topics (GLUCOSE_DIABETES),one of: Yes
+6 Review,F,Weight & diet,CounsellingRecord.topics (WEIGHT_NUTRITION),one of: Yes
+6 Review,G,Activity,CounsellingRecord.topics (PHYSICAL_ACTIVITY),one of: Yes
+6 Review,H,Tobacco,CounsellingRecord.topics (TOBACCO),one of: Yes
+6 Review,I,Alcohol,CounsellingRecord.topics (ALCOHOL),one of: Yes
+6 Review,J,Medicines,CounsellingRecord.topics (MEDICATION_ADHERENCE),one of: Yes
+6 Review,K,Other topic,CounsellingRecord.topicOther,free text
+6 Review,L,Advice given,CounsellingRecord.adviceGiven,free text
+6 Review,M,Follow-up?,CounsellingRecord.followUpRecommended,one of: Yes | No
+6 Review,N,Follow-up when,CounsellingRecord.followUpWindow,one of: Today | Within 1 week | Within 1 month | Within 3 months | Other
+6 Review,O,Referral?,CounsellingRecord.referralRecommended,one of: Yes | No
+6 Review,P,Referred to,CounsellingRecord.referralTo,free text
+6 Review,Q,Referral reason,CounsellingRecord.referralReason,free text
+6 Review,R,Urgency,CounsellingRecord.referralUrgency,one of: Routine | Soon | Urgent
+6 Review,S,Medicines prescribed / given,"Prescription (drug, dosage, frequency)",free text
+6 Review,T,Reviewed by,CounsellingRecord.authorUserId,volunteer name (Volunteers!A)
+6 Review,U,Time,,time hh:mm (session date on Start Here)
+6 Review,V,Notes,Encounter / ClinicalNote,free text

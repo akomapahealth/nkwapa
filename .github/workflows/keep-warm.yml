@@ -1,0 +1,62 @@
+name: Keep Warm
+
+# The production API runs on a Render free instance, which spins down after 15 minutes idle.
+# Its first request after that took 42 s (#172). This pings it every 10 minutes during clinic
+# hours so the first sign-in of the day doesn't wait for a cold boot.
+#
+# Clinic hours only, not 24/7: Render gives 750 free instance-hours a month per workspace,
+# shared with the staging services. 13 h x 26 days is about 338 h; 24/7 would be about 744 h
+# and suspend every free service before the month ends. Nights and Sundays stay cold by design.
+#
+# Not pinged: production Keycloak is on a paid instance and never spins down. Staging is left
+# cold to stay inside the free hours.
+#
+# The pings use /health/live, which skips the database, so Neon can auto-suspend. Render's own
+# health check may skip it too, so a deploy that can't reach the database could still go live.
+# Once a morning, before clinic opens, a readiness check calls /health and fails unless the
+# database is connected. It wakes Neon once a day, just before the first sign-in would.
+#
+# GitHub runs scheduled workflows only from the default branch (main), and cron may run late.
+
+on:
+  schedule:
+    # 06:00-18:59 UTC (Ghana time), Monday to Saturday.
+    - cron: '*/10 6-18 * * 1-6'
+    # Must match the readiness job's `if` below.
+    - cron: '55 5 * * 1-6'
+  workflow_dispatch:
+
+jobs:
+  readiness:
+    name: Check production API reaches the database
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '55 5 * * 1-6'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check /health
+        # /health answers 200 even when degraded, so read the db check from the body.
+        run: |
+          BODY=$(curl --fail --silent --show-error --max-time 120 \
+            --retry 3 --retry-all-errors --retry-delay 20 \
+            https://api.nkwapa.app/health)
+          echo "api.nkwapa.app/health: ${BODY}" | tee -a "$GITHUB_STEP_SUMMARY"
+          DB=$(echo "$BODY" | jq -r '.checks.db')
+          if [ "$DB" != "connected" ]; then
+            echo "::error::Production API cannot reach the database (db: ${DB})"
+            exit 1
+          fi
+
+  ping:
+    name: Ping production API
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '*/10 6-18 * * 1-6'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Ping /health/live
+        # /health/live, not /health: /health runs SELECT 1 and would wake Neon from auto-suspend.
+        run: |
+          RESULT=$(curl --fail --silent --show-error --max-time 120 \
+            --retry 3 --retry-all-errors --retry-delay 20 \
+            --output /dev/null --write-out '%{http_code} in %{time_total}s' \
+            https://api.nkwapa.app/health/live)
+          echo "api.nkwapa.app/health/live: ${RESULT}" | tee -a "$GITHUB_STEP_SUMMARY"

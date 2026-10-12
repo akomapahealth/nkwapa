@@ -1,34 +1,34 @@
 import { Logger } from '@nestjs/common';
-import type { Queue } from 'bullmq';
 import type { JobTenantContextRunner } from '../prisma/job-tenant-context.runner';
+import type { MaintenanceScheduler } from '../maintenance/maintenance-scheduler';
 import {
   DEFAULT_TELEMETRY_RETENTION_DAYS,
   TELEMETRY_RETENTION_INTERVAL_MS,
   TELEMETRY_RETENTION_JOB,
-  TelemetryRetentionProcessor,
+  TelemetryRetentionSweep,
   telemetryRetentionCutoff,
   telemetryRetentionDays,
-} from './telemetry-retention.processor';
+} from './telemetry-retention.sweep';
 
-describe('TelemetryRetentionProcessor', () => {
+describe('TelemetryRetentionSweep', () => {
   const originalDays = process.env.TELEMETRY_RETENTION_DAYS;
-  let queue: { upsertJobScheduler: jest.Mock };
+  let scheduler: { register: jest.Mock };
   let client: { telemetryEvent: { deleteMany: jest.Mock } };
   let tenantContext: { runSystemJob: jest.Mock };
-  let processor: TelemetryRetentionProcessor;
+  let processor: TelemetryRetentionSweep;
 
   beforeEach(() => {
     jest.spyOn(Logger.prototype, 'log').mockImplementation();
     jest.spyOn(Logger.prototype, 'error').mockImplementation();
-    queue = { upsertJobScheduler: jest.fn().mockResolvedValue(undefined) };
+    scheduler = { register: jest.fn() };
     client = { telemetryEvent: { deleteMany: jest.fn().mockResolvedValue({ count: 3 }) } };
     tenantContext = {
       runSystemJob: jest.fn(async (_ctx: unknown, run: (tx: unknown) => Promise<unknown>) =>
         run(client),
       ),
     };
-    processor = new TelemetryRetentionProcessor(
-      queue as unknown as Queue,
+    processor = new TelemetryRetentionSweep(
+      scheduler as unknown as MaintenanceScheduler,
       tenantContext as unknown as JobTenantContextRunner,
     );
   });
@@ -39,20 +39,12 @@ describe('TelemetryRetentionProcessor', () => {
     else process.env.TELEMETRY_RETENTION_DAYS = originalDays;
   });
 
-  it('registers one daily scheduler, held in Redis rather than per instance', async () => {
-    await processor.onModuleInit();
+  it('registers one daily scheduler, held in Redis rather than per instance', () => {
+    processor.onModuleInit();
 
-    expect(queue.upsertJobScheduler).toHaveBeenCalledWith(
-      TELEMETRY_RETENTION_JOB,
-      { every: TELEMETRY_RETENTION_INTERVAL_MS },
-      { name: TELEMETRY_RETENTION_JOB },
-    );
-  });
-
-  it('boots even when the queue is unreachable', async () => {
-    queue.upsertJobScheduler.mockRejectedValue(new Error('ECONNREFUSED'));
-
-    await expect(processor.onModuleInit()).resolves.toBeUndefined();
+    expect(scheduler.register).toHaveBeenCalledWith(processor);
+    expect(processor.jobName).toBe(TELEMETRY_RETENTION_JOB);
+    expect(processor.everyMs).toBe(TELEMETRY_RETENTION_INTERVAL_MS);
   });
 
   // Telemetry spans every clinic, so the purge cannot run inside any one tenant's context.
@@ -60,11 +52,11 @@ describe('TelemetryRetentionProcessor', () => {
     delete process.env.TELEMETRY_RETENTION_DAYS;
     const before = Date.now();
 
-    await processor.process();
+    await processor.run();
 
     expect(tenantContext.runSystemJob).toHaveBeenCalledWith(
       expect.objectContaining({
-        queueName: 'telemetry-maintenance',
+        queueName: 'maintenance',
         systemReason: expect.stringContaining('retention window'),
       }),
       expect.any(Function),
@@ -77,8 +69,8 @@ describe('TelemetryRetentionProcessor', () => {
 
   // Re-running the purge (a duplicate delivery, or two instances on one tick) deletes nothing new.
   it('is safe to run twice, because it only ever deletes by age', async () => {
-    await processor.process();
-    await processor.process();
+    await processor.run();
+    await processor.run();
 
     const [first, second] = client.telemetryEvent.deleteMany.mock.calls.map(([args]) =>
       Object.keys(args.where),

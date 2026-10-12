@@ -88,6 +88,7 @@ describe('ResearchExportService', () => {
       transformService as never,
       repoSyncService as never,
       exportQueue as never,
+      { isReady: () => true, assertReady: () => undefined } as never,
     );
   });
 

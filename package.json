@@ -10,6 +10,8 @@
     "db:migrate:dev": "prisma migrate dev --schema=packages/db/prisma/schema.prisma",
     "db:migrate:deploy": "prisma migrate deploy --schema=packages/db/prisma/schema.prisma",
     "db:seed": "ts-node --transpile-only packages/db/prisma/seed.ts",
+    "db:seed:local": "SEED_ENVIRONMENT=local ts-node --transpile-only packages/db/prisma/seed.ts",
+    "db:purge-seed-fixtures": "ts-node --transpile-only packages/db/prisma/purge-seed-fixtures.ts",
     "db:assign-system-admin": "ts-node --transpile-only packages/db/prisma/assign-system-admin.ts",
     "db:audit-clinics": "ts-node --transpile-only packages/db/prisma/audit-clinic-metadata.ts",
     "keycloak:validate-realm": "node scripts/validate-keycloak-realm.mjs",
@@ -21,6 +23,7 @@
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
+    "test:scripts": "node --test scripts/*.test.mjs",
     "e2e": "npm run e2e --workspace=@nkwapa/web",
     "e2e:keycloak-user": "node scripts/create-keycloak-e2e-user.mjs",
     "build": "npm run build --workspaces --if-present",
@@ -114,6 +117,9 @@
   "lint-staged": {
     "*.{ts,tsx}": [
       "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{js,mjs,cjs}": [
       "prettier --write"
     ],
     "*.{json,md,yml,yaml}": [

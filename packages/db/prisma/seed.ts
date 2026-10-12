@@ -7,7 +7,7 @@
  * can exist. Run it only with an approved administrative database credential. It is not a pattern
  * for clinic maintenance or data repair scripts.
  */
-import 'dotenv/config';
+import { config as loadDotenv } from 'dotenv';
 import {
   CLINIC_DEFAULT_COUNTRY_CODE,
   CLINIC_DEFAULT_ORGANIZATION_NAME,
@@ -43,6 +43,7 @@ import {
 } from '../index';
 import { seedDrugs } from './seed-drugs';
 import { DEFAULT_CLINIC_STATIONS } from '../src/clinic-stations';
+import { describeSeedPlan, planSeed, type SeedPlan } from '../src/seed-plan';
 
 /**
  * Seeding creates the organization and clinic that a tenant context is later derived from, so it
@@ -51,11 +52,16 @@ import { DEFAULT_CLINIC_STATIONS } from '../src/clinic-stations';
  * applies it when each pooled connection is opened rather than relying on which connection a
  * given statement happens to get.
  */
-const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL ?? '',
-  options: '-c app.is_system_admin=true',
-});
-const prisma = new PrismaClient({ adapter });
+function connect(databaseUrl: string): PrismaClient {
+  const adapter = new PrismaPg({
+    connectionString: databaseUrl,
+    options: '-c app.is_system_admin=true',
+  });
+  return new PrismaClient({ adapter });
+}
+
+/** Assigned in `main` only once the seed plan has been accepted, so a refused run never connects. */
+let prisma: PrismaClient | undefined;
 
 /** Seed fixtures are dated relative to the run, so they never drift into the past on a re-seed. */
 function daysFromNow(days: number): Date {
@@ -146,13 +152,16 @@ async function ensureResearchSettings(
  * single role can see, because it holds every role at once. These identities exist so the browser
  * can show what a doctor and a volunteer actually get, including what they are refused.
  */
-async function ensureSingleRoleUser(params: {
-  sub: string;
-  displayName: string;
-  email: string;
-  clinicId: string;
-  role: UserRole;
-}) {
+async function ensureSingleRoleUser(
+  prisma: PrismaClient,
+  params: {
+    sub: string;
+    displayName: string;
+    email: string;
+    clinicId: string;
+    role: UserRole;
+  },
+) {
   const [firstName, ...lastNameParts] = params.displayName.trim().split(/\s+/);
   const user = await prisma.user.upsert({
     where: { keycloakSub: params.sub },
@@ -332,6 +341,7 @@ async function seedIdentityFixtures(
   prisma: PrismaClient,
   clinicId: string,
   ownerUserId: string,
+  claimant: SeedPlan['e2e']['claimant'],
 ): Promise<void> {
   /** Create a chart, or return the one already seeded under this national ID. */
   async function ensureChart(input: {
@@ -539,14 +549,9 @@ async function seedIdentityFixtures(
     a claimant -- it lands on a dashboard instead, and the page under test becomes unreachable
     again. There is no `PatientAccountLink` and no `portalUserId` for the same reason.
   */
-  const claimantSub = process.env.SEED_E2E_CLAIMANT_SUB ?? process.env.E2E_CLAIMANT_SUB;
-  const claimantEmail =
-    process.env.SEED_E2E_CLAIMANT_EMAIL ??
-    process.env.E2E_CLAIMANT_EMAIL ??
-    'e2e.claimant@nkwapa.local';
+  const { sub: claimantSub, email: claimantEmail, name: claimantName } = claimant;
 
   if (claimantSub) {
-    const claimantName = process.env.SEED_E2E_CLAIMANT_NAME ?? 'E2E Claimant';
     const [firstName, ...lastNameParts] = claimantName.trim().split(/\s+/);
     await prisma.user.upsert({
       where: { keycloakSub: claimantSub },
@@ -827,17 +832,34 @@ async function seedClinicStations(prisma: PrismaClient) {
 }
 
 async function main() {
-  const organizationName = process.env.SEED_ORGANIZATION_NAME ?? CLINIC_DEFAULT_ORGANIZATION_NAME;
-  const organizationSlug = process.env.SEED_ORGANIZATION_SLUG ?? CLINIC_DEFAULT_ORGANIZATION_SLUG;
-  const organizationTimezone = process.env.SEED_ORGANIZATION_TIMEZONE ?? CLINIC_DEFAULT_TIMEZONE;
-  const clinicName = process.env.SEED_CLINIC_NAME ?? 'Nkwapa Clinic - Demo';
-  const clinicRegion = process.env.SEED_CLINIC_REGION ?? 'Greater Accra';
-  const clinicCountry = normalizeCountryCode(
-    process.env.SEED_CLINIC_COUNTRY ?? CLINIC_DEFAULT_COUNTRY_CODE,
-  );
-  const clinicTimezone = process.env.SEED_CLINIC_TIMEZONE ?? organizationTimezone;
-  const clinicLocationCode = process.env.SEED_CLINIC_LOCATION_CODE ?? toLocationCode(clinicName);
-  const clinicZoneCode = normalizeZoneCode(process.env.SEED_CLINIC_ZONE_CODE);
+  /*
+    Only a developer's machine reads .env.
+
+    It used to load unconditionally, and dotenv fills in every variable the shell left unset, so
+    a production seed run from the repo root picked up the local E2E identities and sample flags
+    (#200). Every other environment passes its variables explicitly.
+  */
+  if (process.env.SEED_ENVIRONMENT === 'local') loadDotenv();
+
+  const result = planSeed(process.env);
+  if (!result.ok) {
+    console.error(`Seed refused:\n${result.errors.map((error) => `  - ${error}`).join('\n')}`);
+    process.exitCode = 1;
+    return;
+  }
+  const { plan } = result;
+  console.log(describeSeedPlan(plan).join('\n'));
+  prisma = connect(process.env.DATABASE_URL ?? '');
+
+  const organizationName = plan.organization.name ?? CLINIC_DEFAULT_ORGANIZATION_NAME;
+  const organizationSlug = plan.organization.slug ?? CLINIC_DEFAULT_ORGANIZATION_SLUG;
+  const organizationTimezone = plan.organization.timezone ?? CLINIC_DEFAULT_TIMEZONE;
+  const clinicName = plan.clinic.name ?? 'Nkwapa Clinic - Demo';
+  const clinicRegion = plan.clinic.region ?? 'Greater Accra';
+  const clinicCountry = normalizeCountryCode(plan.clinic.country ?? CLINIC_DEFAULT_COUNTRY_CODE);
+  const clinicTimezone = plan.clinic.timezone ?? organizationTimezone;
+  const clinicLocationCode = plan.clinic.locationCode ?? toLocationCode(clinicName);
+  const clinicZoneCode = normalizeZoneCode(plan.clinic.zoneCode);
 
   assertSeedMetadataIsValid({
     name: clinicName,
@@ -912,10 +934,14 @@ async function main() {
     `seedDrugs` skips a medicine it already has, so moving it is additive for an environment that
     was seeded under the old arrangement.
   */
-  await seedDrugs(prisma, clinic.id);
+  if (plan.drugCatalog) {
+    await seedDrugs(prisma, clinic.id);
+  } else {
+    console.log('Skipping the demo drug catalogue; set SEED_DRUG_CATALOG=true to seed it.');
+  }
 
-  const sysAdminSub = process.env.SEED_SYSTEM_ADMIN_SUB;
-  const sysAdminName = process.env.SEED_SYSTEM_ADMIN_NAME ?? 'System Admin';
+  const sysAdminSub = plan.systemAdmin?.sub;
+  const sysAdminName = plan.systemAdmin?.name ?? 'System Admin';
 
   if (sysAdminSub) {
     const user = await prisma.user.upsert({
@@ -938,7 +964,7 @@ async function main() {
     console.log('Seeded clinic + system admin user + roles + clinic research settings.');
 
     // Sample patient + encounters when SEED_SAMPLE_PATIENT=true and encryption key is set
-    const seedSamplePatient = process.env.SEED_SAMPLE_PATIENT === 'true';
+    const seedSamplePatient = plan.sample.patient;
     if (seedSamplePatient && hasEncryptionKey()) {
       const existingDemo = await prisma.patient.findFirst({
         where: {
@@ -1005,11 +1031,8 @@ async function main() {
     );
   }
 
-  const e2eStaffSub = (process.env.SEED_E2E_STAFF_SUB ?? process.env.E2E_STAFF_SUB)?.trim();
-  const e2eStaffName = process.env.SEED_E2E_STAFF_NAME ?? 'E2E Staff';
-  const e2eStaffEmail = process.env.SEED_E2E_STAFF_EMAIL ?? 'e2e.staff@nkwapa.local';
-
-  if (e2eStaffSub) {
+  if (plan.e2e.staff) {
+    const { sub: e2eStaffSub, name: e2eStaffName, email: e2eStaffEmail } = plan.e2e.staff;
     const [firstName, ...lastNameParts] = e2eStaffName.trim().split(/\s+/);
     const user = await prisma.user.upsert({
       where: { keycloakSub: e2eStaffSub },
@@ -1056,7 +1079,7 @@ async function main() {
     The second pair is deliberately the ambiguous kind. A queue that only ever shows obvious
     duplicates teaches an operator to trust it, which is the wrong lesson.
   */
-  const seedSampleDuplicates = process.env.SEED_SAMPLE_DUPLICATES === 'true';
+  const seedSampleDuplicates = plan.sample.duplicates;
   if (seedSampleDuplicates && hasEncryptionKey()) {
     // The identifiers end in digits on purpose: nationalIdLast4 takes the last four
     // characters, so a placeholder like "GH-DUP-AKUA-1" renders as "UA-1" in the comparison
@@ -1116,7 +1139,7 @@ async function main() {
     );
   }
 
-  const seedSampleCrossClinic = process.env.SEED_SAMPLE_CROSS_CLINIC === 'true';
+  const seedSampleCrossClinic = plan.sample.crossClinic;
   if (seedSampleCrossClinic && hasEncryptionKey()) {
     await seedCrossClinicFixtures(prisma, {
       organizationId: organization.id,
@@ -1129,26 +1152,22 @@ async function main() {
     );
   }
 
-  const e2eDoctorSub = (process.env.SEED_E2E_DOCTOR_SUB ?? process.env.E2E_DOCTOR_SUB)?.trim();
-  if (e2eDoctorSub) {
-    await ensureSingleRoleUser({
-      sub: e2eDoctorSub,
-      displayName: process.env.SEED_E2E_DOCTOR_NAME ?? 'E2E Doctor',
-      email: process.env.SEED_E2E_DOCTOR_EMAIL ?? 'e2e.doctor@nkwapa.local',
+  if (plan.e2e.doctor) {
+    await ensureSingleRoleUser(prisma, {
+      sub: plan.e2e.doctor.sub,
+      displayName: plan.e2e.doctor.name,
+      email: plan.e2e.doctor.email,
       clinicId: clinic.id,
       role: UserRole.DOCTOR,
     });
     console.log('Seeded deterministic single-role E2E doctor.');
   }
 
-  const e2eVolunteerSub = (
-    process.env.SEED_E2E_VOLUNTEER_SUB ?? process.env.E2E_VOLUNTEER_SUB
-  )?.trim();
-  if (e2eVolunteerSub) {
-    await ensureSingleRoleUser({
-      sub: e2eVolunteerSub,
-      displayName: process.env.SEED_E2E_VOLUNTEER_NAME ?? 'E2E Volunteer',
-      email: process.env.SEED_E2E_VOLUNTEER_EMAIL ?? 'e2e.volunteer@nkwapa.local',
+  if (plan.e2e.volunteer) {
+    await ensureSingleRoleUser(prisma, {
+      sub: plan.e2e.volunteer.sub,
+      displayName: plan.e2e.volunteer.name,
+      email: plan.e2e.volunteer.email,
       clinicId: clinic.id,
       role: UserRole.VOLUNTEER,
     });
@@ -1166,12 +1185,11 @@ async function main() {
     Also stages a PENDING invite for a second, unclaimed patient, which is the only way to reach
     the /claim-record screen.
   */
-  const e2ePatientSub = (process.env.SEED_E2E_PATIENT_SUB ?? process.env.E2E_PATIENT_SUB)?.trim();
-  if (e2ePatientSub && researchSettingsOwnerId && hasEncryptionKey()) {
-    const portalUser = await ensureSingleRoleUser({
-      sub: e2ePatientSub,
-      displayName: process.env.SEED_E2E_PATIENT_NAME ?? 'E2E Patient',
-      email: process.env.SEED_E2E_PATIENT_EMAIL ?? 'e2e.patient@nkwapa.local',
+  if (plan.e2e.patient && researchSettingsOwnerId && hasEncryptionKey()) {
+    const portalUser = await ensureSingleRoleUser(prisma, {
+      sub: plan.e2e.patient.sub,
+      displayName: plan.e2e.patient.name,
+      email: plan.e2e.patient.email,
       clinicId: clinic.id,
       role: UserRole.PATIENT,
     });
@@ -1243,7 +1261,7 @@ async function main() {
           clinicId: clinic.id,
           patientId: unclaimed.id,
           status: PatientPortalInviteStatus.PENDING,
-          email: process.env.SEED_E2E_CLAIM_EMAIL ?? 'e2e.claim@nkwapa.local',
+          email: plan.e2e.claimEmail,
           createdByUserId: researchSettingsOwnerId,
           // Explicit rather than left null. Every invite the application issues now carries
           // an expiry, and a fixture that does not would be testing a shape production no
@@ -1395,9 +1413,9 @@ async function main() {
     await ensureResearchSettings(prisma, clinic.id, researchSettingsOwnerId);
   }
 
-  const seedSampleIdentity = process.env.SEED_SAMPLE_IDENTITY === 'true';
+  const seedSampleIdentity = plan.sample.identity;
   if (seedSampleIdentity && researchSettingsOwnerId && hasEncryptionKey()) {
-    await seedIdentityFixtures(prisma, clinic.id, researchSettingsOwnerId);
+    await seedIdentityFixtures(prisma, clinic.id, researchSettingsOwnerId, plan.e2e.claimant);
   } else if (seedSampleIdentity) {
     console.warn(
       hasEncryptionKey()
@@ -1406,7 +1424,7 @@ async function main() {
     );
   }
 
-  const seedSampleAppointmentData = process.env.SEED_SAMPLE_APPOINTMENTS === 'true';
+  const seedSampleAppointmentData = plan.sample.appointments;
   if (seedSampleAppointmentData && researchSettingsOwnerId && hasEncryptionKey()) {
     await seedSampleAppointments(prisma, clinic.id, researchSettingsOwnerId);
   } else if (seedSampleAppointmentData) {
@@ -1433,5 +1451,5 @@ main()
     process.exit(1);
   })
   .finally(async () => {
-    await prisma.$disconnect();
+    await prisma?.$disconnect();
   });

@@ -47,6 +47,56 @@ describe('ops cache', () => {
     ).resolves.toBeNull();
   });
 
+  describe('a copy of the wrong shape (#197)', () => {
+    const board = { date: '2026-03-21', timezone: 'Africa/Accra', stations: [] };
+    const isBoard = (data: unknown): data is typeof board =>
+      typeof data === 'object' && data !== null && 'timezone' in data && 'stations' in data;
+
+    it('keeps the manager board and the stations page in separate rows', async () => {
+      await writeOpsCache(cacheDb, {
+        clinicId: 'clinic-1',
+        kind: 'station-board',
+        date: '2026-03-21',
+        data: board,
+      });
+      await writeOpsCache(cacheDb, {
+        clinicId: 'clinic-1',
+        kind: 'station-workspace',
+        date: '2026-03-21',
+        data: { board, shifts: { items: [] } },
+      });
+
+      expect(fake.ops_cache.rows.size).toBe(2);
+      await expect(
+        readOpsCache(cacheDb, {
+          clinicId: 'clinic-1',
+          kind: 'station-board',
+          date: '2026-03-21',
+          isValid: isBoard,
+        }),
+      ).resolves.toMatchObject({ data: board });
+    });
+
+    it('is not returned, and is removed so the device recovers', async () => {
+      await writeOpsCache(cacheDb, {
+        clinicId: 'clinic-1',
+        kind: 'station-board',
+        date: '2026-03-21',
+        data: { board, shifts: { items: [] } },
+      });
+
+      await expect(
+        readOpsCache(cacheDb, {
+          clinicId: 'clinic-1',
+          kind: 'station-board',
+          date: '2026-03-21',
+          isValid: isBoard,
+        }),
+      ).resolves.toBeNull();
+      expect(fake.ops_cache.rows.has(opsCacheKey('clinic-1', 'station-board'))).toBe(false);
+    });
+  });
+
   it('never turns a storage failure into a failed load', async () => {
     const broken = {
       ops_cache: {

@@ -20,7 +20,7 @@ Then, from the repository root:
 npm run db:migrate:dev
 npm run db:generate
 npm run e2e:keycloak-user      # creates the deterministic identities in Keycloak
-npm run db:seed                # links them, and seeds the sample clinic
+npm run db:seed:local          # links them, and seeds the sample clinic
 ```
 
 `e2e:keycloak-user` prints the user id Keycloak actually assigned for each identity, which is **not**
@@ -41,7 +41,7 @@ Seed inputs worth setting:
 
 **Re-seeding cannot restore consumed appointment fixtures.** The triage checks consume the pending
 requests they act on. `seedSampleAppointments` guards on the demo _patient_, not on the
-appointments, so `npm run db:seed` reports `Sample appointments already exist; skipping` while the
+appointments, so `npm run db:seed:local` reports `Sample appointments already exist; skipping` while the
 fixtures you need are gone. Delete the patient — appointments cascade — and seed again:
 
 ```js
@@ -150,7 +150,7 @@ section 1 describes, or expect exactly those two failures and check that nothing
 
 `e2e/patient-claim.spec.js` consumes its fixture too, for a reason no reset can avoid: a claim
 links the account permanently, and after one the identity is redirected off `/claim-record` and
-every test in the file fails at the first assertion. Unlike the triage specs, `npm run db:seed`
+every test in the file fails at the first assertion. Unlike the triage specs, `npm run db:seed:local`
 **does** put this one back — `SEED_SAMPLE_IDENTITY` clears the link, the role, the `portalUserId`
 and the settled invitation on every run. So: re-seed between local runs of that file, and if you
 see all seven of its tests fail together, re-seed before reading any of them as a real failure.
@@ -326,7 +326,7 @@ invitation, or a chart the claim form cannot be pointed at.
 
 **Fixture note:** a successful claim links the account for good. `SEED_SAMPLE_IDENTITY` clears the
 link, the role, the `portalUserId` and the settled invitation on every seed, so re-running
-`npm run db:seed` puts the claimant back rather than leaving it spent.
+`npm run db:seed:local` puts the claimant back rather than leaving it spent.
 
 ### Widths and keyboard
 
