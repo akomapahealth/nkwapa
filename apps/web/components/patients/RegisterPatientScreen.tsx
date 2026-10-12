@@ -44,7 +44,7 @@ interface CreatePatientBody {
   sex?: 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN';
   phoneE164?: string;
   email?: string;
-  nationalIdType: 'VOTER_ID' | 'NATIONAL_ID' | 'PASSPORT' | 'OTHER';
+  nationalIdType: 'VOTER_ID' | 'NATIONAL_ID' | 'PASSPORT' | 'OTHER' | 'NONE';
   nationalId: string;
 }
 
@@ -98,8 +98,11 @@ export function RegisterPatientScreen({
     setConflictPatient(null);
 
     try {
+      const noId = form.nationalIdType === 'NONE';
       const body = {
         ...form,
+        // A patient with no ID document has no number to send (#214).
+        nationalId: noId ? undefined : form.nationalId,
         dob: form.dob || undefined,
         phoneE164: form.phoneE164 || undefined,
         email: form.email || undefined,
@@ -115,9 +118,15 @@ export function RegisterPatientScreen({
 
       if (response.status === 409) {
         const payload = (await response.json()) as {
-          existingPatient?: ExistingPatient;
+          message?: string;
+          details?: { existingPatient?: ExistingPatient };
         };
-        setConflictPatient(payload.existingPatient ?? null);
+        if (payload.details?.existingPatient) {
+          setConflictPatient(payload.details.existingPatient);
+        } else {
+          // Never a silent refusal: without the matching chart, say what happened.
+          setError(payload.message ?? 'A patient with this national ID already exists.');
+        }
         return;
       }
 
@@ -148,7 +157,7 @@ export function RegisterPatientScreen({
         title="Register a new patient"
         description="Capture the essentials and move the patient into care."
         helpTitle="How registration works"
-        helpText="Record identity, contact details, and a trusted ID in one pass. Nkwapa checks for duplicate national IDs before it creates the chart."
+        helpText="Record identity, contact details, and a trusted ID in one pass. Nkwapa checks for duplicate national IDs before it creates the chart. A patient with no ID document can still be registered, and the ID added later."
       />
 
       <AppMetricGroup className="md:grid-cols-3">
@@ -217,9 +226,10 @@ export function RegisterPatientScreen({
         {error && !conflictPatient ? <InlineNotice tone="error">{error}</InlineNotice> : null}
 
         <ProgressiveHelp title="Before you save">
-          Capture the most reliable identity details available today. If the patient does not have a
-          national ID yet, use the document or local identifier your clinic is relying on for intake
-          and update the chart later when the official ID is available.
+          Capture the most reliable identity details available today. If the patient has no ID
+          document at all, choose &ldquo;No ID document&rdquo;: the chart is identified by its
+          patient code, and the ID can be added from the chart when they bring one. Without an ID,
+          Nkwapa relies on name, date of birth and phone to spot duplicates, so fill those in.
         </ProgressiveHelp>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -324,11 +334,11 @@ export function RegisterPatientScreen({
           <FormSectionCard
             title="National ID"
             description="The ID check runs when you save this form."
-            hint="If the patient does not yet have an official national ID, choose the document type you are using at intake and record that identifier instead."
+            hint="Choose the document the patient showed. If they have none, choose “No ID document” and add the ID later from the chart."
           >
             <div className="grid gap-4 sm:grid-cols-[minmax(0,220px),minmax(0,1fr)]">
               <div className="space-y-2">
-                <Label>National ID type</Label>
+                <Label htmlFor="nationalIdType">National ID type</Label>
                 <Select
                   value={form.nationalIdType}
                   onValueChange={(value) =>
@@ -338,7 +348,7 @@ export function RegisterPatientScreen({
                     }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="nationalIdType">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -346,22 +356,29 @@ export function RegisterPatientScreen({
                     <SelectItem value="VOTER_ID">Voter ID</SelectItem>
                     <SelectItem value="NATIONAL_ID">National ID</SelectItem>
                     <SelectItem value="PASSPORT">Passport</SelectItem>
+                    <SelectItem value="NONE">No ID document</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <FieldLabel htmlFor="nationalId" required>
-                  National ID
-                </FieldLabel>
-                <Input
-                  id="nationalId"
-                  required
-                  value={form.nationalId}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, nationalId: event.target.value }))
-                  }
-                />
-              </div>
+              {form.nationalIdType === 'NONE' ? (
+                <p className="self-end text-sm text-muted-foreground">
+                  No ID number. The patient code identifies this chart until an ID is added.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  <FieldLabel htmlFor="nationalId" required>
+                    National ID
+                  </FieldLabel>
+                  <Input
+                    id="nationalId"
+                    required
+                    value={form.nationalId}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, nationalId: event.target.value }))
+                    }
+                  />
+                </div>
+              )}
             </div>
           </FormSectionCard>
 

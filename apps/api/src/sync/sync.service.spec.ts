@@ -1,3 +1,4 @@
+import { decryptNationalId, hashNationalId } from '@nkwapa/db';
 import { Test, TestingModule } from '@nestjs/testing';
 import { SyncService } from './sync.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -1311,6 +1312,47 @@ describe('SyncService', () => {
         conflictType: 'PATIENT_NATIONAL_ID_REQUIRED',
         retryable: false,
       });
+    });
+
+    it('creates a "No ID" chart under its own patient code (#214)', async () => {
+      (prisma.patient.upsert as jest.Mock).mockResolvedValue({
+        id: PATIENT_ID,
+        primaryClinicId: 'clinic-1',
+      });
+
+      const results = await pushPatient({
+        patientCode: 'NKP-2026-000123',
+        nationalIdType: 'NONE',
+        primaryClinicId: 'clinic-1',
+        firstName: 'No',
+        lastName: 'Document',
+      });
+
+      expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.APPLIED);
+      const { create } = (prisma.patient.upsert as jest.Mock).mock.calls[0][0];
+      expect(create).toMatchObject({
+        nationalIdType: 'NONE',
+        nationalIdHash: hashNationalId('NKP-2026-000123'),
+        nationalIdLast4: null,
+      });
+      expect(decryptNationalId(create.nationalIdCiphertext)).toBe('NKP-2026-000123');
+    });
+
+    it('refuses a "No ID" chart that carries an ID number', async () => {
+      const results = await pushPatient({
+        nationalIdType: 'NONE',
+        nationalId: '1234567890',
+        primaryClinicId: 'clinic-1',
+        firstName: 'Mixed',
+        lastName: 'Signals',
+      });
+
+      expect(results[0]).toMatchObject({
+        status: SYNC_MUTATION_RESULT_STATUS.ERROR,
+        conflictType: 'NATIONAL_ID_WITH_NO_ID_TYPE',
+        retryable: false,
+      });
+      expect(prisma.patient.upsert).not.toHaveBeenCalled();
     });
 
     it('points an edit of a merged chart at the chart that survived', async () => {

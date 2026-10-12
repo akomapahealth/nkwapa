@@ -26,6 +26,8 @@ import {
 } from '@/components/ui/select';
 import { ArrowLeft, FilePenLine, ShieldCheck, UserRoundPen } from 'lucide-react';
 import { ResidentialLocationFields } from '@/components/patients/ResidentialLocationFields';
+import { ChangeNationalIdDialog } from '@/components/patients/ChangeNationalIdDialog';
+import { nationalIdTypeLabel } from '@/lib/patient-duplicates';
 import {
   emptyResidentialLocation,
   toResidentialLocationPayload,
@@ -43,6 +45,7 @@ interface PatientData {
   sex: string;
   phoneE164?: string | null;
   email?: string | null;
+  nationalIdType?: string | null;
   nationalIdLast4?: string | null;
   residentialLocationStatus?: PatientLocationStatus | string | null;
   residentialRegion?: string | null;
@@ -63,6 +66,7 @@ function EditPatientForm() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedOffline, setSavedOffline] = useState(false);
+  const [changingId, setChangingId] = useState(false);
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -96,6 +100,7 @@ function EditPatientForm() {
             sex: local.sex ?? 'UNKNOWN',
             phoneE164: local.phoneE164,
             email: local.email,
+            nationalIdType: local.nationalIdType,
             nationalIdLast4: local.nationalIdLast4,
             residentialLocationStatus: local.residentialLocationStatus,
             residentialRegion: local.residentialRegion,
@@ -255,7 +260,7 @@ function EditPatientForm() {
         title={`Edit Patient ${patient.patientCode}`}
         description="Update the current chart without changing protected identity history."
         helpTitle="How patient edits work"
-        helpText="Demographics and contact details can change here. National ID details stay protected, and offline saves queue a sync when the network is unavailable."
+        helpText="Demographics and contact details can change here, and offline saves queue a sync when the network is unavailable. The ID document changes only through its own checked, audited step."
       />
 
       <AppMetricGroup className="md:grid-cols-3">
@@ -267,9 +272,9 @@ function EditPatientForm() {
         />
         <AppMetricCard
           title="National ID"
-          value={patient.nationalIdLast4 ? `...${patient.nationalIdLast4}` : 'Not stored'}
+          value={idSummary(patient)}
           icon={ShieldCheck}
-          detail="National ID details are treated as immutable during edit mode."
+          detail="Changed only with a reason, after a check against every chart."
         />
         <AppMetricCard
           title="Workflow"
@@ -289,9 +294,9 @@ function EditPatientForm() {
 
       <div className="max-w-5xl space-y-4">
         <ProgressiveHelp title="What stays protected">
-          National ID details remain read-only during edit mode so chart history stays stable. If
-          identity cleanup is needed, use the clinic’s governed patient workflows instead of editing
-          around the protected record.
+          The ID document is not part of this form. Use &ldquo;Change ID&rdquo; below to add one for
+          a patient registered without an ID, or to correct a mistyped one: Nkwapa checks it against
+          every chart first, and records who changed it and why.
         </ProgressiveHelp>
 
         <FormSectionCard
@@ -361,19 +366,27 @@ function EditPatientForm() {
         <ResidentialLocationFields value={location} onChange={setLocation} />
 
         <FormSectionCard
-          title="Protected identity fields"
-          description="These are shown for confirmation only and cannot be changed here."
+          title="ID document"
+          description="Checked against every chart and audited, so it changes in its own step."
         >
-          {patient.nationalIdLast4 ? (
-            <p className="text-sm tabular-nums text-muted-foreground">
-              National ID: ...{patient.nationalIdLast4} (immutable)
-            </p>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              No national ID fragment is available in this view.
-            </p>
-          )}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm tabular-nums text-muted-foreground">{idSummary(patient)}</p>
+            <Button type="button" variant="outline" onClick={() => setChangingId(true)}>
+              {patient.nationalIdType === 'NONE' ? 'Add ID' : 'Change ID'}
+            </Button>
+          </div>
         </FormSectionCard>
+
+        <ChangeNationalIdDialog
+          open={changingId}
+          onOpenChange={setChangingId}
+          clinicId={clinicId}
+          patientId={patientId}
+          getToken={getToken}
+          onChanged={(next) =>
+            setPatient((current) => (current ? { ...current, ...next } : current))
+          }
+        />
 
         <div className="flex flex-wrap gap-2 rounded-lg border border-border/70 bg-card p-4">
           <Button onClick={handleSave} disabled={saving}>
@@ -386,6 +399,13 @@ function EditPatientForm() {
       </div>
     </div>
   );
+}
+
+/** "No ID document", "National ID …1234", or "Not available offline" when the type is unknown. */
+function idSummary(patient: PatientData): string {
+  if (patient.nationalIdType === 'NONE') return 'No ID document';
+  const label = nationalIdTypeLabel(patient.nationalIdType ?? null) ?? 'ID';
+  return patient.nationalIdLast4 ? `${label} …${patient.nationalIdLast4}` : 'Not available offline';
 }
 
 /*

@@ -1,7 +1,7 @@
 import { ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Patient } from '@prisma/client';
-import { decryptNationalId, hashNationalId } from '@nkwapa/db';
+import { decryptNationalId, hashNationalId, nationalIdLast4 } from '@nkwapa/db';
 import { PORTAL_INVITE_HISTORY_LIMIT, PatientService } from './patient.service';
 import { PatientRepository } from './patient.repository';
 import { PrismaService } from '../prisma/prisma.service';
@@ -168,15 +168,17 @@ describe('PatientService - national_id dedup conflict', () => {
     } catch (err) {
       expect(err).toBeInstanceOf(ConflictException);
       const response = (err as ConflictException).getResponse() as {
-        existingPatient?: {
-          id: string;
-          patientCode: string;
-          firstName: string;
-          lastName: string;
-          nationalIdLast4: string | null;
+        details?: {
+          existingPatient?: {
+            id: string;
+            patientCode: string;
+            firstName: string;
+            lastName: string;
+            nationalIdLast4: string | null;
+          };
         };
       };
-      expect(response.existingPatient).toEqual({
+      expect(response.details?.existingPatient).toEqual({
         id: mockPatient.id,
         patientCode: mockPatient.patientCode,
         firstName: mockPatient.firstName,
@@ -613,5 +615,125 @@ describe('PatientService - portal access summary', () => {
       previousInvites: [],
     });
     expect(prisma.patientPortalInvite.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('PatientService - patients with no ID document (#214)', () => {
+  const audit = { logWrite: jest.fn().mockResolvedValue(undefined) };
+  const repo = { findById: jest.fn(), findByNationalIdHash: jest.fn() };
+  const prisma = { patient: { update: jest.fn() } };
+  const service = new PatientService(
+    repo as never,
+    prisma as never,
+    audit as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+  const ctx = { clinicId: 'clinic-1', actorUserId: 'user-1' };
+  const noIdChart = {
+    ...mockPatient,
+    patientCode: 'NKP-2026-000042',
+    nationalIdType: 'NONE' as const,
+    nationalIdLast4: null,
+  };
+
+  beforeAll(() => {
+    process.env.NATIONAL_ID_ENCRYPTION_KEY = 'a'.repeat(64);
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    repo.findById.mockResolvedValue(noIdChart);
+    repo.findByNationalIdHash.mockResolvedValue(null);
+    prisma.patient.update.mockImplementation(async ({ data }) => ({ ...noIdChart, ...data }));
+  });
+
+  it('refuses an ID number on a "No ID" registration, and a missing number on any other', async () => {
+    const base = { primaryClinicId: 'clinic-1', firstName: 'A', lastName: 'B' };
+    await expect(
+      service.create({ ...base, nationalIdType: 'NONE', nationalId: '1234' }),
+    ).rejects.toMatchObject({ response: { code: 'NATIONAL_ID_WITH_NO_ID_TYPE' } });
+    await expect(
+      service.create({ ...base, nationalIdType: 'NATIONAL_ID', nationalId: '  ' }),
+    ).rejects.toMatchObject({ response: { code: 'NATIONAL_ID_REQUIRED' } });
+  });
+
+  it('records a Ghana Card on a "No ID" chart, auditing type, last 4 and reason only', async () => {
+    const updated = await service.changeNationalId(
+      'clinic-1',
+      'patient-1',
+      {
+        nationalIdType: 'NATIONAL_ID',
+        nationalId: 'GHA-123456789-0',
+        reason: 'Brought their card',
+      },
+      ctx,
+    );
+
+    const { data } = prisma.patient.update.mock.calls[0][0];
+    expect(data).toMatchObject({
+      nationalIdType: 'NATIONAL_ID',
+      nationalIdHash: hashNationalId('GHA-123456789-0'),
+      nationalIdLast4: nationalIdLast4('GHA-123456789-0'),
+    });
+    expect(decryptNationalId(data.nationalIdCiphertext)).toBe('GHA-123456789-0');
+    expect(updated.nationalIdType).toBe('NATIONAL_ID');
+
+    const event = audit.logWrite.mock.calls[0][0];
+    expect(event).toMatchObject({ action: 'PATIENT.NATIONAL_ID_CHANGE', entityId: 'patient-1' });
+    expect(JSON.parse(event.beforeJson)).toEqual({ nationalIdType: 'NONE', nationalIdLast4: null });
+    expect(JSON.parse(event.afterJson)).toEqual({
+      nationalIdType: 'NATIONAL_ID',
+      nationalIdLast4: data.nationalIdLast4,
+      reason: 'Brought their card',
+    });
+    expect(`${event.beforeJson}${event.afterJson}`).not.toContain('123456789');
+  });
+
+  it('refuses an ID another chart already has, naming that chart', async () => {
+    repo.findByNationalIdHash.mockResolvedValue({ ...mockPatient, id: 'other-patient' });
+    await expect(
+      service.changeNationalId(
+        'clinic-1',
+        'patient-1',
+        { nationalIdType: 'NATIONAL_ID', nationalId: 'GHA-123456789-0', reason: 'Card' },
+        ctx,
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.patient.update).not.toHaveBeenCalled();
+    expect(audit.logWrite).not.toHaveBeenCalled();
+  });
+
+  it('can set a chart back to "No ID", storing its own code', async () => {
+    repo.findById.mockResolvedValue({
+      ...noIdChart,
+      nationalIdType: 'VOTER_ID',
+      nationalIdLast4: '7777',
+    });
+    await service.changeNationalId(
+      'clinic-1',
+      'patient-1',
+      { nationalIdType: 'NONE', reason: 'Card was not theirs' },
+      ctx,
+    );
+    const { data } = prisma.patient.update.mock.calls[0][0];
+    expect(data).toMatchObject({
+      nationalIdType: 'NONE',
+      nationalIdHash: hashNationalId('NKP-2026-000042'),
+      nationalIdLast4: null,
+    });
+  });
+
+  it('only changes charts at this clinic', async () => {
+    repo.findById.mockResolvedValue({ ...noIdChart, primaryClinicId: 'clinic-2' });
+    await expect(
+      service.changeNationalId(
+        'clinic-1',
+        'patient-1',
+        { nationalIdType: 'NATIONAL_ID', nationalId: 'GHA-123456789-0', reason: 'Card' },
+        ctx,
+      ),
+    ).rejects.toThrow('Patient not found');
   });
 });

@@ -63,6 +63,7 @@ export const SYNC_CONFLICT_CODES = {
   DUPLICATE_NATIONAL_ID: code('patient', terminal),
   PATIENT_MERGED: code('patient', terminal),
   PATIENT_NATIONAL_ID_REQUIRED: code('patient', { retryable: false }),
+  NATIONAL_ID_WITH_NO_ID_TYPE: code('patient', { retryable: false }),
 
   // Locked records
   CONFLICT_FINALIZED: code('locked', terminal),
