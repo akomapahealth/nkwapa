@@ -87,6 +87,24 @@ test('the release banner names the latest version and stays dismissed', async ({
   await expect(page.locator('[data-release-banner]')).toHaveCount(0);
 });
 
+test("the release banner opens what's new and closes with Escape", async ({ page }) => {
+  await page.goto('/');
+  await page
+    .getByRole('complementary', { name: 'Latest release' })
+    .getByRole('button', { name: /Nkwapa \d+\.\d+\.\d+ is out now/ })
+    .click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('heading', { level: 2 })).toHaveText(/What's new in Nkwapa/);
+  await expect(dialog.getByRole('heading', { level: 3 }).first()).toBeVisible();
+  const results = await new AxeBuilder({ page })
+    .include('[role="dialog"]')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+    .analyze();
+  expect(results.violations).toEqual([]);
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+});
+
 test('mobile menu opens, navigates, and closes with Escape', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');

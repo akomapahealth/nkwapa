@@ -53,7 +53,7 @@ From `docs/design-system/MASTER.md` and `app/globals.css`, unchanged:
 | 10  | Closing CTA                    | Contact the team, learn about Akomapa                                                            | Full-width teal band                                |
 | 11  | Footer                         | Anchors, Akomapa, contact email, Privacy and Terms                                               | Columns on cream                                    |
 
-`/privacy` and `/terms` (`components/landing/LegalPage.tsx`) reuse the header and footer with `base="/"`, so their section links lead back to `/`. They supplement Akomapa's own [privacy policy](https://akomapa.org/privacy-policy) and [terms](https://akomapa.org/terms), which both say Nkwapa needs its own notices for clinical information. Every statement about data handling on them is taken from the code and specs; they are drafts awaiting the project owner's approval.
+`/privacy` and `/terms` (`components/landing/LegalPage.tsx`) share an editorial title band with a switch between the two pages, a numbered contents list that marks the section being read (`LegalContents.tsx`), section numbers from CSS counters, a reading-progress line driven by CSS scroll timelines, and a closing contact panel. They reuse the header and footer with `base="/"`, so their section links lead back to `/`. They supplement Akomapa's own [privacy policy](https://akomapa.org/privacy-policy) and [terms](https://akomapa.org/terms), which both say Nkwapa needs its own notices for clinical information. Every statement about data handling on them is taken from the code and specs; they are drafts awaiting the project owner's approval.
 
 Every capability on the page is marked fully implemented in `IMPLEMENTATION_STATUS.md` (updated 2026-10-08). Partially implemented areas are described with their limits. For example, assigning staff and moving patients between stations still needs a connection. No statistic, testimonial, partner, certification or regulatory claim appears anywhere.
 
@@ -109,7 +109,7 @@ The CTAs are `mailto:info@akomapa.org` and `https://akomapa.org`, both confirmed
 
 ## Release banner
 
-`LATEST_RELEASE` in `components/landing/ReleaseBanner.tsx` holds the version and release date; the banner only announces the version. A later "what's new" dialog, opened from the version (`[data-release-version]`), will explain what was added or fixed in plain words. Update it with every release; a new `version` shows the banner again to visitors who dismissed the previous one (the dismissal lives in `localStorage`). It does not link to GitHub, following the no-GitHub-link decision above.
+`LATEST_RELEASE` in `components/landing/ReleaseBanner.tsx` holds the version, release date and notes. The banner only announces the version; clicking it opens a "what's new" dialog that groups the notes as New, Improved and Fixed. Notes are written for clinic staff: what someone can now do or what stopped going wrong, never internal changes such as CI or data formats. Update it with every release; a new `version` shows the banner again to visitors who dismissed the previous one (the dismissal lives in `localStorage`). It does not link to GitHub, following the no-GitHub-link decision above.
 
 ## Patterns worth carrying into the workspace redesign later
 

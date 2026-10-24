@@ -247,6 +247,16 @@
   .legal-prose h2 {
     @apply mt-14 scroll-mt-20 border-t border-border pt-8 font-heading text-2xl font-semibold text-foreground sm:text-3xl;
   }
+  /* Section numbers, matching the contents list; hidden from screen readers where supported. */
+  .legal-prose {
+    counter-reset: legal-section;
+  }
+  .legal-prose > section > h2::before {
+    counter-increment: legal-section;
+    content: counter(legal-section, decimal-leading-zero);
+    content: counter(legal-section, decimal-leading-zero) / '';
+    @apply mb-3 block font-heading text-sm font-semibold tabular-nums text-primary;
+  }
   .legal-prose section:first-child h2 {
     @apply mt-8 border-t-0 pt-0;
   }
@@ -280,6 +290,23 @@
 @keyframes landing-scroll-pulse {
   to {
     stroke-dashoffset: -100;
+  }
+}
+
+/* Reading progress on /privacy and /terms, tied to the scroll position. */
+.legal-progress {
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+}
+@supports (animation-timeline: scroll()) {
+  .legal-progress {
+    animation: legal-progress linear both;
+    animation-timeline: scroll(root);
+  }
+}
+@keyframes legal-progress {
+  to {
+    transform: scaleX(1);
   }
 }
 

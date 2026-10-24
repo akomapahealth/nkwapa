@@ -5,6 +5,7 @@ import {
   AKOMAPA_PRIVACY_HREF,
   CONTACT_EMAIL,
   CONTACT_HREF,
+  PRIVACY_HREF,
   TERMS_HREF,
 } from '@/components/landing/links';
 
@@ -312,6 +313,7 @@ const sections: LegalSection[] = [
 export default function PrivacyPage() {
   return (
     <LegalPage
+      path={PRIVACY_HREF}
       title="Privacy notice"
       lede={
         <p>
