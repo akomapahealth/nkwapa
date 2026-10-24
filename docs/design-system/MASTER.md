@@ -225,9 +225,9 @@ never has to carry identity.
 `isAnimationActive={false}`. Axis ticks set `fontVariantNumeric: 'tabular-nums'` inline, because
 Recharts renders them as SVG text where the utility class cannot reach.
 
-**`--landing-accent`** (`191 60% 25%` light, `191 50% 35%` dark) exists so the landing page stops
-borrowing `--chart-3` for brand furniture. It is a Persuade surface with its own treatment; do not
-use this token on a clinical view.
+**The landing page has no tokens of its own.** It is built from the tokens above: `--accent` and
+`--primary` bands, plus a section scoped with `.dark` for the product screenshots. `--landing-accent`
+was removed with the 2026-10 redesign (`docs/design/landing-page-redesign.md`).
 
 ## 4. Colour tokens — dark
 
@@ -338,8 +338,8 @@ oversized radii went 35 to 0, gradients on clinical surfaces 3 to 0, and upperca
 7 to 0. `e2e/responsive-migration.spec.js` holds the line on layout; a grep holds the line on the
 rest.
 
-The `landing-hero-mesh`, `landing-gradient-mesh-alt` and `landing-glass` utilities in `globals.css`
-are **scoped to `app/(marketing)` only** and are exempt. They must not appear on a workspace route.
+The landing page's gradient-mesh and glass utilities are gone. Its one utility, `.landing-container`,
+is a content width and must not appear on a workspace route.
 
 **Shadow above `shadow-sm` is for things that genuinely float** -- a dialog, a sheet, a popover, the
 chat panel, a help bubble. That is depth doing a job, not decoration, and it is the one exception
@@ -349,11 +349,12 @@ to the flatness rule.
 
 ## 6. Typography
 
-| Role          | Family         | Token            |
-| ------------- | -------------- | ---------------- |
-| Headings      | Source Serif 4 | `font-heading`   |
-| Body and data | IBM Plex Sans  | `font-body`      |
-| Landing only  | Poppins        | `font-landing-*` |
+| Role          | Family         | Token          |
+| ------------- | -------------- | -------------- |
+| Headings      | Source Serif 4 | `font-heading` |
+| Body and data | IBM Plex Sans  | `font-body`    |
+
+The public landing page uses the same two families, with Source Serif 4 at display sizes. Poppins and Circular Std are no longer loaded anywhere.
 
 The serif heading is deliberate. It separates headings from data at a glance, which a single-family system does not, and it is the most distinctive element of the current identity.
 
