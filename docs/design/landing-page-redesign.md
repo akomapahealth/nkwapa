@@ -41,6 +41,7 @@ From `docs/design-system/MASTER.md` and `app/globals.css`, unchanged:
 | #   | Section                        | Purpose                                                                                          | Layout                                              |
 | --- | ------------------------------ | ------------------------------------------------------------------------------------------------ | --------------------------------------------------- |
 | 1   | Header                         | Logo, four anchors, "Contact the team"                                                           | Sticky solid bar; sheet menu below `lg`             |
+| 0   | Release banner                 | The latest release in one sentence, dismissible                                                  | Full-width teal strip above the header              |
 | 2   | Hero                           | What Nkwapa is, in one sentence, with the real product                                           | Split: copy left, desktop + phone right             |
 | 3   | Problem                        | The disconnected-records problem in clinic terms                                                 | Large serif statement, photo, ruled list            |
 | 4   | A clinic day (`#how-it-works`) | Register, check in, measure, review, follow up, each with a real photo or screen                 | Pinned step-by-step story on `lg`, plain list below |
@@ -65,6 +66,7 @@ The CTAs are `mailto:info@akomapa.org` and `https://akomapa.org`, both confirmed
   - Section reveals (`[data-reveal]`, `gsap.from`, play once). Content is visible in the server HTML and is hidden only by JavaScript that will also reveal it.
   - The clinic day: on `lg` and wider, the section pins and scrubs through its five steps. Each step's photo or screenshot wipes up over the last (`clip-path`), the text crossfades, and a progress line fills. `LandingMotion` sets `data-journey-pinned`, which stacks the steps in one grid cell (`globals.css`); without it, or under reduced motion, the same markup is a plain ordered list. Arriving from `/privacy` or `/terms` with a `#hash` re-scrolls once the pin spacer exists.
   - The role deck (`[data-deck]`): on `lg` and wider, Who it's for pins and stacks one dashboard card per role. Each scroll step flings the top card aside and tucks it under the rest while the role text crossfades; scrolling snaps to a settled role. The cards show `desktop.png` as a placeholder until each role's dashboard is captured (`DECK` in `CareTeamSection.tsx`; pass `src` and `alt` to `DesktopFrame`).
+  - Scroll cue: a pulse travels down a heartbeat trace under the hero copy (CSS, `lg` only), and fades out over the first 160px of scroll.
   - Section headlines (`[data-split]`) rise line by line from behind a mask (GSAP `SplitText`, bundled with gsap). The hero `h1` keeps its CSS entrance so it never waits on JavaScript.
   - The problem statement (`[data-scrub-words]`) reads itself in word by word as it scrolls past.
   - Photographs (`[data-reveal-image]`) wipe up into place, and the large About photo (`[data-parallax]`) drifts slightly on `lg`.
@@ -105,9 +107,13 @@ The CTAs are `mailto:info@akomapa.org` and `https://akomapa.org`, both confirmed
 
 **Not changed:** auth, middleware, the workspace routes, the API, the database schema, deployment.
 
+## Release banner
+
+`LATEST_RELEASE` in `components/landing/ReleaseBanner.tsx` holds the version, date and a one-sentence summary in plain words, taken from the GitHub release. Update it with every release; a new `version` shows the banner again to visitors who dismissed the previous one (the dismissal lives in `localStorage`). It does not link to GitHub, following the no-GitHub-link decision above.
+
 ## Patterns worth carrying into the workspace redesign later
 
-The workspace will be redesigned later with shadcn/ui components throughout and Bklit for charts (metrics, trends, reports), where there is real clinic data to chart. That work is out of scope here; these are the landing patterns worth keeping for it.
+The workspace will be redesigned later with shadcn/ui components throughout, Kokonut UI for selected interactive pieces, and Bklit for charts (metrics, trends, reports), where there is real clinic data to chart. That work is out of scope here; these are the landing patterns worth keeping for it.
 
 - Source Serif 4 at display sizes carries the brand on its own; the workspace could use it for page titles at a larger step than today.
 - Scoping a section with the `.dark` class flips every token locally. The same technique could give the workspace a dark sidebar in light mode without new tokens.

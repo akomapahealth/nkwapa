@@ -5,8 +5,12 @@ import { DesktopFrame, PhoneFrame } from './ProductFrames';
 
 export function HeroSection() {
   return (
-    <section id="top" aria-labelledby="hero-title" className="overflow-hidden bg-accent">
-      <div className="landing-container grid gap-14 pb-20 pt-12 sm:pt-16 lg:grid-cols-12 lg:items-center lg:gap-10 lg:pb-28 lg:pt-20">
+    <section
+      id="top"
+      aria-labelledby="hero-title"
+      className="flex min-h-[calc(100svh-4rem)] flex-col overflow-hidden bg-accent"
+    >
+      <div className="landing-container grid flex-1 gap-14 pb-20 pt-12 sm:pt-16 lg:grid-cols-12 lg:content-center lg:items-center lg:gap-10 lg:pb-16 lg:pt-16">
         <div className="lg:col-span-6 xl:col-span-5">
           <p className="motion-safe:animate-landing-rise text-sm font-semibold text-primary">
             Electronic medical records for hypertension and diabetes care
@@ -53,6 +57,32 @@ export function HeroSection() {
             <PhoneFrame sizes="(min-width: 640px) 220px, 64vw" priority />
           </div>
         </div>
+      </div>
+
+      <div className="landing-container hidden pb-8 lg:block">
+        <a
+          href="#problem"
+          data-scroll-cue
+          className="group inline-flex min-h-11 items-center gap-3 rounded-sm text-sm font-semibold text-foreground/70 transition-colors duration-fast hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {/* A pulse travelling down a heartbeat trace. */}
+          <svg
+            aria-hidden
+            viewBox="0 0 20 56"
+            className="h-14 w-5 fill-none stroke-current"
+            strokeWidth={1.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M10 1v21l-4 5 8 6-4 4v18" className="opacity-25" />
+            <path
+              d="M10 1v21l-4 5 8 6-4 4v18"
+              pathLength={100}
+              className="landing-scroll-pulse text-primary"
+            />
+          </svg>
+          Scroll down
+        </a>
       </div>
     </section>
   );

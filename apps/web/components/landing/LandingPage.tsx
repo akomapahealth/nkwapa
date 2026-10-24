@@ -1,5 +1,6 @@
 import { LandingAnalytics } from './LandingAnalytics';
 import { LandingHeader } from './LandingHeader';
+import { ReleaseBanner } from './ReleaseBanner';
 import { LandingMotion } from './LandingMotion';
 import { HeroSection } from './HeroSection';
 import { ProblemSection } from './ProblemSection';
@@ -23,6 +24,7 @@ export function LandingPage() {
         Skip to content
       </a>
       <LandingAnalytics />
+      <ReleaseBanner />
       <LandingHeader />
       <LandingMotion>
         <main id="main">

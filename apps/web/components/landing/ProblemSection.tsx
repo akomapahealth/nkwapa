@@ -21,7 +21,11 @@ const PROBLEMS = [
 
 export function ProblemSection() {
   return (
-    <section aria-labelledby="problem-title" className="bg-background py-20 sm:py-28 lg:py-32">
+    <section
+      id="problem"
+      aria-labelledby="problem-title"
+      className="bg-background py-20 sm:py-28 lg:py-32"
+    >
       <div className="landing-container grid gap-x-16 gap-y-12 lg:grid-cols-12">
         <div className="lg:col-span-7" data-reveal>
           <h2

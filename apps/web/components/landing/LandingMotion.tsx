@@ -210,7 +210,8 @@ export function LandingMotion({ children }: { children: React.ReactNode }) {
 
           root.querySelectorAll<HTMLElement>('[data-marker]').forEach((el, index) => {
             gsap.from(el, {
-              scale: 0,
+              scale: 0.6,
+              autoAlpha: 0,
               duration: 0.5,
               delay: index * 0.12,
               ease: 'back.out(2.2)',
@@ -231,6 +232,13 @@ export function LandingMotion({ children }: { children: React.ReactNode }) {
                 scrollTrigger: { trigger: el, start: 'top bottom', end: 'bottom top', scrub: true },
               },
             );
+          });
+
+          // The scroll cue has done its job once the page starts moving.
+          gsap.to(root.querySelector('[data-scroll-cue]'), {
+            autoAlpha: 0,
+            ease: 'none',
+            scrollTrigger: { start: 0, end: 160, scrub: true },
           });
 
           const phone = root.querySelector('[data-hero-phone]');

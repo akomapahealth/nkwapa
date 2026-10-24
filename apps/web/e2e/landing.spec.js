@@ -77,6 +77,16 @@ test('every link goes somewhere real', async ({ page }) => {
   );
 });
 
+test('the release banner names the latest version and stays dismissed', async ({ page }) => {
+  await page.goto('/');
+  const banner = page.getByRole('complementary', { name: 'Latest release' });
+  await expect(banner).toContainText(/Nkwapa \d+\.\d+/);
+  await banner.getByRole('button', { name: 'Dismiss the release update' }).click();
+  await expect(banner).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator('[data-release-banner]')).toHaveCount(0);
+});
+
 test('mobile menu opens, navigates, and closes with Escape', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
