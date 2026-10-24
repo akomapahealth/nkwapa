@@ -80,7 +80,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // suppressHydrationWarning: themeBootScript mutates <html> before React hydrates.
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link href="https://fonts.cdnfonts.com/css/circular-std" rel="stylesheet" />
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
       <body suppressHydrationWarning>

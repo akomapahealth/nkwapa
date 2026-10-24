@@ -121,10 +121,10 @@ Names follow `domain.object.action`. Every event may also carry `outcome`, `dura
 
 ### Engagement
 
-| Event               | Label                | Source  | Properties                      | Meaning                                 |
-| ------------------- | -------------------- | ------- | ------------------------------- | --------------------------------------- |
-| `landing.page.view` | Landing page views   | Browser | none                            | The public landing page was viewed.     |
-| `landing.cta.click` | Landing page actions | Browser | `target`: `workflow`, `product` | A landing page call to action was used. |
+| Event               | Label                | Source  | Properties                                            | Meaning                                 |
+| ------------------- | -------------------- | ------- | ----------------------------------------------------- | --------------------------------------- |
+| `landing.page.view` | Landing page views   | Browser | none                                                  | The public landing page was viewed.     |
+| `landing.cta.click` | Landing page actions | Browser | `target`: `workflow`, `product`, `contact`, `akomapa` | A landing page call to action was used. |
 
 ### Funnels
 
