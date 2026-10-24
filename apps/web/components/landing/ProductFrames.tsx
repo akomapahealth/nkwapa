@@ -14,13 +14,26 @@ interface FrameProps {
   children?: React.ReactNode;
 }
 
+interface DesktopFrameProps extends FrameProps {
+  /** Another 3840x2160 screenshot in place of the clinic dashboard. */
+  src?: string;
+  alt?: string;
+}
+
 // Every copy of a screenshot must opt in, not just the hero. Next's dev LCP check
 // remembers one entry per image URL, and a later lazy copy overwrites the eager one.
 const priorityProps = (priority?: boolean) =>
   priority ? ({ loading: 'eager', fetchPriority: 'high' } as const) : {};
 
 /** The real desktop screenshot in a plain browser frame. Children are overlaid on the image. */
-export function DesktopFrame({ className, sizes, priority, children }: FrameProps) {
+export function DesktopFrame({
+  className,
+  sizes,
+  priority,
+  children,
+  src = '/desktop.png',
+  alt = DESKTOP_ALT,
+}: DesktopFrameProps) {
   return (
     <div
       className={cn(
@@ -35,8 +48,8 @@ export function DesktopFrame({ className, sizes, priority, children }: FrameProp
       </div>
       <div className="relative">
         <Image
-          src="/desktop.png"
-          alt={DESKTOP_ALT}
+          src={src}
+          alt={alt}
           width={3840}
           height={2160}
           sizes={sizes}

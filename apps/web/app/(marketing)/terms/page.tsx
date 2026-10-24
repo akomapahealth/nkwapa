@@ -6,6 +6,7 @@ import {
   CONTACT_EMAIL,
   CONTACT_HREF,
   PRIVACY_HREF,
+  TERMS_HREF,
 } from '@/components/landing/links';
 
 export const metadata: Metadata = {
@@ -195,6 +196,7 @@ const sections: LegalSection[] = [
 export default function TermsPage() {
   return (
     <LegalPage
+      path={TERMS_HREF}
       title="Terms of use"
       lede={
         <p>

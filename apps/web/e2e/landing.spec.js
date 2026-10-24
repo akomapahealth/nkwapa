@@ -77,6 +77,43 @@ test('every link goes somewhere real', async ({ page }) => {
   );
 });
 
+test('the release banner names the latest version and stays dismissed', async ({ page }) => {
+  await page.goto('/');
+  const banner = page.getByRole('complementary', { name: 'Latest release' });
+  await expect(banner).toContainText(/Nkwapa \d+\.\d+/);
+  await banner.getByRole('button', { name: 'Dismiss the release update' }).click();
+  await expect(banner).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator('[data-release-banner]')).toHaveCount(0);
+});
+
+test("the release banner opens what's new and closes with Escape", async ({ page }) => {
+  await page.goto('/');
+  await page
+    .getByRole('complementary', { name: 'Latest release' })
+    .getByRole('button', { name: /Nkwapa \d+\.\d+\.\d+ is out now/ })
+    .click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('heading', { level: 2 })).toHaveText(/What's new in Nkwapa/);
+  await expect(dialog.getByRole('heading', { level: 3 }).first()).toBeVisible();
+  // Let the entrance finish so axe measures settled colours; the heartbeat pulse loops forever.
+  await dialog.evaluate((el) =>
+    Promise.all(
+      el
+        .getAnimations({ subtree: true })
+        .filter((animation) => animation.effect.getComputedTiming().iterations !== Infinity)
+        .map((animation) => animation.finished),
+    ),
+  );
+  const results = await new AxeBuilder({ page })
+    .include('[role="dialog"]')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+    .analyze();
+  expect(results.violations).toEqual([]);
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+});
+
 test('mobile menu opens, navigates, and closes with Escape', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
@@ -120,18 +157,47 @@ test('scroll reveals finish with all content visible', async ({ page }) => {
   expect(hidden).toBe(0);
 });
 
+test('the clinic day and role deck pin on wide screens and end on their last step', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await expect(page.locator('[data-journey-pinned]')).toHaveCount(1);
+  await expect(page.locator('[data-deck-pinned]')).toHaveCount(1);
+  await scrollThrough(page);
+  await page.locator('#care-teams').scrollIntoViewIfNeeded();
+  await page.waitForTimeout(1000);
+  await expect(page.locator('[data-step-text]').last()).toBeVisible();
+  await page.locator('#about').scrollIntoViewIfNeeded();
+  await page.waitForTimeout(1000);
+  await expect(page.locator('[data-deck-text]').last()).toBeVisible();
+});
+
 test.describe('with reduced motion', () => {
   test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
   test('content is visible without scrolling it into view', async ({ page }) => {
     await page.goto('/');
     const states = await page
-      .locator('[data-reveal], [data-journey-step]')
+      .locator('[data-reveal], [data-journey-step], [data-deck-item]')
       .evaluateAll((els) =>
         els.map((el) => getComputedStyle(el).opacity + getComputedStyle(el).visibility),
       );
     expect(states.length).toBeGreaterThan(10);
     expect(new Set(states)).toEqual(new Set(['1visible']));
+  });
+
+  test('the clinic day is a plain list with every step and image showing', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    await expect(page.locator('[data-journey-pinned]')).toHaveCount(0);
+    const steps = page.locator('[data-journey-step]');
+    await expect(steps).toHaveCount(5);
+    for (const step of await steps.all()) {
+      await step.scrollIntoViewIfNeeded();
+      await expect(step.locator('h3')).toBeVisible();
+      await expect(step.locator('img').first()).toBeVisible();
+    }
   });
 
   test('has no WCAG 2.2 AA violations axe can detect', async ({ page }) => {

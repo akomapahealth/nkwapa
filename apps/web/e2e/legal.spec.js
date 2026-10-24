@@ -38,6 +38,18 @@ for (const { path, title } of PAGES) {
       }
     });
 
+    test('the page switcher marks this page and links to the other', async ({ page }) => {
+      await page.goto(path);
+      const switcher = page.getByRole('navigation', { name: 'Legal pages' });
+      await expect(switcher.getByRole('link', { name: title })).toHaveAttribute(
+        'aria-current',
+        'page',
+      );
+      const other = PAGES.find((p) => p.path !== path);
+      await switcher.getByRole('link', { name: other.title }).click();
+      await expect(page).toHaveURL(other.path);
+    });
+
     test('section links lead back to the landing page', async ({ page }) => {
       await page.setViewportSize({ width: 1280, height: 800 });
       await page.goto(path);

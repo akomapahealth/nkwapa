@@ -11,6 +11,7 @@ export function LandingCTA() {
       <div className="landing-container grid gap-10 lg:grid-cols-12 lg:items-end" data-reveal>
         <h2
           id="cta-title"
+          data-split
           className="text-balance font-heading text-[2.5rem] font-semibold leading-[1.02] tracking-[-0.02em] sm:text-6xl lg:col-span-8 lg:text-7xl"
         >
           Better care starts with better-organized information.

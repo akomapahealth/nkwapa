@@ -38,21 +38,22 @@ From `docs/design-system/MASTER.md` and `app/globals.css`, unchanged:
 
 ## 5. Page architecture
 
-| #   | Section                      | Purpose                                                | Layout                                          |
-| --- | ---------------------------- | ------------------------------------------------------ | ----------------------------------------------- |
-| 1   | Header                       | Logo, four anchors, "Contact the team"                 | Sticky solid bar; sheet menu below `lg`         |
-| 2   | Hero                         | What Nkwapa is, in one sentence, with the real product | Split: copy left, desktop + phone right         |
-| 3   | Problem                      | The disconnected-records problem in clinic terms       | Large serif statement, photo, ruled list        |
-| 4   | How it works                 | Register, check in, measure, review, follow up         | Horizontal ordered list on `lg`, vertical below |
-| 5   | Product (`#product`)         | Desktop and phone screenshots with annotations         | Dark band, framed screenshots                   |
-| 6   | Who it's for (`#care-teams`) | Volunteers, doctors, managers, directors, patients     | Sticky photo beside role rows                   |
-| 7   | Capabilities                 | Offline work, chronic-care structure, several clinics  | One large story and two smaller ones            |
-| 8   | About (`#about`)             | The Akomapa clinic context                             | Photo mosaic with text                          |
-| 9   | Safeguards                   | Access, isolation, audit, sign-off, consent            | Ruled two-column list                           |
-| 10  | Closing CTA                  | Contact the team, learn about Akomapa                  | Full-width teal band                            |
-| 11  | Footer                       | Anchors, Akomapa, contact email, Privacy and Terms     | Columns on cream                                |
+| #   | Section                        | Purpose                                                                                          | Layout                                              |
+| --- | ------------------------------ | ------------------------------------------------------------------------------------------------ | --------------------------------------------------- |
+| 1   | Header                         | Logo, four anchors, "Contact the team"                                                           | Sticky solid bar; sheet menu below `lg`             |
+| 0   | Release banner                 | The latest release in one sentence, dismissible                                                  | Full-width teal strip above the header              |
+| 2   | Hero                           | What Nkwapa is, in one sentence, with the real product                                           | Split: copy left, desktop + phone right             |
+| 3   | Problem                        | The disconnected-records problem in clinic terms                                                 | Large serif statement, photo, ruled list            |
+| 4   | A clinic day (`#how-it-works`) | Register, check in, measure, review, follow up, each with a real photo or screen                 | Pinned step-by-step story on `lg`, plain list below |
+| 5   | Product (`#product`)           | Desktop and phone screenshots with annotations                                                   | Dark band, framed screenshots                       |
+| 6   | Who it's for (`#care-teams`)   | Volunteers, doctors and clinic managers, each with their dashboard; directors and patients below | Pinned card deck on `lg`, plain list below          |
+| 7   | Capabilities                   | Offline work, chronic-care structure, several clinics                                            | One large story and two smaller ones                |
+| 8   | About (`#about`)               | The Akomapa clinic context                                                                       | Photo mosaic with text                              |
+| 9   | Safeguards                     | Access, isolation, audit, sign-off, consent                                                      | Ruled two-column list                               |
+| 10  | Closing CTA                    | Contact the team, learn about Akomapa                                                            | Full-width teal band                                |
+| 11  | Footer                         | Anchors, Akomapa, contact email, Privacy and Terms                                               | Columns on cream                                    |
 
-`/privacy` and `/terms` (`components/landing/LegalPage.tsx`) reuse the header and footer with `base="/"`, so their section links lead back to `/`. They supplement Akomapa's own [privacy policy](https://akomapa.org/privacy-policy) and [terms](https://akomapa.org/terms), which both say Nkwapa needs its own notices for clinical information. Every statement about data handling on them is taken from the code and specs; they are drafts awaiting the project owner's approval.
+`/privacy` and `/terms` (`components/landing/LegalPage.tsx`) share an editorial title band with a switch between the two pages, a numbered contents list that marks the section being read (`LegalContents.tsx`), section numbers from CSS counters, a reading-progress line driven by CSS scroll timelines, and a closing contact panel. They reuse the header and footer with `base="/"`, so their section links lead back to `/`. They supplement Akomapa's own [privacy policy](https://akomapa.org/privacy-policy) and [terms](https://akomapa.org/terms), which both say Nkwapa needs its own notices for clinical information. Every statement about data handling on them is taken from the code and specs; the project owner approved both texts on 2026-10-24.
 
 Every capability on the page is marked fully implemented in `IMPLEMENTATION_STATUS.md` (updated 2026-10-08). Partially implemented areas are described with their limits. For example, assigning staff and moving patients between stations still needs a connection. No statistic, testimonial, partner, certification or regulatory claim appears anywhere.
 
@@ -63,10 +64,16 @@ The CTAs are `mailto:info@akomapa.org` and `https://akomapa.org`, both confirmed
 - **Hero entrance:** pure CSS keyframes, so it plays on first paint without waiting for hydration and never leaves the headline invisible if JavaScript is slow. The screenshots move with transform only, never opacity, so they stay the LCP candidate from the first frame.
 - **GSAP (`components/landing/LandingMotion.tsx`):** `useGSAP` scoped to the page wrapper, inside `gsap.matchMedia()`, so everything reverts on unmount and under reduced motion. It drives:
   - Section reveals (`[data-reveal]`, `gsap.from`, play once). Content is visible in the server HTML and is hidden only by JavaScript that will also reveal it.
-  - The journey progress line, scrubbed with ScrollTrigger, on `lg` and wider only.
+  - The clinic day: on `lg` and wider, the section pins and scrubs through its five steps. Each step's photo or screenshot wipes up over the last (`clip-path`), the text crossfades, and a progress line fills. `LandingMotion` sets `data-journey-pinned`, which stacks the steps in one grid cell (`globals.css`); without it, or under reduced motion, the same markup is a plain ordered list. Arriving from `/privacy` or `/terms` with a `#hash` re-scrolls once the pin spacer exists.
+  - The role deck (`[data-deck]`): on `lg` and wider, Who it's for pins and stacks one dashboard card per role. Each scroll step flings the top card aside and tucks it under the rest while the role text crossfades; scrolling snaps to a settled role. The cards show `desktop.png` as a placeholder until each role's dashboard is captured (`DECK` in `CareTeamSection.tsx`; pass `src` and `alt` to `DesktopFrame`).
+  - Scroll cue: a pulse travels down a heartbeat trace under the hero copy (CSS, `lg` only), and fades out over the first 160px of scroll.
+  - Section headlines (`[data-split]`) rise line by line from behind a mask (GSAP `SplitText`, bundled with gsap). The hero `h1` keeps its CSS entrance so it never waits on JavaScript.
+  - The problem statement (`[data-scrub-words]`) reads itself in word by word as it scrolls past.
+  - Photographs (`[data-reveal-image]`) wipe up into place, and the large About photo (`[data-parallax]`) drifts slightly on `lg`.
+  - The numbered markers on the product screenshot pop in one after another.
   - The product screenshot settling from 94% to 100% scale. It never crops.
   - A small upward drift of the hero phone on scroll, on `lg` only.
-- **No pinning, no scroll-jacking, no loops.** `prefers-reduced-motion: reduce` skips every GSAP tween, and the existing global rule in `globals.css` cancels the CSS entrance.
+- **One pin, no scroll-jacking, no loops.** The clinic day and the role deck are the only pinned sections, and only on wide screens. `prefers-reduced-motion: reduce` skips every GSAP tween, and the existing global rule in `globals.css` cancels the CSS entrance.
 
 ## 7. Component library decisions
 
@@ -100,9 +107,33 @@ The CTAs are `mailto:info@akomapa.org` and `https://akomapa.org`, both confirmed
 
 **Not changed:** auth, middleware, the workspace routes, the API, the database schema, deployment.
 
+## Release banner and what's new
+
+The banner announces the latest version; when the release has plain-language notes, it opens a "what's new" dialog: a teal panel with the version in large serif and the page's heartbeat trace, beside the notes grouped as New (gold), Improved (teal) and Fixed (ink).
+
+It updates itself. `lib/release-notes.ts` reads GitHub's latest release, and `/` revalidates hourly, so a release on main reaches the page within the hour without a deploy. The notes come from a `## For clinic teams` section in the release PR's description:
+
+```md
+## For clinic teams
+
+### New
+
+- **What someone can now do.** One or two plain sentences.
+
+### Fixed
+
+- **What stopped going wrong.** One or two plain sentences.
+```
+
+The Tag Release job in `deploy.yml` prepends that section to the generated release notes, and the Release label check warns (without blocking) when a PR into main lacks it. Write for clinic staff, never about CI, data formats or internals. Without the section the banner still announces the version, just without the dialog. If GitHub cannot be reached, the page falls back to the 1.2.0 notes bundled in `release-notes.ts`.
+
+## Link previews and search
+
+`/og-image.jpg` (1200x630, cropped from a full-page screenshot) is the Open Graph and Twitter card image for every public page. The landing page also carries `SoftwareApplication` JSON-LD, whose `softwareVersion` follows the latest release. `robots.txt` allows everything (workspace routes already redirect to sign-in, and blocking paths would hide the preview image from crawlers) and points to `sitemap.xml`, which lists `/`, `/privacy` and `/terms`.
+
 ## Patterns worth carrying into the workspace redesign later
 
-The workspace will be redesigned later with shadcn/ui components throughout and Bklit for charts (metrics, trends, reports), where there is real clinic data to chart. That work is out of scope here; these are the landing patterns worth keeping for it.
+The workspace will be redesigned later with shadcn/ui components throughout, Kokonut UI for selected interactive pieces, and Bklit for charts (metrics, trends, reports), where there is real clinic data to chart. That work is out of scope here; these are the landing patterns worth keeping for it.
 
 - Source Serif 4 at display sizes carries the brand on its own; the workspace could use it for page titles at a larger step than today.
 - Scoping a section with the `.dark` class flips every token locally. The same technique could give the workspace a dark sidebar in light mode without new tokens.

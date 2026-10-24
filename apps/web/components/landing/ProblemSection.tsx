@@ -21,11 +21,16 @@ const PROBLEMS = [
 
 export function ProblemSection() {
   return (
-    <section aria-labelledby="problem-title" className="bg-background py-20 sm:py-28 lg:py-32">
+    <section
+      id="problem"
+      aria-labelledby="problem-title"
+      className="bg-background py-20 sm:py-28 lg:py-32"
+    >
       <div className="landing-container grid gap-x-16 gap-y-12 lg:grid-cols-12">
         <div className="lg:col-span-7" data-reveal>
           <h2
             id="problem-title"
+            data-scrub-words
             className="text-balance font-heading text-4xl font-semibold leading-[1.08] tracking-[-0.015em] sm:text-5xl lg:text-[3.4rem]"
           >
             A patient visit shouldn&apos;t mean searching through disconnected records.
@@ -38,17 +43,19 @@ export function ProblemSection() {
           </p>
         </div>
 
-        <figure className="lg:col-span-5 lg:row-span-2" data-reveal>
-          <Image
-            src="/images/Akomapa-11.jpg"
-            alt="Patients seated in a waiting area at an Akomapa community clinic while volunteers work at tables nearby."
-            width={3600}
-            height={2712}
-            sizes="(min-width: 1024px) 40vw, 100vw"
-            className="aspect-[4/3] w-full rounded-xl object-cover lg:aspect-[4/5]"
-          />
+        <figure className="lg:col-span-5 lg:row-span-2">
+          <div data-reveal-image className="overflow-hidden rounded-xl">
+            <Image
+              src="/images/Akomapa-14.jpg"
+              alt="A volunteer in a white coat writes on a paper form while a patient leans in beside him at a screening."
+              width={3600}
+              height={2218}
+              sizes="(min-width: 1024px) 40vw, 100vw"
+              className="aspect-[4/3] w-full object-cover lg:aspect-[4/5]"
+            />
+          </div>
           <figcaption className="mt-3 text-sm text-muted-foreground">
-            The waiting area at an Akomapa community clinic.
+            Paper forms at an Akomapa community screening.
           </figcaption>
         </figure>
 
