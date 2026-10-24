@@ -278,6 +278,13 @@
 [data-journey-pinned] [data-journey-progress] {
   display: block;
 }
+/* The role deck, likewise: every role in one cell, so the cards stack into a deck. */
+[data-deck-pinned] [data-deck-list] {
+  gap: 0;
+}
+[data-deck-pinned] [data-deck-item] {
+  grid-area: 1 / 1;
+}
 
 /* SplitText line masks: room for serif descenders, which the mask would otherwise clip. */
 [data-split] > * {

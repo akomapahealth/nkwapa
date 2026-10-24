@@ -120,15 +120,20 @@ test('scroll reveals finish with all content visible', async ({ page }) => {
   expect(hidden).toBe(0);
 });
 
-test('the clinic day pins on wide screens and ends on its last step', async ({ page }) => {
+test('the clinic day and role deck pin on wide screens and end on their last step', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
   await expect(page.locator('[data-journey-pinned]')).toHaveCount(1);
+  await expect(page.locator('[data-deck-pinned]')).toHaveCount(1);
   await scrollThrough(page);
   await page.locator('#care-teams').scrollIntoViewIfNeeded();
   await page.waitForTimeout(1000);
-  const last = page.locator('[data-step-text]').last();
-  await expect(last).toBeVisible();
+  await expect(page.locator('[data-step-text]').last()).toBeVisible();
+  await page.locator('#about').scrollIntoViewIfNeeded();
+  await page.waitForTimeout(1000);
+  await expect(page.locator('[data-deck-text]').last()).toBeVisible();
 });
 
 test.describe('with reduced motion', () => {
@@ -137,7 +142,7 @@ test.describe('with reduced motion', () => {
   test('content is visible without scrolling it into view', async ({ page }) => {
     await page.goto('/');
     const states = await page
-      .locator('[data-reveal], [data-journey-step]')
+      .locator('[data-reveal], [data-journey-step], [data-deck-item]')
       .evaluateAll((els) =>
         els.map((el) => getComputedStyle(el).opacity + getComputedStyle(el).visibility),
       );

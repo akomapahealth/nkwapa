@@ -46,7 +46,7 @@ export function LandingMotion({ children }: { children: React.ReactNode }) {
                 start: 'center 55%',
                 end: `+=${(n - 1) * 75}%`,
                 scrub: 0.6,
-                snap: { snapTo: 1 / (n - 1), duration: 0.4, delay: 0.1 },
+                snap: { snapTo: 1 / (n - 1), duration: 0.4, delay: 0.1, inertia: false },
               },
             });
             timeline.fromTo(
@@ -63,14 +63,90 @@ export function LandingMotion({ children }: { children: React.ReactNode }) {
                 .from(media[i].querySelector('img'), { scale: 1.12, duration: 0.8 }, at + 0.1)
                 .to(texts[i], { autoAlpha: 1, y: 0, duration: 0.35 }, at + 0.55);
             }
+          }
 
-            // The pin spacer arrives after the browser has already scrolled to a #hash from another page.
-            const target =
-              window.location.hash && document.getElementById(window.location.hash.slice(1));
-            if (target) {
-              ScrollTrigger.refresh();
-              target.scrollIntoView({ behavior: 'instant' });
+          // The role deck: the top card is flung aside and tucked under the rest, once per role.
+          const deck = wide ? root.querySelector<HTMLElement>('[data-deck]') : null;
+          if (deck) {
+            deck.setAttribute('data-deck-pinned', '');
+            const texts = gsap.utils.toArray<HTMLElement>('[data-deck-text]', deck);
+            const cards = gsap.utils.toArray<HTMLElement>('[data-deck-card]', deck);
+            const n = cards.length;
+            // Where the card k-th from the top sits: lower, smaller and slightly askew.
+            const slot = (k: number) => ({
+              y: k * 26,
+              scale: 1 - k * 0.06,
+              rotation: k === 0 ? 0 : k % 2 ? 3 : -3,
+            });
+            cards.forEach((card, k) =>
+              gsap.set(card, { ...slot(k), zIndex: n - k, transformOrigin: '50% 100%' }),
+            );
+            gsap.set(texts.slice(1), { autoAlpha: 0, y: 32 });
+
+            const timeline = gsap.timeline({
+              scrollTrigger: {
+                trigger: deck,
+                pin: true,
+                start: 'center 55%',
+                end: `+=${(n - 1) * 80}%`,
+                scrub: 0.6,
+                snap: { snapTo: 'labels', duration: 0.4, delay: 0.1, inertia: false },
+              },
+            });
+            // Each role holds for a moment before and after its shuffle, and scrolling settles on a role.
+            const hold = 0.3;
+            timeline.addLabel('role0', 0);
+            const order = cards.map((_, k) => k);
+            for (let i = 0; i < n - 1; i++) {
+              const at = hold + i;
+              const top = order.shift()!;
+              order.push(top);
+              timeline
+                .to(
+                  cards[top],
+                  {
+                    xPercent: -75,
+                    yPercent: -12,
+                    rotation: -14,
+                    duration: 0.45,
+                    ease: 'power2.in',
+                  },
+                  at,
+                )
+                .to(texts[i], { autoAlpha: 0, y: -32, duration: 0.3, ease: 'power2.in' }, at);
+              order.forEach((card, k) => timeline.set(cards[card], { zIndex: n - k }, at + 0.45));
+              timeline.to(
+                cards[top],
+                { ...slot(n - 1), xPercent: 0, yPercent: 0, duration: 0.5, ease: 'power2.out' },
+                at + 0.45,
+              );
+              order
+                .slice(0, -1)
+                .forEach((card, k) =>
+                  timeline.to(
+                    cards[card],
+                    { ...slot(k), duration: 0.55, ease: 'power2.inOut' },
+                    at + 0.2,
+                  ),
+                );
+              timeline.to(
+                texts[i + 1],
+                { autoAlpha: 1, y: 0, duration: 0.35, ease: 'power2.out' },
+                at + 0.55,
+              );
+              timeline.addLabel(`role${i + 1}`, at + 1);
             }
+            timeline.to({}, { duration: hold }, `role${n - 1}`);
+          }
+
+          // A pin spacer arrives after the browser has already scrolled to a #hash from another page.
+          const target =
+            (journey || deck) &&
+            window.location.hash &&
+            document.getElementById(window.location.hash.slice(1));
+          if (target) {
+            ScrollTrigger.refresh();
+            target.scrollIntoView({ behavior: 'instant' });
           }
 
           root.querySelectorAll<HTMLElement>('[data-reveal]').forEach((el) => {
@@ -176,7 +252,10 @@ export function LandingMotion({ children }: { children: React.ReactNode }) {
             });
           }
 
-          return () => journey?.removeAttribute('data-journey-pinned');
+          return () => {
+            journey?.removeAttribute('data-journey-pinned');
+            deck?.removeAttribute('data-deck-pinned');
+          };
         },
       );
     },
