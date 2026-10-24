@@ -8,7 +8,7 @@ name: Release Label
 on:
   pull_request:
     branches: [main]
-    types: [opened, reopened, synchronize, labeled, unlabeled]
+    types: [opened, reopened, synchronize, labeled, unlabeled, edited]
 
 permissions:
   contents: read
@@ -39,4 +39,13 @@ jobs:
             echo "::warning::${HINT}"
             # Edits its own earlier hint instead of adding one per push.
             gh pr comment "$PR" --edit-last --create-if-none --body "$HINT"
+          fi
+
+      - name: Check for plain-language release notes
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          # Not blocking: without the section the landing page announces the version with no notes.
+          if ! printf '%s\n' "$PR_BODY" | tr -d '\r' | grep -q '^## For clinic teams[[:space:]]*$'; then
+            echo "::warning::No '## For clinic teams' section in the PR description. The landing page's what's-new dialog reads it from the release (apps/web/lib/release-notes.ts)."
           fi

@@ -107,9 +107,29 @@ The CTAs are `mailto:info@akomapa.org` and `https://akomapa.org`, both confirmed
 
 **Not changed:** auth, middleware, the workspace routes, the API, the database schema, deployment.
 
-## Release banner
+## Release banner and what's new
 
-`LATEST_RELEASE` in `components/landing/ReleaseBanner.tsx` holds the version, release date and notes. The banner only announces the version; clicking it opens a "what's new" dialog that groups the notes as New, Improved and Fixed. Notes are written for clinic staff: what someone can now do or what stopped going wrong, never internal changes such as CI or data formats. Update it with every release; a new `version` shows the banner again to visitors who dismissed the previous one (the dismissal lives in `localStorage`). It does not link to GitHub, following the no-GitHub-link decision above.
+The banner announces the latest version; when the release has plain-language notes, it opens a "what's new" dialog: a teal panel with the version in large serif and the page's heartbeat trace, beside the notes grouped as New (gold), Improved (teal) and Fixed (ink).
+
+It updates itself. `lib/release-notes.ts` reads GitHub's latest release, and `/` revalidates hourly, so a release on main reaches the page within the hour without a deploy. The notes come from a `## For clinic teams` section in the release PR's description:
+
+```md
+## For clinic teams
+
+### New
+
+- **What someone can now do.** One or two plain sentences.
+
+### Fixed
+
+- **What stopped going wrong.** One or two plain sentences.
+```
+
+The Tag Release job in `deploy.yml` prepends that section to the generated release notes, and the Release label check warns (without blocking) when a PR into main lacks it. Write for clinic staff, never about CI, data formats or internals. Without the section the banner still announces the version, just without the dialog. If GitHub cannot be reached, the page falls back to the 1.2.0 notes bundled in `release-notes.ts`.
+
+## Link previews and search
+
+`/og-image.jpg` (1200x630, cropped from a full-page screenshot) is the Open Graph and Twitter card image for every public page. The landing page also carries `SoftwareApplication` JSON-LD, whose `softwareVersion` follows the latest release. `robots.txt` allows everything (workspace routes already redirect to sign-in, and blocking paths would hide the preview image from crawlers) and points to `sitemap.xml`, which lists `/`, `/privacy` and `/terms`.
 
 ## Patterns worth carrying into the workspace redesign later
 

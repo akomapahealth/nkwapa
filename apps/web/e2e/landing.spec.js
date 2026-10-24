@@ -96,6 +96,15 @@ test("the release banner opens what's new and closes with Escape", async ({ page
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('heading', { level: 2 })).toHaveText(/What's new in Nkwapa/);
   await expect(dialog.getByRole('heading', { level: 3 }).first()).toBeVisible();
+  // Let the entrance finish so axe measures settled colours; the heartbeat pulse loops forever.
+  await dialog.evaluate((el) =>
+    Promise.all(
+      el
+        .getAnimations({ subtree: true })
+        .filter((animation) => animation.effect.getComputedTiming().iterations !== Infinity)
+        .map((animation) => animation.finished),
+    ),
+  );
   const results = await new AxeBuilder({ page })
     .include('[role="dialog"]')
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
