@@ -39,7 +39,7 @@
     "dotenv": "^17.3.1",
     "ioredis": "^5.10.0",
     "jwks-rsa": "^3.1.0",
-    "nodemailer": "^10.0.15",
+    "nodemailer": "^10.2.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.2",
