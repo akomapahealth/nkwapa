@@ -50,7 +50,9 @@ From `docs/design-system/MASTER.md` and `app/globals.css`, unchanged:
 | 8   | About (`#about`)             | The Akomapa clinic context                             | Photo mosaic with text                          |
 | 9   | Safeguards                   | Access, isolation, audit, sign-off, consent            | Ruled two-column list                           |
 | 10  | Closing CTA                  | Contact the team, learn about Akomapa                  | Full-width teal band                            |
-| 11  | Footer                       | Anchors, Akomapa, contact email                        | Columns on cream                                |
+| 11  | Footer                       | Anchors, Akomapa, contact email, Privacy and Terms     | Columns on cream                                |
+
+`/privacy` and `/terms` (`components/landing/LegalPage.tsx`) reuse the header and footer with `base="/"`, so their section links lead back to `/`. They supplement Akomapa's own [privacy policy](https://akomapa.org/privacy-policy) and [terms](https://akomapa.org/terms), which both say Nkwapa needs its own notices for clinical information. Every statement about data handling on them is taken from the code and specs; they are drafts awaiting the project owner's approval.
 
 Every capability on the page is marked fully implemented in `IMPLEMENTATION_STATUS.md` (updated 2026-10-08). Partially implemented areas are described with their limits. For example, assigning staff and moving patients between stations still needs a connection. No statistic, testimonial, partner, certification or regulatory claim appears anywhere.
 
@@ -99,6 +101,8 @@ The CTAs are `mailto:info@akomapa.org` and `https://akomapa.org`, both confirmed
 **Not changed:** auth, middleware, the workspace routes, the API, the database schema, deployment.
 
 ## Patterns worth carrying into the workspace redesign later
+
+The workspace will be redesigned later with shadcn/ui components throughout and Bklit for charts (metrics, trends, reports), where there is real clinic data to chart. That work is out of scope here; these are the landing patterns worth keeping for it.
 
 - Source Serif 4 at display sizes carries the brand on its own; the workspace could use it for page titles at a larger step than today.
 - Scoping a section with the `.dark` class flips every token locally. The same technique could give the workspace a dark sidebar in light mode without new tokens.

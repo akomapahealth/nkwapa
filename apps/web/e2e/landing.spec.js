@@ -18,7 +18,7 @@ const VIEWPORTS = [
   { width: 844, height: 390 },
 ];
 
-const CTA_HREFS = ['mailto:info@akomapa.org', 'https://akomapa.org'];
+const CTA_HREFS = ['mailto:info@akomapa.org', 'https://akomapa.org', '/privacy', '/terms'];
 
 async function scrollThrough(page) {
   await page.evaluate(async () => {
@@ -93,6 +93,21 @@ test('mobile menu opens, navigates, and closes with Escape', async ({ page }) =>
   await menu.getByRole('link', { name: 'How it works' }).click();
   await expect(menu).toBeHidden();
   await expect(page.locator('#how-it-works')).toBeInViewport();
+});
+
+test('the theme toggle overrides a dark OS setting and is remembered', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.goto('/');
+  const html = page.locator('html');
+  await expect(html).toHaveClass(/\bdark\b/);
+
+  await page.getByRole('button', { name: 'Switch to light mode' }).click();
+  await expect(html).not.toHaveClass(/\bdark\b/);
+  await page.reload();
+  await expect(html).not.toHaveClass(/\bdark\b/);
+
+  await page.getByRole('button', { name: 'Switch to dark mode' }).click();
+  await expect(html).toHaveClass(/\bdark\b/);
 });
 
 test('scroll reveals finish with all content visible', async ({ page }) => {

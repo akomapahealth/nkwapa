@@ -239,6 +239,33 @@
   .landing-container {
     @apply mx-auto w-full max-w-[76rem] px-5 sm:px-8;
   }
+
+  /* Long-form text on /privacy and /terms. */
+  .legal-prose {
+    @apply max-w-[68ch] text-base leading-relaxed text-foreground/85;
+  }
+  .legal-prose h2 {
+    @apply mt-14 scroll-mt-20 border-t border-border pt-8 font-heading text-2xl font-semibold text-foreground sm:text-3xl;
+  }
+  .legal-prose section:first-child h2 {
+    @apply mt-8 border-t-0 pt-0;
+  }
+  .legal-prose h3 {
+    @apply mt-8 font-body text-base font-semibold text-foreground;
+  }
+  .legal-prose p,
+  .legal-prose ul {
+    @apply mt-4;
+  }
+  .legal-prose ul {
+    @apply list-disc space-y-2 pl-5 marker:text-primary;
+  }
+  .legal-prose a {
+    @apply rounded-sm font-medium text-primary underline underline-offset-4 hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring;
+  }
+  .legal-prose strong {
+    @apply font-semibold text-foreground;
+  }
 }
 
 /* Anchor links on the landing page glide; the reduced-motion rule below turns this off. */

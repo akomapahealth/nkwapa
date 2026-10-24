@@ -2,7 +2,8 @@
 
 import { useRef, useState } from 'react';
 import Image from 'next/image';
-import { Menu } from 'lucide-react';
+import { Menu, Moon, Sun } from 'lucide-react';
+import { useTheme } from '@/lib/theme-context';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -14,16 +15,19 @@ import {
 } from '@/components/ui/sheet';
 import { CONTACT_HREF, SECTION_LINKS } from './links';
 
-export function LandingHeader() {
+/** `base` is `/` on pages other than the landing page, so section links lead back to it. */
+export function LandingHeader({ base = '' }: { base?: '' | '/' }) {
   const [menuOpen, setMenuOpen] = useState(false);
   // The open sheet locks page scroll, so a section link chosen in it is followed once it closes.
   const pendingHash = useRef<string | null>(null);
+  const { theme, setPreference } = useTheme();
+  const nextTheme = theme === 'dark' ? 'light' : 'dark';
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background">
       <div className="landing-container flex h-16 items-center justify-between gap-6">
         <a
-          href="#top"
+          href={`${base}#top`}
           className="relative block h-8 w-[118px] shrink-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           <Image
@@ -40,7 +44,7 @@ export function LandingHeader() {
             {SECTION_LINKS.map((link) => (
               <li key={link.href}>
                 <a
-                  href={link.href}
+                  href={base + link.href}
                   className="inline-flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-foreground/75 transition-colors duration-fast hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   {link.label}
@@ -51,6 +55,18 @@ export function LandingHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={`Switch to ${nextTheme} mode`}
+            onClick={() => setPreference(nextTheme)}
+          >
+            {theme === 'dark' ? (
+              <Sun className="h-5 w-5" aria-hidden />
+            ) : (
+              <Moon className="h-5 w-5" aria-hidden />
+            )}
+          </Button>
           <Button asChild className="hidden sm:inline-flex">
             <a href={CONTACT_HREF} data-cta="contact">
               Contact the team
@@ -70,7 +86,7 @@ export function LandingHeader() {
               onCloseAutoFocus={(event) => {
                 if (!pendingHash.current) return;
                 event.preventDefault();
-                window.location.hash = pendingHash.current;
+                window.location.href = pendingHash.current;
                 pendingHash.current = null;
               }}
             >
@@ -83,10 +99,10 @@ export function LandingHeader() {
                     <li key={link.href}>
                       <SheetClose asChild>
                         <a
-                          href={link.href}
+                          href={base + link.href}
                           onClick={(event) => {
                             event.preventDefault();
-                            pendingHash.current = link.href;
+                            pendingHash.current = base + link.href;
                             setMenuOpen(false);
                           }}
                           className="flex min-h-12 items-center border-b border-border text-base font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
