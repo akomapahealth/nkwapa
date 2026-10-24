@@ -249,7 +249,7 @@ export const TELEMETRY_EVENTS = {
     category: 'engagement',
     client: true,
     description: 'A landing page call to action was used.',
-    properties: { target: oneOf('workflow', 'product') },
+    properties: { target: oneOf('workflow', 'product', 'contact', 'akomapa') },
   }),
 } as const satisfies Record<string, TelemetryEventDefinition>;
 
