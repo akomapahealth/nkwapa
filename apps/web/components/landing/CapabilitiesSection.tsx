@@ -17,6 +17,7 @@ export function CapabilitiesSection() {
       <div className="landing-container">
         <h2
           id="capabilities-title"
+          data-split
           className="max-w-3xl text-balance font-heading text-4xl font-semibold leading-[1.08] tracking-[-0.015em] sm:text-5xl"
           data-reveal
         >
@@ -28,14 +29,16 @@ export function CapabilitiesSection() {
             className="overflow-hidden rounded-xl border border-border bg-background lg:col-span-7"
             data-reveal
           >
-            <Image
-              src="/images/Akomapa-17.jpg"
-              alt="A volunteer takes a woman's blood pressure at a table during a community screening."
-              width={3600}
-              height={2400}
-              sizes="(min-width: 1024px) 55vw, 100vw"
-              className="aspect-[16/9] w-full object-cover"
-            />
+            <div data-reveal-image className="overflow-hidden">
+              <Image
+                src="/images/Akomapa-17.jpg"
+                alt="A volunteer takes a woman's blood pressure at a table during a community screening."
+                width={3600}
+                height={2400}
+                sizes="(min-width: 1024px) 55vw, 100vw"
+                className="aspect-[16/9] w-full object-cover"
+              />
+            </div>
             <div className="p-6 sm:p-10">
               <h3 className="font-heading text-3xl font-semibold leading-tight sm:text-4xl">
                 Keeps working when the internet doesn&apos;t.

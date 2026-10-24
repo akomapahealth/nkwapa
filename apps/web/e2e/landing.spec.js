@@ -120,6 +120,17 @@ test('scroll reveals finish with all content visible', async ({ page }) => {
   expect(hidden).toBe(0);
 });
 
+test('the clinic day pins on wide screens and ends on its last step', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await expect(page.locator('[data-journey-pinned]')).toHaveCount(1);
+  await scrollThrough(page);
+  await page.locator('#care-teams').scrollIntoViewIfNeeded();
+  await page.waitForTimeout(1000);
+  const last = page.locator('[data-step-text]').last();
+  await expect(last).toBeVisible();
+});
+
 test.describe('with reduced motion', () => {
   test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
@@ -132,6 +143,19 @@ test.describe('with reduced motion', () => {
       );
     expect(states.length).toBeGreaterThan(10);
     expect(new Set(states)).toEqual(new Set(['1visible']));
+  });
+
+  test('the clinic day is a plain list with every step and image showing', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    await expect(page.locator('[data-journey-pinned]')).toHaveCount(0);
+    const steps = page.locator('[data-journey-step]');
+    await expect(steps).toHaveCount(5);
+    for (const step of await steps.all()) {
+      await step.scrollIntoViewIfNeeded();
+      await expect(step.locator('h3')).toBeVisible();
+      await expect(step.locator('img').first()).toBeVisible();
+    }
   });
 
   test('has no WCAG 2.2 AA violations axe can detect', async ({ page }) => {

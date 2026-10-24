@@ -58,6 +58,7 @@ export function ProductShowcase() {
         <div className="grid gap-6 lg:grid-cols-12 lg:items-end" data-reveal>
           <h2
             id="product-title"
+            data-split
             className="text-balance font-heading text-4xl font-semibold leading-[1.06] tracking-[-0.015em] sm:text-5xl lg:col-span-7 lg:text-6xl"
           >
             See what a clinic day looks like in Nkwapa.
@@ -74,6 +75,7 @@ export function ProductShowcase() {
               <span
                 key={item.title}
                 aria-hidden
+                data-marker
                 className="absolute"
                 style={{ left: item.left, top: item.top }}
               >

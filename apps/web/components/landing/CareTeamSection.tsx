@@ -36,6 +36,7 @@ export function CareTeamSection() {
             <p className="text-eyebrow text-primary">Who it&apos;s for</p>
             <h2
               id="care-teams-title"
+              data-split
               className="mt-3 text-balance font-heading text-4xl font-semibold leading-[1.08] tracking-[-0.015em] sm:text-5xl"
             >
               Built around the people providing care.
@@ -45,16 +46,18 @@ export function CareTeamSection() {
               role.
             </p>
             <figure className="mt-10">
-              <Image
-                src="/images/Akomapa-3.jpg"
-                alt="A volunteer enters a patient's details on a laptop at an intake table while the patient sits across from him."
-                width={3600}
-                height={2250}
-                sizes="(min-width: 1024px) 38vw, 100vw"
-                className="aspect-[3/2] w-full rounded-xl object-cover"
-              />
+              <div data-reveal-image className="overflow-hidden rounded-xl">
+                <Image
+                  src="/images/Akomapa-34.jpg"
+                  alt="A volunteer points to letters on an eye chart while a seated patient reads them aloud."
+                  width={3093}
+                  height={3600}
+                  sizes="(min-width: 1024px) 38vw, 100vw"
+                  className="aspect-[5/4] w-full object-cover"
+                />
+              </div>
               <figcaption className="mt-3 text-sm text-muted-foreground">
-                Intake on a laptop at an Akomapa clinic.
+                An eye screening station run by volunteers.
               </figcaption>
             </figure>
           </div>

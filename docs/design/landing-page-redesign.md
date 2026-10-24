@@ -38,19 +38,19 @@ From `docs/design-system/MASTER.md` and `app/globals.css`, unchanged:
 
 ## 5. Page architecture
 
-| #   | Section                      | Purpose                                                | Layout                                          |
-| --- | ---------------------------- | ------------------------------------------------------ | ----------------------------------------------- |
-| 1   | Header                       | Logo, four anchors, "Contact the team"                 | Sticky solid bar; sheet menu below `lg`         |
-| 2   | Hero                         | What Nkwapa is, in one sentence, with the real product | Split: copy left, desktop + phone right         |
-| 3   | Problem                      | The disconnected-records problem in clinic terms       | Large serif statement, photo, ruled list        |
-| 4   | How it works                 | Register, check in, measure, review, follow up         | Horizontal ordered list on `lg`, vertical below |
-| 5   | Product (`#product`)         | Desktop and phone screenshots with annotations         | Dark band, framed screenshots                   |
-| 6   | Who it's for (`#care-teams`) | Volunteers, doctors, managers, directors, patients     | Sticky photo beside role rows                   |
-| 7   | Capabilities                 | Offline work, chronic-care structure, several clinics  | One large story and two smaller ones            |
-| 8   | About (`#about`)             | The Akomapa clinic context                             | Photo mosaic with text                          |
-| 9   | Safeguards                   | Access, isolation, audit, sign-off, consent            | Ruled two-column list                           |
-| 10  | Closing CTA                  | Contact the team, learn about Akomapa                  | Full-width teal band                            |
-| 11  | Footer                       | Anchors, Akomapa, contact email, Privacy and Terms     | Columns on cream                                |
+| #   | Section                        | Purpose                                                                          | Layout                                              |
+| --- | ------------------------------ | -------------------------------------------------------------------------------- | --------------------------------------------------- |
+| 1   | Header                         | Logo, four anchors, "Contact the team"                                           | Sticky solid bar; sheet menu below `lg`             |
+| 2   | Hero                           | What Nkwapa is, in one sentence, with the real product                           | Split: copy left, desktop + phone right             |
+| 3   | Problem                        | The disconnected-records problem in clinic terms                                 | Large serif statement, photo, ruled list            |
+| 4   | A clinic day (`#how-it-works`) | Register, check in, measure, review, follow up, each with a real photo or screen | Pinned step-by-step story on `lg`, plain list below |
+| 5   | Product (`#product`)           | Desktop and phone screenshots with annotations                                   | Dark band, framed screenshots                       |
+| 6   | Who it's for (`#care-teams`)   | Volunteers, doctors, managers, directors, patients                               | Sticky photo beside role rows                       |
+| 7   | Capabilities                   | Offline work, chronic-care structure, several clinics                            | One large story and two smaller ones                |
+| 8   | About (`#about`)               | The Akomapa clinic context                                                       | Photo mosaic with text                              |
+| 9   | Safeguards                     | Access, isolation, audit, sign-off, consent                                      | Ruled two-column list                               |
+| 10  | Closing CTA                    | Contact the team, learn about Akomapa                                            | Full-width teal band                                |
+| 11  | Footer                         | Anchors, Akomapa, contact email, Privacy and Terms                               | Columns on cream                                    |
 
 `/privacy` and `/terms` (`components/landing/LegalPage.tsx`) reuse the header and footer with `base="/"`, so their section links lead back to `/`. They supplement Akomapa's own [privacy policy](https://akomapa.org/privacy-policy) and [terms](https://akomapa.org/terms), which both say Nkwapa needs its own notices for clinical information. Every statement about data handling on them is taken from the code and specs; they are drafts awaiting the project owner's approval.
 
@@ -63,10 +63,14 @@ The CTAs are `mailto:info@akomapa.org` and `https://akomapa.org`, both confirmed
 - **Hero entrance:** pure CSS keyframes, so it plays on first paint without waiting for hydration and never leaves the headline invisible if JavaScript is slow. The screenshots move with transform only, never opacity, so they stay the LCP candidate from the first frame.
 - **GSAP (`components/landing/LandingMotion.tsx`):** `useGSAP` scoped to the page wrapper, inside `gsap.matchMedia()`, so everything reverts on unmount and under reduced motion. It drives:
   - Section reveals (`[data-reveal]`, `gsap.from`, play once). Content is visible in the server HTML and is hidden only by JavaScript that will also reveal it.
-  - The journey progress line, scrubbed with ScrollTrigger, on `lg` and wider only.
+  - The clinic day: on `lg` and wider, the section pins and scrubs through its five steps. Each step's photo or screenshot wipes up over the last (`clip-path`), the text crossfades, and a progress line fills. `LandingMotion` sets `data-journey-pinned`, which stacks the steps in one grid cell (`globals.css`); without it, or under reduced motion, the same markup is a plain ordered list. Arriving from `/privacy` or `/terms` with a `#hash` re-scrolls once the pin spacer exists.
+  - Section headlines (`[data-split]`) rise line by line from behind a mask (GSAP `SplitText`, bundled with gsap). The hero `h1` keeps its CSS entrance so it never waits on JavaScript.
+  - The problem statement (`[data-scrub-words]`) reads itself in word by word as it scrolls past.
+  - Photographs (`[data-reveal-image]`) wipe up into place, and the large About photo (`[data-parallax]`) drifts slightly on `lg`.
+  - The numbered markers on the product screenshot pop in one after another.
   - The product screenshot settling from 94% to 100% scale. It never crops.
   - A small upward drift of the hero phone on scroll, on `lg` only.
-- **No pinning, no scroll-jacking, no loops.** `prefers-reduced-motion: reduce` skips every GSAP tween, and the existing global rule in `globals.css` cancels the CSS entrance.
+- **One pin, no scroll-jacking, no loops.** The clinic day is the only pinned section, and only on wide screens. `prefers-reduced-motion: reduce` skips every GSAP tween, and the existing global rule in `globals.css` cancels the CSS entrance.
 
 ## 7. Component library decisions
 

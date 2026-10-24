@@ -31,6 +31,7 @@ export function TrustSection() {
         <div className="lg:col-span-4" data-reveal>
           <h2
             id="safeguards-title"
+            data-split
             className="text-balance font-heading text-3xl font-semibold leading-[1.12] tracking-[-0.01em] sm:text-4xl"
           >
             Careful with the records people trust you with.
