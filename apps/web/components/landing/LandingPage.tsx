@@ -1,45 +1,43 @@
-'use client';
-
 import { LandingAnalytics } from './LandingAnalytics';
-import { LandingNav } from './LandingNav';
+import { LandingHeader } from './LandingHeader';
+import { LandingMotion } from './LandingMotion';
 import { HeroSection } from './HeroSection';
-import { TrustBar } from './TrustBar';
-import { ProblemSolutionSection } from './ProblemSolutionSection';
-import { OurStorySection } from './OurStorySection';
-import { BentoFeaturesSection } from './BentoFeaturesSection';
-import { WorkflowSection } from './WorkflowSection';
-import { DashboardPreviewSection } from './DashboardPreviewSection';
-import { ImpactSection } from './ImpactSection';
-import { ClinicalTeamSection } from './ClinicalTeamSection';
-import { TestimonialsSection } from './TestimonialsSection';
-import { EnterpriseAssuranceSection } from './EnterpriseAssuranceSection';
-import { SubscribeSection } from './SubscribeSection';
-import { Footer } from './Footer';
+import { ProblemSection } from './ProblemSection';
+import { ClinicalJourney } from './ClinicalJourney';
+import { ProductShowcase } from './ProductShowcase';
+import { CareTeamSection } from './CareTeamSection';
+import { CapabilitiesSection } from './CapabilitiesSection';
+import { ClinicalContextSection } from './ClinicalContextSection';
+import { TrustSection } from './TrustSection';
+import { LandingCTA } from './LandingCTA';
+import { LandingFooter } from './LandingFooter';
 
-/**
- * Marketing landing for Nkwapa EMR. Layout and section patterns informed by
- * 21st.dev / Magic MCP component inspiration (hero + bento grid + social proof).
- */
+/** The public page at `/`. Design record: docs/design/landing-page-redesign.md. */
 export function LandingPage() {
   return (
-    <div className="min-h-screen bg-background">
+    <div data-landing className="min-h-screen bg-background text-foreground">
+      <a
+        href="#main"
+        className="sr-only z-50 rounded-md bg-primary px-4 py-3 text-primary-foreground focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+      >
+        Skip to content
+      </a>
       <LandingAnalytics />
-      <LandingNav />
-      <main>
-        <HeroSection />
-        <TrustBar />
-        <ProblemSolutionSection />
-        <OurStorySection />
-        <BentoFeaturesSection />
-        <WorkflowSection />
-        <DashboardPreviewSection />
-        <ImpactSection />
-        <ClinicalTeamSection />
-        <TestimonialsSection />
-        <EnterpriseAssuranceSection />
-        <SubscribeSection />
-      </main>
-      <Footer />
+      <LandingHeader />
+      <LandingMotion>
+        <main id="main">
+          <HeroSection />
+          <ProblemSection />
+          <ClinicalJourney />
+          <ProductShowcase />
+          <CareTeamSection />
+          <CapabilitiesSection />
+          <ClinicalContextSection />
+          <TrustSection />
+          <LandingCTA />
+        </main>
+      </LandingMotion>
+      <LandingFooter />
     </div>
   );
 }
