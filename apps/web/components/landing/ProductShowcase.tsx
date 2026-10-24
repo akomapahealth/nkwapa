@@ -69,7 +69,7 @@ export function ProductShowcase() {
         </div>
 
         <div data-showcase className="mt-14 hidden lg:block">
-          <DesktopFrame sizes="(min-width: 1216px) 1150px, 92vw">
+          <DesktopFrame priority sizes="(min-width: 1216px) 1150px, 92vw">
             {ANNOTATIONS.map((item, index) => (
               <span
                 key={item.title}
@@ -105,7 +105,11 @@ export function ProductShowcase() {
             className="order-first flex flex-col items-center gap-6 lg:order-none lg:col-span-4 lg:col-start-9 lg:items-start"
             data-reveal
           >
-            <PhoneFrame sizes="(min-width: 1024px) 260px, 64vw" className="w-[64%] max-w-[17rem]" />
+            <PhoneFrame
+              priority
+              sizes="(min-width: 1024px) 260px, 64vw"
+              className="w-[64%] max-w-[17rem]"
+            />
             <figcaption className="max-w-sm text-center text-sm leading-relaxed text-muted-foreground lg:text-left">
               On a phone, the menu folds behind one button and the dashboard stacks into a single
               column.
@@ -138,6 +142,8 @@ export function ProductShowcase() {
                     width={3840}
                     height={2160}
                     sizes="960px"
+                    loading="eager"
+                    fetchPriority="high"
                     className="block h-auto w-[960px] max-w-none sm:w-full sm:max-w-full"
                   />
                 </div>

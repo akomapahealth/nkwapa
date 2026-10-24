@@ -14,6 +14,8 @@ interface FrameProps {
   children?: React.ReactNode;
 }
 
+// Every copy of a screenshot must opt in, not just the hero. Next's dev LCP check
+// remembers one entry per image URL, and a later lazy copy overwrites the eager one.
 const priorityProps = (priority?: boolean) =>
   priority ? ({ loading: 'eager', fetchPriority: 'high' } as const) : {};
 
