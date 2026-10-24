@@ -109,7 +109,7 @@ The CTAs are `mailto:info@akomapa.org` and `https://akomapa.org`, both confirmed
 
 ## Release banner
 
-`LATEST_RELEASE` in `components/landing/ReleaseBanner.tsx` holds the version, date and a one-sentence summary in plain words, taken from the GitHub release. Update it with every release; a new `version` shows the banner again to visitors who dismissed the previous one (the dismissal lives in `localStorage`). It does not link to GitHub, following the no-GitHub-link decision above.
+`LATEST_RELEASE` in `components/landing/ReleaseBanner.tsx` holds the version and release date; the banner only announces the version. A later "what's new" dialog, opened from the version (`[data-release-version]`), will explain what was added or fixed in plain words. Update it with every release; a new `version` shows the banner again to visitors who dismissed the previous one (the dismissal lives in `localStorage`). It does not link to GitHub, following the no-GitHub-link decision above.
 
 ## Patterns worth carrying into the workspace redesign later
 

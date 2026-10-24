@@ -8,11 +8,8 @@ import { X } from 'lucide-react';
  * who dismissed the previous one.
  */
 export const LATEST_RELEASE = {
-  version: '1.2',
-  label: 'beta',
+  version: '1.2.0',
   date: '2026-10-12',
-  summary: 'Register patients who have no ID document, and add or correct an ID later.',
-  short: 'Register without an ID.',
 };
 
 const DISMISSED_KEY = 'nkwapa.release-banner.dismissed';
@@ -55,17 +52,18 @@ export function ReleaseBanner() {
     >
       <div className="landing-container flex h-11 items-center gap-4 text-sm">
         <p className="flex min-w-0 flex-1 items-baseline gap-3 motion-safe:animate-landing-rise">
-          <span className="shrink-0 font-heading text-base font-semibold">
-            Nkwapa {LATEST_RELEASE.version}
-            <span className="hidden font-body text-xs font-medium min-[400px]:inline">
-              {' '}
-              ({LATEST_RELEASE.label})
-            </span>
+          {/* The version becomes the trigger for a "what's new" dialog once release notes exist. */}
+          <span className="truncate">
+            <span data-release-version className="font-heading text-base font-semibold">
+              Nkwapa {LATEST_RELEASE.version}
+            </span>{' '}
+            is out now.
           </span>
-          <span aria-hidden className="h-3 w-px shrink-0 self-center bg-primary-foreground/40" />
-          <span className="truncate sm:hidden">{LATEST_RELEASE.short}</span>
-          <span className="hidden truncate sm:inline">{LATEST_RELEASE.summary}</span>
-          <time dateTime={LATEST_RELEASE.date} className="ml-auto hidden shrink-0 md:inline">
+          <span
+            aria-hidden
+            className="hidden h-3 w-px shrink-0 self-center bg-primary-foreground/40 sm:block"
+          />
+          <time dateTime={LATEST_RELEASE.date} className="hidden shrink-0 sm:inline">
             Released {released}
           </time>
         </p>
