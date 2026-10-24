@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Poppins:wght@400;500;600;700;800;900&family=Source+Serif+4:wght@200..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Serif+4:wght@200..900&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -8,7 +8,6 @@
   :root {
     --font-heading: 'Source Serif 4';
     --font-body: 'IBM Plex Sans';
-    --font-landing: 'Poppins';
     --background: 54 63% 97%;
     --foreground: 200 25% 15%;
     --card: 50 33% 98%;
@@ -110,16 +109,6 @@
     --chart-5: 20 99% 36%; /* #B73E01 rust    5.48:1 */
 
     /*
-      The landing page's fourth accent, at the value it has always rendered.
-
-      It used to reach for --chart-3, which pinned a chart series token to marketing furniture and
-      meant the series ramp could not be re-derived without repainting the landing page. The
-      landing page is a Persuade surface with its own treatment (MASTER.md section 3), so it gets
-      its own token. Do not use it on a clinical view.
-    */
-    --landing-accent: 191 60% 25%;
-
-    /*
       --chart-2 is the one slot below 3:1 on the card, and no yellow can clear it on a near-white
       ground while still reading as yellow. Every chart that uses it therefore names its series in
       a legend and labels the marks directly, so colour is never the only channel.
@@ -199,7 +188,6 @@
     --chart-3: 326 55% 46%; /* #B6357E magenta 3.06:1 */
     --chart-4: 246 96% 74%; /* #8A7DFC violet  5.17:1 */
     --chart-5: 20 96% 41%; /* #CD4704 rust    3.62:1 */
-    --landing-accent: 191 50% 35%;
   }
 }
 
@@ -247,38 +235,109 @@
     background-size: 24px 24px;
   }
 
-  /* Landing: soft mesh + noise for contemporary SaaS hero (21st-style depth) */
-  .landing-hero-mesh {
-    background-color: hsl(var(--background));
-    background-image:
-      radial-gradient(ellipse 80% 60% at 70% 0%, hsl(var(--primary) / 0.12) 0%, transparent 55%),
-      radial-gradient(ellipse 60% 50% at 10% 90%, hsl(var(--secondary) / 0.14) 0%, transparent 50%),
-      /* Was a literal hsl(191 60% 92%), the only hard-coded colour left in the utility layer and
-         the reason the mesh drifted from the brand when --primary moved onto the logo hue. */
-        radial-gradient(ellipse 50% 40% at 90% 70%, hsl(var(--primary) / 0.08) 0%, transparent 45%);
+  /* The landing page's one content width. Public page only; see docs/design/landing-page-redesign.md. */
+  .landing-container {
+    @apply mx-auto w-full max-w-[76rem] px-5 sm:px-8;
   }
 
-  /* Landing: secondary-biased gradient mesh */
-  .landing-gradient-mesh-alt {
-    background-color: hsl(var(--background));
-    background-image:
-      radial-gradient(ellipse 70% 50% at 20% 10%, hsl(var(--secondary) / 0.1) 0%, transparent 55%),
-      radial-gradient(ellipse 60% 50% at 80% 80%, hsl(var(--primary) / 0.08) 0%, transparent 50%);
+  /* Long-form text on /privacy and /terms. */
+  .legal-prose {
+    @apply max-w-[68ch] text-base leading-relaxed text-foreground/85;
   }
+  .legal-prose h2 {
+    @apply mt-14 scroll-mt-20 border-t border-border pt-8 font-heading text-2xl font-semibold text-foreground sm:text-3xl;
+  }
+  /* Section numbers, matching the contents list; hidden from screen readers where supported. */
+  .legal-prose {
+    counter-reset: legal-section;
+  }
+  .legal-prose > section > h2::before {
+    counter-increment: legal-section;
+    content: counter(legal-section, decimal-leading-zero);
+    content: counter(legal-section, decimal-leading-zero) / '';
+    @apply mb-3 block font-heading text-sm font-semibold tabular-nums text-primary;
+  }
+  .legal-prose section:first-child h2 {
+    @apply mt-8 border-t-0 pt-0;
+  }
+  .legal-prose h3 {
+    @apply mt-8 font-body text-base font-semibold text-foreground;
+  }
+  .legal-prose p,
+  .legal-prose ul {
+    @apply mt-4;
+  }
+  .legal-prose ul {
+    @apply list-disc space-y-2 pl-5 marker:text-primary;
+  }
+  .legal-prose a {
+    @apply rounded-sm font-medium text-primary underline underline-offset-4 hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring;
+  }
+  .legal-prose strong {
+    @apply font-semibold text-foreground;
+  }
+}
 
-  /* Landing: glass morphism utilities.
-     Built on --card rather than literal white so the panel survives dark mode; the previous
-     `bg-white/70` rendered a white slab on a dark canvas. */
-  .landing-glass {
-    @apply border border-border/60 shadow-lg backdrop-blur-xl;
-    background-color: hsl(var(--card) / 0.7);
+/* The hero fills the first screen: the sticky header always, the release banner while it shows. */
+[data-landing]:has([data-release-banner]) #top {
+  min-height: calc(100svh - 4rem - 2.75rem);
+}
+.landing-scroll-pulse {
+  stroke-dasharray: 18 100;
+  stroke-dashoffset: 18;
+  animation: landing-scroll-pulse 2.4s var(--ease-in-out) infinite;
+}
+@keyframes landing-scroll-pulse {
+  to {
+    stroke-dashoffset: -100;
   }
-  .landing-glass-dark {
-    background: hsl(var(--foreground) / 0.85);
-    backdrop-filter: blur(24px);
-    border: 1px solid hsl(var(--foreground) / 0.2);
-    color: hsl(var(--primary-foreground));
+}
+
+/* Reading progress on /privacy and /terms, tied to the scroll position. */
+.legal-progress {
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+}
+@supports (animation-timeline: scroll()) {
+  .legal-progress {
+    animation: legal-progress linear both;
+    animation-timeline: scroll(root);
   }
+}
+@keyframes legal-progress {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* Set by LandingMotion on wide screens only: the clinic day steps share one cell and play in turn. */
+[data-journey-pinned] [data-journey-list] {
+  gap: 0;
+}
+[data-journey-pinned] [data-journey-step] {
+  grid-area: 1 / 1;
+}
+[data-journey-pinned] [data-journey-progress] {
+  display: block;
+}
+/* The role deck, likewise: every role in one cell, so the cards stack into a deck. */
+[data-deck-pinned] [data-deck-list] {
+  gap: 0;
+}
+[data-deck-pinned] [data-deck-item] {
+  grid-area: 1 / 1;
+}
+
+/* SplitText line masks: room for serif descenders, which the mask would otherwise clip. */
+[data-split] > * {
+  padding-bottom: 0.14em;
+  margin-bottom: -0.14em;
+}
+
+/* Anchor links on the landing page glide; the reduced-motion rule below turns this off. */
+html:has([data-landing]) {
+  scroll-behavior: smooth;
+  scroll-padding-top: 4rem;
 }
 
 @keyframes loading-bar {

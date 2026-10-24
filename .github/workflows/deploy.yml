@@ -216,10 +216,19 @@ jobs:
             git push origin "$TAG"
           fi
 
+          # The merged PR's "## For clinic teams" section, which the landing page shows as the
+          # release's plain-language notes (apps/web/lib/release-notes.ts). Empty when absent.
+          PR_BODY=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" \
+            --jq '[.[] | select(.merge_commit_sha == env.GITHUB_SHA) | .body][0] // ""')
+          CLINIC_NOTES=$(printf '%s\n' "$PR_BODY" | tr -d '\r' |
+            awk '/^## For clinic teams[[:space:]]*$/ { on = 1; print; next } on && /^## / { exit } on')
+          NOTES=()
+          if [ -n "$CLINIC_NOTES" ]; then NOTES=(--notes "$CLINIC_NOTES"); fi
+
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             # A full release marked Latest, so the repo page shows it; a pre-release can never be
             # Latest. "(beta)" in the title still says where Nkwapa is.
             gh release create "$TAG" --verify-tag --latest --title "$TAG (beta)" \
-              --generate-notes ${PREVIOUS:+--notes-start-tag "$PREVIOUS"}
+              --generate-notes "${NOTES[@]}" ${PREVIOUS:+--notes-start-tag "$PREVIOUS"}
           fi
           echo "### Release: $TAG" >> "$GITHUB_STEP_SUMMARY"

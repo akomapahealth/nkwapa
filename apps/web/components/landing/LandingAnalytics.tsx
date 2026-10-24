@@ -17,5 +17,15 @@ export function LandingAnalytics() {
     }
   }, [pathname]);
 
+  // One delegated listener, so the call-to-action links can stay in server components.
+  useEffect(() => {
+    const onClick = (event: MouseEvent) => {
+      const cta = (event.target as Element | null)?.closest<HTMLElement>('[data-cta]');
+      if (cta) trackEvent('landing.cta.click', { target: cta.dataset.cta });
+    };
+    document.addEventListener('click', onClick);
+    return () => document.removeEventListener('click', onClick);
+  }, []);
+
   return null;
 }

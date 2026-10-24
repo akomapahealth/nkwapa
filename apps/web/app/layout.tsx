@@ -56,13 +56,13 @@ export const metadata: Metadata = {
     siteName: 'Nkwapa EMR',
     title: 'Nkwapa EMR',
     description:
-      'Multi-clinic hypertension and diabetes workflows for clinical teams and health systems.',
+      'Patient records and clinic workflows for hypertension and diabetes care, in one place.',
     images: [
       {
-        url: '/images/nkwapa-logo.png',
-        width: 1049,
-        height: 286,
-        alt: 'Nkwapa EMR',
+        url: '/og-image.jpg',
+        width: 1200,
+        height: 630,
+        alt: 'The Nkwapa home page: "Patient records and clinic workflows, in one place," beside the clinic dashboard on a laptop and a phone.',
       },
     ],
   },
@@ -70,8 +70,8 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Nkwapa EMR',
     description:
-      'Multi-clinic hypertension and diabetes workflows for clinical teams and health systems.',
-    images: ['/images/nkwapa-logo.png'],
+      'Patient records and clinic workflows for hypertension and diabetes care, in one place.',
+    images: ['/og-image.jpg'],
   },
 };
 
@@ -80,7 +80,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // suppressHydrationWarning: themeBootScript mutates <html> before React hydrates.
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link href="https://fonts.cdnfonts.com/css/circular-std" rel="stylesheet" />
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
       <body suppressHydrationWarning>

@@ -17,17 +17,6 @@ module.exports = {
       fontFamily: {
         heading: ['var(--font-heading)', 'Georgia', 'serif'],
         body: ['var(--font-body)', 'system-ui', 'sans-serif'],
-        'landing-heading': [
-          'Circular Std',
-          'var(--font-landing)',
-          'Poppins',
-          'Sofia Pro',
-          'Averta',
-          'Gilroy',
-          'sans-serif',
-        ],
-        'landing-body': ['Circular Std', 'var(--font-landing)', 'Poppins', 'sans-serif'],
-        'landing-nav': ['Circular Std', 'var(--font-landing)', 'Poppins', 'sans-serif'],
       },
       // Named rather than overriding Tailwind's own `ease-out`, so existing call sites keep the
       // curve they were tuned with and new motion opts in. Values live in globals.css.
@@ -41,9 +30,15 @@ module.exports = {
         base: 'var(--duration-base)',
       },
       keyframes: {
-        marquee: {
-          '0%': { transform: 'translateX(0)' },
-          '100%': { transform: 'translateX(-100%)' },
+        // Landing hero entrance. CSS rather than GSAP so it plays on first paint, before hydration.
+        // The screenshots move by transform only, so they are visible (and the LCP) from frame one.
+        'landing-rise': {
+          '0%': { opacity: '0', transform: 'translateY(14px)' },
+          '100%': { opacity: '1', transform: 'none' },
+        },
+        'landing-settle': {
+          '0%': { transform: 'translateY(28px) scale(0.985)' },
+          '100%': { transform: 'none' },
         },
         // The indeterminate refresh bar. Travels rather than pulsing, so it reads as "still
         // working" rather than as something blinking for attention.
@@ -59,7 +54,9 @@ module.exports = {
         },
       },
       animation: {
-        marquee: 'marquee var(--marquee-duration, 30s) linear infinite',
+        // `backwards`, not `both`: once finished the animation releases transform for GSAP's scroll drift.
+        'landing-rise': 'landing-rise 0.7s var(--ease-out) backwards',
+        'landing-settle': 'landing-settle 0.9s var(--ease-out) backwards',
         'refresh-sweep': 'refresh-sweep 1.1s ease-in-out infinite',
         'page-in': 'page-in var(--duration-fast) var(--ease-out) both',
       },
@@ -119,7 +116,6 @@ module.exports = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
-        'landing-accent': 'hsl(var(--landing-accent))',
         chart: {
           1: 'hsl(var(--chart-1))',
           2: 'hsl(var(--chart-2))',
