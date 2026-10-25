@@ -170,7 +170,6 @@ export class StatusService implements OnModuleDestroy {
           `${issuer.replace(/\/$/, '')}/.well-known/openid-configuration`,
           {
             signal: AbortSignal.timeout(2_500),
-            cache: 'no-store',
           },
         );
         if (!response.ok) throw new Error(`Discovery HTTP ${response.status}`);
@@ -183,7 +182,6 @@ export class StatusService implements OnModuleDestroy {
         if (!origin) throw new Error('Web origin missing');
         const response = await fetch(`${origin.replace(/\/$/, '')}/api/version`, {
           signal: AbortSignal.timeout(2_500),
-          cache: 'no-store',
         });
         if (!response.ok) throw new Error(`Web HTTP ${response.status}`);
         const version = (await response.json()) as { sha?: string | null };
