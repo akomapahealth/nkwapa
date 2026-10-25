@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { StatusPanel } from './StatusPanel';
 import {
   AKOMAPA_HREF,
   CONTACT_EMAIL,
@@ -12,7 +13,13 @@ import {
 const linkClass =
   'inline-flex min-h-11 items-center rounded-sm text-foreground/75 transition-colors duration-fast hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
-export function LandingFooter({ base = '' }: { base?: '' | '/' }) {
+export function LandingFooter({
+  base = '',
+  releaseVersion,
+}: {
+  base?: '' | '/';
+  releaseVersion?: string;
+}) {
   return (
     <footer className="border-t border-border bg-background">
       <div className="landing-container grid gap-10 py-14 sm:grid-cols-2 lg:grid-cols-12">
@@ -61,18 +68,21 @@ export function LandingFooter({ base = '' }: { base?: '' | '/' }) {
       </div>
       <div className="landing-container flex flex-col gap-2 border-t border-border py-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
         <p>&copy; {new Date().getFullYear()} Nkwapa. Developed in support of Akomapa.</p>
-        <ul className="flex gap-6">
-          <li>
-            <Link href={PRIVACY_HREF} className={linkClass}>
-              Privacy
-            </Link>
-          </li>
-          <li>
-            <Link href={TERMS_HREF} className={linkClass}>
-              Terms
-            </Link>
-          </li>
-        </ul>
+        <div className="flex flex-wrap items-center gap-6">
+          <StatusPanel releaseVersion={releaseVersion} />
+          <ul className="flex gap-6">
+            <li>
+              <Link href={PRIVACY_HREF} className={linkClass}>
+                Privacy
+              </Link>
+            </li>
+            <li>
+              <Link href={TERMS_HREF} className={linkClass}>
+                Terms
+              </Link>
+            </li>
+          </ul>
+        </div>
       </div>
     </footer>
   );

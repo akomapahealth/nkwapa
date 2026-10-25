@@ -18,7 +18,13 @@ const VIEWPORTS = [
   { width: 844, height: 390 },
 ];
 
-const CTA_HREFS = ['mailto:info@akomapa.org', 'https://akomapa.org', '/privacy', '/terms'];
+const CTA_HREFS = [
+  'mailto:info@akomapa.org',
+  'https://akomapa.org',
+  '/privacy',
+  '/terms',
+  '/login?next=%2Fstatus',
+];
 
 async function scrollThrough(page) {
   await page.evaluate(async () => {
@@ -46,6 +52,58 @@ test('fits every supported viewport without sideways scrolling', async ({ page }
     );
     expect(overflow, `${viewport.width}x${viewport.height}`).toBeLessThanOrEqual(1);
   }
+});
+
+test('status panel opens by keyboard, lists components, and copies a readable report', async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.route('**/status', (route) =>
+    route.fulfill({
+      json: {
+        status: 'degraded',
+        checkedAt: '2026-10-25T00:00:00.000Z',
+        components: ['database', 'redis', 'queues', 'email', 'auth', 'web'].map((name) => ({
+          name,
+          state: name === 'email' ? 'degraded' : 'operational',
+          reason: 'OK',
+          latencyMs: 12,
+        })),
+      },
+    }),
+  );
+  await page.goto('/');
+  const trigger = page.locator('footer summary');
+  await expect(trigger).toContainText('Degraded');
+  await trigger.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { name: 'System status' })).toBeVisible();
+  await expect(page.locator('footer details li')).toHaveCount(6);
+  await page.getByRole('button', { name: 'Copy report' }).click();
+  await expect(page.locator('footer [aria-live]')).toHaveText('Report copied');
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain(
+    '| Email | Degraded |',
+  );
+  await page.keyboard.press('Escape');
+  await expect(trigger).toBeFocused();
+  await expect(page.locator('footer details')).not.toHaveAttribute('open');
+});
+
+test('status panel reports API failure at narrow widths and with reduced motion', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.route('**/status', (route) => route.abort());
+  await page.goto('/');
+  const trigger = page.locator('footer summary');
+  await expect(trigger).toContainText('API unreachable');
+  await trigger.click();
+  await expect(page.getByText('The API could not be reached.')).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
+  ).toBeLessThanOrEqual(1);
 });
 
 test('shows the real product screenshots above the fold', async ({ page }) => {
