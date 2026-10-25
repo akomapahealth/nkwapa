@@ -65,7 +65,7 @@ export function LandingPage({ release }: { release: Release }) {
           <LandingCTA />
         </main>
       </LandingMotion>
-      <LandingFooter />
+      <LandingFooter releaseVersion={release.version} />
     </div>
   );
 }

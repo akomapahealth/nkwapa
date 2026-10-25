@@ -28,6 +28,7 @@ export interface EmailStatus {
 @Injectable()
 export class EmailStatusService {
   private readonly config: EmailConfig;
+  private latestSend: { success: boolean; at: string; error?: string } | null = null;
 
   constructor(@Optional() @Inject(EMAIL_CONFIG) config?: EmailConfig) {
     // Optional so tests can construct the service with an explicit config, while the
@@ -55,5 +56,13 @@ export class EmailStatusService {
   getHealthCheck(): string {
     if (this.config.readiness === 'smtp') return 'configured';
     return this.config.readiness === 'fake' ? 'fake' : 'not-configured';
+  }
+
+  recordSend(success: boolean, error?: string): void {
+    this.latestSend = { success, at: new Date().toISOString(), ...(error ? { error } : {}) };
+  }
+
+  getLatestSend(): { success: boolean; at: string; error?: string } | null {
+    return this.latestSend;
   }
 }

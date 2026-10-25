@@ -1,6 +1,7 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { HealthModule } from './health/health.module';
+import { StatusModule } from './status/status.module';
 import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
@@ -52,6 +53,7 @@ import { StaffActivityModule } from './staff-activity/staff-activity.module';
     RedisModule,
     MaintenanceModule,
     HealthModule,
+    StatusModule,
     AuthModule,
     AuditModule,
     TelemetryModule,
