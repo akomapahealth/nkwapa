@@ -649,19 +649,29 @@ test("a volunteer screening on someone else's account is named on each stop (#22
     timeout: 20_000,
   });
 
-  // A manager corrects the stop from the next station's visit, with a reason, and the name used
-  // before is offered as a suggestion.
+  // A manager corrects the stop from the next station's visit, with a reason, picking the person
+  // from the clinic's volunteer directory (#226).
+  const kwame = `Kwame Asante ${Date.now()}`;
+  const contact = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/volunteers`, {
+    clinicId,
+    data: { displayName: kwame, email: `kwame.${Date.now()}@nkwapa.local` },
+  });
+  expect(contact.ok(), contact.text()).toBeTruthy();
   const glucose = timeline.json().items.find((stop) => stop.station.kind === 'GLUCOSE');
   await page.goto(`/stations/visits/${glucose.id}`);
   const bpStop = page.getByRole('listitem').filter({ hasText: 'Blood pressure ·' });
   await bpStop.getByRole('button', { name: 'Correct who did this' }).click();
-  await expect(bpStop.locator('datalist option[value="Ama Mensah"]')).toHaveCount(1);
-  await bpStop.getByLabel('Who actually did it').fill('Kwame Asante');
+  await bpStop.getByLabel('Who actually did it').fill(kwame);
+  await bpStop.getByRole('button', { name: kwame, exact: true }).click();
+  await expect(bpStop.getByRole('button', { name: kwame, exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
   await bpStop.getByRole('button', { name: 'Save correction' }).click();
   await expect(bpStop.getByText('Say why this is being corrected.')).toBeVisible();
   await bpStop.getByLabel('Reason for the correction').fill('Ama handed over before this patient');
   await bpStop.getByRole('button', { name: 'Save correction' }).click();
-  await expect(bpStop.getByText(`Kwame Asante · signed in as ${account}`)).toBeVisible({
+  await expect(bpStop.getByText(`${kwame} · signed in as ${account}`)).toBeVisible({
     timeout: 20_000,
   });
 
