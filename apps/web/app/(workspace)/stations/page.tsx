@@ -286,7 +286,7 @@ export default function StationsPage() {
                         onClick={() => void chooseStation(selected ? null : station.id)}
                       >
                         <span className="min-w-0 break-words">{station.name}</span>
-                        <span className="shrink-0 text-xs opacity-80">
+                        <span className="shrink-0 text-xs">
                           {station.visits.filter((v) => v.status === 'QUEUED').length} waiting
                         </span>
                       </Button>
