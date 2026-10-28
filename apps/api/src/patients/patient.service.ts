@@ -24,6 +24,7 @@ import {
   PatientFindManyFilters,
   type PatientRegistrySort,
 } from './patient.repository';
+import { parseScreenedRange } from './registry-screened';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientBodyDto } from './dto/update-patient-body.dto';
 import {
@@ -283,8 +284,25 @@ export class PatientService {
       limit?: number;
       location?: ResidentialLocationFilters;
       sort?: PatientRegistrySort;
+      /** Clinic-local `YYYY-MM-DD` days a completed screening must fall on. */
+      screened?: { from?: string; to?: string };
     },
   ): Promise<PatientRegistryPage> {
+    const screenedRange = parseScreenedRange(options?.screened?.from, options?.screened?.to);
+    if (options?.sort?.field === 'lastScreenedAt') {
+      if (!screenedRange) {
+        throw new BadRequestException({
+          code: 'SORT_REQUIRES_SCREENED_FILTER',
+          message: 'Sorting by last screening needs a screened date filter.',
+        });
+      }
+      if (options.cursor) {
+        throw new BadRequestException({
+          code: 'CURSOR_UNSUPPORTED_FOR_SORT',
+          message: 'Use page and pageSize when sorting by last screening.',
+        });
+      }
+    }
     const normalizedPage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
     const normalizedPageSize = Math.min(
       100,

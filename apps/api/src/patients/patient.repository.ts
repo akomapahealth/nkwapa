@@ -20,7 +20,13 @@ export interface PatientFindManyFilters {
   sort?: PatientRegistrySort;
 }
 
-export const PATIENT_REGISTRY_SORT_FIELDS = ['updatedAt', 'name', 'patientCode'] as const;
+/** `lastScreenedAt` is sorted by the service, not by Prisma; see `listRegistry`. */
+export const PATIENT_REGISTRY_SORT_FIELDS = [
+  'updatedAt',
+  'name',
+  'patientCode',
+  'lastScreenedAt',
+] as const;
 export type PatientRegistrySortField = (typeof PATIENT_REGISTRY_SORT_FIELDS)[number];
 export interface PatientRegistrySort {
   field: PatientRegistrySortField;

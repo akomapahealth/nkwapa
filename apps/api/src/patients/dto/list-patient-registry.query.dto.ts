@@ -1,7 +1,9 @@
 import { GhanaRegion, PatientLocationStatus } from '@prisma/client';
-import { IsEnum, IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsEnum, IsIn, IsInt, IsOptional, Matches, Max, Min } from 'class-validator';
 import { PATIENT_REGISTRY_SORT_FIELDS, type PatientRegistrySortField } from '../patient.repository';
 import { ToCursor, ToOptionalNumber, ToSanitizedString } from '../../common/validation';
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export class ListPatientRegistryQueryDto {
   @IsOptional()
@@ -23,6 +25,16 @@ export class ListPatientRegistryQueryDto {
   @IsOptional()
   @IsEnum(PatientLocationStatus)
   residentialLocationStatus?: PatientLocationStatus;
+
+  /** First clinic-local day a completed screening may fall on. Alone, it means that one day. */
+  @IsOptional()
+  @Matches(ISO_DATE, { message: 'screenedFrom must be YYYY-MM-DD' })
+  screenedFrom?: string;
+
+  /** Last clinic-local day, inclusive. Requires `screenedFrom`. */
+  @IsOptional()
+  @Matches(ISO_DATE, { message: 'screenedTo must be YYYY-MM-DD' })
+  screenedTo?: string;
 
   @IsOptional()
   @ToOptionalNumber()
