@@ -109,6 +109,7 @@ export class ClinicsPatientsController {
           residentialCommunity: query.residentialCommunity,
           residentialLocationStatus: query.residentialLocationStatus,
         },
+        screened: { from: query.screenedFrom, to: query.screenedTo },
       },
     );
   }

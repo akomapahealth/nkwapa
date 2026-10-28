@@ -31,7 +31,7 @@ async function openChart(page, lastName) {
   await page.goto('/patients');
   await expect(page.locator('#main-content')).toBeVisible({ timeout: 30_000 });
 
-  await page.getByPlaceholder(/search by name, patient code/i).fill(lastName);
+  await page.getByLabel('Name, patient code, phone or ID last 4').fill(lastName);
   // Matched by name, not position: the search is debounced, so the first row can still be
   // the unfiltered one when the fill resolves.
   const row = page.getByRole('row', { name: new RegExp(lastName, 'i') });

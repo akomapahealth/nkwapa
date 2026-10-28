@@ -9,6 +9,7 @@ import { isUniqueViolation } from '../common/prisma-errors';
 import { EncounterService } from '../encounters/encounter.service';
 import { ConsentService } from '../consents/consent.service';
 import {
+  CLINIC_DEFAULT_TIMEZONE,
   encryptNationalId,
   hashNationalId,
   nationalIdLast4,
@@ -23,7 +24,14 @@ import {
   PatientRepository,
   PatientFindManyFilters,
   type PatientRegistrySort,
+  type ScreenedFilter,
 } from './patient.repository';
+import {
+  groupMatchingScreenings,
+  parseScreenedRange,
+  screenedWindow,
+  type MatchingScreening,
+} from './registry-screened';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientBodyDto } from './dto/update-patient-body.dto';
 import {
@@ -56,10 +64,14 @@ export interface PatientRegistryItem {
   phoneE164: string | null;
   email: string | null;
   nationalIdLast4: string | null;
+  /** Present only when the screened date filter is active. */
+  matchingScreenings?: MatchingScreening[];
 }
 
 export interface PatientRegistryPage {
   items: PatientRegistryItem[];
+  /** The clinic timezone the screened dates were read in; only with the screened filter. */
+  timezone?: string;
   total?: number;
   page?: number;
   pageSize: number;
@@ -283,8 +295,25 @@ export class PatientService {
       limit?: number;
       location?: ResidentialLocationFilters;
       sort?: PatientRegistrySort;
+      /** Clinic-local `YYYY-MM-DD` days a completed screening must fall on. */
+      screened?: { from?: string; to?: string };
     },
   ): Promise<PatientRegistryPage> {
+    const screenedRange = parseScreenedRange(options?.screened?.from, options?.screened?.to);
+    if (options?.sort?.field === 'lastScreenedAt') {
+      if (!screenedRange) {
+        throw new BadRequestException({
+          code: 'SORT_REQUIRES_SCREENED_FILTER',
+          message: 'Sorting by last screening needs a screened date filter.',
+        });
+      }
+      if (options.cursor) {
+        throw new BadRequestException({
+          code: 'CURSOR_UNSUPPORTED_FOR_SORT',
+          message: 'Use page and pageSize when sorting by last screening.',
+        });
+      }
+    }
     const normalizedPage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
     const normalizedPageSize = Math.min(
       100,
@@ -312,6 +341,16 @@ export class PatientService {
       residentialLocationStatus: options?.location?.residentialLocationStatus,
       sort: options?.sort,
     };
+    const screenedDays = screenedRange
+      ? screenedWindow(screenedRange, await this.clinicTimeZone(primaryClinicId))
+      : undefined;
+    if (screenedDays) {
+      filters.screened = {
+        clinicId: primaryClinicId,
+        start: screenedDays.start,
+        end: screenedDays.end,
+      };
+    }
 
     if (trimmed) {
       filters.search = trimmed;
@@ -321,6 +360,17 @@ export class PatientService {
           filters.phoneE164 = normalized;
         }
       }
+    }
+
+    if (options?.sort?.field === 'lastScreenedAt' && screenedDays && filters.screened) {
+      return this.listRegistryByLastScreened(
+        { ...filters, skip: undefined, take: undefined, sort: undefined },
+        filters.screened,
+        screenedDays.timezone,
+        options.sort.direction,
+        normalizedPage,
+        normalizedPageSize,
+      );
     }
 
     const items = await this.patientRepository.findMany(filters);
@@ -335,9 +385,22 @@ export class PatientService {
 
     const mappedItems = items.map((item) => this.toRegistryItem(item));
     const effectivePageSize = options?.cursor ? normalizedLimit : normalizedPageSize;
+    if (screenedDays && filters.screened) {
+      const screenings = groupMatchingScreenings(
+        await this.patientRepository.findMatchingScreenings(
+          mappedItems.map((item) => item.id),
+          filters.screened,
+        ),
+        screenedDays.timezone,
+      );
+      for (const item of mappedItems) {
+        item.matchingScreenings = screenings.get(item.id) ?? [];
+      }
+    }
 
     return {
       items: mappedItems,
+      ...(screenedDays ? { timezone: screenedDays.timezone } : {}),
       total,
       page: options?.cursor ? undefined : normalizedPage,
       pageSize: effectivePageSize,
@@ -547,6 +610,58 @@ export class PatientService {
   /** Enforce the deliberate residential-location invariant. See the util. */
   resolveResidentialLocation(input: ResidentialLocationInput): ResolvedResidentialLocation {
     return resolveResidentialLocation(input);
+  }
+
+  /**
+   * The registry ordered by each patient's latest matching screening day, ties on `id`.
+   * Prisma cannot order by an aggregate over a filtered relation, so this ranks in memory.
+   * shortcut: loads every matching id for the window (one clinic's screenings over at most 366
+   * days); move to a SQL CTE inside the RLS transaction if a clinic passes ~10k screenings a year.
+   */
+  private async listRegistryByLastScreened(
+    filters: PatientFindManyFilters,
+    screened: ScreenedFilter,
+    timeZone: string,
+    direction: 'asc' | 'desc',
+    page: number,
+    pageSize: number,
+  ): Promise<PatientRegistryPage> {
+    const ids = await this.patientRepository.findIds(filters);
+    const screenings = groupMatchingScreenings(
+      await this.patientRepository.findMatchingScreenings(ids, screened),
+      timeZone,
+    );
+    const sign = direction === 'asc' ? 1 : -1;
+    const pageIds = ids
+      .map((id) => ({ id, last: screenings.get(id)?.[0]?.date ?? '' }))
+      .sort((a, b) => sign * (a.last.localeCompare(b.last) || a.id.localeCompare(b.id)))
+      .slice((page - 1) * pageSize, page * pageSize)
+      .map((entry) => entry.id);
+    const byId = new Map(
+      (await this.patientRepository.findManyByIds(pageIds)).map((row) => [row.id, row]),
+    );
+    const items = pageIds.flatMap((id) => {
+      const row = byId.get(id);
+      return row
+        ? [{ ...this.toRegistryItem(row), matchingScreenings: screenings.get(id) ?? [] }]
+        : [];
+    });
+    return {
+      items,
+      timezone: timeZone,
+      total: ids.length,
+      page,
+      pageSize,
+      nextCursor: null,
+    };
+  }
+
+  private async clinicTimeZone(clinicId: string): Promise<string> {
+    const clinic = await this.prisma.clinic.findUnique({
+      where: { id: clinicId },
+      select: { timezone: true },
+    });
+    return clinic?.timezone ?? CLINIC_DEFAULT_TIMEZONE;
   }
 
   private toRegistryItem(patient: Patient): PatientRegistryItem {

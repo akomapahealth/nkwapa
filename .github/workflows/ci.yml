@@ -166,9 +166,10 @@ jobs:
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
       # The same guarantee one layer up: real requests through the RLS interceptor and the real
-      # services, as the unprivileged role, across two organizations and a straddling zone (#16).
+      # services, as the unprivileged role, across two organizations and a straddling zone (#16),
+      # plus the registry's completed-screening filter on that same footing (#224).
       - name: Verify organization and zone isolation end to end
-        run: npm run test --workspace=@nkwapa/api -- --runInBand src/tenancy/org-zone-isolation.integration.spec.ts
+        run: npm run test --workspace=@nkwapa/api -- --runInBand src/tenancy/org-zone-isolation.integration.spec.ts src/patients/patient-registry-screened.integration.spec.ts
         env:
           RUN_ORG_ZONE_ISOLATION_TESTS: '1'
           DATABASE_URL: ${{ env.DATABASE_URL }}
@@ -425,8 +426,9 @@ jobs:
         env:
           NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED: true
 
+      # The screened registry filter (#224) seeds a completed Review visit, so it needs this build.
       - name: Run the station workflow spec
-        run: npm run e2e --workspace=@nkwapa/web -- e2e/station-workflow.spec.js
+        run: npm run e2e --workspace=@nkwapa/web -- e2e/station-workflow.spec.js e2e/patient-registry-screened.spec.js
         env:
           FEATURE_STATION_WORKFLOW_ENABLED: true
           NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED: true

@@ -92,6 +92,65 @@ rather than blanked, so clinical note content never reaches a role without
 - supports search by patient code, name, phone, and related human-facing terms
 - excludes merged source charts from normal operator browsing
 - benefits from keyset-friendly and search-oriented indexes
+- filters by residential region, district, community and location status
+- filters by completed-screening date; see below
+- keeps every filter in the page URL, so a filtered view can be shared
+
+### Completed-screening filter (#224)
+
+`GET /clinics/:clinicId/patients?screenedFrom=YYYY-MM-DD[&screenedTo=YYYY-MM-DD]` lists patients who completed a screening at this clinic on a clinic-local day in the range. `screenedFrom` alone means that one day. The window runs from the start of `screenedFrom` to the end of `screenedTo` in `Clinic.timezone` (`clinicDayWindow`, so daylight-saving days are handled).
+
+A patient qualifies through a check-in **at this clinic** that is either:
+
+1. **Review completion.** A `PatientStationVisit` with `status = COMPLETED` at a `REVIEW` station, whose `completedAt` falls in the window. Source `REVIEW_STATION`.
+2. **Legacy completion.** A `PatientCheckIn` with `status = COMPLETED` and no station visits at all, whose `checkedInAt` falls in the window. This covers the 2026-10-10 screening-sheet import and check-ins from before the station line. No completion time was kept, so `completedAt` is null and the UI says "time not recorded". Source `LEGACY_CHECKIN`.
+
+These do not qualify:
+
+- check-ins that are WAITING, ASSIGNED, IN_PROGRESS or CANCELLED;
+- check-ins with station visits but no completed Review visit, including those marked COMPLETED by an encounter finalize;
+- screenings at another clinic.
+
+The registry stays scoped by `primaryClinicId`, so a patient registered elsewhere but screened here is not listed. Merges move check-ins to the surviving chart, and merge tombstones stay excluded.
+
+The filter is AND-ed with search, location and sort, and only ever narrows the registry. `total` counts patients, not screenings. Each item carries `matchingScreenings: [{ date, completedAt, source, checkInId }]`, newest first, and the page carries `timezone`. Without the date params, neither key is present.
+
+`sortBy=lastScreenedAt` ranks patients by their latest matching day, with ties on `id`, and requires the date filter. Prisma cannot order by an aggregate over a filtered relation, so the service loads the window's matching ids and ranks them in memory, inside the request's RLS transaction. This is bounded by one clinic's screenings over at most 366 days; move it to a SQL CTE if a clinic passes about 10k screenings a year. Cursor paging is rejected with this sort.
+
+Errors are 400s with a stable `code` and a `fieldErrors` entry:
+
+| Code                            | When                                             |
+| ------------------------------- | ------------------------------------------------ |
+| `VALIDATION_ERROR`              | a date that is not `YYYY-MM-DD`                  |
+| `INVALID_DATE`                  | a date that does not exist, such as `2026-02-30` |
+| `SCREENED_FROM_REQUIRED`        | `screenedTo` without `screenedFrom`              |
+| `INVALID_DATE_RANGE`            | `screenedFrom` after `screenedTo`                |
+| `DATE_RANGE_TOO_LONG`           | more than 366 days                               |
+| `SORT_REQUIRES_SCREENED_FILTER` | `sortBy=lastScreenedAt` without a date           |
+| `CURSOR_UNSUPPORTED_FOR_SORT`   | `cursor` with `sortBy=lastScreenedAt`            |
+
+No index was added, and that was measured rather than assumed. The test was a synthetic year on a local Postgres:
+
+- 60k patients, 48k of them at the clinic;
+- 240k check-ins;
+- 1.08M station visits.
+
+Running through the RLS interceptor as the application role, Postgres drives the filter from `Patient` and probes `PatientCheckIn(patientId, checkedInAt)` and `PatientStationVisit(patientCheckInId, queuedAt)`. No large table gets a sequential scan.
+
+| Query                                          | Time                                                |
+| ---------------------------------------------- | --------------------------------------------------- |
+| page of 25, one day                            | about 90 ms                                         |
+| `matchingScreenings` for that page             | about 1 ms                                          |
+| `count`, one day                               | about 1.7 s                                         |
+| `count`, one day, with a name search           | about 0.3 s                                         |
+| `lastScreenedAt` ids for a year (48k patients) | 0.7–1.2 s, plus about 4 s to fetch their screenings |
+
+The day `count` is slow because Postgres estimates the filter matches every patient (43k estimated, 443 actual) and checks each one. Adding `PatientStationVisit(clinicId, status, completedAt)` did not change that plan. The `count` stayed at 1.7 s and Postgres did not use the index. So the limit is the shape of the query, not a missing index. It costs tens of milliseconds at today's volume, a few thousand patients a year.
+
+The upgrade path, once a clinic nears about 15k patients:
+
+1. Resolve the window's patient ids first, starting from the dated rows, with that index.
+2. Then filter the registry by those ids.
 
 ### Portal access
 

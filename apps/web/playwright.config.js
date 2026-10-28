@@ -21,6 +21,10 @@ module.exports = defineConfig({
   workers: isCI ? 1 : undefined,
   forbidOnly: isCI,
   retries: isCI ? 2 : 0,
+  // Stop a broken run early. Each failure retries twice with long timeouts, so a run with a few
+  // real failures used to outlive the 30-minute Keycloak session (#233: 3.2 h) and then fail
+  // ~70 unrelated specs at /login, burying the real cause.
+  maxFailures: isCI ? 10 : 0,
   reporter: isCI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL,

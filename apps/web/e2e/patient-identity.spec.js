@@ -22,7 +22,7 @@ async function openSeededChart(page, name) {
   await page.goto('/patients');
   await expect(page.locator('#main-content')).toBeVisible({ timeout: 30_000 });
 
-  await page.getByPlaceholder(/search by name, patient code/i).fill(name);
+  await page.getByLabel('Name, patient code, phone or ID last 4').fill(name);
   // Matched by name rather than position: the search is debounced, so the first row can still
   // be the unfiltered one when the fill resolves.
   const row = page.getByRole('row', { name: new RegExp(name, 'i') }).first();
