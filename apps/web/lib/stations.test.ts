@@ -1,5 +1,6 @@
 import {
   assignableStaff,
+  canCorrectPerformer,
   formatMinutes,
   isStationBoard,
   moveStation,
@@ -154,5 +155,27 @@ describe('who actually screened (#227)', () => {
     expect(map.get('kofi')).toBe('Ama');
     expect(map.get('esi')).toBeNull();
     expect(screenersByUser(undefined).size).toBe(0);
+  });
+});
+
+describe('canCorrectPerformer (#227)', () => {
+  const done = {
+    status: 'COMPLETED' as const,
+    completedBy: { id: 'kofi', displayName: 'Kofi' },
+    checkInStatus: 'IN_PROGRESS',
+  };
+  const kofi = { userId: 'kofi', canManage: false };
+
+  it('offers the completing account a fix until the session is done', () => {
+    expect(canCorrectPerformer(done, kofi)).toBe(true);
+    expect(canCorrectPerformer({ ...done, status: 'SKIPPED' }, kofi)).toBe(true);
+    expect(canCorrectPerformer({ ...done, checkInStatus: 'COMPLETED' }, kofi)).toBe(false);
+  });
+
+  it('offers a manager a fix at any time, and nobody one for an unfinished stop', () => {
+    const manager = { userId: 'mgr', canManage: true };
+    expect(canCorrectPerformer({ ...done, checkInStatus: 'COMPLETED' }, manager)).toBe(true);
+    expect(canCorrectPerformer(done, { userId: 'esi', canManage: false })).toBe(false);
+    expect(canCorrectPerformer({ ...done, status: 'IN_PROGRESS' }, manager)).toBe(false);
   });
 });

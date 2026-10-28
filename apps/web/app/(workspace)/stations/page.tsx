@@ -293,8 +293,14 @@ export default function StationsPage() {
                     );
                   })}
                   {currentShift && clinicId && getToken ? (
-                    <div className="mt-2 border-t pt-4">
-                      <p className="mb-2 text-sm font-medium">Who is working on this account?</p>
+                    <div
+                      role="group"
+                      aria-labelledby="screener-heading"
+                      className="mt-2 border-t pt-4"
+                    >
+                      <p id="screener-heading" className="mb-2 text-sm font-medium">
+                        Who is working on this account?
+                      </p>
                       <ScreenerControl
                         clinicId={clinicId}
                         shiftId={currentShift.shiftId}

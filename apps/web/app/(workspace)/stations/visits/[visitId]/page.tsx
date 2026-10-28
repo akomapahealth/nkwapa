@@ -7,7 +7,7 @@ import { ArrowLeft, History } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, type GetToken } from '@/lib/api';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { db, type DiabetesScreeningRecord, type VitalsRecord } from '@/lib/db';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
@@ -16,6 +16,7 @@ import { isFullySynced } from '@/lib/sync';
 import {
   cancelCheckIn,
   claimStationVisit,
+  canCorrectPerformer,
   completeStationVisit,
   fetchStationBoard,
   fetchStationVisit,
@@ -43,6 +44,7 @@ import { CounsellingForm } from '@/components/stations/CounsellingForm';
 import { EyeScreeningForm } from '@/components/stations/EyeScreeningForm';
 import { eyeScreeningPath, type EyeScreeningRecord } from '@/lib/eye-screening';
 import { StationResultsSummary } from '@/components/stations/StationResultsSummary';
+import { PerformerCorrection } from '@/components/stations/PerformerCorrection';
 import { ScreenerControl } from '@/components/stations/ScreenerControl';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -277,6 +279,7 @@ export default function StationVisitPage() {
                   variant="link"
                   size="sm"
                   className="h-auto p-0"
+                  aria-label="Change who is screening"
                   aria-expanded={changingScreener}
                   onClick={() => setChangingScreener((open) => !open)}
                 >
@@ -297,7 +300,22 @@ export default function StationVisitPage() {
               </InlineNotice>
             ) : null}
 
-            <Timeline timeline={visit.timeline} currentId={visit.id} timezone={timezone} />
+            <Timeline
+              timeline={visit.timeline}
+              currentId={visit.id}
+              timezone={timezone}
+              correction={
+                getToken
+                  ? {
+                      clinicId,
+                      viewer: { userId, canManage },
+                      isOnline,
+                      getToken,
+                      onCorrected: () => void load(),
+                    }
+                  : undefined
+              }
+            />
 
             {mine && visit.encounterId ? (
               <StationForm
@@ -383,10 +401,19 @@ function Timeline({
   timeline,
   currentId,
   timezone,
+  correction,
 }: {
   timeline: StationVisit[];
   currentId: string;
   timezone: string;
+  /** Who may fix who did each stop (#227); absent until signed in. */
+  correction?: {
+    clinicId: string;
+    viewer: { userId: string; canManage: boolean };
+    isOnline: boolean;
+    getToken: GetToken;
+    onCorrected: () => void;
+  };
 }) {
   const earlier = timeline.filter((stop) => stop.id !== currentId);
   if (!earlier.length) return null;
@@ -412,6 +439,15 @@ function Timeline({
               {stop.handoffNote ? <p className="mt-1">{stop.handoffNote}</p> : null}
               {stop.endReason && stop.status !== 'COMPLETED' ? (
                 <p className="mt-1 text-muted-foreground">Reason: {stop.endReason}</p>
+              ) : null}
+              {correction && canCorrectPerformer(stop, correction.viewer) ? (
+                <PerformerCorrection
+                  clinicId={correction.clinicId}
+                  stop={stop}
+                  isOnline={correction.isOnline}
+                  getToken={correction.getToken}
+                  onCorrected={correction.onCorrected}
+                />
               ) : null}
             </li>
           ))}

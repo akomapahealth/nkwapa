@@ -2,15 +2,22 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { useBootstrap } from '@/lib/bootstrap-context';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import type { DiabetesScreeningRecord, VitalsRecord } from '@/lib/db';
 import { OPS_DEFAULT_TIMEZONE, formatOpsDateTime } from '@/lib/ops';
-import { fetchEncounterStationTimeline, performerLabel, type StationVisit } from '@/lib/stations';
+import {
+  canCorrectPerformer,
+  fetchEncounterStationTimeline,
+  performerLabel,
+  type StationVisit,
+} from '@/lib/stations';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { EyeScreeningRecord } from '@/lib/eye-screening';
 import { CounsellingForm, type CounsellingRecord } from './CounsellingForm';
 import { EyeScreeningForm } from './EyeScreeningForm';
+import { PerformerCorrection } from './PerformerCorrection';
 import { StationResultsSummary } from './StationResultsSummary';
 
 const FOLLOW_UP_LABELS: Record<string, string> = {
@@ -45,6 +52,12 @@ export function StationSessionPanel({
 }) {
   const getToken = useAuth();
   const { isOnline } = useSync();
+  const bootstrap = useBootstrap()?.bootstrap ?? null;
+  const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
+  const viewer = {
+    userId: bootstrap?.userId ?? '',
+    canManage: perms.includes('*') || perms.includes('OPS.STATION.MANAGE'),
+  };
   const [timeline, setTimeline] = useState<StationVisit[] | null>(null);
   const [counselling, setCounselling] = useState<CounsellingRecord | null>(null);
   const [eye, setEye] = useState<EyeScreeningRecord | null>(null);
@@ -110,6 +123,21 @@ export function StationSessionPanel({
                 {stop.handoffNote ? <p className="mt-1">{stop.handoffNote}</p> : null}
                 {stop.endReason && stop.status !== 'COMPLETED' ? (
                   <p className="mt-1 text-muted-foreground">Reason: {stop.endReason}</p>
+                ) : null}
+                {getToken && canCorrectPerformer(stop, viewer) ? (
+                  <PerformerCorrection
+                    clinicId={clinicId}
+                    stop={stop}
+                    isOnline={isOnline}
+                    getToken={getToken}
+                    onCorrected={(corrected) =>
+                      setTimeline((current) =>
+                        (current ?? []).map((item) =>
+                          item.id === corrected.id ? { ...item, ...corrected } : item,
+                        ),
+                      )
+                    }
+                  />
                 ) : null}
               </li>
             ))}

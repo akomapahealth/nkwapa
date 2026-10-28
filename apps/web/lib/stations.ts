@@ -376,6 +376,44 @@ export const setShiftScreener = (
     { method: 'PATCH', body: screener },
   );
 
+/**
+ * Names people have screened under at this clinic lately, for the screener field (#227). Comes
+ * from past stops until the volunteer directory (#226) exists; then each item gains its contact id.
+ */
+export const fetchScreenerNames = (clinicId: string, getToken: GetToken) =>
+  request<{ items: Array<{ name: string; lastUsedAt: string | null }> }>(
+    clinicId,
+    '/stations/screener-names',
+    getToken,
+  );
+
+/**
+ * Whether to offer fixing who did a stop (#227). The server decides: this only hides the offer
+ * where it would be refused. The completing account may until the session is done (its
+ * counselling is then locked); a manager always may.
+ */
+export const canCorrectPerformer = (
+  stop: Pick<StationVisit, 'status' | 'completedBy' | 'checkInStatus'>,
+  viewer: { userId: string; canManage: boolean },
+) =>
+  (stop.status === 'COMPLETED' || stop.status === 'SKIPPED') &&
+  (viewer.canManage ||
+    (stop.completedBy?.id === viewer.userId && stop.checkInStatus !== 'COMPLETED'));
+
+/** Fix who did a finished stop, with a reason (#227). */
+export const correctPerformer = (
+  clinicId: string,
+  visitId: string,
+  body: Screener & { reason: string },
+  getToken: GetToken,
+) =>
+  request<StationVisit>(
+    clinicId,
+    `/station-visits/${encodeURIComponent(visitId)}/performer`,
+    getToken,
+    { method: 'PATCH', body },
+  );
+
 export const setShiftStation = (
   clinicId: string,
   shiftId: string,

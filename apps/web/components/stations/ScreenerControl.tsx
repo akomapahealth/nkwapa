@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useState } from 'react';
 import type { GetToken } from '@/lib/api';
-import { setShiftScreener, type Screener } from '@/lib/stations';
+import { fetchScreenerNames, setShiftScreener, type Screener } from '@/lib/stations';
 import { InlineNotice } from '@/components/feedback/InlineNotice';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -33,7 +33,6 @@ export function ScreenerControl({
 }) {
   const id = useId();
   const nameId = `${id}-name`;
-  const hintId = `${id}-hint`;
   const [isHolder, setIsHolder] = useState(!screenerName);
   const [name, setName] = useState(screenerName ?? '');
   const [busy, setBusy] = useState(false);
@@ -70,7 +69,7 @@ export function ScreenerControl({
 
   const disabled = !isOnline || busy;
   return (
-    <div className="grid gap-3">
+    <div className="grid gap-3" data-testid="screener-control">
       <div className="flex items-center gap-2">
         <Checkbox
           id={`${id}-holder`}
@@ -100,23 +99,18 @@ export function ScreenerControl({
             void save({ isAccountHolder: false, name: trimmed });
           }}
         >
-          <Label htmlFor={nameId}>Name of the person screening</Label>
-          <p id={hintId} className="text-xs text-muted-foreground">
-            They don&apos;t need an account. Every patient you finish is recorded as seen by them,
-            until you change this or end your shift.
-          </p>
-          <Input
+          <ScreenerNameField
             id={nameId}
+            label="Name of the person screening"
+            hint="They don't need an account. Every patient you finish is recorded as seen by them, until you change this or end your shift."
             value={name}
-            maxLength={120}
-            required
-            autoComplete="off"
+            error={error}
             disabled={disabled}
-            aria-describedby={`${hintId}${error ? ` ${fieldErrorId(nameId)}` : ''}`}
-            aria-invalid={error ? true : undefined}
-            onChange={(event) => setName(event.target.value)}
+            clinicId={clinicId}
+            getToken={getToken}
+            isOnline={isOnline}
+            onChange={setName}
           />
-          <FieldError id={nameId} message={error ?? undefined} />
           <Button type="submit" size="sm" className="justify-self-start" disabled={disabled}>
             {busy ? 'Saving…' : 'Save name'}
           </Button>
@@ -128,6 +122,80 @@ export function ScreenerControl({
       {!isOnline ? (
         <p className="text-xs text-muted-foreground">Changing this needs a connection.</p>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * The screener's name, with names already used at this clinic offered as suggestions (#227).
+ * Free text: anyone can screen, listed or not. When the volunteer directory (#226) exists, its
+ * contacts replace the suggestions and the picked contact's id travels with the name.
+ */
+export function ScreenerNameField({
+  id,
+  label,
+  hint,
+  value,
+  error,
+  disabled,
+  clinicId,
+  getToken,
+  isOnline,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  hint: string;
+  value: string;
+  error: string | null;
+  disabled: boolean;
+  clinicId: string;
+  getToken: GetToken;
+  isOnline: boolean;
+  onChange: (value: string) => void;
+}) {
+  const hintId = `${id}-hint`;
+  const listId = `${id}-suggestions`;
+  const [names, setNames] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!isOnline) return;
+    let current = true;
+    fetchScreenerNames(clinicId, getToken)
+      .then((result) => current && setNames(result.items.map((item) => item.name)))
+      // Suggestions are a convenience; typing a name still works without them.
+      .catch(() => undefined);
+    return () => {
+      current = false;
+    };
+  }, [clinicId, getToken, isOnline]);
+
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor={id}>{label}</Label>
+      <p id={hintId} className="text-xs text-muted-foreground">
+        {hint}
+      </p>
+      <Input
+        id={id}
+        value={value}
+        maxLength={120}
+        required
+        autoComplete="off"
+        list={names.length ? listId : undefined}
+        disabled={disabled}
+        aria-describedby={`${hintId}${error ? ` ${fieldErrorId(id)}` : ''}`}
+        aria-invalid={error ? true : undefined}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {names.length ? (
+        <datalist id={listId}>
+          {names.map((name) => (
+            <option key={name} value={name} />
+          ))}
+        </datalist>
+      ) : null}
+      <FieldError id={id} message={error ?? undefined} />
     </div>
   );
 }

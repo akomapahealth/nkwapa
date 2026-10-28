@@ -206,7 +206,15 @@ never required.
   `false` without a non-blank name.
 - **Corrections.** `PATCH station-visits/:id/performer` (`OPS.STATION.WORK`, with a reason) on a
   COMPLETED or SKIPPED stop: the account that completed it, until the session's counselling is
-  locked; a manager (`OPS.STATION.MANAGE`) at any time.
+  locked; a manager (`OPS.STATION.MANAGE`) at any time. On the web, "Correct who did this" sits on
+  each finished stop in a visit's "Earlier today" list and in the encounter's station session
+  panel, offered only where the server would allow it.
+- **Name suggestions.** `GET stations/screener-names` (`OPS.STATION.WORK`) lists names stand-ins
+  screened under at this clinic in the last 90 days, newest first, at most 50. The name field
+  offers them as suggestions and still takes any name.
+- **The review-station note.** When a stand-in did the review stop, the volunteer-review note's
+  `assignedVolunteerNameSnapshot` reads "Ama Mensah (on Kofi Boateng's account)": the stop's stamp
+  once it is complete, else the shift's current screener. `assignedVolunteerId` stays the account.
 - **API.** `PATCH shifts/:shiftId/screener` (own ACTIVE shift only: 403 otherwise, 409
   `SHIFT_ALREADY_CLOSED`). A blank name is 400 `SCREENER_NAME_REQUIRED` everywhere. Visits carry
   `performedByName` (null when it was the account holder); the board's `staff` and `onShift`
@@ -217,9 +225,18 @@ never required.
 - **Where it shows.** The board ("Kofi (Ama screening)"), the queue, the visit timeline, the
   session panel and the results summary ("Ama · signed in as Kofi"). One name when they are the
   same person.
-- **Not in v1.** Linking to a volunteer directory (#226): names are free text until it exists.
-  Per-record authors on clinical tables. Research exports are unaffected: `PatientStationVisit`
-  and `StaffShift` are excluded from them wholesale. The volunteer-review clinical note still
-  names the account that submitted it.
+- **Linking the volunteer directory (#226).** Names are free text until the directory exists.
+  The seams are in place:
+  1. `StationService.getScreenerNames` lists the active `VolunteerContact` rows instead of past
+     snapshots, and each item gains `volunteerContactId`.
+  2. `ScreenerDto` accepts an optional `volunteerContactId`; `toPerformer` checks it belongs to
+     the path clinic and is active (400 otherwise), and takes the name from the server's copy.
+  3. Add `screenerVolunteerContactId` to `StaffShift` and `performedByVolunteerContactId` (FK,
+     SetNull) to `PatientStationVisit`, written alongside the names. Snapshots stay as they are,
+     so renaming a contact never rewrites history.
+  4. On the web, `ScreenerNameField` keeps its free-text input and sends the picked contact's id
+     with the name.
+- **Not in v1.** Per-record authors on clinical tables. Research exports are unaffected:
+  `PatientStationVisit` and `StaffShift` are excluded from them wholesale.
 
 Tested on a real database in `apps/api/src/ops/station-performer.integration.spec.ts`.
