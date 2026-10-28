@@ -318,3 +318,69 @@ describe('staff invite template', () => {
     expect(renderMessage('STAFF_INVITE_V1', base).text).toMatch(/do not forward/i);
   });
 });
+
+describe('volunteer roster templates (#226)', () => {
+  const keys = [
+    'VOLUNTEER_ROSTER_ASSIGNED_V1',
+    'VOLUNTEER_ROSTER_UPDATED_V1',
+    'VOLUNTEER_ROSTER_CANCELLED_V1',
+    'VOLUNTEER_ROSTER_REMOVED_V1',
+  ];
+  const payload = {
+    firstName: 'Ama',
+    clinicName: 'Akoma Clinic',
+    timezone: 'Africa/Accra',
+    title: 'Saturday screening',
+    startsAt: '2026-11-07T08:00:00.000Z',
+    endsAt: '2026-11-07T13:00:00.000Z',
+    siteName: 'Community hall',
+    siteAddress: '12 Ring Road, Accra',
+    notes: 'Bring your badge.',
+    senderName: 'Kofi Mensah',
+    cancelReason: 'Venue unavailable',
+  };
+
+  it.each(keys)('%s is registered', (key) => {
+    expect(isTemplateKey(key)).toBe(true);
+  });
+
+  // The reader may have no account: nothing to sign in to, nothing to track, no patient.
+  it.each(keys)('%s carries no link, image or patient data', (key) => {
+    const message = renderMessage(key, payload);
+    for (const body of [message.html, message.text]) {
+      expect(body).not.toMatch(/<a\s|href=|<img|https?:\/\//i);
+      expect(body).not.toMatch(/patient|date of birth|diagnos|blood pressure|sign in/i);
+    }
+    expect(message.text).toContain('Hello Ama,');
+    expect(message.text).toContain('Saturday screening');
+    expect(message.text).toContain('Kofi Mensah at Akoma Clinic');
+  });
+
+  it('names the date, the time range and the timezone', () => {
+    const message = renderMessage('VOLUNTEER_ROSTER_ASSIGNED_V1', payload);
+    expect(message.text).toContain('Sat, 7 Nov 2026, 08:00–13:00 GMT (Africa/Accra)');
+    expect(message.text).toContain('12 Ring Road, Accra');
+    expect(message.text).toContain('Bring your badge.');
+  });
+
+  it('renders the clinic timezone, not the server one', () => {
+    const message = renderMessage('VOLUNTEER_ROSTER_ASSIGNED_V1', {
+      ...payload,
+      timezone: 'Africa/Lagos',
+    });
+    expect(message.text).toContain('09:00–14:00');
+    expect(message.text).toContain('(Africa/Lagos)');
+  });
+
+  it('gives the reason in a cancellation', () => {
+    expect(renderMessage('VOLUNTEER_ROSTER_CANCELLED_V1', payload).text).toContain(
+      'Reason: Venue unavailable',
+    );
+  });
+
+  it('marks a resend as a reminder', () => {
+    expect(
+      renderMessage('VOLUNTEER_ROSTER_ASSIGNED_V1', { ...payload, resend: true }).subject,
+    ).toMatch(/^Reminder:/);
+  });
+});

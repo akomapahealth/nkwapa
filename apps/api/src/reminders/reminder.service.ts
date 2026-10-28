@@ -211,6 +211,8 @@ export interface SendNotificationParams {
   portalInviteId?: string | null;
   /** Addresses a staff invitation, whose recipient may not have a User row yet. */
   staffInviteId?: string | null;
+  /** Addresses a volunteer on a screening-day roster, who may have no User row (#226). */
+  screeningEventAssignmentId?: string | null;
   appointmentId?: string | null;
   encounterId?: string | null;
   /** Null when the recipient has no address on file; recorded as a visible failure. */
@@ -334,6 +336,7 @@ export class ReminderService {
       recipientUserId: params.recipientType === 'USER' ? (params.recipientUserId ?? null) : null,
       portalInviteId: params.portalInviteId ?? null,
       staffInviteId: params.staffInviteId ?? null,
+      screeningEventAssignmentId: params.screeningEventAssignmentId ?? null,
       appointmentId: params.appointmentId ?? null,
       encounterId: params.encounterId ?? null,
       channel: 'EMAIL' as const,

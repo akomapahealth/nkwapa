@@ -85,7 +85,8 @@ export default function RemindersPage() {
   const [pendingCancelIds, setPendingCancelIds] = useState<ReadonlySet<string>>(new Set());
   const [cancelError, setCancelError] = useState<string | null>(null);
   const typeFilters = NOTIFICATION_TYPE_FILTERS.filter(
-    (option) => seesStaffNotices || option.value !== 'STAFF',
+    // Roster emails are USER notices too, withheld by the same rule.
+    (option) => seesStaffNotices || (option.value !== 'STAFF' && option.value !== 'ROSTER'),
   );
 
   const [status, setStatus] = useState('');
