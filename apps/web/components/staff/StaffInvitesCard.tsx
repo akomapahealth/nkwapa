@@ -3,6 +3,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { MailPlus, RotateCw, UserPlus, X } from 'lucide-react';
 import { ApiError, getErrorMessage, type GetToken } from '@/lib/api';
+import {
+  EMPTY_STAFF_NAME,
+  STAFF_NAME_FIELDS,
+  staffNameErrorsFrom,
+  validateStaffName,
+  type StaffNameErrors,
+} from '@/lib/account-name';
+import { focusFirstInvalid } from '@/components/ui/field';
+import { StaffNameFields } from '@/components/account/StaffNameForm';
 import { describeInviteExpiry, formatInviteDate } from '@/lib/portal-invite';
 import { getStatusVariant } from '@/lib/notification-delivery';
 import {
@@ -79,6 +88,8 @@ export function StaffInvitesCard({
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [email, setEmail] = useState('');
+  const [inviteeName, setInviteeName] = useState(EMPTY_STAFF_NAME);
+  const [nameErrors, setNameErrors] = useState<StaffNameErrors>({});
   const [role, setRole] = useState<StaffInviteRole>('VOLUNTEER');
   const [ttlHours, setTtlHours] = useState<number>(DEFAULT_STAFF_INVITE_TTL_HOURS);
   const [submitting, setSubmitting] = useState(false);
@@ -107,6 +118,8 @@ export function StaffInvitesCard({
 
   const openDialog = () => {
     setEmail('');
+    setInviteeName(EMPTY_STAFF_NAME);
+    setNameErrors({});
     setRole(
       invitableRoles.includes('VOLUNTEER') ? 'VOLUNTEER' : (invitableRoles[0] ?? 'VOLUNTEER'),
     );
@@ -118,23 +131,35 @@ export function StaffInvitesCard({
 
   const submit = async () => {
     if (!getToken) return;
+    const errors = validateStaffName(inviteeName, { email, optional: true });
+    setNameErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      focusNameError(errors);
+      return;
+    }
     setSubmitting(true);
     setDialogError(null);
     try {
       const created = await createStaffInvite(clinicId, getToken, {
         email: email.trim(),
+        ...inviteeName,
         role,
         ttlHours,
         ...(confirmReuse ? { confirmExistingAccount: true } : {}),
       });
       setDialogOpen(false);
-      setNotice(`Invitation sent to ${created.email} as ${formatStaffRole(created.role)}.`);
+      setNotice(
+        `Invitation sent to ${created.inviteeName ?? created.email} as ${formatStaffRole(created.role)}.`,
+      );
       await load();
       onChanged?.();
     } catch (error) {
       if (error instanceof ApiError && error.code === ADDRESS_IN_USE_CODE) {
         // Not a dead end: the inviter is told, and confirms if that is the person they mean.
         setConfirmReuse([error.message, error.recoveryAction].filter(Boolean).join(' '));
+      } else if (Object.keys(staffNameErrorsFrom(error)).length > 0) {
+        setNameErrors(staffNameErrorsFrom(error));
+        focusNameError(staffNameErrorsFrom(error));
       } else {
         setDialogError(describeFailure(error, 'The invitation could not be sent.'));
       }
@@ -142,6 +167,14 @@ export function StaffInvitesCard({
       setSubmitting(false);
     }
   };
+
+  const focusNameError = (errors: StaffNameErrors) =>
+    focusFirstInvalid(
+      Object.fromEntries(
+        Object.entries(errors).map(([field, message]) => [`staff-invite-${field}`, message]),
+      ),
+      STAFF_NAME_FIELDS.map((field) => `staff-invite-${field}`),
+    );
 
   /*
     Cancelling is cheap to undo -- the colleague can simply be invited again -- so it does not ask
@@ -253,7 +286,9 @@ export function StaffInvitesCard({
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="min-w-0 space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate font-medium text-foreground">{invite.email}</p>
+                        <p className="truncate font-medium text-foreground">
+                          {invite.inviteeName ?? invite.email}
+                        </p>
                         <Badge variant="secondary" className="rounded-full">
                           {formatStaffRole(invite.role)}
                         </Badge>
@@ -261,6 +296,9 @@ export function StaffInvitesCard({
                           {status.label}
                         </Badge>
                       </div>
+                      {invite.inviteeName ? (
+                        <p className="truncate text-sm text-muted-foreground">{invite.email}</p>
+                      ) : null}
                       <p className="text-xs text-muted-foreground">
                         Sent {formatInviteDate(invite.createdAt)}
                         {invite.invitedBy ? ` by ${invite.invitedBy}` : ''}
@@ -347,6 +385,28 @@ export function StaffInvitesCard({
           </DialogHeader>
 
           <div className="space-y-4">
+            <fieldset className="space-y-3">
+              <legend className="text-sm font-medium text-foreground">
+                Their name <span className="font-normal text-muted-foreground">(optional)</span>
+              </legend>
+              <p className="text-xs text-muted-foreground">
+                Add it if you know it and they go straight in. Leave it blank and they are asked for
+                it when they first sign in.
+              </p>
+              <StaffNameFields
+                idPrefix="staff-invite"
+                value={inviteeName}
+                onChange={(next) => {
+                  setInviteeName(next);
+                  if (Object.keys(nameErrors).length > 0) {
+                    setNameErrors(validateStaffName(next, { email, optional: true }));
+                  }
+                }}
+                errors={nameErrors}
+                required={false}
+                disabled={submitting}
+              />
+            </fieldset>
             <div className="space-y-2">
               <Label htmlFor="staff-invite-email">Email</Label>
               <Input
