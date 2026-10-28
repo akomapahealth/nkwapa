@@ -212,13 +212,27 @@ export class OpsService {
     const updated = await this.prisma.$transaction(async (tx) => {
       const shift = await tx.staffShift.update({
         where: { id: shiftId },
-        data: { status: 'CLOSED', checkedOutAt, stationId: null },
+        data: {
+          status: 'CLOSED',
+          checkedOutAt,
+          stationId: null,
+          screenerIsAccountHolder: true,
+          screenerName: null,
+        },
         include: { user: { select: { id: true, displayName: true } } },
       });
       // Nobody stays claimed by someone who has gone home (#167).
       await this.stationService.releaseForShiftEnd(
         tx,
-        { clinicId, userId: existing.userId, actorUserId },
+        {
+          clinicId,
+          userId: existing.userId,
+          actorUserId,
+          screener: {
+            isAccountHolder: existing.screenerIsAccountHolder,
+            name: existing.screenerName ?? undefined,
+          },
+        },
         { requestId: context.requestId },
       );
       await this.recordWrite(tx, clinicId, actorUserId, context, {
