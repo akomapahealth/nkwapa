@@ -4,14 +4,21 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Search, Stethoscope, UserPlus, Users } from 'lucide-react';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, readApiError as readApiErrorDetail } from '@/lib/api';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import {
   parseRegistryView,
   registryViewQuery,
   type RegistryView,
 } from '@/lib/patient-registry-url';
-import { hasPermission, readApiError } from '@/lib/ops';
+import { OPS_DEFAULT_TIMEZONE, getTodayInTimeZone, hasPermission, readApiError } from '@/lib/ops';
+import {
+  describeScreenedRange,
+  formatScreenedDay,
+  screenedCountLine,
+  screenedRangeError,
+  type MatchingScreening,
+} from '@/lib/patient-registry-screened';
 import { GHANA_REGION_LABELS, PATIENT_LOCATION_STATUS_LABELS } from '@/lib/residential-location';
 import { useAsyncResource } from '@/lib/use-async-resource';
 import { usePatientCheckIn } from '@/lib/use-patient-check-in';
@@ -23,6 +30,7 @@ import { SectionSkeleton } from '@/components/feedback/AppState';
 import { ResourceState } from '@/components/feedback/ResourceState';
 import { OpsFeedbackNotice } from '@/components/ops/OpsShared';
 import { ResidentialLocationFilters } from '@/components/patients/ResidentialLocationFilters';
+import { ScreenedDateFilter, ScreenedDates } from '@/components/patients/ScreenedDateFilter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DataTable, DataTableActions, type DataTableColumn } from '@/components/ui/data-table';
@@ -35,6 +43,8 @@ interface PatientSummary {
   lastName: string;
   phoneE164?: string | null;
   nationalIdLast4?: string | null;
+  /** Only while the screened filter is on. */
+  matchingScreenings?: MatchingScreening[];
 }
 
 interface PatientRegistryResponse {
@@ -42,7 +52,13 @@ interface PatientRegistryResponse {
   total: number;
   page: number;
   pageSize: number;
+  /** The clinic timezone screened dates were read in; only while the screened filter is on. */
+  timezone?: string;
+  /** Set locally when the screened range was refused, so nothing is shown as a result. */
+  rejected?: boolean;
 }
+
+type ScreenedError = { field: 'from' | 'to'; message: string };
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -96,6 +112,22 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
   }, [q, locationFilter.community]);
 
   const { region, district, status } = locationFilter;
+  const { screenedFrom, screenedTo } = view;
+  const screenedActive = Boolean(screenedFrom || screenedTo);
+
+  /*
+    The clinic's timezone arrives with the first filtered page; until then the default zone
+    (every clinic today) decides what "Today" means. Bootstrap does not carry it.
+  */
+  const [timeZone, setTimeZone] = useState(OPS_DEFAULT_TIMEZONE);
+  const today = getTodayInTimeZone(timeZone);
+
+  // A range the API would refuse is explained beside the dates and never sent. A refusal the
+  // client did not foresee lands in the same place, not as a page-level error.
+  const clientScreenedError = screenedRangeError(screenedFrom, screenedTo);
+  const [serverScreenedError, setServerScreenedError] = useState<ScreenedError | null>(null);
+  const screenedError = clientScreenedError ?? serverScreenedError;
+
   const committedView: RegistryView = {
     ...view,
     q: committed.q,
@@ -119,15 +151,32 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
     resourceKey: `${clinicId}|${apiQuery}`,
     errorMessage: 'The patient registry could not be loaded.',
     fetcher: async (token, signal) => {
+      const rejected = { items: [], total: 0, page: 1, pageSize, rejected: true };
+      if (clientScreenedError) return rejected;
+
       const response = await apiFetch(
         `/clinics/${encodeURIComponent(clinicId)}/patients?${apiQuery}`,
         { getToken: token, activeClinicId: clinicId, signal },
       );
+      if (response.status === 400) {
+        const detail = await readApiErrorDetail(response.clone());
+        const field = detail.fieldErrors.find((entry) => entry.field.startsWith('screened'));
+        if (field) {
+          setServerScreenedError({
+            field: field.field === 'screenedFrom' ? 'from' : 'to',
+            message: field.message,
+          });
+          return rejected;
+        }
+      }
       if (!response.ok) {
         throw new Error(await readApiError(response));
       }
 
-      return (await response.json()) as PatientRegistryResponse;
+      setServerScreenedError(null);
+      const data = (await response.json()) as PatientRegistryResponse;
+      if (data.timezone) setTimeZone(data.timezone);
+      return data;
     },
   });
 
@@ -155,6 +204,22 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
       accessorFn: (row) => `${row.firstName} ${row.lastName}`.trim(),
       header: 'Name',
     },
+    ...(screenedActive
+      ? [
+          {
+            id: 'screened',
+            accessorFn: (row: PatientSummary) => row.matchingScreenings?.[0]?.date ?? '',
+            header: 'Screened',
+            meta: { className: 'min-w-44' },
+            cell: ({ row }: { row: { original: PatientSummary } }) => (
+              <ScreenedDates
+                screenings={row.original.matchingScreenings ?? []}
+                timeZone={timeZone}
+              />
+            ),
+          } satisfies DataTableColumn<PatientSummary>,
+        ]
+      : []),
     {
       id: 'phoneE164',
       accessorKey: 'phoneE164',
@@ -207,6 +272,39 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
       ),
     },
   ];
+
+  const otherFiltersActive = Boolean(
+    committed.q || region || district || committed.community || status,
+  );
+  const emptyState = (() => {
+    if (registry.data?.rejected) {
+      return {
+        title: 'Check the screened dates',
+        description: 'Fix the dates above to see who completed a screening.',
+        icon: Users,
+      };
+    }
+    if (screenedActive && screenedFrom) {
+      const range = describeScreenedRange(screenedFrom, screenedTo);
+      return {
+        title: 'No completed screenings',
+        description: [
+          `No patients completed a screening ${range.single ? 'on' : 'between'} ${range.text} at this clinic.`,
+          otherFiltersActive ? 'Try clearing the search or location filters.' : '',
+        ]
+          .filter(Boolean)
+          .join(' '),
+        icon: Users,
+      };
+    }
+    return {
+      title: otherFiltersActive ? 'No patients found' : 'No patients in this clinic yet',
+      description: otherFiltersActive
+        ? 'Try a broader search term or clearing a filter, or confirm the patient is registered in this clinic.'
+        : 'Patients appear here as they are registered in this clinic.',
+      icon: Users,
+    };
+  })();
 
   return (
     <div className="space-y-6">
@@ -268,6 +366,25 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
             value={locationFilter}
             onChange={(next) => updateView({ location: next })}
           />
+          <div className="border-t border-border/70 pt-4">
+            <ScreenedDateFilter
+              value={{ from: screenedFrom, to: screenedTo }}
+              today={today}
+              timeZone={timeZone}
+              error={screenedError}
+              onChange={(next) => {
+                setServerScreenedError(null);
+                updateView({
+                  screenedFrom: next.from,
+                  screenedTo: next.to,
+                  // The screened column, and its sort, only exist while the filter is on.
+                  ...(!next.from && !next.to && sorting[0]?.id === 'screened'
+                    ? { sorting: [] }
+                    : {}),
+                });
+              }}
+            />
+          </div>
           <ActiveFilterSummary
             items={[
               { label: 'Query', value: q.trim() || null },
@@ -281,6 +398,16 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
               {
                 label: 'Location status',
                 value: status ? PATIENT_LOCATION_STATUS_LABELS[status] : null,
+              },
+              {
+                label: 'Screened',
+                value:
+                  screenedFrom && !screenedError
+                    ? [screenedFrom, screenedTo]
+                        .filter((date, index) => date && (index === 0 || date !== screenedFrom))
+                        .map(formatScreenedDay)
+                        .join(' – ')
+                    : null,
               },
             ]}
             emptyLabel="Browsing the full clinic registry"
@@ -296,6 +423,11 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
             <div className="space-y-1.5">
               <CardTitle className="text-xl">Patient results</CardTitle>
               <CardDescription>Open a chart or hand the patient into OPS.</CardDescription>
+              {screenedActive && registry.data && !registry.data.rejected ? (
+                <p aria-live="polite" className="text-sm font-medium text-foreground">
+                  {screenedCountLine(registry.data.total, screenedFrom, screenedTo)}
+                </p>
+              ) : null}
             </div>
             <div className="rounded-lg border border-border/70 bg-background/75 px-4 py-3 text-sm">
               <p className="text-muted-foreground">Showing</p>
@@ -313,13 +445,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
               <SectionSkeleton lines={4} className="border-0 bg-transparent p-0 shadow-none" />
             }
             isEmpty={(data) => data.items.length === 0}
-            empty={{
-              title: committed.q ? 'No patients found' : 'No patients in this clinic yet',
-              description: committed.q
-                ? 'Try a broader search term or confirm the patient is registered in this clinic.'
-                : 'Patients appear here as they are registered in this clinic.',
-              icon: Users,
-            }}
+            empty={emptyState}
           >
             {(data) => (
               <DataTable
@@ -357,6 +483,15 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
                     <p className="mt-3 text-sm tabular-nums text-muted-foreground">
                       {row.phoneE164 || 'No phone on file'}
                     </p>
+                    {screenedActive ? (
+                      <div className="mt-3 text-sm">
+                        <p className="font-medium text-foreground">Screened</p>
+                        <ScreenedDates
+                          screenings={row.matchingScreenings ?? []}
+                          timeZone={timeZone}
+                        />
+                      </div>
+                    ) : null}
                     <div className="mt-4 grid grid-cols-2 gap-2">
                       <Button asChild variant="outline">
                         <Link href={patientHref(row.id)}>View record</Link>
