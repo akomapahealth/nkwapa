@@ -1,5 +1,6 @@
 const { test, expect, request: playwrightRequest } = require('@playwright/test');
 const { skipWelcomeTour } = require('../playwright/welcome-tour');
+const { fillStaffName } = require('../playwright/staff-name');
 
 const { storageStateFor } = require('../playwright/roles');
 const { apiRequestAs } = require('../playwright/api-client');
@@ -28,6 +29,7 @@ const KEYCLOAK_URL = process.env.NEXT_PUBLIC_KEYCLOAK_URL || 'http://localhost:8
 // password on the second run, and the journey under test would never happen.
 const RUN = Date.now();
 const INVITE_EMAIL = `e2e.colleague.${RUN}@nkwapa.local`;
+const NAMED_EMAIL = `e2e.named.${RUN}@nkwapa.local`;
 const CANCELLED_EMAIL = `e2e.withdrawn.${RUN}@nkwapa.local`;
 
 let inviteeContext;
@@ -36,6 +38,7 @@ let clinicName;
 
 test.beforeAll(async ({ browser }) => {
   await clearMailpitInbox(INVITE_EMAIL);
+  await clearMailpitInbox(NAMED_EMAIL);
   // An empty session, not the staff one: Keycloak refuses an action link while another user is
   // signed in, and this invitee has never signed in anywhere.
   inviteeContext = await browser.newContext({ storageState: { cookies: [], origins: [] } });
@@ -45,6 +48,7 @@ test.beforeAll(async ({ browser }) => {
 test.afterAll(async () => {
   await inviteeContext?.close();
   await clearMailpitInbox(INVITE_EMAIL);
+  await clearMailpitInbox(NAMED_EMAIL);
 });
 
 async function openInvitations(page) {
@@ -54,14 +58,60 @@ async function openInvitations(page) {
   return page.getByRole('list', { name: 'Staff invitations' });
 }
 
-async function sendInvitation(page, email) {
+async function sendInvitation(page, email, name) {
   await page.getByRole('button', { name: /invite a colleague/i }).click();
   const dialog = page.getByRole('dialog');
+  if (name) await fillStaffName(dialog, name);
   await dialog.getByLabel('Email').fill(email);
   // Volunteer is the default; asserted rather than assumed, since it is the role under test.
   await expect(dialog.getByLabel('Role')).toContainText('Volunteer');
   await dialog.getByRole('button', { name: /send invitation/i }).click();
-  await expect(page.getByText(`Invitation sent to ${email}`)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(`Invitation sent to ${name?.displayName ?? email}`)).toBeVisible({
+    timeout: 30_000,
+  });
+}
+
+/** From the Keycloak setup email to a signed-in invitee, held on the acceptance page. */
+async function completeAccountSetup(page, email) {
+  const setup = await findMessageTo(email, { subjectMatch: /choose your nkwapa password/i });
+  const link = (setup.Text || '').match(
+    /https?:\/\/[^\s"<]*\/realms\/nkwapa\/login-actions\/action-token[^\s"<]+/,
+  )?.[0];
+  expect(link, 'the setup email must carry an action token link').toBeTruthy();
+
+  await page.goto(link);
+  await page
+    .getByRole('link', { name: /continue/i })
+    .first()
+    .click();
+  await page.fill('#password-new', PASSWORD);
+  await page.fill('#password-confirm', PASSWORD);
+  await page.click('input[type="submit"], button[type="submit"]');
+  await expect(page.getByText(/your account is ready/i)).toBeVisible({ timeout: 30_000 });
+  await page.getByRole('link', { name: /continue to nkwapa/i }).click();
+
+  await page.waitForURL(/realms\/nkwapa/, { timeout: 60_000 });
+  await page.fill('input[name="username"]', email);
+  await page.fill('input[name="password"]', PASSWORD);
+  await page.click('#kc-login, button[type="submit"], input[type="submit"]');
+
+  await page.waitForURL(/\/accept-invite/, { timeout: 60_000 });
+  await expect(page.getByRole('heading', { name: /join your clinic team/i })).toBeVisible({
+    timeout: 60_000,
+  });
+}
+
+async function acceptVolunteerSeat(page) {
+  await page
+    .getByRole('button', { name: new RegExp(`accept volunteer at ${clinicName}`, 'i') })
+    .click();
+}
+
+/** The name the header's user menu shows for the signed-in person. */
+async function expectMenuName(page, displayName) {
+  await page.getByRole('button', { name: 'User menu' }).click();
+  await expect(page.getByRole('menu').getByText(displayName, { exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
 }
 
 test('a director-level admin invites a volunteer, and an account is created', async ({ page }) => {
@@ -89,32 +139,7 @@ test('both emails arrive, and neither talks about a health record', async () => 
 });
 
 test('the invitee sets a password, signs in, and is held on the acceptance page', async () => {
-  const setup = await findMessageTo(INVITE_EMAIL, { subjectMatch: /choose your nkwapa password/i });
-  const link = (setup.Text || '').match(
-    /https?:\/\/[^\s"<]*\/realms\/nkwapa\/login-actions\/action-token[^\s"<]+/,
-  )?.[0];
-  expect(link, 'the setup email must carry an action token link').toBeTruthy();
-
-  await inviteePage.goto(link);
-  await inviteePage
-    .getByRole('link', { name: /continue/i })
-    .first()
-    .click();
-  await inviteePage.fill('#password-new', PASSWORD);
-  await inviteePage.fill('#password-confirm', PASSWORD);
-  await inviteePage.click('input[type="submit"], button[type="submit"]');
-  await expect(inviteePage.getByText(/your account is ready/i)).toBeVisible({ timeout: 30_000 });
-  await inviteePage.getByRole('link', { name: /continue to nkwapa/i }).click();
-
-  await inviteePage.waitForURL(/realms\/nkwapa/, { timeout: 60_000 });
-  await inviteePage.fill('input[name="username"]', INVITE_EMAIL);
-  await inviteePage.fill('input[name="password"]', PASSWORD);
-  await inviteePage.click('#kc-login, button[type="submit"], input[type="submit"]');
-
-  await inviteePage.waitForURL(/\/accept-invite/, { timeout: 60_000 });
-  await expect(inviteePage.getByRole('heading', { name: /join your clinic team/i })).toBeVisible({
-    timeout: 60_000,
-  });
+  await completeAccountSetup(inviteePage, INVITE_EMAIL);
   await expect(inviteePage.getByText(/password saved/i)).toBeVisible();
 
   // Nothing is granted by arriving. Anywhere else sends them straight back here.
@@ -123,12 +148,9 @@ test('the invitee sets a password, signs in, and is held on the acceptance page'
 });
 
 test('accepting grants the role in that one clinic, and nowhere else', async () => {
-  await inviteePage
-    .getByRole('button', { name: new RegExp(`accept volunteer at ${clinicName}`, 'i') })
-    .click();
-  await inviteePage.waitForURL(/\/dashboard/, { timeout: 60_000 });
-  // A brand-new account meets the welcome tour on its first workspace page.
-  await skipWelcomeTour(inviteePage);
+  await acceptVolunteerSeat(inviteePage);
+  // Invited without a name, so the name step comes before the workspace (#225).
+  await inviteePage.waitForURL(/\/account\/name/, { timeout: 60_000 });
 
   // Asked of the API directly, as the invitee: the role, and the scope it landed in.
   const tokenContext = await playwrightRequest.newContext();
@@ -158,8 +180,72 @@ test('accepting grants the role in that one clinic, and nowhere else', async () 
   expect(whoami.globalRoles).toEqual([]);
   expect(whoami.memberships).toHaveLength(1);
   expect(whoami.memberships[0]).toMatchObject({ clinicName, roles: ['VOLUNTEER'] });
-  expect(whoami.onboarding).toBeNull();
+  expect(whoami.onboarding).toEqual({ state: 'NAME_REQUIRED' });
+  expect(whoami.profile).toMatchObject({ needsName: true, firstName: null, lastName: null });
   expect(whoami.pendingStaffInvites).toEqual([]);
+});
+
+test('the name step holds them until they save, then lets them in', async () => {
+  await expect(inviteePage.getByRole('heading', { name: 'Your name' })).toBeVisible();
+  // Blocking, but never a trap.
+  await expect(inviteePage.getByRole('button', { name: 'Sign out' })).toBeVisible();
+  await inviteePage.goto('/patients');
+  await inviteePage.waitForURL(/\/account\/name/, { timeout: 30_000 });
+
+  // A name that repeats nothing but digits is refused in place, input kept.
+  await fillStaffName(inviteePage, { firstName: 'Ama', lastName: '1234' });
+  await inviteePage.getByRole('button', { name: 'Save and continue' }).click();
+  await expect(inviteePage.getByText(/last name can only use letters/i)).toBeVisible();
+  await expect(inviteePage.getByLabel('First name')).toHaveValue('Ama');
+
+  await fillStaffName(inviteePage, { firstName: 'Ama', middleInitial: 'k.', lastName: 'Mensah' });
+  await expect(inviteePage.getByText('Ama K. Mensah')).toBeVisible();
+  await inviteePage.getByRole('button', { name: 'Save and continue' }).click();
+  await expect(inviteePage.getByText('Saved', { exact: true })).toBeVisible({ timeout: 30_000 });
+  // Back to where they were headed when the step stopped them.
+  await inviteePage.waitForURL(/\/patients/, { timeout: 60_000 });
+  // A brand-new account meets the welcome tour on its first workspace page.
+  await skipWelcomeTour(inviteePage);
+  await expectMenuName(inviteePage, 'Ama K. Mensah');
+});
+
+test('the profile menu edits the name, and the header follows without signing in again', async () => {
+  await inviteePage.getByRole('button', { name: 'User menu' }).click();
+  await inviteePage.getByRole('menuitem', { name: 'Your name' }).click();
+  await inviteePage.waitForURL(/\/account\/name/, { timeout: 30_000 });
+  await expect(inviteePage.getByLabel('Last name')).toHaveValue('Mensah');
+
+  await fillStaffName(inviteePage, {
+    firstName: 'Ama',
+    middleInitial: 'B',
+    lastName: 'Mensah-Owusu',
+  });
+  await inviteePage.getByRole('button', { name: 'Save name' }).click();
+  await expect(inviteePage.getByText('Saved', { exact: true })).toBeVisible({ timeout: 30_000 });
+  await inviteePage.waitForURL(/\/patients/, { timeout: 30_000 });
+  await expectMenuName(inviteePage, 'Ama B. Mensah-Owusu');
+});
+
+test('an invitation that carries a name goes straight in', async ({ page, browser }) => {
+  await openInvitations(page);
+  await sendInvitation(page, NAMED_EMAIL, {
+    firstName: 'Kofi',
+    middleInitial: 'A',
+    lastName: 'Boateng',
+    displayName: 'Kofi A. Boateng',
+  });
+
+  const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const named = await context.newPage();
+  try {
+    await completeAccountSetup(named, NAMED_EMAIL);
+    await acceptVolunteerSeat(named);
+    await named.waitForURL(/\/dashboard/, { timeout: 60_000 });
+    await skipWelcomeTour(named);
+    await expectMenuName(named, 'Kofi A. Boateng');
+  } finally {
+    await context.close();
+  }
 });
 
 test('the admin sees the invitation as accepted, not gone', async ({ page }) => {
