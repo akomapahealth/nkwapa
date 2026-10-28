@@ -45,6 +45,7 @@ describe('ClinicalNoteService', () => {
     clinicalNoteAddendum: { create: jest.fn() },
     patientAssignment: { findFirst: jest.fn() },
     patientStationVisit: { findFirst: jest.fn() },
+    staffShift: { findFirst: jest.fn().mockResolvedValue(null) },
     patient: { findFirst: jest.fn() },
     encounter: { findFirst: jest.fn() },
   };
@@ -58,6 +59,7 @@ describe('ClinicalNoteService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    prisma.staffShift.findFirst.mockResolvedValue(null);
     prisma.$transaction.mockImplementation((fn: (tx: typeof prisma) => unknown) => fn(prisma));
     audit.logWrite.mockResolvedValue(undefined);
     service = new ClinicalNoteService(prisma as never, repository as never, audit as never);
@@ -390,6 +392,49 @@ describe('ClinicalNoteService', () => {
         assignedVolunteerNameSnapshot: 'Volunteer',
       });
       expect(result).not.toHaveProperty('assignedDoctorId');
+    });
+
+    // #227: someone without an account screened on the volunteer's.
+    it.each([
+      [
+        'the stamp on a completed review stop',
+        {
+          status: 'COMPLETED',
+          completedBy: { displayName: 'Kofi Boateng' },
+          performedByIsAccountHolder: false,
+          performedByName: 'Ama Mensah',
+        },
+        null,
+      ],
+      [
+        "the shift's screener while the stop is open",
+        { status: 'IN_PROGRESS', claimedBy: { displayName: 'Kofi Boateng' } },
+        { screenerIsAccountHolder: false, screenerName: 'Ama Mensah' },
+      ],
+    ])('names who actually screened, from %s', async (_, review, shift) => {
+      prisma.clinicalNote.findFirst.mockResolvedValue(note());
+      prisma.patientStationVisit.findFirst.mockResolvedValue({
+        id: 'visit-review',
+        claimedAt: new Date('2026-10-07T10:00:00Z'),
+        claimedBy: null,
+        completedBy: null,
+        ...review,
+      });
+      prisma.staffShift.findFirst.mockResolvedValue(shift);
+      prisma.clinicalNote.update.mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+        Promise.resolve(note({ ...data, status: ClinicalNoteStatus.PENDING_COSIGN, version: 2 })),
+      );
+
+      const result = await service.submit(
+        clinicId,
+        encounterId,
+        roles(volunteerId, UserRole.VOLUNTEER),
+      );
+
+      expect(result).toMatchObject({
+        assignedVolunteerId: volunteerId,
+        assignedVolunteerNameSnapshot: "Ama Mensah (on Kofi Boateng's account)",
+      });
     });
 
     it('refuses a volunteer who was not at the review station', async () => {

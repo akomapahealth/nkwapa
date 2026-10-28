@@ -36,6 +36,10 @@ const OPEN_VISIT_STATUSES: StationVisitStatus[] = ['QUEUED', 'IN_PROGRESS'];
 
 const USER_SUMMARY = { select: { id: true, displayName: true } } as const;
 
+/** How far back, and how many, names the screener field suggests (#227). */
+const SCREENER_NAME_WINDOW_DAYS = 90;
+const SCREENER_NAME_LIMIT = 50;
+
 const VISIT_INCLUDE = {
   station: { select: { id: true, kind: true, name: true, sortOrder: true } },
   claimedBy: USER_SUMMARY,
@@ -442,6 +446,36 @@ export class StationService {
    * visits, and the shifts that overlapped it. Aggregated in `computeStationMetrics`; nothing
    * that names a patient is read.
    */
+  /**
+   * Names people have screened under at this clinic recently, for the screener field (#227).
+   *
+   * shortcut: drawn from past stops' snapshots, because the volunteer directory (#226) does not
+   * exist yet. When it does, list its active `VolunteerContact` rows here instead, add each one's
+   * `volunteerContactId` to the items, and accept that id on `ScreenerDto`; the web already sends
+   * whichever name the user picks.
+   */
+  async getScreenerNames(clinicId: string, now: Date = new Date()) {
+    const since = new Date(now.getTime() - SCREENER_NAME_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+    const rows = await this.prisma.patientStationVisit.groupBy({
+      by: ['performedByName'],
+      where: {
+        clinicId,
+        performedByIsAccountHolder: false,
+        performedByName: { not: null },
+        completedAt: { gte: since },
+      },
+      _max: { completedAt: true },
+      orderBy: { _max: { completedAt: 'desc' } },
+      take: SCREENER_NAME_LIMIT,
+    });
+    return {
+      items: rows.map((row) => ({
+        name: row.performedByName as string,
+        lastUsedAt: row._max.completedAt?.toISOString() ?? null,
+      })),
+    };
+  }
+
   async getMetrics(clinicId: string, date?: string, now: Date = new Date()) {
     const day = await this.dayWindow(clinicId, date);
     const inDay = { gte: day.start, lte: day.end };

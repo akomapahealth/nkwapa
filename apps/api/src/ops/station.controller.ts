@@ -128,6 +128,14 @@ export class StationController {
     return this.stationService.getBoard(clinicId, query.date);
   }
 
+  @Get('stations/screener-names')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.OPS_STATION_WORK)
+  getScreenerNames(@Param('clinicId') clinicId: string) {
+    this.assertEnabled();
+    return this.stationService.getScreenerNames(clinicId);
+  }
+
   @Patch('shifts/:shiftId/station')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.OPS_STATION_WORK)

@@ -121,6 +121,7 @@ function setup(initial: Row = {}) {
         return row;
       }),
       count: jest.fn(async () => 0),
+      groupBy: jest.fn(async (): Promise<Row[]> => []),
     },
     patientCheckIn: {
       findUnique: jest.fn(async () => ({
@@ -801,6 +802,26 @@ describe('StationService', () => {
       } finally {
         [...spies.flat(), ...consoleSpies].forEach((spy) => spy.mockRestore());
       }
+    });
+
+    it('suggests recent names, newest first, and only names', async () => {
+      const { service, tx } = setup();
+      tx.patientStationVisit.groupBy.mockResolvedValueOnce([
+        { performedByName: 'Ama Mensah', _max: { completedAt: new Date('2026-10-27T10:00:00Z') } },
+      ]);
+      const now = new Date('2026-10-28T10:00:00Z');
+      await expect(service.getScreenerNames(CLINIC, now)).resolves.toEqual({
+        items: [{ name: 'Ama Mensah', lastUsedAt: '2026-10-27T10:00:00.000Z' }],
+      });
+      expect(tx.patientStationVisit.groupBy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            clinicId: CLINIC,
+            performedByIsAccountHolder: false,
+            completedAt: { gte: new Date('2026-07-30T10:00:00Z') },
+          }),
+        }),
+      );
     });
 
     describe('correction', () => {
