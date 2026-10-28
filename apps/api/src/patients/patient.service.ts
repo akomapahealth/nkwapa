@@ -9,6 +9,7 @@ import { isUniqueViolation } from '../common/prisma-errors';
 import { EncounterService } from '../encounters/encounter.service';
 import { ConsentService } from '../consents/consent.service';
 import {
+  CLINIC_DEFAULT_TIMEZONE,
   encryptNationalId,
   hashNationalId,
   nationalIdLast4,
@@ -24,7 +25,12 @@ import {
   PatientFindManyFilters,
   type PatientRegistrySort,
 } from './patient.repository';
-import { parseScreenedRange } from './registry-screened';
+import {
+  groupMatchingScreenings,
+  parseScreenedRange,
+  screenedWindow,
+  type MatchingScreening,
+} from './registry-screened';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientBodyDto } from './dto/update-patient-body.dto';
 import {
@@ -57,10 +63,14 @@ export interface PatientRegistryItem {
   phoneE164: string | null;
   email: string | null;
   nationalIdLast4: string | null;
+  /** Present only when the screened date filter is active. */
+  matchingScreenings?: MatchingScreening[];
 }
 
 export interface PatientRegistryPage {
   items: PatientRegistryItem[];
+  /** The clinic timezone the screened dates were read in; only with the screened filter. */
+  timezone?: string;
   total?: number;
   page?: number;
   pageSize: number;
@@ -330,6 +340,16 @@ export class PatientService {
       residentialLocationStatus: options?.location?.residentialLocationStatus,
       sort: options?.sort,
     };
+    const screenedDays = screenedRange
+      ? screenedWindow(screenedRange, await this.clinicTimeZone(primaryClinicId))
+      : undefined;
+    if (screenedDays) {
+      filters.screened = {
+        clinicId: primaryClinicId,
+        start: screenedDays.start,
+        end: screenedDays.end,
+      };
+    }
 
     if (trimmed) {
       filters.search = trimmed;
@@ -353,9 +373,22 @@ export class PatientService {
 
     const mappedItems = items.map((item) => this.toRegistryItem(item));
     const effectivePageSize = options?.cursor ? normalizedLimit : normalizedPageSize;
+    if (screenedDays && filters.screened) {
+      const screenings = groupMatchingScreenings(
+        await this.patientRepository.findMatchingScreenings(
+          mappedItems.map((item) => item.id),
+          filters.screened,
+        ),
+        screenedDays.timezone,
+      );
+      for (const item of mappedItems) {
+        item.matchingScreenings = screenings.get(item.id) ?? [];
+      }
+    }
 
     return {
       items: mappedItems,
+      ...(screenedDays ? { timezone: screenedDays.timezone } : {}),
       total,
       page: options?.cursor ? undefined : normalizedPage,
       pageSize: effectivePageSize,
@@ -565,6 +598,14 @@ export class PatientService {
   /** Enforce the deliberate residential-location invariant. See the util. */
   resolveResidentialLocation(input: ResidentialLocationInput): ResolvedResidentialLocation {
     return resolveResidentialLocation(input);
+  }
+
+  private async clinicTimeZone(clinicId: string): Promise<string> {
+    const clinic = await this.prisma.clinic.findUnique({
+      where: { id: clinicId },
+      select: { timezone: true },
+    });
+    return clinic?.timezone ?? CLINIC_DEFAULT_TIMEZONE;
   }
 
   private toRegistryItem(patient: Patient): PatientRegistryItem {

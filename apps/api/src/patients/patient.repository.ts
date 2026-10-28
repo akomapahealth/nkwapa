@@ -1,5 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { GhanaRegion, Patient, PatientLocationStatus, Prisma } from '@prisma/client';
+import {
+  GhanaRegion,
+  Patient,
+  PatientLocationStatus,
+  Prisma,
+  CheckInStatus,
+  StationKind,
+  StationVisitStatus,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface PatientFindManyFilters {
@@ -18,6 +26,53 @@ export interface PatientFindManyFilters {
   includeMerged?: boolean;
   /** Registry sort; most recently updated first when absent. */
   sort?: PatientRegistrySort;
+  /** Only patients with a completed screening at `clinicId` between `start` and `end`. */
+  screened?: ScreenedFilter;
+}
+
+export interface ScreenedFilter {
+  clinicId: string;
+  start: Date;
+  end: Date;
+}
+
+/** A check-in that counts as a completed screening, with the Review visits that make it so. */
+export interface MatchingScreeningRow {
+  id: string;
+  patientId: string;
+  checkedInAt: Date;
+  stationVisits: { completedAt: Date | null }[];
+}
+
+function reviewVisitInWindow(filter: ScreenedFilter): Prisma.PatientStationVisitWhereInput {
+  return {
+    clinicId: filter.clinicId,
+    status: StationVisitStatus.COMPLETED,
+    station: { kind: StationKind.REVIEW },
+    completedAt: { gte: filter.start, lte: filter.end },
+  };
+}
+
+/**
+ * A check-in at the clinic that counts as a completed screening in the window:
+ * - its Review station visit was completed in the window, or
+ * - it is COMPLETED with no station visits at all (the 2026-10-10 import and check-ins from
+ *   before the station line), dated by `checkedInAt` because no completion time was kept.
+ * A check-in with visits but no completed Review visit never matches, even if an encounter
+ * finalize marked it COMPLETED: the patient did not finish the line.
+ */
+export function completedScreeningWhere(filter: ScreenedFilter): Prisma.PatientCheckInWhereInput {
+  return {
+    clinicId: filter.clinicId,
+    OR: [
+      { stationVisits: { some: reviewVisitInWindow(filter) } },
+      {
+        status: CheckInStatus.COMPLETED,
+        stationVisits: { none: {} },
+        checkedInAt: { gte: filter.start, lte: filter.end },
+      },
+    ],
+  };
 }
 
 /** `lastScreenedAt` is sorted by the service, not by Prisma; see `listRegistry`. */
@@ -157,6 +212,37 @@ export class PatientRepository {
     });
   }
 
+  /** Every matching id, unpaged, for sorts Prisma cannot express. */
+  async findIds(filters: PatientFindManyFilters): Promise<string[]> {
+    const rows = await this.prisma.patient.findMany({
+      where: this.buildFindManyWhere(filters),
+      select: { id: true },
+    });
+    return rows.map((row) => row.id);
+  }
+
+  async findManyByIds(ids: string[]): Promise<Patient[]> {
+    if (ids.length === 0) return [];
+    return this.prisma.patient.findMany({ where: { id: { in: ids } } });
+  }
+
+  /** The qualifying check-ins for these patients, each with its Review visits in the window. */
+  async findMatchingScreenings(
+    patientIds: string[],
+    filter: ScreenedFilter,
+  ): Promise<MatchingScreeningRow[]> {
+    if (patientIds.length === 0) return [];
+    return this.prisma.patientCheckIn.findMany({
+      where: { patientId: { in: patientIds }, ...completedScreeningWhere(filter) },
+      select: {
+        id: true,
+        patientId: true,
+        checkedInAt: true,
+        stationVisits: { where: reviewVisitInWindow(filter), select: { completedAt: true } },
+      },
+    });
+  }
+
   private buildFindManyWhere(filters: PatientFindManyFilters): Prisma.PatientWhereInput {
     const where: Prisma.PatientWhereInput = {};
     if (filters.primaryClinicId) {
@@ -184,6 +270,10 @@ export class PatientRepository {
         contains: filters.residentialCommunity.trim(),
         mode: 'insensitive',
       };
+    }
+    // A relation filter AND-ed with the clinic scope: it can only narrow the registry.
+    if (filters.screened) {
+      where.checkIns = { some: completedScreeningWhere(filters.screened) };
     }
     if (filters.search || filters.phoneE164) {
       const orConditions: Prisma.PatientWhereInput[] = [];

@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
-import { clinicDayWindow } from '@nkwapa/db';
+import { clinicDayWindow, todayInTimeZone } from '@nkwapa/db';
+import type { MatchingScreeningRow } from './patient.repository';
 
 /** Longest completed-screening range the registry accepts, in days, inclusive. */
 export const SCREENED_RANGE_MAX_DAYS = 366;
@@ -77,4 +78,55 @@ export function screenedWindow(range: ScreenedRange, timeZone: string): Screened
     start: first.start,
     end: clinicDayWindow(range.to, timeZone).end,
   };
+}
+
+export interface MatchingScreening {
+  /** Clinic-local day of the screening. */
+  date: string;
+  /** When the Review station visit completed; null for legacy check-ins, which kept no time. */
+  completedAt: string | null;
+  source: 'REVIEW_STATION' | 'LEGACY_CHECKIN';
+  checkInId: string;
+}
+
+/** Each patient's matching screenings, newest first, dated in the clinic's timezone. */
+export function groupMatchingScreenings(
+  rows: MatchingScreeningRow[],
+  timeZone: string,
+): Map<string, MatchingScreening[]> {
+  const byPatient = new Map<string, { at: Date; screening: MatchingScreening }[]>();
+  for (const row of rows) {
+    const reviewTimes = row.stationVisits.flatMap((visit) =>
+      visit.completedAt ? [visit.completedAt] : [],
+    );
+    const entries =
+      reviewTimes.length > 0
+        ? reviewTimes.map((at) => ({
+            at,
+            screening: {
+              date: todayInTimeZone(timeZone, at),
+              completedAt: at.toISOString(),
+              source: 'REVIEW_STATION' as const,
+              checkInId: row.id,
+            },
+          }))
+        : [
+            {
+              at: row.checkedInAt,
+              screening: {
+                date: todayInTimeZone(timeZone, row.checkedInAt),
+                completedAt: null,
+                source: 'LEGACY_CHECKIN' as const,
+                checkInId: row.id,
+              },
+            },
+          ];
+    byPatient.set(row.patientId, [...(byPatient.get(row.patientId) ?? []), ...entries]);
+  }
+  return new Map(
+    [...byPatient].map(([patientId, entries]) => [
+      patientId,
+      entries.sort((a, b) => b.at.getTime() - a.at.getTime()).map((entry) => entry.screening),
+    ]),
+  );
 }
