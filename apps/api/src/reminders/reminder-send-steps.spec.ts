@@ -153,6 +153,19 @@ describe('sending a reminder outside the job transaction (#164)', () => {
     }
   });
 
+  // The job is queued inside the request's transaction, so the worker can arrive before commit.
+  it('retries a row it cannot see yet instead of completing the job', async () => {
+    const { service, step, prisma, smsProvider, row } = setup();
+    prisma.reminder.findUnique.mockResolvedValueOnce(null as never);
+    await expect(service.processReminder('reminder-1', undefined, step)).rejects.toThrow(
+      /not visible yet/,
+    );
+    expect(smsProvider.send).not.toHaveBeenCalled();
+
+    await service.processReminder('reminder-1', undefined, step);
+    expect(row()).toMatchObject({ status: 'SENT' });
+  });
+
   it('stands down when another delivery of the job already holds the send', async () => {
     const { service, step, smsProvider } = setup({
       status: 'SENDING',

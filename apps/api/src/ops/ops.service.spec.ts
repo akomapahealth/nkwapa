@@ -333,7 +333,11 @@ describe('OpsService', () => {
         clinicId: 'clinic-1',
         userId: 'user-1',
         actorUserId: 'user-1',
-        screener: { isAccountHolder: false, name: 'Ama Mensah' },
+        screener: {
+          screenerIsAccountHolder: false,
+          screenerName: 'Ama Mensah',
+          screenerVolunteerContactId: null,
+        },
       },
       expect.anything(),
     );
@@ -823,6 +827,7 @@ describe('OpsService', () => {
               stationId: null,
               screenerIsAccountHolder: true,
               screenerName: null,
+              screenerVolunteerContactId: null,
             },
           }),
         );

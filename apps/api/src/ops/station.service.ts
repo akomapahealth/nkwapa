@@ -31,14 +31,20 @@ import type {
 
 type TxClient = Prisma.TransactionClient;
 
+/** A shift's screener columns (#227), with the directory link (#226). */
+export type ShiftScreener = {
+  screenerIsAccountHolder: boolean;
+  screenerName: string | null;
+  screenerVolunteerContactId: string | null;
+};
+
 /** A visit a patient is still waiting at or being seen in. At most one per check-in (SQL). */
 const OPEN_VISIT_STATUSES: StationVisitStatus[] = ['QUEUED', 'IN_PROGRESS'];
 
 const USER_SUMMARY = { select: { id: true, displayName: true } } as const;
 
-/** How far back, and how many, names the screener field suggests (#227). */
-const SCREENER_NAME_WINDOW_DAYS = 90;
-const SCREENER_NAME_LIMIT = 50;
+/** How many directory names the screener field suggests (#227, #226). */
+const SCREENER_NAME_LIMIT = 200;
 
 const VISIT_INCLUDE = {
   station: { select: { id: true, kind: true, name: true, sortOrder: true } },
@@ -71,7 +77,12 @@ export interface StationWriteContext {
 }
 
 /** Who did a stop, as stored on the visit (#227). */
-type Performer = { performedByIsAccountHolder: boolean; performedByName: string | null };
+type Performer = {
+  performedByIsAccountHolder: boolean;
+  performedByName: string | null;
+  /** The directory entry the name was picked from (#226); the name stays the snapshot. */
+  performedByVolunteerContactId: string | null;
+};
 
 /**
  * The station line (#167).
@@ -281,10 +292,11 @@ export class StationService {
     dto: ScreenerDto,
     context: StationWriteContext = {},
   ) {
-    const performer = this.toPerformer(dto);
+    const performer = await this.toPerformer(this.prisma, clinicId, dto);
     const data = {
       screenerIsAccountHolder: performer.performedByIsAccountHolder,
       screenerName: performer.performedByName,
+      screenerVolunteerContactId: performer.performedByVolunteerContactId,
     };
     return this.prisma.$transaction(async (tx) => {
       const shift = await tx.staffShift.findUnique({ where: { id: shiftId } });
@@ -330,7 +342,7 @@ export class StationService {
     dto: CorrectPerformerDto,
     context: StationWriteContext = {},
   ) {
-    const performer = this.toPerformer(dto);
+    const performer = await this.toPerformer(this.prisma, clinicId, dto);
     const visit = await this.prisma.$transaction(async (tx) => {
       const before = await this.loadVisitInClinic(tx, clinicId, visitId);
       if (before.status !== 'COMPLETED' && before.status !== 'SKIPPED') {
@@ -447,31 +459,20 @@ export class StationService {
    * that names a patient is read.
    */
   /**
-   * Names people have screened under at this clinic recently, for the screener field (#227).
-   *
-   * shortcut: drawn from past stops' snapshots, because the volunteer directory (#226) does not
-   * exist yet. When it does, list its active `VolunteerContact` rows here instead, add each one's
-   * `volunteerContactId` to the items, and accept that id on `ScreenerDto`; the web already sends
-   * whichever name the user picks.
+   * The clinic's active volunteer directory (#226), for the screener field (#227). Each item
+   * carries its contact id, which the field sends back so the stop links to the directory entry.
    */
-  async getScreenerNames(clinicId: string, now: Date = new Date()) {
-    const since = new Date(now.getTime() - SCREENER_NAME_WINDOW_DAYS * 24 * 60 * 60 * 1000);
-    const rows = await this.prisma.patientStationVisit.groupBy({
-      by: ['performedByName'],
-      where: {
-        clinicId,
-        performedByIsAccountHolder: false,
-        performedByName: { not: null },
-        completedAt: { gte: since },
-      },
-      _max: { completedAt: true },
-      orderBy: { _max: { completedAt: 'desc' } },
+  async getScreenerNames(clinicId: string) {
+    const contacts = await this.prisma.volunteerContact.findMany({
+      where: { clinicId, isActive: true },
+      select: { id: true, displayName: true },
+      orderBy: { displayName: 'asc' },
       take: SCREENER_NAME_LIMIT,
     });
     return {
-      items: rows.map((row) => ({
-        name: row.performedByName as string,
-        lastUsedAt: row._max.completedAt?.toISOString() ?? null,
+      items: contacts.map((contact) => ({
+        name: contact.displayName,
+        volunteerContactId: contact.id,
       })),
     };
   }
@@ -651,7 +652,11 @@ export class StationService {
       const before = await this.loadVisitInClinic(tx, clinicId, visitId);
       // A manager forcing a release didn't do the stop, and can't say who did.
       const performer = context.force
-        ? { performedByIsAccountHolder: null, performedByName: null }
+        ? {
+            performedByIsAccountHolder: null,
+            performedByName: null,
+            performedByVolunteerContactId: null,
+          }
         : await this.performerFor(tx, clinicId, actor.userId);
       const released = await tx.patientStationVisit.updateMany({
         where: {
@@ -935,11 +940,12 @@ export class StationService {
       userId: string;
       actorUserId: string;
       /** The shift's screener, read before check-out cleared it. */
-      screener: ScreenerDto;
+      screener: ShiftScreener;
     },
     context: StationWriteContext = {},
   ) {
-    const performer = this.toPerformer(params.screener);
+    // Already checked when it was set; a contact deactivated since must not block check-out.
+    const performer = this.storedPerformer(params.screener);
     const held = await tx.patientStationVisit.findMany({
       where: { clinicId: params.clinicId, status: 'IN_PROGRESS', claimedByUserId: params.userId },
       select: { id: true },
@@ -1256,10 +1262,39 @@ export class StationService {
     return clinicDayWindow(date, clinic?.timezone ?? CLINIC_DEFAULT_TIMEZONE);
   }
 
-  /** Trimmed and checked; the account holder carries no name. */
-  private toPerformer(screener: ScreenerDto): Performer {
+  /**
+   * Trimmed and checked; the account holder carries no name. A pick from the directory (#226) is
+   * looked up in this clinic and must be active, and its name comes from the server's copy.
+   */
+  private async toPerformer(
+    db: Pick<TxClient, 'volunteerContact'>,
+    clinicId: string,
+    screener: ScreenerDto,
+  ): Promise<Performer> {
     if (screener.isAccountHolder) {
-      return { performedByIsAccountHolder: true, performedByName: null };
+      return {
+        performedByIsAccountHolder: true,
+        performedByName: null,
+        performedByVolunteerContactId: null,
+      };
+    }
+    if (screener.volunteerContactId) {
+      const contact = await db.volunteerContact.findFirst({
+        where: { id: screener.volunteerContactId, clinicId, isActive: true },
+        select: { id: true, displayName: true },
+      });
+      if (!contact) {
+        throw new BadRequestException({
+          code: 'SCREENER_CONTACT_NOT_FOUND',
+          message:
+            "That volunteer is not in this clinic's active directory. Type their name instead.",
+        });
+      }
+      return {
+        performedByIsAccountHolder: false,
+        performedByName: contact.displayName,
+        performedByVolunteerContactId: contact.id,
+      };
     }
     const name = screener.name?.trim();
     if (!name) {
@@ -1268,7 +1303,27 @@ export class StationService {
         message: 'Enter the name of the person screening.',
       });
     }
-    return { performedByIsAccountHolder: false, performedByName: name };
+    return {
+      performedByIsAccountHolder: false,
+      performedByName: name,
+      performedByVolunteerContactId: null,
+    };
+  }
+
+  /** A screener already stored on a shift, carried onto a visit as it is. */
+  private storedPerformer(shift: ShiftScreener): Performer {
+    if (shift.screenerIsAccountHolder || !shift.screenerName) {
+      return {
+        performedByIsAccountHolder: true,
+        performedByName: null,
+        performedByVolunteerContactId: null,
+      };
+    }
+    return {
+      performedByIsAccountHolder: false,
+      performedByName: shift.screenerName,
+      performedByVolunteerContactId: shift.screenerVolunteerContactId,
+    };
   }
 
   /** The screener sent with the request, else the user's shift's, else the account holder. */
@@ -1278,15 +1333,22 @@ export class StationService {
     userId: string,
     override?: ScreenerDto,
   ): Promise<Performer> {
-    if (override) return this.toPerformer(override);
+    if (override) return this.toPerformer(tx, clinicId, override);
     const shift = await tx.staffShift.findFirst({
       where: { clinicId, userId, status: 'ACTIVE' },
-      select: { screenerIsAccountHolder: true, screenerName: true },
+      select: {
+        screenerIsAccountHolder: true,
+        screenerName: true,
+        screenerVolunteerContactId: true,
+      },
     });
-    if (!shift || shift.screenerIsAccountHolder || !shift.screenerName) {
-      return { performedByIsAccountHolder: true, performedByName: null };
-    }
-    return { performedByIsAccountHolder: false, performedByName: shift.screenerName };
+    return shift
+      ? this.storedPerformer(shift)
+      : this.storedPerformer({
+          screenerIsAccountHolder: true,
+          screenerName: null,
+          screenerVolunteerContactId: null,
+        });
   }
 
   private screenerNameOf(shift: { screenerIsAccountHolder: boolean; screenerName: string | null }) {

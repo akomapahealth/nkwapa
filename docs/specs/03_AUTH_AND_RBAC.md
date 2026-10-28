@@ -67,6 +67,7 @@ Current permission families include:
 - dashboard reads
 - patient portal self and staff-linked reads/actions
 - suspected duplicate review
+- volunteer directory and screening-day rosters
 
 Realm roles in Keycloak are descriptive, not the authoritative enforcement layer.
 
@@ -172,6 +173,19 @@ looked without becoming a copy of what they saw. The route also emits the
 The investigation is read-only. Future org-level roles can be granted access by widening the
 service check, which is the single place it is decided; merging across clinics stays refused until
 a consolidation policy exists (see `02_DOMAIN_MODEL_AND_DATA_DICTIONARY.md`).
+
+Volunteer directory and screening-day rosters (#226):
+
+- `VOLUNTEER.ROSTER.MANAGE`: director and manager, with `SYSTEM_ADMIN` through the wildcard. One
+  permission covers reading and writing the directory, screening events, rosters and roster emails.
+  Doctors, volunteers and patients hold nothing, and the "Volunteers" nav entry is hidden from them.
+- Every route sits under `/clinics/:clinicId` with `ClinicScopeGuard`, and the services look every
+  contact, event and assignment up by id _and_ path clinic, so an id from another clinic is a 404.
+  `VolunteerContact`, `ScreeningEvent` and `ScreeningEventAssignment` each carry `clinicId` and the
+  ordinary `app.can_access_clinic` RLS policy (ENABLE + FORCE).
+- Linking a contact to an account is explicit and audited. The server checks that the user holds a
+  role at the same clinic and that their email matches the contact's; it never links on its own and
+  never creates a Keycloak account.
 
 ---
 

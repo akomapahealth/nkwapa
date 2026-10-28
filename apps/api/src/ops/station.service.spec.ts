@@ -192,6 +192,10 @@ function setup(initial: Row = {}) {
       ),
       update: jest.fn(async ({ data }: { data: Row }) => ({ id: 'shift-1', ...data })),
     },
+    volunteerContact: {
+      findFirst: jest.fn(async (): Promise<Row | null> => null),
+      findMany: jest.fn(async (): Promise<Row[]> => []),
+    },
     $executeRaw: jest.fn(async () => 0),
   };
   const prisma = {
@@ -661,7 +665,11 @@ describe('StationService', () => {
       clinicId: CLINIC,
       userId: 'vol-1',
       actorUserId: 'vol-1',
-      screener: { isAccountHolder: false, name: 'Ama Mensah' },
+      screener: {
+        screenerIsAccountHolder: false,
+        screenerName: 'Ama Mensah',
+        screenerVolunteerContactId: 'contact-1',
+      },
     });
     expect(released).toBe(2);
     expect(tx.patientStationVisit.update).toHaveBeenCalledWith(
@@ -671,6 +679,7 @@ describe('StationService', () => {
           endReason: 'SHIFT_ENDED',
           performedByIsAccountHolder: false,
           performedByName: 'Ama Mensah',
+          performedByVolunteerContactId: 'contact-1',
         }),
       }),
     );
@@ -689,7 +698,11 @@ describe('StationService', () => {
       });
       expect(tx.staffShift.update).toHaveBeenCalledWith({
         where: { id: 'shift-1' },
-        data: { screenerIsAccountHolder: false, screenerName: 'Ama Mensah' },
+        data: {
+          screenerIsAccountHolder: false,
+          screenerName: 'Ama Mensah',
+          screenerVolunteerContactId: null,
+        },
       });
       expect(actions(audit)).toEqual(['SHIFT.SCREENER.UPDATE']);
     });
@@ -804,24 +817,75 @@ describe('StationService', () => {
       }
     });
 
-    it('suggests recent names, newest first, and only names', async () => {
+    it("suggests the clinic's active volunteer directory, with each contact's id (#226)", async () => {
       const { service, tx } = setup();
-      tx.patientStationVisit.groupBy.mockResolvedValueOnce([
-        { performedByName: 'Ama Mensah', _max: { completedAt: new Date('2026-10-27T10:00:00Z') } },
+      tx.volunteerContact.findMany.mockResolvedValueOnce([
+        { id: 'contact-1', displayName: 'Ama Mensah' },
       ]);
-      const now = new Date('2026-10-28T10:00:00Z');
-      await expect(service.getScreenerNames(CLINIC, now)).resolves.toEqual({
-        items: [{ name: 'Ama Mensah', lastUsedAt: '2026-10-27T10:00:00.000Z' }],
+      await expect(service.getScreenerNames(CLINIC)).resolves.toEqual({
+        items: [{ name: 'Ama Mensah', volunteerContactId: 'contact-1' }],
       });
-      expect(tx.patientStationVisit.groupBy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            clinicId: CLINIC,
-            performedByIsAccountHolder: false,
-            completedAt: { gte: new Date('2026-07-30T10:00:00Z') },
-          }),
-        }),
+      expect(tx.volunteerContact.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { clinicId: CLINIC, isActive: true } }),
       );
+    });
+
+    describe('picked from the directory (#226)', () => {
+      it("takes the name from the server's copy and keeps the contact id", async () => {
+        const { service, tx } = setup();
+        tx.volunteerContact.findFirst.mockResolvedValueOnce({
+          id: 'contact-1',
+          displayName: 'Ama Mensah',
+        });
+        await service.setShiftScreener(CLINIC, 'shift-1', volunteer, {
+          isAccountHolder: false,
+          name: 'Typed Differently',
+          volunteerContactId: 'contact-1',
+        });
+        expect(tx.volunteerContact.findFirst).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { id: 'contact-1', clinicId: CLINIC, isActive: true } }),
+        );
+        expect(tx.staffShift.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: {
+              screenerIsAccountHolder: false,
+              screenerName: 'Ama Mensah',
+              screenerVolunteerContactId: 'contact-1',
+            },
+          }),
+        );
+      });
+
+      it('refuses a contact from another clinic or one deactivated, with 400', async () => {
+        const { service, tx } = setup();
+        await expect(
+          service.setShiftScreener(CLINIC, 'shift-1', volunteer, {
+            isAccountHolder: false,
+            name: 'Ama Mensah',
+            volunteerContactId: 'contact-elsewhere',
+          }),
+        ).rejects.toBeInstanceOf(BadRequestException);
+        expect(tx.staffShift.update).not.toHaveBeenCalled();
+      });
+
+      it("carries the shift's contact onto the stop it completes", async () => {
+        const { service, tx, current } = setup({
+          status: 'IN_PROGRESS',
+          claimedByUserId: 'vol-1',
+          claimedAt: new Date(),
+        });
+        tx.staffShift.findFirst.mockResolvedValueOnce({
+          id: 'shift-1',
+          screenerIsAccountHolder: false,
+          screenerName: 'Ama Mensah',
+          screenerVolunteerContactId: 'contact-1',
+        });
+        await service.complete(CLINIC, 'visit-1', volunteer, {});
+        expect(current()).toMatchObject({
+          performedByName: 'Ama Mensah',
+          performedByVolunteerContactId: 'contact-1',
+        });
+      });
     });
 
     describe('correction', () => {

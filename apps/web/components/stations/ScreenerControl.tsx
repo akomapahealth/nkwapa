@@ -10,6 +10,9 @@ import { FieldError, fieldErrorId } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
+/** How many directory names show under the field; typing narrows them. */
+const SUGGESTION_LIMIT = 8;
+
 /**
  * "Who is working on this account?" (#227). A volunteer without an account often screens on
  * someone else's; their name is kept on the shift until changed or check-out, and stamped on each
@@ -35,6 +38,7 @@ export function ScreenerControl({
   const nameId = `${id}-name`;
   const [isHolder, setIsHolder] = useState(!screenerName);
   const [name, setName] = useState(screenerName ?? '');
+  const [contactId, setContactId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -43,6 +47,7 @@ export function ScreenerControl({
   useEffect(() => {
     setIsHolder(!screenerName);
     setName(screenerName ?? '');
+    setContactId(null);
   }, [screenerName]);
 
   const save = async (screener: Screener) => {
@@ -59,6 +64,7 @@ export function ScreenerControl({
       // Keep what was saved before, and say so.
       setIsHolder(!screenerName);
       setName(screenerName ?? '');
+      setContactId(null);
       setError(
         `${cause instanceof Error ? cause.message : String(cause)} The previous choice is kept.`,
       );
@@ -96,7 +102,11 @@ export function ScreenerControl({
               setError('Enter the name of the person screening.');
               return;
             }
-            void save({ isAccountHolder: false, name: trimmed });
+            void save({
+              isAccountHolder: false,
+              name: trimmed,
+              ...(contactId ? { volunteerContactId: contactId } : {}),
+            });
           }}
         >
           <ScreenerNameField
@@ -104,12 +114,16 @@ export function ScreenerControl({
             label="Name of the person screening"
             hint="They don't need an account. Every patient you finish is recorded as seen by them, until you change this or end your shift."
             value={name}
+            pickedId={contactId}
             error={error}
             disabled={disabled}
             clinicId={clinicId}
             getToken={getToken}
             isOnline={isOnline}
-            onChange={setName}
+            onChange={(next, pickedId) => {
+              setName(next);
+              setContactId(pickedId);
+            }}
           />
           <Button type="submit" size="sm" className="justify-self-start" disabled={disabled}>
             {busy ? 'Saving…' : 'Save name'}
@@ -127,15 +141,16 @@ export function ScreenerControl({
 }
 
 /**
- * The screener's name, with names already used at this clinic offered as suggestions (#227).
- * Free text: anyone can screen, listed or not. When the volunteer directory (#226) exists, its
- * contacts replace the suggestions and the picked contact's id travels with the name.
+ * The screener's name (#227), free text, with the clinic's volunteer directory (#226) offered as
+ * buttons below it. Anyone can screen, listed or not; picking a listed person sends their contact
+ * id with the name, and typing afterwards drops it.
  */
 export function ScreenerNameField({
   id,
   label,
   hint,
   value,
+  pickedId,
   error,
   disabled,
   clinicId,
@@ -147,28 +162,34 @@ export function ScreenerNameField({
   label: string;
   hint: string;
   value: string;
+  /** The directory contact the value was picked from, if any. */
+  pickedId: string | null;
   error: string | null;
   disabled: boolean;
   clinicId: string;
   getToken: GetToken;
   isOnline: boolean;
-  onChange: (value: string) => void;
+  onChange: (value: string, volunteerContactId: string | null) => void;
 }) {
   const hintId = `${id}-hint`;
-  const listId = `${id}-suggestions`;
-  const [names, setNames] = useState<string[]>([]);
+  const [contacts, setContacts] = useState<Array<{ name: string; volunteerContactId: string }>>([]);
 
   useEffect(() => {
     if (!isOnline) return;
     let current = true;
     fetchScreenerNames(clinicId, getToken)
-      .then((result) => current && setNames(result.items.map((item) => item.name)))
+      .then((result) => current && setContacts(result.items))
       // Suggestions are a convenience; typing a name still works without them.
       .catch(() => undefined);
     return () => {
       current = false;
     };
   }, [clinicId, getToken, isOnline]);
+
+  const query = value.trim().toLowerCase();
+  const suggestions = contacts
+    .filter((contact) => !query || contact.name.toLowerCase().includes(query))
+    .slice(0, SUGGESTION_LIMIT);
 
   return (
     <div className="grid gap-2">
@@ -182,18 +203,29 @@ export function ScreenerNameField({
         maxLength={120}
         required
         autoComplete="off"
-        list={names.length ? listId : undefined}
         disabled={disabled}
         aria-describedby={`${hintId}${error ? ` ${fieldErrorId(id)}` : ''}`}
         aria-invalid={error ? true : undefined}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => {
+          onChange(event.target.value, null);
+        }}
       />
-      {names.length ? (
-        <datalist id={listId}>
-          {names.map((name) => (
-            <option key={name} value={name} />
+      {suggestions.length ? (
+        <div role="group" aria-label="Volunteers in the directory" className="flex flex-wrap gap-2">
+          {suggestions.map((contact) => (
+            <Button
+              key={contact.volunteerContactId}
+              type="button"
+              size="sm"
+              variant={pickedId === contact.volunteerContactId ? 'default' : 'outline'}
+              aria-pressed={pickedId === contact.volunteerContactId}
+              disabled={disabled}
+              onClick={() => onChange(contact.name, contact.volunteerContactId)}
+            >
+              {contact.name}
+            </Button>
           ))}
-        </datalist>
+        </div>
       ) : null}
       <FieldError id={id} message={error ?? undefined} />
     </div>

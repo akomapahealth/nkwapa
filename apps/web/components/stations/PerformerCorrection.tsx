@@ -33,6 +33,7 @@ export function PerformerCorrection({
   const [open, setOpen] = useState(false);
   const [isHolder, setIsHolder] = useState(!stop.performedByName);
   const [name, setName] = useState(stop.performedByName ?? '');
+  const [contactId, setContactId] = useState<string | null>(null);
   const [reason, setReason] = useState('');
   const [errors, setErrors] = useState<{ name?: string; reason?: string; form?: string }>({});
   const [busy, setBusy] = useState(false);
@@ -74,7 +75,12 @@ export function PerformerCorrection({
           stop.id,
           isHolder
             ? { isAccountHolder: true, reason: reason.trim() }
-            : { isAccountHolder: false, name: name.trim(), reason: reason.trim() },
+            : {
+                isAccountHolder: false,
+                name: name.trim(),
+                ...(contactId ? { volunteerContactId: contactId } : {}),
+                reason: reason.trim(),
+              },
           getToken,
         )
           .then((visit) => {
@@ -103,12 +109,16 @@ export function PerformerCorrection({
           label="Who actually did it"
           hint="The name is recorded on this stop only."
           value={name}
+          pickedId={contactId}
           error={errors.name ?? null}
           disabled={busy}
           clinicId={clinicId}
           getToken={getToken}
           isOnline={isOnline}
-          onChange={setName}
+          onChange={(next, pickedId) => {
+            setName(next);
+            setContactId(pickedId);
+          }}
         />
       ) : null}
       <div className="grid gap-2">

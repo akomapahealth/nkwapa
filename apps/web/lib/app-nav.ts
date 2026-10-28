@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import {
+  CalendarCheck,
   BarChart3,
   Bell,
   Building2,
@@ -135,6 +136,14 @@ const NAV_SECTIONS: AppNavSection[] = [
         description: 'Activity history.',
         icon: Shield,
         permission: 'AUDIT.READ',
+        requiresClinic: true,
+      },
+      {
+        href: '/volunteers',
+        label: 'Volunteers',
+        description: 'Directory and screening-day rosters.',
+        icon: CalendarCheck,
+        permission: 'VOLUNTEER.ROSTER.MANAGE',
         requiresClinic: true,
       },
       {
