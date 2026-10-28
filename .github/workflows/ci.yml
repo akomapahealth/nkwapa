@@ -169,7 +169,7 @@ jobs:
       # services, as the unprivileged role, across two organizations and a straddling zone (#16),
       # plus the registry's completed-screening filter on that same footing (#224).
       - name: Verify organization and zone isolation end to end
-        run: npm run test --workspace=@nkwapa/api -- --runInBand src/tenancy/org-zone-isolation.integration.spec.ts src/patients/patient-registry-screened.integration.spec.ts
+        run: npm run test --workspace=@nkwapa/api -- --runInBand src/tenancy/org-zone-isolation.integration.spec.ts src/patients/patient-registry-screened.integration.spec.ts src/ops/station-performer.integration.spec.ts
         env:
           RUN_ORG_ZONE_ISOLATION_TESTS: '1'
           DATABASE_URL: ${{ env.DATABASE_URL }}
