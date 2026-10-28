@@ -216,3 +216,33 @@ test('the registry with the screened filter open passes axe in dark mode', async
   ).toBeVisible({ timeout: 20_000 });
   await axe(page);
 });
+
+test('the filtered registry comes back after opening a chart and pressing Back', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const patient = await createPatient(page);
+  await completeScreening(patient);
+
+  await page.goto('/patients');
+  await page.getByLabel('Name, patient code, phone or ID last 4').fill(patient.lastName);
+  await page.getByLabel('Screened', { exact: true }).click();
+  await page.getByRole('option', { name: 'Today' }).click();
+  await expect(page.getByText(/^1 patient screened/)).toBeVisible({ timeout: 20_000 });
+  await expect(page).toHaveURL(/screenedFrom=/);
+
+  await page
+    .getByRole('table')
+    .getByRole('row', { name: new RegExp(patient.lastName) })
+    .getByRole('link', { name: 'View' })
+    .click();
+  await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
+
+  await page.goBack();
+  await expect(page).toHaveURL(/screenedFrom=/);
+  await expect(page.getByLabel('Name, patient code, phone or ID last 4')).toHaveValue(
+    patient.lastName,
+  );
+  await expect(page.getByLabel('Screened', { exact: true })).toHaveText('Today');
+  await expect(page.getByText(/^1 patient screened/)).toBeVisible({ timeout: 20_000 });
+});
