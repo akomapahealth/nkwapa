@@ -92,6 +92,10 @@
     "./medication-adherence": {
       "types": "./dist/src/medication-adherence.d.ts",
       "default": "./dist/src/medication-adherence.js"
+    },
+    "./staff-name": {
+      "types": "./dist/src/staff-name.d.ts",
+      "default": "./dist/src/staff-name.js"
     }
   },
   "scripts": {
