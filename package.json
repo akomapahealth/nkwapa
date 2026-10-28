@@ -14,6 +14,7 @@
     "db:purge-seed-fixtures": "ts-node --transpile-only packages/db/prisma/purge-seed-fixtures.ts",
     "db:assign-system-admin": "ts-node --transpile-only packages/db/prisma/assign-system-admin.ts",
     "db:audit-clinics": "ts-node --transpile-only packages/db/prisma/audit-clinic-metadata.ts",
+    "db:report-unnamed-staff": "ts-node --transpile-only packages/db/prisma/report-unnamed-staff.ts",
     "keycloak:validate-realm": "node scripts/validate-keycloak-realm.mjs",
     "keycloak:apply-service-account": "node scripts/apply-keycloak-service-account.mjs",
     "design:check-charts": "node scripts/check-chart-palette.mjs",
