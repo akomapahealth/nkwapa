@@ -324,6 +324,33 @@ describe('KeycloakAdminClient', () => {
     });
   });
 
+  describe('identity names (#225)', () => {
+    it('sends the names alone, leaving the username untouched', async () => {
+      fetchMock
+        .mockResolvedValueOnce(tokenResponse())
+        .mockResolvedValueOnce(jsonResponse(undefined, 204));
+
+      await expect(
+        client().updateUserNames('u1', { firstName: 'Ama', lastName: 'Mensah' }),
+      ).resolves.toBe('UPDATED');
+
+      const [url, init] = fetchMock.mock.calls[1];
+      expect(String(url)).toBe('http://keycloak.test/admin/realms/nkwapa/users/u1');
+      expect(init.method).toBe('PUT');
+      expect(JSON.parse(String(init.body))).toEqual({ firstName: 'Ama', lastName: 'Mensah' });
+    });
+
+    it('reports a missing identity rather than throwing', async () => {
+      fetchMock
+        .mockResolvedValueOnce(tokenResponse())
+        .mockResolvedValueOnce(jsonResponse({ error: 'User not found' }, 404));
+
+      await expect(
+        client().updateUserNames('gone', { firstName: 'Ama', lastName: 'Mensah' }),
+      ).resolves.toBe('NOT_FOUND');
+    });
+  });
+
   describe('transport failures', () => {
     it('retries once when a cached token has been revoked under us', async () => {
       fetchMock

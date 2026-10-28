@@ -169,6 +169,23 @@ export class KeycloakAdminClient {
   }
 
   /**
+   * Set an identity's first and last name, which Nkwapa owns (#225).
+   *
+   * Partial, like `setUserEnabled`: the username (the email) and everything else survive.
+   */
+  async updateUserNames(
+    userId: string,
+    names: { firstName: string; lastName: string },
+  ): Promise<'UPDATED' | 'NOT_FOUND'> {
+    const response = await this.send('PUT', `/users/${encodeURIComponent(userId)}`, names);
+    if (response.status === 404) return 'NOT_FOUND';
+    if (!response.ok) {
+      await this.fail(response, 'PUT /users/:id');
+    }
+    return 'UPDATED';
+  }
+
+  /**
    * End every live session for an identity.
    *
    * Disabling alone stops new sign-ins, but an access token already issued stays valid until it
