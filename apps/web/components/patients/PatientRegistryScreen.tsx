@@ -2,11 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import type { SortingState } from '@tanstack/react-table';
+import { useSearchParams } from 'next/navigation';
 import { Search, Stethoscope, UserPlus, Users } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { useBootstrap } from '@/lib/bootstrap-context';
-import { registrySortQuery } from '@/lib/patient-registry-sort';
+import {
+  parseRegistryView,
+  registryViewQuery,
+  type RegistryView,
+} from '@/lib/patient-registry-url';
 import { hasPermission, readApiError } from '@/lib/ops';
 import { GHANA_REGION_LABELS, PATIENT_LOCATION_STATUS_LABELS } from '@/lib/residential-location';
 import { useAsyncResource } from '@/lib/use-async-resource';
@@ -18,11 +22,7 @@ import { FormSectionCard } from '@/components/app-shell/FormSectionCard';
 import { SectionSkeleton } from '@/components/feedback/AppState';
 import { ResourceState } from '@/components/feedback/ResourceState';
 import { OpsFeedbackNotice } from '@/components/ops/OpsShared';
-import {
-  EMPTY_LOCATION_FILTER,
-  ResidentialLocationFilters,
-  type ResidentialLocationFilterValue,
-} from '@/components/patients/ResidentialLocationFilters';
+import { ResidentialLocationFilters } from '@/components/patients/ResidentialLocationFilters';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DataTable, DataTableActions, type DataTableColumn } from '@/components/ui/data-table';
@@ -60,20 +60,27 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
   const canCreateOpsCheckIn = hasPermission(perms, 'OPS.CHECKIN.CREATE');
 
-  const [q, setQ] = useState('');
-  const [locationFilter, setLocationFilter] =
-    useState<ResidentialLocationFilterValue>(EMPTY_LOCATION_FILTER);
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(10);
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const sortQuery = registrySortQuery(sorting);
+  /*
+    Every filter, the page and the sort live in one view, seeded from the URL so a follow-up
+    lead can share "patients screened 10 Oct" as a link. Any filter change goes back to page 1.
+  */
+  const searchParams = useSearchParams();
+  const [view, setView] = useState<RegistryView>(() =>
+    parseRegistryView(new URLSearchParams(searchParams.toString())),
+  );
+  const { q, location: locationFilter, page, pageSize, sorting } = view;
+  const updateView = (patch: Partial<RegistryView>) =>
+    setView((current) => ({ ...current, page: 0, ...patch }));
 
   /*
     Only the free-text inputs are debounced. Typing a name should not fire a request per
     keystroke, but choosing a region is a single deliberate act and has to answer immediately.
     The committed values are what identify the read, so they drive `resourceKey` below.
   */
-  const [committed, setCommitted] = useState({ q: '', community: '' });
+  const [committed, setCommitted] = useState(() => ({
+    q: view.q.trim(),
+    community: view.location.community.trim(),
+  }));
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const nextQ = q.trim();
@@ -89,35 +96,31 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
   }, [q, locationFilter.community]);
 
   const { region, district, status } = locationFilter;
+  const committedView: RegistryView = {
+    ...view,
+    q: committed.q,
+    location: { ...locationFilter, community: committed.community },
+  };
+  const apiQuery = registryViewQuery(committedView, { forApi: true }).toString();
+  const urlQuery = registryViewQuery(committedView).toString();
+
+  /*
+    history.replaceState, not router.replace: a Next navigation refetches the route's RSC payload,
+    which fails offline (see use-chart-tabs). Written from the committed view, so the address bar
+    follows the debounced search rather than every keystroke.
+  */
+  useEffect(() => {
+    if (window.location.search.replace(/^\?/, '') === urlQuery) return;
+    const next = urlQuery ? `${window.location.pathname}?${urlQuery}` : window.location.pathname;
+    window.history.replaceState(window.history.state, '', next);
+  }, [urlQuery]);
 
   const registry = useAsyncResource<PatientRegistryResponse>({
-    resourceKey: [
-      clinicId,
-      page,
-      pageSize,
-      committed.q,
-      region,
-      district,
-      committed.community,
-      status,
-      sortQuery.sortBy ?? '',
-      sortQuery.sortDir ?? '',
-    ].join('|'),
+    resourceKey: `${clinicId}|${apiQuery}`,
     errorMessage: 'The patient registry could not be loaded.',
     fetcher: async (token, signal) => {
-      const query = new URLSearchParams({
-        page: String(page + 1),
-        pageSize: String(pageSize),
-        ...sortQuery,
-      });
-      if (committed.q) query.set('q', committed.q);
-      if (region) query.set('residentialRegion', region);
-      if (district) query.set('residentialDistrict', district);
-      if (committed.community) query.set('residentialCommunity', committed.community);
-      if (status) query.set('residentialLocationStatus', status);
-
       const response = await apiFetch(
-        `/clinics/${encodeURIComponent(clinicId)}/patients?${query.toString()}`,
+        `/clinics/${encodeURIComponent(clinicId)}/patients?${apiQuery}`,
         { getToken: token, activeClinicId: clinicId, signal },
       );
       if (!response.ok) {
@@ -255,10 +258,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
         <Input
           type="search"
           value={q}
-          onChange={(event) => {
-            setQ(event.target.value);
-            setPage(0);
-          }}
+          onChange={(event) => updateView({ q: event.target.value })}
           placeholder="Search by name, patient code, phone, or national ID last 4"
           className="w-full md:max-w-xl"
         />
@@ -266,10 +266,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
           <p className="text-sm font-medium text-foreground">Residential location filters</p>
           <ResidentialLocationFilters
             value={locationFilter}
-            onChange={(next) => {
-              setLocationFilter(next);
-              setPage(0);
-            }}
+            onChange={(next) => updateView({ location: next })}
           />
           <ActiveFilterSummary
             items={[
@@ -333,15 +330,15 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
                 rowCount={data.total}
                 isRefreshing={registry.isRefreshing}
                 sorting={sorting}
-                onSortingChange={(next) => {
-                  setSorting(next);
-                  setPage(0);
-                }}
+                onSortingChange={(next) => updateView({ sorting: next })}
                 pagination={{ pageIndex: page, pageSize }}
-                onPaginationChange={(next) => {
-                  setPage(next.pageIndex);
-                  setPageSize(next.pageSize);
-                }}
+                onPaginationChange={(next) =>
+                  setView((current) => ({
+                    ...current,
+                    page: next.pageIndex,
+                    pageSize: next.pageSize,
+                  }))
+                }
                 renderMobileRow={(row) => (
                   <article className="rounded-lg border border-border/80 bg-card p-4">
                     <div className="flex items-start justify-between gap-3">
