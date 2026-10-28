@@ -47,10 +47,12 @@ export function ScreenedDateFilter({
   timeZone: string;
   error?: { field: 'from' | 'to'; message: string } | null;
 }) {
-  // Custom stays chosen while its dates are still empty, which presetFor alone cannot tell.
+  /*
+    Choosing Custom shows the inputs even while the dates still read as a preset, or are empty,
+    which presetFor alone cannot tell. The parent remounts this when it clears the filter itself.
+  */
   const [customChosen, setCustomChosen] = useState(false);
-  const derived = presetFor(value.from, value.to, today);
-  const preset: ScreenedPreset = customChosen && derived === 'any' ? 'custom' : derived;
+  const preset: ScreenedPreset = customChosen ? 'custom' : presetFor(value.from, value.to, today);
   const helpId = 'filter-screened-help';
   const errorId = 'filter-screened-error';
   const describedBy = error ? `${helpId} ${errorId}` : helpId;

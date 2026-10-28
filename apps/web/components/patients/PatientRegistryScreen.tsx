@@ -131,6 +131,8 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
   const clientScreenedError = screenedRangeError(screenedFrom, screenedTo);
   const [serverScreenedError, setServerScreenedError] = useState<ScreenedError | null>(null);
   const screenedError = clientScreenedError ?? serverScreenedError;
+  // Bumped when a chip or Clear all empties the filter, so the control drops back to Any time.
+  const [screenedResetKey, setScreenedResetKey] = useState(0);
 
   const committedView: RegistryView = {
     ...view,
@@ -286,7 +288,10 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
       ...(!from && !to && sorting[0]?.id === 'screened' ? { sorting: [] } : {}),
     });
   };
-  const clearScreened = () => setScreened('', '');
+  const clearScreened = () => {
+    setScreened('', '');
+    setScreenedResetKey((key) => key + 1);
+  };
 
   const otherFiltersActive = Boolean(
     committed.q || region || district || committed.community || status,
@@ -417,6 +422,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
           </fieldset>
           <div className="border-t border-border/70 pt-4">
             <ScreenedDateFilter
+              key={screenedResetKey}
               value={{ from: screenedFrom, to: screenedTo }}
               today={today}
               timeZone={timeZone}
@@ -464,6 +470,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
             emptyLabel="Browsing the full clinic registry"
             onClearAll={() => {
               setServerScreenedError(null);
+              setScreenedResetKey((key) => key + 1);
               updateView({
                 q: '',
                 location: EMPTY_LOCATION_FILTER,
@@ -484,7 +491,11 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
             <div className="space-y-1.5">
               <CardTitle className="text-xl">Patient results</CardTitle>
               <CardDescription>Open a chart or hand the patient into OPS.</CardDescription>
-              {screenedActive && registry.data && !registry.data.rejected ? (
+              {/* The empty state already says when nothing matched. */}
+              {screenedActive &&
+              registry.data &&
+              !registry.data.rejected &&
+              registry.data.total > 0 ? (
                 <p aria-live="polite" className="text-sm font-medium text-foreground">
                   {screenedCountLine(registry.data.total, screenedFrom, screenedTo)}
                 </p>
