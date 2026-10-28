@@ -133,6 +133,23 @@ export default function StationsPage() {
   const myStation = stations.find((station) =>
     station.staff.some((member) => member.id === userId),
   );
+
+  // Closing a station clears it from everyone's shift (#228). Remember the last one seen, so a
+  // volunteer whose station vanishes is told why rather than just asked to choose again.
+  // shortcut: only while this page stays open; a reload after the closure shows no notice, which
+  // is fine until volunteers report missing it (then return the reason from the shift API).
+  const [seenStation, setSeenStation] = useState<{ id: string; name: string } | null>(null);
+  const [closedNotice, setClosedNotice] = useState<string | null>(null);
+  if (myStation && myStation.id !== seenStation?.id) {
+    setSeenStation({ id: myStation.id, name: myStation.name });
+    setClosedNotice(null);
+  } else if (!myStation && seenStation && view.data) {
+    const closed = view.data.board.stations.some(
+      (station) => station.id === seenStation.id && !station.active,
+    );
+    setClosedNotice(closed ? `${seenStation.name} was closed. Choose another station.` : null);
+    setSeenStation(null);
+  }
   const myPatients = stations.flatMap((station) =>
     station.visits.filter(
       (visit) => visit.status === 'IN_PROGRESS' && visit.claimedBy?.id === userId,
@@ -271,6 +288,9 @@ export default function StationsPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-2">
+                  {currentShift && closedNotice ? (
+                    <InlineNotice tone="warning">{closedNotice}</InlineNotice>
+                  ) : null}
                   {stations.map((station) => {
                     const selected = myStation?.id === station.id;
                     return (

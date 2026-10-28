@@ -856,3 +856,50 @@ test.describe('the station screens keep separate offline copies (#197)', () => {
     await context.close();
   });
 });
+
+test('closing a station clears it from the volunteer working there, who is told why (#228)', async ({
+  browser,
+}) => {
+  test.setTimeout(90_000);
+  const clinicId = (await apiRequestAs('staff', 'get', '/auth/whoami')).json().activeClinicId;
+  const name = `Closing ${randomUUID().slice(0, 8)}`;
+  const created = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/stations`, {
+    clinicId,
+    data: { kind: 'CUSTOM', name },
+  });
+  expect(created.ok(), created.text()).toBeTruthy();
+  const stationId = created.json().id;
+  const close = () =>
+    apiRequestAs('staff', 'patch', `/clinics/${clinicId}/stations/${stationId}`, {
+      clinicId,
+      data: { active: false },
+    });
+
+  const context = await browser.newContext({ storageState: storageStateFor('volunteer') });
+  try {
+    await ensureShift('volunteer', clinicId);
+    const page = await context.newPage();
+    await page.goto('/stations');
+    const choice = page.getByRole('button', { name: new RegExp(`^${name}`) });
+    await choice.click();
+    await expect(page.getByText(`You are working at ${name}.`)).toBeVisible({ timeout: 20_000 });
+
+    const closed = await close();
+    expect(closed.ok(), closed.text()).toBeTruthy();
+
+    // The page polls the line every 12 s; the closure reaches it on the next poll.
+    await expect(page.getByText(`${name} was closed. Choose another station.`)).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.getByText('Choose where you are working today.')).toBeVisible();
+    await expect(choice).toHaveCount(0);
+    const board = (
+      await apiRequestAs('staff', 'get', `/clinics/${clinicId}/stations/board`, { clinicId })
+    ).json();
+    expect(board.onShift.some((member) => member.stationId === stationId)).toBe(false);
+  } finally {
+    // Never leave an open station behind for the full-route test.
+    await close();
+    await context.close();
+  }
+});

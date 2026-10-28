@@ -179,6 +179,12 @@ doubling up happens, and the board says so rather than refusing.
   order patients move through, each station's name, whether it is open, and its capacity. It uses
   the existing routes (`POST stations`, `PATCH stations/:id`, `PUT stations/order`), which had no
   screen until now.
+- **Closing a station (#228)** needs it empty of patients (`409 STATION_HAS_PATIENTS`). In the
+  same transaction, it clears the station from every ACTIVE shift at that clinic, with one
+  `SHIFT.STATION.UPDATE` audit per shift (`reason: STATION_DEACTIVATED`). Closing and
+  `PATCH shifts/:id/station` take the same clinic lock, so nobody can pick a station as it
+  closes. A volunteer with `/stations` open sees "<Station> was closed. Choose another station."
+  on the next poll. A page opened after the closure just asks them to choose.
 - **The board** shows "N of C in use" on each station: patients being seen against capacity,
   highlighted when full.
 - **Station flow** (#24) adds each station's busiest moment against its capacity (peak concurrent
