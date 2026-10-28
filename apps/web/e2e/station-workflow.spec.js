@@ -569,6 +569,107 @@ test('a manager hands a waiting patient to a volunteer on shift', async ({ page 
   expect(left.ok(), left.text()).toBeTruthy();
 });
 
+test("a volunteer screening on someone else's account is named on each stop (#227)", async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  const patient = await createPatient(page);
+  const { clinicId } = patient;
+  await ensureShift('staff', clinicId);
+  await ensureShift('volunteer', clinicId);
+  const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+    clinicId,
+    data: { patientId: patient.patientId },
+  });
+  expect(checkIn.ok(), checkIn.text()).toBeTruthy();
+  const checkInId = checkIn.json().id;
+  const intake = await claimNext('staff', clinicId, checkInId);
+  expect((await complete('staff', clinicId, intake.at.visit.id)).ok()).toBeTruthy();
+
+  const volunteerContext = await browser.newContext({
+    storageState: storageStateFor('volunteer'),
+  });
+  const volunteerPage = await volunteerContext.newPage();
+  try {
+    // On the account, but someone without one is doing the screening.
+    await volunteerPage.goto('/stations');
+    await expect(volunteerPage.getByRole('heading', { name: 'Stations' })).toBeVisible({
+      timeout: 20_000,
+    });
+    const bpButton = volunteerPage.getByRole('button', { name: /^Blood pressure/ });
+    if ((await bpButton.getAttribute('aria-pressed')) !== 'true') await bpButton.click();
+    const holder = volunteerPage.getByRole('checkbox', { name: "I'm the one screening" });
+    await expect(holder).toBeChecked({ timeout: 20_000 });
+    await holder.click();
+    await volunteerPage.getByRole('button', { name: 'Save name' }).click();
+    await expect(volunteerPage.getByText('Enter the name of the person screening.')).toBeVisible();
+    await volunteerPage.getByLabel('Name of the person screening').fill('Ama Mensah');
+    await volunteerPage.getByRole('button', { name: 'Save name' }).click();
+    await expect(volunteerPage.getByText('Now recording as Ama Mensah.')).toBeVisible({
+      timeout: 20_000,
+    });
+
+    const row = volunteerPage.locator('div', { hasText: patient.name }).filter({
+      has: volunteerPage.getByRole('button', { name: 'Take patient' }),
+    });
+    await row.last().getByRole('button', { name: 'Take patient' }).click();
+    await volunteerPage.waitForURL(/\/stations\/visits\//, { timeout: 20_000 });
+    await expect(volunteerPage.getByText(/Recording as Ama Mensah on .+'s account/)).toBeVisible({
+      timeout: 20_000,
+    });
+    await volunteerPage.getByLabel('Systolic BP (mmHg)').fill('128');
+    await volunteerPage.getByLabel('Diastolic BP (mmHg)').fill('82');
+    await volunteerPage.getByLabel('Measurement site').click();
+    await volunteerPage.getByRole('option', { name: /left arm/i }).click();
+    await volunteerPage.getByRole('button', { name: 'Save measurements' }).click();
+    await expect(volunteerPage.getByText('Measurements saved and synced.')).toBeVisible({
+      timeout: 20_000,
+    });
+    await volunteerPage.getByRole('button', { name: /^Send to Glucose/ }).click();
+    await volunteerPage.waitForURL(/\/stations$/, { timeout: 20_000 });
+  } finally {
+    await volunteerContext.close();
+  }
+
+  // The stop names both: the account stays the one that completed it.
+  const timeline = await apiRequestAs(
+    'staff',
+    'get',
+    `/clinics/${clinicId}/checkins/${checkInId}/station-visits`,
+    { clinicId },
+  );
+  const bp = timeline.json().items.find((stop) => stop.station.kind === 'BLOOD_PRESSURE');
+  expect(bp).toMatchObject({ status: 'COMPLETED', performedByName: 'Ama Mensah' });
+  const account = bp.completedBy.displayName;
+
+  // The manager's board names who is screening on the account.
+  await page.goto('/today');
+  await expect(page.getByText(`${account} (Ama Mensah screening)`).first()).toBeVisible({
+    timeout: 20_000,
+  });
+
+  // Back to the account holder, so later specs start from the default.
+  const board = (
+    await apiRequestAs('volunteer', 'get', `/clinics/${clinicId}/stations/board`, { clinicId })
+  ).json();
+  const mine = board.onShift.find((member) => member.user.id === bp.completedBy.id);
+  const reset = await apiRequestAs(
+    'volunteer',
+    'patch',
+    `/clinics/${clinicId}/shifts/${mine.shiftId}/screener`,
+    { clinicId, data: { isAccountHolder: true } },
+  );
+  expect(reset.ok(), reset.text()).toBeTruthy();
+  const left = await apiRequestAs(
+    'staff',
+    'post',
+    `/clinics/${clinicId}/checkins/${checkInId}/cancel`,
+    { clinicId, data: { reason: 'Test finished' } },
+  );
+  expect(left.ok(), left.text()).toBeTruthy();
+});
+
 test.describe('the station screens keep separate offline copies (#197)', () => {
   /*
     /today (the station line board) and /stations used to cache different shapes under one key.

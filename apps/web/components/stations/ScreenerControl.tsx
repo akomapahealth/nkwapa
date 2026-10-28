@@ -87,6 +87,8 @@ export function ScreenerControl({
       </div>
       {!isHolder ? (
         <form
+          // Our own inline error, not the browser's bubble; `required` stays for assistive tech.
+          noValidate
           className="grid gap-2"
           onSubmit={(event) => {
             event.preventDefault();
