@@ -151,4 +151,59 @@ describe('PatientService.listRegistry - completed screening filter', () => {
     expect(repo.findMany).not.toHaveBeenCalled();
     expect(clinicFindUnique).not.toHaveBeenCalled();
   });
+
+  describe('sortBy=lastScreenedAt', () => {
+    const sort = { field: 'lastScreenedAt' as const, direction: 'desc' as const };
+
+    beforeEach(() => {
+      clinicFindUnique.mockResolvedValue({ timezone: 'Africa/Accra' });
+      repo.findManyByIds.mockImplementation(async (ids: string[]) =>
+        // Unordered on purpose: the database does not keep the ranked order.
+        [...ids].reverse().map(patient),
+      );
+    });
+
+    it('orders by the latest matching day, newest first, ties on id', async () => {
+      repo.findIds.mockResolvedValue(['b', 'a', 'c']);
+      repo.findMatchingScreenings.mockResolvedValue([
+        reviewRow('a', 'ca', '2026-10-03T10:00:00.000Z'),
+        reviewRow('b', 'cb1', '2026-10-01T10:00:00.000Z'),
+        reviewRow('b', 'cb2', '2026-10-10T09:00:00.000Z'),
+        legacyRow('c', 'cc', '2026-10-10T07:00:00.000Z'),
+      ]);
+
+      const page = await service.listRegistry('clinic-1', '', 1, 25, {
+        sort,
+        screened: { from: '2026-10-01', to: '2026-10-15' },
+      });
+
+      expect(page.items.map((item) => item.id)).toEqual(['c', 'b', 'a']);
+      expect(page.total).toBe(3);
+      expect(page.items[1].matchingScreenings?.map((s) => s.date)).toEqual([
+        '2026-10-10',
+        '2026-10-01',
+      ]);
+      expect(repo.findMany).not.toHaveBeenCalled();
+    });
+
+    it('pages through same-day patients with no duplicates or gaps', async () => {
+      const ids = Array.from({ length: 7 }, (_, i) => `p${i}`);
+      repo.findIds.mockResolvedValue([...ids].reverse());
+      repo.findMatchingScreenings.mockResolvedValue(
+        ids.map((id) => reviewRow(id, `c-${id}`, '2026-10-10T10:00:00.000Z')),
+      );
+
+      const seen: string[] = [];
+      for (const pageNumber of [1, 2, 3]) {
+        const page = await service.listRegistry('clinic-1', '', pageNumber, 3, {
+          sort,
+          screened: { from: '2026-10-10' },
+        });
+        expect(page.total).toBe(7);
+        seen.push(...page.items.map((item) => item.id));
+      }
+
+      expect(seen).toEqual(['p6', 'p5', 'p4', 'p3', 'p2', 'p1', 'p0']);
+    });
+  });
 });

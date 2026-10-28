@@ -24,6 +24,7 @@ import {
   PatientRepository,
   PatientFindManyFilters,
   type PatientRegistrySort,
+  type ScreenedFilter,
 } from './patient.repository';
 import {
   groupMatchingScreenings,
@@ -361,6 +362,17 @@ export class PatientService {
       }
     }
 
+    if (options?.sort?.field === 'lastScreenedAt' && screenedDays && filters.screened) {
+      return this.listRegistryByLastScreened(
+        { ...filters, skip: undefined, take: undefined, sort: undefined },
+        filters.screened,
+        screenedDays.timezone,
+        options.sort.direction,
+        normalizedPage,
+        normalizedPageSize,
+      );
+    }
+
     const items = await this.patientRepository.findMany(filters);
     const total = options?.cursor
       ? undefined
@@ -598,6 +610,50 @@ export class PatientService {
   /** Enforce the deliberate residential-location invariant. See the util. */
   resolveResidentialLocation(input: ResidentialLocationInput): ResolvedResidentialLocation {
     return resolveResidentialLocation(input);
+  }
+
+  /**
+   * The registry ordered by each patient's latest matching screening day, ties on `id`.
+   * Prisma cannot order by an aggregate over a filtered relation, so this ranks in memory.
+   * shortcut: loads every matching id for the window (one clinic's screenings over at most 366
+   * days); move to a SQL CTE inside the RLS transaction if a clinic passes ~10k screenings a year.
+   */
+  private async listRegistryByLastScreened(
+    filters: PatientFindManyFilters,
+    screened: ScreenedFilter,
+    timeZone: string,
+    direction: 'asc' | 'desc',
+    page: number,
+    pageSize: number,
+  ): Promise<PatientRegistryPage> {
+    const ids = await this.patientRepository.findIds(filters);
+    const screenings = groupMatchingScreenings(
+      await this.patientRepository.findMatchingScreenings(ids, screened),
+      timeZone,
+    );
+    const sign = direction === 'asc' ? 1 : -1;
+    const pageIds = ids
+      .map((id) => ({ id, last: screenings.get(id)?.[0]?.date ?? '' }))
+      .sort((a, b) => sign * (a.last.localeCompare(b.last) || a.id.localeCompare(b.id)))
+      .slice((page - 1) * pageSize, page * pageSize)
+      .map((entry) => entry.id);
+    const byId = new Map(
+      (await this.patientRepository.findManyByIds(pageIds)).map((row) => [row.id, row]),
+    );
+    const items = pageIds.flatMap((id) => {
+      const row = byId.get(id);
+      return row
+        ? [{ ...this.toRegistryItem(row), matchingScreenings: screenings.get(id) ?? [] }]
+        : [];
+    });
+    return {
+      items,
+      timezone: timeZone,
+      total: ids.length,
+      page,
+      pageSize,
+      nextCursor: null,
+    };
   }
 
   private async clinicTimeZone(clinicId: string): Promise<string> {
