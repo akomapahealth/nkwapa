@@ -1205,27 +1205,30 @@ model Encounter {
 }
 
 model StaffShift {
-  id                      String      @id @default(uuid()) @db.Uuid
-  clinicId                String      @db.Uuid
-  userId                  String      @db.Uuid
-  roleAtShift             ShiftRole
-  checkedInAt             DateTime
-  checkedOutAt            DateTime?
-  status                  ShiftStatus @default(ACTIVE)
-  notes                   String?     @db.Text
+  id                         String      @id @default(uuid()) @db.Uuid
+  clinicId                   String      @db.Uuid
+  userId                     String      @db.Uuid
+  roleAtShift                ShiftRole
+  checkedInAt                DateTime
+  checkedOutAt               DateTime?
+  status                     ShiftStatus @default(ACTIVE)
+  notes                      String?     @db.Text
   /// The station this person is working right now (#167). Changes during a shift; cleared on
   /// check-out.
-  stationId               String?     @db.Uuid
+  stationId                  String?     @db.Uuid
   /// Who is really working on this account (#227): false when someone without an account screens
   /// on it, with their name. Persists for the shift; reset at check-out.
-  screenerIsAccountHolder Boolean     @default(true)
-  screenerName            String?     @db.VarChar(120)
-  createdAt               DateTime    @default(now())
-  updatedAt               DateTime    @updatedAt
+  screenerIsAccountHolder    Boolean     @default(true)
+  screenerName               String?     @db.VarChar(120)
+  /// The directory entry the screener was picked from (#226). The name above stays the snapshot.
+  screenerVolunteerContactId String?     @db.Uuid
+  createdAt                  DateTime    @default(now())
+  updatedAt                  DateTime    @updatedAt
 
-  clinic  Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  station ClinicStation? @relation(fields: [stationId], references: [id], onDelete: SetNull)
+  clinic                   Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  user                     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  station                  ClinicStation?    @relation(fields: [stationId], references: [id], onDelete: SetNull)
+  screenerVolunteerContact VolunteerContact? @relation(fields: [screenerVolunteerContactId], references: [id], onDelete: SetNull)
 
   @@index([clinicId, status, checkedInAt])
   @@index([userId, checkedInAt])
@@ -1320,29 +1323,32 @@ model PatientStationVisit {
   /// Cleared when the patient goes back to the queue (release, force-release, shift end).
   assignedByUserId String?   @db.Uuid
 
-  completedByUserId          String?   @db.Uuid
-  completedAt                DateTime?
+  completedByUserId             String?   @db.Uuid
+  completedAt                   DateTime?
   /// What the next station should know, written by the volunteer handing the patient on.
-  handoffNote                String?   @db.Text
+  handoffNote                   String?   @db.Text
   /// Why this stop ended without the station's work: a skip, a release, a manager move.
-  endReason                  String?   @db.VarChar(500)
-  releaseCount               Int       @default(0)
+  endReason                     String?   @db.VarChar(500)
+  releaseCount                  Int       @default(0)
   /// Who actually did this stop (#227), stamped at complete, skip and release from the shift's
   /// screener. Null on rows from before the feature: they show the account holder, as before.
-  performedByIsAccountHolder Boolean?
-  performedByName            String?   @db.VarChar(120)
+  performedByIsAccountHolder    Boolean?
+  performedByName               String?   @db.VarChar(120)
+  /// The directory entry the performer was picked from (#226). The name above stays the snapshot.
+  performedByVolunteerContactId String?   @db.Uuid
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  clinic         Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  patientCheckIn PatientCheckIn @relation(fields: [patientCheckInId], references: [id], onDelete: Cascade)
-  encounter      Encounter?     @relation(fields: [encounterId], references: [id], onDelete: SetNull)
-  station        ClinicStation  @relation(fields: [stationId], references: [id], onDelete: Restrict)
-  queuedBy       User           @relation("StationVisitQueuedBy", fields: [queuedByUserId], references: [id], onDelete: Restrict)
-  claimedBy      User?          @relation("StationVisitClaimedBy", fields: [claimedByUserId], references: [id], onDelete: SetNull)
-  assignedBy     User?          @relation("StationVisitAssignedBy", fields: [assignedByUserId], references: [id], onDelete: SetNull)
-  completedBy    User?          @relation("StationVisitCompletedBy", fields: [completedByUserId], references: [id], onDelete: SetNull)
+  clinic                      Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patientCheckIn              PatientCheckIn    @relation(fields: [patientCheckInId], references: [id], onDelete: Cascade)
+  encounter                   Encounter?        @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+  station                     ClinicStation     @relation(fields: [stationId], references: [id], onDelete: Restrict)
+  performedByVolunteerContact VolunteerContact? @relation(fields: [performedByVolunteerContactId], references: [id], onDelete: SetNull)
+  queuedBy                    User              @relation("StationVisitQueuedBy", fields: [queuedByUserId], references: [id], onDelete: Restrict)
+  claimedBy                   User?             @relation("StationVisitClaimedBy", fields: [claimedByUserId], references: [id], onDelete: SetNull)
+  assignedBy                  User?             @relation("StationVisitAssignedBy", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+  completedBy                 User?             @relation("StationVisitCompletedBy", fields: [completedByUserId], references: [id], onDelete: SetNull)
 
   @@index([clinicId, stationId, status, queuedAt])
   @@index([patientCheckInId, queuedAt])
@@ -2114,10 +2120,12 @@ model VolunteerContact {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  clinic      Clinic                     @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  linkedUser  User?                      @relation("VolunteerContactLinkedUser", fields: [linkedUserId], references: [id], onDelete: SetNull)
-  createdBy   User                       @relation("VolunteerContactCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
-  assignments ScreeningEventAssignment[]
+  screenedShifts  StaffShift[]
+  performedVisits PatientStationVisit[]
+  clinic          Clinic                     @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  linkedUser      User?                      @relation("VolunteerContactLinkedUser", fields: [linkedUserId], references: [id], onDelete: SetNull)
+  createdBy       User                       @relation("VolunteerContactCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  assignments     ScreeningEventAssignment[]
 
   @@unique([clinicId, email])
   @@index([clinicId, isActive, displayName])

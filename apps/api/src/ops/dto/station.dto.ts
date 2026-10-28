@@ -62,6 +62,11 @@ export class ScreenerDto {
   @IsString()
   @MaxLength(120)
   name?: string;
+
+  /** Picked from the volunteer directory (#226). The server takes the name from the contact. */
+  @IsOptional()
+  @IsUUID()
+  volunteerContactId?: string;
 }
 
 export class CorrectPerformerDto extends ScreenerDto {

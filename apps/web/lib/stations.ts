@@ -345,6 +345,8 @@ export const completeStationVisit = (
 export interface Screener {
   isAccountHolder: boolean;
   name?: string;
+  /** Picked from the volunteer directory (#226); the server then takes the name from it. */
+  volunteerContactId?: string;
 }
 
 /** The screener a board names, in the shape the API takes. */
@@ -376,12 +378,9 @@ export const setShiftScreener = (
     { method: 'PATCH', body: screener },
   );
 
-/**
- * Names people have screened under at this clinic lately, for the screener field (#227). Comes
- * from past stops until the volunteer directory (#226) exists; then each item gains its contact id.
- */
+/** The clinic's active volunteer directory (#226), suggested in the screener field (#227). */
 export const fetchScreenerNames = (clinicId: string, getToken: GetToken) =>
-  request<{ items: Array<{ name: string; lastUsedAt: string | null }> }>(
+  request<{ items: Array<{ name: string; volunteerContactId: string }> }>(
     clinicId,
     '/stations/screener-names',
     getToken,

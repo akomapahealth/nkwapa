@@ -218,6 +218,7 @@ export class OpsService {
           stationId: null,
           screenerIsAccountHolder: true,
           screenerName: null,
+          screenerVolunteerContactId: null,
         },
         include: { user: { select: { id: true, displayName: true } } },
       });
@@ -229,8 +230,9 @@ export class OpsService {
           userId: existing.userId,
           actorUserId,
           screener: {
-            isAccountHolder: existing.screenerIsAccountHolder,
-            name: existing.screenerName ?? undefined,
+            screenerIsAccountHolder: existing.screenerIsAccountHolder,
+            screenerName: existing.screenerName,
+            screenerVolunteerContactId: existing.screenerVolunteerContactId ?? null,
           },
         },
         { requestId: context.requestId },
