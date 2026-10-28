@@ -85,7 +85,8 @@ not yet told the event's current details (lastNotifiedAt before detailsChangedAt
 • POST .../roster/:assignmentId/resend sends ASSIGNED again; a fourth resend for one assignment
 within an hour is refused with 429 ROSTER_RESEND_LIMIT (counted from ROSTER.RESEND audit rows).
 • Changing an event's date, time or site sends UPDATED to volunteers already notified, unless the
-manager turns that off; cancelling sends CANCELLED the same way. Removing someone sends REMOVED
+manager turns that off; cancelling sends CANCELLED to every rostered volunteer, notified or
+not, unless turned off. Removing someone sends REMOVED
 only when asked (off by default).
 • Roster delivery status is the latest roster Reminder's status and failureReason.
 

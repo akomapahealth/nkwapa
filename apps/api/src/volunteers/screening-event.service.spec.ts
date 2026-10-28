@@ -186,6 +186,12 @@ describe('ScreeningEventService', () => {
   it('cancels with a CANCELLED email unless turned off', async () => {
     prisma.screeningEventAssignment.findMany.mockResolvedValue([recipient]);
     await service.cancel(CLINIC_A, EVENT_ID, 'manager-a', { reason: 'Rain' });
+    // Every ASSIGNED volunteer, whether or not they were emailed before.
+    expect(prisma.screeningEventAssignment.findMany.mock.calls[0][0].where).toEqual({
+      clinicId: CLINIC_A,
+      eventId: EVENT_ID,
+      status: 'ASSIGNED',
+    });
     expect(reminders.sendNotificationNow.mock.calls[0][0]).toMatchObject({
       templateKey: 'VOLUNTEER_ROSTER_CANCELLED_V1',
       payload: expect.objectContaining({ cancelReason: 'Rain' }),

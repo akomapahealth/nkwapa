@@ -201,8 +201,8 @@ export class ScreeningEventService {
 
     let notified = 0;
     if (dto.notifyVolunteers !== false) {
-      // Someone never told about the day does not need telling it is off.
-      const recipients = await this.recipients(clinicId, eventId, { notifiedOnly: true });
+      // Everyone rostered, told or not: they may have heard about the day another way.
+      const recipients = await this.recipients(clinicId, eventId, { notifiedOnly: false });
       const ctx = await this.sendContext(clinicId, event, actorUserId);
       for (const recipient of recipients) {
         await this.send(ctx, recipient, VOLUNTEER_ROSTER_CANCELLED_V1.key, {
