@@ -272,13 +272,15 @@ export default function StationsPage() {
                         key={station.id}
                         type="button"
                         variant={selected ? 'default' : 'outline'}
-                        className="justify-between"
+                        // Station names run long ("Registration and medical history"): wrap
+                        // inside the button rather than push out of the narrow column.
+                        className="h-auto min-h-11 justify-between whitespace-normal py-2 text-left"
                         aria-pressed={selected}
                         disabled={!currentShift || !isOnline || busyId !== null}
                         onClick={() => void chooseStation(selected ? null : station.id)}
                       >
-                        <span>{station.name}</span>
-                        <span className="text-xs opacity-80">
+                        <span className="min-w-0 break-words">{station.name}</span>
+                        <span className="shrink-0 text-xs opacity-80">
                           {station.visits.filter((v) => v.status === 'QUEUED').length} waiting
                         </span>
                       </Button>
@@ -361,15 +363,15 @@ export default function StationsPage() {
                 <CardHeader>
                   <CardTitle className="text-xl">The whole line</CardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                <CardContent className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2">
                   {stations.map((station) => (
-                    <div key={station.id} className="rounded-lg border p-3">
-                      <p className="text-sm font-medium">{station.name}</p>
+                    <div key={station.id} className="min-w-0 rounded-lg border p-3">
+                      <p className="break-words text-sm font-medium">{station.name}</p>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {station.visits.filter((v) => v.status === 'QUEUED').length} waiting ·{' '}
                         {station.visits.filter((v) => v.status === 'IN_PROGRESS').length} being seen
                       </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
+                      <p className="mt-1 break-words text-xs text-muted-foreground">
                         {station.staff.length
                           ? station.staff.map((member) => member.displayName).join(', ')
                           : 'Nobody at this station'}
