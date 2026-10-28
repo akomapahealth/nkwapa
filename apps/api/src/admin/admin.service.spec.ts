@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { AdminService, type AdminActor } from './admin.service';
 
@@ -131,9 +131,14 @@ describe('AdminService', () => {
       requestSync: jest.fn().mockResolvedValue({ status: 'PENDING', failureReason: null }),
     };
 
+    const userProfileService = {
+      updateName: jest.fn().mockResolvedValue({ userId: 'target', displayName: 'Ama Mensah' }),
+    };
+
     return {
       prisma,
       identitySync,
+      userProfileService,
       auditService,
       reminderService,
       service: new AdminService(
@@ -141,6 +146,7 @@ describe('AdminService', () => {
         auditService as never,
         reminderService as never,
         identitySync as never,
+        userProfileService as never,
       ),
     };
   }
@@ -778,5 +784,67 @@ describe('AdminService', () => {
 
     expect(prisma.user.findUnique).not.toHaveBeenCalled();
     expect(prisma.userClinicRole.create).not.toHaveBeenCalled();
+  });
+  describe('updateUserName (#225)', () => {
+    const NAME = { firstName: 'Ama', middleInitial: 'K', lastName: 'Mensah' };
+
+    function seatedAt(...seats: Array<[string | null, UserRole]>) {
+      return { clinicRoles: seats.map(([clinicId, role]) => ({ clinicId, role })) };
+    }
+
+    it('lets a director correct staff seated at their clinic, audited as ADMIN', async () => {
+      const { prisma, service, userProfileService } = createService();
+      prisma.user.findUnique.mockResolvedValue(seatedAt(['clinic-1', UserRole.VOLUNTEER]));
+
+      await service.updateUserName(directorActor, 'target', NAME, 'req-1');
+
+      expect(userProfileService.updateName).toHaveBeenCalledWith('target', NAME, {
+        actorUserId: 'director-1',
+        source: 'ADMIN',
+        clinicId: 'clinic-1',
+        requestId: 'req-1',
+      });
+    });
+
+    it('404s a director for staff seated only at another clinic', async () => {
+      const { prisma, service, userProfileService } = createService();
+      prisma.user.findUnique.mockResolvedValue(seatedAt(['clinic-2', UserRole.VOLUNTEER]));
+
+      await expect(service.updateUserName(directorActor, 'target', NAME)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(userProfileService.updateName).not.toHaveBeenCalled();
+    });
+
+    it('404s a patient-only account even at the same clinic', async () => {
+      const { prisma, service } = createService();
+      prisma.user.findUnique.mockResolvedValue(seatedAt(['clinic-1', UserRole.PATIENT]));
+
+      await expect(service.updateUserName(directorActor, 'target', NAME)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('lets a system admin correct anyone with a staff role, including global ones', async () => {
+      const { prisma, service, userProfileService } = createService();
+      prisma.user.findUnique.mockResolvedValue(seatedAt([null, UserRole.SYSTEM_ADMIN]));
+
+      await service.updateUserName(systemAdminActor, 'target', NAME);
+
+      expect(userProfileService.updateName).toHaveBeenCalledWith(
+        'target',
+        NAME,
+        expect.objectContaining({ source: 'ADMIN', clinicId: null }),
+      );
+    });
+
+    it('404s an unknown user, for a system admin too', async () => {
+      const { prisma, service } = createService();
+      prisma.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.updateUserName(systemAdminActor, 'nobody', NAME)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
   });
 });

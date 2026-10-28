@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Delete,
   Body,
   Param,
@@ -9,6 +10,7 @@ import {
   UseGuards,
   Request,
   BadRequestException,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -19,6 +21,7 @@ import { ListUsersQueryDto } from './dto/list-users.query.dto';
 import { PERMISSIONS } from '../auth/constants/permissions';
 import { UserRole } from '@prisma/client';
 import { AssignRoleDto } from './dto/assign-role.dto';
+import { UpdateStaffNameDto } from '../users/dto/staff-name.dto';
 import { MergePatientsDto } from './dto/merge-patients.dto';
 import { AdminMergePreviewQueryDto } from '../patients/dto/merge-preview.query.dto';
 import { PatientDuplicateService } from '../patients/patient-duplicate.service';
@@ -61,6 +64,20 @@ export class AdminController {
       roles: req.user.roles,
     };
     return this.adminService.getUserRoles(actor, userId);
+  }
+
+  @Patch('users/:userId/name')
+  async updateUserName(
+    @Param('userId', new ParseUUIDPipe()) userId: string,
+    @Body() dto: UpdateStaffNameDto,
+    @Request() req: { user: ReqUserWithRoles; headers?: { 'x-request-id'?: string } },
+  ) {
+    return this.adminService.updateUserName(
+      { userId: req.user.user.id, roles: req.user.roles },
+      userId,
+      dto,
+      req.headers?.['x-request-id'] ?? randomUUID(),
+    );
   }
 
   @Post('users/:userId/roles')

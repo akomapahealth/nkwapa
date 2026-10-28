@@ -6,7 +6,8 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { Prisma, UserRole } from '@prisma/client';
-import { isSystemAdmin } from '../auth/clinic-roles';
+import { hasPermissionAtClinic, isSystemAdmin } from '../auth/clinic-roles';
+import { PERMISSIONS } from '../auth/constants/permissions';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ReminderService } from '../reminders/reminder.service';
@@ -14,6 +15,8 @@ import {
   IdentitySyncService,
   type IdentitySyncState,
 } from '../identity-sync/identity-sync.service';
+import { UserProfileService } from '../users/user-profile.service';
+import type { UpdateStaffNameDto } from '../users/dto/staff-name.dto';
 
 export interface AdminActor {
   userId: string;
@@ -70,6 +73,7 @@ export class AdminService {
     private readonly auditService: AuditService,
     private readonly reminderService: ReminderService,
     private readonly identitySync: IdentitySyncService,
+    private readonly userProfileService: UserProfileService,
   ) {}
 
   /**
@@ -581,6 +585,41 @@ export class AdminService {
     identitySyncFailureReason: string | null;
   }): IdentitySyncState {
     return { status: user.identitySyncStatus, failureReason: user.identitySyncFailureReason };
+  }
+
+  /**
+   * Correct a staff member's name (#225). A system admin can correct anyone with a staff role;
+   * anyone else only staff seated at a clinic where they hold CLINIC.MANAGE. Everyone else is
+   * told the user does not exist, so the route cannot be used to discover accounts elsewhere.
+   */
+  async updateUserName(
+    actor: AdminActor,
+    targetUserId: string,
+    dto: UpdateStaffNameDto,
+    requestId?: string,
+  ) {
+    const target = await this.prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { clinicRoles: { select: { clinicId: true, role: true } } },
+    });
+    const staffSeats = (target?.clinicRoles ?? []).filter(
+      (entry) => entry.role !== UserRole.PATIENT,
+    );
+    const managedSeat = staffSeats.find(
+      (entry) =>
+        entry.clinicId != null &&
+        hasPermissionAtClinic(actor.roles, entry.clinicId, PERMISSIONS.CLINIC_MANAGE),
+    );
+    if (!managedSeat && !(this.isSystemAdmin(actor) && staffSeats.length > 0)) {
+      throw new NotFoundException('User not found');
+    }
+
+    return this.userProfileService.updateName(targetUserId, dto, {
+      actorUserId: actor.userId,
+      source: 'ADMIN',
+      clinicId: managedSeat?.clinicId ?? null,
+      requestId,
+    });
   }
 
   async deactivateUserGlobally(actor: AdminActor, targetUserId: string, requestId?: string) {
