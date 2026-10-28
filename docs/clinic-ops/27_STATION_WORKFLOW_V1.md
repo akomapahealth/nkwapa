@@ -71,6 +71,9 @@ the person held (`SHIFT_ENDED`).
   `IN_PROGRESS` row per check-in (partial unique index), so a patient is at one station at a time.
   A claimed row always names its holder (check constraint). Revisits are new rows.
 - `StaffShift.stationId` — where someone is working now.
+- `StaffShift.screenerIsAccountHolder` / `screenerName` and
+  `PatientStationVisit.performedByIsAccountHolder` / `performedByName` — who actually screened
+  (#227).
 - `CounsellingRecord` — one per encounter, volunteer-writable, optimistic `version`, `lockedAt`.
 
 All three tables have forced row-level security on `app.can_access_clinic("clinicId")`. Their
@@ -102,6 +105,7 @@ trail.
 | `GET stations`, `POST stations`, `PATCH stations/:id`, `PUT stations/order`                      | The line                                     |
 | `GET stations/board?date=`                                                                       | Every station with its open visits and staff |
 | `PATCH shifts/:shiftId/station`                                                                  | Where I am working                           |
+| `PATCH shifts/:shiftId/screener`, `PATCH station-visits/:id/performer`                           | Who actually screened (#227)                 |
 | `GET station-visits/:id`, `GET checkins/:id/station-visits`, `GET encounters/:id/station-visits` | A visit and its route                        |
 | `POST station-visits/:id/claim` \| `release` \| `force-release` \| `complete`                    | Moving a patient along                       |
 | `POST checkins/:id/move`, `POST checkins/:id/cancel`                                             | Overrides                                    |
@@ -181,3 +185,58 @@ doubling up happens, and the board says so rather than refusing.
   patients being seen), and says why the bottleneck waited. Full at its busiest means the wait was
   for space or equipment (`CAPACITY`). Never full means there was room and the wait was for staff
   (`STAFFING`).
+
+## Who actually screened (#227)
+
+At screening days a volunteer without an account often works a station signed in on someone
+else's. The account holder stays the actor for authorization, RLS and the audit trail; the person
+who really did the stop is recorded alongside as operational attribution. Having an account is
+never required.
+
+- **Where it is chosen.** The My station card on `/stations` has "I'm the one screening" (checked
+  at every new shift). Unchecked, a name is required (1 to 120 characters, trimmed). The choice
+  sits on the shift (`StaffShift.screenerIsAccountHolder`, `screenerName`), applies to every
+  patient until changed, and is cleared at check-out. The visit page shows "Recording as X on Y's
+  account · Change", and changing it there changes the shift.
+- **What is stamped.** Complete, each skipped stop, a self-release and a shift-end release stamp
+  `PatientStationVisit.performedByIsAccountHolder` and `performedByName` (a snapshot). The web
+  sends the screener with the hand-off; an older client that sends none gets the shift's, else the
+  account holder. A forced release clears both: the manager did not do the stop. Null on rows from
+  before #227, which show the account holder, as before. A check constraint on each table refuses
+  `false` without a non-blank name.
+- **Corrections.** `PATCH station-visits/:id/performer` (`OPS.STATION.WORK`, with a reason) on a
+  COMPLETED or SKIPPED stop: the account that completed it, until the session's counselling is
+  locked; a manager (`OPS.STATION.MANAGE`) at any time. On the web, "Correct who did this" sits on
+  each finished stop in a visit's "Earlier today" list and in the encounter's station session
+  panel, offered only where the server would allow it.
+- **Name suggestions.** `GET stations/screener-names` (`OPS.STATION.WORK`) lists names stand-ins
+  screened under at this clinic in the last 90 days, newest first, at most 50. The name field
+  offers them as suggestions and still takes any name.
+- **The review-station note.** When a stand-in did the review stop, the volunteer-review note's
+  `assignedVolunteerNameSnapshot` reads "Ama Mensah (on Kofi Boateng's account)": the stop's stamp
+  once it is complete, else the shift's current screener. `assignedVolunteerId` stays the account.
+- **API.** `PATCH shifts/:shiftId/screener` (own ACTIVE shift only: 403 otherwise, 409
+  `SHIFT_ALREADY_CLOSED`). A blank name is 400 `SCREENER_NAME_REQUIRED` everywhere. Visits carry
+  `performedByName` (null when it was the account holder); the board's `staff` and `onShift`
+  entries carry the live `screenerName`, and `onShift` its `shiftId`.
+- **Audit.** `SHIFT.SCREENER.UPDATE` and `STATION.PERFORMER.CORRECT`; `STATION.COMPLETE`'s
+  `afterJson` includes the performer fields. The name never goes to application logs or
+  telemetry.
+- **Where it shows.** The board ("Kofi (Ama screening)"), the queue, the visit timeline, the
+  session panel and the results summary ("Ama · signed in as Kofi"). One name when they are the
+  same person.
+- **Linking the volunteer directory (#226).** Names are free text until the directory exists.
+  The seams are in place:
+  1. `StationService.getScreenerNames` lists the active `VolunteerContact` rows instead of past
+     snapshots, and each item gains `volunteerContactId`.
+  2. `ScreenerDto` accepts an optional `volunteerContactId`; `toPerformer` checks it belongs to
+     the path clinic and is active (400 otherwise), and takes the name from the server's copy.
+  3. Add `screenerVolunteerContactId` to `StaffShift` and `performedByVolunteerContactId` (FK,
+     SetNull) to `PatientStationVisit`, written alongside the names. Snapshots stay as they are,
+     so renaming a contact never rewrites history.
+  4. On the web, `ScreenerNameField` keeps its free-text input and sends the picked contact's id
+     with the name.
+- **Not in v1.** Per-record authors on clinical tables. Research exports are unaffected:
+  `PatientStationVisit` and `StaffShift` are excluded from them wholesale.
+
+Tested on a real database in `apps/api/src/ops/station-performer.integration.spec.ts`.

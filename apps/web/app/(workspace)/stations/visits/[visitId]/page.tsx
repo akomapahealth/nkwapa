@@ -7,23 +7,28 @@ import { ArrowLeft, History } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, type GetToken } from '@/lib/api';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { db, type DiabetesScreeningRecord, type VitalsRecord } from '@/lib/db';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
-import { OPS_DEFAULT_TIMEZONE, formatOpsDateTime } from '@/lib/ops';
+import { OPS_DEFAULT_TIMEZONE, formatOpsDateTime, getTodayInTimeZone } from '@/lib/ops';
 import { isFullySynced } from '@/lib/sync';
 import {
   cancelCheckIn,
   claimStationVisit,
+  canCorrectPerformer,
   completeStationVisit,
+  fetchStationBoard,
   fetchStationVisit,
   fetchStations,
   patientName,
+  performerLabel,
   releaseStationVisit,
+  screenerFromName,
   stationsPassedOver,
   suggestedNextStation,
   type ClinicStation,
+  type OnShiftStaff,
   type StationVisit,
   type StationVisitDetail,
 } from '@/lib/stations';
@@ -39,6 +44,8 @@ import { CounsellingForm } from '@/components/stations/CounsellingForm';
 import { EyeScreeningForm } from '@/components/stations/EyeScreeningForm';
 import { eyeScreeningPath, type EyeScreeningRecord } from '@/lib/eye-screening';
 import { StationResultsSummary } from '@/components/stations/StationResultsSummary';
+import { PerformerCorrection } from '@/components/stations/PerformerCorrection';
+import { ScreenerControl } from '@/components/stations/ScreenerControl';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -95,6 +102,9 @@ export default function StationVisitPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** The caller's own shift, for who is really screening on this account (#227). */
+  const [myShift, setMyShift] = useState<OnShiftStaff | null>(null);
+  const [changingScreener, setChangingScreener] = useState(false);
 
   /** The eye record has its own route; a failure leaves the summary showing it as not recorded. */
   const loadEyeScreening = useCallback(
@@ -147,12 +157,15 @@ export default function StationVisitPage() {
   const load = useCallback(async () => {
     if (!getToken || !clinicId || !enabled) return;
     try {
-      const [detail, stationList] = await Promise.all([
+      const [detail, stationList, board] = await Promise.all([
         fetchStationVisit(clinicId, visitId, getToken),
         fetchStations(clinicId, getToken),
+        // The banner only; the visit opens without it.
+        fetchStationBoard(clinicId, getTodayInTimeZone(), getToken).catch(() => null),
       ]);
       setVisit(detail);
       setStations(stationList.items);
+      if (board) setMyShift(board.onShift?.find((shift) => shift.user.id === userId) ?? null);
       setLoadError(null);
       if (detail.encounterId) await loadReadings(detail.encounterId);
     } catch (error) {
@@ -160,7 +173,7 @@ export default function StationVisitPage() {
     } finally {
       setLoading(false);
     }
-  }, [getToken, clinicId, visitId, enabled, loadReadings]);
+  }, [getToken, clinicId, visitId, enabled, loadReadings, userId]);
 
   useEffect(() => {
     void load();
@@ -255,7 +268,54 @@ export default function StationVisitPage() {
               </InlineNotice>
             ) : null}
 
-            <Timeline timeline={visit.timeline} currentId={visit.id} timezone={timezone} />
+            {mine && myShift?.shiftId ? (
+              <InlineNotice tone="info" live={false}>
+                <span>
+                  Recording as <strong>{myShift.screenerName ?? myShift.user.displayName}</strong>
+                  {myShift.screenerName ? ` on ${myShift.user.displayName}'s account` : ''} ·{' '}
+                </span>
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0"
+                  aria-label="Change who is screening"
+                  aria-expanded={changingScreener}
+                  onClick={() => setChangingScreener((open) => !open)}
+                >
+                  Change
+                </Button>
+                {changingScreener ? (
+                  <div className="mt-3">
+                    <ScreenerControl
+                      clinicId={clinicId}
+                      shiftId={myShift.shiftId}
+                      screenerName={myShift.screenerName ?? null}
+                      isOnline={isOnline}
+                      getToken={getToken!}
+                      onSaved={(screenerName) => setMyShift({ ...myShift, screenerName })}
+                    />
+                  </div>
+                ) : null}
+              </InlineNotice>
+            ) : null}
+
+            <Timeline
+              timeline={visit.timeline}
+              currentId={visit.id}
+              timezone={timezone}
+              correction={
+                getToken
+                  ? {
+                      clinicId,
+                      viewer: { userId, canManage },
+                      isOnline,
+                      getToken,
+                      onCorrected: () => void load(),
+                    }
+                  : undefined
+              }
+            />
 
             {mine && visit.encounterId ? (
               <StationForm
@@ -291,7 +351,15 @@ export default function StationVisitPage() {
                           'Some readings have not reached the server yet. Check the sync status, then hand the patient on.',
                         );
                       }
-                      return completeStationVisit(clinicId, visit.id, body, getToken!);
+                      return completeStationVisit(
+                        clinicId,
+                        visit.id,
+                        // Sent, not inferred, so the stamp is what the banner showed (#227).
+                        myShift
+                          ? { ...body, screener: screenerFromName(myShift.screenerName) }
+                          : body,
+                        getToken!,
+                      );
                     },
                     () => router.push('/stations'),
                   )
@@ -333,10 +401,19 @@ function Timeline({
   timeline,
   currentId,
   timezone,
+  correction,
 }: {
   timeline: StationVisit[];
   currentId: string;
   timezone: string;
+  /** Who may fix who did each stop (#227); absent until signed in. */
+  correction?: {
+    clinicId: string;
+    viewer: { userId: string; canManage: boolean };
+    isOnline: boolean;
+    getToken: GetToken;
+    onCorrected: () => void;
+  };
 }) {
   const earlier = timeline.filter((stop) => stop.id !== currentId);
   if (!earlier.length) return null;
@@ -354,12 +431,23 @@ function Timeline({
             <li key={stop.id} className="rounded-lg border p-3 text-sm">
               <p className="font-medium">
                 {stop.station.name} · {STATUS_LABELS[stop.status]}
-                {stop.completedBy ? ` · ${stop.completedBy.displayName}` : ''}
+                {stop.completedBy
+                  ? ` · ${performerLabel(stop.completedBy.displayName, stop.performedByName)}`
+                  : ''}
                 {stop.completedAt ? ` · ${formatOpsDateTime(stop.completedAt, timezone)}` : ''}
               </p>
               {stop.handoffNote ? <p className="mt-1">{stop.handoffNote}</p> : null}
               {stop.endReason && stop.status !== 'COMPLETED' ? (
                 <p className="mt-1 text-muted-foreground">Reason: {stop.endReason}</p>
+              ) : null}
+              {correction && canCorrectPerformer(stop, correction.viewer) ? (
+                <PerformerCorrection
+                  clinicId={correction.clinicId}
+                  stop={stop}
+                  isOnline={correction.isOnline}
+                  getToken={correction.getToken}
+                  onCorrected={correction.onCorrected}
+                />
               ) : null}
             </li>
           ))}

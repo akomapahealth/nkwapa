@@ -26,8 +26,11 @@ import {
   isStationBoard,
   minutesSince,
   patientName,
+  performerLabel,
+  screenersByUser,
   setShiftStation,
   usePolling,
+  withScreener,
   type StationBoard,
   type StationVisit,
 } from '@/lib/stations';
@@ -35,6 +38,7 @@ import type { ActiveShiftsResponse } from '@/lib/ops';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
+import { ScreenerControl } from '@/components/stations/ScreenerControl';
 import {
   EmptyStateCard,
   InlineNotice,
@@ -135,6 +139,8 @@ export default function StationsPage() {
     ),
   );
   const queue = myStation?.visits ?? [];
+  const screeners = screenersByUser(view.data?.board?.onShift);
+  const myScreener = screeners.get(userId) ?? null;
 
   const chooseStation = useCallback(
     async (stationId: string | null) => {
@@ -280,12 +286,31 @@ export default function StationsPage() {
                         onClick={() => void chooseStation(selected ? null : station.id)}
                       >
                         <span className="min-w-0 break-words">{station.name}</span>
-                        <span className="shrink-0 text-xs opacity-80">
+                        <span className="shrink-0 text-xs">
                           {station.visits.filter((v) => v.status === 'QUEUED').length} waiting
                         </span>
                       </Button>
                     );
                   })}
+                  {currentShift && clinicId && getToken ? (
+                    <div
+                      role="group"
+                      aria-labelledby="screener-heading"
+                      className="mt-2 border-t pt-4"
+                    >
+                      <p id="screener-heading" className="mb-2 text-sm font-medium">
+                        Who is working on this account?
+                      </p>
+                      <ScreenerControl
+                        clinicId={clinicId}
+                        shiftId={currentShift.shiftId}
+                        screenerName={myScreener}
+                        isOnline={isOnline}
+                        getToken={getToken}
+                        onSaved={refresh}
+                      />
+                    </div>
+                  ) : null}
                 </CardContent>
               </Card>
             </div>
@@ -349,6 +374,9 @@ export default function StationsPage() {
                         key={visit.id}
                         visit={visit}
                         userId={userId}
+                        holderScreener={
+                          visit.claimedBy ? (screeners.get(visit.claimedBy.id) ?? null) : null
+                        }
                         timezone={timezone}
                         canClaim={Boolean(currentShift) && isOnline && busyId === null}
                         busy={busyId === visit.id}
@@ -373,7 +401,11 @@ export default function StationsPage() {
                       </p>
                       <p className="mt-1 break-words text-xs text-muted-foreground">
                         {station.staff.length
-                          ? station.staff.map((member) => member.displayName).join(', ')
+                          ? station.staff
+                              .map((member) =>
+                                withScreener(member.displayName, member.screenerName),
+                              )
+                              .join(', ')
                           : 'Nobody at this station'}
                       </p>
                     </div>
@@ -391,6 +423,7 @@ export default function StationsPage() {
 function QueueRow({
   visit,
   userId,
+  holderScreener,
   timezone,
   canClaim,
   busy,
@@ -398,6 +431,8 @@ function QueueRow({
 }: {
   visit: StationVisit;
   userId: string;
+  /** Who is really screening on the holder's account, if not them (#227). */
+  holderScreener: string | null;
   timezone: string;
   canClaim: boolean;
   busy: boolean;
@@ -428,7 +463,10 @@ function QueueRow({
           <p className="text-sm">
             <span className="text-muted-foreground">
               From {visit.previous.station.name}
-              {visit.previous.completedBy ? ` (${visit.previous.completedBy.displayName})` : ''}:
+              {visit.previous.completedBy
+                ? ` (${performerLabel(visit.previous.completedBy.displayName, visit.previous.performedByName)})`
+                : ''}
+              :
             </span>{' '}
             {visit.previous.handoffNote ?? 'no hand-off note'}
           </p>
@@ -443,7 +481,12 @@ function QueueRow({
             <Link href={`/stations/visits/${visit.id}`}>Continue</Link>
           </Button>
         ) : (
-          <Badge variant="secondary">With {visit.claimedBy?.displayName ?? 'someone'}</Badge>
+          <Badge variant="secondary">
+            With{' '}
+            {visit.claimedBy
+              ? withScreener(visit.claimedBy.displayName, holderScreener)
+              : 'someone'}
+          </Badge>
         )
       ) : (
         <Button size="sm" onClick={onClaim} disabled={!canClaim}>

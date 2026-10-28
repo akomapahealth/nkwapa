@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { StationService } from './station.service';
@@ -120,6 +121,7 @@ function setup(initial: Row = {}) {
         return row;
       }),
       count: jest.fn(async () => 0),
+      groupBy: jest.fn(async (): Promise<Row[]> => []),
     },
     patientCheckIn: {
       findUnique: jest.fn(async () => ({
@@ -171,7 +173,24 @@ function setup(initial: Row = {}) {
       })),
     },
     staffShift: {
-      findFirst: jest.fn(async () => ({ id: 'shift-1' })),
+      findFirst: jest.fn(
+        async (): Promise<Row> => ({
+          id: 'shift-1',
+          screenerIsAccountHolder: true,
+          screenerName: null,
+        }),
+      ),
+      findUnique: jest.fn(
+        async (): Promise<Row | null> => ({
+          id: 'shift-1',
+          clinicId: CLINIC,
+          userId: 'vol-1',
+          status: 'ACTIVE',
+          screenerIsAccountHolder: true,
+          screenerName: null,
+        }),
+      ),
+      update: jest.fn(async ({ data }: { data: Row }) => ({ id: 'shift-1', ...data })),
     },
     $executeRaw: jest.fn(async () => 0),
   };
@@ -642,12 +661,212 @@ describe('StationService', () => {
       clinicId: CLINIC,
       userId: 'vol-1',
       actorUserId: 'vol-1',
+      screener: { isAccountHolder: false, name: 'Ama Mensah' },
     });
     expect(released).toBe(2);
     expect(tx.patientStationVisit.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ status: 'QUEUED', endReason: 'SHIFT_ENDED' }),
+        data: expect.objectContaining({
+          status: 'QUEUED',
+          endReason: 'SHIFT_ENDED',
+          performedByIsAccountHolder: false,
+          performedByName: 'Ama Mensah',
+        }),
       }),
     );
+  });
+
+  describe('who actually screened (#227)', () => {
+    const held = { status: 'IN_PROGRESS', claimedByUserId: 'vol-1', claimedAt: new Date() };
+    const ama = { isAccountHolder: false, name: '  Ama Mensah ' };
+
+    it('sets the screener on your own active shift, trimmed and audited', async () => {
+      const { service, tx, audit } = setup();
+      await expect(service.setShiftScreener(CLINIC, 'shift-1', volunteer, ama)).resolves.toEqual({
+        shiftId: 'shift-1',
+        screenerIsAccountHolder: false,
+        screenerName: 'Ama Mensah',
+      });
+      expect(tx.staffShift.update).toHaveBeenCalledWith({
+        where: { id: 'shift-1' },
+        data: { screenerIsAccountHolder: false, screenerName: 'Ama Mensah' },
+      });
+      expect(actions(audit)).toEqual(['SHIFT.SCREENER.UPDATE']);
+    });
+
+    it("refuses another user's shift, a closed shift, and another clinic's", async () => {
+      const { service, tx } = setup();
+      const shift = { id: 'shift-1', clinicId: CLINIC, userId: 'vol-1', status: 'ACTIVE' };
+      tx.staffShift.findUnique.mockResolvedValueOnce({ ...shift, userId: 'vol-2' });
+      await expect(
+        service.setShiftScreener(CLINIC, 'shift-1', volunteer, ama),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      tx.staffShift.findUnique.mockResolvedValueOnce({ ...shift, status: 'CLOSED' });
+      await expect(
+        service.setShiftScreener(CLINIC, 'shift-1', volunteer, ama),
+      ).rejects.toMatchObject({ response: { code: 'SHIFT_ALREADY_CLOSED' } });
+      tx.staffShift.findUnique.mockResolvedValueOnce({ ...shift, clinicId: 'clinic-2' });
+      await expect(
+        service.setShiftScreener(CLINIC, 'shift-1', volunteer, ama),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(tx.staffShift.update).not.toHaveBeenCalled();
+    });
+
+    it('needs a name when someone else is screening', async () => {
+      const { service, tx } = setup(held);
+      for (const name of [undefined, '', '   ']) {
+        await expect(
+          service.setShiftScreener(CLINIC, 'shift-1', volunteer, { isAccountHolder: false, name }),
+        ).rejects.toMatchObject({ response: { code: 'SCREENER_NAME_REQUIRED' } });
+        await expect(
+          service.complete(CLINIC, 'visit-1', volunteer, {
+            screener: { isAccountHolder: false, name },
+          }),
+        ).rejects.toBeInstanceOf(BadRequestException);
+      }
+      expect(tx.staffShift.update).not.toHaveBeenCalled();
+    });
+
+    it('stamps the screener sent with the completion, and on each skipped stop', async () => {
+      const { service, created, current } = setup(held);
+      const result = await service.complete(CLINIC, 'visit-1', volunteer, {
+        screener: ama,
+        skips: [{ stationId: 'st-glucose', reason: 'Out of strips' }],
+      });
+      expect(current()).toMatchObject({
+        completedByUserId: 'vol-1',
+        performedByIsAccountHolder: false,
+        performedByName: 'Ama Mensah',
+      });
+      expect(result.visit.performedByName).toBe('Ama Mensah');
+      expect(created[0]).toMatchObject({
+        status: 'SKIPPED',
+        performedByIsAccountHolder: false,
+        performedByName: 'Ama Mensah',
+      });
+    });
+
+    it("falls back to the shift's screener, then the account holder, for older clients", async () => {
+      const first = setup(held);
+      first.tx.staffShift.findFirst.mockResolvedValueOnce({
+        screenerIsAccountHolder: false,
+        screenerName: 'Ama Mensah',
+      });
+      await first.service.complete(CLINIC, 'visit-1', volunteer, {});
+      expect(first.current()).toMatchObject({ performedByName: 'Ama Mensah' });
+
+      const second = setup(held);
+      const result = await second.service.complete(CLINIC, 'visit-1', volunteer, {});
+      expect(second.current()).toMatchObject({
+        performedByIsAccountHolder: true,
+        performedByName: null,
+      });
+      expect(result.visit.performedByName).toBeNull();
+    });
+
+    it('stamps a self-release from the shift, and clears it on a forced release', async () => {
+      const own = setup(held);
+      own.tx.staffShift.findFirst.mockResolvedValueOnce({
+        screenerIsAccountHolder: false,
+        screenerName: 'Ama Mensah',
+      });
+      await own.service.release(CLINIC, 'visit-1', volunteer, 'Needs the toilet');
+      expect(own.current()).toMatchObject({ performedByName: 'Ama Mensah' });
+
+      const forced = setup({ ...held, performedByIsAccountHolder: false, performedByName: 'Old' });
+      await forced.service.release(CLINIC, 'visit-1', manager, 'Stale', { force: true });
+      expect(forced.current()).toMatchObject({
+        performedByIsAccountHolder: null,
+        performedByName: null,
+      });
+    });
+
+    it('never writes the screener name to application logs', async () => {
+      const spies = (['log', 'warn', 'error', 'debug', 'verbose'] as const).map((level) => [
+        jest.spyOn(Logger.prototype, level).mockImplementation(() => undefined),
+        jest.spyOn(Logger, level).mockImplementation(() => undefined),
+      ]);
+      const consoleSpies = (['log', 'warn', 'error', 'info', 'debug'] as const).map((level) =>
+        jest.spyOn(console, level).mockImplementation(() => undefined),
+      );
+      try {
+        const { service } = setup(held);
+        await service.setShiftScreener(CLINIC, 'shift-1', volunteer, ama);
+        await service.complete(CLINIC, 'visit-1', volunteer, { screener: ama });
+        await expect(
+          service.complete(CLINIC, 'visit-1', volunteer, { screener: ama }),
+        ).rejects.toBeDefined();
+        for (const spy of [...spies.flat(), ...consoleSpies]) {
+          expect(JSON.stringify(spy.mock.calls)).not.toContain('Ama Mensah');
+        }
+      } finally {
+        [...spies.flat(), ...consoleSpies].forEach((spy) => spy.mockRestore());
+      }
+    });
+
+    it('suggests recent names, newest first, and only names', async () => {
+      const { service, tx } = setup();
+      tx.patientStationVisit.groupBy.mockResolvedValueOnce([
+        { performedByName: 'Ama Mensah', _max: { completedAt: new Date('2026-10-27T10:00:00Z') } },
+      ]);
+      const now = new Date('2026-10-28T10:00:00Z');
+      await expect(service.getScreenerNames(CLINIC, now)).resolves.toEqual({
+        items: [{ name: 'Ama Mensah', lastUsedAt: '2026-10-27T10:00:00.000Z' }],
+      });
+      expect(tx.patientStationVisit.groupBy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            clinicId: CLINIC,
+            performedByIsAccountHolder: false,
+            completedAt: { gte: new Date('2026-07-30T10:00:00Z') },
+          }),
+        }),
+      );
+    });
+
+    describe('correction', () => {
+      const done = {
+        status: 'COMPLETED',
+        claimedByUserId: 'vol-1',
+        completedByUserId: 'vol-1',
+        completedAt: new Date(),
+      };
+      const fix = { isAccountHolder: false, name: 'Kwame Asante', reason: 'Wrong name' };
+
+      it('lets the completing account correct before the counselling lock, with an audit', async () => {
+        const { service, current, audit } = setup(done);
+        await service.correctPerformer(CLINIC, 'visit-1', volunteer, fix);
+        expect(current()).toMatchObject({ performedByName: 'Kwame Asante' });
+        const [event] = audit.logWrite.mock.calls[0] as unknown as [
+          { action: string; afterJson: string },
+        ];
+        expect(event.action).toBe('STATION.PERFORMER.CORRECT');
+        expect(JSON.parse(event.afterJson)).toMatchObject({
+          performedByName: 'Kwame Asante',
+          reason: 'Wrong name',
+        });
+      });
+
+      it('refuses the holder after the lock and anyone else, but not a manager', async () => {
+        const { service, tx } = setup(done);
+        tx.counsellingRecord.findUnique.mockResolvedValue({ lockedAt: new Date() } as never);
+        await expect(
+          service.correctPerformer(CLINIC, 'visit-1', volunteer, fix),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+        await expect(
+          service.correctPerformer(CLINIC, 'visit-1', otherVolunteer, fix),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+        await expect(
+          service.correctPerformer(CLINIC, 'visit-1', manager, fix),
+        ).resolves.toMatchObject({ performedByName: 'Kwame Asante' });
+      });
+
+      it('refuses a stop that has not finished', async () => {
+        const { service } = setup(held);
+        await expect(
+          service.correctPerformer(CLINIC, 'visit-1', manager, fix),
+        ).rejects.toMatchObject({ response: { code: 'STATION_VISIT_NOT_FINISHED' } });
+      });
+    });
   });
 });
