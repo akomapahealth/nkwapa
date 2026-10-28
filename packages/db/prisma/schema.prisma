@@ -282,6 +282,19 @@ enum StaffInviteStatus {
   EXPIRED
 }
 
+/// Where a screening day is in its life (#226). CANCELLED and COMPLETED are final.
+enum ScreeningEventStatus {
+  SCHEDULED
+  CANCELLED
+  COMPLETED
+}
+
+/// Whether a volunteer is on a screening day's roster (#226). Re-adding reactivates the row.
+enum ScreeningAssignmentStatus {
+  ASSIGNED
+  REMOVED
+}
+
 enum PatientDuplicateReviewStatus {
   OPEN
   DISMISSED
@@ -890,6 +903,9 @@ model Clinic {
   clinicalNoteAddenda       ClinicalNoteAddendum[]
   duplicateReviews          PatientDuplicateReview[]
   patientMergeRecords       PatientMergeRecord[]
+  volunteerContacts         VolunteerContact[]
+  screeningEvents           ScreeningEvent[]
+  screeningAssignments      ScreeningEventAssignment[]
 
   @@unique([organizationId, locationCode])
   @@index([organizationId])
@@ -1007,6 +1023,11 @@ model User {
   authoredClinicalNoteAddenda     ClinicalNoteAddendum[]          @relation("ClinicalNoteAddendumAuthor")
   receivedNotifications           Reminder[]                      @relation("ReminderRecipient")
   createdReminders                Reminder[]                      @relation("ReminderCreatedBy")
+  linkedVolunteerContacts         VolunteerContact[]              @relation("VolunteerContactLinkedUser")
+  createdVolunteerContacts        VolunteerContact[]              @relation("VolunteerContactCreatedBy")
+  createdScreeningEvents          ScreeningEvent[]                @relation("ScreeningEventCreatedBy")
+  assignedScreeningRosters        ScreeningEventAssignment[]      @relation("ScreeningAssignmentAssignedBy")
+  removedScreeningRosters         ScreeningEventAssignment[]      @relation("ScreeningAssignmentRemovedBy")
 
   @@index([isActive])
 }
@@ -1918,16 +1939,18 @@ model Reminder {
   // outreach. A global account deactivation belongs to no clinic, and a staff notice
   // belongs to no patient. The recipient_identity check constraint keeps the two
   // shapes from blurring into a row that is neither.
-  clinicId        String?               @db.Uuid
-  patientId       String?               @db.Uuid
-  recipientType   ReminderRecipientType @default(PATIENT)
-  recipientUserId String?               @db.Uuid
-  portalInviteId  String?               @db.Uuid
+  clinicId                   String?               @db.Uuid
+  patientId                  String?               @db.Uuid
+  recipientType              ReminderRecipientType @default(PATIENT)
+  recipientUserId            String?               @db.Uuid
+  portalInviteId             String?               @db.Uuid
   // An invited colleague has no User row until they first sign in, so a staff invitation is
   // addressed through the invite rather than through recipientUserId.
-  staffInviteId   String?               @db.Uuid
-  encounterId     String?               @db.Uuid
-  appointmentId   String?               @db.Uuid
+  staffInviteId              String?               @db.Uuid
+  // A volunteer on a screening-day roster (#226) may have no User row at all.
+  screeningEventAssignmentId String?               @db.Uuid
+  encounterId                String?               @db.Uuid
+  appointmentId              String?               @db.Uuid
 
   channel     ReminderChannel
   toAddress   String          @db.VarChar(320)
@@ -1951,14 +1974,15 @@ model Reminder {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  createdBy     User?                @relation("ReminderCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  clinic        Clinic?              @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  patient       Patient?             @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  recipientUser User?                @relation("ReminderRecipient", fields: [recipientUserId], references: [id], onDelete: SetNull)
-  portalInvite  PatientPortalInvite? @relation(fields: [portalInviteId], references: [id], onDelete: SetNull)
-  staffInvite   StaffInvite?         @relation(fields: [staffInviteId], references: [id], onDelete: SetNull)
-  encounter     Encounter?           @relation(fields: [encounterId], references: [id], onDelete: SetNull)
-  appointment   Appointment?         @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  createdBy                User?                     @relation("ReminderCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  clinic                   Clinic?                   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient                  Patient?                  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  recipientUser            User?                     @relation("ReminderRecipient", fields: [recipientUserId], references: [id], onDelete: SetNull)
+  portalInvite             PatientPortalInvite?      @relation(fields: [portalInviteId], references: [id], onDelete: SetNull)
+  staffInvite              StaffInvite?              @relation(fields: [staffInviteId], references: [id], onDelete: SetNull)
+  screeningEventAssignment ScreeningEventAssignment? @relation(fields: [screeningEventAssignmentId], references: [id], onDelete: SetNull)
+  encounter                Encounter?                @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+  appointment              Appointment?              @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
 
   @@index([clinicId, scheduledAt])
   @@index([createdByUserId])
@@ -1968,6 +1992,7 @@ model Reminder {
   @@index([recipientUserId])
   @@index([portalInviteId])
   @@index([staffInviteId])
+  @@index([screeningEventAssignmentId])
   @@index([clinicId, templateKey, createdAt])
 }
 
@@ -2069,6 +2094,88 @@ model StaffInvite {
   @@index([email, status])
   // The expiry sweep.
   @@index([status, expiresAt])
+}
+
+/// A person who volunteers at one clinic (#226), with or without a Nkwapa account. Roster emails
+/// go to `email` even when the contact is linked to an account.
+model VolunteerContact {
+  id              String   @id @default(uuid()) @db.Uuid
+  clinicId        String   @db.Uuid
+  displayName     String   @db.VarChar(120)
+  /// Stored lower-cased and trimmed; unique per clinic.
+  email           String   @db.VarChar(320)
+  phoneE164       String?  @db.VarChar(32)
+  /// For the manager only. Never patient information.
+  notes           String?  @db.VarChar(500)
+  /// Set only by an explicit, audited link to a user with a role at this clinic and the same email.
+  linkedUserId    String?  @db.Uuid
+  isActive        Boolean  @default(true)
+  createdByUserId String   @db.Uuid
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  clinic      Clinic                     @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  linkedUser  User?                      @relation("VolunteerContactLinkedUser", fields: [linkedUserId], references: [id], onDelete: SetNull)
+  createdBy   User                       @relation("VolunteerContactCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  assignments ScreeningEventAssignment[]
+
+  @@unique([clinicId, email])
+  @@index([clinicId, isActive, displayName])
+  @@index([linkedUserId])
+}
+
+/// A future screening day (#226). Separate from StaffShift, which records who is on duty now.
+model ScreeningEvent {
+  id               String               @id @default(uuid()) @db.Uuid
+  clinicId         String               @db.Uuid
+  title            String               @db.VarChar(160)
+  startsAt         DateTime
+  endsAt           DateTime
+  siteName         String               @db.VarChar(160)
+  siteAddress      String?              @db.VarChar(300)
+  /// Shown to volunteers in the roster email. Never patient information.
+  notes            String?              @db.VarChar(1000)
+  status           ScreeningEventStatus @default(SCHEDULED)
+  createdByUserId  String               @db.Uuid
+  cancelledAt      DateTime?
+  cancelReason     String?              @db.VarChar(500)
+  /// When the date, time or site last changed; a volunteer notified before this has stale details.
+  detailsChangedAt DateTime             @default(now())
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  clinic      Clinic                     @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  createdBy   User                       @relation("ScreeningEventCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  assignments ScreeningEventAssignment[]
+
+  @@index([clinicId, startsAt])
+}
+
+/// One volunteer on one screening day's roster (#226). Carries its own clinicId for RLS.
+model ScreeningEventAssignment {
+  id                 String                    @id @default(uuid()) @db.Uuid
+  clinicId           String                    @db.Uuid
+  eventId            String                    @db.Uuid
+  volunteerContactId String                    @db.Uuid
+  status             ScreeningAssignmentStatus @default(ASSIGNED)
+  assignedByUserId   String                    @db.Uuid
+  assignedAt         DateTime                  @default(now())
+  removedAt          DateTime?
+  removedByUserId    String?                   @db.Uuid
+  lastNotifiedAt     DateTime?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+
+  clinic           Clinic           @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  event            ScreeningEvent   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  volunteerContact VolunteerContact @relation(fields: [volunteerContactId], references: [id], onDelete: Cascade)
+  assignedBy       User             @relation("ScreeningAssignmentAssignedBy", fields: [assignedByUserId], references: [id], onDelete: Cascade)
+  removedBy        User?            @relation("ScreeningAssignmentRemovedBy", fields: [removedByUserId], references: [id], onDelete: SetNull)
+  reminders        Reminder[]
+
+  @@unique([eventId, volunteerContactId])
+  @@index([clinicId])
+  @@index([volunteerContactId])
 }
 
 model PatientCodeAlias {
