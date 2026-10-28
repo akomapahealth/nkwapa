@@ -75,7 +75,7 @@ describe('VolunteerService', () => {
     await attempt.catch((error: ConflictException) =>
       expect(error.getResponse()).toMatchObject({
         code: 'VOLUNTEER_EMAIL_EXISTS',
-        existingId: CONTACT_ID,
+        details: { existingId: CONTACT_ID },
       }),
     );
     expect(prisma.volunteerContact.findFirst).toHaveBeenCalledWith(

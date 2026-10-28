@@ -168,7 +168,9 @@ export class VolunteerService {
       throw new ConflictException({
         code: 'VOLUNTEER_EMAIL_EXISTS',
         message: 'A volunteer with this email is already in the directory.',
-        existingId: existing.id,
+        fieldErrors: [{ field: 'email', message: 'Already in the directory.' }],
+        // `details` is the one extra key the exception filter passes through.
+        details: { existingId: existing.id },
       });
     }
   }

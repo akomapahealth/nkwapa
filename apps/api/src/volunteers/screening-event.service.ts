@@ -55,6 +55,7 @@ export class ScreeningEventService {
   ) {}
 
   async list(clinicId: string) {
+    const clinic = await this.clinic(clinicId);
     const events = await this.prisma.screeningEvent.findMany({
       where: { clinicId },
       include: { _count: { select: { assignments: { where: { status: 'ASSIGNED' } } } } },
@@ -62,6 +63,7 @@ export class ScreeningEventService {
       take: EVENT_LIST_LIMIT,
     });
     return {
+      timezone: clinic.timezone,
       items: events.map(({ _count, ...event }) => ({
         ...event,
         rosteredCount: _count.assignments,
@@ -85,8 +87,10 @@ export class ScreeningEventService {
       },
       orderBy: [{ status: 'asc' }, { assignedAt: 'asc' }],
     });
+    const clinic = await this.clinic(clinicId);
     return {
       event,
+      timezone: clinic.timezone,
       emailConfigured: this.emailStatus.getStatus().available,
       roster: assignments.map(({ reminders, ...assignment }) => ({
         ...assignment,
@@ -423,16 +427,20 @@ export class ScreeningEventService {
     });
   }
 
+  private clinic(clinicId: string) {
+    return this.prisma.clinic.findUniqueOrThrow({
+      where: { id: clinicId },
+      select: { name: true, timezone: true },
+    });
+  }
+
   private async sendContext(
     clinicId: string,
     event: ScreeningEvent,
     actorUserId: string,
   ): Promise<SendContext> {
     const [clinic, actor] = await Promise.all([
-      this.prisma.clinic.findUniqueOrThrow({
-        where: { id: clinicId },
-        select: { name: true, timezone: true },
-      }),
+      this.clinic(clinicId),
       this.prisma.user.findUnique({ where: { id: actorUserId }, select: { displayName: true } }),
     ]);
     return { clinicId, clinic, event, senderName: actor?.displayName ?? null, actorUserId };
