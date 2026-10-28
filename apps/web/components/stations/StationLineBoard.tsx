@@ -18,7 +18,9 @@ import {
   moveCheckIn,
   patientName,
   releaseStationVisit,
+  screenersByUser,
   usePolling,
+  withScreener,
   type OnShiftStaff,
   type StationBoard,
   type StationVisit,
@@ -95,6 +97,7 @@ export function StationLineBoard() {
   const isToday = date === getTodayInTimeZone(view.data?.timezone ?? OPS_DEFAULT_TIMEZONE);
   usePolling(refresh, isOnline && isToday && Boolean(clinicId));
   const timezone = view.data?.timezone ?? OPS_DEFAULT_TIMEZONE;
+  const screeners = screenersByUser(view.data?.onShift);
   const stations = (view.data?.stations ?? []).filter(
     (station) => station.active || station.visits.length > 0,
   );
@@ -213,7 +216,9 @@ export function StationLineBoard() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {station.staff.length
-                    ? station.staff.map((member) => member.displayName).join(', ')
+                    ? station.staff
+                        .map((member) => withScreener(member.displayName, member.screenerName))
+                        .join(', ')
                     : 'Nobody at this station'}
                 </p>
               </CardHeader>
@@ -229,7 +234,15 @@ export function StationLineBoard() {
                       </div>
                       <div className="flex flex-wrap items-center gap-2 text-xs">
                         {visit.status === 'IN_PROGRESS' ? (
-                          <Badge variant="default">With {visit.claimedBy?.displayName}</Badge>
+                          <Badge variant="default">
+                            With{' '}
+                            {visit.claimedBy
+                              ? withScreener(
+                                  visit.claimedBy.displayName,
+                                  screeners.get(visit.claimedBy.id),
+                                )
+                              : null}
+                          </Badge>
                         ) : (
                           <Badge variant="secondary">Waiting</Badge>
                         )}

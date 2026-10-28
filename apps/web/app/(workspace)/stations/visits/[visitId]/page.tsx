@@ -11,19 +11,23 @@ import { apiFetch } from '@/lib/api';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { db, type DiabetesScreeningRecord, type VitalsRecord } from '@/lib/db';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
-import { OPS_DEFAULT_TIMEZONE, formatOpsDateTime } from '@/lib/ops';
+import { OPS_DEFAULT_TIMEZONE, formatOpsDateTime, getTodayInTimeZone } from '@/lib/ops';
 import { isFullySynced } from '@/lib/sync';
 import {
   cancelCheckIn,
   claimStationVisit,
   completeStationVisit,
+  fetchStationBoard,
   fetchStationVisit,
   fetchStations,
   patientName,
+  performerLabel,
   releaseStationVisit,
+  screenerFromName,
   stationsPassedOver,
   suggestedNextStation,
   type ClinicStation,
+  type OnShiftStaff,
   type StationVisit,
   type StationVisitDetail,
 } from '@/lib/stations';
@@ -39,6 +43,7 @@ import { CounsellingForm } from '@/components/stations/CounsellingForm';
 import { EyeScreeningForm } from '@/components/stations/EyeScreeningForm';
 import { eyeScreeningPath, type EyeScreeningRecord } from '@/lib/eye-screening';
 import { StationResultsSummary } from '@/components/stations/StationResultsSummary';
+import { ScreenerControl } from '@/components/stations/ScreenerControl';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -95,6 +100,9 @@ export default function StationVisitPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** The caller's own shift, for who is really screening on this account (#227). */
+  const [myShift, setMyShift] = useState<OnShiftStaff | null>(null);
+  const [changingScreener, setChangingScreener] = useState(false);
 
   /** The eye record has its own route; a failure leaves the summary showing it as not recorded. */
   const loadEyeScreening = useCallback(
@@ -147,12 +155,15 @@ export default function StationVisitPage() {
   const load = useCallback(async () => {
     if (!getToken || !clinicId || !enabled) return;
     try {
-      const [detail, stationList] = await Promise.all([
+      const [detail, stationList, board] = await Promise.all([
         fetchStationVisit(clinicId, visitId, getToken),
         fetchStations(clinicId, getToken),
+        // The banner only; the visit opens without it.
+        fetchStationBoard(clinicId, getTodayInTimeZone(), getToken).catch(() => null),
       ]);
       setVisit(detail);
       setStations(stationList.items);
+      if (board) setMyShift(board.onShift?.find((shift) => shift.user.id === userId) ?? null);
       setLoadError(null);
       if (detail.encounterId) await loadReadings(detail.encounterId);
     } catch (error) {
@@ -160,7 +171,7 @@ export default function StationVisitPage() {
     } finally {
       setLoading(false);
     }
-  }, [getToken, clinicId, visitId, enabled, loadReadings]);
+  }, [getToken, clinicId, visitId, enabled, loadReadings, userId]);
 
   useEffect(() => {
     void load();
@@ -255,6 +266,37 @@ export default function StationVisitPage() {
               </InlineNotice>
             ) : null}
 
+            {mine && myShift?.shiftId ? (
+              <InlineNotice tone="info" live={false}>
+                <span>
+                  Recording as <strong>{myShift.screenerName ?? myShift.user.displayName}</strong>
+                  {myShift.screenerName ? ` on ${myShift.user.displayName}'s account` : ''} ·{' '}
+                </span>
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0"
+                  aria-expanded={changingScreener}
+                  onClick={() => setChangingScreener((open) => !open)}
+                >
+                  Change
+                </Button>
+                {changingScreener ? (
+                  <div className="mt-3">
+                    <ScreenerControl
+                      clinicId={clinicId}
+                      shiftId={myShift.shiftId}
+                      screenerName={myShift.screenerName ?? null}
+                      isOnline={isOnline}
+                      getToken={getToken!}
+                      onSaved={(screenerName) => setMyShift({ ...myShift, screenerName })}
+                    />
+                  </div>
+                ) : null}
+              </InlineNotice>
+            ) : null}
+
             <Timeline timeline={visit.timeline} currentId={visit.id} timezone={timezone} />
 
             {mine && visit.encounterId ? (
@@ -291,7 +333,15 @@ export default function StationVisitPage() {
                           'Some readings have not reached the server yet. Check the sync status, then hand the patient on.',
                         );
                       }
-                      return completeStationVisit(clinicId, visit.id, body, getToken!);
+                      return completeStationVisit(
+                        clinicId,
+                        visit.id,
+                        // Sent, not inferred, so the stamp is what the banner showed (#227).
+                        myShift
+                          ? { ...body, screener: screenerFromName(myShift.screenerName) }
+                          : body,
+                        getToken!,
+                      );
                     },
                     () => router.push('/stations'),
                   )
@@ -354,7 +404,9 @@ function Timeline({
             <li key={stop.id} className="rounded-lg border p-3 text-sm">
               <p className="font-medium">
                 {stop.station.name} · {STATUS_LABELS[stop.status]}
-                {stop.completedBy ? ` · ${stop.completedBy.displayName}` : ''}
+                {stop.completedBy
+                  ? ` · ${performerLabel(stop.completedBy.displayName, stop.performedByName)}`
+                  : ''}
                 {stop.completedAt ? ` · ${formatOpsDateTime(stop.completedAt, timezone)}` : ''}
               </p>
               {stop.handoffNote ? <p className="mt-1">{stop.handoffNote}</p> : null}

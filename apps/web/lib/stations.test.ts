@@ -4,8 +4,12 @@ import {
   isStationBoard,
   moveStation,
   minutesSince,
+  performerLabel,
+  screenerFromName,
+  screenersByUser,
   stationsPassedOver,
   suggestedNextStation,
+  withScreener,
   type ClinicStation,
   type OnShiftStaff,
 } from './stations';
@@ -115,5 +119,40 @@ describe('isStationBoard (#197)', () => {
     expect(isStationBoard(null)).toBe(false);
     expect(isStationBoard([])).toBe(false);
     expect(isStationBoard({ timezone: 'Africa/Accra' })).toBe(false);
+  });
+});
+
+describe('who actually screened (#227)', () => {
+  it('names both people only when they differ', () => {
+    expect(withScreener('Kofi', 'Ama')).toBe('Kofi (Ama screening)');
+    expect(withScreener('Kofi', null)).toBe('Kofi');
+    expect(performerLabel('Kofi', 'Ama')).toBe('Ama · signed in as Kofi');
+    expect(performerLabel('Kofi', undefined)).toBe('Kofi');
+  });
+
+  it('sends the account holder when nobody else is named', () => {
+    expect(screenerFromName(null)).toEqual({ isAccountHolder: true });
+    expect(screenerFromName('Ama')).toEqual({ isAccountHolder: false, name: 'Ama' });
+  });
+
+  it('reads each account’s live screener, tolerating boards saved before it', () => {
+    const map = screenersByUser([
+      {
+        user: { id: 'kofi', displayName: 'Kofi' },
+        roleAtShift: 'VOLUNTEER',
+        stationId: null,
+        activeVisitCount: 0,
+        screenerName: 'Ama',
+      },
+      {
+        user: { id: 'esi', displayName: 'Esi' },
+        roleAtShift: 'VOLUNTEER',
+        stationId: null,
+        activeVisitCount: 0,
+      },
+    ]);
+    expect(map.get('kofi')).toBe('Ama');
+    expect(map.get('esi')).toBeNull();
+    expect(screenersByUser(undefined).size).toBe(0);
   });
 });

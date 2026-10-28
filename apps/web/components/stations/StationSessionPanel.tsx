@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import type { DiabetesScreeningRecord, VitalsRecord } from '@/lib/db';
 import { OPS_DEFAULT_TIMEZONE, formatOpsDateTime } from '@/lib/ops';
-import { fetchEncounterStationTimeline, type StationVisit } from '@/lib/stations';
+import { fetchEncounterStationTimeline, performerLabel, type StationVisit } from '@/lib/stations';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { EyeScreeningRecord } from '@/lib/eye-screening';
@@ -100,7 +100,9 @@ export function StationSessionPanel({
               <li key={stop.id} className="rounded-lg border p-3">
                 <p className="font-medium">
                   {stop.station.name} · {stop.status.toLowerCase().replace('_', ' ')}
-                  {stop.completedBy ? ` · ${stop.completedBy.displayName}` : ''}
+                  {stop.completedBy
+                    ? ` · ${performerLabel(stop.completedBy.displayName, stop.performedByName)}`
+                    : ''}
                   {stop.completedAt
                     ? ` · ${formatOpsDateTime(stop.completedAt, OPS_DEFAULT_TIMEZONE)}`
                     : ''}

@@ -53,6 +53,11 @@ export interface StationVisit {
   assignedBy?: StaffSummary | null;
   completedBy: StaffSummary | null;
   completedAt: string | null;
+  /**
+   * Who actually did the stop when it wasn't the account holder (#227). Null when it was, or the
+   * stop predates it; absent from copies saved before it.
+   */
+  performedByName?: string | null;
   handoffNote: string | null;
   endReason: string | null;
   releaseCount: number;
@@ -60,6 +65,7 @@ export interface StationVisit {
     station: StationVisit['station'];
     completedBy: StaffSummary | null;
     completedAt: string | null;
+    performedByName?: string | null;
     handoffNote: string | null;
   } | null;
 }
@@ -68,7 +74,7 @@ export interface StationBoard {
   date: string;
   timezone: string;
   stations: Array<
-    ClinicStation & { staff: StaffSummary[]; visits: StationVisit[]; inUse?: number }
+    ClinicStation & { staff: OnStationStaff[]; visits: StationVisit[]; inUse?: number }
   >;
   /** Everyone on shift. Absent from a board saved on this device before managers could assign. */
   onShift?: OnShiftStaff[];
@@ -84,8 +90,17 @@ export function isStationBoard(value: unknown): value is StationBoard {
   return typeof board.timezone === 'string' && Array.isArray(board.stations);
 }
 
+/** Someone working at a station, and who is really screening on their account (#227). */
+export interface OnStationStaff extends StaffSummary {
+  screenerName?: string | null;
+}
+
 export interface OnShiftStaff {
+  /** Absent from a board saved before #227. */
+  shiftId?: string;
   user: StaffSummary;
+  /** Who is really screening on this account; null when it's the account holder (#227). */
+  screenerName?: string | null;
   roleAtShift: 'VOLUNTEER' | 'DOCTOR' | 'MANAGER';
   stationId: string | null;
   activeVisitCount: number;
@@ -315,6 +330,7 @@ export const completeStationVisit = (
     handoffNote?: string;
     nextStationId?: string;
     skips?: Array<{ stationId: string; reason: string }>;
+    screener?: Screener;
   },
   getToken: GetToken,
 ) =>
@@ -323,6 +339,41 @@ export const completeStationVisit = (
     `/station-visits/${encodeURIComponent(visitId)}/complete`,
     getToken,
     { method: 'POST', body },
+  );
+
+/** Who is working on the account (#227). `name` is required when it's not the account holder. */
+export interface Screener {
+  isAccountHolder: boolean;
+  name?: string;
+}
+
+/** The screener a board names, in the shape the API takes. */
+export const screenerFromName = (screenerName: string | null | undefined): Screener =>
+  screenerName ? { isAccountHolder: false, name: screenerName } : { isAccountHolder: true };
+
+/** "Ama Mensah · signed in as Kofi Boateng", or just the account when they are the same person. */
+export const performerLabel = (account: string, performedByName: string | null | undefined) =>
+  performedByName ? `${performedByName} · signed in as ${account}` : account;
+
+/** "Kofi Boateng (Ama Mensah screening)" when someone else works on the account. */
+export const withScreener = (displayName: string, screenerName: string | null | undefined) =>
+  screenerName ? `${displayName} (${screenerName} screening)` : displayName;
+
+/** The live screener on each account on shift, for naming who holds a patient now. */
+export const screenersByUser = (onShift: OnShiftStaff[] | undefined) =>
+  new Map((onShift ?? []).map((shift) => [shift.user.id, shift.screenerName ?? null]));
+
+export const setShiftScreener = (
+  clinicId: string,
+  shiftId: string,
+  screener: Screener,
+  getToken: GetToken,
+) =>
+  request<{ shiftId: string; screenerIsAccountHolder: boolean; screenerName: string | null }>(
+    clinicId,
+    `/shifts/${encodeURIComponent(shiftId)}/screener`,
+    getToken,
+    { method: 'PATCH', body: screener },
   );
 
 export const setShiftStation = (
