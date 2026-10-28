@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { UserRole, type PortalInviteIdentityStatus, type StaffInvite } from '@prisma/client';
+import { formatStaffDisplayName, staffNameMessage, staffNamePartError } from '@nkwapa/db';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ReminderService } from '../reminders/reminder.service';
@@ -25,6 +26,9 @@ import {
   resolveStaffInviteExpiry,
   type StaffInviteActorRole,
 } from '../common/staff-invite-lifecycle';
+import { holdsStaffRole } from '../auth/clinic-roles';
+import { staffNameLabel } from '../common/staff-name.validation';
+import { UserProfileService } from '../users/user-profile.service';
 import { findAcceptableStaffInvites } from './staff-invite.queries';
 import type { CreateStaffInviteDto } from './dto/staff-invite.dto';
 
@@ -77,6 +81,7 @@ export class StaffInviteService {
     private readonly reminderService: ReminderService,
     private readonly keycloakAdminService: KeycloakAdminService,
     private readonly emailDeliverabilityService: EmailDeliverabilityService,
+    private readonly userProfileService: UserProfileService,
   ) {}
 
   async listForClinic(actor: StaffInviteActor, clinicId: string) {
@@ -122,6 +127,7 @@ export class StaffInviteService {
     this.assertCanGrant(actor, clinicId, dto.role);
 
     const email = dto.email.trim().toLowerCase();
+    const name = this.inviteeName(dto, email);
     if (isSharedMailboxAddress(email)) {
       throw new BadRequestException({
         code: 'STAFF_INVITE_SHARED_MAILBOX',
@@ -164,6 +170,7 @@ export class StaffInviteService {
         clinicId,
         email,
         role: dto.role,
+        ...name,
         expiresAt,
         createdByUserId: actor.userId,
       },
@@ -192,6 +199,7 @@ export class StaffInviteService {
         role: invite.role,
         expiresAt: invite.expiresAt,
         existingAccount: Boolean(existing),
+        namedByInviter: Boolean(invite.firstName),
       }),
       requestId,
     });
@@ -298,7 +306,16 @@ export class StaffInviteService {
   async accept(userId: string, inviteId: string, requestId?: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, isActive: true, keycloakSub: true },
+      select: {
+        id: true,
+        email: true,
+        isActive: true,
+        keycloakSub: true,
+        firstName: true,
+        middleInitial: true,
+        lastName: true,
+        displayName: true,
+      },
     });
     if (!user?.isActive) {
       throw new ForbiddenException(
@@ -402,7 +419,58 @@ export class StaffInviteService {
       });
     }
 
+    await this.adoptInviteName(user, invite, requestId);
+
     return this.acceptanceResult(invite);
+  }
+
+  /**
+   * Fill whatever the account is missing from the name the inviter gave, so someone invited as
+   * "Ama K. Mensah" goes straight in. Never overwrites: a name the person set wins. The middle
+   * initial only ever lives here, since Keycloak has no field for it.
+   */
+  private async adoptInviteName(
+    user: Parameters<UserProfileService['applyName']>[1],
+    invite: Pick<StaffInvite, 'clinicId' | 'firstName' | 'middleInitial' | 'lastName'>,
+    requestId?: string,
+  ) {
+    const firstName = user.firstName ?? invite.firstName;
+    const lastName = user.lastName ?? invite.lastName;
+    if (!firstName || !lastName) return;
+    await this.userProfileService.applyName(
+      this.prisma,
+      user,
+      { firstName, lastName, middleInitial: user.middleInitial ?? invite.middleInitial },
+      { actorUserId: user.id, source: 'INVITE', clinicId: invite.clinicId, requestId },
+    );
+  }
+
+  /** The inviter's optional name for the invitee: both parts or neither, never the address. */
+  private inviteeName(dto: CreateStaffInviteDto, email: string) {
+    if (!dto.firstName && !dto.lastName) {
+      return { firstName: null, middleInitial: null, lastName: null };
+    }
+    const fieldErrors = (['firstName', 'lastName'] as const).flatMap((field) => {
+      const value = dto[field];
+      const label = staffNameLabel(field);
+      if (!value) {
+        return [{ field, message: `Add a ${label.toLowerCase()} too, or leave both blank.` }];
+      }
+      const error = staffNamePartError(value, email);
+      return error ? [{ field, message: staffNameMessage(error, label) }] : [];
+    });
+    if (fieldErrors.length) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Check the name and try again.',
+        fieldErrors,
+      });
+    }
+    return {
+      firstName: dto.firstName ?? null,
+      middleInitial: dto.middleInitial ?? null,
+      lastName: dto.lastName ?? null,
+    };
   }
 
   private acceptanceResult(invite: { clinicId: string; role: UserRole; clinic: { name: string } }) {
@@ -477,8 +545,7 @@ export class StaffInviteService {
       and a patient who also volunteers is ordinary. The person still has to sign in to that
       account and accept, which is the check that matters.
     */
-    const holdsStaffRole = existing.clinicRoles.some((entry) => entry.role !== UserRole.PATIENT);
-    if (holdsStaffRole && dto.confirmExistingAccount !== true) {
+    if (holdsStaffRole(existing.clinicRoles) && dto.confirmExistingAccount !== true) {
       throw new ConflictException({
         code: 'STAFF_INVITE_ADDRESS_IN_USE',
         message:
@@ -528,8 +595,8 @@ export class StaffInviteService {
     const result = appPublicUrl
       ? await this.keycloakAdminService.provisionInvitedIdentity({
           email: invite.email,
-          firstName: null,
-          lastName: null,
+          firstName: invite.firstName,
+          lastName: invite.lastName,
           claimRedirectUri: buildStaffInviteRedirectUri(appPublicUrl),
           lifespanSeconds: resolveIdentityActionLifespanSeconds(invite.expiresAt, new Date()),
         })
@@ -608,6 +675,9 @@ export class StaffInviteService {
       | 'id'
       | 'clinicId'
       | 'email'
+      | 'firstName'
+      | 'middleInitial'
+      | 'lastName'
       | 'role'
       | 'status'
       | 'expiresAt'
@@ -631,6 +701,15 @@ export class StaffInviteService {
       id: invite.id,
       clinicId: invite.clinicId,
       email: invite.email,
+      /** "Ama K. Mensah" when the inviter named them, otherwise null. */
+      inviteeName:
+        invite.firstName && invite.lastName
+          ? formatStaffDisplayName({
+              firstName: invite.firstName,
+              middleInitial: invite.middleInitial,
+              lastName: invite.lastName,
+            })
+          : null,
       role: invite.role,
       // What an admin can act on. Between sweeps a lapsed row still stores PENDING.
       status: effectiveStaffInviteStatus(invite, now),

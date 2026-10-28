@@ -49,6 +49,9 @@ function inviteRow(overrides: Record<string, unknown> = {}) {
     keycloakUserId: null,
     identityProvisionedAt: null,
     identityFailureReason: null,
+    firstName: null,
+    middleInitial: null,
+    lastName: null,
     ...overrides,
   };
 }
@@ -71,6 +74,7 @@ describe('StaffInviteService', () => {
   let reminders: { sendNotificationNow: jest.Mock };
   let keycloak: KeycloakAdminServiceMock;
   let deliverability: { assertDomainAcceptsEmail: jest.Mock };
+  let userProfile: { applyName: jest.Mock };
   let service: StaffInviteService;
 
   beforeEach(() => {
@@ -112,12 +116,14 @@ describe('StaffInviteService', () => {
     };
     keycloak = createKeycloakAdminServiceMock();
     deliverability = { assertDomainAcceptsEmail: jest.fn().mockResolvedValue(undefined) };
+    userProfile = { applyName: jest.fn().mockResolvedValue(null) };
     service = new StaffInviteService(
       prisma as never,
       audit as never,
       reminders as never,
       keycloak as never,
       deliverability as never,
+      userProfile as never,
     );
   });
 
@@ -369,6 +375,58 @@ describe('StaffInviteService', () => {
     });
   });
 
+  describe('the invitee name (#225)', () => {
+    it('stores the name and creates the Keycloak user with it', async () => {
+      const result = await service.create(directorOfA, CLINIC_A, {
+        email: 'ama@clinic.org',
+        role: UserRole.VOLUNTEER,
+        firstName: 'Ama',
+        middleInitial: 'K',
+        lastName: 'Mensah',
+      });
+
+      expect(prisma.staffInvite.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ firstName: 'Ama', middleInitial: 'K', lastName: 'Mensah' }),
+      });
+      expect(keycloak.provisionInvitedIdentity).toHaveBeenCalledWith(
+        expect.objectContaining({ firstName: 'Ama', lastName: 'Mensah' }),
+      );
+      expect(result.inviteeName).toBe('Ama K. Mensah');
+    });
+
+    it('still invites by email alone', async () => {
+      const result = await service.create(directorOfA, CLINIC_A, {
+        email: 'ama@clinic.org',
+        role: UserRole.VOLUNTEER,
+      });
+
+      expect(keycloak.provisionInvitedIdentity).toHaveBeenCalledWith(
+        expect.objectContaining({ firstName: null, lastName: null }),
+      );
+      expect(result.inviteeName).toBeNull();
+    });
+
+    it.each([
+      [{ firstName: 'Ama' }, 'lastName'],
+      [{ lastName: 'Mensah' }, 'firstName'],
+      [{ firstName: 'ama@clinic.org', lastName: 'Mensah' }, 'firstName'],
+    ])('refuses %j on %s and sends nothing', async (name, field) => {
+      const error = await service
+        .create(directorOfA, CLINIC_A, {
+          email: 'ama@clinic.org',
+          role: UserRole.VOLUNTEER,
+          ...name,
+        })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({
+        fieldErrors: [expect.objectContaining({ field })],
+      });
+      expect(prisma.staffInvite.create).not.toHaveBeenCalled();
+    });
+  });
+
   describe('resending', () => {
     it('provisions again, which Keycloak makes idempotent, and marks the email as a reminder', async () => {
       prisma.staffInvite.findFirst.mockResolvedValue(inviteRow());
@@ -470,6 +528,37 @@ describe('StaffInviteService', () => {
         clinicName: 'Accra Clinic',
         role: UserRole.DOCTOR,
       });
+    });
+
+    it('adopts the inviter-given name, middle initial included, without overwriting', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        ...invitee,
+        firstName: 'Ama',
+        middleInitial: null,
+        lastName: null,
+        displayName: 'Ama',
+      });
+      prisma.staffInvite.findFirst.mockResolvedValue(
+        openInvite({ firstName: 'Amma', middleInitial: 'K', lastName: 'Mensah' }),
+      );
+
+      await service.accept(invitee.id, INVITE_ID, 'req-1');
+
+      expect(userProfile.applyName).toHaveBeenCalledWith(
+        prisma,
+        expect.objectContaining({ id: invitee.id }),
+        { firstName: 'Ama', middleInitial: 'K', lastName: 'Mensah' },
+        { actorUserId: invitee.id, source: 'INVITE', clinicId: CLINIC_A, requestId: 'req-1' },
+      );
+    });
+
+    it('leaves the name alone when the invitation carried none', async () => {
+      prisma.user.findUnique.mockResolvedValue({ ...invitee, firstName: null, lastName: null });
+      prisma.staffInvite.findFirst.mockResolvedValue(openInvite());
+
+      await service.accept(invitee.id, INVITE_ID);
+
+      expect(userProfile.applyName).not.toHaveBeenCalled();
     });
 
     it('does not duplicate a role the invitee already holds', async () => {

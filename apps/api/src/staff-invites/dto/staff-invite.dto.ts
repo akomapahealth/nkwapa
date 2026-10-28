@@ -5,6 +5,12 @@ import { IsAllowedEmailDomain } from '../../common/email-policy';
 import { SELECTABLE_STAFF_INVITE_TTL_HOURS } from '../../common/staff-invite-lifecycle';
 import { ToNormalizedEmail, ToOptionalBoolean } from '../../common/validation';
 import { ClinicIdParamDto } from '../../common/request-dto';
+import {
+  IsMiddleInitial,
+  IsStaffNamePart,
+  ToMiddleInitial,
+  ToStaffNamePart,
+} from '../../common/staff-name.validation';
 
 export class CreateStaffInviteDto {
   @ToNormalizedEmail()
@@ -20,6 +26,26 @@ export class CreateStaffInviteDto {
    */
   @IsIn(Object.values(UserRole))
   role!: UserRole;
+
+  /**
+   * The invitee's name, when the inviter knows it (#225). Optional so a manager can still invite
+   * by email alone; the person is then asked for it at first sign-in. First and last come as a
+   * pair, which the service enforces.
+   */
+  @ToStaffNamePart()
+  @IsOptional()
+  @IsStaffNamePart()
+  firstName?: string;
+
+  @ToMiddleInitial()
+  @IsOptional()
+  @IsMiddleInitial()
+  middleInitial?: string | null;
+
+  @ToStaffNamePart()
+  @IsOptional()
+  @IsStaffNamePart()
+  lastName?: string;
 
   /** How long the invitation stays open. Constrained to what the form offers. */
   @IsOptional()
