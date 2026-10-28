@@ -161,6 +161,8 @@ export class StationService {
     this.requireManage(actor);
     try {
       const station = await this.prisma.$transaction(async (tx) => {
+        // The lock setShiftStation takes, so nobody picks this station while it closes (#228).
+        if (dto.active === false) await lockForTransaction(tx, `clinic-stations:${clinicId}`);
         const existing = await this.findStation(tx, clinicId, stationId);
         if (dto.active === false && existing.active) {
           if (existing.kind === StationKind.REVIEW) {
@@ -196,6 +198,9 @@ export class StationService {
           beforeJson: JSON.stringify(existing),
           afterJson: JSON.stringify(updated),
         });
+        if (dto.active === false && existing.active) {
+          await this.releaseShiftsAt(tx, clinicId, stationId, actor, context);
+        }
         return updated;
       });
       return this.toStation(station);
@@ -243,6 +248,29 @@ export class StationService {
     return this.listStations(clinicId);
   }
 
+  /** A closed station keeps nobody: whoever was working there chooses again (#228). */
+  private async releaseShiftsAt(
+    tx: TxClient,
+    clinicId: string,
+    stationId: string,
+    actor: StationActor,
+    context: StationWriteContext,
+  ) {
+    const where = { clinicId, stationId, status: 'ACTIVE' as const };
+    const shifts = await tx.staffShift.findMany({ where, select: { id: true } });
+    if (!shifts.length) return;
+    await tx.staffShift.updateMany({ where, data: { stationId: null } });
+    for (const shift of shifts) {
+      await this.audit(tx, clinicId, actor.userId, context, {
+        action: 'SHIFT.STATION.UPDATE',
+        entityType: 'StaffShift',
+        entityId: shift.id,
+        beforeJson: JSON.stringify({ stationId }),
+        afterJson: JSON.stringify({ stationId: null, reason: 'STATION_DEACTIVATED' }),
+      });
+    }
+  }
+
   /** The station the caller is working right now, on their own active shift. */
   async setShiftStation(
     clinicId: string,
@@ -266,6 +294,8 @@ export class StationService {
         });
       }
       if (stationId) {
+        // Held until commit, so a station closing at the same moment waits and then clears this.
+        await lockForTransaction(tx, `clinic-stations:${clinicId}`);
         const station = await this.findStation(tx, clinicId, stationId);
         if (!station.active) throw this.stationInactive();
       }
