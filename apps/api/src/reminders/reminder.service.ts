@@ -1078,7 +1078,16 @@ export class ReminderService {
       where: { id: reminderId },
       include: { clinic: true, patient: true, appointment: true },
     });
-    if (!reminder || reminder.status !== 'QUEUED') return null;
+    if (!reminder) {
+      /*
+        The job is queued from inside the request's transaction (see sendNotificationNow), so a
+        fast worker can look before that transaction commits. Completing here left the row QUEUED
+        until the five-minute sweep; a roster send of several emails hit it on the first one.
+        Throwing spends an attempt and retries in seconds, by which time the row is visible.
+      */
+      throw new Error(`Reminder ${reminderId} is not visible yet`);
+    }
+    if (reminder.status !== 'QUEUED') return null;
     if (reminder.scheduledAt > new Date()) return { notDueUntil: reminder.scheduledAt };
 
     const payload = JSON.parse(reminder.payloadJson) as Record<string, unknown>;
