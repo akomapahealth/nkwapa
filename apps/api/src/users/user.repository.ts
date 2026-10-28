@@ -88,8 +88,9 @@ export class UserRepository {
 
   /**
    * Bring in what Keycloak knows on sign-in. Nkwapa owns the name (#225): a name is only filled
-   * where none is stored, so a later sign-in never overwrites one set here, and `displayName` is
-   * rebuilt only when that fill is what completes the name.
+   * where none is stored, so a later sign-in never overwrites one set here. `displayName` is
+   * rebuilt when that fill completes the name, or when it is still a placeholder (the email or
+   * the subject) beside a complete name: the accounts this sync used to leave stuck on an email.
    */
   async syncKeycloakProfile(
     id: string,
@@ -97,7 +98,15 @@ export class UserRepository {
   ): Promise<User> {
     const existing = await this.prisma.user.findUnique({
       where: { id },
-      select: { firstName: true, lastName: true, middleInitial: true, phoneE164: true },
+      select: {
+        firstName: true,
+        lastName: true,
+        middleInitial: true,
+        displayName: true,
+        email: true,
+        keycloakSub: true,
+        phoneE164: true,
+      },
     });
     if (!existing) throw new Error('User not found');
     const updates: {
@@ -111,7 +120,9 @@ export class UserRepository {
     if (data.lastName != null && existing.lastName == null) updates.lastName = data.lastName;
     const firstName = updates.firstName ?? existing.firstName;
     const lastName = updates.lastName ?? existing.lastName;
-    if ((updates.firstName || updates.lastName) && firstName && lastName) {
+    const isPlaceholder =
+      existing.displayName === existing.email || existing.displayName === existing.keycloakSub;
+    if ((updates.firstName || updates.lastName || isPlaceholder) && firstName && lastName) {
       updates.displayName = formatStaffDisplayName({
         firstName,
         middleInitial: existing.middleInitial,

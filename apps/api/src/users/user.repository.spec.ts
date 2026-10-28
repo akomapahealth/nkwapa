@@ -4,9 +4,14 @@ describe('UserRepository.syncKeycloakProfile', () => {
   function repositoryWith(stored: Record<string, unknown>) {
     const prisma = {
       user: {
-        findUnique: jest
-          .fn()
-          .mockResolvedValue({ phoneE164: null, middleInitial: null, ...stored }),
+        findUnique: jest.fn().mockResolvedValue({
+          phoneE164: null,
+          middleInitial: null,
+          displayName: 'Someone',
+          email: 'ama@clinic.org',
+          keycloakSub: 'kc-1',
+          ...stored,
+        }),
         findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'user-1' }),
         update: jest.fn().mockResolvedValue({ id: 'user-1' }),
       },
@@ -45,6 +50,21 @@ describe('UserRepository.syncKeycloakProfile', () => {
     expect(prisma.user.update).toHaveBeenCalledWith({
       where: { id: 'user-1' },
       data: { firstName: 'Ama' },
+    });
+  });
+
+  it('heals a display name stuck on the email beside a complete name', async () => {
+    const { prisma, repository } = repositoryWith({
+      firstName: 'Ama',
+      lastName: 'Mensah',
+      displayName: 'ama@clinic.org',
+    });
+
+    await repository.syncKeycloakProfile('user-1', {});
+
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: 'user-1' },
+      data: { displayName: 'Ama Mensah' },
     });
   });
 });
