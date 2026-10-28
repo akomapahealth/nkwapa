@@ -295,7 +295,8 @@ status transitions; clinical history is never deleted to represent resolution.
 
 ### StaffShift
 
-Daily staff check-in / on-duty availability.
+Daily staff check-in / on-duty availability. Also holds the station someone is working and who is really
+screening on the account (#227; see `docs/clinic-ops/27_STATION_WORKFLOW_V1.md`).
 
 ### PatientCheckIn
 
