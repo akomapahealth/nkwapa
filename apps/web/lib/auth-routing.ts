@@ -25,8 +25,20 @@ export function buildLoginHref(next: string | null | undefined): string {
 /** Where a staff invitee accepts. Mirrors STAFF_INVITE_ACCEPT_PATH on the API. */
 export const STAFF_INVITE_ACCEPT_PATH = '/accept-invite';
 
+/** Where a staff member enters or edits their own name (#225). */
+export const ACCOUNT_NAME_PATH = '/account/name';
+
+/** The name step, remembering where the person was headed so they continue there after. */
+export function buildAccountNameHref(next: string | null | undefined): string {
+  const safeNext = getSafeNextPath(next);
+  if (!safeNext || safeNext.split('?')[0] === ACCOUNT_NAME_PATH) {
+    return ACCOUNT_NAME_PATH;
+  }
+  return `${ACCOUNT_NAME_PATH}?${new URLSearchParams({ next: safeNext }).toString()}`;
+}
+
 /**
- * The page an account with no role is held on, if any.
+ * The page an account is held on until it finishes an account step, if any.
  *
  * Both onboarding states work the same way: the account can do nothing else yet, so it is sent to
  * the one page that moves it forward and kept there until whoami says otherwise.
@@ -37,6 +49,8 @@ export function getOnboardingPath(bootstrap: WhoAmIResponse | null): string | nu
       return '/claim-record';
     case 'STAFF_INVITE_ACCEPT_REQUIRED':
       return STAFF_INVITE_ACCEPT_PATH;
+    case 'NAME_REQUIRED':
+      return ACCOUNT_NAME_PATH;
     default:
       return null;
   }
@@ -66,6 +80,10 @@ export function getPostAuthPath(
       the step they had completed a moment earlier, on the one journey the marker exists for.
     */
     const safeNext = getSafeNextPath(next);
+    if (defaultPath === ACCOUNT_NAME_PATH) {
+      // The name step is a detour, not a destination: keep where they were going for after.
+      return buildAccountNameHref(safeNext);
+    }
     return safeNext && safeNext.split('?')[0] === defaultPath ? safeNext : defaultPath;
   }
 

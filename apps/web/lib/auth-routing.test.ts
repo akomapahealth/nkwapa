@@ -1,4 +1,5 @@
 import {
+  buildAccountNameHref,
   buildLoginHref,
   getDefaultWorkspacePath,
   getOnboardingPath,
@@ -147,5 +148,29 @@ describe('staff invitation onboarding', () => {
 
   it('leaves the patient claim path unchanged', () => {
     expect(getOnboardingPath(CLAIMANT)).toBe('/claim-record');
+  });
+});
+
+describe('the name step (#225)', () => {
+  const UNNAMED = {
+    onboarding: { state: 'NAME_REQUIRED' },
+    effectiveRolesForActiveClinic: ['VOLUNTEER'],
+  } as unknown as WhoAmIResponse;
+
+  it('holds a staff member without a name on the name page', () => {
+    expect(getOnboardingPath(UNNAMED)).toBe('/account/name');
+    expect(getDefaultWorkspacePath(UNNAMED)).toBe('/account/name');
+  });
+
+  it('remembers where they were headed, so they continue there after saving', () => {
+    expect(getPostAuthPath(UNNAMED, '/patients?q=ama')).toBe(
+      '/account/name?next=%2Fpatients%3Fq%3Dama',
+    );
+    expect(getPostAuthPath(UNNAMED, null)).toBe('/account/name');
+  });
+
+  it('never points next at itself or off-site', () => {
+    expect(buildAccountNameHref('/account/name?next=%2Fdashboard')).toBe('/account/name');
+    expect(buildAccountNameHref('//evil.example')).toBe('/account/name');
   });
 });

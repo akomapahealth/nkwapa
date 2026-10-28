@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -34,9 +34,19 @@ import { getActiveBootstrapClinic, getSwitchableClinics } from '@/lib/bootstrap-
 import { setStoredActiveClinicId } from '@/lib/bootstrap-storage';
 import { useToast } from '@/components/ui/toast';
 import { SyncStatusBar } from '@/components/sync/SyncStatusBar';
-import { Compass, LogOut, Menu, PanelLeft, PanelLeftClose, ShieldCheck, User } from 'lucide-react';
+import {
+  Compass,
+  LogOut,
+  Menu,
+  PanelLeft,
+  PanelLeftClose,
+  ShieldCheck,
+  User,
+  UserPen,
+} from 'lucide-react';
 import { WelcomeTour } from '@/components/onboarding/WelcomeTour';
-import { WELCOME_TOUR_OPEN_EVENT } from '@/lib/welcome-tour';
+import { WELCOME_TOUR_OPEN_EVENT, welcomeTourAudience } from '@/lib/welcome-tour';
+import { buildAccountNameHref } from '@/lib/auth-routing';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 
 export function Header({
@@ -53,6 +63,9 @@ export function Header({
 }) {
   const bootstrapCtx = useBootstrap();
   const bootstrap = bootstrapCtx?.bootstrap ?? null;
+  const pathname = usePathname();
+  // Patients are named by their Patient record; only staff edit a name here (#225).
+  const canEditOwnName = bootstrap != null && welcomeTourAudience(bootstrap) === 'staff';
   const { activeClinicId: contextActiveClinicId, setActiveClinicId } = bootstrapCtx ?? {};
   const { logout } = useKeycloak() ?? {};
   const { showToast } = useToast();
@@ -288,6 +301,14 @@ export function Header({
                 <Compass className="mr-2 h-4 w-4" />
                 Take the tour
               </DropdownMenuItem>
+              {canEditOwnName ? (
+                <DropdownMenuItem asChild>
+                  <Link href={buildAccountNameHref(pathname)}>
+                    <UserPen className="mr-2 h-4 w-4" />
+                    Your name
+                  </Link>
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
                 Appearance
