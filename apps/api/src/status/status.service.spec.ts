@@ -16,9 +16,16 @@ const originalFetch = global.fetch;
 const originalIssuer = process.env.KEYCLOAK_ISSUER;
 const originalCors = process.env.CORS_ALLOWED_ORIGINS;
 const originalSha = process.env.RENDER_GIT_COMMIT;
+const originalNodeEnv = process.env.NODE_ENV;
 
 function setup(
-  options: { db?: Promise<unknown>; redis?: boolean; emailFailed?: boolean; webSha?: string } = {},
+  options: {
+    db?: Promise<unknown>;
+    redis?: boolean;
+    emailFailed?: boolean;
+    emailReadiness?: string;
+    webSha?: string;
+  } = {},
 ) {
   process.env.KEYCLOAK_ISSUER = 'https://auth.example/realms/nkwapa';
   process.env.CORS_ALLOWED_ORIGINS = 'https://web.example';
@@ -40,7 +47,7 @@ function setup(
   };
   const email = {
     getStatus: () => ({
-      readiness: 'smtp',
+      readiness: options.emailReadiness ?? 'smtp',
       provider: 'secret-host',
       fromAddress: 'private@example.com',
     }),
@@ -69,6 +76,7 @@ afterEach(() => {
   else process.env.CORS_ALLOWED_ORIGINS = originalCors;
   if (originalSha === undefined) delete process.env.RENDER_GIT_COMMIT;
   else process.env.RENDER_GIT_COMMIT = originalSha;
+  process.env.NODE_ENV = originalNodeEnv;
   jest.useRealTimers();
 });
 
@@ -104,13 +112,43 @@ describe('StatusService', () => {
     });
   });
 
-  it('degrades when an existing queue has a failed job older than five minutes', async () => {
+  function lastQueues() {
+    return (Queue as unknown as jest.Mock).mock.results.slice(-4).map((result) => result.value);
+  }
+
+  it('stays operational with old failed jobs, which most queues keep forever', async () => {
     const { service } = setup();
-    const queues = (Queue as unknown as jest.Mock).mock.results
-      .slice(-4)
-      .map((result) => result.value);
-    queues[0].getJobs.mockImplementation(async (types: string[]) =>
-      types[0] === 'failed' ? [{ timestamp: Date.now() - 6 * 60_000 }] : [],
+    lastQueues()[0].getJobs.mockImplementation(async (types: string[]) =>
+      types[0] === 'failed' ? [{ timestamp: 0, finishedOn: Date.now() - 60 * 60_000 }] : [],
+    );
+    const result = await service.publicStatus();
+    expect(result.components.find((item) => item.name === 'queues')).toMatchObject({
+      state: 'operational',
+      reason: 'OK',
+    });
+  });
+
+  it('degrades on a job that failed in the last five minutes', async () => {
+    const { service } = setup();
+    const [reminders] = lastQueues();
+    reminders.getJobs.mockImplementation(async (types: string[]) =>
+      types[0] === 'failed'
+        ? [{ timestamp: Date.now() - 60 * 60_000, finishedOn: Date.now() - 60_000 }]
+        : [],
+    );
+    const result = await service.publicStatus();
+    expect(result.components.find((item) => item.name === 'queues')).toMatchObject({
+      state: 'degraded',
+      reason: 'RECENT_FAILURES',
+    });
+    // Newest failure first: the check must not read the oldest one.
+    expect(reminders.getJobs).toHaveBeenCalledWith(['failed'], 0, 0, false);
+  });
+
+  it('degrades when a job has waited more than five minutes', async () => {
+    const { service } = setup();
+    lastQueues()[0].getJobs.mockImplementation(async (types: string[]) =>
+      types[0] === 'waiting' ? [{ timestamp: Date.now() - 6 * 60_000 }] : [],
     );
     const result = await service.publicStatus();
     expect(result.components.find((item) => item.name === 'queues')).toMatchObject({
@@ -118,6 +156,18 @@ describe('StatusService', () => {
       reason: 'STALE_JOBS',
     });
     expect(JSON.stringify(result)).not.toContain('reminders');
+  });
+
+  it('degrades on the fake email provider in production only', async () => {
+    process.env.NODE_ENV = 'production';
+    const production = await setup({ emailReadiness: 'fake' }).service.publicStatus();
+    expect(production.components.find((item) => item.name === 'email')).toMatchObject({
+      state: 'degraded',
+      reason: 'FAKE_PROVIDER',
+    });
+    process.env.NODE_ENV = 'test';
+    const local = await setup({ emailReadiness: 'fake' }).service.publicStatus();
+    expect(local.components.find((item) => item.name === 'email')?.state).toBe('operational');
   });
 
   it('bounds a hung database check', async () => {

@@ -1,14 +1,18 @@
 # Live status and post-deploy gate
 
-The landing footer reads `GET /status` once when visible and every 60 seconds afterward. The API
+The landing footer reads `GET /status` once on load and again when its panel opens, never on a
+timer: each check runs a database query, and a tab polling every minute kept the free API and Neon
+awake around the clock (#172). It gives up after 10 seconds and shows "API unreachable". The API
 coalesces concurrent checks and caches one result for 30 seconds. It reports database, Redis,
 background queues, email, Keycloak discovery, and the web version endpoint. The public body contains
 fixed component names, states, latency, check time, safe reason codes, and the API/web commit SHAs.
 The footer does not display SHAs. `GET /status/details` returns dependency errors and queue names
 only to a signed-in global System Admin.
 
-An outage means database or auth failed. A noncritical failure, slow check, queue job older than
-five minutes, failed latest email send, or web/API commit mismatch means degraded. Email with no
+An outage means database or auth failed. A noncritical failure, slow check, queue job waiting more
+than five minutes (`STALE_JOBS`), a job that failed in the last five minutes (`RECENT_FAILURES`; older
+failures are kept by BullMQ and ignored), failed latest email send, the fake email provider under
+`NODE_ENV=production` (`FAKE_PROVIDER`), or web/API commit mismatch means degraded. Email with no
 send since process start reports `NO_RESULT` and remains operational. Status is a current snapshot,
 not an uptime history.
 

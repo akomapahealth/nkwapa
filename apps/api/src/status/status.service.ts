@@ -30,6 +30,7 @@ const QUEUE_NAMES = ['reminders', 'identity-sync', 'maintenance', 'research-expo
 const CACHE_MS = 30_000;
 const SLOW_MS = 1_500;
 const STALE_JOB_MS = 5 * 60_000;
+const RECENT_FAILURE_MS = 5 * 60_000;
 
 async function deadline<T>(promise: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -138,29 +139,40 @@ export class StatusService implements OnModuleDestroy {
         const detail = await Promise.all(
           this.queues.map(async (queue) => {
             const counts = await queue.getJobCounts('failed', 'waiting');
-            const [failed, waiting] = await Promise.all([
-              queue.getJobs(['failed'], 0, 0, true),
+            const [[latestFailed], [oldestWaiting]] = await Promise.all([
+              queue.getJobs(['failed'], 0, 0, false),
               queue.getJobs(['waiting'], 0, 0, true),
             ]);
-            const stale = [...failed, ...waiting].some(
-              (job) => Date.now() - job.timestamp > STALE_JOB_MS,
-            );
-            return { queue: queue.name, counts, stale };
+            const now = Date.now();
+            // Most queues keep failed jobs forever (no removeOnFail), so only a recent failure
+            // says something is wrong now; the oldest one would read as degraded for good.
+            const recentFailure =
+              !!latestFailed &&
+              now - (latestFailed.finishedOn ?? latestFailed.timestamp) < RECENT_FAILURE_MS;
+            const stale = !!oldestWaiting && now - oldestWaiting.timestamp > STALE_JOB_MS;
+            return { queue: queue.name, counts, stale, recentFailure };
           }),
         );
-        return detail.some((item) => item.stale)
-          ? { state: 'degraded' as const, reason: 'STALE_JOBS', detail }
-          : { detail };
+        if (detail.some((item) => item.stale))
+          return { state: 'degraded' as const, reason: 'STALE_JOBS', detail };
+        if (detail.some((item) => item.recentFailure))
+          return { state: 'degraded' as const, reason: 'RECENT_FAILURES', detail };
+        return { detail };
       }),
       this.check('email', false, async () => {
         const config = this.email.getStatus();
         const latest = this.email.getLatestSend();
-        return config.readiness === 'unconfigured' || latest?.success === false
-          ? {
-              state: 'degraded' as const,
-              reason: config.readiness === 'unconfigured' ? 'NOT_CONFIGURED' : 'SEND_FAILED',
-              detail: { config, latest },
-            }
+        // The fake provider only logs, so in production no email reaches anyone.
+        const reason =
+          config.readiness === 'unconfigured'
+            ? 'NOT_CONFIGURED'
+            : config.readiness === 'fake' && process.env.NODE_ENV === 'production'
+              ? 'FAKE_PROVIDER'
+              : latest?.success === false
+                ? 'SEND_FAILED'
+                : null;
+        return reason
+          ? { state: 'degraded' as const, reason, detail: { config, latest } }
           : { reason: latest ? 'OK' : 'NO_RESULT', detail: { config, latest } };
       }),
       this.check('auth', true, async () => {
