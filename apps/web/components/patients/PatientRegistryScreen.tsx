@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Search, Stethoscope, UserPlus, Users } from 'lucide-react';
+import { Search, Stethoscope, UserPlus, Users, X } from 'lucide-react';
 import { apiFetch, readApiError as readApiErrorDetail } from '@/lib/api';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import {
@@ -29,12 +29,16 @@ import { FormSectionCard } from '@/components/app-shell/FormSectionCard';
 import { SectionSkeleton } from '@/components/feedback/AppState';
 import { ResourceState } from '@/components/feedback/ResourceState';
 import { OpsFeedbackNotice } from '@/components/ops/OpsShared';
-import { ResidentialLocationFilters } from '@/components/patients/ResidentialLocationFilters';
+import {
+  EMPTY_LOCATION_FILTER,
+  ResidentialLocationFilters,
+} from '@/components/patients/ResidentialLocationFilters';
 import { ScreenedDateFilter, ScreenedDates } from '@/components/patients/ScreenedDateFilter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DataTable, DataTableActions, type DataTableColumn } from '@/components/ui/data-table';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface PatientSummary {
   id: string;
@@ -273,6 +277,17 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
     },
   ];
 
+  const setScreened = (from: string, to: string) => {
+    setServerScreenedError(null);
+    updateView({
+      screenedFrom: from,
+      screenedTo: to,
+      // The screened column, and its sort, only exist while the filter is on.
+      ...(!from && !to && sorting[0]?.id === 'screened' ? { sorting: [] } : {}),
+    });
+  };
+  const clearScreened = () => setScreened('', '');
+
   const otherFiltersActive = Boolean(
     committed.q || region || district || committed.community || status,
   );
@@ -333,11 +348,11 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
         />
         <AppMetricCard
           title="Search mode"
-          value={committed.q ? 'Focused' : 'Browsing'}
+          value={otherFiltersActive || screenedActive ? 'Filtered' : 'Browsing'}
           icon={Search}
           detail={
-            committed.q
-              ? 'Results are filtered by the active query.'
+            otherFiltersActive || screenedActive
+              ? 'Results are narrowed by the active search and filters.'
               : 'Enter a patient name, code, phone, or ID.'
           }
         />
@@ -353,51 +368,86 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
         title="Search patients"
         description="Results update as you type and stay scoped to this clinic."
       >
-        <Input
-          type="search"
-          value={q}
-          onChange={(event) => updateView({ q: event.target.value })}
-          placeholder="Search by name, patient code, phone, or national ID last 4"
-          className="w-full md:max-w-xl"
-        />
+        <div className="space-y-2 md:max-w-xl">
+          <Label htmlFor="patient-search">Name, patient code, phone or ID last 4</Label>
+          <div className="relative">
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              id="patient-search"
+              type="search"
+              value={q}
+              onChange={(event) => updateView({ q: event.target.value })}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape' && q) updateView({ q: '' });
+              }}
+              placeholder="e.g. Ama Mensah or NKP-2026-000123"
+              autoComplete="off"
+              spellCheck={false}
+              aria-describedby="patient-search-help"
+              className="pl-9 pr-11 [&::-webkit-search-cancel-button]:hidden"
+            />
+            {q ? (
+              <button
+                type="button"
+                onClick={() => {
+                  updateView({ q: '' });
+                  document.getElementById('patient-search')?.focus();
+                }}
+                aria-label="Clear search"
+                className="absolute right-0 top-0 inline-flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            ) : null}
+          </div>
+          <p id="patient-search-help" className="text-xs text-muted-foreground">
+            Results update as you type. Press Escape to clear.
+          </p>
+        </div>
         <div className="space-y-3 border-t border-border/70 pt-4">
-          <p className="text-sm font-medium text-foreground">Residential location filters</p>
-          <ResidentialLocationFilters
-            value={locationFilter}
-            onChange={(next) => updateView({ location: next })}
-          />
+          <fieldset className="space-y-3">
+            <legend className="text-sm font-medium text-foreground">Residential location</legend>
+            <ResidentialLocationFilters
+              value={locationFilter}
+              onChange={(next) => updateView({ location: next })}
+            />
+          </fieldset>
           <div className="border-t border-border/70 pt-4">
             <ScreenedDateFilter
               value={{ from: screenedFrom, to: screenedTo }}
               today={today}
               timeZone={timeZone}
               error={screenedError}
-              onChange={(next) => {
-                setServerScreenedError(null);
-                updateView({
-                  screenedFrom: next.from,
-                  screenedTo: next.to,
-                  // The screened column, and its sort, only exist while the filter is on.
-                  ...(!next.from && !next.to && sorting[0]?.id === 'screened'
-                    ? { sorting: [] }
-                    : {}),
-                });
-              }}
+              onChange={(next) => setScreened(next.from, next.to)}
             />
           </div>
           <ActiveFilterSummary
             items={[
-              { label: 'Query', value: q.trim() || null },
-              { label: 'Page', value: page > 0 ? page + 1 : null },
+              { label: 'Search', value: q.trim() || null, onRemove: () => updateView({ q: '' }) },
               {
                 label: 'Region',
                 value: region ? GHANA_REGION_LABELS[region] : null,
+                // A district only means something inside its region.
+                onRemove: () =>
+                  updateView({ location: { ...locationFilter, region: '', district: '' } }),
               },
-              { label: 'District', value: district || null },
-              { label: 'Community', value: locationFilter.community.trim() || null },
+              {
+                label: 'District',
+                value: district || null,
+                onRemove: () => updateView({ location: { ...locationFilter, district: '' } }),
+              },
+              {
+                label: 'Community',
+                value: locationFilter.community.trim() || null,
+                onRemove: () => updateView({ location: { ...locationFilter, community: '' } }),
+              },
               {
                 label: 'Location status',
                 value: status ? PATIENT_LOCATION_STATUS_LABELS[status] : null,
+                onRemove: () => updateView({ location: { ...locationFilter, status: '' } }),
               },
               {
                 label: 'Screened',
@@ -408,9 +458,20 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
                         .map(formatScreenedDay)
                         .join(' – ')
                     : null,
+                onRemove: clearScreened,
               },
             ]}
             emptyLabel="Browsing the full clinic registry"
+            onClearAll={() => {
+              setServerScreenedError(null);
+              updateView({
+                q: '',
+                location: EMPTY_LOCATION_FILTER,
+                screenedFrom: '',
+                screenedTo: '',
+                sorting: sorting[0]?.id === 'screened' ? [] : sorting,
+              });
+            }}
           />
         </div>
       </FormSectionCard>
