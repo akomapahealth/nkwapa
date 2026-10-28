@@ -426,8 +426,9 @@ jobs:
         env:
           NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED: true
 
+      # The screened registry filter (#224) seeds a completed Review visit, so it needs this build.
       - name: Run the station workflow spec
-        run: npm run e2e --workspace=@nkwapa/web -- e2e/station-workflow.spec.js
+        run: npm run e2e --workspace=@nkwapa/web -- e2e/station-workflow.spec.js e2e/patient-registry-screened.spec.js
         env:
           FEATURE_STATION_WORKFLOW_ENABLED: true
           NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED: true
