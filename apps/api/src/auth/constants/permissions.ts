@@ -94,6 +94,8 @@ export const PERMISSIONS = {
   OPS_STATION_WORK: 'OPS.STATION.WORK',
   /** Move a patient, release someone else's claim, record a patient leaving, edit stations. */
   OPS_STATION_MANAGE: 'OPS.STATION.MANAGE',
+  /** The clinic's volunteer directory, screening days and their rosters and emails (#226). */
+  VOLUNTEER_ROSTER_MANAGE: 'VOLUNTEER.ROSTER.MANAGE',
   /** What the review station told the patient. Same audience as clinical note content. */
   COUNSELLING_READ: 'COUNSELLING.READ',
   COUNSELLING_WRITE: 'COUNSELLING.WRITE',
@@ -157,6 +159,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     PERMISSIONS.OPS_ASSIGNMENT_MANAGE,
     PERMISSIONS.OPS_STATION_READ,
     PERMISSIONS.OPS_STATION_MANAGE,
+    PERMISSIONS.VOLUNTEER_ROSTER_MANAGE,
     PERMISSIONS.AUDIT_READ,
     PERMISSIONS.METRICS_READ,
     PERMISSIONS.PATIENT_SELF_REPORT_READ,
@@ -197,6 +200,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     PERMISSIONS.OPS_STATION_READ,
     PERMISSIONS.OPS_STATION_WORK,
     PERMISSIONS.OPS_STATION_MANAGE,
+    PERMISSIONS.VOLUNTEER_ROSTER_MANAGE,
     PERMISSIONS.AUDIT_READ,
     PERMISSIONS.METRICS_READ,
     PERMISSIONS.PATIENT_SELF_REPORT_READ,

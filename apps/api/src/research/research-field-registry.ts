@@ -140,6 +140,11 @@ export const RESEARCH_OUT_OF_SCOPE_MODELS: Record<string, string> = {
   ConversationParticipant: 'Staff messaging membership.',
   Message: 'Staff messaging content, free text throughout.',
   Drug: 'A clinic medication catalogue, not a record about anyone.',
+  VolunteerContact:
+    "A volunteer's name, email and phone: personal data about people who are not research subjects (#226).",
+  ScreeningEvent: 'Future screening-day scheduling, not a record about any patient (#226).',
+  ScreeningEventAssignment:
+    'Which volunteers are rostered for a screening day: scheduling of non-subjects (#226).',
 
   // Administrative and identity.
   User: 'Staff, who are not research subjects.',
