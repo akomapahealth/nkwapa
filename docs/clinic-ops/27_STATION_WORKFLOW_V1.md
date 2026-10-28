@@ -225,17 +225,15 @@ never required.
 - **Where it shows.** The board ("Kofi (Ama screening)"), the queue, the visit timeline, the
   session panel and the results summary ("Ama · signed in as Kofi"). One name when they are the
   same person.
-- **Linking the volunteer directory (#226).** Names are free text until the directory exists.
-  The seams are in place:
-  1. `StationService.getScreenerNames` lists the active `VolunteerContact` rows instead of past
-     snapshots, and each item gains `volunteerContactId`.
-  2. `ScreenerDto` accepts an optional `volunteerContactId`; `toPerformer` checks it belongs to
-     the path clinic and is active (400 otherwise), and takes the name from the server's copy.
-  3. Add `screenerVolunteerContactId` to `StaffShift` and `performedByVolunteerContactId` (FK,
-     SetNull) to `PatientStationVisit`, written alongside the names. Snapshots stay as they are,
-     so renaming a contact never rewrites history.
-  4. On the web, `ScreenerNameField` keeps its free-text input and sends the picked contact's id
-     with the name.
+- **Linked to the volunteer directory (#226).** The field suggests the clinic's active
+  `VolunteerContact` rows (`StationService.getScreenerNames`) as buttons under the free-text
+  input. Picking one sends its `volunteerContactId`; typing afterwards drops it, so anyone can
+  still be named. The server checks the contact is this clinic's and active (400
+  `SCREENER_CONTACT_NOT_FOUND` otherwise) and takes the name from its own copy.
+  `StaffShift.screenerVolunteerContactId` and `PatientStationVisit.performedByVolunteerContactId`
+  (FK, SetNull) are written beside the names. The names stay the snapshot, so renaming or
+  deactivating a contact never rewrites who did a stop, and a contact deactivated mid-shift does
+  not block check-out.
 - **Not in v1.** Per-record authors on clinical tables. Research exports are unaffected:
   `PatientStationVisit` and `StaffShift` are excluded from them wholesale.
 
