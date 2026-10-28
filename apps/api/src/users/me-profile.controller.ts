@@ -1,5 +1,6 @@
 import { Body, Controller, ForbiddenException, Patch, Request, UseGuards } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { holdsStaffRole } from '../auth/clinic-roles';
 import type { ReqUser } from '../auth/auth.controller';
@@ -26,6 +27,11 @@ export class MeProfileController {
     return this.userProfileService.updateName(req.user.user.id, dto, {
       actorUserId: req.user.user.id,
       source: 'SELF',
+      // AuditEvent RLS admits a null clinic only for a system admin, so attach one of the
+      // person's own staff clinics. A global-only system admin has none, and null is fine there.
+      clinicId:
+        req.user.roles.find((entry) => entry.clinicId && entry.role !== UserRole.PATIENT)
+          ?.clinicId ?? null,
       requestId: req.headers?.['x-request-id'] ?? randomUUID(),
     });
   }

@@ -35,6 +35,7 @@ const CANCELLED_EMAIL = `e2e.withdrawn.${RUN}@nkwapa.local`;
 let inviteeContext;
 let inviteePage;
 let clinicName;
+let inviteeUserId;
 
 test.beforeAll(async ({ browser }) => {
   await clearMailpitInbox(INVITE_EMAIL);
@@ -180,6 +181,7 @@ test('accepting grants the role in that one clinic, and nowhere else', async () 
   expect(whoami.globalRoles).toEqual([]);
   expect(whoami.memberships).toHaveLength(1);
   expect(whoami.memberships[0]).toMatchObject({ clinicName, roles: ['VOLUNTEER'] });
+  inviteeUserId = whoami.userId;
   expect(whoami.onboarding).toEqual({ state: 'NAME_REQUIRED' });
   expect(whoami.profile).toMatchObject({ needsName: true, firstName: null, lastName: null });
   expect(whoami.pendingStaffInvites).toEqual([]);
@@ -224,6 +226,22 @@ test('the profile menu edits the name, and the header follows without signing in
   await expect(inviteePage.getByText('Saved', { exact: true })).toBeVisible({ timeout: 30_000 });
   await inviteePage.waitForURL(/\/patients/, { timeout: 30_000 });
   await expectMenuName(inviteePage, 'Ama B. Mensah-Owusu');
+});
+
+test('an admin corrects the name, and only an admin can', async () => {
+  const path = `/admin/users/${inviteeUserId}/name`;
+  const data = { firstName: 'Ama', middleInitial: 'B', lastName: 'Mensah' };
+
+  const refused = await apiRequestAs('volunteer', 'patch', path, { data });
+  expect(refused.status()).toBe(403);
+
+  const corrected = await apiRequestAs('staff', 'patch', path, { data });
+  expect(corrected.status()).toBe(200);
+  expect(corrected.json().displayName).toBe('Ama B. Mensah');
+
+  // The invitee sees it on their next bootstrap, without signing in again.
+  await inviteePage.reload();
+  await expectMenuName(inviteePage, 'Ama B. Mensah');
 });
 
 test('an invitation that carries a name goes straight in', async ({ page, browser }) => {
