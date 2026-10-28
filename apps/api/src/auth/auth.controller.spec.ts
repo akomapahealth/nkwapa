@@ -58,6 +58,8 @@ describe('AuthController', () => {
       email: 'test@example.com',
       phoneE164: null,
       isActive: true,
+      firstName: 'Test',
+      lastName: 'User',
     });
     prisma.patientPortalInvite.findMany.mockResolvedValue([]);
     prisma.staffInvite.findMany.mockResolvedValue([]);
@@ -551,6 +553,48 @@ describe('AuthController', () => {
       const result = await controller.completeWelcomeTour({ user: reqUser }, { version: 2 });
 
       expect(result).toEqual({ completedVersion: 4 });
+    });
+  });
+  describe('the name step (#225)', () => {
+    const staffMember = (role: UserRole): ReqUser => ({
+      ...reqUser,
+      roles: [{ clinicId: 'clinic-1', role }],
+    });
+
+    it('holds a staff member without a last name on the name step, prefilled', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        firstName: 'Ama',
+        middleInitial: null,
+        lastName: null,
+        email: 'ama@clinic.org',
+      });
+
+      const response = await controller.whoami({ user: staffMember(UserRole.VOLUNTEER) });
+
+      expect(response.onboarding).toEqual({ state: 'NAME_REQUIRED' });
+      expect(response.profile).toEqual({
+        needsName: true,
+        firstName: 'Ama',
+        middleInitial: null,
+        lastName: null,
+        email: 'ama@clinic.org',
+      });
+    });
+
+    it('never asks a staff member who has both names', async () => {
+      const response = await controller.whoami({ user: staffMember(UserRole.DOCTOR) });
+
+      expect(response.onboarding).toBeNull();
+      expect(response.profile.needsName).toBe(false);
+    });
+
+    it('never asks a patient, whose name lives on the Patient record', async () => {
+      prisma.user.findUnique.mockResolvedValue({ firstName: null, lastName: null });
+
+      const response = await controller.whoami({ user: staffMember(UserRole.PATIENT) });
+
+      expect(response.onboarding).toBeNull();
+      expect(response.profile.needsName).toBe(false);
     });
   });
 });
