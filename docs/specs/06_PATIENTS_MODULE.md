@@ -129,7 +129,28 @@ Errors are 400s with a stable `code` and a `fieldErrors` entry:
 | `SORT_REQUIRES_SCREENED_FILTER` | `sortBy=lastScreenedAt` without a date           |
 | `CURSOR_UNSUPPORTED_FOR_SORT`   | `cursor` with `sortBy=lastScreenedAt`            |
 
-No index was added. The legacy branch uses `PatientCheckIn(clinicId, status, checkedInAt)`, and Review visits are reached through their check-in, `PatientStationVisit(patientCheckInId, queuedAt)`. Add `PatientStationVisit(clinicId, status, completedAt)` if `EXPLAIN` on production-sized data shows a sequential scan.
+No index was added, and that was measured rather than assumed. The test was a synthetic year on a local Postgres:
+
+- 60k patients, 48k of them at the clinic;
+- 240k check-ins;
+- 1.08M station visits.
+
+Running through the RLS interceptor as the application role, Postgres drives the filter from `Patient` and probes `PatientCheckIn(patientId, checkedInAt)` and `PatientStationVisit(patientCheckInId, queuedAt)`. No large table gets a sequential scan.
+
+| Query                                          | Time                                                |
+| ---------------------------------------------- | --------------------------------------------------- |
+| page of 25, one day                            | about 90 ms                                         |
+| `matchingScreenings` for that page             | about 1 ms                                          |
+| `count`, one day                               | about 1.7 s                                         |
+| `count`, one day, with a name search           | about 0.3 s                                         |
+| `lastScreenedAt` ids for a year (48k patients) | 0.7–1.2 s, plus about 4 s to fetch their screenings |
+
+The day `count` is slow because Postgres estimates the filter matches every patient (43k estimated, 443 actual) and checks each one. Adding `PatientStationVisit(clinicId, status, completedAt)` did not change that plan. The `count` stayed at 1.7 s and Postgres did not use the index. So the limit is the shape of the query, not a missing index. It costs tens of milliseconds at today's volume, a few thousand patients a year.
+
+The upgrade path, once a clinic nears about 15k patients:
+
+1. Resolve the window's patient ids first, starting from the dated rows, with that index.
+2. Then filter the registry by those ids.
 
 ### Portal access
 
