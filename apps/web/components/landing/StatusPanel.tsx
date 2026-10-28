@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 
 type State = 'operational' | 'degraded' | 'outage';
@@ -36,12 +36,25 @@ const stateLabels: Record<State, string> = {
   degraded: 'Degraded',
   outage: 'Outage',
 };
+const reasonLabels: Record<string, string> = {
+  SLOW: 'Slow to respond',
+  TIMEOUT: 'Timed out',
+  UNAVAILABLE: 'Unreachable',
+  STALE_JOBS: 'Jobs are waiting too long',
+  RECENT_FAILURES: 'A job failed in the last few minutes',
+  NOT_CONFIGURED: 'Not configured',
+  FAKE_PROVIDER: 'Not sending: test provider',
+  SEND_FAILED: 'The last send failed',
+  VERSION_MISMATCH: 'Half-deployed: website and API versions differ',
+};
+// A cold free-tier API can take most of a minute to wake; say so instead of spinning.
+const TIMEOUT_MS = 10_000;
 
-function report(status: Status | null, releaseVersion?: string): string {
+function report(status: Status | null, message: string, releaseVersion?: string): string {
   const lines = [
     '# Nkwapa system status',
     '',
-    `Overall: ${status ? stateLabels[status.status] : 'API unreachable'}`,
+    `Overall: ${message}`,
     `Checked: ${status ? status.checkedAt : new Date().toISOString()}`,
     ...(releaseVersion ? [`Latest release: v${releaseVersion}`] : []),
     '',
@@ -58,50 +71,58 @@ function report(status: Status | null, releaseVersion?: string): string {
 
 export function StatusPanel({ releaseVersion }: { releaseVersion?: string }) {
   const [status, setStatus] = useState<Status | null>(null);
-  const [message, setMessage] = useState('Checking system status');
+  const [unreachable, setUnreachable] = useState(false);
   const [copied, setCopied] = useState(false);
+  const controllerRef = useRef<AbortController | null>(null);
 
-  useEffect(() => {
-    let active = true;
-    let controller: AbortController | null = null;
-    const refresh = async () => {
-      if (document.visibilityState !== 'visible') return;
-      controller?.abort();
-      controller = new AbortController();
-      try {
-        const response = await fetch(`${API}/status`, {
-          cache: 'no-store',
-          signal: controller.signal,
-        });
-        if (!response.ok) throw new Error('Status request failed');
-        const data = (await response.json()) as Status;
-        if (!Array.isArray(data.components)) throw new Error('Invalid status response');
-        if (active) {
-          setStatus(data);
-          setMessage(stateLabels[data.status]);
-        }
-      } catch (error) {
-        if (active && (error as Error).name !== 'AbortError') {
-          setStatus(null);
-          setMessage('API unreachable');
-        }
+  // Once on load and again when the panel opens, never on a timer: each check runs a database
+  // query, and polling from an open tab kept the free API and Neon from ever sleeping (#172).
+  const refresh = useCallback(async () => {
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, TIMEOUT_MS);
+    try {
+      const response = await fetch(`${API}/status`, {
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error('Status request failed');
+      const data = (await response.json()) as Status;
+      if (!Array.isArray(data.components)) throw new Error('Invalid status response');
+      setStatus(data);
+      setUnreachable(false);
+    } catch (error) {
+      if (timedOut || (error as Error).name !== 'AbortError') {
+        setStatus(null);
+        setUnreachable(true);
       }
-    };
-    void refresh();
-    const timer = setInterval(() => void refresh(), 60_000);
-    document.addEventListener('visibilitychange', refresh);
-    return () => {
-      active = false;
-      controller?.abort();
-      clearInterval(timer);
-      document.removeEventListener('visibilitychange', refresh);
-    };
+    } finally {
+      clearTimeout(timer);
+    }
   }, []);
 
-  const current: State = status?.status ?? 'outage';
+  useEffect(() => {
+    void refresh();
+    return () => controllerRef.current?.abort();
+  }, [refresh]);
+
+  const message = status
+    ? stateLabels[status.status]
+    : unreachable
+      ? 'API unreachable'
+      : 'Checking system status';
+  const dot = status ? colors[status.status] : unreachable ? colors.outage : 'bg-muted-foreground';
   return (
     <details
       className="group relative text-sm"
+      onToggle={(event) => {
+        if (event.currentTarget.open) void refresh();
+      }}
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           event.currentTarget.open = false;
@@ -110,10 +131,7 @@ export function StatusPanel({ releaseVersion }: { releaseVersion?: string }) {
       }}
     >
       <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-sm text-foreground/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
-        <span
-          aria-hidden="true"
-          className={`h-2.5 w-2.5 shrink-0 rounded-full ${colors[current]}`}
-        />
+        <span aria-hidden="true" className={`h-2.5 w-2.5 shrink-0 rounded-full ${dot}`} />
         <span>System status: {message}</span>
         <span
           aria-hidden="true"
@@ -134,28 +152,35 @@ export function StatusPanel({ releaseVersion }: { releaseVersion?: string }) {
         {status ? (
           <ul className="mt-3 space-y-2">
             {status.components.map((item) => (
-              <li key={item.name} className="flex items-center justify-between gap-3">
-                <span>{labels[item.name] ?? item.name}</span>
-                <span className="flex items-center gap-2 text-muted-foreground">
-                  <span
-                    aria-hidden="true"
-                    className={`h-2 w-2 rounded-full ${colors[item.state]}`}
-                  />
-                  {stateLabels[item.state]}
-                </span>
+              <li key={item.name}>
+                <div className="flex items-center justify-between gap-3">
+                  <span>{labels[item.name] ?? item.name}</span>
+                  <span className="flex items-center gap-2 text-muted-foreground">
+                    <span
+                      aria-hidden="true"
+                      className={`h-2 w-2 rounded-full ${colors[item.state]}`}
+                    />
+                    {stateLabels[item.state]}
+                  </span>
+                </div>
+                {item.state !== 'operational' ? (
+                  <p className="text-xs text-muted-foreground">
+                    {reasonLabels[item.reason] ?? item.reason}
+                  </p>
+                ) : null}
               </li>
             ))}
           </ul>
-        ) : (
+        ) : unreachable ? (
           <p className="mt-3">The API could not be reached. Try again shortly.</p>
-        )}
+        ) : null}
         <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-border pt-3">
           <button
             type="button"
             className="min-h-11 font-medium text-primary underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onClick={async () => {
               try {
-                await navigator.clipboard.writeText(report(status, releaseVersion));
+                await navigator.clipboard.writeText(report(status, message, releaseVersion));
                 setCopied(true);
               } catch {
                 setCopied(false);

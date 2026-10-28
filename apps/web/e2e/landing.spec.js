@@ -59,20 +59,22 @@ test('status panel opens by keyboard, lists components, and copies a readable re
   context,
 }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-  await page.route('**/status', (route) =>
-    route.fulfill({
+  let requests = 0;
+  await page.route('**/status', (route) => {
+    requests += 1;
+    return route.fulfill({
       json: {
         status: 'degraded',
         checkedAt: '2026-10-25T00:00:00.000Z',
         components: ['database', 'redis', 'queues', 'email', 'auth', 'web'].map((name) => ({
           name,
           state: name === 'email' ? 'degraded' : 'operational',
-          reason: 'OK',
+          reason: name === 'email' ? 'SEND_FAILED' : 'OK',
           latencyMs: 12,
         })),
       },
-    }),
-  );
+    });
+  });
   await page.goto('/');
   const trigger = page.locator('footer summary');
   await expect(trigger).toContainText('Degraded');
@@ -80,6 +82,9 @@ test('status panel opens by keyboard, lists components, and copies a readable re
   await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { name: 'System status' })).toBeVisible();
   await expect(page.locator('footer details li')).toHaveCount(6);
+  await expect(page.getByText('The last send failed')).toBeVisible();
+  // Once on load and once on open, never on a timer (#201 follow-up).
+  expect(requests).toBe(2);
   await page.getByRole('button', { name: 'Copy report' }).click();
   await expect(page.locator('footer [aria-live]')).toHaveText('Report copied');
   expect(await page.evaluate(() => navigator.clipboard.readText())).toContain(
@@ -104,6 +109,19 @@ test('status panel reports API failure at narrow widths and with reduced motion'
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
   ).toBeLessThanOrEqual(1);
+});
+
+test('status shows a neutral check, then gives up on a silent API after ten seconds', async ({
+  page,
+}) => {
+  await page.clock.install();
+  await page.route('**/status', () => undefined);
+  await page.goto('/');
+  const trigger = page.locator('footer summary');
+  await expect(trigger).toContainText('Checking system status');
+  await expect(trigger.locator('span').first()).not.toHaveClass(/bg-red/);
+  await page.clock.fastForward(10_000);
+  await expect(trigger).toContainText('API unreachable');
 });
 
 test('shows the real product screenshots above the fold', async ({ page }) => {
