@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { User, UserRole } from '@prisma/client';
-import { normalizePhoneToE164 } from '@nkwapa/db';
+import { formatStaffDisplayName, normalizePhoneToE164 } from '@nkwapa/db';
 import { DisabledUserException } from '../auth/disabled-user.exception';
 import { UserRepository } from './user.repository';
 
@@ -44,7 +44,9 @@ export class UserService {
     }
 
     const display =
-      firstName && lastName ? `${firstName} ${lastName}`.trim() : (displayName ?? email ?? sub);
+      firstName && lastName
+        ? formatStaffDisplayName({ firstName, lastName })
+        : (displayName ?? email ?? sub);
     const created = await this.userRepository.create({
       keycloakSub: sub,
       displayName: display,

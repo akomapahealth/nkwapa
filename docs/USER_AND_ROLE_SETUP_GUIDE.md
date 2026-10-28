@@ -187,12 +187,15 @@ npm run db:assign-system-admin
 Nobody needs Keycloak credentials to add a colleague. On `/admin/users`, with the clinic
 selected, a director of that clinic or a system admin uses **Invite a colleague**:
 
-1. Enter an address only that person reads, pick the role (Manager, Doctor or Volunteer) and how
-   long the invitation stays open (24 hours, 3 days, or 7 days; 3 days by default).
+1. Enter the person's name if you know it (first name, optional middle initial, last name), an
+   address only that person reads, the role (Manager, Doctor or Volunteer) and how long the
+   invitation stays open (24 hours, 3 days, or 7 days; 3 days by default). The name is optional.
 2. Nkwapa creates the Keycloak account and Keycloak emails a "Choose your Nkwapa password" link.
    Nkwapa sends a second email naming the clinic, the role and that password email.
 3. The colleague sets a password, signs in, and lands on `/accept-invite`, where they check the
    clinic and role and accept. The role is granted at that moment, in that clinic only.
+4. If the invitation carried no name, they are asked for one on a **Your name** step before they
+   reach the workspace. A named invitation skips it.
 
 The invitation list keeps every invitation, including cancelled and expired ones, and shows two
 separate facts for an open one: whether an account stands behind it, and whether the email went
@@ -213,6 +216,25 @@ What is refused, and why:
 
 Every step is audited: `STAFF.INVITE.CREATE`, `.RESEND`, `.CANCEL`, `.IDENTITY`, `.ACCEPT`,
 `.EXPIRE`, and the grant itself as `ROLE.GRANT` with the invitation it came from.
+
+### Staff names
+
+Every staff account has a first name, a last name and an optional middle initial (#225). The
+display name used across the app is built from them, as "Ama K. Mensah", and Nkwapa is the source
+of truth: a later sign-in never overwrites a name set here with what Keycloak holds.
+
+- **Anyone on staff** without a name is held on the **Your name** step at their next sign-in,
+  until they save one. Sign-out stays available. Patients are never asked; their name lives on the
+  Patient record.
+- **Changing your own name**: profile menu, **Your name** (`PATCH /me/profile/name`).
+- **Correcting a colleague's name**: on `/admin/users`, **Manage**, then **Correct name**
+  (`PATCH /admin/users/:userId/name`). Managers and directors can correct staff at a clinic they
+  manage; a system admin can correct anyone. Anyone else gets "not found".
+- Every change is audited once as `USER.NAME.UPDATE`, with the names before and after and a
+  `source` of `SELF`, `ADMIN` or `INVITE`. The name is then pushed to Keycloak. If that push fails,
+  the save still stands and the failure is audited as `USER.NAME.KEYCLOAK_SYNC`.
+- To find people who still show as an email address, run `npm run db:report-unnamed-staff`
+  (read-only, administrative credential). Nothing is backfilled, because names cannot be guessed.
 
 If the list shows **Account not created**, the card says why. The usual causes are the
 service-account setup in `docs/KEYCLOAK_SERVICE_ACCOUNT_ROLLOUT.md`, or `APP_PUBLIC_URL` unset on

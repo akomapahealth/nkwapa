@@ -4,7 +4,9 @@ import { useEffect } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import {
+  ACCOUNT_NAME_PATH,
   STAFF_INVITE_ACCEPT_PATH,
+  buildAccountNameHref,
   buildLoginHref,
   getDefaultWorkspacePath,
   getOnboardingPath,
@@ -50,7 +52,9 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
 
     // An account with nothing else it can do is held on the page that moves it forward.
     if (onboardingPath && pathname !== onboardingPath) {
-      router.replace(onboardingPath);
+      router.replace(
+        onboardingPath === ACCOUNT_NAME_PATH ? buildAccountNameHref(currentPath) : onboardingPath,
+      );
       return;
     }
 
@@ -69,6 +73,7 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
   }, [
     bootstrap,
     bootstrapCtx?.isLoading,
+    currentPath,
     hasStaffInvites,
     isAuthenticated,
     isLoginRoute,
@@ -91,8 +96,14 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
   }
 
   const isPortal = pathname?.startsWith('/portal');
-  // Both onboarding pages stand alone, without workspace navigation the account cannot use yet.
-  const isOnboardingRoute = pathname === '/claim-record' || pathname === STAFF_INVITE_ACCEPT_PATH;
+  /*
+    Onboarding pages stand alone, without workspace navigation the account cannot use yet. The
+    name page does only while it is a required step; editing a name later stays in the workspace.
+  */
+  const isOnboardingRoute =
+    pathname === '/claim-record' ||
+    pathname === STAFF_INVITE_ACCEPT_PATH ||
+    (pathname === ACCOUNT_NAME_PATH && onboardingPath === ACCOUNT_NAME_PATH);
   const isDisabledAccount = bootstrapCtx?.errorCode === 'USER_DISABLED';
 
   if (isLoginRoute) {

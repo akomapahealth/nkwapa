@@ -147,7 +147,7 @@ export function StationLineBoard() {
         title="Station line"
         description="Where every checked-in patient is, and who is seeing them."
         actions={
-          <div className="flex items-end gap-3">
+          <div className="flex flex-wrap items-end gap-3">
             {canManage ? (
               <Button asChild variant="outline">
                 <Link href="/stations/setup">Set up stations</Link>
@@ -195,14 +195,15 @@ export function StationLineBoard() {
       {view.isInitialLoading ? (
         <SectionSkeleton lines={6} />
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-4">
           {stations.map((station) => (
             <Card key={station.id} className="min-w-0">
               <CardHeader className="space-y-1 pb-3">
-                <div className="flex items-center justify-between gap-2">
-                  <CardTitle className="text-base">{station.name}</CardTitle>
+                <div className="flex items-start justify-between gap-2">
+                  <CardTitle className="min-w-0 break-words text-base">{station.name}</CardTitle>
                   {station.capacity ? (
                     <Badge
+                      className="shrink-0"
                       variant={(station.inUse ?? 0) >= station.capacity ? 'warning' : 'secondary'}
                       data-testid="station-occupancy"
                     >

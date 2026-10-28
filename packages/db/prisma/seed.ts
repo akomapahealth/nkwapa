@@ -944,10 +944,17 @@ async function main() {
   const sysAdminName = plan.systemAdmin?.name ?? 'System Admin';
 
   if (sysAdminSub) {
+    // Named, so the account is not held on the name step (#225) the first time it signs in.
+    const [firstName, ...lastNameParts] = sysAdminName.trim().split(/\s+/);
+    const name = {
+      displayName: sysAdminName,
+      firstName: firstName || 'System',
+      lastName: lastNameParts.join(' ') || 'Admin',
+    };
     const user = await prisma.user.upsert({
       where: { keycloakSub: sysAdminSub },
-      update: { displayName: sysAdminName, isActive: true },
-      create: { keycloakSub: sysAdminSub, displayName: sysAdminName, isActive: true },
+      update: { ...name, isActive: true },
+      create: { keycloakSub: sysAdminSub, ...name, isActive: true },
     });
     researchSettingsOwnerId = user.id;
 

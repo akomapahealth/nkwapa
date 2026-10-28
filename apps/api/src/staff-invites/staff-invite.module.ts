@@ -4,6 +4,7 @@ import { AuthModule } from '../auth/auth.module';
 import { AuditModule } from '../audit/audit.module';
 import { ReminderModule } from '../reminders/reminder.module';
 import { KeycloakModule } from '../keycloak/keycloak.module';
+import { UserModule } from '../users/user.module';
 import { EmailDeliverabilityService } from '../common/email-policy';
 import { ClinicStaffInvitesController } from './clinic-staff-invites.controller';
 import { StaffInviteAcceptanceController } from './staff-invite-acceptance.controller';
@@ -17,6 +18,7 @@ import { StaffInviteExpiryService } from './staff-invite-expiry.service';
     AuditModule,
     ReminderModule,
     KeycloakModule,
+    UserModule,
   ],
   controllers: [ClinicStaffInvitesController, StaffInviteAcceptanceController],
   providers: [EmailDeliverabilityService, StaffInviteService, StaffInviteExpiryService],

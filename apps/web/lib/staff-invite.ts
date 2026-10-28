@@ -20,6 +20,8 @@ export interface StaffInvite {
   id: string;
   clinicId: string;
   email: string;
+  /** "Ama K. Mensah" when the inviter named them, otherwise null. */
+  inviteeName: string | null;
   role: StaffInviteRole;
   status: StaffInviteStatus;
   expiresAt: string;
@@ -197,6 +199,9 @@ export function createStaffInvite(
   getToken: GetToken,
   body: {
     email: string;
+    firstName?: string;
+    middleInitial?: string;
+    lastName?: string;
     role: StaffInviteRole;
     ttlHours?: number;
     confirmExistingAccount?: boolean;

@@ -8,6 +8,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { RbacGuard } from './guards/rbac.guard';
 import { ClinicScopeGuard } from './guards/clinic-scope.guard';
 import { AuthController } from './auth.controller';
+import { MeProfileController } from '../users/me-profile.controller';
 
 @Module({
   imports: [
@@ -17,7 +18,8 @@ import { AuthController } from './auth.controller';
     forwardRef(() => ClinicModule),
   ],
   providers: [JwtStrategy, JwtAuthGuard, RbacGuard, ClinicScopeGuard],
-  controllers: [AuthController],
+  // The profile routes live here, not in UserModule, which AuthModule already imports.
+  controllers: [AuthController, MeProfileController],
   exports: [JwtAuthGuard, RbacGuard, ClinicScopeGuard],
 })
 export class AuthModule {}

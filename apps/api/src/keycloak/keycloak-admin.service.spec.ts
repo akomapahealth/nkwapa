@@ -30,6 +30,7 @@ type ClientMock = {
   executeActionsEmail: jest.Mock;
   setUserEnabled: jest.Mock;
   logoutUser: jest.Mock;
+  updateUserNames: jest.Mock;
 };
 
 function createClient(overrides: Partial<ClientMock> = {}): ClientMock {
@@ -41,6 +42,7 @@ function createClient(overrides: Partial<ClientMock> = {}): ClientMock {
     executeActionsEmail: jest.fn().mockResolvedValue(undefined),
     setUserEnabled: jest.fn().mockResolvedValue('UPDATED'),
     logoutUser: jest.fn().mockResolvedValue('LOGGED_OUT'),
+    updateUserNames: jest.fn().mockResolvedValue('UPDATED'),
     ...overrides,
   };
 }
@@ -298,5 +300,61 @@ describe('KeycloakAdminService.setIdentityAccess', () => {
       retryable,
       failureReason: error.code,
     });
+  });
+});
+
+describe('KeycloakAdminService.updateIdentityNames', () => {
+  const NAMES = { firstName: 'Ama', lastName: 'Mensah' };
+  let warn: jest.SpyInstance;
+
+  beforeEach(() => {
+    warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    warn.mockRestore();
+  });
+
+  it('pushes the names', async () => {
+    const client = createClient();
+
+    await expect(service(client).updateIdentityNames('kc-1', NAMES)).resolves.toMatchObject({
+      outcome: 'APPLIED',
+      failureReason: null,
+    });
+    expect(client.updateUserNames).toHaveBeenCalledWith('kc-1', NAMES);
+  });
+
+  it('reports a missing identity', async () => {
+    const client = createClient({ updateUserNames: jest.fn().mockResolvedValue('NOT_FOUND') });
+
+    await expect(service(client).updateIdentityNames('gone', NAMES)).resolves.toMatchObject({
+      outcome: 'NOT_FOUND',
+      failureReason: 'IDENTITY_NOT_FOUND',
+    });
+  });
+
+  it('skips on a deployment without the service account', async () => {
+    const client = createClient({ isReady: false });
+
+    await expect(service(client).updateIdentityNames('kc-1', NAMES)).resolves.toMatchObject({
+      outcome: 'SKIPPED',
+    });
+    expect(client.updateUserNames).not.toHaveBeenCalled();
+  });
+
+  it('never throws, and does not log the names', async () => {
+    const client = createClient({
+      updateUserNames: jest
+        .fn()
+        .mockRejectedValue(new KeycloakAdminError('KEYCLOAK_ADMIN_TIMEOUT')),
+    });
+
+    await expect(service(client).updateIdentityNames('kc-1', NAMES)).resolves.toMatchObject({
+      outcome: 'FAILED',
+      retryable: true,
+      failureReason: 'KEYCLOAK_ADMIN_TIMEOUT',
+    });
+    expect(warn.mock.calls.map((call) => String(call[0])).join('\n')).not.toContain('Mensah');
   });
 });
