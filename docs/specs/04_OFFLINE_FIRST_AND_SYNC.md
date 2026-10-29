@@ -268,6 +268,21 @@ never change: installed devices identify the app by it.
   `node playwright/capture-pwa-screenshots.js` (from `apps/web`).
 - Screenshots and shortcuts ship only with `NEXT_PUBLIC_FEATURE_PWA_INSTALL_ENABLED=true`.
 
+### Why a hand-written worker, not Serwist
+
+Spiked on 2026-10-29 with `@serwist/turbopack` 9.5.13 against our Next 16 canary:
+
+- It installs only with `--legacy-peer-deps` (its `next >=14.0.0` peer rejects the canary) and
+  pulls in `@swc/core`, `esbuild-wasm` and `zod`.
+- It builds, but its default precache took 125 entries (17 MB): every file in `public/`, including
+  marketing photos, a video, and `/silent-check-sso.html`, which must never be cached.
+- Its `defaultCache` runtime rules cache cross-origin GETs for an hour, which here means API
+  responses with patient data, plus RSC payloads and `/api/` routes.
+
+Making it safe means a custom `runtimeCaching` and `globIgnores` that restate every rule below,
+so the only gain left is a precache of the hashed JS chunks. Revisit with #207, when offline
+session resume needs the full app shell available on a cold start.
+
 ### What the worker caches
 
 The worker source is `apps/web/lib/pwa/service-worker.js`. `apps/web/app/service-worker.js/route.ts`
