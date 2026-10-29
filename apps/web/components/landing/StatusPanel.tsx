@@ -2,6 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { AlertTriangle, CheckCircle2, Copy, Loader2, RefreshCw, X, XCircle } from 'lucide-react';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
+import { CONTACT_EMAIL, CONTACT_HREF } from './links';
 
 type State = 'operational' | 'degraded' | 'outage';
 interface Component {
@@ -26,15 +37,51 @@ const labels: Record<string, string> = {
   auth: 'Sign in',
   web: 'Website',
 };
-const colors: Record<State, string> = {
-  operational: 'bg-emerald-600',
-  degraded: 'bg-amber-500',
-  outage: 'bg-red-600',
+// What each part does for a clinic, so a reader knows what a problem would affect.
+const descriptions: Record<string, string> = {
+  database: 'Patient records, visits and clinic data',
+  redis: 'Short-lived data behind live updates and job queues',
+  queues: 'Reminders, exports and account updates',
+  email: 'Invites, reminders and roster emails',
+  auth: 'Staff and patient sign in',
+  web: 'This website, on the same version as the API',
 };
 const stateLabels: Record<State, string> = {
   operational: 'Operational',
   degraded: 'Degraded',
   outage: 'Outage',
+};
+const headlines: Record<State, string> = {
+  operational: 'All systems operational',
+  degraded: 'Some systems are degraded',
+  outage: 'Major outage',
+};
+const summaries: Record<State, string> = {
+  operational: 'Nkwapa is working normally.',
+  degraded: 'Nkwapa is up, but some parts are slow or limited. Records you save are kept.',
+  outage: 'A part Nkwapa needs is down. Saving or signing in may not work until it recovers.',
+};
+const dots: Record<State, string> = {
+  operational: 'bg-success',
+  degraded: 'bg-warning',
+  outage: 'bg-destructive',
+};
+const tones: Record<State, { icon: typeof CheckCircle2; ink: string; panel: string }> = {
+  operational: {
+    icon: CheckCircle2,
+    ink: 'text-success-ink',
+    panel: 'border-success/30 bg-success/10',
+  },
+  degraded: {
+    icon: AlertTriangle,
+    ink: 'text-warning-ink',
+    panel: 'border-warning/40 bg-warning/10',
+  },
+  outage: {
+    icon: XCircle,
+    ink: 'text-destructive-ink',
+    panel: 'border-destructive/30 bg-destructive/10',
+  },
 };
 const reasonLabels: Record<string, string> = {
   SLOW: 'Slow to respond',
@@ -69,14 +116,24 @@ function report(status: Status | null, message: string, releaseVersion?: string)
   return lines.join('\n');
 }
 
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export function StatusPanel({ releaseVersion }: { releaseVersion?: string }) {
   const [status, setStatus] = useState<Status | null>(null);
   const [unreachable, setUnreachable] = useState(false);
+  const [checking, setChecking] = useState(true);
   const [copied, setCopied] = useState(false);
   const controllerRef = useRef<AbortController | null>(null);
 
-  // Once on load and again when the panel opens, never on a timer: each check runs a database
-  // query, and polling from an open tab kept the free API and Neon from ever sleeping (#172).
+  // Once on load, on open, and on Refresh, never on a timer: each check runs a database query,
+  // and polling from an open tab kept the free API and Neon from ever sleeping (#172).
   const refresh = useCallback(async () => {
     controllerRef.current?.abort();
     const controller = new AbortController();
@@ -86,6 +143,7 @@ export function StatusPanel({ releaseVersion }: { releaseVersion?: string }) {
       timedOut = true;
       controller.abort();
     }, TIMEOUT_MS);
+    setChecking(true);
     try {
       const response = await fetch(`${API}/status`, {
         cache: 'no-store',
@@ -103,6 +161,7 @@ export function StatusPanel({ releaseVersion }: { releaseVersion?: string }) {
       }
     } finally {
       clearTimeout(timer);
+      if (controllerRef.current === controller) setChecking(false);
     }
   }, []);
 
@@ -116,68 +175,142 @@ export function StatusPanel({ releaseVersion }: { releaseVersion?: string }) {
     : unreachable
       ? 'API unreachable'
       : 'Checking system status';
-  const dot = status ? colors[status.status] : unreachable ? colors.outage : 'bg-muted-foreground';
+  const dot = status ? dots[status.status] : unreachable ? dots.outage : 'bg-muted-foreground';
+  const overall: State | null = status ? status.status : unreachable ? 'outage' : null;
+  const tone = overall ? tones[overall] : null;
+  const OverallIcon = tone?.icon ?? Loader2;
+
   return (
-    <details
-      className="group relative text-sm"
-      onToggle={(event) => {
-        if (event.currentTarget.open) void refresh();
-      }}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') {
-          event.currentTarget.open = false;
-          event.currentTarget.querySelector('summary')?.focus();
+    <Dialog
+      onOpenChange={(open) => {
+        if (open) {
+          setCopied(false);
+          void refresh();
         }
       }}
     >
-      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-sm text-foreground/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
-        <span aria-hidden="true" className={`h-2.5 w-2.5 shrink-0 rounded-full ${dot}`} />
-        <span>System status: {message}</span>
-        <span
-          aria-hidden="true"
-          className="ml-1 text-muted-foreground group-open:rotate-180 motion-reduce:transition-none"
+      <DialogTrigger asChild>
+        <button
+          type="button"
+          data-status-trigger
+          className="flex min-h-11 items-center gap-2 rounded-sm text-sm text-foreground/75 transition-colors duration-fast hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          ⌄
-        </span>
-      </summary>
-      <div className="absolute bottom-full left-0 z-40 mb-2 w-[min(90vw,24rem)] rounded-lg border border-border bg-background p-4 text-foreground shadow-lg sm:left-auto sm:right-0">
-        <h2 className="font-heading text-base font-semibold">System status</h2>
-        <p className="mt-1 text-muted-foreground">
-          {message}
-          {status ? ` · Checked ${new Date(status.checkedAt).toLocaleString()}` : ''}
-        </p>
-        {releaseVersion ? (
-          <p className="mt-1 text-muted-foreground">Latest release: v{releaseVersion}</p>
-        ) : null}
-        {status ? (
-          <ul className="mt-3 space-y-2">
-            {status.components.map((item) => (
-              <li key={item.name}>
-                <div className="flex items-center justify-between gap-3">
-                  <span>{labels[item.name] ?? item.name}</span>
-                  <span className="flex items-center gap-2 text-muted-foreground">
-                    <span
-                      aria-hidden="true"
-                      className={`h-2 w-2 rounded-full ${colors[item.state]}`}
-                    />
-                    {stateLabels[item.state]}
-                  </span>
-                </div>
-                {item.state !== 'operational' ? (
-                  <p className="text-xs text-muted-foreground">
-                    {reasonLabels[item.reason] ?? item.reason}
-                  </p>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        ) : unreachable ? (
-          <p className="mt-3">The API could not be reached. Try again shortly.</p>
-        ) : null}
-        <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-border pt-3">
+          <span aria-hidden="true" className={cn('h-2.5 w-2.5 shrink-0 rounded-full', dot)} />
+          <span>System status: {message}</span>
+        </button>
+      </DialogTrigger>
+
+      <DialogContent className="max-w-xl gap-0 p-0">
+        <div className="flex items-start justify-between gap-4 border-b border-border px-6 pb-5 pt-6">
+          <div>
+            <DialogTitle className="font-heading text-xl font-semibold">System status</DialogTitle>
+            <DialogDescription className="mt-1.5 text-sm text-muted-foreground">
+              Live health of the services behind Nkwapa
+              {releaseVersion ? ` · Release v${releaseVersion}` : ''}
+            </DialogDescription>
+          </div>
+          <DialogClose
+            aria-label="Close"
+            className="-mr-2 -mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color] duration-fast hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <X className="h-4 w-4" aria-hidden />
+          </DialogClose>
+        </div>
+
+        <div className="px-6 py-5">
+          <div
+            className={cn(
+              'flex items-start gap-3 rounded-lg border p-4',
+              tone ? tone.panel : 'border-border bg-muted',
+            )}
+          >
+            <OverallIcon
+              aria-hidden
+              className={cn(
+                'mt-0.5 h-5 w-5 shrink-0',
+                tone ? tone.ink : 'text-muted-foreground motion-safe:animate-spin',
+              )}
+            />
+            <div className="min-w-0">
+              <p className="font-semibold text-foreground">
+                {status
+                  ? headlines[status.status]
+                  : unreachable
+                    ? 'The API could not be reached.'
+                    : 'Checking system status…'}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {status
+                  ? summaries[status.status]
+                  : unreachable
+                    ? 'The server may be starting up after a quiet period, which can take up to a minute. Try again shortly.'
+                    : 'This usually takes a few seconds.'}
+              </p>
+            </div>
+          </div>
+
+          {status ? (
+            <ul className="mt-5 divide-y divide-border rounded-lg border border-border">
+              {status.components.map((item) => {
+                const itemTone = tones[item.state];
+                const Icon = itemTone.icon;
+                return (
+                  <li key={item.name} className="flex items-start justify-between gap-4 px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground">
+                        {labels[item.name] ?? item.name}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {item.state === 'operational'
+                          ? (descriptions[item.name] ?? '')
+                          : (reasonLabels[item.reason] ?? item.reason)}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-0.5 text-sm">
+                      <span className={cn('flex items-center gap-1.5 font-medium', itemTone.ink)}>
+                        <Icon aria-hidden className="h-4 w-4" />
+                        {stateLabels[item.state]}
+                      </span>
+                      <span className="text-xs tabular-nums text-muted-foreground">
+                        {item.latencyMs} ms
+                      </span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
+
+          <p className="mt-4 text-xs text-muted-foreground">
+            {status ? `Checked ${formatTime(status.checkedAt)}. ` : ''}
+            Results can be up to 30 seconds old. If something is not working during a clinic, write
+            to{' '}
+            <a
+              href={CONTACT_HREF}
+              className="rounded-sm font-medium text-primary underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {CONTACT_EMAIL}
+            </a>
+            .
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-border px-6 py-3 text-sm">
           <button
             type="button"
-            className="min-h-11 font-medium text-primary underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            onClick={() => void refresh()}
+            disabled={checking}
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-sm font-medium text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:text-muted-foreground"
+          >
+            <RefreshCw
+              aria-hidden
+              className={cn('h-4 w-4', checking && 'motion-safe:animate-spin')}
+            />
+            {checking ? 'Checking…' : 'Refresh'}
+          </button>
+          <button
+            type="button"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-sm font-medium text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onClick={async () => {
               try {
                 await navigator.clipboard.writeText(report(status, message, releaseVersion));
@@ -187,19 +320,20 @@ export function StatusPanel({ releaseVersion }: { releaseVersion?: string }) {
               }
             }}
           >
-            Copy report
+            <Copy aria-hidden className="h-4 w-4" />
+            {copied ? 'Copied' : 'Copy report'}
           </button>
           <Link
             href="/login?next=%2Fstatus"
-            className="inline-flex min-h-11 items-center text-primary underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex min-h-11 items-center rounded-sm font-medium text-primary underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:ml-auto"
           >
             Sign in for details
           </Link>
+          <span aria-live="polite" className="sr-only">
+            {copied ? 'Report copied' : ''}
+          </span>
         </div>
-        <span aria-live="polite" className="sr-only">
-          {copied ? 'Report copied' : ''}
-        </span>
-      </div>
-    </details>
+      </DialogContent>
+    </Dialog>
   );
 }

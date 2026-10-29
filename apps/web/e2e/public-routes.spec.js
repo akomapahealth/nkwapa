@@ -6,9 +6,13 @@ test('landing page stays standalone from secure sign in', async ({ page }) => {
   await page.goto('/');
 
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-  await expect(page.locator('a[href="/login?next=%2Fstatus"]')).toHaveCount(1);
   await expect(page.getByText(/continue to secure sign in/i)).toHaveCount(0);
   await expect(page.getByText(/^get started$/i)).toHaveCount(0);
+  // The only sign-in route on the landing page lives in the status dialog.
+  await expect(page.locator('a[href^="/login"]')).toHaveCount(0);
+  await page.locator('footer [data-status-trigger]').click();
+  await expect(page.getByRole('dialog').locator('a[href="/login?next=%2Fstatus"]')).toHaveCount(1);
+  await page.keyboard.press('Escape');
 
   const hasViewportOverflow = await page.evaluate(
     () => document.documentElement.scrollWidth > window.innerWidth + 1,

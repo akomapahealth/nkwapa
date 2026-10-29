@@ -9,8 +9,8 @@ export const metadata: Metadata = {
   alternates: { canonical: '/' },
 };
 
-// The release banner picks up a new GitHub release within the hour, without a deploy.
-export const revalidate = 3600;
+// The release banner picks up a new GitHub release within five minutes, without a deploy.
+export const revalidate = 300;
 
 export default async function Home() {
   return <LandingPage release={await getLatestRelease()} />;
