@@ -25,7 +25,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { InfoHint } from '@/components/ui/info-hint';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { useTheme, type ThemePreference } from '@/lib/theme-context';
+import { THEME_PREFERENCE_OPTIONS, useTheme, type ThemePreference } from '@/lib/theme-context';
 import { AppNavList } from '@/components/app-shell/AppNavList';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { formatRoleLabel, getOpsDestination, getVisibleRoleLabels } from '@/lib/ops';
@@ -34,12 +34,14 @@ import { getActiveBootstrapClinic, getSwitchableClinics } from '@/lib/bootstrap-
 import { setStoredActiveClinicId } from '@/lib/bootstrap-storage';
 import { useToast } from '@/components/ui/toast';
 import { SyncStatusBar } from '@/components/sync/SyncStatusBar';
+import { InstallAppMenuItem, InstallInstructionsDialog } from '@/components/pwa/InstallApp';
 import {
   Compass,
   LogOut,
   Menu,
   PanelLeft,
   PanelLeftClose,
+  Settings,
   ShieldCheck,
   User,
   UserPen,
@@ -155,7 +157,7 @@ export function Header({
     ) : null;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur">
+    <header className="pt-safe sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur">
       <div className="flex h-16 items-center gap-3 px-4 md:px-6">
         <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
           <SheetTrigger asChild>
@@ -301,6 +303,13 @@ export function Header({
                 <Compass className="mr-2 h-4 w-4" />
                 Take the tour
               </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/settings">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Your settings
+                </Link>
+              </DropdownMenuItem>
+              <InstallAppMenuItem />
               {canEditOwnName ? (
                 <DropdownMenuItem asChild>
                   <Link href={buildAccountNameHref(pathname)}>
@@ -317,9 +326,11 @@ export function Header({
                 value={themePreference}
                 onValueChange={(value) => setThemePreference(value as ThemePreference)}
               >
-                <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="system">Match system</DropdownMenuRadioItem>
+                {THEME_PREFERENCE_OPTIONS.map((option) => (
+                  <DropdownMenuRadioItem key={option.value} value={option.value}>
+                    {option.label}
+                  </DropdownMenuRadioItem>
+                ))}
               </DropdownMenuRadioGroup>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -335,6 +346,7 @@ export function Header({
       </div>
       {/* Here because both the workspace and the portal render this header. */}
       <WelcomeTour />
+      <InstallInstructionsDialog />
     </header>
   );
 }

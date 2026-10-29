@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { getDefaultWorkspacePath } from '@/lib/auth-routing';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { resolveRouteAccess } from '@/lib/route-access';
 import {
@@ -82,6 +83,7 @@ export function RouteGuard({
   if (state === 'denied') {
     const memberships = bootstrap?.memberships ?? [];
     const hasMultipleClinics = memberships.length > 1;
+    const homePath = getDefaultWorkspacePath(bootstrap);
 
     return (
       <NoAccessState
@@ -102,8 +104,12 @@ export function RouteGuard({
                 Check again
               </Button>
             ) : null}
+            {/* The account's own home, not a fixed staff page: a patient opening a staff link
+                (an installed-app shortcut, #206) would otherwise land on a second denial. */}
             <Button asChild variant="outline">
-              <Link href="/queues">Back to Queues</Link>
+              <Link href={homePath}>
+                {homePath === '/portal' ? 'Go to your portal' : 'Go to dashboard'}
+              </Link>
             </Button>
           </div>
         }

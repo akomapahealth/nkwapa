@@ -81,6 +81,14 @@ module.exports = [
     },
   },
   {
+    // Service worker sources run in a worker global scope, not Node (#206).
+    files: ['apps/web/lib/pwa/*.js'],
+    languageOptions: {
+      sourceType: 'script',
+      globals: { ...globals.serviceworker, module: 'readonly' },
+    },
+  },
+  {
     files: ['**/*.{spec,test}.{ts,tsx}', '**/__tests__/**/*.{ts,tsx}'],
     languageOptions: {
       globals: globals.jest,

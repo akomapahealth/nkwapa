@@ -95,7 +95,14 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  const isPortal = pathname?.startsWith('/portal');
+  /*
+    Account pages belong to every role, so they render in the account's own shell: a patient's
+    settings sit in the portal, not in a staff sidebar they cannot use (#206).
+  */
+  const isAccountPage = pathname === '/settings' || pathname === ACCOUNT_NAME_PATH;
+  const isPortal =
+    pathname?.startsWith('/portal') ||
+    (isAccountPage && getDefaultWorkspacePath(bootstrap) === '/portal');
   /*
     Onboarding pages stand alone, without workspace navigation the account cannot use yet. The
     name page does only while it is a required step; editing a name later stays in the workspace.

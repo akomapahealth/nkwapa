@@ -22,6 +22,7 @@ import {
 import { trackEvent } from '@/lib/analytics';
 import type { SyncRecoveryAccess } from '@/lib/sync-conflicts';
 import type { OutboxQueue, OutboxQueueItem } from '@/lib/use-outbox-queue';
+import { DeviceStorageDetails } from './DeviceStorageDetails';
 import { DiscardMutationDialog } from './DiscardMutationDialog';
 import { HeldChangesSection } from './HeldChangesSection';
 import { OtherClinicsSection } from './OtherClinicsSection';
@@ -250,6 +251,7 @@ export function SyncCenterSheet({
             onDiscard={handleDiscardOtherClinic}
             disabled={syncing}
           />
+          <DeviceStorageDetails />
         </div>
       </SheetContent>
       <DiscardMutationDialog

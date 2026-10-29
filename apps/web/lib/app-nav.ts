@@ -172,7 +172,8 @@ const NAV_SECTIONS: AppNavSection[] = [
       },
       {
         href: '/settings/clinic',
-        label: 'Settings',
+        // "Clinic", because /settings is now each person's own settings.
+        label: 'Clinic settings',
         description: 'Clinic controls.',
         icon: Settings,
         permission: 'RESEARCH.SETTINGS.UPDATE',
