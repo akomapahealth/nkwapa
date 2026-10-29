@@ -1,6 +1,6 @@
 import './globals.css';
-import type { Metadata } from 'next';
-import { APP_DESCRIPTION, APP_NAME } from '@/lib/app-identity';
+import type { Metadata, Viewport } from 'next';
+import { APP_DESCRIPTION, APP_NAME, APP_SHORT_NAME, themeColorFor } from '@/lib/app-identity';
 import { ToastProvider } from '@/components/ui/toast';
 import { ThemeProvider } from '@/lib/theme-context';
 import { themeStorageKey } from '@/lib/theme-storage';
@@ -17,10 +17,22 @@ var s=localStorage.getItem(${JSON.stringify(themeStorageKey)});
 var d=s==='dark'||(s!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches);
 document.documentElement.classList.toggle('dark',d);
 document.documentElement.style.colorScheme=d?'dark':'light';
+var c=d?${JSON.stringify(themeColorFor('dark'))}:${JSON.stringify(themeColorFor('light'))};
+document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){m.setAttribute('content',c);});
 }catch(e){}})();
 `.trim();
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://nkwapa.app';
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: themeColorFor('light') },
+    { media: '(prefers-color-scheme: dark)', color: themeColorFor('dark') },
+  ],
+  // Lets the installed app draw under notches and home indicators; the shell pads itself with
+  // env(safe-area-inset-*), which stays 0 without this.
+  viewportFit: 'cover',
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -38,6 +50,8 @@ export const metadata: Metadata = {
     'diabetes care',
     'clinic operations',
   ],
+  // 'default' keeps content below the iOS status bar instead of under it.
+  appleWebApp: { capable: true, title: APP_SHORT_NAME, statusBarStyle: 'default' },
   authors: [{ name: 'Nkwapa' }],
   creator: 'Nkwapa',
   publisher: 'Nkwapa',

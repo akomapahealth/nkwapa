@@ -6,6 +6,7 @@ export type ThemePreference = 'light' | 'dark' | 'system';
 export type ResolvedTheme = 'light' | 'dark';
 
 import { themeStorageKey } from './theme-storage';
+import { themeColorFor } from '@/lib/app-identity';
 
 export { themeStorageKey };
 
@@ -48,6 +49,11 @@ function applyTheme(theme: ResolvedTheme) {
   const root = document.documentElement;
   root.classList.toggle('dark', theme === 'dark');
   root.style.colorScheme = theme;
+  // Both media-tagged metas get the chosen color, so a manual override also wins over the OS
+  // scheme for the installed app's title and status bar (#206).
+  for (const meta of document.querySelectorAll('meta[name="theme-color"]')) {
+    meta.setAttribute('content', themeColorFor(theme));
+  }
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
