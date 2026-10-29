@@ -44,6 +44,24 @@ export default function manifest(): MetadataRoute.Manifest {
     ],
     ...(installPolish
       ? {
+          // Chromium's richer install sheet. Seeded demo data only; regenerate with
+          // playwright/capture-pwa-screenshots.js.
+          screenshots: [
+            {
+              src: '/screenshots/wide-today.png',
+              sizes: '1280x800',
+              type: 'image/png',
+              form_factor: 'wide',
+              label: 'The Today Board: live clinic flow for the day',
+            },
+            {
+              src: '/screenshots/narrow-chart.png',
+              sizes: '750x1334',
+              type: 'image/png',
+              form_factor: 'narrow',
+              label: 'A patient chart on a phone',
+            },
+          ],
           // Shortcuts cannot know the role, so only destinations RouteGuard turns away gracefully.
           shortcuts: [
             { name: 'Dashboard', url: '/dashboard?source=pwa-shortcut' },

@@ -81,6 +81,19 @@ describe('web manifest', () => {
     expect(APP_COLORS.darkBackground).toBe(cssToken('.dark', 'background'));
   });
 
+  it('adds screenshots only behind the install flag, one wide and one narrow, at their real size', () => {
+    process.env.NEXT_PUBLIC_FEATURE_PWA_INSTALL_ENABLED = 'false';
+    expect(manifest().screenshots).toBeUndefined();
+
+    process.env.NEXT_PUBLIC_FEATURE_PWA_INSTALL_ENABLED = 'true';
+    const screenshots = manifest().screenshots ?? [];
+    expect(screenshots.map((s) => s.form_factor).sort()).toEqual(['narrow', 'wide']);
+    for (const shot of screenshots) {
+      const { width, height } = pngSize(join(PUBLIC_DIR, shot.src));
+      expect(`${width}x${height}`).toBe(shot.sizes);
+    }
+  });
+
   it('adds shortcuts only behind the install flag, all inside scope', () => {
     process.env.NEXT_PUBLIC_FEATURE_PWA_INSTALL_ENABLED = 'false';
     expect(manifest().shortcuts).toBeUndefined();

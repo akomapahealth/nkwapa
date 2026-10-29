@@ -257,6 +257,17 @@ Nkwapa installs as an app (Android, desktop Chromium, iOS/iPadOS Add to Home Scr
 `start_url` is `/login?source=pwa`, which routes each role to its own home. `id` is `/` and must
 never change: installed devices identify the app by it.
 
+### Icons and screenshots
+
+- Icons live in `apps/web/public/icons/`. The maskable pair keeps the mark inside the central 80%
+  safe zone. Regenerate both pairs from the brand logo with
+  `node scripts/generate-pwa-icons.mjs` (run from `apps/web`).
+- The install-sheet screenshots in `apps/web/public/screenshots/` come from seeded demo data only,
+  never a real patient. With the API and a production web build running against a seeded database,
+  and `playwright/.auth` populated by an e2e run, regenerate them with
+  `node playwright/capture-pwa-screenshots.js` (from `apps/web`).
+- Screenshots and shortcuts ship only with `NEXT_PUBLIC_FEATURE_PWA_INSTALL_ENABLED=true`.
+
 ### What the worker caches
 
 The worker source is `apps/web/lib/pwa/service-worker.js`. `apps/web/app/service-worker.js/route.ts`
