@@ -25,7 +25,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { InfoHint } from '@/components/ui/info-hint';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { useTheme, type ThemePreference } from '@/lib/theme-context';
+import { THEME_PREFERENCE_OPTIONS, useTheme, type ThemePreference } from '@/lib/theme-context';
 import { AppNavList } from '@/components/app-shell/AppNavList';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { formatRoleLabel, getOpsDestination, getVisibleRoleLabels } from '@/lib/ops';
@@ -41,6 +41,7 @@ import {
   Menu,
   PanelLeft,
   PanelLeftClose,
+  Settings,
   ShieldCheck,
   User,
   UserPen,
@@ -302,6 +303,12 @@ export function Header({
                 <Compass className="mr-2 h-4 w-4" />
                 Take the tour
               </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/settings">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Your settings
+                </Link>
+              </DropdownMenuItem>
               <InstallAppMenuItem />
               {canEditOwnName ? (
                 <DropdownMenuItem asChild>
@@ -319,9 +326,11 @@ export function Header({
                 value={themePreference}
                 onValueChange={(value) => setThemePreference(value as ThemePreference)}
               >
-                <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="system">Match system</DropdownMenuRadioItem>
+                {THEME_PREFERENCE_OPTIONS.map((option) => (
+                  <DropdownMenuRadioItem key={option.value} value={option.value}>
+                    {option.label}
+                  </DropdownMenuRadioItem>
+                ))}
               </DropdownMenuRadioGroup>
               <DropdownMenuSeparator />
               <DropdownMenuItem

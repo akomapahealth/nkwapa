@@ -5,6 +5,13 @@ import { createContext, useContext, useCallback, useEffect, useMemo, useState } 
 export type ThemePreference = 'light' | 'dark' | 'system';
 export type ResolvedTheme = 'light' | 'dark';
 
+/** The choices, in order, wherever the theme can be picked: the account menu and /settings. */
+export const THEME_PREFERENCE_OPTIONS: ReadonlyArray<{ value: ThemePreference; label: string }> = [
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+  { value: 'system', label: 'Match system' },
+];
+
 import { themeStorageKey } from './theme-storage';
 import { themeColorFor } from '@/lib/app-identity';
 

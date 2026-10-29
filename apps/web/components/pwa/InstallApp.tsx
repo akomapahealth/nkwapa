@@ -49,19 +49,27 @@ const STEPS: Record<'ios' | 'macos-safari', { title: string; steps: React.ReactN
   },
 };
 
-/** "Install app" in the account menu (#206). Hidden when installed or when the browser can't. */
-export function InstallAppMenuItem() {
-  const { canInstall, platform, promptInstall } = useInstallPrompt();
-  if (!isWebFeatureEnabled('pwaInstall') || !canInstall) return null;
-
-  const onSelect = () => {
-    trackEvent('pwa.install.shown', { platform });
-    if (platform === 'chromium') void promptInstall();
+/**
+ * The install state plus the one action both entry points share (#206): Chromium's held prompt, or
+ * the manual steps where the browser has none. `enabled` folds in the feature flag.
+ */
+export function useInstallAction() {
+  const prompt = useInstallPrompt();
+  const install = () => {
+    trackEvent('pwa.install.shown', { platform: prompt.platform });
+    if (prompt.platform === 'chromium') void prompt.promptInstall();
     else window.dispatchEvent(new Event(INSTALL_INSTRUCTIONS_OPEN_EVENT));
   };
+  return { ...prompt, enabled: isWebFeatureEnabled('pwaInstall'), install };
+}
+
+/** "Install app" in the account menu (#206). Hidden when installed or when the browser can't. */
+export function InstallAppMenuItem() {
+  const { enabled, canInstall, install } = useInstallAction();
+  if (!enabled || !canInstall) return null;
 
   return (
-    <DropdownMenuItem onSelect={onSelect}>
+    <DropdownMenuItem onSelect={install}>
       <Download className="mr-2 h-4 w-4" />
       Install app
     </DropdownMenuItem>
