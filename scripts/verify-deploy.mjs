@@ -112,8 +112,9 @@ export async function checkFixtures(databaseUrl) {
     if (privileges.rows[0]?.elevated || privileges.rows[0]?.table_write) {
       throw new Error('fixture credential has write privileges');
     }
+    // Active only: the purge script deactivates fixture users rather than deleting them.
     const users = await client.query(
-      'SELECT count(*)::int AS count FROM "User" WHERE lower(email) LIKE $1 OR lower("displayName") LIKE $2',
+      'SELECT count(*)::int AS count FROM "User" WHERE "isActive" AND (lower(email) LIKE $1 OR lower("displayName") LIKE $2)',
       [`%${SEED_FIXTURE_EMAIL_DOMAIN.toLowerCase()}`, 'e2e %'],
     );
     const values = SEED_FIXTURE_PATIENT_NAMES.flat();
@@ -126,7 +127,7 @@ export async function checkFixtures(databaseUrl) {
     );
     if (users.rows[0].count || patients.rows[0].count) {
       throw new Error(
-        `found ${users.rows[0].count} fixture users and ${patients.rows[0].count} fixture patients`,
+        `found ${users.rows[0].count} active fixture users and ${patients.rows[0].count} fixture patients`,
       );
     }
   } finally {
