@@ -34,7 +34,8 @@ the API status response must both contain the pushed GitHub SHA. A missing SHA f
 Set the `production` GitHub Environment **secret** `VERIFY_READONLY_DATABASE_URL` to a dedicated
 Postgres login. The verifier rejects elevated roles or write privileges on any public table,
 opens a read-only transaction, and counts only fixture markers shared with
-`packages/db/src/seed-plan.ts`. Create the login with a unique password and grant the minimum
+`packages/db/src/seed-plan.ts`. Fixture users count only while active, because
+`npm run db:purge-seed-fixtures -- --apply` deactivates them rather than deleting them. Create the login with a unique password and grant the minimum
 table access, using an administrative database connection:
 
 ```sql
