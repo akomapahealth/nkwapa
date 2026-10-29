@@ -1,5 +1,6 @@
 import './globals.css';
 import type { Metadata } from 'next';
+import { APP_DESCRIPTION, APP_NAME } from '@/lib/app-identity';
 import { ToastProvider } from '@/components/ui/toast';
 import { ThemeProvider } from '@/lib/theme-context';
 import { themeStorageKey } from '@/lib/theme-storage';
@@ -23,14 +24,12 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://nkwapa.app';
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  applicationName: 'Nkwapa EMR',
+  applicationName: APP_NAME,
   title: {
     default: 'Nkwapa EMR',
     template: '%s | Nkwapa EMR',
   },
-  description:
-    'Nkwapa EMR supports multi-clinic hypertension and diabetes workflows, clinical review, prescribing, reminders, and patient follow-up.',
-  manifest: '/images/favicon/site.webmanifest',
+  description: APP_DESCRIPTION,
   keywords: [
     'Nkwapa',
     'EMR',
