@@ -3,7 +3,8 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { resetBootstrapResolved, type GetToken } from '@/lib/api';
 import { setStoredActiveClinicId } from '@/lib/bootstrap-storage';
-import { FullscreenStatus, PageSkeleton } from '@/components/feedback/AppState';
+import { PageSkeleton } from '@/components/feedback/AppState';
+import { OfflineLaunchScreen } from '@/components/pwa/OfflineLaunchScreen';
 import { db } from '@/lib/db';
 import { getKeycloak, initKeycloak, resetKeycloak } from '@/lib/keycloak';
 import { isKeycloakCallback } from '@/lib/keycloak-callback';
@@ -31,6 +32,7 @@ export function KeycloakProvider({ children }: { children: React.ReactNode }) {
   const [isReady, setIsReady] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [offline, setOffline] = useState(false);
 
   const getToken: GetToken = useCallback(async () => {
     const kc = getKeycloak();
@@ -77,7 +79,18 @@ export function KeycloakProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // Signing in needs Keycloak. With no connection, say so at once instead of waiting out the
+    // timeout and then blaming sign-in (#206).
+    if (!navigator.onLine) {
+      setOffline(true);
+      return;
+    }
+
     const timeout = setTimeout(() => {
+      if (!navigator.onLine) {
+        setOffline(true);
+        return;
+      }
       setIsReady(true);
       setError('Keycloak initialization timed out. Check your connection and try refreshing.');
     }, 15000);
@@ -109,6 +122,14 @@ export function KeycloakProvider({ children }: { children: React.ReactNode }) {
       })
       .catch((err) => {
         clearTimeout(timeout);
+        // fetch rejects with a TypeError when the network is down, even while onLine says true.
+        // The message differs by browser: "Failed to fetch", "Load failed", "NetworkError ...".
+        const networkFailure =
+          err instanceof TypeError && /fetch|load failed|network/i.test(err.message);
+        if (!navigator.onLine || networkFailure) {
+          setOffline(true);
+          return;
+        }
         setError(err?.message ?? String(err));
         setIsReady(true);
       });
@@ -118,21 +139,18 @@ export function KeycloakProvider({ children }: { children: React.ReactNode }) {
 
   const value = { isReady, isAuthenticated, error, logout, login };
 
+  if (offline) {
+    return <OfflineLaunchScreen />;
+  }
+
+  // Init errors set isReady too, so they surface on /login, which explains them and offers a retry.
   if (!isReady) {
     return (
       <KeycloakContext.Provider value={value}>
-        {error ? (
-          <FullscreenStatus
-            eyebrow="Authentication"
-            title="We couldn't finish secure sign in"
-            description={error}
-          />
-        ) : (
-          <PageSkeleton
-            title="Starting secure access"
-            description="Connecting to Keycloak, restoring your session, and preparing the safest route into the app."
-          />
-        )}
+        <PageSkeleton
+          title="Starting secure access"
+          description="Connecting to Keycloak, restoring your session, and preparing the safest route into the app."
+        />
       </KeycloakContext.Provider>
     );
   }

@@ -17,7 +17,7 @@
         color-scheme: light dark;
       }
       @media (prefers-color-scheme: dark) {
-        :root {
+        :root:not(.light) {
           --background: hsl(200 25% 8%);
           --foreground: hsl(54 20% 92%);
           --card: hsl(200 20% 11%);
@@ -26,6 +26,15 @@
           --muted-foreground: hsl(200 10% 60%);
           --border: hsl(200 15% 20%);
         }
+      }
+      :root.dark {
+        --background: hsl(200 25% 8%);
+        --foreground: hsl(54 20% 92%);
+        --card: hsl(200 20% 11%);
+        --primary: hsl(188 80% 47%);
+        --primary-foreground: hsl(200 25% 8%);
+        --muted-foreground: hsl(200 10% 60%);
+        --border: hsl(200 15% 20%);
       }
       * {
         box-sizing: border-box;
@@ -85,6 +94,16 @@
         background: transparent;
         color: var(--foreground);
       }
+      .queued {
+        margin: 16px 0 0;
+        padding: 8px 12px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--foreground);
+      }
+      .queued[hidden] {
+        display: none;
+      }
       button:focus-visible {
         outline: 2px solid var(--primary);
         outline-offset: 2px;
@@ -95,13 +114,52 @@
     <main>
       <h1>You are offline</h1>
       <p>
-        This page has not been opened on this device yet, so it cannot load without a connection.
+        Nkwapa needs a connection to open this page, and it has not been opened on this device
+        before.
       </p>
-      <p>Anything you saved is safe on this device and will sync when the connection returns.</p>
+      <p>
+        Changes saved on this device are safe and will send when you are back online. This page
+        retries by itself when the connection returns.
+      </p>
+      <p class="queued" id="queued" role="status" hidden></p>
       <div class="actions">
-        <button class="primary" type="button" onclick="history.back()">Go back</button>
-        <button class="secondary" type="button" onclick="location.reload()">Try again</button>
+        <button class="primary" type="button" onclick="location.reload()">Try again</button>
+        <button class="secondary" type="button" onclick="history.back()">Go back</button>
       </div>
     </main>
+    <script>
+      // Kept in step with the theme boot script in app/layout.tsx (#206).
+      try {
+        var stored = localStorage.getItem('nkwapa-theme');
+        if (stored === 'dark' || stored === 'light') {
+          document.documentElement.classList.add(stored);
+        }
+      } catch (e) {}
+
+      window.addEventListener('online', function () {
+        location.reload();
+      });
+
+      // Count only, never contents (#206). Opening without a version never upgrades the
+      // database; if it does not exist yet, drop the empty one this creates and say nothing.
+      try {
+        var request = indexedDB.open('NkwapaDb');
+        request.onupgradeneeded = function () {
+          request.transaction.abort();
+        };
+        request.onsuccess = function () {
+          var database = request.result;
+          if (!database.objectStoreNames.contains('outbox')) return database.close();
+          var count = database.transaction('outbox', 'readonly').objectStore('outbox').count();
+          count.onsuccess = function () {
+            var n = count.result;
+            var el = document.getElementById('queued');
+            el.textContent = n + (n === 1 ? ' change' : ' changes') + ' waiting on this device';
+            el.hidden = false;
+            database.close();
+          };
+        };
+      } catch (e) {}
+    </script>
   </body>
 </html>
