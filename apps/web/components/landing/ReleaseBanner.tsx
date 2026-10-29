@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ArrowRight, X } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, X } from 'lucide-react';
 import {
   Dialog,
   DialogClose,
@@ -34,7 +34,7 @@ function formatDate(date: string) {
 }
 
 /**
- * Announces the latest release (lib/release-notes.ts, refreshed hourly from GitHub). When the
+ * Announces the latest release (lib/release-notes.ts, refreshed every five minutes from GitHub). When the
  * release has plain-language notes, the announcement opens them. A new version shows the banner
  * again to anyone who dismissed the previous one.
  */
@@ -62,13 +62,20 @@ export function ReleaseBanner({ release }: { release: Release }) {
   };
 
   const released = formatDate(release.date);
+  const headline = release.groups[0]?.items[0]?.lead;
   const announcement = (
-    <span className="truncate">
-      <span data-release-version className="font-heading text-base font-semibold">
-        Nkwapa {release.version}
-      </span>{' '}
-      is out now.
-    </span>
+    <>
+      <span className="shrink-0 rounded-sm bg-secondary px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-secondary-foreground">
+        New
+      </span>
+      <span className="min-w-0 truncate">
+        <span data-release-version className="font-heading text-base font-semibold">
+          Nkwapa {release.version}
+        </span>{' '}
+        is out now.
+        {headline && <span className="hidden text-primary-foreground lg:inline"> {headline}</span>}
+      </span>
+    </>
   );
 
   return (
@@ -79,7 +86,9 @@ export function ReleaseBanner({ release }: { release: Release }) {
     >
       <div className="landing-container flex h-11 items-center gap-4 text-sm">
         {release.groups.length === 0 ? (
-          <p className="flex min-w-0 flex-1 motion-safe:animate-landing-rise">{announcement}</p>
+          <p className="flex min-w-0 flex-1 items-center gap-3 motion-safe:animate-landing-rise">
+            {announcement}
+          </p>
         ) : (
           <Dialog>
             <DialogTrigger asChild>
@@ -120,6 +129,9 @@ export function ReleaseBanner({ release }: { release: Release }) {
 
 function WhatsNew({ release, released }: { release: Release; released: string }) {
   const changes = release.groups.reduce((sum, group) => sum + group.items.length, 0);
+  const summary = release.groups
+    .map((group) => `${group.items.length} ${group.heading.toLowerCase()}`)
+    .join(', ');
   let order = 0;
 
   return (
@@ -165,6 +177,7 @@ function WhatsNew({ release, released }: { release: Release; released: string })
             <span className="sr-only">, </span>
             {changes} {changes === 1 ? 'change' : 'changes'} for clinic teams
           </DialogDescription>
+          <p className="mt-1 text-sm text-primary-foreground">{summary}</p>
         </div>
       </div>
 
@@ -177,6 +190,9 @@ function WhatsNew({ release, released }: { release: Release; released: string })
                 <h3 className="flex items-center gap-3 font-heading text-xl font-semibold">
                   <span aria-hidden className={cn('h-2.5 w-2.5 rounded-full', tone.mark)} />
                   {group.heading}
+                  <span className="font-body text-sm font-medium text-muted-foreground">
+                    {group.items.length}
+                  </span>
                 </h3>
                 <ul className="mt-4 space-y-5">
                   {group.items.map((item) => (
@@ -207,6 +223,18 @@ function WhatsNew({ release, released }: { release: Release; released: string })
           </a>
           .
         </p>
+        {release.url && (
+          <a
+            href={release.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 inline-flex min-h-11 items-center gap-1 rounded-sm text-sm font-medium text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Technical release notes on GitHub
+            <ArrowUpRight aria-hidden className="h-3.5 w-3.5" />
+            <span className="sr-only"> (opens in a new tab)</span>
+          </a>
+        )}
       </div>
     </DialogContent>
   );
