@@ -130,7 +130,7 @@ export function ChatWidget() {
   }
 
   return (
-    <div className="fixed bottom-4 right-3 z-50 sm:bottom-5 sm:right-5">
+    <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(0.75rem+env(safe-area-inset-right))] z-50 sm:bottom-[calc(1.25rem+env(safe-area-inset-bottom))] sm:right-[calc(1.25rem+env(safe-area-inset-right))]">
       <ChatProvider>
         <ChatPanel />
       </ChatProvider>

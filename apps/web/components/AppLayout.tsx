@@ -55,7 +55,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }, [sidebarCollapsed]);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background px-safe">
       <NavigationProgress />
       {/*
         First thing in the tab order, hidden until focused. Without it a keyboard or screen reader
@@ -84,7 +84,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <main
             id="main-content"
             tabIndex={-1}
-            className="min-w-0 flex-1 overflow-auto px-4 py-5 pb-24 focus-visible:outline-none md:px-6 md:pb-8 lg:px-8"
+            className="min-w-0 flex-1 overflow-auto px-4 py-5 pb-[calc(6rem+env(safe-area-inset-bottom))] focus-visible:outline-none md:px-6 md:pb-[calc(2rem+env(safe-area-inset-bottom))] lg:px-8"
           >
             <div className="mx-auto w-full max-w-[1440px] space-y-6">
               <PendingStaffInviteNotice />

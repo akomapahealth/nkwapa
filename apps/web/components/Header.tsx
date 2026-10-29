@@ -156,7 +156,7 @@ export function Header({
     ) : null;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur">
+    <header className="pt-safe sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur">
       <div className="flex h-16 items-center gap-3 px-4 md:px-6">
         <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
           <SheetTrigger asChild>

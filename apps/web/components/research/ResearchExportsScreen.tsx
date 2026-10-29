@@ -37,6 +37,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import { Textarea } from '@/components/ui/textarea';
+import { saveBlob } from '@/lib/download';
 
 type ExportStatus =
   | 'PENDING_APPROVAL'
@@ -284,13 +285,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
           `/clinics/${encodeURIComponent(clinicId)}/research/exports/${exportId}/download`,
           { method: 'GET' },
         );
-        const blob = await response.blob();
-        const objectUrl = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = objectUrl;
-        link.download = `research-export-${exportId}.zip`;
-        link.click();
-        URL.revokeObjectURL(objectUrl);
+        await saveBlob(await response.blob(), `research-export-${exportId}.zip`);
       },
       { busyId: exportId, fallback: 'This export pack could not be downloaded.' },
     );

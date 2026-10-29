@@ -197,6 +197,9 @@
   }
   body {
     @apply bg-background text-foreground font-body antialiased;
+    /* The page is the scroll container. Keeps Android's pull-to-refresh from reloading a half
+       filled form in the installed app (#206). */
+    overscroll-behavior-y: contain;
   }
   h1,
   h2,
@@ -210,6 +213,24 @@
 
 /* Utility classes */
 @layer utilities {
+  /*
+    Installed-app safe areas (#206). viewport-fit=cover lets the app draw under notches, rounded
+    corners and the home indicator; these keep chrome clear of them. env() is 0 in a browser tab,
+    so they change nothing there. Use them on elements without padding of their own.
+  */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  .px-safe {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  /* Transparent borders, not padding, so a sheet's own padding utilities still apply. */
+  .safe-edges-y {
+    border-top: env(safe-area-inset-top) solid transparent;
+    border-bottom: env(safe-area-inset-bottom) solid transparent;
+  }
+
   .touch-target {
     min-height: 44px;
     min-width: 44px;

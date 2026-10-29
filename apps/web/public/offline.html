@@ -124,7 +124,13 @@
       <p class="queued" id="queued" role="status" hidden></p>
       <div class="actions">
         <button class="primary" type="button" onclick="location.reload()">Try again</button>
-        <button class="secondary" type="button" onclick="history.back()">Go back</button>
+        <button
+          class="secondary"
+          type="button"
+          onclick="history.length > 1 ? history.back() : location.assign('/login')"
+        >
+          Go back
+        </button>
       </div>
     </main>
     <script>
