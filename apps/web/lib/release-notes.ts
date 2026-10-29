@@ -9,7 +9,9 @@
  *   ### New
  *   - **Register a patient who has no ID document.** Choose "No ID document" at registration.
  *
- * The landing page refetches hourly, so a new release appears without a code change.
+ * The landing page refetches every five minutes, so a new release appears without a code change.
+ * The web deploy finishes before the release is tagged, so a fresh build still shows the previous
+ * version until the next refetch.
  */
 
 export interface ReleaseNote {
@@ -27,27 +29,37 @@ export interface Release {
   /** YYYY-MM-DD */
   date: string;
   groups: ReleaseGroup[];
+  /** The GitHub release page, when known. */
+  url?: string;
 }
 
 export const CLINIC_NOTES_HEADING = '## For clinic teams';
 
 const RELEASES_URL = 'https://api.github.com/repos/akomapahealth/nkwapa/releases/latest';
 
-/** Used when GitHub cannot be reached at build or revalidation time. */
+/** Used when GitHub cannot be reached at build or revalidation time. Keep it on the latest release. */
 export const FALLBACK_RELEASE: Release = {
-  version: '1.2.0',
-  date: '2026-10-12',
+  version: '1.4.0',
+  date: '2026-10-29',
   groups: [
     {
       heading: 'New',
       items: [
         {
-          lead: 'Register a patient who has no ID document.',
-          text: 'Choose “No ID document” at registration. Their name, date of birth and phone number are then used to spot a possible duplicate record.',
+          lead: 'A volunteer directory and screening-day rosters.',
+          text: 'Managers and directors can keep their clinic’s volunteers in Nkwapa, with or without an account, plan each screening day, put volunteers on its roster, and email them the details. If a day changes or is cancelled, the people on the roster are told.',
         },
         {
-          lead: 'Add or correct an ID later.',
-          text: 'An ID can be added to a record after registration, or fixed if it was entered wrongly. Each change asks for a reason and is kept in the record’s history.',
+          lead: 'Record who actually screened.',
+          text: 'When a volunteer works a station on someone else’s account, they can say who is really screening. That name shows on the board, the visit timeline and the review note, and can be corrected afterwards.',
+        },
+        {
+          lead: 'Find patients by screening date.',
+          text: 'The patient registry can show everyone who completed a screening on a given day or between two dates, ready for follow-up.',
+        },
+        {
+          lead: 'System status at the bottom of the home page.',
+          text: 'A dot shows whether Nkwapa is working normally. Open it for each part and a report you can copy.',
         },
       ],
     },
@@ -55,17 +67,12 @@ export const FALLBACK_RELEASE: Release = {
       heading: 'Improved',
       items: [
         {
-          lead: 'Imported screening visits are flagged for review.',
-          text: 'Visits brought in from a screening spreadsheet are now marked for a doctor to review when a reading needs attention, such as low blood sugar or very high blood pressure.',
+          lead: 'Staff names instead of email addresses.',
+          text: 'Every staff account now has a first name, last name and optional middle initial. Names, not emails, show on boards, timelines and notes.',
         },
-      ],
-    },
-    {
-      heading: 'Fixed',
-      items: [
         {
-          lead: 'Duplicate IDs no longer fail silently.',
-          text: 'Registering an ID that was already on another record used to stop with no message. Nkwapa now shows the record that already has it.',
+          lead: 'Closing a station frees the volunteers working there.',
+          text: 'They are asked to choose another station and told why.',
         },
       ],
     },
@@ -103,7 +110,7 @@ export async function getLatestRelease(): Promise<Release> {
           ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` }
           : {}),
       },
-      next: { revalidate: 3600 },
+      next: { revalidate: 300 },
       signal: AbortSignal.timeout(5000),
     });
     if (!response.ok) return FALLBACK_RELEASE;
@@ -111,14 +118,14 @@ export async function getLatestRelease(): Promise<Release> {
       tag_name?: string;
       published_at?: string;
       body?: string | null;
+      html_url?: string;
     };
     const version = release.tag_name?.replace(/^v/, '');
+    const url = release.html_url;
     const date = release.published_at?.slice(0, 10);
     if (!version || !date) return FALLBACK_RELEASE;
     const groups = parseClinicNotes(release.body ?? '');
-    // v1.2.0 was published before releases carried a clinic section.
-    if (!groups.length && version === FALLBACK_RELEASE.version) return FALLBACK_RELEASE;
-    return { version, date, groups };
+    return { version, date, groups, url };
   } catch {
     return FALLBACK_RELEASE;
   }

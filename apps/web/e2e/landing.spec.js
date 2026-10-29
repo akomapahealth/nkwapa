@@ -76,23 +76,32 @@ test('status panel opens by keyboard, lists components, and copies a readable re
     });
   });
   await page.goto('/');
-  const trigger = page.locator('footer summary');
+  const trigger = page.locator('footer [data-status-trigger]');
   await expect(trigger).toContainText('Degraded');
   await trigger.focus();
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('heading', { name: 'System status' })).toBeVisible();
-  await expect(page.locator('footer details li')).toHaveCount(6);
-  await expect(page.getByText('The last send failed')).toBeVisible();
+  const dialog = page.getByRole('dialog', { name: 'System status' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText('Some systems are degraded')).toBeVisible();
+  await expect(dialog.locator('li')).toHaveCount(6);
+  await expect(dialog.getByText('The last send failed')).toBeVisible();
   // Once on load and once on open, never on a timer (#201 follow-up).
   expect(requests).toBe(2);
-  await page.getByRole('button', { name: 'Copy report' }).click();
-  await expect(page.locator('footer [aria-live]')).toHaveText('Report copied');
+  await dialog.getByRole('button', { name: 'Refresh' }).click();
+  await expect.poll(() => requests).toBe(3);
+  await dialog.getByRole('button', { name: 'Copy report' }).click();
+  await expect(dialog.locator('[aria-live]')).toHaveText('Report copied');
   expect(await page.evaluate(() => navigator.clipboard.readText())).toContain(
     '| Email | Degraded |',
   );
+  const results = await new AxeBuilder({ page })
+    .include('[role="dialog"]')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+    .analyze();
+  expect(results.violations).toEqual([]);
   await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
   await expect(trigger).toBeFocused();
-  await expect(page.locator('footer details')).not.toHaveAttribute('open');
 });
 
 test('status panel reports API failure at narrow widths and with reduced motion', async ({
@@ -102,10 +111,10 @@ test('status panel reports API failure at narrow widths and with reduced motion'
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.route('**/status', (route) => route.abort());
   await page.goto('/');
-  const trigger = page.locator('footer summary');
+  const trigger = page.locator('footer [data-status-trigger]');
   await expect(trigger).toContainText('API unreachable');
   await trigger.click();
-  await expect(page.getByText('The API could not be reached.')).toBeVisible();
+  await expect(page.getByRole('dialog').getByText('The API could not be reached.')).toBeVisible();
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
   ).toBeLessThanOrEqual(1);
@@ -117,9 +126,9 @@ test('status shows a neutral check, then gives up on a silent API after ten seco
   await page.clock.install();
   await page.route('**/status', () => undefined);
   await page.goto('/');
-  const trigger = page.locator('footer summary');
+  const trigger = page.locator('footer [data-status-trigger]');
   await expect(trigger).toContainText('Checking system status');
-  await expect(trigger.locator('span').first()).not.toHaveClass(/bg-red/);
+  await expect(trigger.locator('span').first()).not.toHaveClass(/bg-destructive/);
   await page.clock.fastForward(10_000);
   await expect(trigger).toContainText('API unreachable');
 });
