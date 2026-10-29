@@ -34,6 +34,7 @@ import { getActiveBootstrapClinic, getSwitchableClinics } from '@/lib/bootstrap-
 import { setStoredActiveClinicId } from '@/lib/bootstrap-storage';
 import { useToast } from '@/components/ui/toast';
 import { SyncStatusBar } from '@/components/sync/SyncStatusBar';
+import { InstallAppMenuItem, InstallInstructionsDialog } from '@/components/pwa/InstallApp';
 import {
   Compass,
   LogOut,
@@ -301,6 +302,7 @@ export function Header({
                 <Compass className="mr-2 h-4 w-4" />
                 Take the tour
               </DropdownMenuItem>
+              <InstallAppMenuItem />
               {canEditOwnName ? (
                 <DropdownMenuItem asChild>
                   <Link href={buildAccountNameHref(pathname)}>
@@ -335,6 +337,7 @@ export function Header({
       </div>
       {/* Here because both the workspace and the portal render this header. */}
       <WelcomeTour />
+      <InstallInstructionsDialog />
     </header>
   );
 }

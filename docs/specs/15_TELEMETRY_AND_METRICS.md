@@ -121,10 +121,15 @@ Names follow `domain.object.action`. Every event may also carry `outcome`, `dura
 
 ### Engagement
 
-| Event               | Label                | Source  | Properties                                            | Meaning                                 |
-| ------------------- | -------------------- | ------- | ----------------------------------------------------- | --------------------------------------- |
-| `landing.page.view` | Landing page views   | Browser | none                                                  | The public landing page was viewed.     |
-| `landing.cta.click` | Landing page actions | Browser | `target`: `workflow`, `product`, `contact`, `akomapa` | A landing page call to action was used. |
+| Event                 | Label                  | Source  | Properties                                                                                                    | Meaning                                                   |
+| --------------------- | ---------------------- | ------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `landing.page.view`   | Landing page views     | Browser | none                                                                                                          | The public landing page was viewed.                       |
+| `landing.cta.click`   | Landing page actions   | Browser | `target`: `workflow`, `product`, `contact`, `akomapa`                                                         | A landing page call to action was used.                   |
+| `pwa.install.shown`   | Install prompts shown  | Browser | `platform`: `chromium`, `ios`, `macos-safari`, `unsupported`                                                  | Someone opened the install option from the account menu.  |
+| `pwa.install.accept`  | Installs accepted      | Browser | `platform`: `chromium`, `ios`, `macos-safari`, `unsupported`                                                  | Someone accepted the browser install prompt.              |
+| `pwa.install.dismiss` | Installs dismissed     | Browser | `platform`: `chromium`, `ios`, `macos-safari`, `unsupported`                                                  | Someone dismissed the browser install prompt.             |
+| `pwa.app.install`     | Apps installed         | Browser | `platform`: `chromium`, `ios`, `macos-safari`, `unsupported`                                                  | The browser reported that the app was installed.          |
+| `pwa.app.launch`      | Installed app launches | Browser | `platform`: `chromium`, `ios`, `macos-safari`, `unsupported`<br>`source`: `pwa`, `pwa-shortcut`, `standalone` | The app was opened from its installed icon or a shortcut. |
 
 ### Funnels
 

@@ -1,6 +1,7 @@
 import './globals.css';
 import type { Metadata, Viewport } from 'next';
 import { APP_DESCRIPTION, APP_NAME, APP_SHORT_NAME, themeColorFor } from '@/lib/app-identity';
+import { PwaBoot } from '@/components/pwa/PwaBoot';
 import { ServiceWorkerRegistration } from '@/components/pwa/ServiceWorkerRegistration';
 import { ToastProvider } from '@/components/ui/toast';
 import { ThemeProvider } from '@/lib/theme-context';
@@ -101,6 +102,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ToastProvider>
             {children}
             <ServiceWorkerRegistration />
+            <PwaBoot />
           </ToastProvider>
         </ThemeProvider>
       </body>
