@@ -6,16 +6,19 @@
 
 import Keycloak from 'keycloak-js';
 
+const KEYCLOAK_CONFIG = {
+  url: process.env.NEXT_PUBLIC_KEYCLOAK_URL ?? 'http://localhost:8080',
+  realm: process.env.NEXT_PUBLIC_KEYCLOAK_REALM ?? 'nkwapa',
+  clientId: process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID ?? 'nkwapa-web',
+};
+
 let keycloakInstance: Keycloak | null = null;
 let initPromise: Promise<boolean> | null = null;
 
 export function getKeycloak(): Keycloak | null {
   if (typeof window === 'undefined') return null;
   if (!keycloakInstance) {
-    const url = process.env.NEXT_PUBLIC_KEYCLOAK_URL ?? 'http://localhost:8080';
-    const realm = process.env.NEXT_PUBLIC_KEYCLOAK_REALM ?? 'nkwapa';
-    const clientId = process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID ?? 'nkwapa-web';
-    keycloakInstance = new Keycloak({ url, realm, clientId });
+    keycloakInstance = new Keycloak(KEYCLOAK_CONFIG);
   }
   return keycloakInstance;
 }
@@ -33,4 +36,22 @@ export function initKeycloak(options: Keycloak.KeycloakInitOptions): Promise<boo
 export function resetKeycloak(): void {
   initPromise = null;
   keycloakInstance = null;
+}
+
+/**
+ * Whether the sign-in server can be reached at all (#206). navigator.onLine stays true on a
+ * connected-but-dead network (signal bars, no data), where keycloak-js then waits on its iframe
+ * before failing with an error that reads like a sign-in problem. An opaque no-cors request needs
+ * no CORS headers and rejects only when the network itself fails; a slow answer still counts as
+ * reachable, so a poor connection is never mistaken for none.
+ */
+export async function canReachKeycloak(): Promise<boolean> {
+  // From config, not the instance: keycloak-js fills in its URLs only during init.
+  const { url, realm } = KEYCLOAK_CONFIG;
+  try {
+    await fetch(`${url}/realms/${realm}`, { mode: 'no-cors', cache: 'no-store' });
+    return true;
+  } catch {
+    return false;
+  }
 }

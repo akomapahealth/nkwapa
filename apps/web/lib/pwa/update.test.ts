@@ -89,6 +89,13 @@ describe('service worker update flow (#206)', () => {
     expect(onUpdateReady).not.toHaveBeenCalled();
   });
 
+  it('says nothing when the first worker takes control of the page', () => {
+    const t = setup({ controller: null });
+    t.containerEvents.emit('controllerchange');
+    expect(t.onUpdateReady).not.toHaveBeenCalled();
+    expect(t.reload).not.toHaveBeenCalled();
+  });
+
   it('offers a reload once a newly found worker finishes installing', () => {
     const t = setup();
     const worker = fakeWorker();

@@ -6,7 +6,7 @@ import { setStoredActiveClinicId } from '@/lib/bootstrap-storage';
 import { PageSkeleton } from '@/components/feedback/AppState';
 import { OfflineLaunchScreen } from '@/components/pwa/OfflineLaunchScreen';
 import { db } from '@/lib/db';
-import { getKeycloak, initKeycloak, resetKeycloak } from '@/lib/keycloak';
+import { canReachKeycloak, getKeycloak, initKeycloak, resetKeycloak } from '@/lib/keycloak';
 import { isKeycloakCallback } from '@/lib/keycloak-callback';
 import { clearPortalCache } from '@/lib/portal-cache';
 import { AuthBootstrapWrapper } from './AuthBootstrapWrapper';
@@ -94,6 +94,12 @@ export function KeycloakProvider({ children }: { children: React.ReactNode }) {
       setIsReady(true);
       setError('Keycloak initialization timed out. Check your connection and try refreshing.');
     }, 15000);
+
+    void canReachKeycloak().then((reachable) => {
+      if (reachable) return;
+      clearTimeout(timeout);
+      setOffline(true);
+    });
 
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     initKeycloak({

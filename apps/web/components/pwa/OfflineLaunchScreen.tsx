@@ -5,6 +5,9 @@ import { RefreshCw, WifiOff } from 'lucide-react';
 import { FullscreenStatus } from '@/components/feedback/AppState';
 import { Button } from '@/components/ui/button';
 import { db } from '@/lib/db';
+import { canReachKeycloak } from '@/lib/keycloak';
+
+const RECHECK_MS = 10_000;
 
 /**
  * Shown in place of sign-in when the app starts with no connection (#206). Signing in needs
@@ -23,7 +26,14 @@ export function OfflineLaunchScreen() {
 
     const retry = () => window.location.reload();
     window.addEventListener('online', retry);
-    return () => window.removeEventListener('online', retry);
+    // 'online' never fires when the device thought it was online all along, so also check.
+    const poll = window.setInterval(() => {
+      void canReachKeycloak().then((reachable) => reachable && retry());
+    }, RECHECK_MS);
+    return () => {
+      window.removeEventListener('online', retry);
+      window.clearInterval(poll);
+    };
   }, []);
 
   return (

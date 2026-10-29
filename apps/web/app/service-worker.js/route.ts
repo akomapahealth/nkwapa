@@ -9,7 +9,7 @@ const SW_VERSION = process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.NEXT_PUBLIC_
 
 export function GET() {
   const source = readFileSync(join(process.cwd(), 'lib/pwa/service-worker.js'), 'utf8');
-  return new Response(source.replace('__SW_VERSION__', SW_VERSION), {
+  return new Response(source.replace("'__SW_VERSION__'", JSON.stringify(SW_VERSION)), {
     headers: {
       'Content-Type': 'application/javascript; charset=utf-8',
       // The browser must always ask for the worker, never reuse a stored copy.

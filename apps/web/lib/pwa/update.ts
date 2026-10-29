@@ -53,6 +53,8 @@ export function createUpdateController({
 }: UpdateControllerOptions) {
   let requested = false;
   let lastCheck = now();
+  // The first worker claims an uncontrolled page; that controllerchange is not an update.
+  let hadController = Boolean(container.controller);
 
   // With no controller this is the first install, not an update: there is nothing to reload into.
   const announceIfWaiting = () => {
@@ -81,6 +83,10 @@ export function createUpdateController({
   });
 
   container.addEventListener('controllerchange', () => {
+    if (!hadController) {
+      hadController = true;
+      return;
+    }
     // Another tab accepted the update. This tab now runs on a new worker but old code, so offer
     // the reload rather than taking it: this tab may hold unsaved input.
     if (requested) reloadWhenIdle();

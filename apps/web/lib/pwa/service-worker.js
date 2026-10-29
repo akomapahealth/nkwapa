@@ -1,6 +1,6 @@
 /**
  * The Nkwapa service worker (#206). This file is the only source: app/service-worker.js/route.ts
- * serves it with __SW_VERSION__ replaced per deploy, and jest requires it to test the rules below.
+ * serves it with VERSION replaced per deploy, and jest requires it to test the rules below.
  * It must stay plain JavaScript with no imports.
  *
  * Cache Storage holds the app shell only: HTML shells, hashed static assets, icons and the offline
