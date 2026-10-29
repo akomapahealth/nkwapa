@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { User, UserRole } from '@prisma/client';
+import { formatStaffDisplayName } from '@nkwapa/db';
 
 export type UserWithClinicRoles = User & {
   clinicRoles: { clinicId: string | null; role: UserRole }[];
@@ -85,23 +86,49 @@ export class UserRepository {
     });
   }
 
+  /**
+   * Bring in what Keycloak knows on sign-in. Nkwapa owns the name (#225): a name is only filled
+   * where none is stored, so a later sign-in never overwrites one set here. `displayName` is
+   * rebuilt when that fill completes the name, or when it is still a placeholder (the email or
+   * the subject) beside a complete name: the accounts this sync used to leave stuck on an email.
+   */
   async syncKeycloakProfile(
     id: string,
     data: { firstName?: string; lastName?: string; email?: string; phoneE164?: string | null },
   ): Promise<User> {
     const existing = await this.prisma.user.findUnique({
       where: { id },
-      select: { firstName: true, lastName: true, phoneE164: true },
+      select: {
+        firstName: true,
+        lastName: true,
+        middleInitial: true,
+        displayName: true,
+        email: true,
+        keycloakSub: true,
+        phoneE164: true,
+      },
     });
     if (!existing) throw new Error('User not found');
     const updates: {
       firstName?: string;
       lastName?: string;
+      displayName?: string;
       email?: string;
       phoneE164?: string | null;
     } = {};
     if (data.firstName != null && existing.firstName == null) updates.firstName = data.firstName;
     if (data.lastName != null && existing.lastName == null) updates.lastName = data.lastName;
+    const firstName = updates.firstName ?? existing.firstName;
+    const lastName = updates.lastName ?? existing.lastName;
+    const isPlaceholder =
+      existing.displayName === existing.email || existing.displayName === existing.keycloakSub;
+    if ((updates.firstName || updates.lastName || isPlaceholder) && firstName && lastName) {
+      updates.displayName = formatStaffDisplayName({
+        firstName,
+        middleInitial: existing.middleInitial,
+        lastName,
+      });
+    }
     if (data.email != null) updates.email = data.email;
     if (data.phoneE164 != null && existing.phoneE164 == null) updates.phoneE164 = data.phoneE164;
     if (Object.keys(updates).length === 0) {

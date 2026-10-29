@@ -5,7 +5,8 @@
 Goal
 
 Deliver every outbound message the clinic sends — reminders, portal invites, appointment
-updates, and staff access notices — through one recorded, retryable path.
+updates, staff access notices, and volunteer roster emails — through one recorded, retryable
+path.
 
 Staff-scheduled follow-up reminders (#116)
 
@@ -62,9 +63,39 @@ are rendered in the clinic's timezone rather than the server's.
 
 Current keys: FOLLOWUP_REMINDER_V1, APPOINTMENT_REMINDER_V1, PORTAL_INVITE_V1,
 APPOINTMENT_CONFIRMED_V1, APPOINTMENT_RESCHEDULED_V1, APPOINTMENT_CANCELLED_V1,
-STAFF_ROLE_GRANTED_V1, STAFF_ROLE_REVOKED_V1, STAFF_ACCOUNT_DEACTIVATED_V1.
+STAFF_ROLE_GRANTED_V1, STAFF_ROLE_REVOKED_V1, STAFF_ACCOUNT_DEACTIVATED_V1,
+VOLUNTEER_ROSTER_ASSIGNED_V1, VOLUNTEER_ROSTER_UPDATED_V1, VOLUNTEER_ROSTER_CANCELLED_V1,
+VOLUNTEER_ROSTER_REMOVED_V1.
+
+Volunteer roster emails (#226)
+
+A manager or director (VOLUNTEER.ROSTER.MANAGE) emails the volunteers on a screening day's
+roster. Many have no Nkwapa account, so each row is a USER notice keyed on
+Reminder.screeningEventAssignmentId, the way a staff invitation is keyed on staffInviteId; the
+recipient check constraint accepts either. The address is the directory contact's email, even
+when the contact is linked to an account. The ledger type filter groups the four keys as ROSTER,
+shown only to roles that see staff notices.
+
+The payload holds the volunteer's first name, the clinic name and timezone, and the event's
+title, times, site and notes. The email has no links, no images and no patient data; the
+template spec asserts this. Times read like "Sat, 7 Nov 2026, 08:00–13:00 GMT (Africa/Accra)".
+
+• POST /clinics/:clinicId/screening-events/:id/notify sends ASSIGNED to every ASSIGNED volunteer
+not yet told the event's current details (lastNotifiedAt before detailsChangedAt).
+• POST .../roster/:assignmentId/resend sends ASSIGNED again; a fourth resend for one assignment
+within an hour is refused with 429 ROSTER_RESEND_LIMIT (counted from ROSTER.RESEND audit rows).
+• Changing an event's date, time or site sends UPDATED to volunteers already notified, unless the
+manager turns that off; cancelling sends CANCELLED to every rostered volunteer, notified or
+not, unless turned off. Removing someone sends REMOVED
+only when asked (off by default).
+• Roster delivery status is the latest roster Reminder's status and failureReason.
 
 Delivery ledger
+
+sendNotificationNow queues its job from inside the request's transaction, so a worker can reach
+a row before it commits. The claim treats a missing row as not visible yet and throws, which
+retries in five seconds, rather than completing the job and leaving the row QUEUED until the
+sweep.
 
 Every message is a row in Reminder, which records channel, recipient, template, status,
 provider message id, and failure reason. Scheduled reminders carry a future scheduledAt;

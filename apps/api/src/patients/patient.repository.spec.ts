@@ -71,6 +71,87 @@ describe('PatientRepository - residential location filters', () => {
   });
 });
 
+describe('PatientRepository - completed screening filter', () => {
+  const screened = {
+    clinicId: 'clinic-1',
+    start: new Date('2026-10-10T00:00:00.000Z'),
+    end: new Date('2026-10-10T23:59:59.999Z'),
+  };
+  const inWindow = { gte: screened.start, lte: screened.end };
+  let findMany: jest.Mock;
+  let checkInFindMany: jest.Mock;
+  let repository: PatientRepository;
+
+  beforeEach(() => {
+    findMany = jest.fn().mockResolvedValue([]);
+    checkInFindMany = jest.fn().mockResolvedValue([]);
+    const prisma = {
+      patient: { findMany },
+      patientCheckIn: { findMany: checkInFindMany },
+    } as unknown as PrismaService;
+    repository = new PatientRepository(prisma);
+  });
+
+  it('matches a completed Review visit or a legacy completed check-in, both at this clinic', async () => {
+    await repository.findMany({ primaryClinicId: 'clinic-1', screened });
+
+    const where = findMany.mock.calls[0][0].where;
+    expect(where.primaryClinicId).toBe('clinic-1');
+    expect(where.checkIns).toEqual({
+      some: {
+        clinicId: 'clinic-1',
+        OR: [
+          {
+            stationVisits: {
+              some: {
+                clinicId: 'clinic-1',
+                status: 'COMPLETED',
+                station: { kind: 'REVIEW' },
+                completedAt: inWindow,
+              },
+            },
+          },
+          { status: 'COMPLETED', stationVisits: { none: {} }, checkedInAt: inWindow },
+        ],
+      },
+    });
+  });
+
+  it('is AND-ed with search and location filters, never part of the search OR', async () => {
+    await repository.findMany({
+      primaryClinicId: 'clinic-1',
+      search: 'Ama',
+      residentialRegion: 'VOLTA',
+      screened,
+    });
+
+    const where = findMany.mock.calls[0][0].where;
+    expect(where.residentialRegion).toBe('VOLTA');
+    expect(where.checkIns).toBeDefined();
+    expect(JSON.stringify(where.OR)).not.toContain('checkIns');
+  });
+
+  it('leaves the where untouched without the filter', async () => {
+    await repository.findMany({ primaryClinicId: 'clinic-1' });
+    expect(findMany.mock.calls[0][0].where.checkIns).toBeUndefined();
+  });
+
+  it('looks up screenings for the given patients only, with Review visits in the window', async () => {
+    await repository.findMatchingScreenings(['p1', 'p2'], screened);
+
+    const args = checkInFindMany.mock.calls[0][0];
+    expect(args.where.patientId).toEqual({ in: ['p1', 'p2'] });
+    expect(args.where.clinicId).toBe('clinic-1');
+    expect(args.select.stationVisits.where.station).toEqual({ kind: 'REVIEW' });
+    expect(args.select.stationVisits.where.completedAt).toEqual(inWindow);
+  });
+
+  it('skips the query for an empty page', async () => {
+    await expect(repository.findMatchingScreenings([], screened)).resolves.toEqual([]);
+    expect(checkInFindMany).not.toHaveBeenCalled();
+  });
+});
+
 /*
   Canonical chart redirects.
 

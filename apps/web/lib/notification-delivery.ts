@@ -154,6 +154,10 @@ const TYPE_LABELS: Record<string, string> = {
   STAFF_ROLE_REVOKED_V1: 'Access removed',
   STAFF_ACCOUNT_DEACTIVATED_V1: 'Account deactivated',
   STAFF_ACCOUNT_REACTIVATED_V1: 'Account reactivated',
+  VOLUNTEER_ROSTER_ASSIGNED_V1: 'Roster: scheduled',
+  VOLUNTEER_ROSTER_UPDATED_V1: 'Roster: event changed',
+  VOLUNTEER_ROSTER_CANCELLED_V1: 'Roster: event cancelled',
+  VOLUNTEER_ROSTER_REMOVED_V1: 'Roster: removed',
 };
 
 export function formatTemplateLabel(templateKey: string): string {
@@ -165,6 +169,7 @@ export const NOTIFICATION_TYPE_FILTERS = [
   { value: 'INVITE', label: 'Invitations' },
   { value: 'APPOINTMENT_UPDATE', label: 'Appointment updates' },
   { value: 'STAFF', label: 'Staff access' },
+  { value: 'ROSTER', label: 'Volunteer rosters' },
 ] as const;
 
 /**

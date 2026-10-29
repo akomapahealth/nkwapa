@@ -211,6 +211,8 @@ export interface SendNotificationParams {
   portalInviteId?: string | null;
   /** Addresses a staff invitation, whose recipient may not have a User row yet. */
   staffInviteId?: string | null;
+  /** Addresses a volunteer on a screening-day roster, who may have no User row (#226). */
+  screeningEventAssignmentId?: string | null;
   appointmentId?: string | null;
   encounterId?: string | null;
   /** Null when the recipient has no address on file; recorded as a visible failure. */
@@ -334,6 +336,7 @@ export class ReminderService {
       recipientUserId: params.recipientType === 'USER' ? (params.recipientUserId ?? null) : null,
       portalInviteId: params.portalInviteId ?? null,
       staffInviteId: params.staffInviteId ?? null,
+      screeningEventAssignmentId: params.screeningEventAssignmentId ?? null,
       appointmentId: params.appointmentId ?? null,
       encounterId: params.encounterId ?? null,
       channel: 'EMAIL' as const,
@@ -1075,7 +1078,16 @@ export class ReminderService {
       where: { id: reminderId },
       include: { clinic: true, patient: true, appointment: true },
     });
-    if (!reminder || reminder.status !== 'QUEUED') return null;
+    if (!reminder) {
+      /*
+        The job is queued from inside the request's transaction (see sendNotificationNow), so a
+        fast worker can look before that transaction commits. Completing here left the row QUEUED
+        until the five-minute sweep; a roster send of several emails hit it on the first one.
+        Throwing spends an attempt and retries in seconds, by which time the row is visible.
+      */
+      throw new Error(`Reminder ${reminderId} is not visible yet`);
+    }
+    if (reminder.status !== 'QUEUED') return null;
     if (reminder.scheduledAt > new Date()) return { notDueUntil: reminder.scheduledAt };
 
     const payload = JSON.parse(reminder.payloadJson) as Record<string, unknown>;

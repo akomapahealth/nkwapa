@@ -1,7 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, Layers3, RefreshCw, ShieldAlert, Users } from 'lucide-react';
+import { AlertTriangle, Layers3, RefreshCw, ShieldAlert, UserPen, Users } from 'lucide-react';
+import { formatStaffDisplayName } from '@nkwapa/db/staff-name';
+import { toStaffNameInput, updateUserName, type StaffNameInput } from '@/lib/account-name';
+import { StaffNameForm } from '@/components/account/StaffNameForm';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
@@ -90,6 +93,7 @@ interface ClinicRosterRow {
   keycloakSub?: string;
   displayName: string;
   firstName: string | null;
+  middleInitial?: string | null;
   lastName: string | null;
   email: string | null;
   isActive: boolean;
@@ -110,6 +114,7 @@ interface AllUsersRow {
   keycloakSub: string;
   displayName: string;
   firstName: string | null;
+  middleInitial?: string | null;
   lastName: string | null;
   email: string | null;
   isActive: boolean;
@@ -139,6 +144,7 @@ interface StaffAccessRow {
   keycloakSub?: string;
   displayName: string;
   firstName: string | null;
+  middleInitial?: string | null;
   lastName: string | null;
   email: string | null;
   isActive: boolean;
@@ -186,7 +192,20 @@ function statusBadgeVariant(isActive: boolean) {
 }
 
 function nameForRow(row: StaffAccessRow) {
-  return [row.firstName, row.lastName].filter(Boolean).join(' ').trim() || row.displayName;
+  return row.firstName && row.lastName
+    ? formatStaffDisplayName({
+        firstName: row.firstName,
+        middleInitial: row.middleInitial ?? null,
+        lastName: row.lastName,
+      })
+    : row.displayName;
+}
+
+/** Patients are named by their Patient record, so only staff names are corrected here. */
+function hasStaffRole(row: StaffAccessRow) {
+  return [...row.clinicRoles, ...row.globalRoles, ...row.clinicMemberships.map((m) => m.role)].some(
+    (role) => role !== 'PATIENT',
+  );
 }
 
 function summarizeCurrentAccess(row: StaffAccessRow) {
@@ -283,6 +302,7 @@ function normalizeClinicRow(row: ClinicRosterRow, clinicId: string, clinicName: 
     keycloakSub: row.keycloakSub,
     displayName: row.displayName,
     firstName: row.firstName,
+    middleInitial: row.middleInitial ?? null,
     lastName: row.lastName,
     email: row.email,
     isActive: row.isActive,
@@ -323,6 +343,7 @@ function normalizeAllUsersRow(
     keycloakSub: row.keycloakSub,
     displayName: row.displayName,
     firstName: row.firstName,
+    middleInitial: row.middleInitial ?? null,
     lastName: row.lastName,
     email: row.email,
     isActive: row.isActive,
@@ -387,6 +408,7 @@ export default function AdminUsersPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [nameOpen, setNameOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<StaffAccessRow | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -745,6 +767,15 @@ export default function AdminUsersPage() {
       ),
     },
   ];
+
+  /** Field errors and failures surface inside the form, which keeps the input. */
+  async function handleSaveName(value: StaffNameInput) {
+    if (!getToken || !selectedUser) return;
+    const saved = await updateUserName(selectedUser.id, value, getToken);
+    setNameOpen(false);
+    setNotice(`Name updated to ${saved.displayName}.`);
+    await refreshAfterMutation();
+  }
 
   async function refreshAfterMutation(options?: { closeDetail?: boolean }) {
     const nextRows = await fetchRows({ background: true });
@@ -1376,6 +1407,7 @@ export default function AdminUsersPage() {
             setAssignRole('');
             setRevokingRole(null);
             setDeactivateOpen(false);
+            setNameOpen(false);
           }
         }}
       >
@@ -1401,6 +1433,29 @@ export default function AdminUsersPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 sm:col-span-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-eyebrow text-muted-foreground">Name on records</p>
+                      <p className="mt-2 truncate text-sm font-medium text-foreground">
+                        {nameForRow(selectedUser)}
+                      </p>
+                      {!selectedUser.firstName || !selectedUser.lastName ? (
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          No name yet. They are asked for it at their next sign-in.
+                        </p>
+                      ) : null}
+                    </div>
+                    {hasStaffRole(selectedUser) ? (
+                      <Button
+                        variant="outline"
+                        className="w-full sm:w-auto"
+                        onClick={() => setNameOpen(true)}
+                      >
+                        <UserPen className="mr-2 h-4 w-4" aria-hidden="true" />
+                        Correct name
+                      </Button>
+                    ) : null}
+                  </div>
                   <div className="rounded-lg border border-border bg-card p-4">
                     <p className="text-eyebrow text-muted-foreground">Keycloak subject</p>
                     <p className="mt-2 break-all text-sm font-medium text-foreground">
@@ -1797,6 +1852,38 @@ export default function AdminUsersPage() {
               {mutationLoading ? 'Removing...' : 'Remove role'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={nameOpen} onOpenChange={setNameOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Correct name</DialogTitle>
+            <DialogDescription className="leading-6">
+              The name shows on every record this person works on. The change is audited and reaches
+              their sign-in account too.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedUser ? (
+            <StaffNameForm
+              key={selectedUser.id}
+              idPrefix="admin-user-name"
+              initial={toStaffNameInput(selectedUser)}
+              email={selectedUser.email}
+              onSubmit={handleSaveName}
+              secondaryAction={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="lg"
+                  className="w-full sm:w-auto"
+                  onClick={() => setNameOpen(false)}
+                >
+                  Cancel
+                </Button>
+              }
+            />
+          ) : null}
         </DialogContent>
       </Dialog>
 

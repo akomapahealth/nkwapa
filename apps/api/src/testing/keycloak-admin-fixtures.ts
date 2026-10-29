@@ -1,9 +1,13 @@
 import { KeycloakAdminService } from '../keycloak/keycloak-admin.service';
-import type { ProvisionInvitedIdentityResult } from '../keycloak/keycloak-admin.service';
+import type {
+  IdentityAccessResult,
+  ProvisionInvitedIdentityResult,
+} from '../keycloak/keycloak-admin.service';
 
 export interface KeycloakAdminServiceMock {
   isReady: boolean;
   provisionInvitedIdentity: jest.Mock<Promise<ProvisionInvitedIdentityResult>>;
+  updateIdentityNames: jest.Mock<Promise<IdentityAccessResult>>;
 }
 
 /**
@@ -29,6 +33,12 @@ export function createKeycloakAdminServiceMock(
   return {
     isReady: true,
     provisionInvitedIdentity: jest.fn().mockResolvedValue(result),
+    updateIdentityNames: jest.fn().mockResolvedValue({
+      outcome: 'APPLIED',
+      sessionsEnded: false,
+      retryable: false,
+      failureReason: null,
+    }),
   };
 }
 

@@ -40,7 +40,7 @@ export { InlineNotice };
 function shiftRoleTone(role: ShiftRole) {
   switch (role) {
     case 'VOLUNTEER':
-      return 'border-primary/25 bg-primary/10 text-primary';
+      return 'border-primary/25 bg-primary/10 text-foreground';
     case 'DOCTOR':
       return 'border-info/25 bg-info/10 text-info-ink';
     case 'MANAGER':

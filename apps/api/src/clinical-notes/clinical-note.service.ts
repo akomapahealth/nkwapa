@@ -34,6 +34,9 @@ type RequestMetadata = {
   userAgent?: string;
 };
 
+/** `ClinicalNote.assignedVolunteerNameSnapshot` is VARCHAR(200). */
+const VOLUNTEER_NAME_SNAPSHOT_MAX = 200;
+
 const noteMetadata = (status: ClinicalNoteStatus, version: number) =>
   JSON.stringify({ status, version });
 
@@ -484,7 +487,19 @@ export class ClinicalNoteService {
    * or after completing, this encounter's review-station visit: the person who counselled the
    * patient is the person whose note goes to a doctor. The snapshot names them and no doctor;
    * whichever doctor cosigns is recorded as the cosigner.
+   *
+   * When someone without an account screened on the volunteer's (#227), the snapshot names them
+   * and the account: the stop's stamp once it is complete, else the shift's current screener.
    */
+  /** Who is screening on this user's account right now (#227); null when it is the user. */
+  private async currentScreener(tx: Prisma.TransactionClient, clinicId: string, userId: string) {
+    const shift = await tx.staffShift.findFirst({
+      where: { clinicId, userId, status: 'ACTIVE' },
+      select: { screenerIsAccountHolder: true, screenerName: true },
+    });
+    return shift && !shift.screenerIsAccountHolder ? shift.screenerName : null;
+  }
+
   private async submitFromStation(
     tx: Prisma.TransactionClient,
     clinicId: string,
@@ -518,10 +533,19 @@ export class ClinicalNoteService {
           message: 'Only the volunteer at the review station may submit this note.',
         });
       }
+      const account = review.claimedBy?.displayName ?? review.completedBy?.displayName ?? null;
+      const screener =
+        review.status === 'COMPLETED'
+          ? review.performedByIsAccountHolder === false
+            ? review.performedByName
+            : null
+          : await this.currentScreener(tx, clinicId, actor.userId);
       snapshot = {
         assignedVolunteerId: actor.userId,
         assignedVolunteerNameSnapshot:
-          review.claimedBy?.displayName ?? review.completedBy?.displayName ?? null,
+          screener && account
+            ? `${screener} (on ${account}'s account)`.slice(0, VOLUNTEER_NAME_SNAPSHOT_MAX)
+            : account,
         assignmentAssignedAtSnapshot: review.claimedAt,
       };
     }

@@ -1,6 +1,7 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { HealthModule } from './health/health.module';
+import { StatusModule } from './status/status.module';
 import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
@@ -23,6 +24,7 @@ import { PrescriptionModule } from './prescriptions/prescription.module';
 import { ResearchModule } from './research/research.module';
 import { PatientPortalModule } from './patient-portal/patient-portal.module';
 import { StaffInviteModule } from './staff-invites/staff-invite.module';
+import { VolunteersModule } from './volunteers/volunteers.module';
 import { OrganizationReportModule } from './org-reports/organization-report.module';
 import { OpsModule } from './ops/ops.module';
 import { ChatModule } from './chat/chat.module';
@@ -52,6 +54,7 @@ import { StaffActivityModule } from './staff-activity/staff-activity.module';
     RedisModule,
     MaintenanceModule,
     HealthModule,
+    StatusModule,
     AuthModule,
     AuditModule,
     TelemetryModule,
@@ -70,6 +73,7 @@ import { StaffActivityModule } from './staff-activity/staff-activity.module';
     ResearchModule,
     PatientPortalModule,
     StaffInviteModule,
+    VolunteersModule,
     OrganizationReportModule,
     OpsModule,
     ChatModule,

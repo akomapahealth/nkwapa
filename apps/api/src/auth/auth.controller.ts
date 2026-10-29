@@ -8,6 +8,7 @@ import { RateLimit } from '../common/rate-limit.decorator';
 import { claimableInviteForIdentityWhere } from '../common/portal-invite-lifecycle';
 import { IncludeStaffInviteScope } from '../staff-invites/staff-invite-scope.decorator';
 import { CompleteWelcomeTourDto } from './dto/welcome-tour.dto';
+import { holdsStaffRole } from './clinic-roles';
 import {
   findAcceptableStaffInvites,
   type AcceptableStaffInvite,
@@ -53,6 +54,7 @@ export interface WhoAmIResponse {
   pendingStaffInvites: AcceptableStaffInvite[];
   onboarding:
     | { state: 'STAFF_INVITE_ACCEPT_REQUIRED' }
+    | { state: 'NAME_REQUIRED' }
     | {
         state: 'PATIENT_CLAIM_REQUIRED';
         pendingInvites: Array<{
@@ -74,6 +76,17 @@ export interface WhoAmIResponse {
    * offers the tour while this is below its current version. Not onboarding: it gates nothing.
    */
   welcomeTour: { completedVersion: number | null };
+  /**
+   * The person's own name (#225). `needsName` is true for a staff account missing a first or
+   * last name; the web app then holds them on the name step (`onboarding: NAME_REQUIRED`).
+   */
+  profile: {
+    needsName: boolean;
+    firstName: string | null;
+    middleInitial: string | null;
+    lastName: string | null;
+    email: string | null;
+  };
 }
 
 @Controller('auth')
@@ -166,17 +179,26 @@ export class AuthController {
       rare and one has to win; once accepted, the account holds a role and the claim onboarding
       below no longer applies to it.
     */
+    const profile = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: {
+        welcomeTourVersion: true,
+        firstName: true,
+        middleInitial: true,
+        lastName: true,
+        email: true,
+      },
+    });
+    // Patients are named by their Patient record, so only staff are asked (#225).
+    const needsName = holdsStaffRole(roles) && !(profile?.firstName && profile?.lastName);
     const onboarding: WhoAmIResponse['onboarding'] =
       roles.length > 0
-        ? null
+        ? needsName
+          ? { state: 'NAME_REQUIRED' }
+          : null
         : pendingStaffInvites.length > 0
           ? { state: 'STAFF_INVITE_ACCEPT_REQUIRED' }
           : await this.findPendingPatientClaimOnboarding(user.id);
-
-    const tour = await this.prisma.user.findUnique({
-      where: { id: user.id },
-      select: { welcomeTourVersion: true },
-    });
 
     return {
       userId: user.id,
@@ -190,7 +212,14 @@ export class AuthController {
       effectivePermissionsForActiveClinic,
       pendingStaffInvites,
       onboarding,
-      welcomeTour: { completedVersion: tour?.welcomeTourVersion ?? null },
+      welcomeTour: { completedVersion: profile?.welcomeTourVersion ?? null },
+      profile: {
+        needsName,
+        firstName: profile?.firstName ?? null,
+        middleInitial: profile?.middleInitial ?? null,
+        lastName: profile?.lastName ?? null,
+        email: profile?.email ?? null,
+      },
     };
   }
 

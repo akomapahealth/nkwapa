@@ -67,6 +67,7 @@ Current permission families include:
 - dashboard reads
 - patient portal self and staff-linked reads/actions
 - suspected duplicate review
+- volunteer directory and screening-day rosters
 
 Realm roles in Keycloak are descriptive, not the authoritative enforcement layer.
 
@@ -172,6 +173,19 @@ looked without becoming a copy of what they saw. The route also emits the
 The investigation is read-only. Future org-level roles can be granted access by widening the
 service check, which is the single place it is decided; merging across clinics stays refused until
 a consolidation policy exists (see `02_DOMAIN_MODEL_AND_DATA_DICTIONARY.md`).
+
+Volunteer directory and screening-day rosters (#226):
+
+- `VOLUNTEER.ROSTER.MANAGE`: director and manager, with `SYSTEM_ADMIN` through the wildcard. One
+  permission covers reading and writing the directory, screening events, rosters and roster emails.
+  Doctors, volunteers and patients hold nothing, and the "Volunteers" nav entry is hidden from them.
+- Every route sits under `/clinics/:clinicId` with `ClinicScopeGuard`, and the services look every
+  contact, event and assignment up by id _and_ path clinic, so an id from another clinic is a 404.
+  `VolunteerContact`, `ScreeningEvent` and `ScreeningEventAssignment` each carry `clinicId` and the
+  ordinary `app.can_access_clinic` RLS policy (ENABLE + FORCE).
+- Linking a contact to an account is explicit and audited. The server checks that the user holds a
+  role at the same clinic and that their email matches the contact's; it never links on its own and
+  never creates a Keycloak account.
 
 ---
 
@@ -306,7 +320,10 @@ It returns:
 - onboarding state: `PATIENT_CLAIM_REQUIRED` for a patient who still needs to claim a record, or
   `STAFF_INVITE_ACCEPT_REQUIRED` for an account with no role and an open staff invitation. Only an
   account with no role at all is held on an onboarding page; a colleague who already works in one
-  clinic is offered an invitation to another, not redirected to it
+  clinic is offered an invitation to another, not redirected to it. A staff account that holds a
+  role but has no first or last name gets `NAME_REQUIRED` and is held on `/account/name` (#225)
+- the user's own name (`profile`): `needsName`, `firstName`, `middleInitial`, `lastName` and
+  `email`, so the name step can prefill. `needsName` is never true for a patient-only account
 
 A clinic's zone rides along so a single-clinic view can name the zone it is showing. It appears
 beside a clinic and nowhere else: never in effective roles, never in effective permissions.
@@ -329,6 +346,11 @@ identity by hand.
    `STAFF_INVITE_V1`, which names the clinic, the role and that link's subject.
 3. The invitee signs in and accepts on `/accept-invite` (`POST /staff-invites/:id/accept`). The
    role is granted immediately and audited as `ROLE.GRANT` with the invitation it came from.
+4. The inviter may name the invitee. The names are stored on the invite, sent to Keycloak at
+   provisioning, and copied onto the account at accept, filling only missing fields. Without a
+   name the invitee is held on `/account/name` (`PATCH /me/profile/name`) after accepting. Nkwapa
+   owns the name and derives `displayName` from it. Admins correct names with
+   `PATCH /admin/users/:userId/name` (see `docs/USER_AND_ROLE_SETUP_GUIDE.md`, Staff names).
 
 A staff invitation grants a role over other people's records with possession of the inbox as the
 only proof, unlike a patient invitation, which still needs a patient code and a date of birth. So

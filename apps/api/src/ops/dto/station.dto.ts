@@ -49,6 +49,34 @@ export class StationSkipDto {
   reason!: string;
 }
 
+/**
+ * Who is really working on the account (#227). A blank name with `isAccountHolder: false` is
+ * refused by the service as SCREENER_NAME_REQUIRED, so clients get one code for it.
+ */
+export class ScreenerDto {
+  @IsBoolean()
+  isAccountHolder!: boolean;
+
+  @IsOptional()
+  @ToSanitizedString({ maxLength: 120 })
+  @IsString()
+  @MaxLength(120)
+  name?: string;
+
+  /** Picked from the volunteer directory (#226). The server takes the name from the contact. */
+  @IsOptional()
+  @IsUUID()
+  volunteerContactId?: string;
+}
+
+export class CorrectPerformerDto extends ScreenerDto {
+  @ToSanitizedString({ maxLength: 500 })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(500)
+  reason!: string;
+}
+
 export class CompleteStationVisitDto {
   /** What the next station should know. */
   @IsOptional()
@@ -69,6 +97,12 @@ export class CompleteStationVisitDto {
   @ValidateNested({ each: true })
   @Type(() => StationSkipDto)
   skips?: StationSkipDto[];
+
+  /** Who did this stop. Omitted by older clients: the shift's screener is used. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ScreenerDto)
+  screener?: ScreenerDto;
 }
 
 export class AssignStationVisitDto {

@@ -389,3 +389,15 @@ export {
 export * from './src/hypertension-interview';
 export * from './src/diabetes-interview';
 export * from './src/medication-adherence';
+export {
+  MIDDLE_INITIAL_MESSAGE,
+  STAFF_NAME_MAX_LENGTH,
+  formatStaffDisplayName,
+  middleInitialError,
+  normalizeMiddleInitial,
+  normalizeStaffNamePart,
+  staffNameMessage,
+  staffNamePartError,
+  type StaffNameError,
+  type StaffNameParts,
+} from './src/staff-name';

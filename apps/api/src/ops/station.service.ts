@@ -23,16 +23,28 @@ import { computeStationMetrics } from './station-metrics';
 import type {
   CompleteStationVisitDto,
   CreateStationDto,
+  CorrectPerformerDto,
   MoveCheckInDto,
+  ScreenerDto,
   UpdateStationDto,
 } from './dto/station.dto';
 
 type TxClient = Prisma.TransactionClient;
 
+/** A shift's screener columns (#227), with the directory link (#226). */
+export type ShiftScreener = {
+  screenerIsAccountHolder: boolean;
+  screenerName: string | null;
+  screenerVolunteerContactId: string | null;
+};
+
 /** A visit a patient is still waiting at or being seen in. At most one per check-in (SQL). */
 const OPEN_VISIT_STATUSES: StationVisitStatus[] = ['QUEUED', 'IN_PROGRESS'];
 
 const USER_SUMMARY = { select: { id: true, displayName: true } } as const;
+
+/** How many directory names the screener field suggests (#227, #226). */
+const SCREENER_NAME_LIMIT = 200;
 
 const VISIT_INCLUDE = {
   station: { select: { id: true, kind: true, name: true, sortOrder: true } },
@@ -63,6 +75,14 @@ export interface StationActor {
 export interface StationWriteContext {
   requestId?: string;
 }
+
+/** Who did a stop, as stored on the visit (#227). */
+type Performer = {
+  performedByIsAccountHolder: boolean;
+  performedByName: string | null;
+  /** The directory entry the name was picked from (#226); the name stays the snapshot. */
+  performedByVolunteerContactId: string | null;
+};
 
 /**
  * The station line (#167).
@@ -141,6 +161,8 @@ export class StationService {
     this.requireManage(actor);
     try {
       const station = await this.prisma.$transaction(async (tx) => {
+        // The lock setShiftStation takes, so nobody picks this station while it closes (#228).
+        if (dto.active === false) await lockForTransaction(tx, `clinic-stations:${clinicId}`);
         const existing = await this.findStation(tx, clinicId, stationId);
         if (dto.active === false && existing.active) {
           if (existing.kind === StationKind.REVIEW) {
@@ -176,6 +198,9 @@ export class StationService {
           beforeJson: JSON.stringify(existing),
           afterJson: JSON.stringify(updated),
         });
+        if (dto.active === false && existing.active) {
+          await this.releaseShiftsAt(tx, clinicId, stationId, actor, context);
+        }
         return updated;
       });
       return this.toStation(station);
@@ -223,6 +248,29 @@ export class StationService {
     return this.listStations(clinicId);
   }
 
+  /** A closed station keeps nobody: whoever was working there chooses again (#228). */
+  private async releaseShiftsAt(
+    tx: TxClient,
+    clinicId: string,
+    stationId: string,
+    actor: StationActor,
+    context: StationWriteContext,
+  ) {
+    const where = { clinicId, stationId, status: 'ACTIVE' as const };
+    const shifts = await tx.staffShift.findMany({ where, select: { id: true } });
+    if (!shifts.length) return;
+    await tx.staffShift.updateMany({ where, data: { stationId: null } });
+    for (const shift of shifts) {
+      await this.audit(tx, clinicId, actor.userId, context, {
+        action: 'SHIFT.STATION.UPDATE',
+        entityType: 'StaffShift',
+        entityId: shift.id,
+        beforeJson: JSON.stringify({ stationId }),
+        afterJson: JSON.stringify({ stationId: null, reason: 'STATION_DEACTIVATED' }),
+      });
+    }
+  }
+
   /** The station the caller is working right now, on their own active shift. */
   async setShiftStation(
     clinicId: string,
@@ -246,6 +294,8 @@ export class StationService {
         });
       }
       if (stationId) {
+        // Held until commit, so a station closing at the same moment waits and then clears this.
+        await lockForTransaction(tx, `clinic-stations:${clinicId}`);
         const station = await this.findStation(tx, clinicId, stationId);
         if (!station.active) throw this.stationInactive();
       }
@@ -262,6 +312,102 @@ export class StationService {
       });
       return { shiftId: updated.id, stationId: updated.stationId };
     });
+  }
+
+  /** Who is really working on the caller's account (#227), until changed or check-out. */
+  async setShiftScreener(
+    clinicId: string,
+    shiftId: string,
+    actor: StationActor,
+    dto: ScreenerDto,
+    context: StationWriteContext = {},
+  ) {
+    const performer = await this.toPerformer(this.prisma, clinicId, dto);
+    const data = {
+      screenerIsAccountHolder: performer.performedByIsAccountHolder,
+      screenerName: performer.performedByName,
+      screenerVolunteerContactId: performer.performedByVolunteerContactId,
+    };
+    return this.prisma.$transaction(async (tx) => {
+      const shift = await tx.staffShift.findUnique({ where: { id: shiftId } });
+      if (!shift || shift.clinicId !== clinicId) {
+        throw new NotFoundException({ code: 'SHIFT_NOT_FOUND', message: 'Shift not found' });
+      }
+      if (shift.userId !== actor.userId) {
+        throw new ForbiddenException('You can only say who is screening on your own shift');
+      }
+      if (shift.status !== 'ACTIVE') {
+        throw new ConflictException({
+          code: 'SHIFT_ALREADY_CLOSED',
+          message: 'Start a shift before saying who is screening',
+        });
+      }
+      const updated = await tx.staffShift.update({ where: { id: shiftId }, data });
+      await this.audit(tx, clinicId, actor.userId, context, {
+        action: 'SHIFT.SCREENER.UPDATE',
+        entityType: 'StaffShift',
+        entityId: shiftId,
+        beforeJson: JSON.stringify({
+          screenerIsAccountHolder: shift.screenerIsAccountHolder,
+          screenerName: shift.screenerName,
+        }),
+        afterJson: JSON.stringify(data),
+      });
+      return {
+        shiftId: updated.id,
+        screenerIsAccountHolder: updated.screenerIsAccountHolder,
+        screenerName: updated.screenerName,
+      };
+    });
+  }
+
+  /**
+   * Fix who did a finished stop (#227). The account that completed it may, until the session's
+   * counselling is locked; a manager may at any time.
+   */
+  async correctPerformer(
+    clinicId: string,
+    visitId: string,
+    actor: StationActor,
+    dto: CorrectPerformerDto,
+    context: StationWriteContext = {},
+  ) {
+    const performer = await this.toPerformer(this.prisma, clinicId, dto);
+    const visit = await this.prisma.$transaction(async (tx) => {
+      const before = await this.loadVisitInClinic(tx, clinicId, visitId);
+      if (before.status !== 'COMPLETED' && before.status !== 'SKIPPED') {
+        throw new ConflictException({
+          code: 'STATION_VISIT_NOT_FINISHED',
+          message: 'Only a finished stop can be corrected.',
+        });
+      }
+      if (!actor.canManage) {
+        const locked = before.encounterId
+          ? await tx.counsellingRecord.findUnique({
+              where: { encounterId: before.encounterId },
+              select: { lockedAt: true },
+            })
+          : null;
+        if (before.completedByUserId !== actor.userId || locked?.lockedAt) {
+          throw new ForbiddenException({
+            code: 'STATION_PERFORMER_CORRECTION_FORBIDDEN',
+            message:
+              'Only the account that finished this stop can correct it, until the session is locked. Ask a manager.',
+          });
+        }
+      }
+      await tx.patientStationVisit.update({ where: { id: visitId }, data: performer });
+      const updated = await this.loadVisit(tx, visitId);
+      await this.audit(tx, clinicId, actor.userId, context, {
+        action: 'STATION.PERFORMER.CORRECT',
+        entityType: 'PatientStationVisit',
+        entityId: visitId,
+        beforeJson: JSON.stringify(this.auditShape(before)),
+        afterJson: JSON.stringify({ ...this.auditShape(updated), reason: dto.reason }),
+      });
+      return updated;
+    });
+    return this.toVisit(visit);
   }
 
   // ── Reads ───────────────────────────────────────────────────────────────────────────────
@@ -290,7 +436,14 @@ export class StationService {
       }),
       this.prisma.staffShift.findMany({
         where: { clinicId, status: 'ACTIVE' },
-        select: { stationId: true, roleAtShift: true, user: USER_SUMMARY },
+        select: {
+          id: true,
+          stationId: true,
+          roleAtShift: true,
+          screenerIsAccountHolder: true,
+          screenerName: true,
+          user: USER_SUMMARY,
+        },
         orderBy: { checkedInAt: 'asc' },
       }),
     ]);
@@ -313,14 +466,16 @@ export class StationService {
         ).length,
         staff: myShifts
           .filter((shift) => shift.stationId === station.id)
-          .map((shift) => shift.user),
+          .map((shift) => ({ ...shift.user, screenerName: this.screenerNameOf(shift) })),
         visits: visits
           .filter((visit) => visit.stationId === station.id)
           .map((visit) => this.toVisit(visit, previous.get(visit.patientCheckInId))),
       })),
       // Everyone a manager could hand a patient to, and how many patients each is holding now.
       onShift: myShifts.map((shift) => ({
+        shiftId: shift.id,
         user: shift.user,
+        screenerName: this.screenerNameOf(shift),
         roleAtShift: shift.roleAtShift,
         stationId: shift.stationId,
         activeVisitCount: holding.get(shift.user.id) ?? 0,
@@ -333,6 +488,25 @@ export class StationService {
    * visits, and the shifts that overlapped it. Aggregated in `computeStationMetrics`; nothing
    * that names a patient is read.
    */
+  /**
+   * The clinic's active volunteer directory (#226), for the screener field (#227). Each item
+   * carries its contact id, which the field sends back so the stop links to the directory entry.
+   */
+  async getScreenerNames(clinicId: string) {
+    const contacts = await this.prisma.volunteerContact.findMany({
+      where: { clinicId, isActive: true },
+      select: { id: true, displayName: true },
+      orderBy: { displayName: 'asc' },
+      take: SCREENER_NAME_LIMIT,
+    });
+    return {
+      items: contacts.map((contact) => ({
+        name: contact.displayName,
+        volunteerContactId: contact.id,
+      })),
+    };
+  }
+
   async getMetrics(clinicId: string, date?: string, now: Date = new Date()) {
     const day = await this.dayWindow(clinicId, date);
     const inDay = { gte: day.start, lte: day.end };
@@ -506,6 +680,14 @@ export class StationService {
     if (context.force) this.requireManage(actor);
     const visit = await this.prisma.$transaction(async (tx) => {
       const before = await this.loadVisitInClinic(tx, clinicId, visitId);
+      // A manager forcing a release didn't do the stop, and can't say who did.
+      const performer = context.force
+        ? {
+            performedByIsAccountHolder: null,
+            performedByName: null,
+            performedByVolunteerContactId: null,
+          }
+        : await this.performerFor(tx, clinicId, actor.userId);
       const released = await tx.patientStationVisit.updateMany({
         where: {
           id: visitId,
@@ -519,6 +701,7 @@ export class StationService {
           assignedByUserId: null,
           endReason: reason,
           releaseCount: { increment: 1 },
+          ...performer,
         },
       });
       if (released.count === 0) throw this.notYourVisit(before);
@@ -614,9 +797,11 @@ export class StationService {
         }
       }
 
+      const performer = await this.performerFor(tx, clinicId, actor.userId, dto.screener);
       const completed = await tx.patientStationVisit.updateMany({
         where: { id: visitId, status: 'IN_PROGRESS', claimedByUserId: actor.userId },
         data: {
+          ...performer,
           status: 'COMPLETED',
           completedByUserId: actor.userId,
           completedAt: now,
@@ -638,6 +823,7 @@ export class StationService {
             completedByUserId: actor.userId,
             completedAt: now,
             endReason: skip.reason,
+            ...performer,
           },
         });
         await this.audit(tx, clinicId, actor.userId, context, {
@@ -779,9 +965,17 @@ export class StationService {
    */
   async releaseForShiftEnd(
     tx: TxClient,
-    params: { clinicId: string; userId: string; actorUserId: string },
+    params: {
+      clinicId: string;
+      userId: string;
+      actorUserId: string;
+      /** The shift's screener, read before check-out cleared it. */
+      screener: ShiftScreener;
+    },
     context: StationWriteContext = {},
   ) {
+    // Already checked when it was set; a contact deactivated since must not block check-out.
+    const performer = this.storedPerformer(params.screener);
     const held = await tx.patientStationVisit.findMany({
       where: { clinicId: params.clinicId, status: 'IN_PROGRESS', claimedByUserId: params.userId },
       select: { id: true },
@@ -796,6 +990,7 @@ export class StationService {
           assignedByUserId: null,
           endReason: 'SHIFT_ENDED',
           releaseCount: { increment: 1 },
+          ...performer,
         },
       });
       await this.audit(tx, params.clinicId, params.actorUserId, context, {
@@ -1097,6 +1292,99 @@ export class StationService {
     return clinicDayWindow(date, clinic?.timezone ?? CLINIC_DEFAULT_TIMEZONE);
   }
 
+  /**
+   * Trimmed and checked; the account holder carries no name. A pick from the directory (#226) is
+   * looked up in this clinic and must be active, and its name comes from the server's copy.
+   */
+  private async toPerformer(
+    db: Pick<TxClient, 'volunteerContact'>,
+    clinicId: string,
+    screener: ScreenerDto,
+  ): Promise<Performer> {
+    if (screener.isAccountHolder) {
+      return {
+        performedByIsAccountHolder: true,
+        performedByName: null,
+        performedByVolunteerContactId: null,
+      };
+    }
+    if (screener.volunteerContactId) {
+      const contact = await db.volunteerContact.findFirst({
+        where: { id: screener.volunteerContactId, clinicId, isActive: true },
+        select: { id: true, displayName: true },
+      });
+      if (!contact) {
+        throw new BadRequestException({
+          code: 'SCREENER_CONTACT_NOT_FOUND',
+          message:
+            "That volunteer is not in this clinic's active directory. Type their name instead.",
+        });
+      }
+      return {
+        performedByIsAccountHolder: false,
+        performedByName: contact.displayName,
+        performedByVolunteerContactId: contact.id,
+      };
+    }
+    const name = screener.name?.trim();
+    if (!name) {
+      throw new BadRequestException({
+        code: 'SCREENER_NAME_REQUIRED',
+        message: 'Enter the name of the person screening.',
+      });
+    }
+    return {
+      performedByIsAccountHolder: false,
+      performedByName: name,
+      performedByVolunteerContactId: null,
+    };
+  }
+
+  /** A screener already stored on a shift, carried onto a visit as it is. */
+  private storedPerformer(shift: ShiftScreener): Performer {
+    if (shift.screenerIsAccountHolder || !shift.screenerName) {
+      return {
+        performedByIsAccountHolder: true,
+        performedByName: null,
+        performedByVolunteerContactId: null,
+      };
+    }
+    return {
+      performedByIsAccountHolder: false,
+      performedByName: shift.screenerName,
+      performedByVolunteerContactId: shift.screenerVolunteerContactId,
+    };
+  }
+
+  /** The screener sent with the request, else the user's shift's, else the account holder. */
+  private async performerFor(
+    tx: TxClient,
+    clinicId: string,
+    userId: string,
+    override?: ScreenerDto,
+  ): Promise<Performer> {
+    if (override) return this.toPerformer(tx, clinicId, override);
+    const shift = await tx.staffShift.findFirst({
+      where: { clinicId, userId, status: 'ACTIVE' },
+      select: {
+        screenerIsAccountHolder: true,
+        screenerName: true,
+        screenerVolunteerContactId: true,
+      },
+    });
+    return shift
+      ? this.storedPerformer(shift)
+      : this.storedPerformer({
+          screenerIsAccountHolder: true,
+          screenerName: null,
+          screenerVolunteerContactId: null,
+        });
+  }
+
+  private screenerNameOf(shift: { screenerIsAccountHolder: boolean; screenerName: string | null }) {
+    return shift.screenerIsAccountHolder ? null : shift.screenerName;
+  }
+
   private audit(
     tx: TxClient,
     clinicId: string,
@@ -1121,6 +1409,8 @@ export class StationService {
       completedByUserId: visit.completedByUserId,
       encounterId: visit.encounterId,
       endReason: visit.endReason,
+      performedByIsAccountHolder: visit.performedByIsAccountHolder,
+      performedByName: visit.performedByName,
     };
   }
 
@@ -1165,6 +1455,7 @@ export class StationService {
       assignedBy: visit.assignedBy,
       completedBy: visit.completedBy,
       completedAt: visit.completedAt?.toISOString() ?? null,
+      performedByName: this.performedByNameOf(visit),
       handoffNote: visit.handoffNote,
       endReason: visit.endReason,
       releaseCount: visit.releaseCount,
@@ -1173,10 +1464,16 @@ export class StationService {
             station: previous.station,
             completedBy: previous.completedBy,
             completedAt: previous.completedAt?.toISOString() ?? null,
+            performedByName: this.performedByNameOf(previous),
             handoffNote: previous.handoffNote,
           }
         : null,
     };
+  }
+
+  /** Null when the account holder did the stop, or it predates #227: show the account only. */
+  private performedByNameOf(visit: VisitWithContext) {
+    return visit.performedByIsAccountHolder === false ? visit.performedByName : null;
   }
 
   private visitNotFound() {

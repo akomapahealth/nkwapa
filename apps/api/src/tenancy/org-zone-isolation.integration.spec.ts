@@ -143,7 +143,7 @@ describeIsolation('organization and zone isolation', () => {
 
     interceptor = new PrismaRlsInterceptor(prisma, new Reflector());
     clinics = new ClinicService(prisma);
-    admin = new AdminService(prisma, {} as never, {} as never, {} as never);
+    admin = new AdminService(prisma, {} as never, {} as never, {} as never, {} as never);
     dashboard = new DashboardService(prisma);
     reports = new OrganizationReportService(prisma);
     analytics = new OrganizationAnalyticsService(prisma);

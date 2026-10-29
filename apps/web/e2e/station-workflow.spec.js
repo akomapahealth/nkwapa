@@ -569,6 +569,133 @@ test('a manager hands a waiting patient to a volunteer on shift', async ({ page 
   expect(left.ok(), left.text()).toBeTruthy();
 });
 
+test("a volunteer screening on someone else's account is named on each stop (#227)", async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  const patient = await createPatient(page);
+  const { clinicId } = patient;
+  await ensureShift('staff', clinicId);
+  await ensureShift('volunteer', clinicId);
+  const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+    clinicId,
+    data: { patientId: patient.patientId },
+  });
+  expect(checkIn.ok(), checkIn.text()).toBeTruthy();
+  const checkInId = checkIn.json().id;
+  const intake = await claimNext('staff', clinicId, checkInId);
+  expect((await complete('staff', clinicId, intake.at.visit.id)).ok()).toBeTruthy();
+
+  const volunteerContext = await browser.newContext({
+    storageState: storageStateFor('volunteer'),
+  });
+  const volunteerPage = await volunteerContext.newPage();
+  try {
+    // On the account, but someone without one is doing the screening.
+    await volunteerPage.goto('/stations');
+    await expect(volunteerPage.getByRole('heading', { name: 'Stations' })).toBeVisible({
+      timeout: 20_000,
+    });
+    const bpButton = volunteerPage.getByRole('button', { name: /^Blood pressure/ });
+    if ((await bpButton.getAttribute('aria-pressed')) !== 'true') await bpButton.click();
+    const holder = volunteerPage.getByRole('checkbox', { name: "I'm the one screening" });
+    await expect(holder).toBeChecked({ timeout: 20_000 });
+    await holder.click();
+    await volunteerPage.getByRole('button', { name: 'Save name' }).click();
+    await expect(volunteerPage.getByText('Enter the name of the person screening.')).toBeVisible();
+    await volunteerPage.getByLabel('Name of the person screening').fill('Ama Mensah');
+    await volunteerPage.getByRole('button', { name: 'Save name' }).click();
+    await expect(volunteerPage.getByText('Now recording as Ama Mensah.')).toBeVisible({
+      timeout: 20_000,
+    });
+
+    const row = volunteerPage.locator('div', { hasText: patient.name }).filter({
+      has: volunteerPage.getByRole('button', { name: 'Take patient' }),
+    });
+    await row.last().getByRole('button', { name: 'Take patient' }).click();
+    await volunteerPage.waitForURL(/\/stations\/visits\//, { timeout: 20_000 });
+    await expect(volunteerPage.getByText(/Recording as Ama Mensah on .+'s account/)).toBeVisible({
+      timeout: 20_000,
+    });
+    await volunteerPage.getByLabel('Systolic BP (mmHg)').fill('128');
+    await volunteerPage.getByLabel('Diastolic BP (mmHg)').fill('82');
+    await volunteerPage.getByLabel('Measurement site').click();
+    await volunteerPage.getByRole('option', { name: /left arm/i }).click();
+    await volunteerPage.getByRole('button', { name: 'Save measurements' }).click();
+    await expect(volunteerPage.getByText('Measurements saved and synced.')).toBeVisible({
+      timeout: 20_000,
+    });
+    await volunteerPage.getByRole('button', { name: /^Send to Glucose/ }).click();
+    await volunteerPage.waitForURL(/\/stations$/, { timeout: 20_000 });
+  } finally {
+    await volunteerContext.close();
+  }
+
+  // The stop names both: the account stays the one that completed it.
+  const timeline = await apiRequestAs(
+    'staff',
+    'get',
+    `/clinics/${clinicId}/checkins/${checkInId}/station-visits`,
+    { clinicId },
+  );
+  const bp = timeline.json().items.find((stop) => stop.station.kind === 'BLOOD_PRESSURE');
+  expect(bp).toMatchObject({ status: 'COMPLETED', performedByName: 'Ama Mensah' });
+  const account = bp.completedBy.displayName;
+
+  // The manager's board names who is screening on the account.
+  await page.goto('/today');
+  await expect(page.getByText(`${account} (Ama Mensah screening)`).first()).toBeVisible({
+    timeout: 20_000,
+  });
+
+  // A manager corrects the stop from the next station's visit, with a reason, picking the person
+  // from the clinic's volunteer directory (#226).
+  const kwame = `Kwame Asante ${Date.now()}`;
+  const contact = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/volunteers`, {
+    clinicId,
+    data: { displayName: kwame, email: `kwame.${Date.now()}@nkwapa.local` },
+  });
+  expect(contact.ok(), contact.text()).toBeTruthy();
+  const glucose = timeline.json().items.find((stop) => stop.station.kind === 'GLUCOSE');
+  await page.goto(`/stations/visits/${glucose.id}`);
+  const bpStop = page.getByRole('listitem').filter({ hasText: 'Blood pressure ·' });
+  await bpStop.getByRole('button', { name: 'Correct who did this' }).click();
+  await bpStop.getByLabel('Who actually did it').fill(kwame);
+  await bpStop.getByRole('button', { name: kwame, exact: true }).click();
+  await expect(bpStop.getByRole('button', { name: kwame, exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await bpStop.getByRole('button', { name: 'Save correction' }).click();
+  await expect(bpStop.getByText('Say why this is being corrected.')).toBeVisible();
+  await bpStop.getByLabel('Reason for the correction').fill('Ama handed over before this patient');
+  await bpStop.getByRole('button', { name: 'Save correction' }).click();
+  await expect(bpStop.getByText(`${kwame} · signed in as ${account}`)).toBeVisible({
+    timeout: 20_000,
+  });
+
+  // Back to the account holder, so later specs start from the default.
+  const board = (
+    await apiRequestAs('volunteer', 'get', `/clinics/${clinicId}/stations/board`, { clinicId })
+  ).json();
+  const mine = board.onShift.find((member) => member.user.id === bp.completedBy.id);
+  const reset = await apiRequestAs(
+    'volunteer',
+    'patch',
+    `/clinics/${clinicId}/shifts/${mine.shiftId}/screener`,
+    { clinicId, data: { isAccountHolder: true } },
+  );
+  expect(reset.ok(), reset.text()).toBeTruthy();
+  const left = await apiRequestAs(
+    'staff',
+    'post',
+    `/clinics/${clinicId}/checkins/${checkInId}/cancel`,
+    { clinicId, data: { reason: 'Test finished' } },
+  );
+  expect(left.ok(), left.text()).toBeTruthy();
+});
+
 test.describe('the station screens keep separate offline copies (#197)', () => {
   /*
     /today (the station line board) and /stations used to cache different shapes under one key.
@@ -728,4 +855,51 @@ test.describe('the station screens keep separate offline copies (#197)', () => {
     expect(errors).toEqual([]);
     await context.close();
   });
+});
+
+test('closing a station clears it from the volunteer working there, who is told why (#228)', async ({
+  browser,
+}) => {
+  test.setTimeout(90_000);
+  const clinicId = (await apiRequestAs('staff', 'get', '/auth/whoami')).json().activeClinicId;
+  const name = `Closing ${randomUUID().slice(0, 8)}`;
+  const created = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/stations`, {
+    clinicId,
+    data: { kind: 'CUSTOM', name },
+  });
+  expect(created.ok(), created.text()).toBeTruthy();
+  const stationId = created.json().id;
+  const close = () =>
+    apiRequestAs('staff', 'patch', `/clinics/${clinicId}/stations/${stationId}`, {
+      clinicId,
+      data: { active: false },
+    });
+
+  const context = await browser.newContext({ storageState: storageStateFor('volunteer') });
+  try {
+    await ensureShift('volunteer', clinicId);
+    const page = await context.newPage();
+    await page.goto('/stations');
+    const choice = page.getByRole('button', { name: new RegExp(`^${name}`) });
+    await choice.click();
+    await expect(page.getByText(`You are working at ${name}.`)).toBeVisible({ timeout: 20_000 });
+
+    const closed = await close();
+    expect(closed.ok(), closed.text()).toBeTruthy();
+
+    // The page polls the line every 12 s; the closure reaches it on the next poll.
+    await expect(page.getByText(`${name} was closed. Choose another station.`)).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.getByText('Choose where you are working today.')).toBeVisible();
+    await expect(choice).toHaveCount(0);
+    const board = (
+      await apiRequestAs('staff', 'get', `/clinics/${clinicId}/stations/board`, { clinicId })
+    ).json();
+    expect(board.onShift.some((member) => member.stationId === stationId)).toBe(false);
+  } finally {
+    // Never leave an open station behind for the full-route test.
+    await close();
+    await context.close();
+  }
 });

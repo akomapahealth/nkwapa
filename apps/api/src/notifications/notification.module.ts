@@ -23,8 +23,25 @@ import { resolveEmailConfig } from './email/email-config';
     EmailStatusService,
     {
       provide: EMAIL_PROVIDER,
-      inject: [EMAIL_CONFIG],
-      useFactory: (config: ReturnType<typeof resolveEmailConfig>) => createEmailProvider(config),
+      inject: [EMAIL_CONFIG, EmailStatusService],
+      useFactory: async (
+        config: ReturnType<typeof resolveEmailConfig>,
+        status: EmailStatusService,
+      ) => {
+        const provider = await createEmailProvider(config);
+        return {
+          async send(...args: Parameters<typeof provider.send>) {
+            try {
+              const result = await provider.send(...args);
+              status.recordSend(result.success, result.error);
+              return result;
+            } catch (error) {
+              status.recordSend(false, error instanceof Error ? error.message : String(error));
+              throw error;
+            }
+          },
+        };
+      },
     },
   ],
   exports: [EMAIL_PROVIDER, EMAIL_CONFIG, EmailStatusService],

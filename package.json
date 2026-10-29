@@ -14,6 +14,7 @@
     "db:purge-seed-fixtures": "ts-node --transpile-only packages/db/prisma/purge-seed-fixtures.ts",
     "db:assign-system-admin": "ts-node --transpile-only packages/db/prisma/assign-system-admin.ts",
     "db:audit-clinics": "ts-node --transpile-only packages/db/prisma/audit-clinic-metadata.ts",
+    "db:report-unnamed-staff": "ts-node --transpile-only packages/db/prisma/report-unnamed-staff.ts",
     "keycloak:validate-realm": "node scripts/validate-keycloak-realm.mjs",
     "keycloak:apply-service-account": "node scripts/apply-keycloak-service-account.mjs",
     "design:check-charts": "node scripts/check-chart-palette.mjs",
@@ -24,6 +25,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "test:scripts": "node --test scripts/*.test.mjs",
+    "deploy:verify": "node scripts/verify-deploy.mjs",
     "e2e": "npm run e2e --workspace=@nkwapa/web",
     "e2e:keycloak-user": "node scripts/create-keycloak-e2e-user.mjs",
     "build": "npm run build --workspaces --if-present",
@@ -100,7 +102,7 @@
       ".": "16.3.0-canary.104"
     },
     "postcss": "8.5.25",
-    "qs": "6.16.0",
+    "qs": "6.16.2",
     "readdirp": {
       "picomatch": "2.3.2"
     },

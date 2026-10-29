@@ -5,7 +5,7 @@ import type { DiabetesScreeningRecord, VitalsRecord } from '@/lib/db';
 import { summarizeEyeScreening, type EyeScreeningRecord } from '@/lib/eye-screening';
 import { HYPERTENSION_LABELS } from '@/lib/hypertension';
 import { formatOpsDateTime } from '@/lib/ops';
-import type { StationKind, StationVisit } from '@/lib/stations';
+import { performerLabel, type StationKind, type StationVisit } from '@/lib/stations';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
@@ -41,7 +41,9 @@ export function StationResultsSummary({
     if (!stop) return 'Station not visited';
     if (stop.status === 'SKIPPED') return `Skipped: ${stop.endReason ?? 'no reason given'}`;
     if (stop.status !== 'COMPLETED') return 'In progress';
-    const who = stop.completedBy?.displayName ?? 'unknown';
+    const who = stop.completedBy
+      ? performerLabel(stop.completedBy.displayName, stop.performedByName)
+      : 'unknown';
     return `${who}, ${stop.completedAt ? formatOpsDateTime(stop.completedAt, timezone) : ''}`;
   };
 

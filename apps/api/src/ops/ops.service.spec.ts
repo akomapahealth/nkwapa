@@ -309,15 +309,36 @@ describe('OpsService', () => {
     });
   });
 
-  it('releases held station claims and clears the station on shift check-out', async () => {
+  it('releases held station claims and clears the station and screener on check-out', async () => {
+    prisma.staffShift.findUnique.mockResolvedValueOnce({
+      ...(await prisma.staffShift.findUnique()),
+      screenerIsAccountHolder: false,
+      screenerName: 'Ama Mensah',
+    });
     await service.checkOut('clinic-1', 'shift-1', 'user-1');
 
     expect(prisma.staffShift.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ stationId: null }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({
+          stationId: null,
+          screenerIsAccountHolder: true,
+          screenerName: null,
+        }),
+      }),
     );
+    // Held patients are stamped with the screener read before it was cleared (#227).
     expect(stationService.releaseForShiftEnd).toHaveBeenCalledWith(
       prisma,
-      { clinicId: 'clinic-1', userId: 'user-1', actorUserId: 'user-1' },
+      {
+        clinicId: 'clinic-1',
+        userId: 'user-1',
+        actorUserId: 'user-1',
+        screener: {
+          screenerIsAccountHolder: false,
+          screenerName: 'Ama Mensah',
+          screenerVolunteerContactId: null,
+        },
+      },
       expect.anything(),
     );
   });
@@ -804,6 +825,9 @@ describe('OpsService', () => {
               status: 'CLOSED',
               checkedOutAt: new Date('2026-03-21T11:00:00.000Z'),
               stationId: null,
+              screenerIsAccountHolder: true,
+              screenerName: null,
+              screenerVolunteerContactId: null,
             },
           }),
         );

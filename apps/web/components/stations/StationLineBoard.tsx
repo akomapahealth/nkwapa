@@ -18,7 +18,9 @@ import {
   moveCheckIn,
   patientName,
   releaseStationVisit,
+  screenersByUser,
   usePolling,
+  withScreener,
   type OnShiftStaff,
   type StationBoard,
   type StationVisit,
@@ -95,6 +97,7 @@ export function StationLineBoard() {
   const isToday = date === getTodayInTimeZone(view.data?.timezone ?? OPS_DEFAULT_TIMEZONE);
   usePolling(refresh, isOnline && isToday && Boolean(clinicId));
   const timezone = view.data?.timezone ?? OPS_DEFAULT_TIMEZONE;
+  const screeners = screenersByUser(view.data?.onShift);
   const stations = (view.data?.stations ?? []).filter(
     (station) => station.active || station.visits.length > 0,
   );
@@ -147,7 +150,7 @@ export function StationLineBoard() {
         title="Station line"
         description="Where every checked-in patient is, and who is seeing them."
         actions={
-          <div className="flex items-end gap-3">
+          <div className="flex flex-wrap items-end gap-3">
             {canManage ? (
               <Button asChild variant="outline">
                 <Link href="/stations/setup">Set up stations</Link>
@@ -195,14 +198,15 @@ export function StationLineBoard() {
       {view.isInitialLoading ? (
         <SectionSkeleton lines={6} />
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-4">
           {stations.map((station) => (
             <Card key={station.id} className="min-w-0">
               <CardHeader className="space-y-1 pb-3">
-                <div className="flex items-center justify-between gap-2">
-                  <CardTitle className="text-base">{station.name}</CardTitle>
+                <div className="flex items-start justify-between gap-2">
+                  <CardTitle className="min-w-0 break-words text-base">{station.name}</CardTitle>
                   {station.capacity ? (
                     <Badge
+                      className="shrink-0"
                       variant={(station.inUse ?? 0) >= station.capacity ? 'warning' : 'secondary'}
                       data-testid="station-occupancy"
                     >
@@ -212,7 +216,9 @@ export function StationLineBoard() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {station.staff.length
-                    ? station.staff.map((member) => member.displayName).join(', ')
+                    ? station.staff
+                        .map((member) => withScreener(member.displayName, member.screenerName))
+                        .join(', ')
                     : 'Nobody at this station'}
                 </p>
               </CardHeader>
@@ -228,7 +234,15 @@ export function StationLineBoard() {
                       </div>
                       <div className="flex flex-wrap items-center gap-2 text-xs">
                         {visit.status === 'IN_PROGRESS' ? (
-                          <Badge variant="default">With {visit.claimedBy?.displayName}</Badge>
+                          <Badge variant="default">
+                            With{' '}
+                            {visit.claimedBy
+                              ? withScreener(
+                                  visit.claimedBy.displayName,
+                                  screeners.get(visit.claimedBy.id),
+                                )
+                              : null}
+                          </Badge>
                         ) : (
                           <Badge variant="secondary">Waiting</Badge>
                         )}

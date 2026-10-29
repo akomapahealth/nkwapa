@@ -54,6 +54,7 @@ export interface WhoAmIResponse {
   pendingStaffInvites?: PendingStaffInvite[];
   onboarding:
     | { state: 'STAFF_INVITE_ACCEPT_REQUIRED' }
+    | { state: 'NAME_REQUIRED' }
     | {
         state: 'PATIENT_CLAIM_REQUIRED';
         pendingInvites: Array<{
@@ -75,6 +76,17 @@ export interface WhoAmIResponse {
    * still parses; the tour is simply not offered then.
    */
   welcomeTour?: { completedVersion: number | null };
+  /**
+   * The person's own name (#225). Optional so an older API still parses; nobody is then held on
+   * the name step.
+   */
+  profile?: {
+    needsName: boolean;
+    firstName: string | null;
+    middleInitial: string | null;
+    lastName: string | null;
+    email: string | null;
+  };
 }
 
 interface BootstrapContextValue {

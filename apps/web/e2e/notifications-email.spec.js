@@ -22,7 +22,7 @@ test.describe('portal invite email', () => {
     await expect(page.locator('#main-content')).toBeVisible({ timeout: 30_000 });
 
     // The seeded chart that carries a pending, unclaimed invite.
-    await page.getByPlaceholder(/search by name, patient code/i).fill('Unclaimed');
+    await page.getByLabel('Name, patient code, phone or ID last 4').fill('Unclaimed');
     // Matched by name rather than position: results are debounced, so the first row can
     // still be the unfiltered one at the moment the fill resolves.
     const row = page.getByRole('row', { name: /Unclaimed/i });

@@ -25,9 +25,11 @@ import { StationService, type StationActor } from './station.service';
 import {
   AssignStationVisitDto,
   CompleteStationVisitDto,
+  CorrectPerformerDto,
   CreateStationDto,
   MoveCheckInDto,
   ReorderStationsDto,
+  ScreenerDto,
   SetShiftStationDto,
   StationDayQueryDto,
   StationReasonDto,
@@ -126,6 +128,14 @@ export class StationController {
     return this.stationService.getBoard(clinicId, query.date);
   }
 
+  @Get('stations/screener-names')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.OPS_STATION_WORK)
+  getScreenerNames(@Param('clinicId') clinicId: string) {
+    this.assertEnabled();
+    return this.stationService.getScreenerNames(clinicId);
+  }
+
   @Patch('shifts/:shiftId/station')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.OPS_STATION_WORK)
@@ -141,6 +151,44 @@ export class StationController {
       shiftId,
       this.actor(req, clinicId),
       body.stationId,
+      this.ctx(req),
+    );
+  }
+
+  @Patch('shifts/:shiftId/screener')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.OPS_STATION_WORK)
+  setShiftScreener(
+    @Param('clinicId') clinicId: string,
+    @Param('shiftId', ParseUUIDPipe) shiftId: string,
+    @Body() body: ScreenerDto,
+    @Request() req: StationRequest,
+  ) {
+    this.assertEnabled();
+    return this.stationService.setShiftScreener(
+      clinicId,
+      shiftId,
+      this.actor(req, clinicId),
+      body,
+      this.ctx(req),
+    );
+  }
+
+  @Patch('station-visits/:visitId/performer')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.OPS_STATION_WORK)
+  correctPerformer(
+    @Param('clinicId') clinicId: string,
+    @Param('visitId', ParseUUIDPipe) visitId: string,
+    @Body() body: CorrectPerformerDto,
+    @Request() req: StationRequest,
+  ) {
+    this.assertEnabled();
+    return this.stationService.correctPerformer(
+      clinicId,
+      visitId,
+      this.actor(req, clinicId),
+      body,
       this.ctx(req),
     );
   }

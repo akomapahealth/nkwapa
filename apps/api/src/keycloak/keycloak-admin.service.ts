@@ -166,19 +166,42 @@ export class KeycloakAdminService {
       const loggedOut = await this.client.logoutUser(keycloakUserId);
       return this.accessResult('APPLIED', loggedOut === 'LOGGED_OUT', null);
     } catch (error) {
-      const code =
-        error instanceof KeycloakAdminError ? error.code : 'KEYCLOAK_ADMIN_REQUEST_FAILED';
-      const status = error instanceof KeycloakAdminError ? error.status : undefined;
-      this.logger.warn(
-        JSON.stringify({
-          message: enabled ? 'Identity enable failed' : 'Identity disable failed',
-          reason: code,
-        }),
+      return this.failedAccess(
+        error,
+        enabled ? 'Identity enable failed' : 'Identity disable failed',
       );
-      // A 5xx is Keycloak having a bad moment; a 4xx is a refusal that will not change.
-      const retryable = RETRYABLE_CODES.has(code) || (status !== undefined && status >= 500);
-      return { outcome: 'FAILED', sessionsEnded: false, retryable, failureReason: code };
     }
+  }
+
+  /**
+   * Push the names Nkwapa holds to the identity, so Keycloak's account page and emails agree.
+   *
+   * Never throws: the name is already saved locally and must not be undone by this half failing.
+   */
+  async updateIdentityNames(
+    keycloakUserId: string,
+    names: { firstName: string; lastName: string },
+  ): Promise<IdentityAccessResult> {
+    if (!this.client.isReady) {
+      return this.accessResult('SKIPPED', false, 'KEYCLOAK_ADMIN_UNCONFIGURED');
+    }
+
+    try {
+      return (await this.client.updateUserNames(keycloakUserId, names)) === 'NOT_FOUND'
+        ? this.accessResult('NOT_FOUND', false, 'IDENTITY_NOT_FOUND')
+        : this.accessResult('APPLIED', false, null);
+    } catch (error) {
+      return this.failedAccess(error, 'Identity name update failed');
+    }
+  }
+
+  private failedAccess(error: unknown, message: string): IdentityAccessResult {
+    const code = error instanceof KeycloakAdminError ? error.code : 'KEYCLOAK_ADMIN_REQUEST_FAILED';
+    const status = error instanceof KeycloakAdminError ? error.status : undefined;
+    this.logger.warn(JSON.stringify({ message, reason: code }));
+    // A 5xx is Keycloak having a bad moment; a 4xx is a refusal that will not change.
+    const retryable = RETRYABLE_CODES.has(code) || (status !== undefined && status >= 500);
+    return { outcome: 'FAILED', sessionsEnded: false, retryable, failureReason: code };
   }
 
   private accessResult(

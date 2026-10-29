@@ -63,6 +63,12 @@ patient is decided by the server, never by a queued claim. The counselling recor
 like clinical notes. The station board is cached (`ops_cache` kind `station-board`) so it still
 renders offline. See `docs/clinic-ops/27_STATION_WORKFLOW_V1.md`.
 
+Who actually screened (#227) is stamped at completion, so it is online-only too. If an offline
+completion path is ever added (#206, #207), the screener must travel inside the queued mutation,
+and the server must validate it on replay exactly as on a live request (`SCREENER_NAME_REQUIRED`
+for a blank name). It must never be filled in from the shift as it stands at replay time, which
+may have changed since.
+
 ---
 
 ## Sync Protocol

@@ -82,3 +82,8 @@ export function assertPermissionAtClinic(
     throw new ForbiddenException(message ?? `${permission} permission is required`);
   }
 }
+
+/** Whether any role, anywhere, is a staff role: everything but PATIENT. */
+export function holdsStaffRole(roles: readonly { role: string }[]): boolean {
+  return roles.some((entry) => entry.role !== UserRole.PATIENT);
+}
