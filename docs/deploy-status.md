@@ -1,7 +1,7 @@
 # Live status and post-deploy gate
 
-The landing footer reads `GET /status` once on load and again when its panel opens, never on a
-timer: each check runs a database query, and a tab polling every minute kept the free API and Neon
+The landing footer reads `GET /status` once on load, again when its status dialog opens, and on
+Refresh, never on a timer: each check runs a database query, and a tab polling every minute kept the free API and Neon
 awake around the clock (#172). It gives up after 10 seconds and shows "API unreachable". The API
 coalesces concurrent checks and caches one result for 30 seconds. It reports database, Redis,
 background queues, email, Keycloak discovery, and the web version endpoint. The public body contains
