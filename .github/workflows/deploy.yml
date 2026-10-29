@@ -249,8 +249,8 @@ jobs:
 
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             # A full release marked Latest, so the repo page shows it; a pre-release can never be
-            # Latest. "(beta)" in the title still says where Nkwapa is.
-            gh release create "$TAG" --verify-tag --latest --title "$TAG (beta)" \
+            # Latest.
+            gh release create "$TAG" --verify-tag --latest --title "$TAG" \
               --generate-notes "${NOTES[@]}" ${PREVIOUS:+--notes-start-tag "$PREVIOUS"}
           fi
           echo "### Release: $TAG" >> "$GITHUB_STEP_SUMMARY"
