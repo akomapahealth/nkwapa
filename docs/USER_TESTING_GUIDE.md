@@ -689,6 +689,33 @@ assessments by hand at different severities to check the ordering and the labels
 
 ---
 
+## 15b. Installed App Matrix (#206)
+
+Build with `NEXT_PUBLIC_FEATURE_PWA_INSTALL_ENABLED=true`. Record each cell in the PR.
+
+| Platform                           | Install | Launch → role home | Offline launch screen | Update toast | Safe areas / back nav | Sign-in round trip |
+| ---------------------------------- | ------- | ------------------ | --------------------- | ------------ | --------------------- | ------------------ |
+| Android Chrome (phone)             |         |                    |                       |              |                       |                    |
+| Android Chrome (tablet, landscape) |         |                    |                       |              |                       |                    |
+| Samsung Internet                   |         |                    |                       |              |                       |                    |
+| iOS Safari 17+ (iPhone, notched)   |         |                    |                       |              |                       |                    |
+| iPadOS Safari                      |         |                    |                       |              |                       |                    |
+| macOS Safari 17+ (Add to Dock)     |         |                    |                       |              |                       |                    |
+| Desktop Chrome / Edge              |         |                    |                       |              |                       |                    |
+| Firefox (expect: no install entry) |         |                    |                       |              |                       |                    |
+
+- [ ] the maskable icon is uncropped on Android (check `public/icons/icon-maskable-512.png` at maskable.app)
+- [ ] the status bar follows light and dark, including the manual theme toggle in the account menu
+- [ ] each role (staff, doctor, volunteer, patient, claimant) launches to its own home
+- [ ] on iOS, record whether the installed app asks for sign-in on every cold launch (silent SSO
+      relies on third-party cookies Safari blocks)
+- [ ] a CSV export from an iOS Home Screen app opens the share sheet and saves to Files
+- [ ] shared device: sign in as staff, sign out, sign in as a patient. Nothing from the first
+      account shows, and Cache Storage (DevTools → Application) holds only `nkwapa-*` shell caches
+- [ ] kill switch exercised once on staging (see `docs/specs/04_OFFLINE_FIRST_AND_SYNC.md`)
+
+---
+
 ## 16. Clinical Workflow Matrix (Doctor And Volunteer)
 
 The two roles the release gate covers end to end. Run each column separately, signed in as that

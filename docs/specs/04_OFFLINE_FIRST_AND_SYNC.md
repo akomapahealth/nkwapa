@@ -250,6 +250,82 @@ the account that queued it.
 
 ---
 
+## Service Worker And Installed App (#206)
+
+Nkwapa installs as an app (Android, desktop Chromium, iOS/iPadOS Add to Home Screen, macOS Safari
+17+ Add to Dock). The manifest is `apps/web/app/manifest.ts`, served at `/manifest.webmanifest`.
+`start_url` is `/login?source=pwa`, which routes each role to its own home. `id` is `/` and must
+never change: installed devices identify the app by it.
+
+### What the worker caches
+
+The worker source is `apps/web/lib/pwa/service-worker.js`. `apps/web/app/service-worker.js/route.ts`
+serves it with the deploy's version (`VERCEL_GIT_COMMIT_SHA`, else `NEXT_PUBLIC_BUILD_ID`, else
+`dev`) and `Cache-Control: no-cache, no-store, must-revalidate`. It registers from the root layout
+in production builds only; set `NEXT_PUBLIC_ENABLE_SW=true` to try it under `next dev`.
+
+Cache Storage holds the app shell and nothing else:
+
+| Cache                  | Holds                                                 | Strategy                    | Cap |
+| ---------------------- | ----------------------------------------------------- | --------------------------- | --- |
+| `nkwapa-pages-<ver>`   | HTML shells, keyed on pathname; `/login` is precached | network first, cache second | 60  |
+| `nkwapa-static-<ver>`  | `/_next/static/*` hashed assets, `/icons/*`           | cache first                 | 300 |
+| `nkwapa-offline-<ver>` | `offline.html`                                        | precached                   | 1   |
+
+Rules, each enforced in the worker and in `lib/pwa/service-worker.test.ts`:
+
+- same-origin `GET` only; never the API origin, never Keycloak, never a write
+- never RSC/flight requests (`RSC: 1` header or `_rsc` query), `/silent-check-sso.html`, `/api/`,
+  or a sign-in callback (`code` and `state` in the query)
+- only `ok`, `basic`, non-redirected responses, and never one marked `no-store` or `private`.
+  Dynamic routes (patient charts, encounters) are served `private, no-store`, so they are never
+  cached; a reload of one offline shows `offline.html`
+- every `nkwapa-*` cache that is not the current version is deleted on activate
+
+Patient data arrives from the cross-origin API and never passes through the worker, so sign-out
+needs no worker change: there is nothing user-specific to clear. `e2e/pwa.spec.js` checks a chart's
+name and national ID never reach Cache Storage.
+
+### Updates
+
+A new worker installs and waits; it never takes over an open tab by itself. The page shows "A new
+version of Nkwapa is ready" with a Reload action (`lib/pwa/update.ts`). Reload posts
+`SKIP_WAITING`; when the new worker takes control the page reloads once, after any sync pass in
+flight. Another tab accepting the update shows the same prompt rather than reloading this one. An
+open installed app checks for a new version when it regains focus, at most hourly.
+
+Version skew: the old tab's chunks stay in `nkwapa-static-<old>` until the new worker activates,
+which only happens when the person reloads, so lazy-loaded chunks keep resolving in the meantime.
+
+### Offline launch
+
+Opened with no connection, the workspace skips Keycloak (sign-in needs the network) and shows "You
+are offline" with the number of changes queued on the device, counted without a token. It retries
+when the connection returns. Navigations the worker cannot serve show `offline.html`, which reads
+the same count. Using the app offline after a cold start is #207.
+
+### Storage
+
+After sign-in the app calls `navigator.storage.persist()` so the browser keeps the outbox under
+storage pressure. The sync center's "Device storage" panel shows whether that was granted and the
+current usage. Safari clears script-written storage after seven days without use unless the site
+is on the Home Screen, so installing protects the outbox on iOS.
+
+### Kill switch
+
+If a worker release misbehaves:
+
+1. Copy `apps/web/lib/pwa/kill-switch-sw.js` over `apps/web/lib/pwa/service-worker.js` (keep the
+   original in git history) and deploy. The route handler serves it at the same URL.
+2. On each device's next visit the replacement installs at once, deletes every `nkwapa-*` cache,
+   unregisters itself and reloads open tabs from the network. IndexedDB, including the outbox, is
+   untouched.
+3. Fix the worker, restore the real source, and deploy again. Devices register it afresh.
+
+Exercise this on staging before relying on it.
+
+---
+
 ## What Is Not Yet Fully Offline
 
 - assigning and reassigning patients, and starting intake (see Clinic Operations Offline)
