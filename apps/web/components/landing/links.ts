@@ -6,6 +6,7 @@ export const AKOMAPA_TERMS_HREF = 'https://akomapa.org/terms';
 
 export const PRIVACY_HREF = '/privacy';
 export const TERMS_HREF = '/terms';
+export const COOKIES_HREF = '/cookies';
 
 export const SECTION_LINKS = [
   { label: 'Product', href: '#product' },

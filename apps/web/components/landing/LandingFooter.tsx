@@ -1,10 +1,12 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { StatusPanel } from './StatusPanel';
+import { CookieSettingsButton } from './CookieSettingsButton';
 import {
   AKOMAPA_HREF,
   CONTACT_EMAIL,
   CONTACT_HREF,
+  COOKIES_HREF,
   PRIVACY_HREF,
   SECTION_LINKS,
   TERMS_HREF,
@@ -70,7 +72,7 @@ export function LandingFooter({
         <p>&copy; {new Date().getFullYear()} Nkwapa. Developed in support of Akomapa.</p>
         <div className="flex flex-wrap items-center gap-6">
           <StatusPanel releaseVersion={releaseVersion} />
-          <ul className="flex gap-6">
+          <ul className="flex flex-wrap gap-x-6">
             <li>
               <Link href={PRIVACY_HREF} className={linkClass}>
                 Privacy
@@ -80,6 +82,14 @@ export function LandingFooter({
               <Link href={TERMS_HREF} className={linkClass}>
                 Terms
               </Link>
+            </li>
+            <li>
+              <Link href={COOKIES_HREF} className={linkClass}>
+                Cookies
+              </Link>
+            </li>
+            <li>
+              <CookieSettingsButton className={linkClass} />
             </li>
           </ul>
         </div>
