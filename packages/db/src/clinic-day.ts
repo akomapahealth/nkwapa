@@ -71,21 +71,29 @@ const MINUTE_MS = 60_000;
 const DAY_MS = 86_400_000;
 
 /**
- * The instant a local calendar day begins in `timeZone`.
+ * The instant a local wall-clock hour begins on a calendar day in `timeZone`.
  *
  * The offset has to be looked up twice. The first lookup uses the wall-clock time read as if it
  * were UTC, which is wrong by exactly the offset; the second uses the instant that guess
  * produced, which is right even when a daylight-saving change falls in between.
  *
- * When a zone springs forward *at* midnight -- Santiago, Havana and Lord Howe all do -- local
- * midnight does not exist that day, and the arithmetic lands an hour into the previous day.
- * The day then starts at the transition instead, which is what the loop below walks forward to.
+ * When a zone springs forward *over* that hour -- Santiago, Havana and Lord Howe do it at
+ * midnight -- the wall-clock time does not exist that day, and the arithmetic lands an hour
+ * early. The hour then starts at the transition instead, which is what the loop below walks
+ * forward to.
  */
-export function startOfDayInTimeZone(date: string, timeZone: string | null | undefined): Date {
+export function localHourInTimeZone(
+  date: string,
+  hour: number,
+  timeZone: string | null | undefined,
+): Date {
   const zone = usableTimeZone(timeZone);
-  const wallClock = Date.parse(`${date}T00:00:00.000Z`);
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23) {
+    throw new RangeError(`localHourInTimeZone: ${hour} is not an hour from 0 to 23.`);
+  }
+  const wallClock = Date.parse(`${date}T${String(hour).padStart(2, '0')}:00:00.000Z`);
   if (Number.isNaN(wallClock)) {
-    throw new RangeError(`startOfDayInTimeZone: "${date}" is not a YYYY-MM-DD date.`);
+    throw new RangeError(`localHourInTimeZone: "${date}" is not a YYYY-MM-DD date.`);
   }
 
   const firstGuess = wallClock - timeZoneOffsetMs(zone, new Date(wallClock));
@@ -93,11 +101,20 @@ export function startOfDayInTimeZone(date: string, timeZone: string | null | und
 
   // Transitions land on at least a 15-minute boundary, and no gap is longer than a couple of
   // hours, so this settles in a handful of steps or not at all.
-  for (let step = 0; step < 16 && localDate(zone, start) < date; step += 1) {
+  for (
+    let step = 0;
+    step < 16 && start.getTime() + timeZoneOffsetMs(zone, start) < wallClock;
+    step += 1
+  ) {
     start = new Date(start.getTime() + 15 * MINUTE_MS);
   }
 
   return start;
+}
+
+/** The instant a local calendar day begins in `timeZone`. */
+export function startOfDayInTimeZone(date: string, timeZone: string | null | undefined): Date {
+  return localHourInTimeZone(date, 0, timeZone);
 }
 
 /** Today's `YYYY-MM-DD` in `timeZone`, which is not always today's UTC date. */
