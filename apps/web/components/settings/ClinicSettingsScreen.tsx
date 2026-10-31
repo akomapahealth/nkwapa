@@ -1,8 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { Microscope, Settings2, ShieldCheck } from 'lucide-react';
+import { ArrowRight, FlaskConical, Microscope, Settings2, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { useBootstrap } from '@/lib/bootstrap-context';
+import { hasPermission } from '@/lib/ops';
 import { apiFetch, getErrorMessage, readApiError } from '@/lib/api';
 import { useAsyncResource } from '@/lib/use-async-resource';
 import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
@@ -37,6 +40,10 @@ function toDraft(settings: ResearchSettings): SettingsDraft {
 
 export function ClinicSettingsScreen({ clinicId }: { clinicId: string }) {
   const getToken = useAuth();
+  const canSeeExports = hasPermission(
+    useBootstrap()?.bootstrap?.effectivePermissionsForActiveClinic ?? [],
+    'RESEARCH.EXPORT.REQUEST',
+  );
 
   const settings = useAsyncResource<ResearchSettings>({
     resourceKey: clinicId,
@@ -248,6 +255,25 @@ export function ClinicSettingsScreen({ clinicId }: { clinicId: string }) {
                 </div>
               </CardContent>
             </Card>
+
+            {canSeeExports ? (
+              <Link
+                href="/research"
+                className="group flex max-w-3xl items-center gap-4 rounded-lg border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <FlaskConical aria-hidden="true" className="h-5 w-5 shrink-0 text-primary" />
+                <span className="min-w-0 flex-1">
+                  <span className="block font-medium text-foreground">Research exports</span>
+                  <span className="block text-sm text-muted-foreground">
+                    Check readiness, approve runs and schedules, and download packs.
+                  </span>
+                </span>
+                <ArrowRight
+                  aria-hidden="true"
+                  className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                />
+              </Link>
+            ) : null}
           </div>
         )}
       </ResourceState>

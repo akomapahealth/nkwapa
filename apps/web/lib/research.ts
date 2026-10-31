@@ -70,6 +70,8 @@ export interface ResearchExportItem {
   approvedAt: string | null;
   syncedAt: string | null;
   completedAt: string | null;
+  /** False once the server's copy of the zip is gone (a restart or redeploy wipes it). */
+  downloadAvailable: boolean;
   requestedBy?: Person;
   approvedBy?: Person | null;
 }
@@ -106,6 +108,77 @@ export interface ResearchScheduleList {
   timezone: string;
   minSubjects: number;
   defaultReviewMonths: number;
+}
+
+export type ScheduleAttentionKind = 'PENDING_APPROVAL' | 'EXPIRED' | 'REVIEW_SOON';
+
+export interface ResearchScheduleAttention extends Pick<
+  ResearchSchedule,
+  'id' | 'status' | 'cadence' | 'dayOfWeek' | 'dayOfMonth' | 'localHour' | 'reviewBy'
+> {
+  kind: ScheduleAttentionKind;
+}
+
+export interface ResearchOverview {
+  researchEnabled: boolean;
+  approvalRequired: boolean;
+  timezone: string;
+  consentedSubjects: number;
+  minSubjects: number;
+  storage: {
+    destinations: ResearchStorageProvider[];
+    defaultDestination: ResearchStorageProvider | null;
+  };
+  counts: Partial<Record<ResearchExportStatus, number>>;
+  lastCompleted: ResearchExportItem | null;
+  nextRun: { scheduleId: string; at: string } | null;
+  attention: { runs: ResearchExportItem[]; schedules: ResearchScheduleAttention[] };
+}
+
+export interface ResearchRunEvent {
+  id: string;
+  action: string;
+  at: string;
+  actor: string;
+  note: string | null;
+}
+
+export const EXPORT_STATUS_LABELS: Record<ResearchExportStatus, string> = {
+  PENDING_APPROVAL: 'Waiting for approval',
+  APPROVED: 'Approved',
+  PROCESSING: 'Processing',
+  COMPLETED: 'Completed',
+  FAILED: 'Failed',
+  REJECTED: 'Rejected',
+  SKIPPED: 'Skipped',
+};
+
+export const SCHEDULE_ATTENTION_LABELS: Record<ScheduleAttentionKind, string> = {
+  PENDING_APPROVAL: 'Schedule waiting for approval',
+  EXPIRED: 'Schedule past its review date',
+  REVIEW_SOON: 'Schedule review due soon',
+};
+
+const EVENT_LABELS: Record<string, string> = {
+  REQUEST: 'Requested',
+  APPROVE: 'Approved',
+  REJECT: 'Rejected',
+  START: 'Started',
+  PUBLISH: 'Published',
+  COMPLETE: 'Completed',
+  FAIL: 'Failed',
+  SKIP: 'Skipped',
+  RETRY: 'Retried',
+  RERUN: 'Rerun requested',
+  RECONCILE: 'Recovered after an interrupted run',
+  DOWNLOAD: 'Downloaded',
+  MIRROR_FAIL: 'Manifest mirror failed',
+};
+
+/** "RESEARCH_EXPORT.APPROVE" reads as "Approved"; an action added later still reads sensibly. */
+export function eventLabel(action: string): string {
+  const verb = action.slice(action.indexOf('.') + 1);
+  return EVENT_LABELS[verb] ?? verb.replaceAll('_', ' ').toLowerCase();
 }
 
 export const WEEKDAYS = [

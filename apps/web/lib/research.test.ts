@@ -1,6 +1,7 @@
 import {
   describeCadence,
   describeChanges,
+  eventLabel,
   formatBytes,
   ordinal,
   skipReasonLabel,
@@ -71,5 +72,11 @@ describe('research wording', () => {
     expect(formatBytes(512)).toBe('512 B');
     expect(formatBytes(4096)).toBe('4 KB');
     expect(formatBytes(3 * 1024 * 1024)).toBe('3.0 MB');
+  });
+
+  it('names a run event, and still reads an action it does not know', () => {
+    expect(eventLabel('RESEARCH_EXPORT.APPROVE')).toBe('Approved');
+    expect(eventLabel('RESEARCH_EXPORT.MIRROR_FAIL')).toBe('Manifest mirror failed');
+    expect(eventLabel('RESEARCH_EXPORT.SOMETHING_NEW')).toBe('something new');
   });
 });
