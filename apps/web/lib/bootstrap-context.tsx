@@ -86,6 +86,8 @@ export interface WhoAmIResponse {
     middleInitial: string | null;
     lastName: string | null;
     email: string | null;
+    /** Optional so an older API still parses. */
+    phoneE164?: string | null;
   };
 }
 

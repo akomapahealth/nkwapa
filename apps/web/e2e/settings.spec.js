@@ -43,7 +43,7 @@ test.describe('staff settings', () => {
     await openSettings(page);
     await expect(page.getByRole('heading', { name: 'Install the app' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'This device' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Change your name' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Manage profile' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible();
   });
 });
@@ -55,6 +55,18 @@ test.describe('patient settings', () => {
     await openSettings(page);
     await expect(page.getByRole('navigation', { name: 'Patient portal' })).toBeVisible();
     await expect(page.getByText(/not authorized|access denied/i)).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'Change your name' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Manage profile' })).toBeVisible();
+  });
+
+  test('the profile shows access read-only, without staff-only name and phone', async ({
+    page,
+  }) => {
+    await page.goto('/account');
+    await expect(page.getByRole('heading', { name: 'Profile' })).toBeVisible({ timeout: 30_000 });
+    await skipWelcomeTour(page);
+    await expect(page.getByRole('navigation', { name: 'Patient portal' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your access' })).toBeVisible();
+    await expect(page.getByLabel('Last name')).toHaveCount(0);
+    await expect(page.getByLabel('Phone number')).toHaveCount(0);
   });
 });
