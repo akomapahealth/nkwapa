@@ -31,7 +31,6 @@ import { useBootstrap } from '@/lib/bootstrap-context';
 import { formatRoleLabel, getOpsDestination, getVisibleRoleLabels } from '@/lib/ops';
 import { useKeycloak } from '@/app/KeycloakProvider';
 import { getActiveBootstrapClinic, getSwitchableClinics } from '@/lib/bootstrap-clinics';
-import { setStoredActiveClinicId } from '@/lib/bootstrap-storage';
 import { useToast } from '@/components/ui/toast';
 import { SyncStatusBar } from '@/components/sync/SyncStatusBar';
 import { InstallAppMenuItem, InstallInstructionsDialog } from '@/components/pwa/InstallApp';
@@ -88,29 +87,35 @@ export function Header({
   };
   const roleLabels = getVisibleRoleLabels(activeMembership?.roles, bootstrap?.globalRoles);
 
-  const handleClinicChange = (value: string) => {
+  const handleClinicChange = async (value: string) => {
+    if (!value || value === clinicId) return;
     const nextClinic = switchableClinics.find((clinic) => clinic.clinicId === value);
-    setStoredActiveClinicId(value);
-    setActiveClinicId?.(value);
+    const clinicName = nextClinic?.clinicName ?? 'the selected clinic';
+    // One toast that turns from "Switching" into the outcome, rather than a spinner that expires.
+    const toastId = 'clinic-switch';
     showToast({
+      id: toastId,
       tone: 'loading',
-      title: nextClinic ? `Switching to ${nextClinic.clinicName}` : 'Switching clinic',
+      title: `Switching to ${clinicName}`,
       description: 'Refreshing clinic-scoped queues, dashboard data, and records.',
-      durationMs: 1800,
     });
-    if (value) {
-      /*
-        A client navigation, not `window.location.href`.
-
-        Switching clinic used to hard-reload the whole document after a 180ms timeout, which threw
-        away the Keycloak session check, the bootstrap fetch and every warm route, and showed a
-        white page in the middle of what is meant to be the smoothest thing the product does.
-        `setActiveClinicId` above already moved the context that every clinic-scoped fetch keys
-        off, so `refresh` is enough to bring server data along with it.
-      */
-      router.push('/dashboard');
-      router.refresh();
+    /*
+      A client navigation, not `window.location.href`: a hard reload threw away the Keycloak
+      session check and every warm route. `setActiveClinicId` re-fetches whoami, which is what
+      moves the clinic and its permissions for every page that reads them.
+    */
+    const switched = (await setActiveClinicId?.(value)) ?? false;
+    if (!switched) {
+      showToast({
+        id: toastId,
+        tone: 'error',
+        title: `Could not switch to ${clinicName}`,
+        description: 'Check your connection, then try again.',
+      });
+      return;
     }
+    router.push('/dashboard');
+    showToast({ id: toastId, tone: 'success', title: `Now viewing ${clinicName}` });
   };
 
   const initials =
@@ -131,7 +136,7 @@ export function Header({
   */
   const clinicPicker =
     switchableClinics.length > 1 ? (
-      <Select value={clinicId ?? ''} onValueChange={handleClinicChange}>
+      <Select value={clinicId ?? ''} onValueChange={(value) => void handleClinicChange(value)}>
         <SelectTrigger aria-label="Active clinic" className="w-full md:w-[190px] lg:w-[220px]">
           <SelectValue placeholder="Select clinic" />
         </SelectTrigger>

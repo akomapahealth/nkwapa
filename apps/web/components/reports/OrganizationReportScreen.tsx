@@ -84,7 +84,7 @@ export function OrganizationReportScreen() {
   });
 
   const openClinic = (row: ClinicReportRow) => {
-    bootstrapCtx?.setActiveClinicId(row.drilldown.clinicId);
+    void bootstrapCtx?.setActiveClinicId(row.drilldown.clinicId);
     router.push(row.drilldown.path);
   };
 

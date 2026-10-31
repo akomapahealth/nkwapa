@@ -98,7 +98,11 @@ interface BootstrapContextValue {
   errorCode: string | null;
   errorStatus: number | null;
   activeClinicId: string | null;
-  setActiveClinicId: (id: string | null) => void;
+  /**
+   * Moves the workspace to another clinic. Resolves once identity and permissions follow, with
+   * whether the server now has that clinic active.
+   */
+  setActiveClinicId: (id: string | null) => Promise<boolean>;
   refetch: () => Promise<void>;
   /** Clears the retry budget and loads identity again, for a user-initiated retry. */
   retry: () => void;
@@ -161,11 +165,6 @@ export function BootstrapProvider({
     activeClinicIdOverride !== undefined
       ? activeClinicIdOverride
       : (getBootstrapActiveClinicId(bootstrap) ?? getStoredActiveClinicId());
-
-  const setActiveClinicId = useCallback((id: string | null) => {
-    setStoredActiveClinicId(id);
-    setActiveClinicIdOverride(id);
-  }, []);
 
   const fetchWhoami = useCallback(async () => {
     if (!getToken) return;
@@ -262,6 +261,26 @@ export function BootstrapProvider({
   useEffect(() => {
     void fetchWhoami();
   }, [fetchWhoami, retryTick]);
+
+  /*
+    Pages read the clinic and its permissions from whoami (`bootstrap.activeClinicId`,
+    `effectivePermissionsForActiveClinic`), so moving only the stored id left every screen on the
+    old clinic until a reload. fetchWhoami sends the stored id as X-Clinic-Id.
+  */
+  const setActiveClinicId = useCallback(
+    async (id: string | null) => {
+      setStoredActiveClinicId(id);
+      setActiveClinicIdOverride(id);
+      await fetchWhoami();
+      const current = bootstrapRef.current?.activeClinicId ?? null;
+      if (current === id) return true;
+      // Refused or failed: fall back to the clinic whoami still has, so the header and pages agree.
+      setStoredActiveClinicId(current);
+      setActiveClinicIdOverride(undefined);
+      return false;
+    },
+    [fetchWhoami],
+  );
 
   const retry = useCallback(() => {
     clearRetryTimer();
