@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, ResearchExportStatus } from '@prisma/client';
+import { Prisma, ResearchExportStatus, ResearchExportTrigger } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { decodeJsonKeysetCursor, encodeJsonKeysetCursor } from '../common/keyset-cursor';
 
@@ -11,6 +11,11 @@ export const researchExportInclude = {
 export type ResearchExportRecord = Prisma.ResearchExportGetPayload<{
   include: typeof researchExportInclude;
 }>;
+
+export interface ResearchExportListFilter {
+  status?: ResearchExportStatus;
+  trigger?: ResearchExportTrigger;
+}
 
 @Injectable()
 export class ResearchExportRepository {
@@ -90,13 +95,28 @@ export class ResearchExportRepository {
     });
   }
 
+  /** Patients with research consent granted now: the cohort a run would publish. */
+  async consentedPatientIds(clinicId: string): Promise<string[]> {
+    const consents = await this.prisma.patientConsent.findMany({
+      where: { clinicId, consentType: 'RESEARCH_DEIDENTIFIED', status: 'GRANTED' },
+      distinct: ['patientId'],
+      select: { patientId: true },
+    });
+    return consents.map((consent) => consent.patientId);
+  }
+
   async listByClinic(
     clinicId: string,
     cursor?: string,
     limit = 20,
+    filter: ResearchExportListFilter = {},
   ): Promise<{ items: ResearchExportRecord[]; nextCursor: string | null }> {
     const take = Math.min(limit, 100);
-    const where: Prisma.ResearchExportWhereInput = { clinicId };
+    const where: Prisma.ResearchExportWhereInput = {
+      clinicId,
+      status: filter.status,
+      trigger: filter.trigger,
+    };
 
     if (cursor) {
       const decoded = decodeJsonKeysetCursor('requestedAt', cursor);

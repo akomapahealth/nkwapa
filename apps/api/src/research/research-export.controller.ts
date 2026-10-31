@@ -21,13 +21,13 @@ import { RbacGuard } from '../auth/guards/rbac.guard';
 import { ClinicScopeGuard } from '../auth/guards/clinic-scope.guard';
 import { PERMISSIONS } from '../auth/constants/permissions';
 import { ResearchExportService } from './research-export.service';
-import { RejectExportDto, RequestExportDto } from './dto/request-export.dto';
-import { ResearchReasonDto } from './dto/research-schedule.dto';
 import {
-  ClinicAndExportParamsDto,
-  ClinicIdParamDto,
-  CursorLimitQueryDto,
-} from '../common/request-dto';
+  ListResearchExportsQueryDto,
+  RejectExportDto,
+  RequestExportDto,
+} from './dto/request-export.dto';
+import { ResearchReasonDto } from './dto/research-schedule.dto';
+import { ClinicAndExportParamsDto, ClinicIdParamDto } from '../common/request-dto';
 
 @Controller('clinics/:clinicId/research/exports')
 @UseGuards(JwtAuthGuard, ClinicScopeGuard, RbacGuard)
@@ -51,8 +51,11 @@ export class ResearchExportController {
   @Get()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.RESEARCH_EXPORT_REQUEST)
-  async list(@Param() params: ClinicIdParamDto, @Query() query: CursorLimitQueryDto) {
-    return this.exportService.listByClinic(params.clinicId, query.cursor, query.limit);
+  async list(@Param() params: ClinicIdParamDto, @Query() query: ListResearchExportsQueryDto) {
+    return this.exportService.listByClinic(params.clinicId, query.cursor, query.limit, {
+      status: query.status,
+      trigger: query.trigger,
+    });
   }
 
   @Get(':exportId')

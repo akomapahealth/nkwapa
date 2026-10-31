@@ -300,7 +300,7 @@ describe('ResearchExportService', () => {
     });
 
     it('skips a manual run below the minimum cohort without emailing anyone', async () => {
-      ctx.prisma.patientConsent.findMany.mockResolvedValue([{ patientId: 'p1' }]);
+      ctx.repo.consentedPatientIds.mockResolvedValue(['p1']);
       const manual = makeExportRecord({ status: status('APPROVED') });
       ctx.repo.findById.mockResolvedValueOnce(manual);
       ctx.repo.transition.mockImplementation(async (_id, _from, data) =>
