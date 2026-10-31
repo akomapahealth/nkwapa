@@ -76,7 +76,8 @@ test('a failed export queue read offers a retry and leaves the request form usab
 }) => {
   const clinicId = await activeClinicId(page);
 
-  await page.route('**/research/exports', async (route) => {
+  // The list carries its filters and page size as a query string.
+  await page.route(/\/research\/exports(\?.*)?$/, async (route) => {
     /*
       Let the page document through.
 
