@@ -23,8 +23,8 @@ interface RepoFile {
 /**
  * The private GitHub repository as a research destination.
  *
- * Git keeps history, so a revoked subject's rows stay in old commits; that is why R2 is the
- * recommended destination (#166) and this one stays selectable for clinics already using it.
+ * Git keeps every past commit, so a revoked subject's rows stay in old commits. That is why R2
+ * is the recommended destination (#166); this one stays selectable for clinics already using it.
  */
 @Injectable()
 export class GithubResearchStorage implements ResearchStorageAdapter {
