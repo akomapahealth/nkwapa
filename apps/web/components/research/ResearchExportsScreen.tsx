@@ -9,6 +9,7 @@ import {
   FileArchive,
   GitBranch,
   Loader2,
+  Redo2,
   RefreshCw,
   RotateCcw,
 } from 'lucide-react';
@@ -21,82 +22,28 @@ import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { FormSectionCard } from '@/components/app-shell/FormSectionCard';
 import { ResourceState } from '@/components/feedback/ResourceState';
 import { SectionSkeleton } from '@/components/feedback/AppState';
-import { InlineNotice } from '@/components/ops/OpsShared';
+import { InlineNotice } from '@/components/feedback/InlineNotice';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ProgressiveHelp } from '@/components/ui/progressive-help';
-import { Textarea } from '@/components/ui/textarea';
 import { saveBlob } from '@/lib/download';
-
-type ExportStatus =
-  | 'PENDING_APPROVAL'
-  | 'APPROVED'
-  | 'PROCESSING'
-  | 'COMPLETED'
-  | 'FAILED'
-  | 'REJECTED';
-
-export interface ResearchExportItem {
-  id: string;
-  clinicId: string;
-  status: ExportStatus;
-  fromDate: string;
-  toDate: string;
-  datasetVersion: number;
-  policyVersionSnapshot: string;
-  rejectionReason: string | null;
-  failureReason: string | null;
-  filePath: string | null;
-  fileFormat: string | null;
-  recordCount: number | null;
-  rowCounts: Record<string, number>;
-  artifactSha256: string | null;
-  artifactSizeBytes: number | null;
-  storageProvider: string | null;
-  storagePath: string | null;
-  storageRef: string | null;
-  storageUrl: string | null;
-  requestedAt: string;
-  startedAt: string | null;
-  approvedAt: string | null;
-  syncedAt: string | null;
-  completedAt: string | null;
-  requestedBy?: { id: string; displayName: string };
-  approvedBy?: { id: string; displayName: string } | null;
-}
-
-const STATUS_STYLES: Record<ExportStatus, string> = {
-  /*
-    Six export states across four semantic tokens.
-
-    This was the last file in the product still running its own palette -- amber, sky, indigo,
-    emerald, rose and zinc, none of which resolve in dark mode and none of which match the status
-    colours the rest of the app uses for the same ideas. Approved and Processing deliberately
-    share --info: they are both "accepted, not finished", and inventing a sixth hue to separate
-    two adjacent waiting states is what produced a six-colour palette in the first place. The
-    words differ, and the words are what the reader acts on.
-  */
-  PENDING_APPROVAL: 'border-warning/25 bg-warning/10 text-warning-ink',
-  APPROVED: 'border-info/25 bg-info/10 text-info-ink',
-  PROCESSING: 'border-info/25 bg-info/10 text-info-ink',
-  COMPLETED: 'border-success/25 bg-success/10 text-success-ink',
-  FAILED: 'border-destructive/25 bg-destructive/10 text-destructive-ink',
-  REJECTED: 'border-border bg-muted text-muted-foreground',
-};
+import {
+  DESTINATION_LABELS,
+  describeChanges,
+  formatBytes,
+  skipReasonLabel,
+  type ResearchExportItem,
+} from '@/lib/research';
+import { ResearchReasonDialog, type ReasonPrompt } from './ResearchReasonDialog';
+import { ResearchRunKey } from './ResearchRunKey';
+import { ResearchSchedulesPanel } from './ResearchSchedulesPanel';
+import { EXPORT_STATUS_STYLES } from './research-status';
 
 const PACK_CONTENTS = [
-  ['manifest.json', 'SHA256SUMS.txt'],
+  ['manifest.json', 'SHA256SUMS.txt', 'changes.json'],
   ['research_subjects.csv', 'research_ops_checkins.csv'],
   ['research_ops_assignments.csv', 'research_clinical_vitals.csv'],
   ['research_clinical_screenings.csv', 'research_measurements.csv'],
@@ -127,6 +74,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
     [bootstrap],
   );
   const canApprove = hasPermission(permissions, 'RESEARCH.EXPORT.APPROVE');
+  const canRequest = hasPermission(permissions, 'RESEARCH.EXPORT.REQUEST');
 
   const exportsResource = useAsyncResource<ResearchExportItem[]>({
     resourceKey: clinicId,
@@ -166,8 +114,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [rejectTarget, setRejectTarget] = useState<ResearchExportItem | null>(null);
-  const [rejectReason, setRejectReason] = useState('');
+  const [reasonPrompt, setReasonPrompt] = useState<ReasonPrompt | null>(null);
 
   const hasActiveWork = useMemo(
     () => exports.some((item) => item.status === 'APPROVED' || item.status === 'PROCESSING'),
@@ -191,8 +138,8 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
     async (
       action: () => Promise<void>,
       { busyId, fallback }: { busyId: string | null; fallback: string },
-    ) => {
-      if (!getToken) return;
+    ): Promise<boolean> => {
+      if (!getToken) return false;
 
       setActionLoadingId(busyId);
       setSubmitting(busyId === null);
@@ -202,8 +149,10 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
       try {
         await action();
         refreshExports();
+        return true;
       } catch (requestError) {
         setActionError(getErrorMessage(requestError, fallback));
+        return false;
       } finally {
         setActionLoadingId(null);
         setSubmitting(false);
@@ -250,22 +199,45 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
       { busyId: exportId, fallback: 'This export could not be approved.' },
     );
 
-  const handleRejectConfirm = () => {
-    if (!rejectTarget) return Promise.resolve();
-    const target = rejectTarget;
-    return runAction(
-      async () => {
-        await post(
-          `/clinics/${encodeURIComponent(clinicId)}/research/exports/${target.id}/reject`,
-          { body: JSON.stringify({ reason: rejectReason.trim() }) },
-        );
-        setNotice('Export rejected.');
-        setRejectTarget(null);
-        setRejectReason('');
-      },
-      { busyId: target.id, fallback: 'This export could not be rejected.' },
-    );
-  };
+  const askRejectReason = (item: ResearchExportItem) =>
+    setReasonPrompt({
+      title: 'Reject export request',
+      description: 'Provide a reason so the requester knows what to fix before retrying.',
+      confirmLabel: 'Reject export',
+      placeholder: 'Example: clinic consent review is incomplete for this date range.',
+      onConfirm: (reason) =>
+        runAction(
+          async () => {
+            await post(
+              `/clinics/${encodeURIComponent(clinicId)}/research/exports/${item.id}/reject`,
+              { body: JSON.stringify({ reason }) },
+            );
+            setNotice('Export rejected.');
+          },
+          { busyId: item.id, fallback: 'This export could not be rejected.' },
+        ),
+    });
+
+  // A rerun publishes the same period again as the next -r<n> revision; the old run stays.
+  const askRerunReason = (item: ResearchExportItem) =>
+    setReasonPrompt({
+      title: `Rerun ${item.runKey}`,
+      description:
+        'The same period is built again from today’s consents and published as a new revision. The earlier run is kept.',
+      confirmLabel: 'Rerun',
+      placeholder: 'Example: a data-entry correction was made for this period.',
+      onConfirm: (reason) =>
+        runAction(
+          async () => {
+            await post(
+              `/clinics/${encodeURIComponent(clinicId)}/research/exports/${item.id}/rerun`,
+              { body: JSON.stringify({ reason }) },
+            );
+            setNotice('Rerun queued as a new revision.');
+          },
+          { busyId: item.id, fallback: 'This run could not be rerun.' },
+        ),
+    });
 
   const handleRetry = (exportId: string) =>
     runAction(
@@ -278,16 +250,16 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
       { busyId: exportId, fallback: 'This export could not be queued for retry.' },
     );
 
-  const handleDownload = (exportId: string) =>
+  const handleDownload = (item: ResearchExportItem) =>
     runAction(
       async () => {
         const response = await post(
-          `/clinics/${encodeURIComponent(clinicId)}/research/exports/${exportId}/download`,
+          `/clinics/${encodeURIComponent(clinicId)}/research/exports/${item.id}/download`,
           { method: 'GET' },
         );
-        await saveBlob(await response.blob(), `research-export-${exportId}.zip`);
+        await saveBlob(await response.blob(), `${item.runKey}.zip`);
       },
-      { busyId: exportId, fallback: 'This export pack could not be downloaded.' },
+      { busyId: item.id, fallback: 'This export pack could not be downloaded.' },
     );
 
   const rowCountEntries = (item: ResearchExportItem) =>
@@ -328,7 +300,8 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
       {/* Required reading, not header help: #63 keeps it visible on the page. */}
       <ProgressiveHelp title="How research exports work">
         Exports use the approved research transform profile: stable clinic-scoped keys, rounded
-        timestamps, no names or free text, and optional private GitHub sync after processing.
+        timestamps, no names or free text. Each run is published under its run key, and a run with
+        too few consented patients is skipped rather than published.
       </ProgressiveHelp>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
@@ -403,12 +376,10 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
             </div>
 
             <div className="rounded-lg border border-border/70 bg-muted/40 p-4">
-              <p className="text-sm font-medium text-foreground">Destination preview</p>
+              <p className="text-sm font-medium text-foreground">Destination</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Provider: private GitHub repo (server configured)
-              </p>
-              <p className="mt-2 font-mono text-xs text-muted-foreground">
-                clinics/&lt;research_clinic_key&gt;/exports/&lt;timestamp&gt;__&lt;exportId&gt;/
+                The research storage this server is configured with. Completed runs show where they
+                were published.
               </p>
             </div>
 
@@ -472,6 +443,13 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
       {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
       {notice ? <InlineNotice tone="success">{notice}</InlineNotice> : null}
 
+      <ResearchSchedulesPanel
+        clinicId={clinicId}
+        canRequest={canRequest}
+        canApprove={canApprove}
+        onRunCreated={refreshExports}
+      />
+
       <Card className="rounded-lg border-border/80 bg-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-xl">
@@ -479,7 +457,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
             Export activity
           </CardTitle>
           <CardDescription>
-            Approval, background processing, GitHub sync, and downloads all appear here.
+            Manual and scheduled runs, approval, processing, publishing and downloads.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -502,6 +480,8 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                 {items.map((item) => {
                   const rows = rowCountEntries(item);
                   const isBusy = actionLoadingId === item.id;
+                  const changes = describeChanges(item.changes);
+                  const size = formatBytes(item.artifactSizeBytes);
                   return (
                     <div
                       key={item.id}
@@ -510,16 +490,17 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div className="space-y-2">
                           <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant="outline" className={STATUS_STYLES[item.status]}>
+                            <Badge variant="outline" className={EXPORT_STATUS_STYLES[item.status]}>
                               {item.status.replaceAll('_', ' ')}
                             </Badge>
-                            <span className="text-sm font-medium text-foreground">
-                              {formatRange(item.fromDate, item.toDate)}
-                            </span>
-                            <span className="font-mono text-xs text-muted-foreground">
-                              {item.id.slice(0, 8)}…
-                            </span>
+                            {item.trigger === 'SCHEDULED' ? (
+                              <Badge variant="outline">Scheduled</Badge>
+                            ) : null}
+                            <ResearchRunKey runKey={item.runKey} />
                           </div>
+                          <p className="text-sm font-medium text-foreground">
+                            {formatRange(item.fromDate, item.toDate)}
+                          </p>
                           <p className="text-sm text-muted-foreground">
                             Requested {new Date(item.requestedAt).toLocaleString()}
                             {item.requestedBy ? ` by ${item.requestedBy.displayName}` : ''}
@@ -556,6 +537,25 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                             </p>
                           )}
 
+                          {item.consentedSubjectCount != null ? (
+                            <p className="text-sm text-foreground">
+                              {item.consentedSubjectCount} consented patients
+                              {item.revokedSinceLastCount
+                                ? ` · ${item.revokedSinceLastCount} revoked since the last run`
+                                : ''}
+                            </p>
+                          ) : null}
+                          {changes ? (
+                            <p className="text-sm text-muted-foreground">{changes}</p>
+                          ) : null}
+
+                          {item.status === 'SKIPPED' ? (
+                            <InlineNotice tone="warning" live={false}>
+                              <span className="font-medium">Skipped. </span>
+                              {skipReasonLabel(item.skipReason)}
+                            </InlineNotice>
+                          ) : null}
+
                           {item.failureReason ? (
                             <div className="rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive-ink">
                               <div className="mb-1 flex items-center gap-2 font-medium">
@@ -578,18 +578,20 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                           <div>
                             <p className="font-medium text-foreground">Artifact</p>
                             <p className="text-muted-foreground">
-                              {item.fileFormat?.toUpperCase() ?? 'ZIP'}{' '}
-                              {item.artifactSizeBytes != null
-                                ? `· ${Math.max(1, Math.round(item.artifactSizeBytes / 1024))} KB`
-                                : ''}
+                              {item.fileFormat?.toUpperCase() ?? 'ZIP'}
+                              {size ? ` · ${size}` : ''}
                             </p>
                           </div>
 
                           <div>
-                            <p className="font-medium text-foreground">GitHub sync</p>
+                            <p className="font-medium text-foreground">
+                              {item.storageProvider
+                                ? DESTINATION_LABELS[item.storageProvider]
+                                : 'Storage'}
+                            </p>
                             {item.storagePath ? (
                               <>
-                                <p className="font-mono text-xs text-muted-foreground">
+                                <p className="break-all font-mono text-xs text-muted-foreground">
                                   {item.storagePath}
                                 </p>
                                 {item.storageUrl ? (
@@ -599,13 +601,13 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                                     rel="noreferrer"
                                     className="mt-1 inline-block text-primary underline-offset-4 hover:underline"
                                   >
-                                    Open commit
+                                    {item.storageProvider === 'GITHUB' ? 'Open commit' : 'Open'}
                                   </a>
                                 ) : null}
                               </>
                             ) : (
                               <p className="text-muted-foreground">
-                                The repo path appears after a successful sync.
+                                The location appears once the run is published.
                               </p>
                             )}
                           </div>
@@ -633,10 +635,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                             </Button>
                             <Button
                               variant="outline"
-                              onClick={() => {
-                                setRejectTarget(item);
-                                setRejectReason('');
-                              }}
+                              onClick={() => askRejectReason(item)}
                               disabled={isBusy}
                             >
                               Reject
@@ -663,7 +662,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                         {item.status === 'COMPLETED' ? (
                           <Button
                             variant="outline"
-                            onClick={() => void handleDownload(item.id)}
+                            onClick={() => void handleDownload(item)}
                             disabled={isBusy}
                             className="gap-2"
                           >
@@ -673,6 +672,19 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                               <Download aria-hidden="true" className="h-4 w-4" />
                             )}
                             Download zip
+                          </Button>
+                        ) : null}
+
+                        {canApprove &&
+                        (item.status === 'COMPLETED' || item.status === 'SKIPPED') ? (
+                          <Button
+                            variant="ghost"
+                            onClick={() => askRerunReason(item)}
+                            disabled={isBusy}
+                            className="gap-2"
+                          >
+                            <Redo2 aria-hidden="true" className="h-4 w-4" />
+                            Rerun
                           </Button>
                         ) : null}
                       </div>
@@ -685,58 +697,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
         </CardContent>
       </Card>
 
-      <Dialog
-        open={rejectTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setRejectTarget(null);
-            setRejectReason('');
-          }
-        }}
-      >
-        <DialogContent className="max-w-lg rounded-lg border-border/80">
-          <DialogHeader>
-            <DialogTitle className="font-heading text-2xl">Reject export request</DialogTitle>
-            <DialogDescription>
-              Provide a reason so the requester knows what to fix before retrying.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-2">
-            <Label htmlFor="rejectReason">Reason</Label>
-            <Textarea
-              id="rejectReason"
-              value={rejectReason}
-              onChange={(event) => setRejectReason(event.target.value)}
-              placeholder="Example: clinic consent review is incomplete for this date range."
-              rows={5}
-            />
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setRejectTarget(null);
-                setRejectReason('');
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => void handleRejectConfirm()}
-              disabled={
-                !rejectReason.trim() || (rejectTarget ? actionLoadingId === rejectTarget.id : false)
-              }
-            >
-              {rejectTarget && actionLoadingId === rejectTarget.id ? (
-                <Loader2 aria-hidden="true" className="mr-2 h-4 w-4 animate-spin" />
-              ) : null}
-              Reject export
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ResearchReasonDialog prompt={reasonPrompt} onClose={() => setReasonPrompt(null)} />
     </div>
   );
 }
