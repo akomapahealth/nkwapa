@@ -935,6 +935,7 @@ model Clinic {
   volunteerContacts         VolunteerContact[]
   screeningEvents           ScreeningEvent[]
   screeningAssignments      ScreeningEventAssignment[]
+  patientDataRequests       PatientDataRequest[]
 
   @@unique([organizationId, locationCode])
   @@index([organizationId])
@@ -1059,6 +1060,8 @@ model User {
   createdScreeningEvents          ScreeningEvent[]                @relation("ScreeningEventCreatedBy")
   assignedScreeningRosters        ScreeningEventAssignment[]      @relation("ScreeningAssignmentAssignedBy")
   removedScreeningRosters         ScreeningEventAssignment[]      @relation("ScreeningAssignmentRemovedBy")
+  requestedDataRequests           PatientDataRequest[]            @relation("PatientDataRequestRequestedBy")
+  respondedDataRequests           PatientDataRequest[]            @relation("PatientDataRequestRespondedBy")
 
   @@index([isActive])
 }
@@ -1143,6 +1146,7 @@ model Patient {
   duplicateReviewsAsB       PatientDuplicateReview[]        @relation("PatientDuplicateReviewB")
   mergeRecordsAsCanonical   PatientMergeRecord[]            @relation("PatientMergeRecordCanonical")
   mergeRecordAsSource       PatientMergeRecord?             @relation("PatientMergeRecordSource")
+  dataRequests              PatientDataRequest[]
 
   @@index([primaryClinicId])
   @@index([portalUserId])
@@ -2848,4 +2852,53 @@ model TelemetryEvent {
   @@index([event, occurredAt])
   @@index([clinicId, occurredAt])
   @@index([occurredAt])
+}
+
+/// What a patient asked the clinic to do with their information.
+enum PatientDataRequestType {
+  /// A copy of the information held about them.
+  ACCESS
+  /// Correct something inaccurate.
+  CORRECTION
+  /// Delete information that does not have to be kept.
+  DELETION
+  /// Stop or limit a use, such as research.
+  RESTRICTION
+}
+
+enum PatientDataRequestStatus {
+  RECEIVED
+  IN_PROGRESS
+  COMPLETED
+  DECLINED
+}
+
+/// A patient's request about their own information, kept so the clinic can show when it was
+/// received, by when it was due, and how it was answered. Deleting the request itself would
+/// destroy that evidence, so rows are kept with the patient record.
+model PatientDataRequest {
+  id                String                   @id @default(uuid()) @db.Uuid
+  clinicId          String                   @db.Uuid
+  patientId         String                   @db.Uuid
+  requestedByUserId String                   @db.Uuid
+  type              PatientDataRequestType
+  /// The patient's own words, optional.
+  details           String?                  @db.Text
+  status            PatientDataRequestStatus @default(RECEIVED)
+  /// The response the clinic committed to: 30 days from receipt.
+  dueAt             DateTime
+  /// Required when completing or declining, and shown to the patient.
+  responseNote      String?                  @db.Text
+  respondedByUserId String?                  @db.Uuid
+  respondedAt       DateTime?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  clinic      Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient     Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  requestedBy User    @relation("PatientDataRequestRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  respondedBy User?   @relation("PatientDataRequestRespondedBy", fields: [respondedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([clinicId, status, dueAt])
+  @@index([patientId, createdAt])
 }
