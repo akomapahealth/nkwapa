@@ -2,68 +2,74 @@ import type { JobStep } from '../prisma/job-tenant-context.runner';
 import {
   RESEARCH_EXPORT_INTERRUPTED,
   RESEARCH_EXPORT_STALE_AFTER_MS,
-  ResearchExportService,
 } from './research-export.service';
+import {
+  auditActions,
+  buildResearchExportService,
+  makeExportRecord,
+  makeRunPackage,
+  mockStorageAdapter,
+} from '../testing/research-run-fixtures';
 
 /*
-  #164: the research pack is pushed to GitHub with no database transaction open, and a push whose
-  outcome was lost is settled by asking GitHub, never by pushing again.
+  #164: the research pack is published with no database transaction open, and a publish whose
+  outcome was lost is settled by asking storage, never by publishing again. #166 put the
+  destination behind a port; these run against a mocked adapter, so they hold for every one.
 
   The export row lives in memory, and `step` stands in for one short transaction, recording whether
-  one is open when GitHub is called.
+  one is open when storage is called.
 */
 
 type Row = Record<string, unknown>;
 
-const PLANNED_PATH = 'clinics/key/exports/2026-10-08T12-00-00-000Z__exp-1';
-const COMMIT = {
-  provider: 'GITHUB',
-  repoPath: PLANNED_PATH,
-  commitSha: 'abc123',
-  commitUrl: 'https://github.com/example/research/commit/abc123',
+const PLANNED_PATH = 'research/v5/clinic=key/runs/rx-3f9a2c1d-m2026-09';
+const STORED = {
+  provider: 'LOCAL' as const,
+  path: PLANNED_PATH,
+  ref: 'abc123',
+  url: `file:///${PLANNED_PATH}/`,
   syncedAt: new Date('2026-10-08T12:01:00Z'),
 };
 
-function exportRow(overrides: Row = {}): Row {
-  return {
-    id: 'exp-1',
-    clinicId: 'clinic-1',
+function setup(initial: Row = {}) {
+  let row: Row = makeExportRecord({
     status: 'APPROVED',
+    runKey: 'rx-3f9a2c1d-m2026-09',
     fromDate: '2026-09-01',
     toDate: '2026-09-30',
-    policyVersionSnapshot: 'research-export-v1',
     requestedByUserId: 'director-1',
     requestedBy: { id: 'director-1', displayName: 'Director' },
-    approvedBy: null,
-    requestedAt: new Date('2026-10-08T11:00:00Z'),
-    approvedAt: null,
-    startedAt: null,
-    completedAt: null,
-    repoPath: null,
-    repoCommitSha: null,
-    failureReason: null,
-    ...overrides,
-  };
-}
-
-function setup(initial: Row = {}) {
-  let row = exportRow(initial);
+    storageProvider: 'LOCAL',
+    ...initial,
+  } as never) as unknown as Row;
   let openSteps = 0;
   let failNextStep: Error | null = null;
 
-  const repo = {
-    findById: jest.fn(async () => ({ ...row })),
-    update: jest.fn(async (_id: string, data: Row) => {
-      row = { ...row, ...data };
-      return { ...row };
-    }),
-    transition: jest.fn(async (_id: string, from: string, data: Row) => {
-      if (row.status !== from) return null;
-      row = { ...row, ...data };
-      return { ...row };
-    }),
-    findStaleProcessing: jest.fn(async () => (row.status === 'PROCESSING' ? [{ ...row }] : [])),
-  };
+  const adapter = mockStorageAdapter(PLANNED_PATH);
+  adapter.putRun.mockImplementation(async () => {
+    expect(openSteps).toBe(0);
+    return STORED;
+  });
+  adapter.recoverRun.mockImplementation(async () => {
+    expect(openSteps).toBe(0);
+    return null;
+  });
+  const ctx = buildResearchExportService({ adapter });
+  ctx.repo.findById.mockImplementation(async () => ({ ...row }));
+  ctx.repo.update.mockImplementation(async (_id: string, data: Row) => {
+    row = { ...row, ...data };
+    return { ...row };
+  });
+  ctx.repo.transition.mockImplementation(async (_id: string, from: string, data: Row) => {
+    if (row.status !== from) return null;
+    row = { ...row, ...data };
+    return { ...row };
+  });
+  ctx.repo.findStaleProcessing.mockImplementation(async () =>
+    row.status === 'PROCESSING' ? [{ ...row }] : [],
+  );
+  ctx.transformService.generatePack.mockImplementation(async () => makeRunPackage().pack);
+
   const step: JobStep = async (callback) => {
     if (failNextStep) {
       const error = failNextStep;
@@ -77,44 +83,9 @@ function setup(initial: Row = {}) {
       openSteps -= 1;
     }
   };
-  const transformService = {
-    generatePack: jest.fn(async () => ({
-      manifest: { clinicKey: 'key', generatedAt: '2026-10-08T12:00:00.000Z' },
-      repoFiles: [],
-      artifactPath: '/tmp/exp-1.zip',
-      artifactSha256: 'sha',
-      artifactSizeBytes: 10,
-      recordCount: 3,
-      rowCounts: { research_measurements: 3 },
-    })),
-  };
-  const repoSyncService = {
-    plannedRepoPath: jest.fn(() => PLANNED_PATH),
-    sync: jest.fn(async () => {
-      expect(openSteps).toBe(0);
-      return COMMIT;
-    }),
-    findPushedCommit: jest.fn(async (): Promise<typeof COMMIT | null> => {
-      expect(openSteps).toBe(0);
-      return null;
-    }),
-  };
-  const audit = { logWrite: jest.fn().mockResolvedValue(undefined) };
-  const prisma = { $queryRaw: jest.fn().mockResolvedValue([{ locked: true }]) };
-  const service = new ResearchExportService(
-    repo as never,
-    prisma as never,
-    audit as never,
-    transformService as never,
-    repoSyncService as never,
-    { add: jest.fn() } as never,
-    { isReady: () => true, assertReady: () => undefined } as never,
-  );
   return {
-    service,
+    ...ctx,
     step,
-    repoSyncService,
-    audit,
     row: () => row,
     failNextStepWith: (error: Error) => {
       failNextStep = error;
@@ -122,65 +93,64 @@ function setup(initial: Row = {}) {
   };
 }
 
-const actions = (audit: { logWrite: jest.Mock }) =>
-  audit.logWrite.mock.calls.map(([event]) => (event as { action: string }).action);
+const actions = auditActions;
 
 describe('pushing a research export outside the job transaction (#164)', () => {
   it('records the planned path before the push, and COMPLETED after it', async () => {
-    const { service, step, repoSyncService, row, audit } = setup();
-    repoSyncService.sync.mockImplementationOnce(async () => {
+    const { service, step, adapter, row, audit } = setup();
+    adapter.putRun.mockImplementationOnce(async () => {
       // The path GitHub is about to receive is already on the row.
-      expect(row()).toMatchObject({ status: 'PROCESSING', repoPath: PLANNED_PATH });
-      return COMMIT;
+      expect(row()).toMatchObject({ status: 'PROCESSING', storagePath: PLANNED_PATH });
+      return STORED;
     });
 
     await expect(service.processQueuedExport('exp-1', undefined, step)).resolves.toMatchObject({
       status: 'COMPLETED',
     });
-    expect(row()).toMatchObject({ status: 'COMPLETED', repoCommitSha: 'abc123' });
+    expect(row()).toMatchObject({ status: 'COMPLETED', storageRef: 'abc123' });
     expect(actions(audit)).toEqual(['RESEARCH_EXPORT.START', 'RESEARCH_EXPORT.COMPLETE']);
   });
 
   it('completes from the commit GitHub already has when the push response was lost', async () => {
-    const { service, step, repoSyncService, row } = setup();
-    repoSyncService.sync.mockRejectedValueOnce(new Error('socket hang up'));
-    repoSyncService.findPushedCommit.mockResolvedValueOnce(COMMIT);
+    const { service, step, adapter, row } = setup();
+    adapter.putRun.mockRejectedValueOnce(new Error('socket hang up'));
+    adapter.recoverRun.mockResolvedValueOnce(STORED);
 
     await service.processQueuedExport('exp-1', { attemptsMade: 0, maxAttempts: 3 }, step);
-    expect(row()).toMatchObject({ status: 'COMPLETED', repoCommitSha: 'abc123' });
-    expect(repoSyncService.sync).toHaveBeenCalledTimes(1);
+    expect(row()).toMatchObject({ status: 'COMPLETED', storageRef: 'abc123' });
+    expect(adapter.putRun).toHaveBeenCalledTimes(1);
   });
 
   it('retries a push that certainly did not land', async () => {
-    const { service, step, repoSyncService, row } = setup();
-    repoSyncService.sync.mockRejectedValueOnce(new Error('GitHub sync failed (422)'));
+    const { service, step, adapter, row } = setup();
+    adapter.putRun.mockRejectedValueOnce(new Error('GitHub sync failed (422)'));
 
     await expect(
       service.processQueuedExport('exp-1', { attemptsMade: 0, maxAttempts: 3 }, step),
     ).rejects.toThrow('422');
-    expect(row()).toMatchObject({ status: 'APPROVED', repoPath: null });
+    expect(row()).toMatchObject({ status: 'APPROVED', storagePath: null });
   });
 
   it('leaves the export PROCESSING when nobody can tell whether the push landed', async () => {
-    const { service, step, repoSyncService, row } = setup();
-    repoSyncService.sync.mockRejectedValueOnce(new Error('socket hang up'));
-    repoSyncService.findPushedCommit.mockRejectedValueOnce(new Error('GitHub unreachable'));
+    const { service, step, adapter, row } = setup();
+    adapter.putRun.mockRejectedValueOnce(new Error('socket hang up'));
+    adapter.recoverRun.mockRejectedValueOnce(new Error('GitHub unreachable'));
 
     await expect(
       service.processQueuedExport('exp-1', { attemptsMade: 0, maxAttempts: 3 }, step),
     ).resolves.toBeNull();
-    expect(row()).toMatchObject({ status: 'PROCESSING', repoPath: PLANNED_PATH });
+    expect(row()).toMatchObject({ status: 'PROCESSING', storagePath: PLANNED_PATH });
 
     // The queue's retry, or a duplicate delivery, does not start it again.
     await service.processQueuedExport('exp-1', undefined, step);
-    expect(repoSyncService.sync).toHaveBeenCalledTimes(1);
+    expect(adapter.putRun).toHaveBeenCalledTimes(1);
   });
 
   it('throws without pushing again when COMPLETED cannot be recorded', async () => {
-    const { service, step, repoSyncService, row, failNextStepWith } = setup();
-    repoSyncService.sync.mockImplementationOnce(async () => {
+    const { service, step, adapter, row, failNextStepWith } = setup();
+    adapter.putRun.mockImplementationOnce(async () => {
       failNextStepWith(new Error('connection reset'));
-      return COMMIT;
+      return STORED;
     });
 
     await expect(service.processQueuedExport('exp-1', undefined, step)).rejects.toThrow(
@@ -188,7 +158,35 @@ describe('pushing a research export outside the job transaction (#164)', () => {
     );
     expect(row().status).toBe('PROCESSING');
     await service.processQueuedExport('exp-1', undefined, step);
-    expect(repoSyncService.sync).toHaveBeenCalledTimes(1);
+    expect(adapter.putRun).toHaveBeenCalledTimes(1);
+  });
+
+  it('mirrors the manifest to GitHub after COMPLETED, outside any transaction', async () => {
+    const { service, step, storage, row, audit } = setup();
+    storage.mirrorsManifests.mockReturnValue(true);
+    storage.github.mirrorManifest.mockResolvedValue({ ...STORED, provider: 'GITHUB' });
+
+    await service.processQueuedExport('exp-1', undefined, step);
+
+    expect(row().status).toBe('COMPLETED');
+    expect(storage.github.mirrorManifest).toHaveBeenCalledTimes(1);
+    expect(actions(audit)).toEqual([
+      'RESEARCH_EXPORT.START',
+      'RESEARCH_EXPORT.COMPLETE',
+      'RESEARCH_EXPORT.MIRROR',
+    ]);
+  });
+
+  it('keeps a published run COMPLETED when the GitHub mirror fails, and audits the failure', async () => {
+    const { service, step, storage, row, audit } = setup();
+    storage.mirrorsManifests.mockReturnValue(true);
+    storage.github.mirrorManifest.mockRejectedValue(new Error('GitHub sync failed (502)'));
+
+    await expect(service.processQueuedExport('exp-1', undefined, step)).resolves.toMatchObject({
+      status: 'COMPLETED',
+    });
+    expect(row().status).toBe('COMPLETED');
+    expect(actions(audit)).toContain('RESEARCH_EXPORT.MIRROR_FAIL');
   });
 
   describe('reconcileStaleExports', () => {
@@ -197,55 +195,55 @@ describe('pushing a research export outside the job transaction (#164)', () => {
     const clinicStep = (step: JobStep) => () => step;
 
     it('completes an export whose push landed, without pushing', async () => {
-      const { service, step, repoSyncService, row, audit } = setup({
+      const { service, step, adapter, row, audit } = setup({
         status: 'PROCESSING',
         startedAt: stale,
-        repoPath: PLANNED_PATH,
+        storagePath: PLANNED_PATH,
       });
-      repoSyncService.findPushedCommit.mockResolvedValueOnce(COMMIT);
+      adapter.recoverRun.mockResolvedValueOnce(STORED);
 
       await expect(service.reconcileStaleExports(step, clinicStep(step), now)).resolves.toEqual({
         completed: 1,
         failed: 0,
       });
-      expect(row()).toMatchObject({ status: 'COMPLETED', repoCommitSha: 'abc123' });
+      expect(row()).toMatchObject({ status: 'COMPLETED', storageRef: 'abc123' });
       expect(actions(audit)).toEqual(['RESEARCH_EXPORT.RECONCILE']);
-      expect(repoSyncService.sync).not.toHaveBeenCalled();
+      expect(adapter.putRun).not.toHaveBeenCalled();
     });
 
     it('fails an export whose push never landed, so an operator can retry it', async () => {
       const { service, step, row } = setup({
         status: 'PROCESSING',
         startedAt: stale,
-        repoPath: PLANNED_PATH,
+        storagePath: PLANNED_PATH,
       });
 
       await service.reconcileStaleExports(step, clinicStep(step), now);
       expect(row()).toMatchObject({
         status: 'FAILED',
         failureReason: RESEARCH_EXPORT_INTERRUPTED,
-        repoPath: null,
+        storagePath: null,
       });
     });
 
     it('fails one that stopped before planning a push, without asking GitHub', async () => {
-      const { service, step, repoSyncService, row } = setup({
+      const { service, step, adapter, row } = setup({
         status: 'PROCESSING',
         startedAt: stale,
       });
 
       await service.reconcileStaleExports(step, clinicStep(step), now);
-      expect(repoSyncService.findPushedCommit).not.toHaveBeenCalled();
+      expect(adapter.recoverRun).not.toHaveBeenCalled();
       expect(row()).toMatchObject({ status: 'FAILED', failureReason: RESEARCH_EXPORT_INTERRUPTED });
     });
 
     it('leaves one alone while GitHub cannot be asked', async () => {
-      const { service, step, repoSyncService, row } = setup({
+      const { service, step, adapter, row } = setup({
         status: 'PROCESSING',
         startedAt: stale,
-        repoPath: PLANNED_PATH,
+        storagePath: PLANNED_PATH,
       });
-      repoSyncService.findPushedCommit.mockRejectedValueOnce(new Error('GitHub unreachable'));
+      adapter.recoverRun.mockRejectedValueOnce(new Error('GitHub unreachable'));
 
       await expect(service.reconcileStaleExports(step, clinicStep(step), now)).resolves.toEqual({
         completed: 0,

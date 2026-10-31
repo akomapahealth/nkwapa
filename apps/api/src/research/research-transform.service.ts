@@ -7,6 +7,8 @@ import {
   RESEARCH_FILE_FORMAT,
   RESEARCH_POLICY_VERSION,
   type ResearchPackFile,
+  type ResearchRunChanges,
+  type ResearchRunIdentity,
   sha256Hex,
 } from './research-policy';
 import { createStoredZip } from './zip.util';
@@ -249,6 +251,7 @@ export class ResearchTransformService {
     fromDate: string,
     toDate: string,
     exportId: string,
+    run: ResearchRunIdentity,
     policyVersion = RESEARCH_POLICY_VERSION,
   ): Promise<GeneratedResearchPack> {
     const { start, end } = this.getWindow(fromDate, toDate);
@@ -831,9 +834,29 @@ export class ResearchTransformService {
       csvFiles.map((file) => [file.file.name.replace('.csv', ''), file.rows]),
     );
 
+    const tableChecksums = csvFiles
+      .map((file) => `${file.file.sha256}  ${file.file.name}`)
+      .join('\n');
+    const changes = this.describeChanges(
+      run.runKey,
+      previousCompletedExport,
+      [...consentByPatientId.values()],
+      revokedConsents.filter((consent) => !consentByPatientId.has(consent.patientId)).length,
+      rowCounts,
+    );
+    const changesFile = this.toPackFile('changes.json', `${JSON.stringify(changes, null, 2)}\n`);
+
     const manifestBase = {
       exportId,
+      runKey: run.runKey,
+      trigger: run.trigger,
+      scheduleId: run.scheduleId,
+      previousRunKey: changes.previousRunKey,
       clinicKey,
+      hmacKeyId: this.deIdService.keyId(),
+      consentedSubjects: changes.consentedSubjects,
+      revokedSinceLast: revocationRows.length,
+      contentSha256: sha256Hex(`${tableChecksums}\n`),
       datasetVersion: RESEARCH_DATASET_VERSION,
       policyVersion,
       fromDate,
@@ -852,12 +875,17 @@ export class ResearchTransformService {
     const manifestContent = `${JSON.stringify(manifestBase, null, 2)}\n`;
     const manifestFile = this.toPackFile('manifest.json', manifestContent);
     const checksumsContent =
-      [...csvFiles.map((file) => file.file), manifestFile]
+      [...csvFiles.map((file) => file.file), changesFile, manifestFile]
         .map((file) => `${file.sha256}  ${file.name}`)
         .join('\n') + '\n';
     const checksumFile = this.toPackFile('SHA256SUMS.txt', checksumsContent);
 
-    const repoFiles = [...csvFiles.map((file) => file.file), manifestFile, checksumFile];
+    const repoFiles = [
+      ...csvFiles.map((file) => file.file),
+      changesFile,
+      manifestFile,
+      checksumFile,
+    ];
 
     const artifactDir = path.join(this.getExportDir(), exportId);
     fs.mkdirSync(artifactDir, { recursive: true });
@@ -890,6 +918,7 @@ export class ResearchTransformService {
           },
         ],
       },
+      changes,
       repoFiles,
       artifactPath,
       artifactSha256: sha256Hex(zipBuffer),
@@ -1107,6 +1136,54 @@ export class ResearchTransformService {
       glucose_type: report.type === 'HOME_GLUCOSE' ? report.glucoseType : null,
       weight_kg: null,
       research_linked_encounter_key: '',
+    };
+  }
+
+  /** `changes.json`: this run against the previous completed one (#166). */
+  private describeChanges(
+    runKey: string,
+    previous: {
+      runKey: string;
+      completedAt: Date | null;
+      consentedSubjectCount: number | null;
+      rowCountsJson: string | null;
+    } | null,
+    consents: Array<{ grantedAt: Date }>,
+    subjectsRevoked: number,
+    rowCounts: Record<string, number>,
+  ): ResearchRunChanges {
+    const since = previous?.completedAt ?? null;
+    const subjectsAdded = since
+      ? consents.filter((consent) => consent.grantedAt > since).length
+      : consents.length;
+    const previousConsentedSubjects = previous?.consentedSubjectCount ?? null;
+    const subjectsOtherwiseRemoved =
+      previousConsentedSubjects === null
+        ? 0
+        : Math.max(
+            0,
+            previousConsentedSubjects + subjectsAdded - subjectsRevoked - consents.length,
+          );
+    let previousCounts: Record<string, number> = {};
+    try {
+      previousCounts = previous?.rowCountsJson ? JSON.parse(previous.rowCountsJson) : {};
+    } catch {
+      previousCounts = {};
+    }
+    return {
+      runKey,
+      previousRunKey: previous?.runKey ?? null,
+      consentedSubjects: consents.length,
+      previousConsentedSubjects,
+      subjectsAdded,
+      subjectsRevoked,
+      subjectsOtherwiseRemoved,
+      rowCountDeltas: Object.fromEntries(
+        Object.entries(rowCounts).map(([table, rows]) => [
+          table,
+          rows - (Number(previousCounts[table]) || 0),
+        ]),
+      ),
     };
   }
 

@@ -1,7 +1,12 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Queue } from 'bullmq';
-import { ResearchExportStatus } from '@prisma/client';
+import type {
+  ResearchExportStatus,
+  ResearchExportTrigger,
+  ResearchStorageProvider,
+} from '@prisma/client';
+import { CLINIC_DEFAULT_TIMEZONE, todayInTimeZone } from '@nkwapa/db';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import {
@@ -10,15 +15,24 @@ import {
   RESEARCH_FILE_FORMAT,
   RESEARCH_POLICY_VERSION,
   type GeneratedResearchPack,
-  type ResearchRepoSyncResult,
+  type ResearchRunChanges,
 } from './research-policy';
 import { ResearchExportRecord, ResearchExportRepository } from './research-export.repository';
 import { RequestExportDto } from './dto/request-export.dto';
 import { ResearchTransformService } from './research-transform.service';
-import { ResearchRepoSyncService } from './research-repo-sync.service';
+import { DeIdentificationService } from './de-identification.service';
+import { ResearchStorageRegistry } from './storage/research-storage.registry';
+import type {
+  ResearchRunPackage,
+  ResearchStorageAdapter,
+  StoredRunRef,
+} from './storage/research-storage.port';
+import { adHocRunKey, baseRunKey, revisionRunKey } from './research-run-key';
+import { researchMinSubjects, runSkipReason } from './research-run-governance';
+import { ResearchRunNotifier } from './research-run.notifier';
 import { redactLogValue } from '../common/redaction';
 import { SINGLE_FINAL_ATTEMPT, hasAttemptsLeft, type JobAttempt } from '../common/job-attempt';
-import { tryLockForTransaction } from '../prisma/transaction-lock';
+import { lockForTransaction, tryLockForTransaction } from '../prisma/transaction-lock';
 import type { JobStep } from '../prisma/job-tenant-context.runner';
 import { RedisService } from '../redis/redis.service';
 
@@ -31,6 +45,9 @@ export interface ExportAuditContext {
 export interface ResearchExportView {
   id: string;
   clinicId: string;
+  runKey: string;
+  trigger: ResearchExportTrigger;
+  scheduleId: string | null;
   status: ResearchExportStatus;
   fromDate: string;
   toDate: string;
@@ -38,16 +55,21 @@ export interface ResearchExportView {
   policyVersionSnapshot: string;
   rejectionReason: string | null;
   failureReason: string | null;
+  skipReason: string | null;
   filePath: string | null;
   fileFormat: string | null;
   recordCount: number | null;
   rowCounts: Record<string, number>;
+  consentedSubjectCount: number | null;
+  revokedSinceLastCount: number | null;
+  contentSha256: string | null;
+  changes: ResearchRunChanges | null;
   artifactSha256: string | null;
   artifactSizeBytes: number | null;
-  repoProvider: string | null;
-  repoPath: string | null;
-  repoCommitSha: string | null;
-  repoCommitUrl: string | null;
+  storageProvider: ResearchStorageProvider | null;
+  storagePath: string | null;
+  storageRef: string | null;
+  storageUrl: string | null;
   requestedAt: string;
   startedAt: string | null;
   approvedAt: string | null;
@@ -57,18 +79,38 @@ export interface ResearchExportView {
   approvedBy?: { id: string; displayName: string } | null;
 }
 
+/** Everything that makes a run, however it was asked for. */
+export interface CreateRunParams {
+  clinicId: string;
+  requestedByUserId: string;
+  /** Set for a run that needs no further approval; it is queued at once. */
+  approvedByUserId: string | null;
+  fromDate: string;
+  toDate: string;
+  runKey: string;
+  trigger: ResearchExportTrigger;
+  scheduleId: string | null;
+  storageProvider: ResearchStorageProvider;
+}
+
 const RESEARCH_EXPORT_FAILED = 'RESEARCH_EXPORT_FAILED';
-/** A run that stopped before it pushed anything: safe for an operator to retry. */
+/** A run that stopped before it published anything: safe for an operator to retry. */
 export const RESEARCH_EXPORT_INTERRUPTED = 'RESEARCH_EXPORT_INTERRUPTED';
 /**
  * Pack generation reads a clinic's whole date range, and a big clinic can take longer than the
  * default five seconds. It is reads only, so a longer transaction holds nothing that matters, and
- * a timeout costs a retry, never a duplicate push.
+ * a timeout costs a retry, never a duplicate publish.
  */
 const RESEARCH_PACK_TRANSACTION_TIMEOUT_MS = 120_000;
-/** Generation plus a push of up to 250 MB is minutes; an hour is never a live run. */
+/** Generation plus a publish of up to 250 MB is minutes; an hour is never a live run. */
 export const RESEARCH_EXPORT_STALE_AFTER_MS = 60 * 60 * 1000;
 const RESEARCH_RECONCILE_BATCH = 50;
+
+type ClaimOutcome =
+  | { done: ResearchExportView }
+  | { skipped: ResearchExportRecord; actorUserId: string }
+  | { processing: ResearchExportRecord; actorUserId: string }
+  | null;
 
 @Injectable()
 export class ResearchExportService {
@@ -79,7 +121,9 @@ export class ResearchExportService {
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
     private readonly transformService: ResearchTransformService,
-    private readonly repoSyncService: ResearchRepoSyncService,
+    private readonly storage: ResearchStorageRegistry,
+    private readonly deIdService: DeIdentificationService,
+    private readonly notifier: ResearchRunNotifier,
     @InjectQueue(RESEARCH_EXPORT_QUEUE_NAME)
     private readonly exportQueue: Queue,
     private readonly redis: RedisService,
@@ -99,42 +143,73 @@ export class ResearchExportService {
       throw new BadRequestException('Research is not enabled for this clinic');
     }
 
-    const autoApprove = !settings.requiresDirectorApprovalEachExport;
-
     this.assertDateRange(dto.fromDate, dto.toDate);
+    const storageProvider = this.storage.defaultProvider();
+    this.storage.assertAvailable(storageProvider);
 
-    const approvedAt = autoApprove ? new Date() : undefined;
-    const exportRecord = await this.repo.create({
-      clinic: { connect: { id: clinicId } },
-      requestedBy: { connect: { id: userId } },
-      fromDate: dto.fromDate,
-      toDate: dto.toDate,
-      status: autoApprove ? 'APPROVED' : 'PENDING_APPROVAL',
+    const record = await this.createRun(
+      {
+        clinicId,
+        requestedByUserId: userId,
+        approvedByUserId: settings.requiresDirectorApprovalEachExport ? null : userId,
+        fromDate: dto.fromDate,
+        toDate: dto.toDate,
+        runKey: await this.adHocRunKey(clinicId),
+        trigger: 'MANUAL',
+        scheduleId: null,
+        storageProvider,
+      },
+      auditCtx,
+    );
+    return this.toExportView(record);
+  }
+
+  /**
+   * Create a run and, when it is already approved, queue it under its run key (#166). The single
+   * path for manual requests, schedule runs, Run now and reruns, so they cannot drift apart.
+   */
+  async createRun(
+    params: CreateRunParams,
+    auditCtx?: ExportAuditContext,
+  ): Promise<ResearchExportRecord> {
+    const approver = params.approvedByUserId;
+    const record = await this.repo.create({
+      clinic: { connect: { id: params.clinicId } },
+      requestedBy: { connect: { id: params.requestedByUserId } },
+      fromDate: params.fromDate,
+      toDate: params.toDate,
+      runKey: params.runKey,
+      trigger: params.trigger,
+      schedule: params.scheduleId ? { connect: { id: params.scheduleId } } : undefined,
+      storageProvider: params.storageProvider,
+      status: approver ? 'APPROVED' : 'PENDING_APPROVAL',
       datasetVersion: RESEARCH_DATASET_VERSION,
       policyVersionSnapshot: RESEARCH_POLICY_VERSION,
       fileFormat: RESEARCH_FILE_FORMAT,
-      approvedAt,
-      approvedBy: autoApprove ? { connect: { id: userId } } : undefined,
+      approvedAt: approver ? new Date() : undefined,
+      approvedBy: approver ? { connect: { id: approver } } : undefined,
     });
 
-    if (auditCtx) {
-      await this.auditService.logWrite({
-        clinicId: auditCtx.clinicId,
-        actorUserId: auditCtx.actorUserId,
-        action: 'RESEARCH_EXPORT.REQUEST',
-        entityType: 'ResearchExport',
-        entityId: exportRecord.id,
-        afterJson: JSON.stringify(exportRecord),
-        requestId: auditCtx.requestId,
-      });
-    }
+    await this.auditService.logWrite({
+      clinicId: params.clinicId,
+      actorUserId: auditCtx?.actorUserId ?? params.requestedByUserId,
+      action: 'RESEARCH_EXPORT.REQUEST',
+      entityType: 'ResearchExport',
+      entityId: record.id,
+      afterJson: JSON.stringify(record),
+      requestId: auditCtx?.requestId ?? record.runKey,
+    });
 
-    if (autoApprove) {
-      await this.auditApprove(exportRecord, userId, auditCtx);
-      await this.queueExport(exportRecord, userId, auditCtx);
+    if (approver) {
+      await this.auditApprove(record, approver, auditCtx);
+      await this.queueExport(record, approver, auditCtx);
     }
+    return record;
+  }
 
-    return this.toExportView(exportRecord);
+  /** The run with this key, if one exists: what makes a duplicate trigger a no-op. */
+  async findByRunKey(runKey: string): Promise<ResearchExportRecord | null> {
+    return this.repo.findByRunKey(runKey);
   }
 
   async findById(id: string): Promise<ResearchExportView | null> {
@@ -230,10 +305,9 @@ export class ResearchExportService {
       startedAt: null,
       completedAt: null,
       syncedAt: null,
-      repoProvider: null,
-      repoPath: null,
-      repoCommitSha: null,
-      repoCommitUrl: null,
+      storagePath: null,
+      storageRef: null,
+      storageUrl: null,
     });
 
     if (auditCtx) {
@@ -252,30 +326,82 @@ export class ResearchExportService {
     // A fresh job id, because BullMQ keeps a finished job under its id and silently ignores an
     // add that reuses it. Retry used to re-add under the export's own id, so the row went back to
     // APPROVED while nothing was queued to run it.
-    await this.queueExport(updated, userId, auditCtx, `${exportId}-retry-${Date.now()}`);
+    await this.queueExport(updated, userId, auditCtx, `${updated.runKey}-retry-${Date.now()}`);
     return this.toExportView(updated);
   }
 
   /**
-   * Build an approved export's pack and push it to the research repository (#164).
+   * A deliberate rerun of a finished run's period, after a fix (#166). It gets the next `-r<n>`
+   * revision of the run key, so it never collides with the original, and the reason is audited.
+   */
+  async rerunExport(
+    exportId: string,
+    userId: string,
+    reason: string,
+    auditCtx: ExportAuditContext,
+  ): Promise<ResearchExportView> {
+    const existing = await this.repo.findById(exportId);
+    if (!existing) throw new NotFoundException('Export not found');
+    if (!['COMPLETED', 'SKIPPED', 'FAILED'].includes(existing.status)) {
+      throw new BadRequestException(`Cannot rerun: export status is ${existing.status}`);
+    }
+    const base = baseRunKey(existing.runKey);
+    // Serialises two directors rerunning one period, so both cannot pick the same revision.
+    await lockForTransaction(this.prisma, `research-run-revision:${base}`);
+    const revisions = await this.repo.listRunKeysWithPrefix(existing.clinicId, base);
+    const highest = revisions.reduce((max, key) => {
+      const match = /-r(\d+)$/.exec(key);
+      return Math.max(max, match ? Number(match[1]) : 1);
+    }, 1);
+
+    const created = await this.createRun(
+      {
+        clinicId: existing.clinicId,
+        requestedByUserId: userId,
+        approvedByUserId: userId,
+        fromDate: existing.fromDate,
+        toDate: existing.toDate,
+        runKey: revisionRunKey(base, highest + 1),
+        trigger: existing.trigger,
+        scheduleId: existing.scheduleId,
+        storageProvider: existing.storageProvider ?? this.storage.defaultProvider(),
+      },
+      auditCtx,
+    );
+    await this.auditService.logWrite({
+      clinicId: auditCtx.clinicId,
+      actorUserId: auditCtx.actorUserId,
+      action: 'RESEARCH_EXPORT.RERUN',
+      entityType: 'ResearchExport',
+      entityId: created.id,
+      beforeJson: JSON.stringify(existing),
+      afterJson: JSON.stringify({ ...created, rerunReason: reason.trim() }),
+      requestId: auditCtx.requestId ?? created.runKey,
+    });
+    return this.toExportView(created);
+  }
+
+  /**
+   * Build an approved run's pack and publish it to its destination (#164, #166).
    *
-   * Short steps, never one transaction around the push:
+   * Short steps, never one transaction around the upload:
    *
-   * 1. **Claim**: APPROVED -> PROCESSING, committed. A duplicate delivery, or a retry while this
-   *    run is in flight, finds PROCESSING and stands down.
+   * 1. **Claim**: APPROVED -> PROCESSING, committed, after the run-time governance checks; a run
+   *    that fails one is recorded SKIPPED with its reason instead. A duplicate delivery, or a
+   *    retry while this run is in flight, finds PROCESSING and stands down.
    * 2. **Generate** the pack in a read step of its own, which may take longer than a write
    *    should, because reading twice is harmless.
-   * 3. **Plan**: record the pack and the repository path it will be pushed to.
-   * 4. **Push** to GitHub, with no transaction open.
-   * 5. **Record** COMPLETED.
+   * 3. **Plan**: record the pack and the storage path it will be published to.
+   * 4. **Publish** to storage, with no transaction open. This moves the clinic's pointer too.
+   * 5. **Record** COMPLETED, then mirror the manifest to GitHub if configured.
    *
-   * If the push, or recording it, fails, the planned path is what settles it: a commit touching it
-   * means the push landed, and the export completes without pushing again. If GitHub cannot be
-   * asked, the export stays PROCESSING and `reconcileStaleExports` asks later.
+   * If the publish, or recording it, fails, the planned path is what settles it: a run stored
+   * there means it landed, and the export completes without publishing again. If storage cannot
+   * be asked, the export stays PROCESSING and `reconcileStaleExports` asks later.
    *
-   * @param attempt Where this run sits in the job's retry budget. A failure that certainly pushed
-   * nothing, with attempts left, hands the export back (PROCESSING -> APPROVED) and throws for the
-   * queue's retry. Only the last attempt records FAILED.
+   * @param attempt Where this run sits in the job's retry budget. A failure that certainly
+   * published nothing, with attempts left, hands the export back (PROCESSING -> APPROVED) and
+   * throws for the queue's retry. Only the last attempt records FAILED.
    * @param step Runs one transaction under the job's tenant context. The processor always passes
    * one; the default is for callers already inside a context, such as tests.
    */
@@ -287,74 +413,93 @@ export class ResearchExportService {
     const claim = await step(() => this.claimExport(exportId));
     if (!claim) return null;
     if ('done' in claim) return claim.done;
+    if ('skipped' in claim) {
+      await this.notifyIfScheduled(step, claim.skipped, claim.actorUserId);
+      return this.toExportView(claim.skipped);
+    }
     const { processing, actorUserId } = claim;
+    const adapter = this.storage.get(processing.storageProvider);
 
-    let generatedPack: GeneratedResearchPack | null = null;
+    let run: ResearchRunPackage;
     let planned: ResearchExportRecord = processing;
     try {
-      generatedPack = await step(
+      const pack = await step(
         () =>
           this.transformService.generatePack(
             processing.clinicId,
             processing.fromDate,
             processing.toDate,
             exportId,
+            {
+              runKey: processing.runKey,
+              trigger: processing.trigger,
+              scheduleId: processing.scheduleId,
+            },
             processing.policyVersionSnapshot,
           ),
         { timeout: RESEARCH_PACK_TRANSACTION_TIMEOUT_MS },
       );
-      const pack = generatedPack;
-      const repoPath = this.repoSyncService.plannedRepoPath(processing, pack);
+      run = {
+        exportId,
+        runKey: processing.runKey,
+        fromDate: processing.fromDate,
+        toDate: processing.toDate,
+        pack,
+      };
+      const storagePath = adapter.plannedPath(run);
       planned = await step(() =>
         this.repo.update(exportId, {
           ...this.packFields(pack),
-          repoPath,
+          storageProvider: adapter.provider,
+          storagePath,
         }),
       );
     } catch (error) {
-      // Nothing has been pushed yet, so this is an ordinary failure.
+      // Nothing has been published yet, so this is an ordinary failure.
       return this.failOrRetry(step, processing, actorUserId, attempt, error);
     }
 
-    const pack = generatedPack;
-    const repoPath = planned.repoPath as string;
-    let synced: ResearchRepoSyncResult;
+    const storagePath = planned.storagePath as string;
+    let stored: StoredRunRef;
     try {
-      synced = await this.repoSyncService.sync(processing, pack);
+      stored = await adapter.putRun(run);
     } catch (error) {
-      const landed = await this.checkPush(exportId, repoPath);
+      const landed = await this.checkStored(adapter, exportId, storagePath);
       if (landed === 'UNKNOWN') return null;
       if (!landed) return this.failOrRetry(step, planned, actorUserId, attempt, error);
-      synced = landed;
+      stored = landed;
     }
 
+    let completed: ResearchExportRecord | null;
     try {
-      const completed = await step(() => this.completeExport(planned, synced, actorUserId));
-      return completed ? this.toExportView(completed) : null;
+      completed = await step(() => this.completeExport(planned, stored, actorUserId));
     } catch (error) {
-      // GitHub has the commit. Throwing hands the job back to the queue, whose retry finds
-      // PROCESSING and stands down; the sweep then finds the commit and completes the export.
+      // Storage has the run. Throwing hands the job back to the queue, whose retry finds
+      // PROCESSING and stands down; the sweep then finds the run and completes the export.
       this.logger.error(
         JSON.stringify({
-          message: 'Research export pushed but COMPLETED could not be recorded',
+          message: 'Research export published but COMPLETED could not be recorded',
           exportId,
+          runKey: processing.runKey,
           clinicId: processing.clinicId,
-          repoPath,
-          commitSha: synced.commitSha,
+          storagePath,
+          storageRef: stored.ref,
           error: redactLogValue(error),
         }),
       );
       throw error;
     }
+    if (completed) await this.mirrorManifest(step, completed, run, actorUserId);
+    return completed ? this.toExportView(completed) : null;
   }
 
   /**
    * Settle exports a worker claimed and never finished (#164).
    *
    * An export still PROCESSING well after it started belongs to a worker that died, or that lost
-   * track of its push. One with no planned path never pushed, and fails. One with a path is
-   * settled by asking GitHub: a commit there completes it, none fails it. Nothing is pushed from
-   * here, and an export GitHub cannot be asked about is left for the next sweep.
+   * track of its upload. One with no planned path never published, and fails. One with a path is
+   * settled by asking storage: a stored run there completes it, none fails it. Nothing is
+   * published from here, and an export storage cannot be asked about is left for the next sweep.
    */
   async reconcileStaleExports(
     systemStep: JobStep,
@@ -369,7 +514,9 @@ export class ResearchExportService {
     );
     const outcome = { completed: 0, failed: 0 };
     for (const row of stale) {
-      const landed = row.repoPath ? await this.checkPush(row.id, row.repoPath) : null;
+      const landed = row.storagePath
+        ? await this.checkStored(this.storage.get(row.storageProvider), row.id, row.storagePath)
+        : null;
       if (landed === 'UNKNOWN') continue;
       const step = clinicStep(row.clinicId);
       const settled = await step(async () => {
@@ -383,18 +530,18 @@ export class ResearchExportService {
         return this.recordFailure(current, actorUserId, RESEARCH_EXPORT_INTERRUPTED);
       });
       if (!settled) continue;
-      if (landed) outcome.completed += 1;
-      else outcome.failed += 1;
+      if (landed) {
+        outcome.completed += 1;
+      } else {
+        outcome.failed += 1;
+        await this.notifyIfScheduled(step, settled, settled.requestedByUserId);
+      }
     }
     return outcome;
   }
 
-  /** Step 1: take an approved export for this worker, or say why not. */
-  private async claimExport(
-    exportId: string,
-  ): Promise<
-    { done: ResearchExportView } | { processing: ResearchExportRecord; actorUserId: string } | null
-  > {
+  /** Step 1: take an approved export for this worker, skip it, or say why not. */
+  private async claimExport(exportId: string): Promise<ClaimOutcome> {
     // Stands down cheaply when another delivery is deciding the same export. The conditional
     // transition below is what makes the claim exclusive.
     if (!(await tryLockForTransaction(this.prisma, `research-export:${exportId}`))) {
@@ -405,11 +552,11 @@ export class ResearchExportService {
     if (!existing) {
       throw new NotFoundException('Export not found');
     }
-    if (existing.status === 'COMPLETED') {
+    if (existing.status === 'COMPLETED' || existing.status === 'SKIPPED') {
       return { done: this.toExportView(existing) };
     }
     if (existing.status === 'PROCESSING') {
-      // In flight elsewhere, or waiting for the sweep to settle a lost push. Never restart it.
+      // In flight elsewhere, or waiting for the sweep to settle a lost upload. Never restart it.
       return null;
     }
     if (existing.status !== 'APPROVED') {
@@ -418,11 +565,34 @@ export class ResearchExportService {
 
     const actorUserId =
       existing.approvedBy?.id ?? existing.requestedBy?.id ?? existing.requestedByUserId;
+    const { skipReason, consentedSubjects } = await this.governRun(existing);
+    if (skipReason) {
+      const skipped = await this.repo.transition(exportId, 'APPROVED', {
+        status: 'SKIPPED',
+        skipReason,
+        consentedSubjectCount: consentedSubjects,
+        completedAt: new Date(),
+      });
+      if (!skipped) return null;
+      await this.auditService.logWrite({
+        clinicId: skipped.clinicId,
+        actorUserId,
+        action: 'RESEARCH_EXPORT.SKIP',
+        entityType: 'ResearchExport',
+        entityId: exportId,
+        beforeJson: JSON.stringify(existing),
+        afterJson: JSON.stringify(skipped),
+        requestId: skipped.runKey,
+      });
+      return { skipped, actorUserId };
+    }
+
     const processing = await this.repo.transition(exportId, 'APPROVED', {
       status: 'PROCESSING',
       startedAt: new Date(),
       failureReason: null,
       rejectionReason: null,
+      skipReason: null,
     });
     if (!processing) return null;
 
@@ -434,27 +604,73 @@ export class ResearchExportService {
       entityId: exportId,
       beforeJson: JSON.stringify(existing),
       afterJson: JSON.stringify(processing),
-      requestId: exportId,
+      requestId: processing.runKey,
     });
     return { processing, actorUserId };
   }
 
+  /** The run-time checks behind a run (#166): re-read, never trusted from when it was queued. */
+  private async governRun(run: ResearchExportRecord) {
+    const [settings, schedule, consents] = await Promise.all([
+      this.prisma.clinicResearchSettings.findUnique({ where: { clinicId: run.clinicId } }),
+      run.scheduleId
+        ? this.prisma.researchExportSchedule.findUnique({
+            where: { id: run.scheduleId },
+            select: {
+              status: true,
+              reviewBy: true,
+              approvedBy: {
+                select: {
+                  isActive: true,
+                  clinicRoles: { select: { clinicId: true, role: true } },
+                },
+              },
+            },
+          })
+        : Promise.resolve(null),
+      this.prisma.patientConsent.findMany({
+        where: { clinicId: run.clinicId, consentType: 'RESEARCH_DEIDENTIFIED', status: 'GRANTED' },
+        distinct: ['patientId'],
+        select: { patientId: true },
+      }),
+    ]);
+    const skipReason = runSkipReason({
+      clinicId: run.clinicId,
+      researchEnabled: Boolean(settings?.researchEnabled),
+      schedule: run.scheduleId
+        ? {
+            // A schedule deleted from under its run counts as inactive.
+            status: schedule?.status ?? 'REVOKED',
+            reviewBy: schedule?.reviewBy ?? null,
+            approver: schedule?.approvedBy
+              ? { isActive: schedule.approvedBy.isActive, roles: schedule.approvedBy.clinicRoles }
+              : null,
+          }
+        : null,
+      consentedSubjects: consents.length,
+      minSubjects: researchMinSubjects(),
+      now: new Date(),
+    });
+    return { skipReason, consentedSubjects: consents.length };
+  }
+
   /**
-   * Whether the push for this planned path reached GitHub: its commit, null for "certainly not",
-   * or UNKNOWN when GitHub could not be asked.
+   * Whether the run planned at this path reached storage: its reference, null for "certainly
+   * not", or UNKNOWN when storage could not be asked.
    */
-  private async checkPush(
+  private async checkStored(
+    adapter: ResearchStorageAdapter,
     exportId: string,
-    repoPath: string,
-  ): Promise<ResearchRepoSyncResult | null | 'UNKNOWN'> {
+    storagePath: string,
+  ): Promise<StoredRunRef | null | 'UNKNOWN'> {
     try {
-      return await this.repoSyncService.findPushedCommit(repoPath);
+      return await adapter.recoverRun(storagePath);
     } catch (error) {
       this.logger.warn(
         JSON.stringify({
-          message: 'Research export push outcome unknown; left for reconciliation',
+          message: 'Research export publish outcome unknown; left for reconciliation',
           exportId,
-          repoPath,
+          storagePath,
           error: redactLogValue(error),
         }),
       );
@@ -462,21 +678,21 @@ export class ResearchExportService {
     }
   }
 
-  /** Step 5, and the sweep's success path: PROCESSING -> COMPLETED with the commit. */
+  /** Step 5, and the sweep's success path: PROCESSING -> COMPLETED with where it was stored. */
   private async completeExport(
     processing: ResearchExportRecord,
-    synced: ResearchRepoSyncResult,
+    stored: StoredRunRef,
     actorUserId: string,
     action: 'RESEARCH_EXPORT.COMPLETE' | 'RESEARCH_EXPORT.RECONCILE' = 'RESEARCH_EXPORT.COMPLETE',
   ): Promise<ResearchExportRecord | null> {
     const completed = await this.repo.transition(processing.id, 'PROCESSING', {
       status: 'COMPLETED',
       completedAt: new Date(),
-      repoProvider: synced.provider,
-      repoPath: synced.repoPath,
-      repoCommitSha: synced.commitSha,
-      repoCommitUrl: synced.commitUrl,
-      syncedAt: synced.syncedAt,
+      storageProvider: stored.provider,
+      storagePath: stored.path,
+      storageRef: stored.ref,
+      storageUrl: stored.url,
+      syncedAt: stored.syncedAt,
     });
     if (!completed) return null;
     await this.auditService.logWrite({
@@ -487,13 +703,53 @@ export class ResearchExportService {
       entityId: completed.id,
       beforeJson: JSON.stringify(processing),
       afterJson: JSON.stringify(completed),
-      requestId: completed.id,
+      requestId: completed.runKey,
     });
     return completed;
   }
 
   /**
-   * A failure that certainly pushed nothing. With attempts left, hand the export back to the
+   * Copy the manifest and change summary to GitHub when the data went elsewhere (#166). Best
+   * effort: the run is already published, so a failed mirror is audited, not retried.
+   */
+  private async mirrorManifest(
+    step: JobStep,
+    completed: ResearchExportRecord,
+    run: ResearchRunPackage,
+    actorUserId: string,
+  ): Promise<void> {
+    if (!completed.storageProvider || !this.storage.mirrorsManifests(completed.storageProvider)) {
+      return;
+    }
+    let mirrored: StoredRunRef | null = null;
+    let failure: unknown = null;
+    try {
+      mirrored = await this.storage.github.mirrorManifest(run);
+    } catch (error) {
+      failure = error;
+      this.logger.warn(
+        JSON.stringify({
+          message: 'Research run manifest could not be mirrored to GitHub',
+          runKey: completed.runKey,
+          error: redactLogValue(error),
+        }),
+      );
+    }
+    await step(() =>
+      this.auditService.logWrite({
+        clinicId: completed.clinicId,
+        actorUserId,
+        action: failure ? 'RESEARCH_EXPORT.MIRROR_FAIL' : 'RESEARCH_EXPORT.MIRROR',
+        entityType: 'ResearchExport',
+        entityId: completed.id,
+        afterJson: JSON.stringify(mirrored ?? { error: String(redactLogValue(failure)) }),
+        requestId: completed.runKey,
+      }),
+    );
+  }
+
+  /**
+   * A failure that certainly published nothing. With attempts left, hand the export back to the
    * queue; on the last attempt, record FAILED and return it rather than throwing, so the operator
    * sees it and can retry.
    */
@@ -511,6 +767,7 @@ export class ResearchExportService {
           ? 'Research export processing failed and will be retried'
           : 'Research export processing failed',
         exportId: processing.id,
+        runKey: processing.runKey,
         clinicId: processing.clinicId,
         attemptsMade: attempt.attemptsMade,
         error: redactLogValue(error),
@@ -518,14 +775,19 @@ export class ResearchExportService {
     );
     if (willRetry) {
       await step(() =>
-        this.repo.transition(processing.id, 'PROCESSING', { status: 'APPROVED', repoPath: null }),
+        this.repo.transition(processing.id, 'PROCESSING', {
+          status: 'APPROVED',
+          storagePath: null,
+        }),
       );
       throw error;
     }
     const failed = await step(() =>
       this.recordFailure(processing, actorUserId, RESEARCH_EXPORT_FAILED),
     );
-    return failed ? this.toExportView(failed) : null;
+    if (!failed) return null;
+    await this.notifyIfScheduled(step, failed, actorUserId);
+    return this.toExportView(failed);
   }
 
   private async recordFailure(
@@ -536,11 +798,10 @@ export class ResearchExportService {
     const failed = await this.repo.transition(processing.id, 'PROCESSING', {
       status: 'FAILED',
       failureReason,
-      // A path nothing was pushed to would send a reader looking for a commit that is not there.
-      repoProvider: null,
-      repoPath: null,
-      repoCommitSha: null,
-      repoCommitUrl: null,
+      // A path nothing was published to would send a reader looking for a run that is not there.
+      storagePath: null,
+      storageRef: null,
+      storageUrl: null,
       syncedAt: null,
       completedAt: null,
     });
@@ -553,9 +814,42 @@ export class ResearchExportService {
       entityId: failed.id,
       beforeJson: JSON.stringify(processing),
       afterJson: JSON.stringify(failed),
-      requestId: failed.id,
+      requestId: failed.runKey,
     });
     return failed;
+  }
+
+  /** Tell the directors a scheduled run stopped short. A failed notice never fails the run. */
+  private async notifyIfScheduled(
+    step: JobStep,
+    run: ResearchExportRecord,
+    actorUserId: string,
+  ): Promise<void> {
+    if (run.trigger !== 'SCHEDULED') return;
+    if (run.status !== 'SKIPPED' && run.status !== 'FAILED') return;
+    const status = run.status;
+    try {
+      await step(() =>
+        this.notifier.notifyDirectors(
+          {
+            id: run.id,
+            clinicId: run.clinicId,
+            runKey: run.runKey,
+            status,
+            reason: run.skipReason ?? run.failureReason,
+          },
+          actorUserId,
+        ),
+      );
+    } catch (error) {
+      this.logger.error(
+        JSON.stringify({
+          message: 'Directors could not be notified about a research run',
+          runKey: run.runKey,
+          error: redactLogValue(error),
+        }),
+      );
+    }
   }
 
   private packFields(pack: GeneratedResearchPack) {
@@ -566,6 +860,10 @@ export class ResearchExportService {
       rowCountsJson: JSON.stringify(pack.rowCounts),
       artifactSha256: pack.artifactSha256,
       artifactSizeBytes: pack.artifactSizeBytes,
+      consentedSubjectCount: pack.manifest.consentedSubjects,
+      revokedSinceLastCount: pack.manifest.revokedSinceLast,
+      contentSha256: pack.manifest.contentSha256,
+      changesJson: JSON.stringify(pack.changes),
     };
   }
 
@@ -596,11 +894,28 @@ export class ResearchExportService {
     });
   }
 
+  /** An ad-hoc run key for today in the clinic's own calendar. */
+  async adHocRunKey(clinicId: string): Promise<string> {
+    return adHocRunKey(
+      this.deIdService.clinicKey(clinicId),
+      todayInTimeZone(await this.clinicTimeZone(clinicId)),
+    );
+  }
+
+  async clinicTimeZone(clinicId: string): Promise<string> {
+    const clinic = await this.prisma.clinic.findUnique({
+      where: { id: clinicId },
+      select: { timezone: true },
+    });
+    return clinic?.timezone ?? CLINIC_DEFAULT_TIMEZONE;
+  }
+
   private async queueExport(
     exportRecord: ResearchExportRecord,
     actorUserId: string,
     auditCtx?: ExportAuditContext,
-    jobId: string = exportRecord.id,
+    // The run key, so a duplicate trigger for one run is one job (#166).
+    jobId: string = exportRecord.runKey,
   ) {
     try {
       // BullMQ waits for Redis rather than failing; a request must not wait with it (#199).
@@ -626,6 +941,7 @@ export class ResearchExportService {
         JSON.stringify({
           message: 'Research export queueing failed',
           exportId: exportRecord.id,
+          runKey: exportRecord.runKey,
           clinicId: exportRecord.clinicId,
           error: redactLogValue(error),
         }),
@@ -642,7 +958,7 @@ export class ResearchExportService {
         entityId: exportRecord.id,
         beforeJson: JSON.stringify(exportRecord),
         afterJson: JSON.stringify(failed),
-        requestId: auditCtx?.requestId,
+        requestId: auditCtx?.requestId ?? exportRecord.runKey,
       });
       throw new BadRequestException(failureReason);
     }
@@ -654,26 +970,25 @@ export class ResearchExportService {
     auditCtx?: ExportAuditContext,
     before?: ResearchExportRecord,
   ) {
-    if (!auditCtx) {
-      return;
-    }
-
     await this.auditService.logWrite({
-      clinicId: auditCtx.clinicId,
+      clinicId: updated.clinicId,
       actorUserId,
       action: 'RESEARCH_EXPORT.APPROVE',
       entityType: 'ResearchExport',
       entityId: updated.id,
       beforeJson: before ? JSON.stringify(before) : undefined,
       afterJson: JSON.stringify(updated),
-      requestId: auditCtx.requestId,
+      requestId: auditCtx?.requestId ?? updated.runKey,
     });
   }
 
-  private toExportView(record: ResearchExportRecord): ResearchExportView {
+  toExportView(record: ResearchExportRecord): ResearchExportView {
     return {
       id: record.id,
       clinicId: record.clinicId,
+      runKey: record.runKey,
+      trigger: record.trigger,
+      scheduleId: record.scheduleId ?? null,
       status: record.status,
       fromDate: record.fromDate,
       toDate: record.toDate,
@@ -681,16 +996,21 @@ export class ResearchExportService {
       policyVersionSnapshot: record.policyVersionSnapshot,
       rejectionReason: record.rejectionReason ?? null,
       failureReason: record.failureReason ?? null,
+      skipReason: record.skipReason ?? null,
       filePath: record.filePath ?? null,
       fileFormat: record.fileFormat ?? null,
       recordCount: record.recordCount ?? null,
-      rowCounts: this.parseRowCounts(record.rowCountsJson),
+      rowCounts: parseRowCounts(record.rowCountsJson),
+      consentedSubjectCount: record.consentedSubjectCount ?? null,
+      revokedSinceLastCount: record.revokedSinceLastCount ?? null,
+      contentSha256: record.contentSha256 ?? null,
+      changes: parseChanges(record.changesJson),
       artifactSha256: record.artifactSha256 ?? null,
       artifactSizeBytes: record.artifactSizeBytes ?? null,
-      repoProvider: record.repoProvider ?? null,
-      repoPath: record.repoPath ?? null,
-      repoCommitSha: record.repoCommitSha ?? null,
-      repoCommitUrl: record.repoCommitUrl ?? null,
+      storageProvider: record.storageProvider ?? null,
+      storagePath: record.storagePath ?? null,
+      storageRef: record.storageRef ?? null,
+      storageUrl: record.storageUrl ?? null,
       requestedAt: record.requestedAt.toISOString(),
       startedAt: record.startedAt?.toISOString() ?? null,
       approvedAt: record.approvedAt?.toISOString() ?? null,
@@ -699,21 +1019,6 @@ export class ResearchExportService {
       requestedBy: record.requestedBy,
       approvedBy: record.approvedBy,
     };
-  }
-
-  private parseRowCounts(rowCountsJson: string | null): Record<string, number> {
-    if (!rowCountsJson) {
-      return {};
-    }
-
-    try {
-      const parsed = JSON.parse(rowCountsJson) as Record<string, unknown>;
-      return Object.fromEntries(
-        Object.entries(parsed).map(([key, value]) => [key, Number(value) || 0]),
-      );
-    } catch {
-      return {};
-    }
   }
 
   private assertDateRange(fromDate: string, toDate: string) {
@@ -726,4 +1031,27 @@ export class ResearchExportService {
       throw new BadRequestException('toDate must be on or after fromDate');
     }
   }
+}
+
+/** A JSON object column read back defensively: a malformed value reads as empty. */
+function parseJsonObject(value: string | null): Record<string, unknown> | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseRowCounts(value: string | null): Record<string, number> {
+  return Object.fromEntries(
+    Object.entries(parseJsonObject(value) ?? {}).map(([key, count]) => [key, Number(count) || 0]),
+  );
+}
+
+function parseChanges(value: string | null): ResearchRunChanges | null {
+  return parseJsonObject(value) as ResearchRunChanges | null;
 }

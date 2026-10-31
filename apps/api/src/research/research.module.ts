@@ -8,7 +8,11 @@ import { ResearchExportController } from './research-export.controller';
 import { DeIdentificationService } from './de-identification.service';
 import { RESEARCH_EXPORT_QUEUE_NAME } from './research-policy';
 import { ResearchTransformService } from './research-transform.service';
-import { ResearchRepoSyncService } from './research-repo-sync.service';
+import { GithubResearchStorage } from './storage/github-research-storage';
+import { LocalResearchStorage, R2ResearchStorage } from './storage/object-store-research-storage';
+import { ResearchStorageRegistry } from './storage/research-storage.registry';
+import { ResearchRunNotifier } from './research-run.notifier';
+import { ReminderModule } from '../reminders/reminder.module';
 import { ResearchExportProcessor } from './research-export.processor';
 import { ResearchExportReconciliationSweep } from './research-export-reconciliation.sweep';
 
@@ -16,6 +20,7 @@ import { ResearchExportReconciliationSweep } from './research-export-reconciliat
   imports: [
     PrismaModule,
     AuditModule,
+    ReminderModule,
     BullModule.registerQueue({ name: RESEARCH_EXPORT_QUEUE_NAME }),
   ],
   controllers: [ResearchExportController],
@@ -24,7 +29,11 @@ import { ResearchExportReconciliationSweep } from './research-export-reconciliat
     ResearchExportService,
     DeIdentificationService,
     ResearchTransformService,
-    ResearchRepoSyncService,
+    GithubResearchStorage,
+    R2ResearchStorage,
+    LocalResearchStorage,
+    ResearchStorageRegistry,
+    ResearchRunNotifier,
     ResearchExportProcessor,
     ResearchExportReconciliationSweep,
   ],

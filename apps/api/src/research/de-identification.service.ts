@@ -6,6 +6,11 @@ import { RESEARCH_TIMESTAMP_ROUNDING_MINUTES } from './research-policy';
 export class DeIdentificationService {
   private hmacKey: string | null = null;
 
+  /** Names the HMAC key in manifests, so a consumer can tell that keys from two runs do not join. */
+  keyId(): string {
+    return process.env.RESEARCH_HMAC_KEY_ID?.trim() || 'research-hmac-v1';
+  }
+
   clinicKey(clinicId: string): string {
     return this.entityKey(clinicId, 'clinic', clinicId);
   }

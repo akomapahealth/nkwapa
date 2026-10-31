@@ -1,7 +1,11 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { ResearchExport } from '@prisma/client';
-import { redactLogValue } from '../common/redaction';
-import { GeneratedResearchPack, ResearchRepoSyncResult } from './research-policy';
+import { redactLogValue } from '../../common/redaction';
+import type { GeneratedResearchPack } from '../research-policy';
+import type {
+  ResearchRunPackage,
+  ResearchStorageAdapter,
+  StoredRunRef,
+} from './research-storage.port';
 
 interface GitHubRefResponse {
   object: { sha: string };
@@ -11,58 +15,127 @@ interface GitHubCommitResponse {
   tree: { sha: string };
 }
 
-@Injectable()
-export class ResearchRepoSyncService {
-  private readonly logger = new Logger(ResearchRepoSyncService.name);
+interface RepoFile {
+  path: string;
+  content: string;
+}
 
-  /**
-   * Where `sync` will put this pack. Recorded on the export before the push (#164), so that if
-   * the worker loses track of the push, `findPushedCommit` can ask GitHub whether it landed.
-   */
-  plannedRepoPath(
-    exportRecord: Pick<ResearchExport, 'id'>,
-    pack: { manifest: Pick<GeneratedResearchPack['manifest'], 'clinicKey' | 'generatedAt'> },
+/**
+ * The private GitHub repository as a research destination.
+ *
+ * Git keeps history, so a revoked subject's rows stay in old commits; that is why R2 is the
+ * recommended destination (#166) and this one stays selectable for clinics already using it.
+ */
+@Injectable()
+export class GithubResearchStorage implements ResearchStorageAdapter {
+  readonly provider = 'GITHUB' as const;
+  private readonly logger = new Logger(GithubResearchStorage.name);
+
+  isConfigured(): boolean {
+    return Boolean(
+      process.env.RESEARCH_GITHUB_REPO_OWNER?.trim() &&
+      process.env.RESEARCH_GITHUB_REPO_NAME?.trim() &&
+      process.env.RESEARCH_GITHUB_TOKEN?.trim(),
+    );
+  }
+
+  /** The snapshot directory is unique to one run of one export, unchanged since #164. */
+  plannedPath(
+    run: Pick<ResearchRunPackage, 'exportId'> & {
+      pack: { manifest: Pick<GeneratedResearchPack['manifest'], 'clinicKey' | 'generatedAt'> };
+    },
   ): string {
     const config = this.getConfig();
-    const snapshotName = `${pack.manifest.generatedAt.replace(/[:.]/g, '-')}__${exportRecord.id}`;
-    return `${config.basePath}/${pack.manifest.clinicKey}/exports/${snapshotName}`;
+    const snapshotName = `${run.pack.manifest.generatedAt.replace(/[:.]/g, '-')}__${run.exportId}`;
+    return `${config.basePath}/${run.pack.manifest.clinicKey}/exports/${snapshotName}`;
   }
 
   /**
-   * The commit that put a snapshot at `repoPath` on the export branch, or null if none did.
+   * The commit that put a snapshot at `path` on the export branch, or null if none did.
    *
-   * The snapshot directory is unique to one run of one export, so a commit touching it is that
-   * run's push. This is how a push whose outcome was lost is settled without pushing again.
-   * Throws if GitHub cannot be asked, which leaves the outcome unknown for a later try.
+   * A commit touching the run's own directory is that run's push. This is how a push whose
+   * outcome was lost is settled without pushing again. `latest.json` is written in the same
+   * commit, so there is no pointer left to finish.
    */
-  async findPushedCommit(repoPath: string): Promise<ResearchRepoSyncResult | null> {
+  async recoverRun(path: string): Promise<StoredRunRef | null> {
     const config = this.getConfig();
-    const query = new URLSearchParams({ sha: config.branch, path: repoPath, per_page: '1' });
+    const query = new URLSearchParams({ sha: config.branch, path, per_page: '1' });
     const commits = await this.request<
       Array<{ sha: string; commit: { committer?: { date?: string } } }>
     >('GET', `/commits?${query.toString()}`);
     const [commit] = commits ?? [];
     if (!commit) return null;
     const committedAt = commit.commit.committer?.date;
+    return this.ref(path, commit.sha, committedAt ? new Date(committedAt) : new Date());
+  }
+
+  async putRun(run: ResearchRunPackage): Promise<StoredRunRef> {
+    const config = this.getConfig();
+    const { pack } = run;
+    this.assertFileSizes(config.maxFileBytes, config.maxTotalBytes, pack);
+
+    const path = this.plannedPath(run);
+    const latestContent = `${JSON.stringify(
+      {
+        exportId: run.exportId,
+        runKey: run.runKey,
+        fromDate: run.fromDate,
+        toDate: run.toDate,
+        generatedAt: pack.manifest.generatedAt,
+        repoPath: path,
+        rowCounts: pack.rowCounts,
+      },
+      null,
+      2,
+    )}\n`;
+
+    const commitSha = await this.commitFiles(
+      [
+        ...pack.repoFiles.map((entry) => ({
+          path: `${path}/${entry.name}`,
+          content: entry.content,
+        })),
+        {
+          path: `${config.basePath}/${pack.manifest.clinicKey}/latest.json`,
+          content: latestContent,
+        },
+      ],
+      `research-export: ${pack.manifest.clinicKey} ${run.fromDate}..${run.toDate} ${run.runKey}`,
+    );
+    return this.ref(path, commitSha, new Date());
+  }
+
+  /**
+   * Mirror a run's manifest and change summary, no tables, when another destination holds the
+   * data (#166). Researchers who watch the repository still see every run.
+   */
+  async mirrorManifest(run: ResearchRunPackage): Promise<StoredRunRef> {
+    const config = this.getConfig();
+    const path = `${config.basePath}/${run.pack.manifest.clinicKey}/runs/${run.runKey}`;
+    const files = run.pack.repoFiles.filter((file) =>
+      ['manifest.json', 'changes.json'].includes(file.name),
+    );
+    const commitSha = await this.commitFiles(
+      files.map((file) => ({ path: `${path}/${file.name}`, content: file.content })),
+      `research-run: ${run.runKey} manifest`,
+    );
+    return this.ref(path, commitSha, new Date());
+  }
+
+  private ref(path: string, commitSha: string, syncedAt: Date): StoredRunRef {
+    const config = this.getConfig();
     return {
-      provider: 'GITHUB',
-      repoPath,
-      commitSha: commit.sha,
-      commitUrl: `https://github.com/${config.owner}/${config.repo}/commit/${commit.sha}`,
-      syncedAt: committedAt ? new Date(committedAt) : new Date(),
+      provider: this.provider,
+      path,
+      ref: commitSha,
+      url: `https://github.com/${config.owner}/${config.repo}/commit/${commitSha}`,
+      syncedAt,
     };
   }
 
-  async sync(
-    exportRecord: Pick<ResearchExport, 'id' | 'fromDate' | 'toDate'>,
-    pack: GeneratedResearchPack,
-  ): Promise<ResearchRepoSyncResult> {
+  /** One commit on the export branch adding `files`, through the Git Data API. */
+  private async commitFiles(files: RepoFile[], message: string): Promise<string> {
     const config = this.getConfig();
-    this.assertFileSizes(config.maxFileBytes, config.maxTotalBytes, pack);
-
-    const repoPath = this.plannedRepoPath(exportRecord, pack);
-    const latestPath = `${config.basePath}/${pack.manifest.clinicKey}/latest.json`;
-
     const ref = await this.request<GitHubRefResponse>('GET', `/git/ref/heads/${config.branch}`);
     const baseCommitSha = ref.object.sha;
     const baseCommit = await this.request<GitHubCommitResponse>(
@@ -70,63 +143,29 @@ export class ResearchRepoSyncService {
       `/git/commits/${baseCommitSha}`,
     );
 
-    const latestContent = `${JSON.stringify(
-      {
-        exportId: exportRecord.id,
-        fromDate: exportRecord.fromDate,
-        toDate: exportRecord.toDate,
-        generatedAt: pack.manifest.generatedAt,
-        repoPath,
-        rowCounts: pack.rowCounts,
-      },
-      null,
-      2,
-    )}\n`;
-
     const tree = [];
-    for (const file of [
-      ...pack.repoFiles.map((entry) => ({
-        path: `${repoPath}/${entry.name}`,
-        content: entry.content,
-      })),
-      { path: latestPath, content: latestContent },
-    ]) {
+    for (const file of files) {
       const blob = await this.request<{ sha: string }>('POST', '/git/blobs', {
         content: Buffer.from(file.content, 'utf-8').toString('base64'),
         encoding: 'base64',
       });
-
-      tree.push({
-        path: file.path,
-        mode: '100644',
-        type: 'blob',
-        sha: blob.sha,
-      });
+      tree.push({ path: file.path, mode: '100644', type: 'blob', sha: blob.sha });
     }
 
     const createdTree = await this.request<{ sha: string }>('POST', '/git/trees', {
       base_tree: baseCommit.tree.sha,
       tree,
     });
-
     const createdCommit = await this.request<{ sha: string }>('POST', '/git/commits', {
-      message: `research-export: ${pack.manifest.clinicKey} ${exportRecord.fromDate}..${exportRecord.toDate} ${exportRecord.id}`,
+      message,
       tree: createdTree.sha,
       parents: [baseCommitSha],
     });
-
     await this.request('PATCH', `/git/refs/heads/${config.branch}`, {
       sha: createdCommit.sha,
       force: false,
     });
-
-    return {
-      provider: 'GITHUB',
-      repoPath,
-      commitSha: createdCommit.sha,
-      commitUrl: `https://github.com/${config.owner}/${config.repo}/commit/${createdCommit.sha}`,
-      syncedAt: new Date(),
-    };
+    return createdCommit.sha;
   }
 
   private assertFileSizes(

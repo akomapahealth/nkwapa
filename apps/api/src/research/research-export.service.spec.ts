@@ -1,406 +1,452 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import type { ResearchExportStatus } from '@prisma/client';
-import { ResearchExportService } from './research-export.service';
-import type { ResearchExportRecord } from './research-export.repository';
+import { RUN_KEY_PATTERN } from './research-run-key';
+import {
+  auditActions,
+  buildResearchExportService,
+  makeExportRecord,
+  makeRunPackage,
+} from '../testing/research-run-fixtures';
 
-function makeExportRecord(overrides: Partial<ResearchExportRecord> = {}): ResearchExportRecord {
-  return {
-    id: 'exp-1',
-    clinicId: 'clinic-1',
-    requestedByUserId: 'user-1',
-    approvedByUserId: null,
-    fromDate: '2026-03-01',
-    toDate: '2026-03-21',
-    status: 'PENDING_APPROVAL' as ResearchExportStatus,
-    datasetVersion: 1,
-    policyVersionSnapshot: 'research-export-v1',
-    rejectionReason: null,
-    failureReason: null,
-    filePath: null,
-    fileFormat: 'zip',
-    recordCount: null,
-    rowCountsJson: null,
-    artifactSha256: null,
-    artifactSizeBytes: null,
-    repoProvider: null,
-    repoPath: null,
-    repoCommitSha: null,
-    repoCommitUrl: null,
-    syncedAt: null,
-    requestedAt: new Date('2026-03-21T12:00:00.000Z'),
-    startedAt: null,
-    approvedAt: null,
-    completedAt: null,
-    requestedBy: { id: 'user-1', displayName: 'Requester' },
-    approvedBy: null,
-    ...overrides,
-  };
-}
+const clinicId = 'clinic-1';
+const userId = 'user-1';
+const status = (value: ResearchExportStatus) => value;
 
 describe('ResearchExportService', () => {
-  const clinicId = 'clinic-1';
-  const userId = 'user-1';
-
-  let repo: {
-    create: jest.Mock;
-    findById: jest.Mock;
-    update: jest.Mock;
-    transition: jest.Mock;
-    findStaleProcessing: jest.Mock;
-    listByClinic: jest.Mock;
-  };
-  let prisma: {
-    $queryRaw: jest.Mock;
-    clinicResearchSettings: { findUnique: jest.Mock };
-  };
-  let auditService: { logWrite: jest.Mock };
-  let transformService: { generatePack: jest.Mock };
-  let repoSyncService: { sync: jest.Mock; plannedRepoPath: jest.Mock; findPushedCommit: jest.Mock };
-  let exportQueue: { add: jest.Mock };
-  let service: ResearchExportService;
+  let ctx: ReturnType<typeof buildResearchExportService>;
 
   beforeEach(() => {
-    repo = {
-      create: jest.fn(),
-      findById: jest.fn(),
-      update: jest.fn(),
-      transition: jest.fn(),
-      findStaleProcessing: jest.fn().mockResolvedValue([]),
-      listByClinic: jest.fn(),
-    };
-    prisma = {
-      $queryRaw: jest.fn().mockResolvedValue([{ locked: true }]),
-      clinicResearchSettings: { findUnique: jest.fn() },
-    };
-    auditService = { logWrite: jest.fn() };
-    transformService = { generatePack: jest.fn() };
-    repoSyncService = {
-      sync: jest.fn(),
-      plannedRepoPath: jest.fn().mockReturnValue('clinics/abc/exports/snapshot'),
-      findPushedCommit: jest.fn().mockResolvedValue(null),
-    };
-    exportQueue = { add: jest.fn() };
-
-    service = new ResearchExportService(
-      repo as never,
-      prisma as never,
-      auditService as never,
-      transformService as never,
-      repoSyncService as never,
-      exportQueue as never,
-      { isReady: () => true, assertReady: () => undefined } as never,
-    );
+    ctx = buildResearchExportService();
   });
 
-  it('queues an auto-approved export request when director approval is disabled', async () => {
-    prisma.clinicResearchSettings.findUnique.mockResolvedValue({
-      clinicId,
-      researchEnabled: true,
-      requiresDirectorApprovalEachExport: false,
+  describe('requesting an export', () => {
+    it('queues an auto-approved request under its ad-hoc run key', async () => {
+      ctx.prisma.clinicResearchSettings.findUnique.mockResolvedValue({
+        clinicId,
+        researchEnabled: true,
+        requiresDirectorApprovalEachExport: false,
+      });
+      ctx.repo.create.mockImplementation(async (data) =>
+        makeExportRecord({
+          runKey: data.runKey,
+          status: status('APPROVED'),
+          approvedByUserId: userId,
+          approvedBy: { id: userId, displayName: 'Requester' },
+        }),
+      );
+
+      const result = await ctx.service.requestExport(
+        clinicId,
+        userId,
+        { fromDate: '2026-03-01', toDate: '2026-03-21' },
+        { clinicId, actorUserId: userId, requestId: 'req-1' },
+      );
+
+      expect(result.status).toBe('APPROVED');
+      expect(result.runKey).toMatch(/^rx-3f9a2c1d-a\d{8}-[0-9a-z]{4}$/);
+      expect(result.runKey).toMatch(RUN_KEY_PATTERN);
+      expect(ctx.repo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fromDate: '2026-03-01',
+          toDate: '2026-03-21',
+          trigger: 'MANUAL',
+          storageProvider: 'LOCAL',
+          fileFormat: 'zip',
+        }),
+      );
+      expect(ctx.queue.add).toHaveBeenCalledWith(
+        'process',
+        { exportId: 'exp-1', clinicId, userId },
+        expect.objectContaining({ jobId: result.runKey }),
+      );
+      expect(auditActions(ctx.audit)).toEqual([
+        'RESEARCH_EXPORT.REQUEST',
+        'RESEARCH_EXPORT.APPROVE',
+      ]);
     });
-    repo.create.mockResolvedValue(
-      makeExportRecord({
-        status: 'APPROVED' as ResearchExportStatus,
-        approvedByUserId: userId,
-        approvedAt: new Date('2026-03-21T12:01:00.000Z'),
-        approvedBy: { id: userId, displayName: 'Requester' },
-      }),
-    );
-    exportQueue.add.mockResolvedValue(undefined);
 
-    const result = await service.requestExport(
-      clinicId,
-      userId,
-      { fromDate: '2026-03-01', toDate: '2026-03-21' },
-      { clinicId, actorUserId: userId, requestId: 'req-1' },
-    );
+    it('refuses while research is turned off', async () => {
+      ctx.prisma.clinicResearchSettings.findUnique.mockResolvedValue({ researchEnabled: false });
+      await expect(
+        ctx.service.requestExport(clinicId, userId, {
+          fromDate: '2026-03-01',
+          toDate: '2026-03-21',
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(ctx.repo.create).not.toHaveBeenCalled();
+    });
 
-    expect(result.status).toBe('APPROVED');
-    expect(repo.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        fromDate: '2026-03-01',
-        toDate: '2026-03-21',
-        fileFormat: 'zip',
-      }),
-    );
-    expect(exportQueue.add).toHaveBeenCalledWith(
-      'process',
-      { exportId: 'exp-1', clinicId, userId },
-      expect.objectContaining({ jobId: 'exp-1' }),
-    );
+    it('refuses a destination this environment cannot publish to, before creating anything', async () => {
+      ctx.prisma.clinicResearchSettings.findUnique.mockResolvedValue({
+        researchEnabled: true,
+        requiresDirectorApprovalEachExport: true,
+      });
+      ctx.storage.assertAvailable.mockImplementation(() => {
+        throw new BadRequestException('Research storage R2 is not configured here');
+      });
+      await expect(
+        ctx.service.requestExport(clinicId, userId, {
+          fromDate: '2026-03-01',
+          toDate: '2026-03-21',
+        }),
+      ).rejects.toThrow('not configured');
+      expect(ctx.repo.create).not.toHaveBeenCalled();
+    });
   });
 
-  it('approves and queues a pending export', async () => {
+  it('approves and queues a pending export under its run key', async () => {
     const pending = makeExportRecord();
-    const approved = makeExportRecord({
-      status: 'APPROVED' as ResearchExportStatus,
-      approvedByUserId: 'director-1',
-      approvedAt: new Date('2026-03-21T12:05:00.000Z'),
-      approvedBy: { id: 'director-1', displayName: 'Director' },
-    });
+    ctx.repo.findById.mockResolvedValue(pending);
+    ctx.repo.update.mockResolvedValue(
+      makeExportRecord({
+        status: status('APPROVED'),
+        approvedByUserId: 'director-1',
+        approvedBy: { id: 'director-1', displayName: 'Director' },
+      }),
+    );
 
-    repo.findById.mockResolvedValue(pending);
-    repo.update.mockResolvedValue(approved);
-    exportQueue.add.mockResolvedValue(undefined);
-
-    const result = await service.approveExport('exp-1', 'director-1', {
+    const result = await ctx.service.approveExport('exp-1', 'director-1', {
       clinicId,
       actorUserId: 'director-1',
       requestId: 'req-2',
     });
 
     expect(result.status).toBe('APPROVED');
-    expect(repo.update).toHaveBeenCalledWith(
-      'exp-1',
-      expect.objectContaining({
-        status: 'APPROVED',
-      }),
-    );
-    expect(exportQueue.add).toHaveBeenCalledWith(
+    expect(ctx.queue.add).toHaveBeenCalledWith(
       'process',
-      {
-        exportId: 'exp-1',
-        clinicId,
-        userId: 'director-1',
-      },
-      expect.objectContaining({ jobId: 'exp-1' }),
+      { exportId: 'exp-1', clinicId, userId: 'director-1' },
+      expect.objectContaining({ jobId: pending.runKey }),
     );
   });
 
   it('retries a failed export under a job id the queue has not already used', async () => {
-    const failed = makeExportRecord({
-      status: 'FAILED' as ResearchExportStatus,
-      failureReason: 'GitHub sync failed',
-      startedAt: new Date('2026-03-21T12:10:00.000Z'),
-    });
-    const retried = makeExportRecord({
-      status: 'APPROVED' as ResearchExportStatus,
-      failureReason: null,
-      startedAt: null,
-    });
+    const failed = makeExportRecord({ status: status('FAILED'), failureReason: 'GitHub failed' });
+    ctx.repo.findById.mockResolvedValue(failed);
+    ctx.repo.update.mockResolvedValue(makeExportRecord({ status: status('APPROVED') }));
 
-    repo.findById.mockResolvedValue(failed);
-    repo.update.mockResolvedValue(retried);
-    exportQueue.add.mockResolvedValue(undefined);
-
-    const result = await service.retryExport('exp-1', userId, {
+    const result = await ctx.service.retryExport('exp-1', userId, {
       clinicId,
       actorUserId: userId,
       requestId: 'req-3',
     });
 
     expect(result.status).toBe('APPROVED');
-    expect(exportQueue.add).toHaveBeenCalledWith(
-      'process',
-      {
-        exportId: 'exp-1',
-        clinicId,
-        userId,
-      },
-      expect.objectContaining({ jobId: expect.stringMatching(/^exp-1-retry-\d+$/) }),
-    );
-    // BullMQ keeps the first run's job under 'exp-1' and silently ignores an add that reuses it,
+    const jobId = ctx.queue.add.mock.calls[0][2].jobId as string;
+    // BullMQ keeps the first run's job under its id and silently ignores an add that reuses it,
     // which is how Retry once queued nothing at all.
-    expect(exportQueue.add.mock.calls[0][2].jobId).not.toBe('exp-1');
+    expect(jobId).toMatch(new RegExp(`^${failed.runKey}-retry-\\d+$`));
   });
 
-  it('marks a queued export completed after transform and sync succeed', async () => {
+  it('marks a queued export completed after the pack is built and published', async () => {
     const approved = makeExportRecord({
-      status: 'APPROVED' as ResearchExportStatus,
+      status: status('APPROVED'),
       approvedByUserId: 'director-1',
       approvedBy: { id: 'director-1', displayName: 'Director' },
     });
-    const processing = makeExportRecord({
-      status: 'PROCESSING' as ResearchExportStatus,
-      approvedByUserId: 'director-1',
-      approvedBy: { id: 'director-1', displayName: 'Director' },
-      startedAt: new Date('2026-03-21T12:15:00.000Z'),
-    });
-    const completed = makeExportRecord({
-      status: 'COMPLETED' as ResearchExportStatus,
-      approvedByUserId: 'director-1',
-      approvedBy: { id: 'director-1', displayName: 'Director' },
-      startedAt: new Date('2026-03-21T12:15:00.000Z'),
-      completedAt: new Date('2026-03-21T12:16:00.000Z'),
-      filePath: '/tmp/research-export-exp-1.zip',
-      fileFormat: 'zip',
-      recordCount: 42,
-      rowCountsJson: JSON.stringify({ research_measurements: 12 }),
-      artifactSha256: 'artifact-sha',
-      artifactSizeBytes: 4096,
-      repoProvider: 'GITHUB',
-      repoPath: 'clinics/abc/exports/snapshot',
-      repoCommitSha: 'commit-sha',
-      repoCommitUrl: 'https://github.com/example/research/commit/commit-sha',
-      syncedAt: new Date('2026-03-21T12:16:00.000Z'),
-    });
+    const processing = makeExportRecord({ ...approved, status: status('PROCESSING') });
+    const run = makeRunPackage();
+    ctx.repo.findById.mockResolvedValueOnce(approved);
+    ctx.repo.transition
+      .mockResolvedValueOnce(processing)
+      .mockResolvedValueOnce(makeExportRecord({ ...processing, status: status('COMPLETED') }));
+    ctx.repo.update.mockResolvedValueOnce({ ...processing, storagePath: 'research/v5/path' });
+    ctx.transformService.generatePack.mockResolvedValue(run.pack);
 
-    repo.findById.mockResolvedValueOnce(approved);
-    repo.transition.mockResolvedValueOnce(processing).mockResolvedValueOnce(completed);
-    repo.update.mockResolvedValueOnce({ ...processing, repoPath: 'clinics/abc/exports/snapshot' });
-    transformService.generatePack.mockResolvedValue({
-      manifest: {
-        exportId: 'exp-1',
-        clinicKey: 'clinic-key',
-        datasetVersion: 1,
-        policyVersion: 'research-export-v1',
-        fromDate: '2026-03-01',
-        toDate: '2026-03-21',
-        generatedAt: '2026-03-21T12:15:30.000Z',
-        timestampRoundingMinutes: 15,
-        rowCounts: { research_measurements: 12 },
-        files: [],
-      },
-      repoFiles: [],
-      artifactPath: '/tmp/research-export-exp-1.zip',
-      artifactSha256: 'artifact-sha',
-      artifactSizeBytes: 4096,
-      recordCount: 42,
-      rowCounts: { research_measurements: 12 },
-    });
-    repoSyncService.sync.mockResolvedValue({
-      provider: 'GITHUB',
-      repoPath: 'clinics/abc/exports/snapshot',
-      commitSha: 'commit-sha',
-      commitUrl: 'https://github.com/example/research/commit/commit-sha',
-      syncedAt: new Date('2026-03-21T12:16:00.000Z'),
-    });
-
-    const result = await service.processQueuedExport('exp-1');
+    const result = await ctx.service.processQueuedExport('exp-1');
 
     expect(result?.status).toBe('COMPLETED');
-    expect(transformService.generatePack).toHaveBeenCalledWith(
+    expect(ctx.transformService.generatePack).toHaveBeenCalledWith(
       clinicId,
       '2026-03-01',
       '2026-03-21',
       'exp-1',
+      { runKey: approved.runKey, trigger: 'MANUAL', scheduleId: null },
       'research-export-v1',
     );
-    expect(repoSyncService.sync).toHaveBeenCalled();
+    expect(ctx.repo.update).toHaveBeenCalledWith(
+      'exp-1',
+      expect.objectContaining({
+        consentedSubjectCount: run.pack.manifest.consentedSubjects,
+        contentSha256: run.pack.manifest.contentSha256,
+        changesJson: JSON.stringify(run.pack.changes),
+      }),
+    );
+    expect(ctx.adapter.putRun).toHaveBeenCalledWith(
+      expect.objectContaining({ exportId: 'exp-1', runKey: approved.runKey }),
+    );
   });
 
   describe('a run that fails', () => {
-    const approved = makeExportRecord({ status: 'APPROVED' as ResearchExportStatus });
-    const processing = makeExportRecord({
-      status: 'PROCESSING' as ResearchExportStatus,
-      startedAt: new Date('2026-03-21T12:20:00.000Z'),
-    });
+    const approved = makeExportRecord({ status: status('APPROVED') });
+    const processing = makeExportRecord({ status: status('PROCESSING') });
     const failed = makeExportRecord({
-      status: 'FAILED' as ResearchExportStatus,
+      status: status('FAILED'),
       failureReason: 'RESEARCH_EXPORT_FAILED',
-      startedAt: new Date('2026-03-21T12:20:00.000Z'),
     });
 
     beforeEach(() => {
-      repo.findById.mockResolvedValueOnce(approved);
-      repo.transition.mockResolvedValueOnce(processing).mockResolvedValueOnce(failed);
-      transformService.generatePack.mockRejectedValue(
-        new BadRequestException('missing RESEARCH_GITHUB_TOKEN'),
+      ctx.repo.findById.mockResolvedValueOnce(approved);
+      ctx.repo.transition.mockResolvedValueOnce(processing).mockResolvedValueOnce(failed);
+      ctx.transformService.generatePack.mockRejectedValue(
+        new BadRequestException('missing RESEARCH_HMAC_KEY'),
       );
     });
 
     it('records a failed export on its last attempt instead of throwing the record away', async () => {
       // A throw here rolled the job transaction back, so FAILED and its audit entry were never
       // committed and the export read APPROVED forever.
-      const result = await service.processQueuedExport('exp-1', {
+      const result = await ctx.service.processQueuedExport('exp-1', {
         attemptsMade: 2,
         maxAttempts: 3,
       });
 
       expect(result?.status).toBe('FAILED');
-      expect(repo.transition).toHaveBeenLastCalledWith(
+      expect(ctx.repo.transition).toHaveBeenLastCalledWith(
         'exp-1',
         'PROCESSING',
-        expect.objectContaining({
-          status: 'FAILED',
-          failureReason: 'RESEARCH_EXPORT_FAILED',
-        }),
+        expect.objectContaining({ status: 'FAILED', failureReason: 'RESEARCH_EXPORT_FAILED' }),
       );
-      expect(auditService.logWrite).toHaveBeenLastCalledWith(
+      expect(ctx.audit.logWrite).toHaveBeenLastCalledWith(
         expect.objectContaining({ action: 'RESEARCH_EXPORT.FAIL', entityId: 'exp-1' }),
       );
+      // A manual run's requester is watching the page; only scheduled runs email directors.
+      expect(ctx.notifier.notifyDirectors).not.toHaveBeenCalled();
     });
 
     it('hands a failure with attempts left back to the queue without recording it', async () => {
       await expect(
-        service.processQueuedExport('exp-1', { attemptsMade: 0, maxAttempts: 3 }),
+        ctx.service.processQueuedExport('exp-1', { attemptsMade: 0, maxAttempts: 3 }),
       ).rejects.toThrow(BadRequestException);
 
-      // Handed back for the retry: PROCESSING -> APPROVED, never FAILED.
-      expect(repo.transition).toHaveBeenLastCalledWith('exp-1', 'PROCESSING', {
+      expect(ctx.repo.transition).toHaveBeenLastCalledWith('exp-1', 'PROCESSING', {
         status: 'APPROVED',
-        repoPath: null,
+        storagePath: null,
       });
-      expect(repo.transition).not.toHaveBeenCalledWith(
+      expect(auditActions(ctx.audit)).not.toContain('RESEARCH_EXPORT.FAIL');
+    });
+  });
+
+  it('emails the directors when a scheduled run fails on its last attempt', async () => {
+    const scheduled = { trigger: 'SCHEDULED' as const, scheduleId: 'sched-1' };
+    ctx.prisma.researchExportSchedule.findUnique.mockResolvedValue({
+      status: 'ACTIVE',
+      reviewBy: new Date('2099-01-01T00:00:00Z'),
+      approvedBy: { isActive: true, clinicRoles: [{ clinicId, role: 'DIRECTOR' }] },
+    });
+    ctx.repo.findById.mockResolvedValueOnce(
+      makeExportRecord({ ...scheduled, status: status('APPROVED') }),
+    );
+    ctx.repo.transition
+      .mockResolvedValueOnce(makeExportRecord({ ...scheduled, status: status('PROCESSING') }))
+      .mockResolvedValueOnce(
+        makeExportRecord({
+          ...scheduled,
+          status: status('FAILED'),
+          failureReason: 'RESEARCH_EXPORT_FAILED',
+        }),
+      );
+    ctx.transformService.generatePack.mockRejectedValue(new Error('boom'));
+
+    await ctx.service.processQueuedExport('exp-1', { attemptsMade: 2, maxAttempts: 3 });
+
+    expect(ctx.notifier.notifyDirectors).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'FAILED', reason: 'RESEARCH_EXPORT_FAILED' }),
+      'user-1',
+    );
+  });
+
+  describe('run-time governance (#166)', () => {
+    const approvedScheduled = makeExportRecord({
+      status: status('APPROVED'),
+      trigger: 'SCHEDULED',
+      scheduleId: 'sched-1',
+    });
+
+    const arrangeSkip = (skipReason: string) => {
+      ctx.repo.findById.mockResolvedValueOnce(approvedScheduled);
+      ctx.repo.transition.mockImplementation(async (_id, _from, data) =>
+        makeExportRecord({ ...approvedScheduled, ...data, skipReason }),
+      );
+    };
+
+    it('skips, audits and notifies when research was turned off after approval', async () => {
+      ctx.prisma.clinicResearchSettings.findUnique.mockResolvedValue({ researchEnabled: false });
+      arrangeSkip('RESEARCH_DISABLED');
+
+      const result = await ctx.service.processQueuedExport('exp-1');
+
+      expect(result).toMatchObject({ status: 'SKIPPED', skipReason: 'RESEARCH_DISABLED' });
+      expect(ctx.repo.transition).toHaveBeenCalledWith(
         'exp-1',
-        expect.anything(),
-        expect.objectContaining({ status: 'FAILED' }),
+        'APPROVED',
+        expect.objectContaining({ status: 'SKIPPED', skipReason: 'RESEARCH_DISABLED' }),
       );
-      expect(auditService.logWrite).not.toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'RESEARCH_EXPORT.FAIL' }),
+      expect(auditActions(ctx.audit)).toEqual(['RESEARCH_EXPORT.SKIP']);
+      expect(ctx.transformService.generatePack).not.toHaveBeenCalled();
+      expect(ctx.adapter.putRun).not.toHaveBeenCalled();
+      expect(ctx.notifier.notifyDirectors).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'SKIPPED', reason: 'RESEARCH_DISABLED' }),
+        'user-1',
       );
+    });
+
+    it('skips a run whose schedule was paused, revoked or deleted', async () => {
+      ctx.prisma.researchExportSchedule.findUnique.mockResolvedValue(null);
+      arrangeSkip('SCHEDULE_INACTIVE');
+      await expect(ctx.service.processQueuedExport('exp-1')).resolves.toMatchObject({
+        status: 'SKIPPED',
+        skipReason: 'SCHEDULE_INACTIVE',
+      });
+    });
+
+    it('skips a manual run below the minimum cohort without emailing anyone', async () => {
+      ctx.prisma.patientConsent.findMany.mockResolvedValue([{ patientId: 'p1' }]);
+      const manual = makeExportRecord({ status: status('APPROVED') });
+      ctx.repo.findById.mockResolvedValueOnce(manual);
+      ctx.repo.transition.mockImplementation(async (_id, _from, data) =>
+        makeExportRecord({ ...manual, ...data }),
+      );
+
+      const result = await ctx.service.processQueuedExport('exp-1');
+
+      expect(result).toMatchObject({ status: 'SKIPPED', skipReason: 'BELOW_MINIMUM_COHORT' });
+      expect(ctx.repo.transition).toHaveBeenCalledWith(
+        'exp-1',
+        'APPROVED',
+        expect.objectContaining({ consentedSubjectCount: 1 }),
+      );
+      expect(ctx.notifier.notifyDirectors).not.toHaveBeenCalled();
+    });
+
+    it('never fails a skipped run because the notice could not be sent', async () => {
+      ctx.prisma.clinicResearchSettings.findUnique.mockResolvedValue({ researchEnabled: false });
+      ctx.notifier.notifyDirectors.mockRejectedValue(new Error('smtp down'));
+      arrangeSkip('RESEARCH_DISABLED');
+      await expect(ctx.service.processQueuedExport('exp-1')).resolves.toMatchObject({
+        status: 'SKIPPED',
+      });
+    });
+  });
+
+  describe('rerunning a period', () => {
+    const auditCtx = { clinicId, actorUserId: 'director-1' };
+
+    beforeEach(() => {
+      ctx.repo.create.mockImplementation(async (data) =>
+        makeExportRecord({ runKey: data.runKey, status: status('APPROVED') }),
+      );
+    });
+
+    it('creates the next revision of the run key, approved and queued, with the reason audited', async () => {
+      ctx.repo.findById.mockResolvedValue(
+        makeExportRecord({
+          runKey: 'rx-3f9a2c1d-m2026-10',
+          status: status('COMPLETED'),
+          trigger: 'SCHEDULED',
+          scheduleId: 'sched-1',
+        }),
+      );
+      ctx.repo.listRunKeysWithPrefix.mockResolvedValue(['rx-3f9a2c1d-m2026-10']);
+
+      const result = await ctx.service.rerunExport(
+        'exp-1',
+        'director-1',
+        'Fixed a mapping',
+        auditCtx,
+      );
+
+      expect(result.runKey).toBe('rx-3f9a2c1d-m2026-10-r2');
+      expect(ctx.repo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ trigger: 'SCHEDULED', status: 'APPROVED' }),
+      );
+      expect(ctx.prisma.$executeRaw).toHaveBeenCalled();
+      const rerun = ctx.audit.logWrite.mock.calls.find(
+        ([event]) => event.action === 'RESEARCH_EXPORT.RERUN',
+      );
+      expect(JSON.parse(rerun![0].afterJson).rerunReason).toBe('Fixed a mapping');
+    });
+
+    it('numbers past the highest revision that already exists', async () => {
+      ctx.repo.findById.mockResolvedValue(
+        makeExportRecord({ runKey: 'rx-3f9a2c1d-m2026-10-r2', status: status('FAILED') }),
+      );
+      ctx.repo.listRunKeysWithPrefix.mockResolvedValue([
+        'rx-3f9a2c1d-m2026-10',
+        'rx-3f9a2c1d-m2026-10-r2',
+      ]);
+      await expect(
+        ctx.service.rerunExport('exp-1', 'director-1', 'Again', auditCtx),
+      ).resolves.toMatchObject({ runKey: 'rx-3f9a2c1d-m2026-10-r3' });
+    });
+
+    it('refuses a run that has not finished', async () => {
+      ctx.repo.findById.mockResolvedValue(makeExportRecord({ status: status('PROCESSING') }));
+      await expect(
+        ctx.service.rerunExport('exp-1', 'director-1', 'Too soon', auditCtx),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
   describe('a duplicate delivery', () => {
     it('stands down while another delivery of the same export is running', async () => {
-      prisma.$queryRaw.mockResolvedValue([{ locked: false }]);
+      ctx.prisma.$queryRaw.mockResolvedValue([{ locked: false }]);
 
-      await expect(service.processQueuedExport('exp-1')).resolves.toBeNull();
+      await expect(ctx.service.processQueuedExport('exp-1')).resolves.toBeNull();
 
-      expect(repo.findById).not.toHaveBeenCalled();
-      expect(transformService.generatePack).not.toHaveBeenCalled();
-      expect(repoSyncService.sync).not.toHaveBeenCalled();
+      expect(ctx.repo.findById).not.toHaveBeenCalled();
+      expect(ctx.transformService.generatePack).not.toHaveBeenCalled();
+      expect(ctx.adapter.putRun).not.toHaveBeenCalled();
     });
 
     it('claims the export before it reads it', async () => {
-      repo.findById.mockResolvedValue(
-        makeExportRecord({ status: 'COMPLETED' as ResearchExportStatus }),
-      );
+      ctx.repo.findById.mockResolvedValue(makeExportRecord({ status: status('COMPLETED') }));
 
-      await service.processQueuedExport('exp-1');
+      await ctx.service.processQueuedExport('exp-1');
 
-      const [sql, key] = prisma.$queryRaw.mock.calls[0] as [TemplateStringsArray, string];
+      const [sql, key] = ctx.prisma.$queryRaw.mock.calls[0] as [TemplateStringsArray, string];
       expect(sql.join('?')).toContain('pg_try_advisory_xact_lock');
       expect(key).toBe('research-export:exp-1');
-      expect(prisma.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
-        repo.findById.mock.invocationCallOrder[0],
+      expect(ctx.prisma.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        ctx.repo.findById.mock.invocationCallOrder[0],
       );
     });
 
-    it('does nothing for a delivery that arrives after the export completed', async () => {
-      repo.findById.mockResolvedValue(
-        makeExportRecord({ status: 'COMPLETED' as ResearchExportStatus }),
-      );
+    it.each(['COMPLETED', 'SKIPPED'] as const)(
+      'does nothing for a delivery that arrives after the run was %s',
+      async (finished) => {
+        ctx.repo.findById.mockResolvedValue(makeExportRecord({ status: status(finished) }));
 
-      const result = await service.processQueuedExport('exp-1');
+        const result = await ctx.service.processQueuedExport('exp-1');
 
-      expect(result?.status).toBe('COMPLETED');
-      expect(repo.update).not.toHaveBeenCalled();
-      expect(transformService.generatePack).not.toHaveBeenCalled();
-      expect(repoSyncService.sync).not.toHaveBeenCalled();
-    });
+        expect(result?.status).toBe(finished);
+        expect(ctx.repo.update).not.toHaveBeenCalled();
+        expect(ctx.transformService.generatePack).not.toHaveBeenCalled();
+        expect(ctx.adapter.putRun).not.toHaveBeenCalled();
+      },
+    );
   });
 
   it('throws when a queued export cannot be found', async () => {
-    repo.findById.mockResolvedValue(null);
-
-    await expect(service.processQueuedExport('missing')).rejects.toThrow(NotFoundException);
+    ctx.repo.findById.mockResolvedValue(null);
+    await expect(ctx.service.processQueuedExport('missing')).rejects.toThrow(NotFoundException);
   });
 
   it('resolves legacy job tenant metadata from the export record', async () => {
-    repo.findById.mockResolvedValue(
-      makeExportRecord({
-        approvedByUserId: 'director-1',
-      }),
-    );
-
-    await expect(service.findExportJobTenant('exp-1')).resolves.toEqual({
+    ctx.repo.findById.mockResolvedValue(makeExportRecord({ approvedByUserId: 'director-1' }));
+    await expect(ctx.service.findExportJobTenant('exp-1')).resolves.toEqual({
       clinicId,
       userId: 'director-1',
     });
 
-    repo.findById.mockResolvedValue(null);
-    await expect(service.findExportJobTenant('missing')).resolves.toBeNull();
+    ctx.repo.findById.mockResolvedValue(null);
+    await expect(ctx.service.findExportJobTenant('missing')).resolves.toBeNull();
+  });
+
+  it('reads stored change summaries and row counts back defensively', () => {
+    const view = ctx.service.toExportView(
+      makeExportRecord({ rowCountsJson: '{"research_subjects":"4"}', changesJson: 'not json' }),
+    );
+    expect(view.rowCounts).toEqual({ research_subjects: 4 });
+    expect(view.changes).toBeNull();
   });
 });

@@ -63,10 +63,10 @@ export interface ResearchExportItem {
   rowCounts: Record<string, number>;
   artifactSha256: string | null;
   artifactSizeBytes: number | null;
-  repoProvider: string | null;
-  repoPath: string | null;
-  repoCommitSha: string | null;
-  repoCommitUrl: string | null;
+  storageProvider: string | null;
+  storagePath: string | null;
+  storageRef: string | null;
+  storageUrl: string | null;
   requestedAt: string;
   startedAt: string | null;
   approvedAt: string | null;
@@ -587,14 +587,14 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
 
                           <div>
                             <p className="font-medium text-foreground">GitHub sync</p>
-                            {item.repoPath ? (
+                            {item.storagePath ? (
                               <>
                                 <p className="font-mono text-xs text-muted-foreground">
-                                  {item.repoPath}
+                                  {item.storagePath}
                                 </p>
-                                {item.repoCommitUrl ? (
+                                {item.storageUrl ? (
                                   <a
-                                    href={item.repoCommitUrl}
+                                    href={item.storageUrl}
                                     target="_blank"
                                     rel="noreferrer"
                                     className="mt-1 inline-block text-primary underline-offset-4 hover:underline"
