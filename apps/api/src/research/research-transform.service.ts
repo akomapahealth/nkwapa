@@ -7,6 +7,8 @@ import {
   RESEARCH_FILE_FORMAT,
   RESEARCH_POLICY_VERSION,
   type ResearchPackFile,
+  type ResearchRunChanges,
+  type ResearchRunIdentity,
   sha256Hex,
 } from './research-policy';
 import { createStoredZip } from './zip.util';
@@ -249,6 +251,7 @@ export class ResearchTransformService {
     fromDate: string,
     toDate: string,
     exportId: string,
+    run: ResearchRunIdentity,
     policyVersion = RESEARCH_POLICY_VERSION,
   ): Promise<GeneratedResearchPack> {
     const { start, end } = this.getWindow(fromDate, toDate);
@@ -831,9 +834,28 @@ export class ResearchTransformService {
       csvFiles.map((file) => [file.file.name.replace('.csv', ''), file.rows]),
     );
 
+    const tableChecksums = csvFiles
+      .map((file) => `${file.file.sha256}  ${file.file.name}`)
+      .join('\n');
+    const changes = this.describeChanges(
+      run.runKey,
+      previousCompletedExport,
+      { current: activeConsents, revokedSince: revokedConsents },
+      rowCounts,
+    );
+    const changesFile = this.toPackFile('changes.json', `${JSON.stringify(changes, null, 2)}\n`);
+
     const manifestBase = {
       exportId,
+      runKey: run.runKey,
+      trigger: run.trigger,
+      scheduleId: run.scheduleId,
+      previousRunKey: changes.previousRunKey,
       clinicKey,
+      hmacKeyId: this.deIdService.keyId(),
+      consentedSubjects: changes.consentedSubjects,
+      revokedSinceLast: changes.subjectsRevoked,
+      contentSha256: sha256Hex(`${tableChecksums}\n`),
       datasetVersion: RESEARCH_DATASET_VERSION,
       policyVersion,
       fromDate,
@@ -852,12 +874,17 @@ export class ResearchTransformService {
     const manifestContent = `${JSON.stringify(manifestBase, null, 2)}\n`;
     const manifestFile = this.toPackFile('manifest.json', manifestContent);
     const checksumsContent =
-      [...csvFiles.map((file) => file.file), manifestFile]
+      [...csvFiles.map((file) => file.file), changesFile, manifestFile]
         .map((file) => `${file.sha256}  ${file.name}`)
         .join('\n') + '\n';
     const checksumFile = this.toPackFile('SHA256SUMS.txt', checksumsContent);
 
-    const repoFiles = [...csvFiles.map((file) => file.file), manifestFile, checksumFile];
+    const repoFiles = [
+      ...csvFiles.map((file) => file.file),
+      changesFile,
+      manifestFile,
+      checksumFile,
+    ];
 
     const artifactDir = path.join(this.getExportDir(), exportId);
     fs.mkdirSync(artifactDir, { recursive: true });
@@ -890,6 +917,7 @@ export class ResearchTransformService {
           },
         ],
       },
+      changes,
       repoFiles,
       artifactPath,
       artifactSha256: sha256Hex(zipBuffer),
@@ -1107,6 +1135,67 @@ export class ResearchTransformService {
       glucose_type: report.type === 'HOME_GLUCOSE' ? report.glucoseType : null,
       weight_kg: null,
       research_linked_encounter_key: '',
+    };
+  }
+
+  /**
+   * `changes.json`: this run against the previous completed one (#166), counted in patients, not
+   * consent rows. Who was consented when the previous run completed is rebuilt from the consent
+   * rows: granted by then, and either still granted or revoked only since. So a patient who
+   * re-consents (a new grant superseding the old) is neither added nor revoked.
+   */
+  private describeChanges(
+    runKey: string,
+    previous: {
+      runKey: string;
+      completedAt: Date | null;
+      consentedSubjectCount: number | null;
+      rowCountsJson: string | null;
+    } | null,
+    consents: {
+      current: Array<{ patientId: string; grantedAt: Date }>;
+      revokedSince: Array<{ patientId: string; grantedAt: Date }>;
+    },
+    rowCounts: Record<string, number>,
+  ): ResearchRunChanges {
+    const since = previous?.completedAt ?? null;
+    const current = new Set(consents.current.map((consent) => consent.patientId));
+    const before = new Set(
+      [...consents.current, ...consents.revokedSince]
+        .filter((consent) => since !== null && consent.grantedAt <= since)
+        .map((consent) => consent.patientId),
+    );
+    const subjectsAdded = [...current].filter((patientId) => !before.has(patientId)).length;
+    const subjectsRevoked = new Set(
+      consents.revokedSince
+        .map((consent) => consent.patientId)
+        .filter((patientId) => !current.has(patientId)),
+    ).size;
+    const previousConsentedSubjects = previous?.consentedSubjectCount ?? null;
+    const subjectsOtherwiseRemoved =
+      previousConsentedSubjects === null
+        ? 0
+        : Math.max(0, previousConsentedSubjects + subjectsAdded - subjectsRevoked - current.size);
+    let previousCounts: Record<string, number> = {};
+    try {
+      previousCounts = previous?.rowCountsJson ? JSON.parse(previous.rowCountsJson) : {};
+    } catch {
+      previousCounts = {};
+    }
+    return {
+      runKey,
+      previousRunKey: previous?.runKey ?? null,
+      consentedSubjects: current.size,
+      previousConsentedSubjects,
+      subjectsAdded,
+      subjectsRevoked,
+      subjectsOtherwiseRemoved,
+      rowCountDeltas: Object.fromEntries(
+        Object.entries(rowCounts).map(([table, rows]) => [
+          table,
+          rows - (Number(previousCounts[table]) || 0),
+        ]),
+      ),
     };
   }
 

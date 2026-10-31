@@ -167,6 +167,7 @@ export const RESEARCH_OUT_OF_SCOPE_MODELS: Record<string, string> = {
   SyncMutation: 'Offline replay bookkeeping with no clinical content.',
   ResearchExport: "The export pipeline's own record of its runs.",
   ClinicResearchSettings: 'Per-clinic configuration for this pipeline.',
+  ResearchExportSchedule: "A director's standing approval and cadence for this pipeline's runs.",
 };
 
 /**

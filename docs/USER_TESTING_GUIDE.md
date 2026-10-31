@@ -1102,6 +1102,18 @@ Needs an account with seats at two clinics (the cross-clinic fixtures from
 - [ ] **JOB-06** During JOB-05, watch the research page between attempts. The export stays
       _Approved_ while it is being retried, and reads **Failed**, with an audit entry, only after the
       last attempt. Refresh the page after it fails, to confirm it is still **Failed**.
+- [ ] **JOB-11** Run the API with `RESEARCH_STORAGE_PROVIDER=local` and `RESEARCH_MIN_SUBJECTS=2`.
+      Create and approve a schedule on the research exports page, then turn research off in clinic
+      settings and press **Run now** before the toggle is saved elsewhere (or turn it off while the
+      run is queued). The run reads **Skipped** with "Research is turned off for the clinic", and
+      Mailpit has one "Research run needs attention" email per director, naming the run key only.
+- [ ] **JOB-12** With fewer consented patients than `RESEARCH_MIN_SUBJECTS`, request a manual export.
+      It reads **Skipped** with "Too few patients have consented", nothing is published under
+      `RESEARCH_LOCAL_STORAGE_DIR`, and no email is sent.
+- [ ] **JOB-14** Approve a schedule, then set its `reviewBy` and `nextRunAt` to the past in the
+      database and wait for the hourly dispatcher (or restart the API). The period's run reads
+      **Skipped** as past its review date, the schedule reads **Review due**, and **Resume** is not
+      offered; **Approve again** makes it active with a new review date.
 
 ---
 

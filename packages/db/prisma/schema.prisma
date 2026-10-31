@@ -337,6 +337,34 @@ enum ResearchExportStatus {
   COMPLETED
   FAILED
   REJECTED
+  /// Not run, for a governance reason recorded in `skipReason` (#166). Nothing was published.
+  SKIPPED
+}
+
+enum ResearchScheduleCadence {
+  WEEKLY
+  MONTHLY
+}
+
+enum ResearchScheduleStatus {
+  PENDING_APPROVAL
+  ACTIVE
+  PAUSED
+  /// Past `reviewBy`; runs stop until a director approves it again.
+  EXPIRED
+  /// Rejected or withdrawn; final.
+  REVOKED
+}
+
+enum ResearchExportTrigger {
+  MANUAL
+  SCHEDULED
+}
+
+enum ResearchStorageProvider {
+  GITHUB
+  R2
+  LOCAL
 }
 
 enum NationalIdType {
@@ -868,6 +896,7 @@ model Clinic {
   reminders                 Reminder[]
   researchSettings          ClinicResearchSettings?
   researchExports           ResearchExport[]
+  researchExportSchedules   ResearchExportSchedule[]
   auditEvents               AuditEvent[]
   syncMutations             SyncMutation[]
   vitals                    Vitals[]
@@ -974,6 +1003,8 @@ model User {
   updatedClinicResearchSettings   ClinicResearchSettings[]        @relation("ResearchSettingsUpdatedBy")
   requestedResearchExports        ResearchExport[]                @relation("ResearchExportRequestedBy")
   approvedResearchExports         ResearchExport[]                @relation("ResearchExportApprovedBy")
+  createdResearchSchedules        ResearchExportSchedule[]        @relation("ResearchScheduleCreatedBy")
+  approvedResearchSchedules       ResearchExportSchedule[]        @relation("ResearchScheduleApprovedBy")
   auditEvents                     AuditEvent[]                    @relation("AuditActor")
   prescriptions                   Prescription[]                  @relation("PrescriptionPrescribedBy")
   patientSelfReports              PatientSelfReport[]             @relation("PatientSelfReportSubmittedBy")
@@ -2408,24 +2439,74 @@ model ResearchExport {
   artifactSha256    String? @db.VarChar(128)
   artifactSizeBytes Int?
 
-  repoProvider  String?   @db.VarChar(40)
-  repoPath      String?   @db.VarChar(500)
-  repoCommitSha String?   @db.VarChar(80)
-  repoCommitUrl String?   @db.VarChar(500)
-  syncedAt      DateTime?
+  /// Where the pack was published (#166): the run's folder in the bucket or repository, the
+  /// commit sha for GitHub, and a link for people.
+  storageProvider ResearchStorageProvider?
+  storagePath     String?                  @db.VarChar(500)
+  storageRef      String?                  @db.VarChar(80)
+  storageUrl      String?                  @db.VarChar(500)
+  syncedAt        DateTime?
+
+  /// `rx-<clinicKey8>-<period>[-r<n>]`: deterministic per clinic and period, so a duplicate
+  /// trigger cannot make a second run. Never contains an internal id.
+  runKey                String                @unique @db.VarChar(64)
+  trigger               ResearchExportTrigger @default(MANUAL)
+  scheduleId            String?               @db.Uuid
+  consentedSubjectCount Int?
+  revokedSinceLastCount Int?
+  /// sha256 over the table lines of SHA256SUMS.txt: equal for two runs with identical data.
+  contentSha256         String?               @db.VarChar(64)
+  skipReason            String?               @db.VarChar(64)
+  changesJson           String?               @db.Text
 
   requestedAt DateTime  @default(now())
   startedAt   DateTime?
   approvedAt  DateTime?
   completedAt DateTime?
 
-  clinic      Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  requestedBy User   @relation("ResearchExportRequestedBy", fields: [requestedByUserId], references: [id])
-  approvedBy  User?  @relation("ResearchExportApprovedBy", fields: [approvedByUserId], references: [id])
+  clinic      Clinic                  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  requestedBy User                    @relation("ResearchExportRequestedBy", fields: [requestedByUserId], references: [id])
+  approvedBy  User?                   @relation("ResearchExportApprovedBy", fields: [approvedByUserId], references: [id])
+  schedule    ResearchExportSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
 
   @@index([clinicId, status])
   @@index([requestedAt])
   @@index([clinicId, requestedAt, id])
+  @@index([scheduleId, requestedAt])
+}
+
+/// A director's standing approval for recurring research exports at one clinic (#166).
+model ResearchExportSchedule {
+  id                String                  @id @default(uuid()) @db.Uuid
+  clinicId          String                  @db.Uuid
+  cadence           ResearchScheduleCadence
+  /// ISO day of week, 1 (Monday) to 7, for WEEKLY.
+  dayOfWeek         Int?
+  /// 1 to 28 for MONTHLY, so February never skips a run.
+  dayOfMonth        Int?
+  /// 0 to 23 in the clinic's time zone.
+  localHour         Int
+  coverageStartDate String                  @db.VarChar(10)
+  destination       ResearchStorageProvider
+  status            ResearchScheduleStatus  @default(PENDING_APPROVAL)
+  /// Why the schedule was rejected, revoked or expired.
+  statusReason      String?                 @db.VarChar(500)
+  reviewBy          DateTime?
+  createdByUserId   String                  @db.Uuid
+  approvedByUserId  String?                 @db.Uuid
+  approvedAt        DateTime?
+  lastRunAt         DateTime?
+  nextRunAt         DateTime?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  clinic     Clinic           @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  createdBy  User             @relation("ResearchScheduleCreatedBy", fields: [createdByUserId], references: [id])
+  approvedBy User?            @relation("ResearchScheduleApprovedBy", fields: [approvedByUserId], references: [id])
+  runs       ResearchExport[]
+
+  @@index([status, nextRunAt])
+  @@index([clinicId])
 }
 
 model AuditEvent {

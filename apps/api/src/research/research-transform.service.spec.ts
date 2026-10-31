@@ -1,7 +1,24 @@
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
+import { gunzipSync } from 'zlib';
 import { DeIdentificationService } from './de-identification.service';
 import { ResearchTransformService } from './research-transform.service';
+import { LocalResearchStorage } from './storage/object-store-research-storage';
+
+const RUN = { runKey: 'rx-3f9a2c1d-m2026-03', trigger: 'SCHEDULED' as const, scheduleId: null };
+
+/** Every object under `root`, decompressed, as one string per file. */
+function readAllObjects(root: string): Array<{ file: string; content: string }> {
+  return fs
+    .readdirSync(root, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => {
+      const file = path.join(entry.parentPath, entry.name);
+      const raw = fs.readFileSync(file);
+      return { file, content: (file.endsWith('.gz') ? gunzipSync(raw) : raw).toString('utf-8') };
+    });
+}
 
 describe('ResearchTransformService', () => {
   const exportDir = path.join(__dirname, '__research_export_artifacts__');
@@ -55,7 +72,13 @@ describe('ResearchTransformService', () => {
     prisma.researchExport.findFirst.mockResolvedValue(null);
     prisma.patient.findMany.mockResolvedValue([]);
 
-    const result = await service.generatePack('clinic-1', '2026-03-01', '2026-03-21', 'exp-empty');
+    const result = await service.generatePack(
+      'clinic-1',
+      '2026-03-01',
+      '2026-03-21',
+      'exp-empty',
+      RUN,
+    );
 
     expect(result.recordCount).toBe(0);
     expect(result.repoFiles.map((file) => file.name)).toEqual(
@@ -68,7 +91,139 @@ describe('ResearchTransformService', () => {
       ]),
     );
     expect(result.manifest.datasetVersion).toBe(5);
+    expect(result.manifest).toMatchObject({
+      runKey: RUN.runKey,
+      trigger: 'SCHEDULED',
+      previousRunKey: null,
+      consentedSubjects: 0,
+      hmacKeyId: 'research-hmac-v1',
+    });
+    expect(result.changes).toMatchObject({
+      previousRunKey: null,
+      previousConsentedSubjects: null,
+      subjectsAdded: 0,
+    });
     expect(fs.existsSync(result.artifactPath)).toBe(true);
+  });
+
+  it('hashes only the tables into contentSha256, so identical data reads as identical', async () => {
+    const arrange = () => {
+      prisma.patientConsent.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+      prisma.researchExport.findFirst.mockResolvedValue(null);
+      prisma.patient.findMany.mockResolvedValue([]);
+    };
+    arrange();
+    const first = await service.generatePack('clinic-1', '2026-03-01', '2026-03-21', 'a', RUN);
+    arrange();
+    const second = await service.generatePack('clinic-1', '2026-03-01', '2026-03-21', 'b', {
+      ...RUN,
+      runKey: 'rx-3f9a2c1d-m2026-04',
+    });
+    expect(first.manifest.contentSha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(second.manifest.contentSha256).toBe(first.manifest.contentSha256);
+    expect(second.manifest.generatedAt).not.toBe('');
+  });
+
+  it('summarises added, revoked and otherwise removed subjects against the previous run', async () => {
+    const consent = (patientId: string, grantedAt: string) => ({
+      patientId,
+      grantedAt: new Date(grantedAt),
+    });
+    prisma.patientConsent.findMany
+      .mockResolvedValueOnce([
+        consent('p-old-1', '2026-01-05T00:00:00Z'),
+        consent('p-old-2', '2026-01-06T00:00:00Z'),
+        consent('p-new', '2026-03-15T00:00:00Z'),
+      ])
+      .mockResolvedValueOnce([
+        {
+          patientId: 'p-revoked',
+          grantedAt: new Date('2026-01-02T00:00:00Z'),
+          revokedAt: new Date('2026-03-12T00:00:00Z'),
+        },
+      ]);
+    // The previous run had 5: two still consented, one revoked since, two merged away.
+    prisma.researchExport.findFirst.mockResolvedValue({
+      runKey: 'rx-3f9a2c1d-m2026-02',
+      completedAt: new Date('2026-03-10T00:00:00Z'),
+      consentedSubjectCount: 5,
+      rowCountsJson: JSON.stringify({ research_subjects: 5, research_revocations: 0 }),
+    });
+    prisma.patientCheckIn.findMany.mockResolvedValue([]);
+    prisma.patientAssignment.findMany.mockResolvedValue([]);
+    prisma.encounter.findMany.mockResolvedValue([]);
+    prisma.patientMeasurement.findMany.mockResolvedValue([]);
+    prisma.patientSelfReport.findMany.mockResolvedValue([]);
+    prisma.appointmentRequest.findMany.mockResolvedValue([]);
+    prisma.medicalHistoryRevision.findMany.mockResolvedValue([]);
+    prisma.encounterMedicationAdherence.findMany.mockResolvedValue([]);
+    prisma.patient.findMany.mockResolvedValue([]);
+
+    const result = await service.generatePack('clinic-1', '2026-01-01', '2026-03-31', 'x', RUN);
+
+    expect(result.changes).toEqual({
+      runKey: RUN.runKey,
+      previousRunKey: 'rx-3f9a2c1d-m2026-02',
+      consentedSubjects: 3,
+      previousConsentedSubjects: 5,
+      subjectsAdded: 1,
+      subjectsRevoked: 1,
+      subjectsOtherwiseRemoved: 2,
+      rowCountDeltas: expect.objectContaining({ research_revocations: 1 }),
+    });
+    const changesFile = result.repoFiles.find((file) => file.name === 'changes.json');
+    expect(JSON.parse(changesFile!.content)).toEqual(JSON.parse(JSON.stringify(result.changes)));
+    expect(result.manifest.previousRunKey).toBe('rx-3f9a2c1d-m2026-02');
+  });
+
+  it('counts a patient who re-consented as neither added nor revoked', async () => {
+    // Found in e2e: granting again superseded the old row, which read as 2 added, 2 removed.
+    prisma.patientConsent.findMany
+      .mockResolvedValueOnce([
+        { patientId: 'p1', grantedAt: new Date('2026-03-15T00:00:00Z') },
+        { patientId: 'p2', grantedAt: new Date('2026-03-15T00:00:00Z') },
+      ])
+      .mockResolvedValueOnce([
+        {
+          patientId: 'p1',
+          grantedAt: new Date('2026-01-05T00:00:00Z'),
+          revokedAt: new Date('2026-03-15T00:00:00Z'),
+        },
+        {
+          patientId: 'p2',
+          grantedAt: new Date('2026-01-05T00:00:00Z'),
+          revokedAt: new Date('2026-03-15T00:00:00Z'),
+        },
+      ]);
+    prisma.researchExport.findFirst.mockResolvedValue({
+      runKey: 'rx-3f9a2c1d-m2026-02',
+      completedAt: new Date('2026-03-10T00:00:00Z'),
+      consentedSubjectCount: 2,
+      rowCountsJson: null,
+    });
+    for (const model of [
+      'patientCheckIn',
+      'patientAssignment',
+      'encounter',
+      'patientMeasurement',
+      'patientSelfReport',
+      'appointmentRequest',
+      'medicalHistoryRevision',
+      'encounterMedicationAdherence',
+      'patient',
+    ] as const) {
+      prisma[model].findMany.mockResolvedValue([]);
+    }
+
+    const result = await service.generatePack('clinic-1', '2026-01-01', '2026-03-31', 'x', RUN);
+
+    expect(result.changes).toMatchObject({
+      consentedSubjects: 2,
+      subjectsAdded: 0,
+      subjectsRevoked: 0,
+      subjectsOtherwiseRemoved: 0,
+    });
+    expect(result.manifest.revokedSinceLast).toBe(0);
   });
 
   it('normalizes mixed data into the v2 research pack without leaking pii', async () => {
@@ -369,7 +524,13 @@ describe('ResearchTransformService', () => {
       },
     ]);
 
-    const result = await service.generatePack('clinic-1', '2026-03-01', '2026-03-21', 'exp-full');
+    const result = await service.generatePack(
+      'clinic-1',
+      '2026-03-01',
+      '2026-03-21',
+      'exp-full',
+      RUN,
+    );
 
     const subjectsCsv = result.repoFiles.find((file) => file.name === 'research_subjects.csv');
     const measurementsCsv = result.repoFiles.find(
@@ -450,5 +611,49 @@ describe('ResearchTransformService', () => {
     expect(medicalHistoryCsv?.content).not.toContain('Private reaction text');
     expect(medicalHistoryCsv?.content).not.toContain('Private clinical note');
     expect(fs.existsSync(result.artifactPath)).toBe(true);
+
+    // #166: publish the run and read back every object that reached storage.
+    const storageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'research-deid-'));
+    process.env.RESEARCH_LOCAL_STORAGE_DIR = storageRoot;
+    try {
+      await new LocalResearchStorage().putRun({
+        exportId: 'exp-full',
+        runKey: RUN.runKey,
+        fromDate: '2026-03-01',
+        toDate: '2026-03-21',
+        pack: result,
+      });
+      const objects = readAllObjects(storageRoot);
+      expect(objects.length).toBeGreaterThanOrEqual(result.repoFiles.length + 1);
+      const forbidden = [
+        'clinic-1', // the clinic's internal id
+        'patient-1',
+        'patient-2',
+        'consent-1',
+        'user-1',
+        'Witness',
+        '+2330000000',
+        'transform-test-key', // the HMAC secret
+        'PII note',
+        'Private clinical note',
+        'Private reaction text',
+        'Penicillin',
+        'Amlodipine',
+        'SecretCommunityName',
+        'SecretAddressNote',
+        'Should not leak',
+        'Do not leak',
+      ];
+      for (const { file, content } of objects) {
+        for (const value of forbidden) {
+          if (content.includes(value)) {
+            throw new Error(`${path.relative(storageRoot, file)} contains ${value}`);
+          }
+        }
+      }
+    } finally {
+      delete process.env.RESEARCH_LOCAL_STORAGE_DIR;
+      fs.rmSync(storageRoot, { recursive: true, force: true });
+    }
   });
 });

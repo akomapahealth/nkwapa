@@ -30,6 +30,22 @@ export class ResearchExportRepository {
     });
   }
 
+  async findByRunKey(runKey: string): Promise<ResearchExportRecord | null> {
+    return this.prisma.researchExport.findUnique({
+      where: { runKey },
+      include: researchExportInclude,
+    });
+  }
+
+  /** Every run key at a clinic that is `base` or a revision of it. */
+  async listRunKeysWithPrefix(clinicId: string, base: string): Promise<string[]> {
+    const rows = await this.prisma.researchExport.findMany({
+      where: { clinicId, OR: [{ runKey: base }, { runKey: { startsWith: `${base}-r` } }] },
+      select: { runKey: true },
+    });
+    return rows.map((row) => row.runKey);
+  }
+
   async update(id: string, data: Prisma.ResearchExportUpdateInput): Promise<ResearchExportRecord> {
     return this.prisma.researchExport.update({
       where: { id },
@@ -62,7 +78,13 @@ export class ResearchExportRepository {
         status: 'PROCESSING',
         OR: [{ startedAt: { lt: startedBefore } }, { startedAt: null }],
       },
-      select: { id: true, clinicId: true, repoPath: true, startedAt: true },
+      select: {
+        id: true,
+        clinicId: true,
+        storageProvider: true,
+        storagePath: true,
+        startedAt: true,
+      },
       orderBy: { startedAt: 'asc' },
       take,
     });
