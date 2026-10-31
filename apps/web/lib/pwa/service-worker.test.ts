@@ -5,6 +5,7 @@ const sw = require('./service-worker.js') as {
   isCacheable: (response: Response | null) => boolean;
   cacheKeyFor: (request: Request) => Request;
   trimCache: (cache: Pick<Cache, 'keys' | 'delete'>, max: number) => Promise<void>;
+  openFromNotification: (clients: unknown, origin: string, url: unknown) => Promise<void>;
 };
 
 const ORIGIN = 'https://nkwapa.app';
@@ -121,5 +122,38 @@ describe('service worker rules (#206)', () => {
     const remove = jest.fn();
     await sw.trimCache({ keys: async () => [new Request(`${ORIGIN}/a`)], delete: remove }, 3);
     expect(remove).not.toHaveBeenCalled();
+  });
+});
+
+describe('notification clicks', () => {
+  function clientsWith(urls: string[]) {
+    const windows = urls.map((url) => ({ url, focus: jest.fn(), postMessage: jest.fn() }));
+    return {
+      windows,
+      clients: { matchAll: jest.fn(async () => windows), openWindow: jest.fn() },
+    };
+  }
+
+  it('hands the URL to an open window instead of opening another', async () => {
+    const { clients, windows } = clientsWith([`${ORIGIN}/patients`]);
+    await sw.openFromNotification(clients, ORIGIN, '/patients?chat=conv-1');
+    expect(windows[0].focus).toHaveBeenCalled();
+    expect(windows[0].postMessage).toHaveBeenCalledWith({
+      type: 'NKWAPA_NOTIFICATION_CLICK',
+      url: '/patients?chat=conv-1',
+    });
+    expect(clients.openWindow).not.toHaveBeenCalled();
+  });
+
+  it('opens a window when none is open', async () => {
+    const { clients } = clientsWith([]);
+    await sw.openFromNotification(clients, ORIGIN, '/dashboard?chat=conv-1');
+    expect(clients.openWindow).toHaveBeenCalledWith('/dashboard?chat=conv-1');
+  });
+
+  it('never opens another site', async () => {
+    const { clients } = clientsWith([]);
+    await sw.openFromNotification(clients, ORIGIN, 'https://evil.example/phish');
+    expect(clients.openWindow).toHaveBeenCalledWith('/dashboard');
   });
 });

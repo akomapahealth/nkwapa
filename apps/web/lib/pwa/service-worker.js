@@ -112,6 +112,25 @@ async function handleStatic(event) {
   return response;
 }
 
+/*
+  A clicked notification goes to an open Nkwapa window when there is one, which then navigates
+  itself (it knows the router and the chat panel), and opens a new window only when there is none.
+  The message type matches NOTIFICATION_CLICK_MESSAGE in lib/browser-notifications.ts.
+*/
+async function openFromNotification(clients, origin, rawUrl) {
+  const target = new URL(rawUrl || '/dashboard', origin);
+  // Only ever this app: a notification's data is ours, but never let it open another site.
+  const url = target.origin === origin ? `${target.pathname}${target.search}` : '/dashboard';
+  const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+  const existing = windows.find((client) => new URL(client.url).origin === origin);
+  if (existing) {
+    await existing.focus();
+    existing.postMessage({ type: 'NKWAPA_NOTIFICATION_CLICK', url });
+    return;
+  }
+  await clients.openWindow(url);
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     VERSION,
@@ -122,8 +141,15 @@ if (typeof module !== 'undefined' && module.exports) {
     isCacheable,
     cacheKeyFor,
     trimCache,
+    openFromNotification,
   };
 } else {
+  self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    const url = event.notification.data && event.notification.data.url;
+    event.waitUntil(openFromNotification(self.clients, self.location.origin, url));
+  });
+
   self.addEventListener('install', (event) => {
     // No skipWaiting here: a new version waits until the page asks (#206), so a deploy never
     // takes over a tab in the middle of a form.

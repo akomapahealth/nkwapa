@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Building2, Mail, Phone, Settings, UserPen } from 'lucide-react';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
+import { NotificationsCard } from '@/components/account/NotificationsCard';
 import { StaffNameForm } from '@/components/account/StaffNameForm';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { InlineNotice } from '@/components/ops/OpsShared';
@@ -37,6 +38,8 @@ export default function AccountPage() {
   const bootstrapCtx = useBootstrap();
   const bootstrap = bootstrapCtx?.bootstrap ?? null;
   const isStaff = bootstrap != null && welcomeTourAudience(bootstrap) === 'staff';
+  const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
+  const canChat = perms.includes('*') || perms.includes('CHAT.READ');
 
   return (
     <div className="space-y-6">
@@ -86,6 +89,8 @@ export default function AccountPage() {
                 </CardHeader>
               </Card>
             )}
+            {/* Messages are the only thing that notifies today, so only those who can chat. */}
+            {canChat ? <NotificationsCard /> : null}
           </div>
         </div>
       )}

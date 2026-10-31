@@ -6,6 +6,13 @@ import { useAuth } from './auth-context';
 import { useBootstrap } from './bootstrap-context';
 import { apiFetch } from './api';
 import { connectChatSocket, disconnectChatSocket, getChatSocket } from './chat-socket';
+import { conversationTitle, isGroup } from './chat-display';
+import {
+  chatNotificationUrl,
+  getNotificationState,
+  shouldNotifyChat,
+  showAppNotification,
+} from './browser-notifications';
 
 // --- Types ---
 
@@ -115,6 +122,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   // Read inside socket handlers, which outlive any one render.
   const activeConversationRef = useRef<string | null>(null);
   const knownConversationsRef = useRef<Set<string>>(new Set());
+  // For naming the sender in a notification, from inside a socket handler.
+  const conversationsRef = useRef<ChatConversation[]>([]);
   const typingExpiryRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [typingUsers, setTypingUsers] = useState<
@@ -122,6 +131,36 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   >({});
 
   const socketRef = useRef<Socket | null>(null);
+
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+
+  /** Who wrote, never what: a notification can land on a lock screen anyone can read. */
+  const notifyNewMessage = useCallback(
+    (conversationId: string, senderUserId: string | undefined, conversationOpen: boolean) => {
+      const decide = {
+        state: getNotificationState(),
+        pageVisible: document.visibilityState === 'visible',
+        conversationOpen,
+      };
+      if (!shouldNotifyChat(decide)) return;
+      const conversation = conversationsRef.current.find((conv) => conv.id === conversationId);
+      const sender =
+        conversation?.participants.find((p) => p.userId === senderUserId)?.user.displayName ??
+        'a colleague';
+      void showAppNotification({
+        title:
+          conversation && isGroup(conversation)
+            ? `${sender} in ${conversationTitle(conversation, bootstrap?.userId)}`
+            : `New message from ${sender}`,
+        body: 'Open Nkwapa to read it.',
+        url: chatNotificationUrl(window.location.href, conversationId),
+        tag: `chat-${conversationId}`,
+      });
+    },
+    [bootstrap?.userId],
+  );
 
   const hasChatPermission =
     bootstrap?.effectivePermissionsForActiveClinic?.includes('CHAT.READ') ||
@@ -260,6 +299,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
               return;
             }
             const isOpen = activeConversationRef.current === data.conversationId;
+            notifyNewMessage(data.conversationId, data.lastMessage?.senderUserId, isOpen);
             setConversations((prev) =>
               sortByActivity(
                 prev.map((conv) =>
@@ -360,7 +400,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       disconnectChatSocket();
       setIsConnected(false);
     };
-  }, [getToken, activeClinicId, hasChatPermission, bootstrap?.userId, refreshConversations]);
+  }, [
+    getToken,
+    activeClinicId,
+    hasChatPermission,
+    bootstrap?.userId,
+    refreshConversations,
+    notifyNewMessage,
+  ]);
 
   // Actions
   const sendMessage = useCallback((conversationId: string, content: string) => {
