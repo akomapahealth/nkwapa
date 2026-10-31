@@ -15,6 +15,9 @@ import { ResearchRunNotifier } from './research-run.notifier';
 import { ReminderModule } from '../reminders/reminder.module';
 import { ResearchExportProcessor } from './research-export.processor';
 import { ResearchExportReconciliationSweep } from './research-export-reconciliation.sweep';
+import { ResearchScheduleController } from './research-schedule.controller';
+import { ResearchScheduleService } from './research-schedule.service';
+import { ResearchScheduleDispatcher } from './research-schedule.dispatcher';
 
 @Module({
   imports: [
@@ -23,7 +26,7 @@ import { ResearchExportReconciliationSweep } from './research-export-reconciliat
     ReminderModule,
     BullModule.registerQueue({ name: RESEARCH_EXPORT_QUEUE_NAME }),
   ],
-  controllers: [ResearchExportController],
+  controllers: [ResearchExportController, ResearchScheduleController],
   providers: [
     ResearchExportRepository,
     ResearchExportService,
@@ -36,6 +39,8 @@ import { ResearchExportReconciliationSweep } from './research-export-reconciliat
     ResearchRunNotifier,
     ResearchExportProcessor,
     ResearchExportReconciliationSweep,
+    ResearchScheduleService,
+    ResearchScheduleDispatcher,
   ],
   exports: [ResearchExportService],
 })
