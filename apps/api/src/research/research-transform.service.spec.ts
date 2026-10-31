@@ -136,7 +136,11 @@ describe('ResearchTransformService', () => {
         consent('p-new', '2026-03-15T00:00:00Z'),
       ])
       .mockResolvedValueOnce([
-        { patientId: 'p-revoked', revokedAt: new Date('2026-03-12T00:00:00Z') },
+        {
+          patientId: 'p-revoked',
+          grantedAt: new Date('2026-01-02T00:00:00Z'),
+          revokedAt: new Date('2026-03-12T00:00:00Z'),
+        },
       ]);
     // The previous run had 5: two still consented, one revoked since, two merged away.
     prisma.researchExport.findFirst.mockResolvedValue({
@@ -170,6 +174,56 @@ describe('ResearchTransformService', () => {
     const changesFile = result.repoFiles.find((file) => file.name === 'changes.json');
     expect(JSON.parse(changesFile!.content)).toEqual(JSON.parse(JSON.stringify(result.changes)));
     expect(result.manifest.previousRunKey).toBe('rx-3f9a2c1d-m2026-02');
+  });
+
+  it('counts a patient who re-consented as neither added nor revoked', async () => {
+    // Found in e2e: granting again superseded the old row, which read as 2 added, 2 removed.
+    prisma.patientConsent.findMany
+      .mockResolvedValueOnce([
+        { patientId: 'p1', grantedAt: new Date('2026-03-15T00:00:00Z') },
+        { patientId: 'p2', grantedAt: new Date('2026-03-15T00:00:00Z') },
+      ])
+      .mockResolvedValueOnce([
+        {
+          patientId: 'p1',
+          grantedAt: new Date('2026-01-05T00:00:00Z'),
+          revokedAt: new Date('2026-03-15T00:00:00Z'),
+        },
+        {
+          patientId: 'p2',
+          grantedAt: new Date('2026-01-05T00:00:00Z'),
+          revokedAt: new Date('2026-03-15T00:00:00Z'),
+        },
+      ]);
+    prisma.researchExport.findFirst.mockResolvedValue({
+      runKey: 'rx-3f9a2c1d-m2026-02',
+      completedAt: new Date('2026-03-10T00:00:00Z'),
+      consentedSubjectCount: 2,
+      rowCountsJson: null,
+    });
+    for (const model of [
+      'patientCheckIn',
+      'patientAssignment',
+      'encounter',
+      'patientMeasurement',
+      'patientSelfReport',
+      'appointmentRequest',
+      'medicalHistoryRevision',
+      'encounterMedicationAdherence',
+      'patient',
+    ] as const) {
+      prisma[model].findMany.mockResolvedValue([]);
+    }
+
+    const result = await service.generatePack('clinic-1', '2026-01-01', '2026-03-31', 'x', RUN);
+
+    expect(result.changes).toMatchObject({
+      consentedSubjects: 2,
+      subjectsAdded: 0,
+      subjectsRevoked: 0,
+      subjectsOtherwiseRemoved: 0,
+    });
+    expect(result.manifest.revokedSinceLast).toBe(0);
   });
 
   it('normalizes mixed data into the v2 research pack without leaking pii', async () => {

@@ -840,8 +840,7 @@ export class ResearchTransformService {
     const changes = this.describeChanges(
       run.runKey,
       previousCompletedExport,
-      [...consentByPatientId.values()],
-      revokedConsents.filter((consent) => !consentByPatientId.has(consent.patientId)).length,
+      { current: activeConsents, revokedSince: revokedConsents },
       rowCounts,
     );
     const changesFile = this.toPackFile('changes.json', `${JSON.stringify(changes, null, 2)}\n`);
@@ -855,7 +854,7 @@ export class ResearchTransformService {
       clinicKey,
       hmacKeyId: this.deIdService.keyId(),
       consentedSubjects: changes.consentedSubjects,
-      revokedSinceLast: revocationRows.length,
+      revokedSinceLast: changes.subjectsRevoked,
       contentSha256: sha256Hex(`${tableChecksums}\n`),
       datasetVersion: RESEARCH_DATASET_VERSION,
       policyVersion,
@@ -1139,7 +1138,12 @@ export class ResearchTransformService {
     };
   }
 
-  /** `changes.json`: this run against the previous completed one (#166). */
+  /**
+   * `changes.json`: this run against the previous completed one (#166), counted in patients, not
+   * consent rows. Who was consented when the previous run completed is rebuilt from the consent
+   * rows: granted by then, and either still granted or revoked only since. So a patient who
+   * re-consents (a new grant superseding the old) is neither added nor revoked.
+   */
   private describeChanges(
     runKey: string,
     previous: {
@@ -1148,22 +1152,30 @@ export class ResearchTransformService {
       consentedSubjectCount: number | null;
       rowCountsJson: string | null;
     } | null,
-    consents: Array<{ grantedAt: Date }>,
-    subjectsRevoked: number,
+    consents: {
+      current: Array<{ patientId: string; grantedAt: Date }>;
+      revokedSince: Array<{ patientId: string; grantedAt: Date }>;
+    },
     rowCounts: Record<string, number>,
   ): ResearchRunChanges {
     const since = previous?.completedAt ?? null;
-    const subjectsAdded = since
-      ? consents.filter((consent) => consent.grantedAt > since).length
-      : consents.length;
+    const current = new Set(consents.current.map((consent) => consent.patientId));
+    const before = new Set(
+      [...consents.current, ...consents.revokedSince]
+        .filter((consent) => since !== null && consent.grantedAt <= since)
+        .map((consent) => consent.patientId),
+    );
+    const subjectsAdded = [...current].filter((patientId) => !before.has(patientId)).length;
+    const subjectsRevoked = new Set(
+      consents.revokedSince
+        .map((consent) => consent.patientId)
+        .filter((patientId) => !current.has(patientId)),
+    ).size;
     const previousConsentedSubjects = previous?.consentedSubjectCount ?? null;
     const subjectsOtherwiseRemoved =
       previousConsentedSubjects === null
         ? 0
-        : Math.max(
-            0,
-            previousConsentedSubjects + subjectsAdded - subjectsRevoked - consents.length,
-          );
+        : Math.max(0, previousConsentedSubjects + subjectsAdded - subjectsRevoked - current.size);
     let previousCounts: Record<string, number> = {};
     try {
       previousCounts = previous?.rowCountsJson ? JSON.parse(previous.rowCountsJson) : {};
@@ -1173,7 +1185,7 @@ export class ResearchTransformService {
     return {
       runKey,
       previousRunKey: previous?.runKey ?? null,
-      consentedSubjects: consents.length,
+      consentedSubjects: current.size,
       previousConsentedSubjects,
       subjectsAdded,
       subjectsRevoked,
