@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -17,6 +17,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { apiFetch, getErrorMessage, readApiError } from '@/lib/api';
 import { hasPermission } from '@/lib/ops';
+import { getActiveBootstrapClinic } from '@/lib/bootstrap-clinics';
 import { useAsyncResource } from '@/lib/use-async-resource';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { FormSectionCard } from '@/components/app-shell/FormSectionCard';
@@ -29,15 +30,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ProgressiveHelp } from '@/components/ui/progressive-help';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { saveBlob } from '@/lib/download';
 import {
   DESTINATION_LABELS,
+  EXPORT_STATUS_LABELS,
   describeChanges,
   formatBytes,
   skipReasonLabel,
   type ResearchExportItem,
+  type ResearchExportStatus,
+  type ResearchOverview,
 } from '@/lib/research';
+import { ResearchOverviewPanel } from './ResearchOverviewPanel';
 import { ResearchReasonDialog, type ReasonPrompt } from './ResearchReasonDialog';
+import { ResearchRunDetails } from './ResearchRunDetails';
 import { ResearchRunKey } from './ResearchRunKey';
 import { ResearchSchedulesPanel } from './ResearchSchedulesPanel';
 import { EXPORT_STATUS_STYLES } from './research-status';
@@ -51,6 +64,13 @@ const PACK_CONTENTS = [
 ];
 
 const POLL_INTERVAL_MS = 10_000;
+const PAGE_SIZE = 20;
+// shortcut: "Load more" grows one request's limit, so polling keeps every loaded run fresh; past
+// the API's 100-row cap the filters narrow the list instead. Switch to cursor pages if clinics
+// routinely need more than 100 runs on screen.
+const MAX_LOADED = 100;
+const ALL = 'ALL';
+type TriggerFilter = 'MANUAL' | 'SCHEDULED';
 
 function todayString() {
   return new Date().toISOString().slice(0, 10);
@@ -75,16 +95,41 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
   );
   const canApprove = hasPermission(permissions, 'RESEARCH.EXPORT.APPROVE');
   const canRequest = hasPermission(permissions, 'RESEARCH.EXPORT.REQUEST');
+  const canEditSettings = hasPermission(permissions, 'RESEARCH.SETTINGS.UPDATE');
+  const clinicName = getActiveBootstrapClinic(bootstrap, clinicId)?.clinicName ?? null;
 
-  const exportsResource = useAsyncResource<ResearchExportItem[]>({
+  const [statusFilter, setStatusFilter] = useState<ResearchExportStatus | typeof ALL>(ALL);
+  const [triggerFilter, setTriggerFilter] = useState<TriggerFilter | typeof ALL>(ALL);
+  const [limit, setLimit] = useState(PAGE_SIZE);
+
+  const overviewResource = useAsyncResource<ResearchOverview>({
     resourceKey: clinicId,
+    errorMessage: 'The research overview could not be loaded.',
+    fetcher: async (token, signal) => {
+      const response = await apiFetch(
+        `/clinics/${encodeURIComponent(clinicId)}/research/overview`,
+        { getToken: token, activeClinicId: clinicId, signal },
+      );
+      if (!response.ok) throw await readApiError(response);
+      return (await response.json()) as ResearchOverview;
+    },
+  });
+
+  const exportsQuery = useMemo(() => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (statusFilter !== ALL) params.set('status', statusFilter);
+    if (triggerFilter !== ALL) params.set('trigger', triggerFilter);
+    return params.toString();
+  }, [limit, statusFilter, triggerFilter]);
+
+  const exportsResource = useAsyncResource<{ items: ResearchExportItem[]; hasMore: boolean }>({
+    resourceKey: `${clinicId}?${exportsQuery}`,
     errorMessage: 'The research export queue could not be loaded.',
     fetcher: async (token, signal) => {
-      const response = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}/research/exports`, {
-        getToken: token,
-        activeClinicId: clinicId,
-        signal,
-      });
+      const response = await apiFetch(
+        `/clinics/${encodeURIComponent(clinicId)}/research/exports?${exportsQuery}`,
+        { getToken: token, activeClinicId: clinicId, signal },
+      );
       if (!response.ok) {
         throw await readApiError(response);
       }
@@ -92,12 +137,18 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
         items: ResearchExportItem[];
         nextCursor: string | null;
       };
-      return payload.items;
+      return { items: payload.items, hasMore: payload.nextCursor !== null };
     },
   });
 
-  const exports = useMemo(() => exportsResource.data ?? [], [exportsResource.data]);
-  const refreshExports = exportsResource.refresh;
+  const exports = useMemo(() => exportsResource.data?.items ?? [], [exportsResource.data]);
+  const refreshList = exportsResource.refresh;
+  const refreshOverview = overviewResource.refresh;
+  // Every action and poll can change both the queue and the readiness above it.
+  const refreshExports = useCallback(() => {
+    refreshList();
+    refreshOverview();
+  }, [refreshList, refreshOverview]);
 
   const [fromDate, setFromDate] = useState(minusDays(29));
   const [toDate, setToDate] = useState(todayString());
@@ -262,6 +313,53 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
       { busyId: item.id, fallback: 'This export pack could not be downloaded.' },
     );
 
+  /** The decisions a director can make on a run; the row and the decision queue share them. */
+  const renderRunActions = (item: ResearchExportItem): ReactNode => {
+    if (!canApprove) return null;
+    const isBusy = actionLoadingId === item.id;
+    const spinner = <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />;
+    if (item.status === 'PENDING_APPROVAL') {
+      return (
+        <>
+          <Button onClick={() => void handleApprove(item.id)} disabled={isBusy} className="gap-2">
+            {isBusy ? spinner : null}
+            Approve
+          </Button>
+          <Button variant="outline" onClick={() => askRejectReason(item)} disabled={isBusy}>
+            Reject
+          </Button>
+        </>
+      );
+    }
+    if (item.status === 'FAILED') {
+      return (
+        <Button
+          variant="outline"
+          onClick={() => void handleRetry(item.id)}
+          disabled={isBusy}
+          className="gap-2"
+        >
+          {isBusy ? spinner : <RotateCcw aria-hidden="true" className="h-4 w-4" />}
+          Retry
+        </Button>
+      );
+    }
+    if (item.status === 'COMPLETED' || item.status === 'SKIPPED') {
+      return (
+        <Button
+          variant={item.status === 'SKIPPED' ? 'outline' : 'ghost'}
+          onClick={() => askRerunReason(item)}
+          disabled={isBusy}
+          className="gap-2"
+        >
+          <Redo2 aria-hidden="true" className="h-4 w-4" />
+          Rerun
+        </Button>
+      );
+    }
+    return null;
+  };
+
   const rowCountEntries = (item: ResearchExportItem) =>
     Object.entries(item.rowCounts).filter(([, value]) => value > 0);
 
@@ -270,26 +368,32 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
   return (
     <div className="space-y-6">
       <div className="space-y-3">
-        <Link
-          href="/settings/clinic"
-          className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-        >
-          Back to clinic settings
-        </Link>
+        {canEditSettings ? (
+          <Link
+            href="/settings/clinic"
+            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+          >
+            Clinic research settings
+          </Link>
+        ) : null}
         <AppPageHeader
-          eyebrow="Research operations"
+          eyebrow={clinicName ? `Research operations · ${clinicName}` : 'Research operations'}
           title="Research exports"
-          description="Request and track de-identified export packs."
+          description="Check readiness, decide on runs and schedules, and download de-identified packs."
           actions={
             <Button
               variant="outline"
               onClick={() => refreshExports()}
-              disabled={exportsResource.isRefreshing || exportsResource.isInitialLoading}
+              disabled={
+                exportsResource.isRefreshing ||
+                exportsResource.isInitialLoading ||
+                overviewResource.isRefreshing
+              }
               className="gap-2"
             >
               <RefreshCw
                 aria-hidden="true"
-                className={`h-4 w-4 ${exportsResource.isRefreshing ? 'animate-spin' : ''}`}
+                className={`h-4 w-4 ${exportsResource.isRefreshing || overviewResource.isRefreshing ? 'animate-spin' : ''}`}
               />
               Refresh
             </Button>
@@ -303,6 +407,24 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
         timestamps, no names or free text. Each run is published under its run key, and a run with
         too few consented patients is skipped rather than published.
       </ProgressiveHelp>
+
+      {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
+      {notice ? <InlineNotice tone="success">{notice}</InlineNotice> : null}
+
+      <ResourceState
+        state={overviewResource}
+        errorTitle="We couldn't load the research overview"
+        skeleton={<SectionSkeleton lines={3} />}
+      >
+        {(overview) => (
+          <ResearchOverviewPanel
+            overview={overview}
+            canApprove={canApprove}
+            canEditSettings={canEditSettings}
+            renderRunActions={renderRunActions}
+          />
+        )}
+      </ResourceState>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
         <FormSectionCard
@@ -440,9 +562,6 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
         </Card>
       </div>
 
-      {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
-      {notice ? <InlineNotice tone="success">{notice}</InlineNotice> : null}
-
       <ResearchSchedulesPanel
         clinicId={clinicId}
         canRequest={canRequest}
@@ -460,22 +579,74 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
             Manual and scheduled runs, approval, processing, publishing and downloads.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:max-w-xl">
+            <div className="space-y-2">
+              <Label htmlFor="researchStatusFilter">Status</Label>
+              <Select
+                value={statusFilter}
+                onValueChange={(value) => {
+                  setStatusFilter(value as ResearchExportStatus | typeof ALL);
+                  setLimit(PAGE_SIZE);
+                }}
+              >
+                <SelectTrigger id="researchStatusFilter">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>All statuses</SelectItem>
+                  {Object.entries(EXPORT_STATUS_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="researchTriggerFilter">Started by</Label>
+              <Select
+                value={triggerFilter}
+                onValueChange={(value) => {
+                  setTriggerFilter(value as TriggerFilter | typeof ALL);
+                  setLimit(PAGE_SIZE);
+                }}
+              >
+                <SelectTrigger id="researchTriggerFilter">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>Manual and scheduled</SelectItem>
+                  <SelectItem value="MANUAL">Manual requests</SelectItem>
+                  <SelectItem value="SCHEDULED">Schedules</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           <ResourceState
             state={exportsResource}
             errorTitle="We couldn't load the export queue"
             skeleton={
               <SectionSkeleton lines={4} className="border-0 bg-transparent p-0 shadow-none" />
             }
-            isEmpty={(items) => items.length === 0}
-            empty={{
-              title: 'No exports yet',
-              description:
-                'Request your first research pack above. It will appear here while it waits for approval and while it processes.',
-              icon: FileArchive,
-            }}
+            isEmpty={({ items }) => items.length === 0}
+            empty={
+              statusFilter !== ALL || triggerFilter !== ALL
+                ? {
+                    title: 'No runs match these filters',
+                    description: 'Choose another status or show manual and scheduled runs.',
+                    icon: FileArchive,
+                  }
+                : {
+                    title: 'No exports yet',
+                    description:
+                      'Request your first research pack above. It will appear here while it waits for approval and while it processes.',
+                    icon: FileArchive,
+                  }
+            }
           >
-            {(items) => (
+            {({ items, hasMore }) => (
               <div className="space-y-4">
                 {items.map((item) => {
                   const rows = rowCountEntries(item);
@@ -492,7 +663,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                         <div className="space-y-2">
                           <div className="flex flex-wrap items-center gap-2">
                             <Badge variant="outline" className={EXPORT_STATUS_STYLES[item.status]}>
-                              {item.status.replaceAll('_', ' ')}
+                              {EXPORT_STATUS_LABELS[item.status]}
                             </Badge>
                             {item.trigger === 'SCHEDULED' ? (
                               <Badge variant="outline">Scheduled</Badge>
@@ -625,42 +796,20 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                         </div>
                       </div>
 
+                      {item.status === 'COMPLETED' && !item.downloadAvailable ? (
+                        <InlineNotice tone="info" live={false}>
+                          The server no longer holds this run’s zip (a restart or redeploy clears
+                          it). The published copy above is unaffected
+                          {canApprove ? '; rerun the period to download a fresh zip.' : '.'}
+                        </InlineNotice>
+                      ) : null}
+
+                      <ResearchRunDetails clinicId={clinicId} item={item} />
+
                       <div className="flex flex-wrap gap-2">
-                        {canApprove && item.status === 'PENDING_APPROVAL' ? (
-                          <>
-                            <Button onClick={() => void handleApprove(item.id)} disabled={isBusy}>
-                              {isBusy ? (
-                                <Loader2 aria-hidden="true" className="mr-2 h-4 w-4 animate-spin" />
-                              ) : null}
-                              Approve
-                            </Button>
-                            <Button
-                              variant="outline"
-                              onClick={() => askRejectReason(item)}
-                              disabled={isBusy}
-                            >
-                              Reject
-                            </Button>
-                          </>
-                        ) : null}
+                        {renderRunActions(item)}
 
-                        {canApprove && item.status === 'FAILED' ? (
-                          <Button
-                            variant="outline"
-                            onClick={() => void handleRetry(item.id)}
-                            disabled={isBusy}
-                            className="gap-2"
-                          >
-                            {isBusy ? (
-                              <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <RotateCcw aria-hidden="true" className="h-4 w-4" />
-                            )}
-                            Retry
-                          </Button>
-                        ) : null}
-
-                        {item.status === 'COMPLETED' ? (
+                        {item.status === 'COMPLETED' && item.downloadAvailable ? (
                           <Button
                             variant="outline"
                             onClick={() => void handleDownload(item)}
@@ -675,23 +824,27 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                             Download zip
                           </Button>
                         ) : null}
-
-                        {canApprove &&
-                        (item.status === 'COMPLETED' || item.status === 'SKIPPED') ? (
-                          <Button
-                            variant="ghost"
-                            onClick={() => askRerunReason(item)}
-                            disabled={isBusy}
-                            className="gap-2"
-                          >
-                            <Redo2 aria-hidden="true" className="h-4 w-4" />
-                            Rerun
-                          </Button>
-                        ) : null}
                       </div>
                     </div>
                   );
                 })}
+                {hasMore && limit < MAX_LOADED ? (
+                  <div className="flex justify-center pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        setLimit((current) => Math.min(current + PAGE_SIZE, MAX_LOADED))
+                      }
+                      disabled={exportsResource.isRefreshing}
+                    >
+                      Load more runs
+                    </Button>
+                  </div>
+                ) : hasMore ? (
+                  <p className="text-center text-sm text-muted-foreground">
+                    Showing the latest {MAX_LOADED} runs. Use the filters to find older ones.
+                  </p>
+                ) : null}
               </div>
             )}
           </ResourceState>

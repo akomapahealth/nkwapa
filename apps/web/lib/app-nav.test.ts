@@ -47,6 +47,16 @@ describe('the cross-clinic duplicates link', () => {
   });
 });
 
+describe('the research exports link', () => {
+  it('is shown to anyone who can request an export', () => {
+    expect(hrefsFor(bootstrapAs(['DIRECTOR'], ['RESEARCH.EXPORT.REQUEST']))).toContain('/research');
+  });
+
+  it('is hidden from a role without research access', () => {
+    expect(hrefsFor(bootstrapAs(['DOCTOR'], ['PATIENT.READ']))).not.toContain('/research');
+  });
+});
+
 describe('isNavItemActive', () => {
   const item = (href: string): AppNavItem =>
     getAccessibleNavSections(bootstrapAs([], ['*'], ['SYSTEM_ADMIN']))

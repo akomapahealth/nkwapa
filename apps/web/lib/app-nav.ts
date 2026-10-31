@@ -9,6 +9,7 @@ import {
   ListOrdered,
   CopyCheck,
   FileEdit,
+  FlaskConical,
   LayoutDashboard,
   Network,
   Settings,
@@ -168,6 +169,14 @@ const NAV_SECTIONS: AppNavSection[] = [
         description: 'Outbound message delivery.',
         icon: Bell,
         permission: 'REMINDER.READ',
+        requiresClinic: true,
+      },
+      {
+        href: '/research',
+        label: 'Research exports',
+        description: 'Runs, schedules and decisions.',
+        icon: FlaskConical,
+        permission: 'RESEARCH.EXPORT.REQUEST',
         requiresClinic: true,
       },
       {

@@ -67,10 +67,14 @@ test.describe('as a director', () => {
     const clinicId = await clinicIdFor('staff');
     await prepareClinic(clinicId);
 
-    await page.goto(`/clinics/${clinicId}/research/exports`);
+    // Reached from clinic settings, not by typing a URL.
+    await page.goto('/settings/clinic');
+    await page.getByRole('link', { name: /check readiness/i }).click();
+    await expect(page).toHaveURL(/\/research$/);
     await expect(page.getByRole('heading', { name: /scheduled exports/i })).toBeVisible({
       timeout: 30_000,
     });
+    await expect(page.getByTestId('research-decisions')).toBeVisible();
 
     await page.getByRole('button', { name: 'New schedule' }).click();
     const dialog = page.getByRole('dialog');
@@ -111,6 +115,12 @@ test.describe('as a director', () => {
       run.first().getByText(/^First run: \d+ consented patients?\.$|since rx-/),
     ).toBeVisible();
     await expect(run.first().getByText(/research\/v\d+\/clinic=/)).toBeVisible();
+
+    // Its details give the checksums and the steps it went through, loaded when opened.
+    const details = run.first().locator('details');
+    await details.getByText('Run details').click();
+    await expect(details.getByText('Content checksum')).toBeVisible();
+    await expect(details.getByText('Completed', { exact: true })).toBeVisible({ timeout: 10_000 });
 
     // The fullest the page gets: it must still fit a phone.
     for (const width of WIDTHS) {

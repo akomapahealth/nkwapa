@@ -575,6 +575,7 @@ last-known-good data across a failed refetch; elsewhere a failed refresh is simp
 | `/admin/users`                           | `CLINIC.MANAGE`                    |                |       |
 | `/admin/clinics`                         | `CLINIC.MANAGE`                    |                |       |
 | `/settings/clinic`                       | `RESEARCH.SETTINGS.UPDATE`         | yes            | yes   |
+| `/research`                              | `RESEARCH.EXPORT.REQUEST`          | yes            | yes   |
 | `/clinics/[clinicId]/research/exports`   | `RESEARCH.EXPORT.REQUEST`          |                | yes   |
 | `/portal`                                | `PATIENT.PORTAL.READ_SELF`         |                | yes   |
 | `/portal/health`                         | `PATIENT.PORTAL.READ_SELF`         |                | yes   |

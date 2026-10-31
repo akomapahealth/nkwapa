@@ -17,7 +17,12 @@ import {
   type GeneratedResearchPack,
   type ResearchRunChanges,
 } from './research-policy';
-import { ResearchExportRecord, ResearchExportRepository } from './research-export.repository';
+import { existsSync } from 'fs';
+import {
+  ResearchExportRecord,
+  ResearchExportRepository,
+  type ResearchExportListFilter,
+} from './research-export.repository';
 import { RequestExportDto } from './dto/request-export.dto';
 import { ResearchTransformService } from './research-transform.service';
 import { DeIdentificationService } from './de-identification.service';
@@ -57,6 +62,11 @@ export interface ResearchExportView {
   failureReason: string | null;
   skipReason: string | null;
   filePath: string | null;
+  /**
+   * Whether the zip is still on this server. It lives on the API's own disk, which a redeploy or
+   * restart can wipe; the published run in storage outlives it.
+   */
+  downloadAvailable: boolean;
   fileFormat: string | null;
   recordCount: number | null;
   rowCounts: Record<string, number>;
@@ -221,8 +231,13 @@ export class ResearchExportService {
     return this.repo.findById(id);
   }
 
-  async listByClinic(clinicId: string, cursor?: string, limit?: number) {
-    const records = await this.repo.listByClinic(clinicId, cursor, limit);
+  async listByClinic(
+    clinicId: string,
+    cursor?: string,
+    limit?: number,
+    filter?: ResearchExportListFilter,
+  ) {
+    const records = await this.repo.listByClinic(clinicId, cursor, limit, filter);
     return {
       items: records.items.map((item) => this.toExportView(item)),
       nextCursor: records.nextCursor,
@@ -628,11 +643,7 @@ export class ResearchExportService {
             },
           })
         : Promise.resolve(null),
-      this.prisma.patientConsent.findMany({
-        where: { clinicId: run.clinicId, consentType: 'RESEARCH_DEIDENTIFIED', status: 'GRANTED' },
-        distinct: ['patientId'],
-        select: { patientId: true },
-      }),
+      this.repo.consentedPatientIds(run.clinicId),
     ]);
     const skipReason = runSkipReason({
       clinicId: run.clinicId,
@@ -998,6 +1009,8 @@ export class ResearchExportService {
       failureReason: record.failureReason ?? null,
       skipReason: record.skipReason ?? null,
       filePath: record.filePath ?? null,
+      downloadAvailable:
+        record.status === 'COMPLETED' && Boolean(record.filePath && existsSync(record.filePath)),
       fileFormat: record.fileFormat ?? null,
       recordCount: record.recordCount ?? null,
       rowCounts: parseRowCounts(record.rowCountsJson),

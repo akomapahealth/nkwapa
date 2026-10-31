@@ -155,6 +155,9 @@ export function buildResearchExportService(overrides: Partial<ResearchServiceDep
       findStaleProcessing: jest.fn().mockResolvedValue([]),
       listByClinic: jest.fn(),
       listRunKeysWithPrefix: jest.fn().mockResolvedValue([]),
+      consentedPatientIds: jest
+        .fn()
+        .mockResolvedValue(Array.from({ length: 12 }, (_, index) => `p${index}`)),
     },
     prisma: {
       $queryRaw: jest.fn().mockResolvedValue([{ locked: true }]),
@@ -163,13 +166,6 @@ export function buildResearchExportService(overrides: Partial<ResearchServiceDep
         findUnique: jest.fn().mockResolvedValue({ researchEnabled: true }),
       },
       researchExportSchedule: { findUnique: jest.fn().mockResolvedValue(null) },
-      patientConsent: {
-        findMany: jest
-          .fn()
-          .mockResolvedValue(
-            Array.from({ length: 12 }, (_, index) => ({ patientId: `p${index}` })),
-          ),
-      },
       clinic: { findUnique: jest.fn().mockResolvedValue({ timezone: 'Africa/Accra' }) },
     },
     audit: { logWrite: jest.fn().mockResolvedValue(undefined) },
@@ -208,7 +204,6 @@ export interface ResearchServiceDeps {
     $executeRaw: jest.Mock;
     clinicResearchSettings: { findUnique: jest.Mock };
     researchExportSchedule: { findUnique: jest.Mock };
-    patientConsent: { findMany: jest.Mock };
     clinic: { findUnique: jest.Mock };
   };
   audit: { logWrite: jest.Mock };

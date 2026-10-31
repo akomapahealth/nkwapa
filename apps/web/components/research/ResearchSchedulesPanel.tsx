@@ -309,7 +309,9 @@ function ScheduleCard({
 
   return (
     <li
-      className="flex flex-col gap-4 rounded-lg border border-border/70 bg-background/60 p-4 sm:p-5"
+      // The decision queue links here, so the card clears the sticky header when it scrolls in.
+      id={`schedule-${schedule.id}`}
+      className="flex scroll-mt-24 flex-col gap-4 rounded-lg border border-border/70 bg-background/60 p-4 target:ring-2 target:ring-primary/40 sm:p-5"
       data-testid="research-schedule"
     >
       <div className="flex flex-wrap items-center gap-2">

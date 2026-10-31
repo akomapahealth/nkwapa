@@ -18,6 +18,8 @@ import { ResearchExportReconciliationSweep } from './research-export-reconciliat
 import { ResearchScheduleController } from './research-schedule.controller';
 import { ResearchScheduleService } from './research-schedule.service';
 import { ResearchScheduleDispatcher } from './research-schedule.dispatcher';
+import { ResearchOverviewController } from './research-overview.controller';
+import { ResearchOverviewService } from './research-overview.service';
 
 @Module({
   imports: [
@@ -26,7 +28,7 @@ import { ResearchScheduleDispatcher } from './research-schedule.dispatcher';
     ReminderModule,
     BullModule.registerQueue({ name: RESEARCH_EXPORT_QUEUE_NAME }),
   ],
-  controllers: [ResearchExportController, ResearchScheduleController],
+  controllers: [ResearchExportController, ResearchScheduleController, ResearchOverviewController],
   providers: [
     ResearchExportRepository,
     ResearchExportService,
@@ -41,6 +43,7 @@ import { ResearchScheduleDispatcher } from './research-schedule.dispatcher';
     ResearchExportReconciliationSweep,
     ResearchScheduleService,
     ResearchScheduleDispatcher,
+    ResearchOverviewService,
   ],
   exports: [ResearchExportService],
 })
