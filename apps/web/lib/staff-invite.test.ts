@@ -3,7 +3,9 @@ import {
   DEFAULT_STAFF_INVITE_TTL_HOURS,
   describeStaffInviteIdentity,
   describeStaffInviteStatus,
+  filterStaffInvites,
   formatStaffRole,
+  type StaffInvite,
 } from './staff-invite';
 
 describe('staff invitation wording', () => {
@@ -50,5 +52,30 @@ describe('staff invitation wording', () => {
         failureReason: null,
       }),
     ).toBeNull();
+  });
+});
+
+describe('filterStaffInvites', () => {
+  const invite = (id: string, status: string, email: string, inviteeName: string | null = null) =>
+    ({ id, status, email, inviteeName }) as StaffInvite;
+  const invites = [
+    invite('a', 'PENDING', 'ama@clinic.org', 'Ama K. Mensah'),
+    invite('b', 'ACCEPTED', 'kofi@clinic.org'),
+    invite('c', 'CANCELLED', 'esi@clinic.org'),
+    invite('d', 'EXPIRED', 'yaw@clinic.org'),
+  ];
+  const ids = (list: StaffInvite[]) => list.map((item) => item.id);
+
+  it('groups cancelled and expired as closed', () => {
+    expect(ids(filterStaffInvites(invites, { filter: 'OPEN', query: '' }))).toEqual(['a']);
+    expect(ids(filterStaffInvites(invites, { filter: 'ACCEPTED', query: '' }))).toEqual(['b']);
+    expect(ids(filterStaffInvites(invites, { filter: 'CLOSED', query: '' }))).toEqual(['c', 'd']);
+    expect(ids(filterStaffInvites(invites, { filter: 'ALL', query: '' }))).toHaveLength(4);
+  });
+
+  it('searches name and email, ignoring case and spaces', () => {
+    expect(ids(filterStaffInvites(invites, { filter: 'ALL', query: ' MENSAH ' }))).toEqual(['a']);
+    expect(ids(filterStaffInvites(invites, { filter: 'ALL', query: 'kofi@' }))).toEqual(['b']);
+    expect(filterStaffInvites(invites, { filter: 'OPEN', query: 'kofi' })).toEqual([]);
   });
 });
