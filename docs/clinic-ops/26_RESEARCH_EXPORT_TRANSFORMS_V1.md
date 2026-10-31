@@ -523,10 +523,22 @@ Required or important research env values:
 
 Primary route:
 
-- `/clinics/[clinicId]/research/exports`
+- `/research`, for the active clinic. It is in the Oversight nav as "Research exports" and linked
+  from clinic settings.
+- `/clinics/[clinicId]/research/exports` renders the same page for a clinic named in the URL.
 
 The current page supports:
 
+- readiness: research on or off, consented patients against the minimum cohort, the configured
+  storage, the last publish and the next scheduled run, with a warning for each blocker
+- a decision queue: runs waiting for approval, failed or skipped runs from the last 30 days that
+  were not run again, and schedules waiting for approval, past review, or due for review within
+  30 days, with approve, reject, retry and rerun in place
+- activity filters by status and trigger, and "Load more" up to 100 runs
+- per-run details: rows per table with the change since the previous run, the content and zip
+  checksums, the storage reference, and the run's audit steps with any recorded reason
+- a note on a completed run whose zip the server no longer holds (Render clears the disk on a
+  restart or redeploy); the published copy is unaffected and a rerun builds a fresh zip
 - request form with date presets
 - de-identification summary
 - scheduled exports: create, edit, approve, reject, pause, resume, revoke and Run now
