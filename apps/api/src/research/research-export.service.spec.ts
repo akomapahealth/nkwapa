@@ -411,19 +411,23 @@ describe('ResearchExportService', () => {
       );
     });
 
-    it.each(['COMPLETED', 'SKIPPED'] as const)(
-      'does nothing for a delivery that arrives after the run was %s',
-      async (finished) => {
-        ctx.repo.findById.mockResolvedValue(makeExportRecord({ status: status(finished) }));
+    async function expectFinishedDeliveryIgnored(finished: ResearchExportStatus) {
+      ctx.repo.findById.mockResolvedValue(makeExportRecord({ status: status(finished) }));
 
-        const result = await ctx.service.processQueuedExport('exp-1');
+      const result = await ctx.service.processQueuedExport('exp-1');
 
-        expect(result?.status).toBe(finished);
-        expect(ctx.repo.update).not.toHaveBeenCalled();
-        expect(ctx.transformService.generatePack).not.toHaveBeenCalled();
-        expect(ctx.adapter.putRun).not.toHaveBeenCalled();
-      },
-    );
+      expect(result?.status).toBe(finished);
+      expect(ctx.repo.update).not.toHaveBeenCalled();
+      expect(ctx.transformService.generatePack).not.toHaveBeenCalled();
+      expect(ctx.adapter.putRun).not.toHaveBeenCalled();
+    }
+
+    // Named in the offline job matrix (JOB-07), so the title stays literal.
+    it('does nothing for a delivery that arrives after the export completed', () =>
+      expectFinishedDeliveryIgnored('COMPLETED'));
+
+    it('does nothing for a delivery that arrives after the run was skipped', () =>
+      expectFinishedDeliveryIgnored('SKIPPED'));
   });
 
   it('throws when a queued export cannot be found', async () => {

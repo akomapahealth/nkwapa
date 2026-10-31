@@ -70,6 +70,13 @@ module.exports = defineConfig({
         KEYCLOAK_ADMIN_CLIENT_ID: process.env.KEYCLOAK_ADMIN_CLIENT_ID || 'nkwapa-api',
         KEYCLOAK_ADMIN_CLIENT_SECRET:
           process.env.KEYCLOAK_ADMIN_CLIENT_SECRET || 'nkwapa-local-dev-secret',
+        // Research runs (#166) publish to a local folder, never a bucket, and a cohort of two is
+        // enough to publish, so the e2e clinic's handful of consents is not skipped.
+        RESEARCH_HMAC_KEY: process.env.RESEARCH_HMAC_KEY || 'e2e-only-research-hmac-key',
+        RESEARCH_STORAGE_PROVIDER: process.env.RESEARCH_STORAGE_PROVIDER || 'local',
+        RESEARCH_LOCAL_STORAGE_DIR:
+          process.env.RESEARCH_LOCAL_STORAGE_DIR || '/tmp/nkwapa-e2e-research-storage',
+        RESEARCH_MIN_SUBJECTS: process.env.RESEARCH_MIN_SUBJECTS || '2',
       },
     },
     {

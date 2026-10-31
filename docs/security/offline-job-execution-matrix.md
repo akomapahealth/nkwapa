@@ -18,7 +18,7 @@ disappears or a manual step is missing from the user testing guide.
    environment being released. The checklist at the end of this file lists them.
 3. Read the known risks. They are tolerated today on purpose and must not be reported as new.
 
-41 scenarios, 30 of them high risk; 18 also walked by hand.
+47 scenarios, 34 of them high risk; 21 also walked by hand.
 
 ## Offline
 
@@ -105,10 +105,16 @@ BullMQ workers: reminders, research exports, and the maintenance sweeps. Each is
 | JOB-03 | The provider fails transiently, or Redis is briefly unavailable | A send that fails as transient, with attempts left and then without | The row stays QUEUED between attempts, retried after 5s then 60s, and is marked FAILED only once the attempts are spent. | Reminders worker (`apps/api/src/reminders`) | high | Unit, Manual |
 | JOB-04 | A reminder job fires before its scheduled time | A queued reminder whose scheduledAt is still in the future | Nothing is sent early. The job goes back to delayed until scheduledAt (spending no attempt) and sends once then (#165). A reminder past its time with no live job, however the job was lost, is re-queued under its own clinic by the five-minute sweep. | Reminders worker (`apps/api/src/reminders`) | medium | Unit |
 | JOB-05 | A failed research export is retried | A FAILED export whose first job BullMQ still holds under the export id | Retry queues it under a fresh job id, so it actually runs, instead of reading APPROVED with nothing queued. | Research export worker (`apps/api/src/research`) | high | Unit, Manual |
-| JOB-06 | A research export run fails | Pack generation or the GitHub push throws, with attempts left and on the last attempt | With attempts left the run is handed back to the queue and nothing is recorded. The last attempt records FAILED and its audit entry, and they commit. | Research export worker (`apps/api/src/research`) | high | Unit, Manual |
-| JOB-07 | A research export job is delivered twice | Two deliveries of one export, concurrently or after completion | The pack is built and pushed to the research repository once. | Research export worker (`apps/api/src/research`) | high | Unit |
+| JOB-06 | A research export run fails | Pack generation or the publish to storage throws, with attempts left and on the last attempt | With attempts left the run is handed back to the queue and nothing is recorded. The last attempt records FAILED and its audit entry, and they commit. | Research export worker (`apps/api/src/research`) | high | Unit, Manual |
+| JOB-07 | A research export job is delivered twice | Two deliveries of one export, concurrently or after completion | The pack is built and published to research storage once. | Research export worker (`apps/api/src/research`) | high | Unit |
 | JOB-08 | Scheduled maintenance across several API instances and a Redis outage | The shared maintenance queue and its sweeps (portal invite expiry, telemetry retention) | One scheduler per cluster held in Redis, boot survives an unreachable queue, each sweep runs as system work and is safe to run twice. | Maintenance sweeps on one shared queue (invite expiry, telemetry retention, reconciliation) | medium | Unit |
-| JOB-09 | A send or export outlasts the job transaction | A slow SMTP relay, or a large clinic export pushed to a slow GitHub | No provider call or push runs inside a transaction (#164). The row is claimed (SENDING, PROCESSING) and committed first, the call runs with no transaction open, and the outcome is recorded in a second step. A lost outcome is never retried blindly: a reminder is recorded as SEND_OUTCOME_UNKNOWN, and an export is settled by asking GitHub for a commit at its planned path. | Research export worker (`apps/api/src/research`) | high | Unit |
+| JOB-09 | A send or export outlasts the job transaction | A slow SMTP relay, or a large clinic export pushed to a slow GitHub | No provider call or push runs inside a transaction (#164). The row is claimed (SENDING, PROCESSING) and committed first, the call runs with no transaction open, and the outcome is recorded in a second step. A lost outcome is never retried blindly: a reminder is recorded as SEND_OUTCOME_UNKNOWN, and an export is settled by asking its storage for the run at its planned path. | Research export worker (`apps/api/src/research`) | high | Unit |
+| JOB-10 | A research schedule fires twice for one period | Two API instances, or a dispatcher retry, reaching one due schedule in the same hour (#166) | One run for the period. Its run key is unique and the queue job id, so the second dispatch finds it and only moves the schedule on; a schedule already moved on is left alone. | Maintenance sweeps on one shared queue (invite expiry, telemetry retention, reconciliation) | high | Unit |
+| JOB-11 | Governance changed between a schedule being approved and its run starting | Research turned off, the schedule paused or revoked, or the approving director losing the permission | The run is recorded SKIPPED with the reason, audited, and the directors are emailed. Nothing is generated or published. | Research export worker (`apps/api/src/research`) | high | Unit, Manual |
+| JOB-12 | Too few consented patients for a run to be published safely | A clinic with fewer consents than RESEARCH_MIN_SUBJECTS (default 10) | SKIPPED as BELOW_MINIMUM_COHORT, for manual runs as well as scheduled ones. A manual run emails nobody. | Research export worker (`apps/api/src/research`) | high | Unit, Manual |
+| JOB-13 | A publish to object storage lands partly, or corrupted | An R2 upload that fails checksum verification, or a crash after the manifest landed | Every object carries a SHA-256 that R2 checks, and current.json moves only after every object verifies. A run whose manifest landed is recovered and its pointer finished, never published twice. | Research export worker (`apps/api/src/research`) | high | Unit |
+| JOB-14 | A standing approval reaches its review date | An active schedule whose reviewBy passes before its next run | The due run is still recorded (and skipped as REVIEW_EXPIRED), then the schedule moves to review due and creates no more runs until a director approves it again. It cannot be resumed around the review. | Maintenance sweeps on one shared queue (invite expiry, telemetry retention, reconciliation) | medium | Unit, Manual |
+| JOB-15 | One clinic or one destination fails during scheduled research work | A clinic whose dispatch throws, or a GitHub manifest mirror that is down | Other clinics are still dispatched and the failed schedule stays due for the next hour. A published run stays COMPLETED when only the mirror fails, with the failure audited. | Maintenance sweeps on one shared queue (invite expiry, telemetry retention, reconciliation) | medium | Unit |
 
 ## Known risks
 
@@ -258,6 +264,30 @@ The exact tests behind each row.
   - Unit: `apps/api/src/research/research-export-steps.spec.ts` "records the planned path before the push, and COMPLETED after it"
   - Unit: `apps/api/src/research/research-export-steps.spec.ts` "completes from the commit GitHub already has when the push response was lost"
   - Unit: `apps/api/src/research/research-export-steps.spec.ts` "leaves the export PROCESSING when nobody can tell whether the push landed"
+- **JOB-10** A research schedule fires twice for one period
+  - Unit: `apps/api/src/research/research-schedule.service.spec.ts` "makes one run when the same period fires twice"
+  - Unit: `apps/api/src/research/research-schedule.service.spec.ts` "skips a schedule another instance already moved on"
+  - Unit: `apps/api/src/research/research-schedule.service.spec.ts` "creates the period run under its run key and moves the schedule on"
+- **JOB-11** Governance changed between a schedule being approved and its run starting
+  - Unit: `apps/api/src/research/research-run-governance.spec.ts` "skips when research was turned off after the schedule was approved"
+  - Unit: `apps/api/src/research/research-run-governance.spec.ts` "skips when the approving director no longer holds the approval permission here"
+  - Unit: `apps/api/src/research/research-export.service.spec.ts` "skips, audits and notifies when research was turned off after approval"
+  - Unit: `apps/api/src/research/research-export.service.spec.ts` "skips a run whose schedule was paused, revoked or deleted"
+- **JOB-12** Too few consented patients for a run to be published safely
+  - Unit: `apps/api/src/research/research-run-governance.spec.ts` "skips a cohort below the minimum, for manual runs too"
+  - Unit: `apps/api/src/research/research-export.service.spec.ts` "skips a manual run below the minimum cohort without emailing anyone"
+- **JOB-13** A publish to object storage lands partly, or corrupted
+  - Unit: `apps/api/src/research/storage/object-store-research-storage.spec.ts` "sends a sha256 checksum with every object, so R2 rejects a corrupted upload"
+  - Unit: `apps/api/src/research/storage/object-store-research-storage.spec.ts` "never moves current.json when an object does not verify"
+  - Unit: `apps/api/src/research/storage/object-store-research-storage.spec.ts` "finds a run whose manifest landed and finishes its pointer swap"
+  - Unit: `apps/api/src/research/storage/object-store-research-storage.spec.ts` "does not move current.json back to an older run"
+- **JOB-14** A standing approval reaches its review date
+  - Unit: `apps/api/src/research/research-schedule.service.spec.ts` "still records the run, then expires a schedule past its review date"
+  - Unit: `apps/api/src/research/research-schedule.service.spec.ts` "will not resume a schedule past its review date"
+  - Unit: `apps/api/src/research/research-run-governance.spec.ts` "skips once the standing approval is past its review date"
+- **JOB-15** One clinic or one destination fails during scheduled research work
+  - Unit: `apps/api/src/research/research-schedule.service.spec.ts` "carries on past one clinic that fails"
+  - Unit: `apps/api/src/research/research-export-steps.spec.ts` "keeps a published run COMPLETED when the GitHub mirror fails, and audits the failure"
 
 ## Release validation checklist
 
@@ -281,3 +311,6 @@ The rows a person walks, in section 17d of `docs/USER_TESTING_GUIDE.md`.
 - [ ] **JOB-03** The provider fails transiently, or Redis is briefly unavailable
 - [ ] **JOB-05** A failed research export is retried
 - [ ] **JOB-06** A research export run fails
+- [ ] **JOB-11** Governance changed between a schedule being approved and its run starting
+- [ ] **JOB-12** Too few consented patients for a run to be published safely
+- [ ] **JOB-14** A standing approval reaches its review date

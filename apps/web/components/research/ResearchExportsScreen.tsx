@@ -485,7 +485,8 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                   return (
                     <div
                       key={item.id}
-                      className="space-y-4 rounded-lg border border-border/70 bg-background/60 p-5"
+                      data-testid="research-run"
+                      className="space-y-4 rounded-lg border border-border/70 bg-background/60 p-4 sm:p-5"
                     >
                       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div className="space-y-2">

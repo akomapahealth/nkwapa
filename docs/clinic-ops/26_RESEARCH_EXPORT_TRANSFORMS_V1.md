@@ -15,8 +15,10 @@ Transform operational and clinical data into de-identified, research-safe export
 - requested from the app UI
 - approved when required
 - processed asynchronously
+- run on a director-approved weekly or monthly schedule (#166)
 - downloaded as local ZIP artifacts
-- synced into a private GitHub data repository
+- published to research storage: Cloudflare R2 (recommended), a private GitHub repository, or a
+  local folder in development
 
 ---
 
@@ -29,18 +31,41 @@ An export can only proceed when these conditions are satisfied:
 3. if the clinic requires approval, a user with `RESEARCH.EXPORT.APPROVE` approves it
 4. patients included in the export have effective research consent at execution time
 
+A run is checked again when it starts, not only when it was approved. It is recorded `SKIPPED`,
+with a reason, an audit entry (`RESEARCH_EXPORT.SKIP`) and, for a scheduled run, an email to the
+directors, when:
+
+| Reason                     | Meaning                                                            |
+| -------------------------- | ------------------------------------------------------------------ |
+| `RESEARCH_DISABLED`        | research was turned off after approval                             |
+| `SCHEDULE_INACTIVE`        | its schedule is paused, revoked, expired or waiting for approval   |
+| `REVIEW_EXPIRED`           | the schedule's standing approval is past its review date           |
+| `APPROVER_LOST_PERMISSION` | the approving director is deactivated or no longer holds the role  |
+| `BELOW_MINIMUM_COHORT`     | fewer consented patients than `RESEARCH_MIN_SUBJECTS` (default 10) |
+
+The cohort guard applies to manual runs too; a skipped manual run emails nobody.
+
 ---
 
 ## Current v1 Design Choices
 
 ### Destination
 
-The v1 sync target is one private GitHub repository.
+One storage port, `ResearchStorageAdapter`, with three providers chosen by
+`RESEARCH_STORAGE_PROVIDER` (or, unset: R2 when configured, then GitHub, then local outside
+production). A schedule records its own destination.
+
+- **R2**: the recommended destination. Lifecycle rules can expire a revoked subject's rows, which a
+  git history cannot.
+- **GitHub**: the original snapshot layout, unchanged. With `RESEARCH_GITHUB_MIRROR_MANIFESTS=true`
+  and R2 as the primary, each run's `manifest.json` and `changes.json` (no data) are also mirrored
+  to `<base>/<clinicKey>/runs/<runKey>/` for a reviewable history.
+- **Local**: the R2 layout in a folder (`RESEARCH_LOCAL_STORAGE_DIR`), for development and e2e.
 
 ### Artifact model
 
 - local ZIP artifact for download and short-term storage
-- GitHub repo snapshot for canonical de-identified history
+- the published run in research storage, addressed by its run key
 
 ### De-identification model
 
@@ -258,15 +283,23 @@ Current status progression:
 - `COMPLETED`
 - `FAILED`
 - `REJECTED`
+- `SKIPPED` (a run-time governance check failed; see Current Gate Checks)
 
-A run is a series of short clinic-scoped transactions, never one around the GitHub push (#164):
+Every run has a run key, `rx-<clinicKey8>-<period>[-r<n>]`: `w2026-41` for a weekly run, `m2026-10`
+for a monthly one, `a20261005-k3m2` for a manual or Run now run, and `-r2` onwards for a rerun. The
+prefix is the start of the HMAC research clinic key, never the clinic id, so a key is safe to quote.
+It is unique in the database and is the queue job id, so a duplicate trigger is a no-op.
 
-1. **Claim**: `APPROVED` -> `PROCESSING`, committed.
+A run is a series of short clinic-scoped transactions, never one around the publish (#164):
+
+1. **Claim**: `APPROVED` -> `PROCESSING`, committed, after the governance re-checks.
 2. **Generate** the pack in a read-only transaction, which may run for up to two minutes because
    reading twice is harmless.
 3. **Plan**: record the pack metadata and the repository path the push will write to.
-4. **Push** to GitHub with no transaction open.
-5. **Record** `COMPLETED` with the commit.
+4. **Publish** to storage with no transaction open.
+5. **Record** `COMPLETED` with the storage path and reference (a commit sha, or the run's content
+   hash), then mirror the manifest when that is configured. A mirror failure is audited
+   (`RESEARCH_EXPORT.MIRROR_FAIL`) and does not undo the run.
 
 A failure behaves as follows:
 
@@ -274,9 +307,10 @@ A failure behaves as follows:
   the run is thrown to the queue, which runs it again (three attempts, exponential from 60 seconds).
 - **Before the push, last attempt:** the run records `FAILED` and its `RESEARCH_EXPORT.FAIL` audit
   entry, then returns.
-- **The push fails, or COMPLETED cannot be recorded:** the planned path settles it. The snapshot
-  directory is unique to the run, so a commit touching it on the export branch is that run's push,
-  and the export completes from it without pushing again. No commit means the push did not land,
+- **The publish fails, or COMPLETED cannot be recorded:** the planned path settles it. On GitHub,
+  a commit touching the run's unique snapshot directory is that run's push; on R2 or local, a
+  `manifest.json` at the run's prefix is, because the manifest is written last. The export
+  completes from it without publishing again. No commit means the push did not land,
   and the run fails or retries as above. If GitHub cannot be asked, the export stays `PROCESSING`.
 - **Two deliveries of one export:** a duplicate finds `PROCESSING` and stands down, and one that
   arrives after completion finds `COMPLETED` and does nothing. The pack is pushed once.
@@ -304,7 +338,44 @@ Route:
 
 Download output:
 
-- ZIP artifact
+- ZIP artifact, named `<runKey>.zip`
+
+### 6. Schedules (#166)
+
+A schedule is a standing approval: weekly (ISO day 1 to 7) or monthly (day 1 to 28), at a local
+hour in the clinic's time zone, from a coverage start date, to one destination. A run fired on local
+date D covers the coverage start through D-1, the last complete day.
+
+Routes (`clinics/:clinicId/research/schedules`):
+
+| Route                             | Permission | Does                                                  |
+| --------------------------------- | ---------- | ----------------------------------------------------- |
+| `GET /`                           | REQUEST    | schedules, destinations, time zone, minimum cohort    |
+| `POST /`, `PATCH /:id`            | REQUEST    | create, edit (an edit needs approving again)          |
+| `POST /:id/approve`               | APPROVE    | activate, with `reviewBy` (default 12, max 24 months) |
+| `POST /:id/reject`, `/:id/revoke` | APPROVE    | stop it, with a reason                                |
+| `POST /:id/pause`, `/:id/resume`  | REQUEST    | resume is refused past the review date                |
+| `POST /:id/run-now`               | REQUEST    | an ad-hoc `-a` run under the standing approval        |
+
+Status: `PENDING_APPROVAL` -> `ACTIVE` <-> `PAUSED`; `EXPIRED` once past review (approve again);
+`REVOKED` is final. A clinic that does not require approval per export activates a schedule at once.
+One live schedule per destination per clinic. Every change is audited as `RESEARCH_SCHEDULE.*`.
+
+The dispatcher is an hourly maintenance sweep. It reads due schedules under system context, then in
+each clinic's own context creates the period's run under its run key (skipping it when the key
+exists), queues it, and moves `nextRunAt` on. It never reads patient data. A schedule past its
+review date still gets the period's run, which is skipped as `REVIEW_EXPIRED` and emailed, and the
+schedule becomes `EXPIRED`.
+
+### 7. Rerun
+
+Route:
+
+- `POST /clinics/:clinicId/research/exports/:exportId/rerun` (APPROVE, body `{ "reason" }`)
+
+For a `COMPLETED` or `SKIPPED` run (and `FAILED`, though the UI offers Retry there). It builds the
+same period again from today's consents as the next revision (`-r2`, `-r3`), approved and queued,
+with the reason in the `RESEARCH_EXPORT.RERUN` audit entry. The earlier run is kept.
 
 ---
 
@@ -340,14 +411,21 @@ Owns:
 - timestamp rounding
 - CSV escaping helpers
 
-### `ResearchRepoSyncService`
+### Storage (`research/storage/`)
 
-Owns:
+- `ResearchStorageRegistry`: which providers are configured and which is the default
+- `R2ResearchStorage` and `LocalResearchStorage`: the object layout below over an `ObjectStore`
+  (S3 API or the filesystem), with write order, verification, `current.json` and the catalog
+- `GithubResearchStorage`: the snapshot layout, size guards, `latest.json`, and the manifest mirror
 
-- GitHub repo snapshot sync
-- file size guard checks
-- latest pointer write
-- commit metadata return
+### `ResearchScheduleService` and `ResearchScheduleDispatcher`
+
+Own the schedule state machine and the hourly dispatch.
+
+### `ResearchRunNotifier`
+
+Emails the clinic's directors (`RESEARCH_RUN_ATTENTION_V1`) when a scheduled run is skipped or
+fails. The email names the run key and the reason only.
 
 ### `ResearchExportProcessor`
 
@@ -376,9 +454,32 @@ The `data/` directory is ignored by git.
 
 ---
 
-## Current GitHub Sync Layout
+## Object Storage Layout (R2 and local)
 
-The v1 repo adapter writes snapshot folders similar to:
+```text
+research/v<datasetVersion>/clinic=<clinicKey>/runs/<runKey>/
+  tables/<table>.csv.gz
+  changes.json
+  SHA256SUMS.txt
+  manifest.json            written last; its presence means the run landed
+research/v<datasetVersion>/clinic=<clinicKey>/current.json
+research/catalog/runs/<runKey>.json
+```
+
+Every object is uploaded with a SHA-256 checksum that R2 verifies, then checked by HEAD. Only then
+does `current.json` move, and never back to an older run. The catalog holds one small object per
+run, readable together with DuckDB (`docs/clinic-ops/28_READING_THE_RESEARCH_DATASET.md`).
+
+`manifest.json` carries the run key, trigger, schedule id, previous run key, HMAC key id, consented
+and revoked counts, and `contentSha256`, the hash of the table lines of `SHA256SUMS.txt`, so two
+runs over identical data share it. `changes.json` says who joined and left since the previous run.
+
+Retention is an R2 lifecycle rule on the `research/v` prefix (90 days recommended), set in
+Cloudflare, so a revoked subject's rows age out. The catalog is kept.
+
+## GitHub Sync Layout
+
+The GitHub adapter writes snapshot folders similar to:
 
 ```text
 clinics/<research_clinic_key>/exports/<timestamp>__<exportId>/
@@ -409,6 +510,12 @@ Required or important research env values:
 - `RESEARCH_GITHUB_TOKEN`
 - `RESEARCH_GITHUB_MAX_FILE_BYTES`
 - `RESEARCH_GITHUB_MAX_TOTAL_BYTES`
+- `RESEARCH_STORAGE_PROVIDER` (`r2`, `github` or `local`)
+- `RESEARCH_R2_ACCOUNT_ID`, `RESEARCH_R2_BUCKET`, `RESEARCH_R2_ACCESS_KEY_ID`,
+  `RESEARCH_R2_SECRET_ACCESS_KEY`, `RESEARCH_R2_JURISDICTION`
+- `RESEARCH_LOCAL_STORAGE_DIR`
+- `RESEARCH_MIN_SUBJECTS` (default 10)
+- `RESEARCH_GITHUB_MIRROR_MANIFESTS` (`true` to mirror manifests to GitHub)
 
 ---
 
@@ -422,12 +529,10 @@ The current page supports:
 
 - request form with date presets
 - de-identification summary
-- destination summary
-- export list
-- approval and rejection actions
-- retry action
-- download action
-- row counts and repo metadata display
+- scheduled exports: create, edit, approve, reject, pause, resume, revoke and Run now
+- export list with a copyable run key, trigger, consented and revoked counts, a changes sentence,
+  a skip reason and the storage location
+- approval, rejection, retry, rerun and download actions
 
 ---
 
@@ -437,7 +542,7 @@ Before using research exports in a real environment:
 
 1. enable research for the clinic
 2. decide whether approval is required per export
-3. set all research GitHub env vars
+3. set up research storage: R2 (bucket, lifecycle rule, scoped token) or the GitHub env vars
 4. set `RESEARCH_HMAC_KEY`
 5. keep Redis running
 6. verify API worker process is active
@@ -466,7 +571,9 @@ Manual checks still recommended:
 
 ## Known Current Limitations
 
-1. GitHub sync was implemented and tested with mocks in the codebase, not with live credentials in this workspace session.
+1. R2 and GitHub publishing are tested with mocked clients; the local provider exercises the same
+   object layout end to end. A revoked subject leaves R2 by lifecycle expiry, not by rewriting
+   older runs.
 2. The current UI is a research export console, not a generic dataset builder.
 3. Staff appointment triage has backend support but limited dedicated research-adjacent analytics UI beyond the export console itself.
 
@@ -476,7 +583,6 @@ Manual checks still recommended:
 
 When v1 limits are hit, likely next steps are:
 
-1. add alternative object storage adapter while keeping the same pack contract
+1. Parquet tables beside the CSVs
 2. add staff-facing export history analytics
-3. add scheduled exports if governance allows
-4. add richer manifest lineage metadata
+3. rewrite older runs on revocation (`deleteSubject`) if lifecycle expiry proves too slow

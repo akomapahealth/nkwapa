@@ -58,7 +58,9 @@ function draftFrom(
       destination: schedule.destination,
     };
   }
-  const yearStart = `${new Date().getUTCFullYear()}-01-01`;
+  // The year of yesterday, not today: coverage must start before today, and on 1 January
+  // the current year's start is today.
+  const yearStart = `${new Date(Date.now() - 86_400_000).getUTCFullYear()}-01-01`;
   return {
     cadence: 'MONTHLY',
     dayOfWeek: 1,
