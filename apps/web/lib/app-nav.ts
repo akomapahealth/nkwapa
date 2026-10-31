@@ -14,6 +14,7 @@ import {
   Network,
   Settings,
   Shield,
+  ShieldCheck,
   Stethoscope,
   UserCog,
   Users,
@@ -222,6 +223,14 @@ const NAV_SECTIONS: AppNavSection[] = [
         description: 'Charts that may be the same person.',
         icon: CopyCheck,
         permission: 'PATIENT.DUPLICATE.REVIEW',
+      },
+      {
+        href: '/admin/data-requests',
+        label: 'Data requests',
+        description: 'Patients asking for a copy, a correction or a deletion.',
+        icon: ShieldCheck,
+        permission: 'PATIENT.DATA_REQUEST.MANAGE',
+        requiresClinic: true,
       },
       {
         href: '/admin/duplicates/cross-clinic',
