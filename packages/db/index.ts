@@ -126,6 +126,7 @@ export {
 } from './src/clinic-metadata';
 export {
   clinicDayWindow,
+  localHourInTimeZone,
   startOfDayInTimeZone,
   todayInTimeZone,
   type ClinicDayWindow,

@@ -109,6 +109,7 @@ export function StaffNameForm({
   submitLabel = 'Save name',
   secondaryAction,
   className,
+  autoFocus = true,
 }: {
   idPrefix: string;
   initial: StaffNameInput;
@@ -118,6 +119,8 @@ export function StaffNameForm({
   submitLabel?: string;
   secondaryAction?: React.ReactNode;
   className?: string;
+  /** Off where the form is one section of a longer page. */
+  autoFocus?: boolean;
 }) {
   const { isOnline } = useSync();
   const [value, setValue] = useState(initial);
@@ -191,7 +194,7 @@ export function StaffNameForm({
         value={value}
         onChange={handleChange}
         errors={errors}
-        autoFocus
+        autoFocus={autoFocus}
         reserveErrorSpace={submitted}
         disabled={saving}
       />

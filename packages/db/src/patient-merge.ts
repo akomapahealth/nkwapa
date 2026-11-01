@@ -38,6 +38,8 @@ export const MERGE_RELATIONS = [
   { key: 'appointment', label: 'Appointments' },
   { key: 'appointmentRequest', label: 'Appointment requests' },
   { key: 'reminder', label: 'Reminders and messages' },
+  // The person's own rights requests follow them, so an open deadline is not stranded.
+  { key: 'patientDataRequest', label: 'Data rights requests' },
 ] as const satisfies readonly { key: string; label: string }[];
 
 export type MergeRelationKey = (typeof MERGE_RELATIONS)[number]['key'];

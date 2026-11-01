@@ -33,10 +33,20 @@ describe('trackEvent', () => {
     (global as { window?: unknown }).window = originalWindow;
   });
 
-  function withProviders() {
+  function storage(analytics: boolean | null) {
+    const value =
+      analytics === null ? null : JSON.stringify({ analytics, version: 1, decidedAt: 'x' });
+    return { getItem: () => value };
+  }
+
+  function withProviders(analytics: boolean | null = true) {
     const gtag = jest.fn();
     const capture = jest.fn();
-    (global as { window?: unknown }).window = { gtag, posthog: { capture } };
+    (global as { window?: unknown }).window = {
+      gtag,
+      posthog: { capture },
+      localStorage: storage(analytics),
+    };
     return { gtag, capture };
   }
 
@@ -48,7 +58,17 @@ describe('trackEvent', () => {
     expect(capture).not.toHaveBeenCalled();
   });
 
-  it('sends the sanitized payload to each provider when enabled', () => {
+  it('sends nothing until the person accepts analytics cookies, or after they decline', () => {
+    process.env.NEXT_PUBLIC_ANALYTICS_ENABLED = 'true';
+    for (const choice of [null, false]) {
+      const { gtag, capture } = withProviders(choice);
+      trackEvent('landing.page.view');
+      expect(gtag).not.toHaveBeenCalled();
+      expect(capture).not.toHaveBeenCalled();
+    }
+  });
+
+  it('sends the sanitized payload to each provider when enabled and accepted', () => {
     process.env.NEXT_PUBLIC_ANALYTICS_ENABLED = 'true';
     const { gtag, capture } = withProviders();
     trackEvent('sync.change.retry', { reason: 'DUPLICATE_NATIONAL_ID', email: 'ama@example.com' });
@@ -62,6 +82,7 @@ describe('trackEvent', () => {
       gtag: () => {
         throw new Error('blocked by the browser');
       },
+      localStorage: storage(true),
     };
     expect(() => trackEvent('landing.page.view')).not.toThrow();
   });

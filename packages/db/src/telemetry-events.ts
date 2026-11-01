@@ -49,6 +49,7 @@ const COMMON_PROPERTIES = {
   durationMs: count(600_000),
 } satisfies Record<string, PropertyRule>;
 
+const PWA_PLATFORM = oneOf('chromium', 'ios', 'macos-safari', 'unsupported');
 const APPOINTMENT_REQUEST_KIND = oneOf('NEW', 'RESCHEDULE', 'CANCEL');
 const SYNC_ENTITY = oneOf(
   'patient',
@@ -250,6 +251,43 @@ export const TELEMETRY_EVENTS = {
     client: true,
     description: 'A landing page call to action was used.',
     properties: { target: oneOf('workflow', 'product', 'contact', 'akomapa') },
+  }),
+
+  // Installed app (#206). Platform and launch source only: nothing identifies the person.
+  'pwa.install.shown': event({
+    label: 'Install prompts shown',
+    category: 'engagement',
+    client: true,
+    description: 'Someone opened the install option from the account menu.',
+    properties: { platform: PWA_PLATFORM },
+  }),
+  'pwa.install.accept': event({
+    label: 'Installs accepted',
+    category: 'engagement',
+    client: true,
+    description: 'Someone accepted the browser install prompt.',
+    properties: { platform: PWA_PLATFORM },
+  }),
+  'pwa.install.dismiss': event({
+    label: 'Installs dismissed',
+    category: 'engagement',
+    client: true,
+    description: 'Someone dismissed the browser install prompt.',
+    properties: { platform: PWA_PLATFORM },
+  }),
+  'pwa.app.install': event({
+    label: 'Apps installed',
+    category: 'engagement',
+    client: true,
+    description: 'The browser reported that the app was installed.',
+    properties: { platform: PWA_PLATFORM },
+  }),
+  'pwa.app.launch': event({
+    label: 'Installed app launches',
+    category: 'engagement',
+    client: true,
+    description: 'The app was opened from its installed icon or a shortcut.',
+    properties: { platform: PWA_PLATFORM, source: oneOf('pwa', 'pwa-shortcut', 'standalone') },
   }),
 } as const satisfies Record<string, TelemetryEventDefinition>;
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ActivitySquare, FileClock, Shield } from 'lucide-react';
+import { ActivitySquare, FileClock, Search, Shield } from 'lucide-react';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
@@ -23,6 +23,7 @@ import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 interface AuditRow {
   id: string;
   createdAt: string;
+  actorUserId: string;
   actorDisplayName: string;
   action: string;
   entityType: string;
@@ -45,7 +46,11 @@ export default function AuditPage() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [action, setAction] = useState('');
-  const [actor, setActor] = useState('');
+  // A person picked from a result row: an exact id, with the name kept for the summary.
+  const [actor, setActor] = useState<{ id: string; name: string } | null>(null);
+  // Free text matched against actor names and emails, sent once typing pauses.
+  const [personDraft, setPersonDraft] = useState('');
+  const [person, setPerson] = useState('');
   const [entityType, setEntityType] = useState('');
   const [requestId, setRequestId] = useState('');
   const [rows, setRows] = useState<AuditRow[]>([]);
@@ -53,6 +58,11 @@ export default function AuditPage() {
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setPerson(personDraft.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [personDraft]);
 
   const fetchAudit = useCallback(
     async (cursor?: string, append = false) => {
@@ -68,7 +78,8 @@ export default function AuditPage() {
         if (from) params.set('from', from);
         if (to) params.set('to', to);
         if (action) params.set('action', action);
-        if (actor) params.set('actor', actor);
+        if (actor) params.set('actor', actor.id);
+        else if (person) params.set('q', person);
         if (entityType) params.set('entityType', entityType);
         if (requestId) params.set('requestId', requestId);
         if (cursor) params.set('cursor', cursor);
@@ -96,12 +107,18 @@ export default function AuditPage() {
         setLoadingMore(false);
       }
     },
-    [clinicId, getToken, from, to, action, actor, entityType, requestId],
+    [clinicId, getToken, from, to, action, actor, person, entityType, requestId],
   );
 
   useEffect(() => {
     if (clinicId) fetchAudit();
   }, [fetchAudit, clinicId]);
+
+  const filterToActor = (row: AuditRow) => {
+    setActor({ id: row.actorUserId, name: row.actorDisplayName });
+    setPersonDraft('');
+    setPerson('');
+  };
 
   const columns: DataTableColumn<AuditRow>[] = [
     {
@@ -117,6 +134,7 @@ export default function AuditPage() {
       id: 'actorDisplayName',
       accessorKey: 'actorDisplayName',
       header: 'Actor',
+      cell: ({ row }) => <ActorButton row={row.original} onSelect={filterToActor} />,
     },
     { id: 'action', accessorKey: 'action', header: 'Action' },
     { id: 'entityType', accessorKey: 'entityType', header: 'Entity' },
@@ -142,7 +160,7 @@ export default function AuditPage() {
           title="Audit log"
           description="Trace clinic activity and changes."
           helpTitle="How to investigate activity"
-          helpText="Filter by date, actor, action, entity, or request ID to rebuild a timeline for support, governance, or incident review."
+          helpText="Search for a person, or select a name in the results, then narrow by date, action, entity, or request ID to rebuild a timeline for support, governance, or incident review."
         />
 
         <AppMetricGroup className="md:grid-cols-3">
@@ -186,6 +204,26 @@ export default function AuditPage() {
                 <Label htmlFor="to">To</Label>
                 <Input id="to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
               </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="person">Person</Label>
+                <div className="relative">
+                  <Search
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <Input
+                    id="person"
+                    type="search"
+                    value={actor ? actor.name : personDraft}
+                    onChange={(e) => {
+                      setActor(null);
+                      setPersonDraft(e.target.value);
+                    }}
+                    placeholder="Name or email of a staff member or volunteer"
+                    className="pl-9"
+                  />
+                </div>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="action">Action</Label>
                 <Input
@@ -193,15 +231,6 @@ export default function AuditPage() {
                   value={action}
                   onChange={(e) => setAction(e.target.value)}
                   placeholder="ENCOUNTER.CREATE"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="actor">Actor</Label>
-                <Input
-                  id="actor"
-                  value={actor}
-                  onChange={(e) => setActor(e.target.value)}
-                  placeholder="User ID"
                 />
               </div>
               <div className="space-y-2">
@@ -238,7 +267,9 @@ export default function AuditPage() {
                   setFrom('');
                   setTo('');
                   setAction('');
-                  setActor('');
+                  setActor(null);
+                  setPersonDraft('');
+                  setPerson('');
                   setEntityType('');
                   setRequestId('');
                 }}
@@ -251,7 +282,7 @@ export default function AuditPage() {
                 { label: 'From', value: from || null },
                 { label: 'To', value: to || null },
                 { label: 'Action', value: action || null },
-                { label: 'Actor', value: actor || null },
+                { label: 'Person', value: actor?.name ?? (person || null) },
                 { label: 'Entity', value: entityType || null },
                 { label: 'Request', value: requestId || null },
                 { label: 'Zone', value: activeClinic ? zoneLabel(activeClinic.zoneCode) : null },
@@ -259,8 +290,9 @@ export default function AuditPage() {
               emptyLabel="Recent clinic activity"
             />
             <ProgressiveHelp title="Filter tips">
-              Start with a date range, then add action, actor, entity, or request ID only when you
-              need to rebuild a narrower timeline for support or incident review.
+              Type part of someone&apos;s name or email to see what they did, or select a name in
+              the results to follow that one person. Add a date range, action, entity, or request ID
+              to rebuild a narrower timeline for support or incident review.
             </ProgressiveHelp>
           </CardContent>
         </Card>
@@ -315,7 +347,7 @@ export default function AuditPage() {
                             {row.action}
                           </h3>
                           <p className="mt-1 break-words text-sm text-muted-foreground">
-                            {row.entityType} • {row.actorDisplayName}
+                            {row.entityType} • <ActorButton row={row} onSelect={filterToActor} />
                           </p>
                         </div>
                         <span className="shrink-0 text-xs text-muted-foreground">
@@ -364,5 +396,19 @@ export default function AuditPage() {
         </Card>
       </div>
     </RouteGuard>
+  );
+}
+
+/** An actor's name that narrows the log to that one person. */
+function ActorButton({ row, onSelect }: { row: AuditRow; onSelect: (row: AuditRow) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(row)}
+      className="rounded-sm text-left font-medium text-foreground underline-offset-4 hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      title={`Show only ${row.actorDisplayName}'s activity`}
+    >
+      {row.actorDisplayName}
+    </button>
   );
 }

@@ -169,6 +169,30 @@ function describeIdentityFailure(reason: string | null): string {
   }
 }
 
+export type StaffInviteFilter = 'ALL' | 'OPEN' | 'ACCEPTED' | 'CLOSED';
+
+/** Which filter tab an invitation sits under: cancelled and expired are both "closed". */
+export function staffInviteBucket(status: StaffInviteStatus): Exclude<StaffInviteFilter, 'ALL'> {
+  if (status === 'PENDING') return 'OPEN';
+  if (status === 'ACCEPTED') return 'ACCEPTED';
+  return 'CLOSED';
+}
+
+/** The invitations under a filter tab that match a name or email search, order kept. */
+export function filterStaffInvites(
+  invites: StaffInvite[],
+  { filter, query }: { filter: StaffInviteFilter; query: string },
+): StaffInvite[] {
+  const needle = query.trim().toLowerCase();
+  return invites.filter(
+    (invite) =>
+      (filter === 'ALL' || staffInviteBucket(invite.status) === filter) &&
+      (!needle ||
+        invite.email.toLowerCase().includes(needle) ||
+        (invite.inviteeName ?? '').toLowerCase().includes(needle)),
+  );
+}
+
 function clinicInvitesPath(clinicId: string, suffix = ''): string {
   return `/clinics/${encodeURIComponent(clinicId)}/staff-invites${suffix}`;
 }

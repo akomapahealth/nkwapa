@@ -3,8 +3,10 @@ import {
   ForbiddenException,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { encryptChatContent, readChatContent } from './chat-crypto';
 import { AuditService } from '../audit/audit.service';
 import { ConversationType, Prisma, UserRole } from '@prisma/client';
 import { PERMISSIONS, rolesWithPermission } from '../auth/constants/permissions';
@@ -24,6 +26,8 @@ const PARTICIPANT_INCLUDE = {
 
 @Injectable()
 export class ChatService {
+  private readonly logger = new Logger(ChatService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
@@ -336,6 +340,7 @@ export class ChatService {
           select: {
             id: true,
             content: true,
+            encrypted: true,
             senderUserId: true,
             createdAt: true,
           },
@@ -368,7 +373,7 @@ export class ChatService {
 
         return {
           ...conv,
-          lastMessage: conv.messages[0] ?? null,
+          lastMessage: conv.messages[0] ? this.opened(conv.messages[0], conv.id, clinicId) : null,
           messages: undefined,
           unreadCount,
         };
@@ -406,7 +411,9 @@ export class ChatService {
     });
 
     const hasMore = messages.length > limit;
-    const items = hasMore ? messages.slice(0, limit) : messages;
+    const items = (hasMore ? messages.slice(0, limit) : messages).map((message) =>
+      this.opened(message, conversationId, clinicId),
+    );
 
     return {
       items,
@@ -433,7 +440,8 @@ export class ChatService {
           conversationId,
           senderUserId,
           clinicId,
-          content,
+          content: encryptChatContent(content, { clinicId, conversationId }),
+          encrypted: true,
         },
         include: {
           sender: { select: { id: true, displayName: true, firstName: true, lastName: true } },
@@ -446,7 +454,8 @@ export class ChatService {
       return msg;
     });
 
-    return message;
+    // Members are sent the text they wrote; only the stored row is sealed.
+    return { ...message, content };
   }
 
   /**
@@ -523,5 +532,23 @@ export class ChatService {
     }
 
     return participant;
+  }
+
+  /** A stored message with its readable text, for members of its conversation. */
+  private opened<T extends { id: string; content: string; encrypted: boolean }>(
+    message: T,
+    conversationId: string,
+    clinicId: string,
+  ): T {
+    const content = readChatContent(message, { clinicId, conversationId }, (error) =>
+      this.logger.error(
+        JSON.stringify({
+          message: 'Chat message could not be decrypted',
+          messageId: message.id,
+          error: error instanceof Error ? error.message : 'unknown',
+        }),
+      ),
+    );
+    return { ...message, content };
   }
 }

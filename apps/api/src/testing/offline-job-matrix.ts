@@ -921,7 +921,7 @@ export const OFFLINE_JOB_SCENARIOS: readonly MatrixScenario[] = [
     surface: 'research-worker',
     scenario: 'A research export run fails',
     fixture:
-      'Pack generation or the GitHub push throws, with attempts left and on the last attempt',
+      'Pack generation or the publish to storage throws, with attempts left and on the last attempt',
     expected:
       'With attempts left the run is handed back to the queue and nothing is recorded. The last attempt records FAILED and its audit entry, and they commit.',
     automated: [
@@ -947,7 +947,7 @@ export const OFFLINE_JOB_SCENARIOS: readonly MatrixScenario[] = [
     surface: 'research-worker',
     scenario: 'A research export job is delivered twice',
     fixture: 'Two deliveries of one export, concurrently or after completion',
-    expected: 'The pack is built and pushed to the research repository once.',
+    expected: 'The pack is built and published to research storage once.',
     automated: [
       ref(
         `${RESEARCH}/research-export.service.spec.ts`,
@@ -1003,7 +1003,7 @@ export const OFFLINE_JOB_SCENARIOS: readonly MatrixScenario[] = [
     scenario: 'A send or export outlasts the job transaction',
     fixture: 'A slow SMTP relay, or a large clinic export pushed to a slow GitHub',
     expected:
-      'No provider call or push runs inside a transaction (#164). The row is claimed (SENDING, PROCESSING) and committed first, the call runs with no transaction open, and the outcome is recorded in a second step. A lost outcome is never retried blindly: a reminder is recorded as SEND_OUTCOME_UNKNOWN, and an export is settled by asking GitHub for a commit at its planned path.',
+      'No provider call or push runs inside a transaction (#164). The row is claimed (SENDING, PROCESSING) and committed first, the call runs with no transaction open, and the outcome is recorded in a second step. A lost outcome is never retried blindly: a reminder is recorded as SEND_OUTCOME_UNKNOWN, and an export is settled by asking its storage for the run at its planned path.',
     automated: [
       ref(
         'apps/api/src/reminders/reminder-send-steps.spec.ts',
@@ -1032,6 +1032,155 @@ export const OFFLINE_JOB_SCENARIOS: readonly MatrixScenario[] = [
       ref(
         'apps/api/src/research/research-export-steps.spec.ts',
         'leaves the export PROCESSING when nobody can tell whether the push landed',
+      ),
+    ],
+    manual: false,
+  },
+  {
+    id: 'JOB-10',
+    condition: 'background-job',
+    risk: 'high',
+    surface: 'maintenance-jobs',
+    scenario: 'A research schedule fires twice for one period',
+    fixture:
+      'Two API instances, or a dispatcher retry, reaching one due schedule in the same hour (#166)',
+    expected:
+      'One run for the period. Its run key is unique and the queue job id, so the second dispatch finds it and only moves the schedule on; a schedule already moved on is left alone.',
+    automated: [
+      ref(
+        `${RESEARCH}/research-schedule.service.spec.ts`,
+        'makes one run when the same period fires twice',
+      ),
+      ref(
+        `${RESEARCH}/research-schedule.service.spec.ts`,
+        'skips a schedule another instance already moved on',
+      ),
+      ref(
+        `${RESEARCH}/research-schedule.service.spec.ts`,
+        'creates the period run under its run key and moves the schedule on',
+      ),
+    ],
+    manual: false,
+  },
+  {
+    id: 'JOB-11',
+    condition: 'background-job',
+    risk: 'high',
+    surface: 'research-worker',
+    scenario: 'Governance changed between a schedule being approved and its run starting',
+    fixture:
+      'Research turned off, the schedule paused or revoked, or the approving director losing the permission',
+    expected:
+      'The run is recorded SKIPPED with the reason, audited, and the directors are emailed. Nothing is generated or published.',
+    automated: [
+      ref(
+        `${RESEARCH}/research-run-governance.spec.ts`,
+        'skips when research was turned off after the schedule was approved',
+      ),
+      ref(
+        `${RESEARCH}/research-run-governance.spec.ts`,
+        'skips when the approving director no longer holds the approval permission here',
+      ),
+      ref(
+        `${RESEARCH}/research-export.service.spec.ts`,
+        'skips, audits and notifies when research was turned off after approval',
+      ),
+      ref(
+        `${RESEARCH}/research-export.service.spec.ts`,
+        'skips a run whose schedule was paused, revoked or deleted',
+      ),
+    ],
+    manual: true,
+  },
+  {
+    id: 'JOB-12',
+    condition: 'background-job',
+    risk: 'high',
+    surface: 'research-worker',
+    scenario: 'Too few consented patients for a run to be published safely',
+    fixture: 'A clinic with fewer consents than RESEARCH_MIN_SUBJECTS (default 10)',
+    expected:
+      'SKIPPED as BELOW_MINIMUM_COHORT, for manual runs as well as scheduled ones. A manual run emails nobody.',
+    automated: [
+      ref(
+        `${RESEARCH}/research-run-governance.spec.ts`,
+        'skips a cohort below the minimum, for manual runs too',
+      ),
+      ref(
+        `${RESEARCH}/research-export.service.spec.ts`,
+        'skips a manual run below the minimum cohort without emailing anyone',
+      ),
+    ],
+    manual: true,
+  },
+  {
+    id: 'JOB-13',
+    condition: 'background-job',
+    risk: 'high',
+    surface: 'research-worker',
+    scenario: 'A publish to object storage lands partly, or corrupted',
+    fixture: 'An R2 upload that fails checksum verification, or a crash after the manifest landed',
+    expected:
+      'Every object carries a SHA-256 that R2 checks, and current.json moves only after every object verifies. A run whose manifest landed is recovered and its pointer finished, never published twice.',
+    automated: [
+      ref(
+        `${RESEARCH}/storage/object-store-research-storage.spec.ts`,
+        'sends a sha256 checksum with every object, so R2 rejects a corrupted upload',
+      ),
+      ref(
+        `${RESEARCH}/storage/object-store-research-storage.spec.ts`,
+        'never moves current.json when an object does not verify',
+      ),
+      ref(
+        `${RESEARCH}/storage/object-store-research-storage.spec.ts`,
+        'finds a run whose manifest landed and finishes its pointer swap',
+      ),
+      ref(
+        `${RESEARCH}/storage/object-store-research-storage.spec.ts`,
+        'does not move current.json back to an older run',
+      ),
+    ],
+    manual: false,
+  },
+  {
+    id: 'JOB-14',
+    condition: 'background-job',
+    risk: 'medium',
+    surface: 'maintenance-jobs',
+    scenario: 'A standing approval reaches its review date',
+    fixture: 'An active schedule whose reviewBy passes before its next run',
+    expected:
+      'The due run is still recorded (and skipped as REVIEW_EXPIRED), then the schedule moves to review due and creates no more runs until a director approves it again. It cannot be resumed around the review.',
+    automated: [
+      ref(
+        `${RESEARCH}/research-schedule.service.spec.ts`,
+        'still records the run, then expires a schedule past its review date',
+      ),
+      ref(
+        `${RESEARCH}/research-schedule.service.spec.ts`,
+        'will not resume a schedule past its review date',
+      ),
+      ref(
+        `${RESEARCH}/research-run-governance.spec.ts`,
+        'skips once the standing approval is past its review date',
+      ),
+    ],
+    manual: true,
+  },
+  {
+    id: 'JOB-15',
+    condition: 'background-job',
+    risk: 'medium',
+    surface: 'maintenance-jobs',
+    scenario: 'One clinic or one destination fails during scheduled research work',
+    fixture: 'A clinic whose dispatch throws, or a GitHub manifest mirror that is down',
+    expected:
+      'Other clinics are still dispatched and the failed schedule stays due for the next hour. A published run stays COMPLETED when only the mirror fails, with the failure audited.',
+    automated: [
+      ref(`${RESEARCH}/research-schedule.service.spec.ts`, 'carries on past one clinic that fails'),
+      ref(
+        `${RESEARCH}/research-export-steps.spec.ts`,
+        'keeps a published run COMPLETED when the GitHub mirror fails, and audits the failure',
       ),
     ],
     manual: false,

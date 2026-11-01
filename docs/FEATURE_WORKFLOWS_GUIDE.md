@@ -41,6 +41,34 @@ Important rules:
 - permissions and clinic memberships are stored in Nkwapa
 - a user usually needs to log in once before appearing in local admin tables
 
+### Installing the app (#206)
+
+When `NEXT_PUBLIC_FEATURE_PWA_INSTALL_ENABLED` is on, the account menu shows **Install app** to
+every signed-in role on browsers that can install. Once installed, Nkwapa opens in its own window
+straight into the account's home (`/dashboard`, `/portal` or the onboarding page).
+
+| Platform                               | How                                                                        |
+| -------------------------------------- | -------------------------------------------------------------------------- |
+| Android Chrome, Edge, Samsung Internet | Account menu → Install app → Install                                       |
+| Desktop Chrome or Edge                 | Account menu → Install app → Install                                       |
+| iPhone and iPad (Safari)               | Account menu → Install app shows the steps: Share, then Add to Home Screen |
+| macOS Safari 17 or later               | Account menu → Install app shows the steps: File, then Add to Dock         |
+| Firefox desktop                        | Not supported; the entry is hidden                                         |
+
+Things to expect:
+
+- On iPhone and iPad the installed app keeps its own sign-in, separate from Safari, so the first
+  launch always asks the user to sign in.
+- Signing in briefly leaves the app window for Keycloak and returns to it.
+- Installing protects changes saved on the device: Safari otherwise clears site storage after seven
+  days without use, and Chromium is less likely to evict an installed app's storage.
+- Opened with no connection, the app shows "You are offline" with the number of changes waiting on
+  the device, and signs in by itself when the connection returns.
+- A new version shows "A new version of Nkwapa is ready" with a Reload button. Nothing reloads
+  until the user chooses to.
+- The app shortcuts (long-press or right-click the icon) open Dashboard and Patients. An account
+  that cannot open one is offered its own home instead.
+
 ### Switching clinics
 
 Staff with roles at more than one clinic, and every system admin, see a clinic picker in the

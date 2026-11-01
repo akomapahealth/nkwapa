@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import type { ResearchExportTrigger } from '@prisma/client';
 
 export const RESEARCH_EXPORT_QUEUE_NAME = 'research-exports';
 export const RESEARCH_POLICY_VERSION = 'research-export-v1';
@@ -41,9 +42,45 @@ export interface ResearchManifestFileSummary {
   rows?: number;
 }
 
+/** Who a run is, as recorded in its manifest (#166). */
+export interface ResearchRunIdentity {
+  runKey: string;
+  trigger: ResearchExportTrigger;
+  scheduleId: string | null;
+}
+
+/**
+ * What changed since the previous completed run, written as `changes.json` (#166).
+ *
+ * Derived from the database rather than by diffing stored files: added subjects are consents
+ * granted since that run, revoked ones are the revocation rows, and anything else that left the
+ * cohort (a merged or deleted chart) is the remainder.
+ */
+export interface ResearchRunChanges {
+  runKey: string;
+  previousRunKey: string | null;
+  consentedSubjects: number;
+  /** Null for the first run, or after a run that predates subject counts. */
+  previousConsentedSubjects: number | null;
+  subjectsAdded: number;
+  subjectsRevoked: number;
+  subjectsOtherwiseRemoved: number;
+  rowCountDeltas: Record<string, number>;
+}
+
 export interface ResearchPackManifest {
   exportId: string;
+  runKey: string;
+  trigger: ResearchExportTrigger;
+  scheduleId: string | null;
+  previousRunKey: string | null;
   clinicKey: string;
+  /** Keys made under different HMAC key ids do not join. */
+  hmacKeyId: string;
+  consentedSubjects: number;
+  revokedSinceLast: number;
+  /** sha256 over the table lines of SHA256SUMS.txt: equal for two runs with identical data. */
+  contentSha256: string;
   datasetVersion: number;
   policyVersion: string;
   fromDate: string;
@@ -56,20 +93,13 @@ export interface ResearchPackManifest {
 
 export interface GeneratedResearchPack {
   manifest: ResearchPackManifest;
+  changes: ResearchRunChanges;
   repoFiles: ResearchPackFile[];
   artifactPath: string;
   artifactSha256: string;
   artifactSizeBytes: number;
   recordCount: number;
   rowCounts: Record<string, number>;
-}
-
-export interface ResearchRepoSyncResult {
-  provider: string;
-  repoPath: string;
-  commitSha: string;
-  commitUrl: string;
-  syncedAt: Date;
 }
 
 export function sha256Hex(input: Buffer | string): string {

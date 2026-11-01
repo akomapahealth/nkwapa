@@ -129,6 +129,18 @@ export function updateMyName(input: StaffNameInput, getToken: GetToken) {
   return patchName('/me/profile/name', input, getToken);
 }
 
+/** The signed-in staff member's own work phone; blank clears it. */
+export async function updateMyPhone(phone: string, getToken: GetToken) {
+  const response = await apiFetch('/me/profile/phone', {
+    method: 'PATCH',
+    body: JSON.stringify({ phone: phone.trim() || null }),
+    getToken,
+    skipClinicHeader: true,
+  });
+  if (!response.ok) throw await readApiError(response);
+  return (await response.json()) as { userId: string; phoneE164: string | null };
+}
+
 /** An admin correcting a staff member's name. */
 export function updateUserName(userId: string, input: StaffNameInput, getToken: GetToken) {
   return patchName(`/admin/users/${encodeURIComponent(userId)}/name`, input, getToken);

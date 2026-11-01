@@ -1,4 +1,9 @@
-import { clinicDayWindow, startOfDayInTimeZone, todayInTimeZone } from './clinic-day';
+import {
+  clinicDayWindow,
+  localHourInTimeZone,
+  startOfDayInTimeZone,
+  todayInTimeZone,
+} from './clinic-day';
 
 /** The local wall-clock reading of an instant, for asserting where a boundary actually landed. */
 function localReading(at: Date, timeZone: string) {
@@ -92,6 +97,31 @@ describe('startOfDayInTimeZone', () => {
 
   it('refuses a value that is not a date', () => {
     expect(() => startOfDayInTimeZone('not-a-date', 'Africa/Accra')).toThrow(RangeError);
+  });
+});
+
+describe('localHourInTimeZone', () => {
+  it('is the UTC hour itself for a zone on UTC', () => {
+    expect(localHourInTimeZone('2026-10-01', 3, 'Africa/Accra').toISOString()).toBe(
+      '2026-10-01T03:00:00.000Z',
+    );
+  });
+
+  it('lands on the local hour in a zone with daylight saving', () => {
+    const summer = localHourInTimeZone('2026-07-01', 3, 'America/New_York');
+    const winter = localHourInTimeZone('2026-12-01', 3, 'America/New_York');
+    expect(summer.toISOString()).toBe('2026-07-01T07:00:00.000Z');
+    expect(winter.toISOString()).toBe('2026-12-01T08:00:00.000Z');
+  });
+
+  it('moves to the transition when the hour is skipped by a spring-forward', () => {
+    // 2026-03-08 02:00 does not exist in New York; clocks jump to 03:00.
+    const at = localHourInTimeZone('2026-03-08', 2, 'America/New_York');
+    expect(localReading(at, 'America/New_York')).toBe('2026-03-08, 03:00:00');
+  });
+
+  it('refuses an hour outside 0 to 23', () => {
+    expect(() => localHourInTimeZone('2026-10-01', 24, 'Africa/Accra')).toThrow(RangeError);
   });
 });
 

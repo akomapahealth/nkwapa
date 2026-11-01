@@ -158,6 +158,7 @@ const TYPE_LABELS: Record<string, string> = {
   VOLUNTEER_ROSTER_UPDATED_V1: 'Roster: event changed',
   VOLUNTEER_ROSTER_CANCELLED_V1: 'Roster: event cancelled',
   VOLUNTEER_ROSTER_REMOVED_V1: 'Roster: removed',
+  RESEARCH_RUN_ATTENTION_V1: 'Research run needs attention',
 };
 
 export function formatTemplateLabel(templateKey: string): string {

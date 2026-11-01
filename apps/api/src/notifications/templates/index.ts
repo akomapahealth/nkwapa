@@ -14,6 +14,7 @@ import {
   STAFF_ROLE_GRANTED_V1,
   STAFF_ROLE_REVOKED_V1,
 } from './staff-lifecycle';
+import { RESEARCH_RUN_ATTENTION_V1 } from './research-run';
 import {
   VOLUNTEER_ROSTER_ASSIGNED_V1,
   VOLUNTEER_ROSTER_CANCELLED_V1,
@@ -46,6 +47,7 @@ export const EMAIL_TEMPLATES: Record<string, EmailTemplate<any>> = {
   [VOLUNTEER_ROSTER_UPDATED_V1.key]: VOLUNTEER_ROSTER_UPDATED_V1,
   [VOLUNTEER_ROSTER_CANCELLED_V1.key]: VOLUNTEER_ROSTER_CANCELLED_V1,
   [VOLUNTEER_ROSTER_REMOVED_V1.key]: VOLUNTEER_ROSTER_REMOVED_V1,
+  [RESEARCH_RUN_ATTENTION_V1.key]: RESEARCH_RUN_ATTENTION_V1,
 };
 
 export type TemplateKey = keyof typeof EMAIL_TEMPLATES;
@@ -75,6 +77,8 @@ export const NOTIFICATION_TYPE_GROUPS = {
     STAFF_ROLE_REVOKED_V1.key,
     STAFF_ACCOUNT_DEACTIVATED_V1.key,
     STAFF_ACCOUNT_REACTIVATED_V1.key,
+    /** A scheduled research run that needs a director (#166); a USER notice like the rest. */
+    RESEARCH_RUN_ATTENTION_V1.key,
   ],
   /** Screening-day roster emails to volunteers, who may have no account (#226). */
   ROSTER: [

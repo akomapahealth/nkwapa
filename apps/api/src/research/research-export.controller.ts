@@ -21,12 +21,13 @@ import { RbacGuard } from '../auth/guards/rbac.guard';
 import { ClinicScopeGuard } from '../auth/guards/clinic-scope.guard';
 import { PERMISSIONS } from '../auth/constants/permissions';
 import { ResearchExportService } from './research-export.service';
-import { RejectExportDto, RequestExportDto } from './dto/request-export.dto';
 import {
-  ClinicAndExportParamsDto,
-  ClinicIdParamDto,
-  CursorLimitQueryDto,
-} from '../common/request-dto';
+  ListResearchExportsQueryDto,
+  RejectExportDto,
+  RequestExportDto,
+} from './dto/request-export.dto';
+import { ResearchReasonDto } from './dto/research-schedule.dto';
+import { ClinicAndExportParamsDto, ClinicIdParamDto } from '../common/request-dto';
 
 @Controller('clinics/:clinicId/research/exports')
 @UseGuards(JwtAuthGuard, ClinicScopeGuard, RbacGuard)
@@ -50,8 +51,11 @@ export class ResearchExportController {
   @Get()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.RESEARCH_EXPORT_REQUEST)
-  async list(@Param() params: ClinicIdParamDto, @Query() query: CursorLimitQueryDto) {
-    return this.exportService.listByClinic(params.clinicId, query.cursor, query.limit);
+  async list(@Param() params: ClinicIdParamDto, @Query() query: ListResearchExportsQueryDto) {
+    return this.exportService.listByClinic(params.clinicId, query.cursor, query.limit, {
+      status: query.status,
+      trigger: query.trigger,
+    });
   }
 
   @Get(':exportId')
@@ -117,6 +121,25 @@ export class ResearchExportController {
     });
   }
 
+  /** A deliberate rerun of a finished run's period, as the next `-r<n>` revision (#166). */
+  @Post(':exportId/rerun')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.RESEARCH_EXPORT_APPROVE)
+  async rerun(
+    @Param() params: ClinicAndExportParamsDto,
+    @Body() body: ResearchReasonDto,
+    @Request() req: { user: { user: { id: string } } },
+  ) {
+    const exp = await this.exportService.findRecordById(params.exportId);
+    if (!exp || exp.clinicId !== params.clinicId) {
+      throw new NotFoundException('Export not found');
+    }
+    return this.exportService.rerunExport(params.exportId, req.user.user.id, body.reason, {
+      clinicId: params.clinicId,
+      actorUserId: req.user.user.id,
+    });
+  }
+
   @Get(':exportId/download')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.RESEARCH_EXPORT_REQUEST)
@@ -142,7 +165,8 @@ export class ResearchExportController {
     });
 
     const contentType = 'application/zip';
-    const filename = `research-export-${params.exportId}.zip`;
+    // Named by run key: the identifier a researcher quotes, and safe to share (#166).
+    const filename = `${exp.runKey}.zip`;
 
     res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

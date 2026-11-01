@@ -53,7 +53,7 @@ export function PortalLayout({ children }: { children: React.ReactNode }) {
   const displayName = bootstrap?.displayName ?? 'Patient';
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen flex-col bg-background px-safe">
       {/*
         First thing in the tab order, hidden until focused. Without it a keyboard or screen reader
         user walks the whole header and the four-item pill nav on every portal page before reaching
@@ -122,7 +122,7 @@ export function PortalLayout({ children }: { children: React.ReactNode }) {
       <main
         id="main-content"
         tabIndex={-1}
-        className="flex-1 overflow-auto px-4 py-6 focus-visible:outline-none md:px-6 lg:px-8"
+        className="flex-1 overflow-auto px-4 py-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] focus-visible:outline-none md:px-6 lg:px-8"
       >
         <div className="mx-auto max-w-6xl">{children}</div>
       </main>

@@ -1,3 +1,5 @@
+import { saveBlob } from './download';
+
 /**
  * Spreadsheet export, built in the browser from data the screen already holds.
  *
@@ -26,12 +28,5 @@ export function toCsv(rows: readonly (readonly CsvCell[])[]): string {
 /** Hand the browser a CSV file to save. A byte-order mark keeps Excel from mangling non-ASCII. */
 export function downloadCsv(filename: string, rows: readonly (readonly CsvCell[])[]): void {
   const blob = new Blob(['﻿', toCsv(rows)], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  void saveBlob(blob, filename);
 }

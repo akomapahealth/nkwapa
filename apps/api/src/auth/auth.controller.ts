@@ -86,6 +86,7 @@ export interface WhoAmIResponse {
     middleInitial: string | null;
     lastName: string | null;
     email: string | null;
+    phoneE164: string | null;
   };
 }
 
@@ -187,6 +188,7 @@ export class AuthController {
         middleInitial: true,
         lastName: true,
         email: true,
+        phoneE164: true,
       },
     });
     // Patients are named by their Patient record, so only staff are asked (#225).
@@ -219,6 +221,7 @@ export class AuthController {
         middleInitial: profile?.middleInitial ?? null,
         lastName: profile?.lastName ?? null,
         email: profile?.email ?? null,
+        phoneE164: profile?.phoneE164 ?? null,
       },
     };
   }

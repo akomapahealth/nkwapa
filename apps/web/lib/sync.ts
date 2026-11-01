@@ -6,6 +6,9 @@ import type { SyncPullResponseDto } from './sync-types';
 import { applyAdherencePull } from './medication-adherence';
 import { currentOutboxRevision, isOwnedBy, outboxFailureUpdate, outboxSyncState } from './outbox';
 import { describeSyncTransportFailure, type SyncTransportFailure } from './sync-conflicts';
+import { notifyStatus } from './sync-status';
+
+export { onSyncStatusChange, type SyncStatus, type SyncStatusListener } from './sync-status';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
 
@@ -16,21 +19,9 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000'
  */
 export const SYNC_PUSH_BATCH_SIZE = 200;
 
-/**
- * - `retrying`: the pass completed, but some changes stayed queued because the server said they
- *   could still succeed later. Nothing needs the clinician.
- * - `attention`: the pass completed, but some changes are blocked until the clinician retries,
- *   opens the record, or discards them. Inbound data still arrived.
- * - `error`: the pass itself failed, so nothing was confirmed either way.
- */
-export type SyncStatus = 'idle' | 'syncing' | 'success' | 'retrying' | 'attention' | 'error';
-
-export type SyncStatusListener = (status: SyncStatus, message?: string, detail?: string) => void;
-
 /** Told once per `syncNow` call, with everything that call pushed and refused. */
 export type SyncPassListener = (clinicId: string, result: SyncResult) => void;
 
-const listeners: Set<SyncStatusListener> = new Set();
 const passListeners: Set<SyncPassListener> = new Set();
 const inFlightByClinic = new Map<string, Promise<SyncResult>>();
 const rerunRequestedByClinic = new Set<string>();
@@ -42,18 +33,9 @@ const rerunRequestedByClinic = new Set<string>();
  */
 const latestOptionsByClinic = new Map<string, SyncNowOptions>();
 
-export function onSyncStatusChange(listener: SyncStatusListener): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
 export function onSyncPassComplete(listener: SyncPassListener): () => void {
   passListeners.add(listener);
   return () => passListeners.delete(listener);
-}
-
-function notifyStatus(status: SyncStatus, message?: string, detail?: string) {
-  listeners.forEach((fn) => fn(status, message, detail));
 }
 
 export interface SyncNowOptions {

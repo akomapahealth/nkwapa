@@ -122,6 +122,8 @@ export const RESEARCH_OUT_OF_SCOPE_MODELS: Record<string, string> = {
   EyeExamFinding: 'Per-structure findings of an EyeScreening, out of scope with it.',
   Appointment: 'Exported directly into research_appointments.csv.',
   AppointmentRequest: 'Exported directly into research_appointments.csv.',
+  PatientDataRequest:
+    "A governance record of a patient's own access, correction and deletion requests, often in their own words; never research data.",
   PatientConsent:
     'The gate on the export rather than a subject attribute; revocations are exported separately.',
   Prescription:
@@ -167,6 +169,7 @@ export const RESEARCH_OUT_OF_SCOPE_MODELS: Record<string, string> = {
   SyncMutation: 'Offline replay bookkeeping with no clinical content.',
   ResearchExport: "The export pipeline's own record of its runs.",
   ClinicResearchSettings: 'Per-clinic configuration for this pipeline.',
+  ResearchExportSchedule: "A director's standing approval and cadence for this pipeline's runs.",
 };
 
 /**

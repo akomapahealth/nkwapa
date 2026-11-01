@@ -48,9 +48,16 @@ const JOB_ROWS = {
   exportB1: '99000000-0000-4000-8000-0000000000e5',
   replayA1: '99000000-0000-4000-8000-0000000000e6',
   replayB1: '99000000-0000-4000-8000-0000000000e7',
+  scheduleA1: '99000000-0000-4000-8000-0000000000e8',
+  scheduleB1: '99000000-0000-4000-8000-0000000000e9',
 } as const;
 
-const JOB_TABLES = ['Reminder', 'ResearchExport', 'SyncMutation'] as const;
+const JOB_TABLES = [
+  'Reminder',
+  'ResearchExport',
+  'ResearchExportSchedule',
+  'SyncMutation',
+] as const;
 
 describeIsolation('tenant isolation', () => {
   jest.setTimeout(180_000);
@@ -111,13 +118,22 @@ describeIsolation('tenant isolation', () => {
          'EMAIL', 'b1@example.test', 'gate.notice', '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
         ('${JOB_ROWS.reminderGlobal}', NULL, 'USER', '${TENANT_SYSTEM_ADMIN.id}',
          'EMAIL', 'global@example.test', 'gate.notice', '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+      INSERT INTO "ResearchExportSchedule"
+        ("id", "clinicId", "cadence", "dayOfMonth", "localHour", "coverageStartDate", "destination",
+         "status", "createdByUserId", "nextRunAt", "updatedAt")
+      VALUES
+        ('${JOB_ROWS.scheduleA1}', '${TENANT_CLINICS.a1.id}', 'MONTHLY', 1, 3, '2026-01-01', 'LOCAL',
+         'ACTIVE', '${TENANT_SYSTEM_ADMIN.id}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('${JOB_ROWS.scheduleB1}', '${TENANT_CLINICS.b1.id}', 'MONTHLY', 1, 3, '2026-01-01', 'LOCAL',
+         'ACTIVE', '${TENANT_SYSTEM_ADMIN.id}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
       INSERT INTO "ResearchExport"
-        ("id", "clinicId", "requestedByUserId", "fromDate", "toDate", "status", "policyVersionSnapshot")
+        ("id", "clinicId", "requestedByUserId", "fromDate", "toDate", "status", "policyVersionSnapshot",
+         "runKey")
       VALUES
         ('${JOB_ROWS.exportA1}', '${TENANT_CLINICS.a1.id}', '${TENANT_SYSTEM_ADMIN.id}',
-         '2026-01-01', '2026-01-31', 'APPROVED', 'gate'),
+         '2026-01-01', '2026-01-31', 'APPROVED', 'gate', 'rx-aaaaaaaa-m2026-01'),
         ('${JOB_ROWS.exportB1}', '${TENANT_CLINICS.b1.id}', '${TENANT_SYSTEM_ADMIN.id}',
-         '2026-01-01', '2026-01-31', 'APPROVED', 'gate');
+         '2026-01-01', '2026-01-31', 'APPROVED', 'gate', 'rx-bbbbbbbb-m2026-01');
       INSERT INTO "SyncMutation"
         ("id", "clinicId", "entityType", "entityId", "operation", "idempotencyKey", "status", "updatedAt")
       VALUES
@@ -302,6 +318,7 @@ describeIsolation('tenant isolation', () => {
       await asClinic([TENANT_CLINICS.a1.id], async () => {
         expect(await ids('Reminder')).toEqual([JOB_ROWS.reminderA1]);
         expect(await ids('ResearchExport')).toEqual([JOB_ROWS.exportA1]);
+        expect(await ids('ResearchExportSchedule')).toEqual([JOB_ROWS.scheduleA1]);
         expect(await ids('SyncMutation')).toEqual([JOB_ROWS.replayA1]);
       });
     });
@@ -324,7 +341,12 @@ describeIsolation('tenant isolation', () => {
           `UPDATE "Reminder" SET "status" = 'SENT' WHERE "id" = $1`,
           [JOB_ROWS.reminderB1],
         );
+        const scheduleUpdate = await app.query(
+          `UPDATE "ResearchExportSchedule" SET "status" = 'PAUSED' WHERE "id" = $1`,
+          [JOB_ROWS.scheduleB1],
+        );
         expect(exportUpdate.rowCount).toBe(0);
+        expect(scheduleUpdate.rowCount).toBe(0);
         expect(reminderUpdate.rowCount).toBe(0);
       });
     });

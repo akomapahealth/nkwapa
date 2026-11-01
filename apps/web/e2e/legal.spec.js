@@ -6,9 +6,10 @@ test.use({ storageState: { cookies: [], origins: [] } });
 const PAGES = [
   { path: '/privacy', title: 'Privacy notice' },
   { path: '/terms', title: 'Terms of use' },
+  { path: '/cookies', title: 'Cookie policy' },
 ];
 
-test('the landing footer links to both pages', async ({ page }) => {
+test('the landing footer links to every legal page', async ({ page }) => {
   await page.goto('/');
   for (const { path, title } of PAGES) {
     await page

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, ResearchExportStatus } from '@prisma/client';
+import { Prisma, ResearchExportStatus, ResearchExportTrigger } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { decodeJsonKeysetCursor, encodeJsonKeysetCursor } from '../common/keyset-cursor';
 
@@ -11,6 +11,11 @@ export const researchExportInclude = {
 export type ResearchExportRecord = Prisma.ResearchExportGetPayload<{
   include: typeof researchExportInclude;
 }>;
+
+export interface ResearchExportListFilter {
+  status?: ResearchExportStatus;
+  trigger?: ResearchExportTrigger;
+}
 
 @Injectable()
 export class ResearchExportRepository {
@@ -28,6 +33,22 @@ export class ResearchExportRepository {
       where: { id },
       include: researchExportInclude,
     });
+  }
+
+  async findByRunKey(runKey: string): Promise<ResearchExportRecord | null> {
+    return this.prisma.researchExport.findUnique({
+      where: { runKey },
+      include: researchExportInclude,
+    });
+  }
+
+  /** Every run key at a clinic that is `base` or a revision of it. */
+  async listRunKeysWithPrefix(clinicId: string, base: string): Promise<string[]> {
+    const rows = await this.prisma.researchExport.findMany({
+      where: { clinicId, OR: [{ runKey: base }, { runKey: { startsWith: `${base}-r` } }] },
+      select: { runKey: true },
+    });
+    return rows.map((row) => row.runKey);
   }
 
   async update(id: string, data: Prisma.ResearchExportUpdateInput): Promise<ResearchExportRecord> {
@@ -62,19 +83,40 @@ export class ResearchExportRepository {
         status: 'PROCESSING',
         OR: [{ startedAt: { lt: startedBefore } }, { startedAt: null }],
       },
-      select: { id: true, clinicId: true, repoPath: true, startedAt: true },
+      select: {
+        id: true,
+        clinicId: true,
+        storageProvider: true,
+        storagePath: true,
+        startedAt: true,
+      },
       orderBy: { startedAt: 'asc' },
       take,
     });
+  }
+
+  /** Patients with research consent granted now: the cohort a run would publish. */
+  async consentedPatientIds(clinicId: string): Promise<string[]> {
+    const consents = await this.prisma.patientConsent.findMany({
+      where: { clinicId, consentType: 'RESEARCH_DEIDENTIFIED', status: 'GRANTED' },
+      distinct: ['patientId'],
+      select: { patientId: true },
+    });
+    return consents.map((consent) => consent.patientId);
   }
 
   async listByClinic(
     clinicId: string,
     cursor?: string,
     limit = 20,
+    filter: ResearchExportListFilter = {},
   ): Promise<{ items: ResearchExportRecord[]; nextCursor: string | null }> {
     const take = Math.min(limit, 100);
-    const where: Prisma.ResearchExportWhereInput = { clinicId };
+    const where: Prisma.ResearchExportWhereInput = {
+      clinicId,
+      status: filter.status,
+      trigger: filter.trigger,
+    };
 
     if (cursor) {
       const decoded = decodeJsonKeysetCursor('requestedAt', cursor);

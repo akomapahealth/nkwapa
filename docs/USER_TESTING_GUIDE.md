@@ -575,6 +575,7 @@ last-known-good data across a failed refetch; elsewhere a failed refresh is simp
 | `/admin/users`                           | `CLINIC.MANAGE`                    |                |       |
 | `/admin/clinics`                         | `CLINIC.MANAGE`                    |                |       |
 | `/settings/clinic`                       | `RESEARCH.SETTINGS.UPDATE`         | yes            | yes   |
+| `/research`                              | `RESEARCH.EXPORT.REQUEST`          | yes            | yes   |
 | `/clinics/[clinicId]/research/exports`   | `RESEARCH.EXPORT.REQUEST`          |                | yes   |
 | `/portal`                                | `PATIENT.PORTAL.READ_SELF`         |                | yes   |
 | `/portal/health`                         | `PATIENT.PORTAL.READ_SELF`         |                | yes   |
@@ -686,6 +687,33 @@ assessments by hand at different severities to check the ordering and the labels
 - [ ] chat panel is visibly larger on desktop without covering the full screen
 - [ ] a group conversation can be created, renamed, and have people added; a 51st member is refused
 - [ ] presence, last seen and typing update live between two browsers
+
+---
+
+## 15b. Installed App Matrix (#206)
+
+Build with `NEXT_PUBLIC_FEATURE_PWA_INSTALL_ENABLED=true`. Record each cell in the PR.
+
+| Platform                           | Install | Launch → role home | Offline launch screen | Update toast | Safe areas / back nav | Sign-in round trip |
+| ---------------------------------- | ------- | ------------------ | --------------------- | ------------ | --------------------- | ------------------ |
+| Android Chrome (phone)             |         |                    |                       |              |                       |                    |
+| Android Chrome (tablet, landscape) |         |                    |                       |              |                       |                    |
+| Samsung Internet                   |         |                    |                       |              |                       |                    |
+| iOS Safari 17+ (iPhone, notched)   |         |                    |                       |              |                       |                    |
+| iPadOS Safari                      |         |                    |                       |              |                       |                    |
+| macOS Safari 17+ (Add to Dock)     |         |                    |                       |              |                       |                    |
+| Desktop Chrome / Edge              |         |                    |                       |              |                       |                    |
+| Firefox (expect: no install entry) |         |                    |                       |              |                       |                    |
+
+- [ ] the maskable icon is uncropped on Android (check `public/icons/icon-maskable-512.png` at maskable.app)
+- [ ] the status bar follows light and dark, including the manual theme toggle in the account menu
+- [ ] each role (staff, doctor, volunteer, patient, claimant) launches to its own home
+- [ ] on iOS, record whether the installed app asks for sign-in on every cold launch (silent SSO
+      relies on third-party cookies Safari blocks)
+- [ ] a CSV export from an iOS Home Screen app opens the share sheet and saves to Files
+- [ ] shared device: sign in as staff, sign out, sign in as a patient. Nothing from the first
+      account shows, and Cache Storage (DevTools → Application) holds only `nkwapa-*` shell caches
+- [ ] kill switch exercised once on staging (see `docs/specs/04_OFFLINE_FIRST_AND_SYNC.md`)
 
 ---
 
@@ -1075,6 +1103,18 @@ Needs an account with seats at two clinics (the cross-clinic fixtures from
 - [ ] **JOB-06** During JOB-05, watch the research page between attempts. The export stays
       _Approved_ while it is being retried, and reads **Failed**, with an audit entry, only after the
       last attempt. Refresh the page after it fails, to confirm it is still **Failed**.
+- [ ] **JOB-11** Run the API with `RESEARCH_STORAGE_PROVIDER=local` and `RESEARCH_MIN_SUBJECTS=2`.
+      Create and approve a schedule on the research exports page, then turn research off in clinic
+      settings and press **Run now** before the toggle is saved elsewhere (or turn it off while the
+      run is queued). The run reads **Skipped** with "Research is turned off for the clinic", and
+      Mailpit has one "Research run needs attention" email per director, naming the run key only.
+- [ ] **JOB-12** With fewer consented patients than `RESEARCH_MIN_SUBJECTS`, request a manual export.
+      It reads **Skipped** with "Too few patients have consented", nothing is published under
+      `RESEARCH_LOCAL_STORAGE_DIR`, and no email is sent.
+- [ ] **JOB-14** Approve a schedule, then set its `reviewBy` and `nextRunAt` to the past in the
+      database and wait for the hourly dispatcher (or restart the API). The period's run reads
+      **Skipped** as past its review date, the schedule reads **Review due**, and **Resume** is not
+      offered; **Approve again** makes it active with a new review date.
 
 ---
 

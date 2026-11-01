@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client';
 import {
   formatStaffDisplayName,
   normalizeMiddleInitial,
+  normalizePhoneToE164,
   normalizeStaffNamePart,
   staffNameMessage,
   staffNamePartError,
@@ -117,6 +118,54 @@ export class UserProfileService {
       tx,
     );
     return updated;
+  }
+
+  /**
+   * The person's own work phone, stored as E.164 (Ghana numbers may be typed locally). Blank
+   * clears it. The audit keeps only the last four digits: it is a contact detail, not evidence.
+   */
+  async updatePhone(
+    userId: string,
+    raw: string | null | undefined,
+    context: NameChangeContext,
+  ): Promise<{ userId: string; phoneE164: string | null }> {
+    const target = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, phoneE164: true },
+    });
+    if (!target) throw new NotFoundException('User not found');
+
+    const trimmed = raw?.trim() ?? '';
+    const phoneE164 = trimmed ? normalizePhoneToE164(trimmed, 'GH') : null;
+    if (trimmed && !phoneE164) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Check the phone number and try again.',
+        fieldErrors: [
+          { field: 'phone', message: 'Enter a valid phone number, such as 024 123 4567.' },
+        ],
+      });
+    }
+    if (target.phoneE164 === phoneE164) return { userId, phoneE164 };
+
+    const masked = (value: string | null) => (value ? `***${value.slice(-4)}` : null);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: userId }, data: { phoneE164 } });
+      await this.auditService.logWrite(
+        {
+          clinicId: context.clinicId ?? null,
+          actorUserId: context.actorUserId,
+          action: 'USER.PHONE.UPDATE',
+          entityType: 'User',
+          entityId: userId,
+          beforeJson: JSON.stringify({ phone: masked(target.phoneE164), source: context.source }),
+          afterJson: JSON.stringify({ phone: masked(phoneE164), source: context.source }),
+          requestId: context.requestId,
+        },
+        tx,
+      );
+    });
+    return { userId, phoneE164 };
   }
 
   /** The row shape `applyName` needs, for callers that already hold a transaction. */

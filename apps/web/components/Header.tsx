@@ -1,6 +1,6 @@
 'use client';
 
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -25,28 +25,28 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { InfoHint } from '@/components/ui/info-hint';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { useTheme, type ThemePreference } from '@/lib/theme-context';
+import { THEME_PREFERENCE_OPTIONS, useTheme, type ThemePreference } from '@/lib/theme-context';
 import { AppNavList } from '@/components/app-shell/AppNavList';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { formatRoleLabel, getOpsDestination, getVisibleRoleLabels } from '@/lib/ops';
 import { useKeycloak } from '@/app/KeycloakProvider';
 import { getActiveBootstrapClinic, getSwitchableClinics } from '@/lib/bootstrap-clinics';
-import { setStoredActiveClinicId } from '@/lib/bootstrap-storage';
 import { useToast } from '@/components/ui/toast';
 import { SyncStatusBar } from '@/components/sync/SyncStatusBar';
+import { InstallAppMenuItem, InstallInstructionsDialog } from '@/components/pwa/InstallApp';
 import {
   Compass,
   LogOut,
   Menu,
   PanelLeft,
   PanelLeftClose,
+  Settings,
   ShieldCheck,
   User,
   UserPen,
 } from 'lucide-react';
 import { WelcomeTour } from '@/components/onboarding/WelcomeTour';
-import { WELCOME_TOUR_OPEN_EVENT, welcomeTourAudience } from '@/lib/welcome-tour';
-import { buildAccountNameHref } from '@/lib/auth-routing';
+import { WELCOME_TOUR_OPEN_EVENT } from '@/lib/welcome-tour';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 
 export function Header({
@@ -63,9 +63,6 @@ export function Header({
 }) {
   const bootstrapCtx = useBootstrap();
   const bootstrap = bootstrapCtx?.bootstrap ?? null;
-  const pathname = usePathname();
-  // Patients are named by their Patient record; only staff edit a name here (#225).
-  const canEditOwnName = bootstrap != null && welcomeTourAudience(bootstrap) === 'staff';
   const { activeClinicId: contextActiveClinicId, setActiveClinicId } = bootstrapCtx ?? {};
   const { logout } = useKeycloak() ?? {};
   const { showToast } = useToast();
@@ -86,29 +83,35 @@ export function Header({
   };
   const roleLabels = getVisibleRoleLabels(activeMembership?.roles, bootstrap?.globalRoles);
 
-  const handleClinicChange = (value: string) => {
+  const handleClinicChange = async (value: string) => {
+    if (!value || value === clinicId) return;
     const nextClinic = switchableClinics.find((clinic) => clinic.clinicId === value);
-    setStoredActiveClinicId(value);
-    setActiveClinicId?.(value);
+    const clinicName = nextClinic?.clinicName ?? 'the selected clinic';
+    // One toast that turns from "Switching" into the outcome, rather than a spinner that expires.
+    const toastId = 'clinic-switch';
     showToast({
+      id: toastId,
       tone: 'loading',
-      title: nextClinic ? `Switching to ${nextClinic.clinicName}` : 'Switching clinic',
+      title: `Switching to ${clinicName}`,
       description: 'Refreshing clinic-scoped queues, dashboard data, and records.',
-      durationMs: 1800,
     });
-    if (value) {
-      /*
-        A client navigation, not `window.location.href`.
-
-        Switching clinic used to hard-reload the whole document after a 180ms timeout, which threw
-        away the Keycloak session check, the bootstrap fetch and every warm route, and showed a
-        white page in the middle of what is meant to be the smoothest thing the product does.
-        `setActiveClinicId` above already moved the context that every clinic-scoped fetch keys
-        off, so `refresh` is enough to bring server data along with it.
-      */
-      router.push('/dashboard');
-      router.refresh();
+    /*
+      A client navigation, not `window.location.href`: a hard reload threw away the Keycloak
+      session check and every warm route. `setActiveClinicId` re-fetches whoami, which is what
+      moves the clinic and its permissions for every page that reads them.
+    */
+    const switched = (await setActiveClinicId?.(value)) ?? false;
+    if (!switched) {
+      showToast({
+        id: toastId,
+        tone: 'error',
+        title: `Could not switch to ${clinicName}`,
+        description: 'Check your connection, then try again.',
+      });
+      return;
     }
+    router.push('/dashboard');
+    showToast({ id: toastId, tone: 'success', title: `Now viewing ${clinicName}` });
   };
 
   const initials =
@@ -129,7 +132,7 @@ export function Header({
   */
   const clinicPicker =
     switchableClinics.length > 1 ? (
-      <Select value={clinicId ?? ''} onValueChange={handleClinicChange}>
+      <Select value={clinicId ?? ''} onValueChange={(value) => void handleClinicChange(value)}>
         <SelectTrigger aria-label="Active clinic" className="w-full md:w-[190px] lg:w-[220px]">
           <SelectValue placeholder="Select clinic" />
         </SelectTrigger>
@@ -155,7 +158,7 @@ export function Header({
     ) : null;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur">
+    <header className="pt-safe sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur">
       <div className="flex h-16 items-center gap-3 px-4 md:px-6">
         <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
           <SheetTrigger asChild>
@@ -301,14 +304,19 @@ export function Header({
                 <Compass className="mr-2 h-4 w-4" />
                 Take the tour
               </DropdownMenuItem>
-              {canEditOwnName ? (
-                <DropdownMenuItem asChild>
-                  <Link href={buildAccountNameHref(pathname)}>
-                    <UserPen className="mr-2 h-4 w-4" />
-                    Your name
-                  </Link>
-                </DropdownMenuItem>
-              ) : null}
+              <DropdownMenuItem asChild>
+                <Link href="/account">
+                  <UserPen className="mr-2 h-4 w-4" />
+                  Manage profile
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/settings">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Your settings
+                </Link>
+              </DropdownMenuItem>
+              <InstallAppMenuItem />
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
                 Appearance
@@ -317,9 +325,11 @@ export function Header({
                 value={themePreference}
                 onValueChange={(value) => setThemePreference(value as ThemePreference)}
               >
-                <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="system">Match system</DropdownMenuRadioItem>
+                {THEME_PREFERENCE_OPTIONS.map((option) => (
+                  <DropdownMenuRadioItem key={option.value} value={option.value}>
+                    {option.label}
+                  </DropdownMenuRadioItem>
+                ))}
               </DropdownMenuRadioGroup>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -335,6 +345,7 @@ export function Header({
       </div>
       {/* Here because both the workspace and the portal render this header. */}
       <WelcomeTour />
+      <InstallInstructionsDialog />
     </header>
   );
 }

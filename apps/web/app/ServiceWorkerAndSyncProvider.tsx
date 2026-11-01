@@ -20,6 +20,7 @@ import {
   type SyncStatus,
 } from '@/lib/sync';
 import { automaticSyncRetryDelay } from '@/lib/sync-retry';
+import { requestPersistentStorage } from '@/lib/pwa/storage';
 
 interface SyncContextValue {
   isOnline: boolean;
@@ -78,12 +79,6 @@ export function ServiceWorkerAndSyncProvider({
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker
-        .register('/service-worker.js')
-        .catch((err) => console.warn('SW registration failed:', err));
-    }
-
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
@@ -112,6 +107,11 @@ export function ServiceWorkerAndSyncProvider({
       currentUserId ? { userId: currentUserId, displayName: currentUserName ?? undefined } : null,
     );
   }, [currentUserId, currentUserName]);
+
+  // Once an account is known, ask the browser not to evict the outbox under storage pressure (#206).
+  useEffect(() => {
+    if (currentUserId) void requestPersistentStorage();
+  }, [currentUserId]);
 
   const knownClinicsKey = (knownClinics ?? [])
     .map((clinic) => `${clinic.clinicId}:${clinic.clinicName}`)

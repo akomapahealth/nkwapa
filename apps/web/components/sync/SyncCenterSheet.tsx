@@ -22,6 +22,7 @@ import {
 import { trackEvent } from '@/lib/analytics';
 import type { SyncRecoveryAccess } from '@/lib/sync-conflicts';
 import type { OutboxQueue, OutboxQueueItem } from '@/lib/use-outbox-queue';
+import { DeviceStorageDetails } from './DeviceStorageDetails';
 import { DiscardMutationDialog } from './DiscardMutationDialog';
 import { HeldChangesSection } from './HeldChangesSection';
 import { OtherClinicsSection } from './OtherClinicsSection';
@@ -109,7 +110,7 @@ export function SyncCenterSheet({
 
   // Switching makes the clinic active, which syncs it: its changes go to it and nowhere else.
   const handleSwitchClinic = (otherClinicId: string) => {
-    bootstrapCtx?.setActiveClinicId(otherClinicId);
+    void bootstrapCtx?.setActiveClinicId(otherClinicId);
   };
 
   // Only this account's own changes. Another account may still hold the seat this one lost.
@@ -250,6 +251,7 @@ export function SyncCenterSheet({
             onDiscard={handleDiscardOtherClinic}
             disabled={syncing}
           />
+          <DeviceStorageDetails />
         </div>
       </SheetContent>
       <DiscardMutationDialog

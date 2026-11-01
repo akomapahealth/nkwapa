@@ -103,6 +103,15 @@ The seed now creates or updates:
 
 ---
 
+## Research Export Schedules
+
+Migration `20261030120000_research_export_schedules` (#166) adds `ResearchExportSchedule` with
+`ENABLE` and `FORCE` row-level security under the usual clinic-scope policy, and renames the
+GitHub-specific `ResearchExport.repo*` columns to provider-neutral `storageProvider`,
+`storagePath`, `storageRef` and `storageUrl`. Existing exports are backfilled with a legacy run key
+(`rx-legacy-a<yyyymmdd>-<hash>`) before `runKey` becomes `NOT NULL UNIQUE`. The migration is
+idempotent, so a deploy that stopped partway can be rerun.
+
 ## Clinic Metadata Quality
 
 Organization reporting, and the zone behavior built on top of it, read a handful of fields on

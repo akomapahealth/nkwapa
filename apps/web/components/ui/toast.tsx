@@ -139,8 +139,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         visibleToasts={4}
         closeButton
         gap={10}
-        offset={20}
-        mobileOffset={16}
+        // Clear of the status bar and notch in the installed app (#206); env() is 0 in a tab.
+        offset={{
+          top: 'calc(20px + env(safe-area-inset-top))',
+          right: 'calc(20px + env(safe-area-inset-right))',
+        }}
+        mobileOffset={{
+          top: 'calc(16px + env(safe-area-inset-top))',
+          right: 'calc(16px + env(safe-area-inset-right))',
+          left: 'calc(16px + env(safe-area-inset-left))',
+        }}
         icons={toastIcons}
         containerAriaLabel="Notifications"
         toastOptions={{ unstyled: true, classNames: toastClassNames }}
