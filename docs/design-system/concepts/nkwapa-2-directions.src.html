@@ -1,0 +1,892 @@
+<title>Nkwapa 2.0 Directions</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<style>
+/* Layout: a review document. Each direction gets the same three surfaces at true pixel size, scaled to fit,
+   so they compare like for like. Tokens are Nkwapa's own (docs/design-system/MASTER.md); nothing new is invented here
+   except where a concept proposes a token, and those are labelled. */
+:root {
+  --bg: #FCFBF3; --card: #FCFBF8; --fg: #1D2930; --muted-fg: #5C6970; --muted: #F3F0E8; --accent: #F7F2DE;
+  --primary: #00778A; --primary-fg: #FFFFFF; --gold: #FFCD1A; --gold-fg: #1D2930; --border: #E4E0D6; --input: #71858F;
+  --sidebar: #D7EAE0; --warn: #E9820C; --warn-ink: #884C07; --ok: #1B7E50; --ok-ink: #176D45; --info: #297AA3; --info-ink: #1B506A;
+  --danger: #DC2828; --danger-ink: #A71B1B; --inset: #F5F2E9; --rule: #EAE6DB; --frame: #E9E5DA; --shadow: 0 1px 2px rgb(60 50 20 / .06), 0 12px 32px -12px rgb(60 50 20 / .18);
+  --serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0F171A; --card: #161F23; --fg: #EDECE6; --muted-fg: #94A1A8; --muted: #232D32; --accent: #232D32;
+  --primary: #18BED8; --primary-fg: #12191C; --gold: #EDC01D; --gold-fg: #12191C; --border: #2B3438; --input: #6E8591;
+  --sidebar: #1D2B25; --warn: #F4A434; --warn-ink: #EEC58B; --ok: #39C684; --ok-ink: #A2D7BE; --info: #54A9D4; --info-ink: #9FC7DB;
+  --danger: #DE7373; --danger-ink: #E6B3B3; --inset: #121B1E; --rule: #263035; --frame: #0A1113; --shadow: 0 1px 2px rgb(0 0 0 / .4), 0 16px 40px -12px rgb(0 0 0 / .6);
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0F171A; --card: #161F23; --fg: #EDECE6; --muted-fg: #94A1A8; --muted: #232D32; --accent: #232D32;
+  --primary: #18BED8; --primary-fg: #12191C; --gold: #EDC01D; --gold-fg: #12191C; --border: #2B3438; --input: #6E8591;
+  --sidebar: #1D2B25; --warn: #F4A434; --warn-ink: #EEC58B; --ok: #39C684; --ok-ink: #A2D7BE; --info: #54A9D4; --info-ink: #9FC7DB;
+  --danger: #DE7373; --danger-ink: #E6B3B3; --inset: #121B1E; --rule: #263035; --frame: #0A1113; --shadow: 0 1px 2px rgb(0 0 0 / .4), 0 16px 40px -12px rgb(0 0 0 / .6);
+  color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--serif); font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; margin: 0; }
+p { margin: 0; }
+.tnum { font-variant-numeric: tabular-nums; }
+a { color: var(--primary); }
+i[data-lucide], svg.lucide { width: 16px; height: 16px; stroke-width: 1.75; flex: none; }
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* Document chrome */
+.topbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--bg); border-bottom: 1px solid var(--border); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 21; background: var(--bg); }
+.topbar .wrap { display: flex; align-items: center; gap: 16px; min-height: 56px; flex-wrap: wrap; padding-block: 8px; }
+.topbar img { height: 22px; width: auto; }
+.topbar nav { display: flex; gap: 4px; flex-wrap: wrap; margin-left: auto; }
+.topbar nav a { font-size: 13px; color: var(--muted-fg); text-decoration: none; padding: 6px 10px; border-radius: 6px; }
+.topbar nav a:hover { background: var(--muted); color: var(--fg); }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; padding: 2px; background: var(--card); }
+.seg button { font: inherit; font-size: 12px; border: 0; background: transparent; color: var(--muted-fg); padding: 5px 10px; border-radius: 6px; cursor: pointer; min-height: 30px; }
+.seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+
+.intro { padding-block: 56px 32px; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 48px; }
+.intro h1 { font-size: clamp(32px, 4.2vw, 48px); line-height: 1.08; }
+.intro .lede { margin-top: 18px; font-size: 17px; color: var(--muted-fg); max-width: 60ch; }
+.kicker { font-size: 13px; color: var(--primary); font-weight: 600; margin-bottom: 14px; }
+.decide { border: 1px solid var(--border); background: var(--card); border-radius: 10px; padding: 22px 24px; align-self: start; }
+.decide h2 { font-size: 19px; }
+.decide ol { margin: 12px 0 0; padding-left: 20px; display: grid; gap: 8px; font-size: 14px; }
+.decide .rec { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 14px; }
+.decide .rec strong { color: var(--fg); }
+
+section.block { padding-block: 40px; border-top: 1px solid var(--border); }
+.block > .wrap > h2 { font-size: 28px; }
+.block .sub { color: var(--muted-fg); margin-top: 8px; max-width: 70ch; }
+
+.findings { margin-top: 28px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--border); }
+.finding { padding: 20px 20px 22px 0; border-bottom: 1px solid var(--border); }
+.finding:not(:nth-child(3n+1)) { padding-left: 20px; border-left: 1px solid var(--border); }
+.finding .num { font-family: var(--serif); font-size: 34px; line-height: 1; font-weight: 600; }
+.finding .num small { font-family: var(--sans); font-size: 13px; font-weight: 500; color: var(--muted-fg); margin-left: 4px; }
+.finding p { margin-top: 10px; font-size: 14px; color: var(--muted-fg); }
+.finding p b { color: var(--fg); font-weight: 600; }
+.evidence { margin-top: 18px; font-size: 13px; color: var(--muted-fg); }
+
+/* Concept sections */
+.concept-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; align-items: start; }
+.concept-head .tag { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted-fg); }
+.concept-head .tag .letter { width: 26px; height: 26px; border-radius: 6px; background: var(--fg); color: var(--bg); display: grid; place-items: center; font-family: var(--serif); font-size: 15px; letter-spacing: 0; text-transform: none; }
+.concept-head h2 { font-size: clamp(28px, 3.4vw, 38px); margin-top: 12px; }
+.concept-head .thesis { margin-top: 12px; font-size: 17px; max-width: 56ch; }
+.spec { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 10px 16px; font-size: 14px; }
+.spec dt { color: var(--muted-fg); }
+.spec dd { margin: 0; }
+.raises { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--border); font-size: 13.5px; display: grid; gap: 6px; }
+.raises b { font-weight: 600; }
+.risk { margin-top: 14px; font-size: 13.5px; padding: 10px 12px; border-radius: 8px; background: color-mix(in srgb, var(--warn) 12%, transparent); color: var(--warn-ink); }
+
+.surfaces { margin-top: 32px; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; align-items: start; }
+.surface-label { font-size: 12.5px; color: var(--muted-fg); margin-bottom: 8px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.surface-label b { color: var(--fg); font-weight: 600; }
+.stage { position: relative; overflow: hidden; border-radius: 10px; border: 1px solid var(--border); background: var(--frame); box-shadow: var(--shadow); }
+.stage > .scaler { transform-origin: 0 0; position: absolute; top: 0; left: 0; }
+.hero-row { margin-top: 24px; }
+.note { font-size: 12.5px; color: var(--muted-fg); margin-top: 8px; }
+
+/* ===== Shared prototype atoms (all concepts render from Nkwapa tokens) ===== */
+.proto { font-family: var(--sans); color: var(--fg); background: var(--bg); font-size: 14px; line-height: 1.45; }
+.proto .btn { font: inherit; font-size: 13.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid transparent; cursor: pointer; white-space: nowrap; }
+.proto .btn-primary { background: var(--primary); color: var(--primary-fg); }
+.proto .btn-secondary { background: transparent; border-color: var(--input); color: var(--primary); }
+.proto .btn-ghost { background: transparent; color: var(--fg); }
+.proto .muted { color: var(--muted-fg); }
+.status { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 6px; white-space: nowrap; }
+.st-warn { background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn-ink); }
+.st-ok { background: color-mix(in srgb, var(--ok) 13%, transparent); color: var(--ok-ink); }
+.st-info { background: color-mix(in srgb, var(--info) 13%, transparent); color: var(--info-ink); }
+.st-danger { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger-ink); }
+.st-neutral { background: var(--muted); color: var(--muted-fg); }
+.status i, .status svg.lucide { width: 13px; height: 13px; }
+.logo-img { height: 24px; width: auto; display: block; }
+
+/* ===== A. Ruled Chart ===== */
+.a-app { width: 1280px; height: 800px; display: grid; grid-template-columns: 232px 1fr; }
+.a-side { background: var(--bg); border-right: 1px solid var(--border); padding: 18px 12px; display: flex; flex-direction: column; gap: 18px; }
+.a-side .brand { padding: 2px 10px 6px; display: flex; align-items: center; justify-content: space-between; }
+.a-side .grp { display: grid; gap: 1px; }
+.a-side .grp-label { font-size: 11.5px; font-weight: 600; color: var(--muted-fg); padding: 0 10px 6px; }
+.a-nav { display: flex; align-items: center; gap: 10px; padding: 0 10px; height: 34px; border-radius: 7px; color: var(--fg); font-size: 13.5px; }
+.a-nav i, .a-nav svg { color: var(--muted-fg); }
+.a-nav.on { background: color-mix(in srgb, var(--primary) 11%, transparent); color: var(--fg); font-weight: 600; }
+.a-nav.on svg { color: var(--primary); }
+.a-nav .count { margin-left: auto; font-size: 12px; color: var(--muted-fg); font-variant-numeric: tabular-nums; }
+.a-side .foot { margin-top: auto; font-size: 12px; color: var(--muted-fg); padding: 0 10px; display: flex; align-items: center; gap: 8px; }
+.a-main { display: grid; grid-template-rows: 56px 1fr; min-width: 0; }
+.a-head { display: flex; align-items: center; gap: 14px; padding: 0 28px; border-bottom: 1px solid var(--border); }
+.a-clinic { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; padding: 6px 10px; border-radius: 7px; margin-left: -10px; }
+.a-clinic .role { font-weight: 500; color: var(--muted-fg); font-size: 13px; }
+.a-head .right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.icon-btn { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 8px; color: var(--fg); }
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--primary); color: var(--primary-fg); display: grid; place-items: center; font-size: 12px; font-weight: 600; }
+.sync { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted-fg); padding: 0 10px; height: 32px; border-radius: 8px; }
+.sync svg { color: var(--ok); }
+.a-body { padding: 26px 28px; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 28px; align-content: start; }
+.a-title { grid-column: 1 / -1; display: flex; align-items: flex-end; gap: 16px; }
+.a-title h3 { font-size: 30px; line-height: 1.1; }
+.a-title .date { color: var(--muted-fg); font-size: 13.5px; padding-bottom: 4px; }
+.a-title .acts { margin-left: auto; display: flex; gap: 8px; }
+.a-section-h { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.a-section-h .muted { font-weight: 400; }
+.a-now { border-top: 2px solid var(--fg); }
+.a-now-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--rule); }
+.a-now-row .what { font-size: 14px; }
+.a-now-row .what span { color: var(--muted-fg); font-size: 13px; display: block; }
+.a-now-row > svg:first-child { color: var(--warn); }
+.a-now-row.info > svg:first-child { color: var(--info); }
+.a-line { margin-top: 26px; }
+.a-chart { border-top: 2px solid var(--fg); }
+.a-scale { display: grid; grid-template-columns: 210px 1fr 64px; font-size: 11.5px; color: var(--muted-fg); padding: 6px 0; border-bottom: 1px solid var(--rule); font-variant-numeric: tabular-nums; }
+.a-scale .ticks { display: flex; justify-content: space-between; padding-right: 2px; }
+.a-lane { display: grid; grid-template-columns: 210px 1fr 64px; align-items: center; min-height: 46px; border-bottom: 1px solid var(--rule); transition: opacity 150ms ease-out; }
+.a-lane .st { font-size: 13.5px; font-weight: 500; }
+.a-lane .st span { display: block; font-size: 12px; font-weight: 400; color: var(--muted-fg); }
+.a-track { position: relative; height: 46px; background-image: repeating-linear-gradient(to right, var(--rule) 0 1px, transparent 1px 25%); background-size: calc(100% - 2px) 100%; }
+.a-bar { position: absolute; height: 20px; top: 13px; left: 0; border-radius: 4px; background: color-mix(in srgb, var(--primary) 22%, transparent); border: 1px solid color-mix(in srgb, var(--primary) 55%, transparent); font-size: 11.5px; display: flex; align-items: center; padding: 0 7px; white-space: nowrap; color: var(--fg); font-variant-numeric: tabular-nums; }
+.a-bar.with { background: var(--primary); color: var(--primary-fg); border-color: var(--primary); }
+.a-bar.late { background: color-mix(in srgb, var(--warn) 18%, transparent); border-color: var(--warn); color: var(--warn-ink); }
+.a-lane .cap { font-size: 12px; color: var(--muted-fg); text-align: right; font-variant-numeric: tabular-nums; }
+.a-lane.alert .st span { color: var(--warn-ink); }
+.a-chart:hover .a-lane { opacity: .45; }
+.a-chart:hover .a-lane:hover { opacity: 1; }
+.a-legend { display: flex; gap: 16px; font-size: 12px; color: var(--muted-fg); margin-top: 8px; }
+.a-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.a-legend .k { width: 14px; height: 10px; border-radius: 2px; }
+.a-rail h4 { font-size: 13px; font-weight: 600; margin: 0 0 8px; }
+.a-ledger { border-top: 2px solid var(--fg); }
+.a-ledger div { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--rule); font-size: 13.5px; }
+.a-ledger b { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.a-rail .src { font-size: 11.5px; color: var(--muted-fg); margin-top: 8px; }
+.a-rail .staff { margin-top: 24px; }
+.a-person { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--rule); font-size: 13px; }
+.a-person .ini { width: 26px; height: 26px; border-radius: 50%; background: var(--muted); display: grid; place-items: center; font-size: 11px; font-weight: 600; }
+.a-person .where { margin-left: auto; color: var(--muted-fg); font-size: 12px; }
+
+.a-phone, .b-phone, .c-phone { width: 390px; height: 800px; display: flex; flex-direction: column; }
+.a-phone .ph-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.a-phone .ph-head .t { font-weight: 600; font-size: 14px; }
+.a-phone .ph-head .t span { display: block; font-weight: 400; font-size: 12px; color: var(--muted-fg); }
+.offline-bar { display: flex; align-items: center; gap: 8px; padding: 9px 16px; font-size: 12.5px; background: color-mix(in srgb, var(--warn) 13%, transparent); color: var(--warn-ink); }
+.a-phone .ph-body { padding: 18px 16px; display: grid; gap: 22px; align-content: start; }
+.a-next { border-top: 2px solid var(--fg); padding-top: 12px; }
+.a-next .lbl { font-size: 12.5px; color: var(--muted-fg); font-weight: 500; }
+.a-next .name { font-family: var(--serif); font-size: 26px; font-weight: 600; margin-top: 4px; line-height: 1.15; }
+.a-next .meta { display: flex; gap: 12px; font-size: 13px; color: var(--muted-fg); margin-top: 6px; font-variant-numeric: tabular-nums; }
+.a-next .prev { margin-top: 14px; display: grid; grid-template-columns: 1fr 1fr 1fr; border-top: 1px solid var(--rule); }
+.a-next .prev div { padding: 10px 0; font-size: 12px; color: var(--muted-fg); }
+.a-next .prev b { display: block; font-size: 18px; color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; }
+.a-next .prev b small { font-size: 11px; font-weight: 400; color: var(--muted-fg); }
+.a-next .btn { width: 100%; justify-content: center; min-height: 48px; margin-top: 14px; font-size: 15px; }
+.a-q .row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--rule); font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.a-q .row span { color: var(--muted-fg); }
+.struck { text-decoration: line-through; color: var(--muted-fg); }
+
+.a-hero { width: 1280px; height: 640px; display: grid; grid-template-columns: 560px 1fr; gap: 64px; padding: 64px 72px; align-items: center; }
+.mk-nav { display: flex; align-items: center; gap: 28px; font-size: 14px; }
+.a-hero h3, .b-hero h3, .c-hero h3 { font-size: 54px; line-height: 1.04; letter-spacing: -0.02em; }
+.a-hero .copy p, .b-hero .copy p { font-size: 18px; color: var(--muted-fg); margin-top: 18px; max-width: 30em; }
+.mk-ctas { display: flex; gap: 10px; margin-top: 28px; }
+.mk-ctas .btn { min-height: 46px; padding: 0 20px; font-size: 15px; }
+.a-trace { border-top: 2px solid var(--fg); padding-top: 12px; }
+.a-trace .cap { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--muted-fg); }
+.a-trace svg text { fill: var(--muted-fg); font-family: var(--sans); font-size: 11px; font-variant-numeric: tabular-nums; }
+.a-trace .stamps { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--rule); margin-top: 6px; }
+.a-trace .stamps div { padding: 10px 10px 0 0; font-size: 12px; color: var(--muted-fg); }
+.a-trace .stamps b { display: block; color: var(--fg); font-size: 13px; font-weight: 600; }
+
+/* ===== B. The Folder ===== */
+.b-app { width: 1280px; height: 800px; display: grid; grid-template-columns: 76px 236px 1fr; }
+.b-rail { background: var(--sidebar); display: flex; flex-direction: column; align-items: center; padding: 14px 0; gap: 4px; }
+.b-rail .mark { width: 36px; height: 36px; border-radius: 9px; background: var(--card); display: grid; place-items: center; font-family: var(--serif); font-weight: 600; color: var(--primary); margin-bottom: 10px; }
+.b-rail .mark sup { color: var(--gold); font-size: 13px; }
+.b-ri { width: 64px; display: grid; justify-items: center; gap: 3px; padding: 7px 0; border-radius: 9px; font-size: 11px; color: var(--fg); }
+.b-ri.on { background: var(--card); font-weight: 600; }
+.b-ri.on svg { color: var(--primary); }
+.b-ri.more { margin-top: auto; }
+.b-ctx { background: var(--card); border-right: 1px solid var(--border); padding: 18px 14px; display: flex; flex-direction: column; gap: 4px; }
+.b-ctx h4 { font-family: var(--serif); font-size: 18px; margin: 0 4px 2px; }
+.b-ctx .when { font-size: 12px; color: var(--muted-fg); margin: 0 4px 14px; }
+.b-ci { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; font-size: 13.5px; }
+.b-ci .n { margin-left: auto; font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--muted-fg); }
+.b-ci.on { background: var(--accent); font-weight: 600; }
+.b-ci .dot { width: 8px; height: 8px; border-radius: 2px; background: var(--primary); }
+.b-ci .dot.w { background: var(--warn); }
+.b-ci .dot.e { background: transparent; border: 1.5px solid var(--input); }
+.b-ctx .sep { height: 1px; background: var(--border); margin: 10px 4px; }
+.b-main { display: grid; grid-template-rows: 56px 1fr; min-width: 0; }
+.b-head { display: flex; align-items: center; gap: 12px; padding: 0 24px; border-bottom: 1px solid var(--border); }
+.b-head .crumb { font-size: 13.5px; color: var(--muted-fg); display: flex; align-items: center; gap: 6px; }
+.b-head .crumb b { color: var(--fg); font-weight: 600; }
+.b-head .right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.b-body { padding: 22px 24px; overflow: hidden; }
+.b-body .intro-line { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; }
+.b-body .intro-line h3 { font-size: 26px; }
+.b-board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.b-col h5 { font-size: 12.5px; font-weight: 600; margin: 0 0 10px; display: flex; justify-content: space-between; color: var(--muted-fg); }
+.b-col h5 b { color: var(--fg); }
+.folder { position: relative; margin-top: 14px; margin-bottom: 12px; background: var(--card); border: 1px solid var(--border); border-radius: 0 8px 8px 8px; padding: 12px 12px 10px; }
+.folder::before { content: attr(data-tab); position: absolute; top: -21px; left: -1px; height: 21px; padding: 0 10px; display: flex; align-items: center; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--muted-fg); background: var(--card); border: 1px solid var(--border); border-bottom: 0; border-radius: 7px 7px 0 0; }
+.folder.open { background: var(--accent); border-color: color-mix(in srgb, var(--gold) 60%, var(--border)); }
+.folder.open::before { background: var(--accent); border-color: color-mix(in srgb, var(--gold) 60%, var(--border)); color: var(--fg); font-weight: 600; }
+.folder .nm { font-weight: 600; font-size: 14px; }
+.folder .wait { font-size: 12px; color: var(--muted-fg); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.folder .wait.late { color: var(--warn-ink); font-weight: 500; }
+.stamps { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
+.stamp { font-size: 10.5px; font-weight: 600; letter-spacing: .03em; padding: 1px 5px; border: 1.5px solid currentColor; border-radius: 4px; color: var(--ok-ink); font-variant-numeric: tabular-nums; }
+.stamp.todo { color: var(--muted-fg); border-style: dashed; font-weight: 500; }
+.stamp.held { color: var(--warn-ink); }
+.b-drawer { position: absolute; }
+
+.b-phone .ph-top { padding: 14px 16px 10px; display: flex; align-items: center; gap: 10px; }
+.b-phone .ph-top .t { font-family: var(--serif); font-size: 20px; font-weight: 600; }
+.b-phone .ph-top .s { font-size: 12px; color: var(--muted-fg); }
+.b-phone .ph-body { padding: 18px 16px; flex: 1; overflow: hidden; }
+.b-stack { position: relative; padding-top: 10px; }
+.b-stack .behind { position: absolute; left: 10px; right: 10px; top: 0; height: 40px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+.b-stack .folder { margin-top: 26px; padding: 16px; }
+.b-stack .folder .nm { font-family: var(--serif); font-size: 24px; }
+.b-tabs { display: flex; gap: 0; margin-top: 14px; border-bottom: 1px solid var(--border); font-size: 12.5px; }
+.b-tabs span { padding: 8px 10px; color: var(--muted-fg); }
+.b-tabs span.on { color: var(--fg); font-weight: 600; box-shadow: inset 0 -2px 0 var(--primary); }
+.b-field { margin-top: 14px; display: grid; gap: 6px; }
+.b-field label { font-size: 13px; font-weight: 500; }
+.b-field .inp { height: 44px; border: 1px solid var(--input); border-radius: 8px; background: var(--card); display: flex; align-items: center; padding: 0 12px; font-size: 16px; font-variant-numeric: tabular-nums; }
+.b-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.b-bottom { margin-top: auto; display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--border); background: var(--card); }
+.b-bottom div { display: grid; justify-items: center; gap: 2px; padding: 8px 0 10px; font-size: 11px; color: var(--muted-fg); }
+.b-bottom div.on { color: var(--primary); font-weight: 600; }
+
+.b-hero { width: 1280px; height: 640px; display: grid; grid-template-columns: 1fr 1fr; }
+.b-hero .copy { padding: 72px 64px 64px 72px; display: flex; flex-direction: column; justify-content: center; }
+.b-hero .pic { position: relative; background-size: cover; background-position: 40% center; }
+.b-hero .pic .folder { position: absolute; left: -56px; bottom: 56px; width: 330px; box-shadow: var(--shadow); padding: 16px; }
+.b-hero .pic .folder .nm { font-family: var(--serif); font-size: 20px; }
+.b-hero .pic .syn { position: absolute; right: 16px; bottom: 12px; font-size: 11px; color: #fff; text-shadow: 0 1px 2px rgb(0 0 0 / .6); }
+
+/* ===== C. Margin Review ===== */
+.c-app { width: 1280px; height: 800px; display: grid; grid-template-rows: 56px 1fr; }
+.c-top { display: flex; align-items: center; gap: 22px; padding: 0 28px; border-bottom: 1px solid var(--fg); }
+.c-top nav { display: flex; gap: 4px; font-size: 13.5px; }
+.c-top nav span { padding: 6px 10px; display: inline-flex; gap: 4px; align-items: center; border-radius: 2px; }
+.c-top nav span.on { box-shadow: inset 0 -2px 0 var(--primary); font-weight: 600; border-radius: 0; }
+.c-top nav span svg { width: 13px; height: 13px; color: var(--muted-fg); }
+.c-top .right { margin-left: auto; display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.c-top .clinic { border: 1px solid var(--input); border-radius: 2px; height: 32px; display: inline-flex; align-items: center; gap: 8px; padding: 0 10px; }
+.c-page { display: grid; grid-template-columns: 180px minmax(0, 1fr) 300px; overflow: hidden; }
+.c-index { padding: 30px 20px 20px 28px; font-size: 12.5px; display: grid; gap: 8px; align-content: start; color: var(--muted-fg); }
+.c-index b { color: var(--fg); font-weight: 600; }
+.c-index .k { color: var(--primary); font-weight: 600; margin-right: 6px; }
+.c-record { padding: 28px 32px; border-left: 1px solid var(--rule); border-right: 1px solid var(--rule); }
+.c-record h3 { font-size: 32px; }
+.c-record .date { font-size: 13px; color: var(--muted-fg); margin-top: 4px; }
+.c-cols { display: grid; grid-template-columns: minmax(0, 1fr) 46px minmax(0, 1fr); margin-top: 22px; border-top: 1px solid var(--fg); }
+.c-cols .h { font-size: 12px; font-weight: 600; padding: 8px 0; border-bottom: 1px solid var(--rule); color: var(--muted-fg); }
+.c-rail { display: grid; grid-template-rows: auto; justify-items: center; border-left: 1px solid var(--primary); border-right: 1px solid var(--primary); }
+.c-key { height: 54px; display: grid; place-items: center; font-size: 11px; font-weight: 700; color: var(--primary); letter-spacing: .04em; border-bottom: 1px solid var(--rule); width: 100%; }
+.c-key.alert { background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn-ink); }
+.c-cell { height: 54px; border-bottom: 1px solid var(--rule); display: flex; flex-direction: column; justify-content: center; font-size: 13px; padding: 0 12px; }
+.c-cell.l { padding-left: 0; }
+.c-cell span { font-size: 12px; color: var(--muted-fg); font-variant-numeric: tabular-nums; }
+.c-cell .late { color: var(--warn-ink); font-weight: 500; }
+.c-margin { padding: 30px 28px 20px 24px; display: grid; gap: 16px; align-content: start; }
+.c-margin h4 { font-size: 12px; font-weight: 600; margin: 0; text-transform: uppercase; letter-spacing: .06em; color: var(--muted-fg); }
+.c-note { position: relative; padding-left: 14px; font-size: 13.5px; }
+.c-note::before { content: ""; position: absolute; left: 0; top: 3px; bottom: 3px; width: 6px; border: 1px solid var(--primary); border-right: 0; }
+.c-note.w::before { border-color: var(--warn); }
+.c-note b { font-weight: 600; }
+.c-note p { color: var(--muted-fg); font-size: 12.5px; margin-top: 2px; }
+.c-note .btn { margin-top: 8px; min-height: 32px; border-radius: 2px; font-size: 12.5px; padding: 0 10px; }
+
+.c-phone .ph-top { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--fg); }
+.c-phone .keys { display: flex; border-bottom: 1px solid var(--primary); }
+.c-phone .keys span { flex: 1; text-align: center; padding: 9px 0; font-size: 11px; font-weight: 700; color: var(--primary); border-right: 1px solid var(--rule); letter-spacing: .04em; }
+.c-phone .keys span.on { background: var(--primary); color: var(--primary-fg); }
+.c-phone .ph-body { padding: 20px 16px; display: grid; gap: 16px; align-content: start; }
+.c-phone h3 { font-size: 26px; }
+.c-phone .c-note { margin-top: 4px; }
+.c-phone .btn { border-radius: 2px; }
+
+.c-hero { width: 1280px; height: 640px; display: grid; grid-template-columns: 240px minmax(0, 1fr) 300px; padding: 56px 0 0; }
+.c-hero .mg { padding: 0 24px 0 72px; font-size: 12.5px; color: var(--muted-fg); display: grid; gap: 10px; align-content: start; padding-top: 10px; }
+.c-hero .mid { padding: 0 40px; border-left: 1px solid var(--rule); border-right: 1px solid var(--rule); }
+.c-hero .mid p.l { font-size: 18px; color: var(--muted-fg); margin-top: 18px; max-width: 32em; }
+.c-hero .mk-ctas .btn { border-radius: 2px; }
+.c-hero .rec { margin-top: 30px; border-top: 1px solid var(--fg); }
+.c-hero .rec div { display: grid; grid-template-columns: 1fr 40px 1fr; border-bottom: 1px solid var(--rule); font-size: 13px; }
+.c-hero .rec div span { padding: 9px 0; }
+.c-hero .rec div span:nth-child(2) { text-align: center; color: var(--primary); font-weight: 700; font-size: 11px; border-left: 1px solid var(--primary); border-right: 1px solid var(--primary); }
+.c-hero .rec div span:nth-child(3) { padding-left: 12px; color: var(--muted-fg); font-variant-numeric: tabular-nums; }
+.c-hero .rt { padding: 120px 72px 0 24px; display: grid; gap: 18px; align-content: start; }
+
+/* Comparison, verdicts, next */
+.cmp-wrap { margin-top: 24px; overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--card); }
+table.cmp { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 14px; }
+.cmp th, .cmp td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.cmp thead th { font-size: 12.5px; color: var(--muted-fg); font-weight: 600; background: var(--muted); }
+.cmp tbody th { font-weight: 500; width: 26%; }
+.cmp td b { font-weight: 600; }
+.cmp tr:last-child td, .cmp tr:last-child th { border-bottom: 0; }
+.score { display: inline-flex; gap: 3px; vertical-align: middle; margin-right: 8px; }
+.score i { width: 8px; height: 8px; border-radius: 2px; background: var(--border); display: block; }
+.score i.f { background: var(--fg); }
+.verdicts { margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.verdict { border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; font-size: 13.5px; background: var(--card); }
+.verdict .v { font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted-fg); }
+.verdict h4 { font-size: 14px; margin: 4px 0 6px; font-weight: 600; font-family: var(--sans); }
+.verdict p { color: var(--muted-fg); }
+.verdict.canon { border-style: dashed; }
+.recbox { margin-top: 24px; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 32px; }
+.recbox h3 { font-size: 24px; }
+.recbox ul { margin: 12px 0 0; padding-left: 18px; display: grid; gap: 8px; font-size: 14.5px; }
+.asks { border: 1px solid var(--border); border-radius: 10px; padding: 20px 22px; background: var(--card); }
+.asks h3 { font-size: 19px; }
+.asks ol { padding-left: 18px; margin: 10px 0 0; display: grid; gap: 10px; font-size: 14px; }
+footer { padding-block: 32px 48px; border-top: 1px solid var(--border); color: var(--muted-fg); font-size: 13px; }
+
+@media (max-width: 900px) {
+  .intro, .concept-head, .recbox { grid-template-columns: 1fr; gap: 24px; }
+  .surfaces { grid-template-columns: 1fr; }
+  .findings { grid-template-columns: 1fr; }
+  .finding:not(:nth-child(3n+1)) { padding-left: 0; border-left: 0; }
+  .topbar nav { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<header class="topbar">
+  <div class="wrap">
+    <img src="{{LOGO}}" alt="Nkwapa">
+    <span style="font-size:13px;color:var(--muted-fg)">2.0 · Phase 00 review</span>
+    <nav aria-label="Sections">
+      <a href="#audit">Audit</a><a href="#a">A. Ruled Chart</a><a href="#b">B. The Folder</a><a href="#c">C. Margin Review</a><a href="#compare">Compare</a><a href="#decide">Decide</a>
+    </nav>
+    <div class="seg" role="group" aria-label="Theme">
+      <button type="button" data-t="light" aria-pressed="false">Light</button>
+      <button type="button" data-t="system" aria-pressed="true">System</button>
+      <button type="button" data-t="dark" aria-pressed="false">Dark</button>
+    </div>
+  </div>
+</header>
+
+<main>
+<div class="wrap intro">
+  <div>
+    <p class="kicker">Epic #229 · Nkwapa 2.0 redesign</p>
+    <h1>Three directions for one clinical workspace</h1>
+    <p class="lede">Each direction keeps Nkwapa's teal and gold, Source Serif 4 and IBM Plex Sans, and every permission, field and offline behaviour. They differ in how the product is organised on screen. All three are drawn on the same surfaces so you can compare them directly: a manager's Today workspace, a volunteer at a station on a phone, and the public landing hero. Use the theme switch above to see each in dark mode.</p>
+  </div>
+  <aside class="decide" aria-labelledby="decide-h">
+    <h2 id="decide-h">What I need from you</h2>
+    <ol>
+      <li>Approve one direction, or name what to change.</li>
+      <li>Confirm the two navigation moves in epic #229: Message delivery to the header, Clinic settings to the profile menu.</li>
+    </ol>
+    <p class="rec"><strong>Recommendation: A, Ruled Chart.</strong> It fits laptop-based stations and dense review work, carries every role from volunteer to system admin, and builds on the component contract that already ships. Reasons are under <a href="#compare">Compare</a>.</p>
+  </aside>
+</div>
+
+<section class="block" id="audit">
+  <div class="wrap">
+    <h2>What the baseline shows</h2>
+    <p class="sub">Captured today on seeded E2E data: 21 routes, five roles, three widths, light and dark (126 screenshots), with axe run on each at desktop and mobile (84 scans). The product is accessible and stable. Its problem is hierarchy.</p>
+    <div class="findings">
+      <div class="finding"><div class="num tnum">7,342<small>px</small></div><p><b>The staff dashboard is about eight screens tall</b> at 1440px wide. Work that needs someone sits below clinic-wide averages and ten charts.</p></div>
+      <div class="finding"><div class="num tnum">5<small>th section</small></div><p><b>A volunteer's own work comes after clinical averages</b> and a smoking-status chart on mobile, roughly 1,500px down.</p></div>
+      <div class="finding"><div class="num tnum">1<small>critical axe issue</small></div><p><b>A button with no accessible name</b> on New Patient, light and dark. Everything else passed WCAG 2.2 AA. No route scrolls sideways at 390px.</p></div>
+      <div class="finding"><div class="num tnum">3<small>role badges</small></div><p><b>The header shows every role as a gold pill</b>, next to a clinic switcher, a sync chip, a refresh button and the page's own Refresh. Gold reads as brand, so roles look decorative.</p></div>
+      <div class="finding"><div class="num tnum">21<small>nav items</small></div><p><b>One long sidebar for every role</b>, with Notifications and Clinic settings mixed into Oversight. In icon mode every item sits in its own white tile, and the mint panel stops short of long pages.</p></div>
+      <div class="finding"><div class="num">Raw<small>enums</small></div><p><b>Charts and tables print system values</b> (IN_REVIEW, DRAFT, UNKNOWN, FINALIZED), and smoothed lines draw values between days that never happened.</p></div>
+    </div>
+    <p class="evidence">Full findings, the route inventory (55 routes, 11 more than the epic lists) and the role-task matrix are in <code>docs/design-system/PHASE-00-AUDIT.md</code>. All patient names on this page are synthetic.</p>
+  </div>
+</section>
+
+<!-- ============ A ============ -->
+<section class="block" id="a">
+  <div class="wrap">
+    <div class="concept-head">
+      <div>
+        <span class="tag"><span class="letter">A</span>Collapsible sidebar · Recommended</span>
+        <h2>Ruled Chart</h2>
+        <p class="thesis">Every screen reads like a well-kept observation chart: ruled, time-ordered, numbers first. Chrome drops to hairlines so readings, waits and decisions carry the hierarchy.</p>
+        <div class="raises">
+          <div><b>Kept from the ticket wallet:</b> nothing disappears, it cancels. A corrected reading stays visible, struck through, with who changed it and when.</div>
+          <div><b>Kept from the dance score:</b> length means time. On the station line, a bar's length is how long the patient has waited.</div>
+          <div><b>Kept from the data field:</b> numerals lead. The figure is set first and large, its label second and quiet.</div>
+          <div><b>Kept from the consumer app:</b> teal only on what can be pressed or what is selected. Status keeps its own colours.</div>
+        </div>
+      </div>
+      <div>
+        <dl class="spec">
+          <dt>Shell</dt><dd>Option A. A labelled 232px sidebar on the canvas, collapsing to 64px icons with tooltips. Groups follow <code>app-nav.ts</code>.</dd>
+          <dt>Header</dt><dd>Clinic switcher with the active role as text, sync state, Message delivery, account. One refresh, not three.</dd>
+          <dt>Surfaces</dt><dd>Hairline-ruled groups on the canvas. Cards only for things that float: dialogs, sheets, popovers.</dd>
+          <dt>Type</dt><dd>Source Serif 4 for page titles and a patient's name. Plex Sans with tabular figures for everything else.</dd>
+          <dt>Charts</dt><dd>Straight segments between real readings, direct labels, a table toggle. No smoothing.</dd>
+          <dt>Motion</dt><dd>Hovering a lane dims the others (150ms opacity). Nothing else moves.</dd>
+        </dl>
+        <p class="risk">Risk: restraint can read as plain. The hierarchy depends on type, rules and spacing being exact, so it needs a strict polish pass.</p>
+      </div>
+    </div>
+
+    <div class="surfaces">
+      <div>
+        <p class="surface-label"><b>Manager · Today</b> 1280 × 800. Hover a station lane.</p>
+        <div class="stage" data-w="1280" data-h="800"><div class="scaler">
+          <div class="proto a-app">
+            <aside class="a-side" aria-label="Prototype navigation">
+              <div class="brand"><img class="logo-img" src="{{LOGO}}" alt="Nkwapa"><i data-lucide="panel-left-close"></i></div>
+              <div class="grp"><div class="grp-label">Care delivery</div>
+                <div class="a-nav on"><i data-lucide="activity"></i>Today Board</div>
+                <div class="a-nav"><i data-lucide="list-ordered"></i>Stations</div>
+                <div class="a-nav"><i data-lucide="clipboard-list"></i>Queues<span class="count">16</span></div>
+                <div class="a-nav"><i data-lucide="users"></i>Patients</div>
+                <div class="a-nav"><i data-lucide="calendar-days"></i>Appointments</div>
+                <div class="a-nav"><i data-lucide="user-plus"></i>New Patient</div>
+              </div>
+              <div class="grp"><div class="grp-label">Overview</div>
+                <div class="a-nav"><i data-lucide="layout-grid"></i>Dashboard</div>
+              </div>
+              <div class="grp"><div class="grp-label">Oversight</div>
+                <div class="a-nav"><i data-lucide="users-round"></i>Volunteers</div>
+                <div class="a-nav"><i data-lucide="chart-no-axes-column"></i>Metrics</div>
+              </div>
+              <div class="foot"><i data-lucide="keyboard"></i>Collapse with [</div>
+            </aside>
+            <div class="a-main">
+              <div class="a-head">
+                <div class="a-clinic">Akomapa Clinic · Demo <span class="role">Manager</span><i data-lucide="chevron-down"></i></div>
+                <div class="right">
+                  <span class="sync"><i data-lucide="circle-check"></i>All changes synced</span>
+                  <span class="icon-btn" title="Message delivery"><i data-lucide="send"></i></span>
+                  <span class="avatar">EB</span>
+                </div>
+              </div>
+              <div class="a-body">
+                <div class="a-title"><h3>Today</h3><span class="date">Saturday 1 November · times in Africa/Accra</span>
+                  <div class="acts"><span class="btn btn-secondary"><i data-lucide="settings-2"></i>Set up stations</span><span class="btn btn-primary"><i data-lucide="log-in"></i>Check in a patient</span></div>
+                </div>
+                <div>
+                  <div class="a-section-h">Needs you now <span class="muted">3</span></div>
+                  <div class="a-now">
+                    <div class="a-now-row"><i data-lucide="clock-alert"></i><div class="what">Two patients have waited over 20 minutes for blood pressure<span>Esi Quaye 26 min, Kofi Antwi 22 min. One volunteer on shift there.</span></div><span class="btn btn-secondary">Move a patient</span></div>
+                    <div class="a-now-row"><i data-lucide="user-x"></i><div class="what">No one is on shift at the Eye station<span>3 patients will reach it in the next few minutes.</span></div><span class="btn btn-secondary">Assign staff</span></div>
+                    <div class="a-now-row info"><i data-lucide="file-check-2"></i><div class="what">15 visits are waiting for clinical review<span>Oldest started 10:05. Two doctors on shift.</span></div><span class="btn btn-ghost">Open queue<i data-lucide="arrow-right"></i></span></div>
+                  </div>
+                  <div class="a-line">
+                    <div class="a-section-h">Station line <span class="muted">minutes since each patient joined the line</span></div>
+                    <div class="a-chart">
+                      <div class="a-scale"><span>Station</span><span class="ticks"><span>0</span><span>10</span><span>20</span><span>30</span><span>40</span></span><span style="text-align:right">Staffed</span></div>
+                      <div class="a-lane"><div class="st">Registration<span>Akua Mensah</span></div><div class="a-track"><div class="a-bar with" style="width:12%">Yaw B. 5m</div><div class="a-bar" style="left:13%;width:7%">3m</div></div><div class="cap">1 of 1</div></div>
+                      <div class="a-lane alert"><div class="st">Blood pressure<span>2 waiting over 20 min</span></div><div class="a-track"><div class="a-bar with" style="width:18%">Ama O. 7m</div><div class="a-bar late" style="left:19%;width:65%">Esi Quaye 26 min</div></div><div class="cap">1 of 2</div></div>
+                      <div class="a-lane"><div class="st">Glucose<span>Kwabena Ofori</span></div><div class="a-track"><div class="a-bar with" style="width:10%">4m</div><div class="a-bar" style="left:11%;width:30%">Abena K. 12m</div></div><div class="cap">1 of 1</div></div>
+                      <div class="a-lane"><div class="st">Anthropometry<span>Efua Ansah</span></div><div class="a-track"><div class="a-bar with" style="width:8%">3m</div></div><div class="cap">1 of 1</div></div>
+                      <div class="a-lane alert"><div class="st">Eye station<span>No one on shift</span></div><div class="a-track"><div class="a-bar" style="width:15%">Nana A. 6m</div></div><div class="cap">0 of 1</div></div>
+                      <div class="a-lane"><div class="st">Counselling and review<span>Dr. Adjoa Boateng</span></div><div class="a-track"><div class="a-bar with" style="width:28%">Kojo T. 11m</div></div><div class="cap">1 of 1</div></div>
+                    </div>
+                    <div class="a-legend"><span><i class="k" style="background:var(--primary)"></i>With staff</span><span><i class="k" style="background:color-mix(in srgb,var(--primary) 22%,transparent);border:1px solid color-mix(in srgb,var(--primary) 55%,transparent)"></i>Waiting</span><span><i class="k" style="background:color-mix(in srgb,var(--warn) 18%,transparent);border:1px solid var(--warn)"></i>Waiting over 20 min</span></div>
+                  </div>
+                </div>
+                <aside class="a-rail">
+                  <h4>So far today</h4>
+                  <div class="a-ledger">
+                    <div><span>Checked in</span><b>38</b></div>
+                    <div><span>Finished the line</span><b>21</b></div>
+                    <div><span>In line now</span><b>9</b></div>
+                    <div><span>Left before finishing</span><b>2</b></div>
+                  </div>
+                  <p class="src">Counted from today's board. Example figures.</p>
+                  <div class="staff">
+                    <h4>On shift</h4>
+                    <div class="a-person"><span class="ini">AM</span>Akua Mensah<span class="where">Registration</span></div>
+                    <div class="a-person"><span class="ini">KO</span>Kwabena Ofori<span class="where">Glucose</span></div>
+                    <div class="a-person"><span class="ini">AB</span>Dr. Adjoa Boateng<span class="where">Review</span></div>
+                    <div class="a-person"><span class="ini">SD</span>Selorm Dzokoto<span class="where">Unassigned</span></div>
+                  </div>
+                </aside>
+              </div>
+            </div>
+          </div>
+        </div></div>
+      </div>
+      <div>
+        <p class="surface-label"><b>Volunteer · station</b> 390 × 800, offline</p>
+        <div class="stage" data-w="390" data-h="800"><div class="scaler">
+          <div class="proto a-phone">
+            <div class="ph-head"><i data-lucide="menu"></i><div class="t">Blood pressure<span>Akomapa Clinic · Demo</span></div><span class="avatar" style="margin-left:auto">AO</span></div>
+            <div class="offline-bar"><i data-lucide="wifi-off"></i>Offline. 2 readings saved on this laptop, they send when the signal returns.</div>
+            <div class="ph-body">
+              <div class="a-next">
+                <div class="lbl">Next patient</div>
+                <div class="name">Esi Quaye</div>
+                <div class="meta"><span>NKP-2026-000214</span><span>Waiting 26 min</span></div>
+                <div class="prev"><div>Last BP<b>148/92 <small>mmHg</small></b></div><div>Pulse<b>84 <small>bpm</small></b></div><div>Seen<b>12 Oct</b></div></div>
+                <span class="btn btn-primary">Call Esi to this station</span>
+              </div>
+              <div class="a-q">
+                <div class="a-section-h">In line here <span class="muted">3</span></div>
+                <div class="row">Kofi Antwi <span>22 min</span></div>
+                <div class="row">Adwoa Sarpong <span>9 min</span></div>
+                <div class="row">Yaw Bediako <span>2 min</span></div>
+              </div>
+              <div class="a-q">
+                <div class="a-section-h">Your work today</div>
+                <div class="row">Readings taken <span>14</span></div>
+                <div class="row">Corrected <span><s class="struck">152/96</s> 142/90</span></div>
+                <div class="row">Waiting to send <span>2</span></div>
+              </div>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+    <div class="hero-row">
+      <p class="surface-label"><b>Landing hero</b> 1280 × 640. The product's own record is the picture.</p>
+      <div class="stage" data-w="1280" data-h="640"><div class="scaler">
+        <div class="proto a-hero">
+          <div class="copy">
+            <h3>Every station writes to one record.</h3>
+            <p>Registration, vitals, glucose and the doctor's review land in the same visit, even when the clinic Wi-Fi drops.</p>
+            <div class="mk-ctas"><span class="btn btn-primary">Contact the team</span><span class="btn btn-secondary">Learn about Akomapa<i data-lucide="arrow-up-right"></i></span></div>
+          </div>
+          <div class="a-trace" aria-label="Example blood pressure record across four screening days">
+            <div class="cap"><span><b style="color:var(--fg)">Blood pressure</b> mmHg, four screening days</span><span>Synthetic patient</span></div>
+            <svg viewBox="0 0 560 250" width="100%" role="img" aria-label="Systolic falls from 162 to 134 and diastolic from 98 to 84 across four visits">
+              <g stroke="var(--rule)" stroke-width="1"><line x1="40" y1="20" x2="550" y2="20"/><line x1="40" y1="80" x2="550" y2="80"/><line x1="40" y1="140" x2="550" y2="140"/><line x1="40" y1="200" x2="550" y2="200"/></g>
+              <text x="0" y="24">170</text><text x="0" y="84">140</text><text x="0" y="144">110</text><text x="0" y="204">80</text>
+              <rect x="40" y="80" width="510" height="10" fill="color-mix(in srgb, var(--warn) 10%, transparent)"/>
+              <polyline fill="none" stroke="var(--primary)" stroke-width="2.5" points="80,36 230,52 380,72 530,92"/>
+              <polyline fill="none" stroke="var(--fg)" stroke-width="2" stroke-dasharray="5 4" points="80,164 230,172 380,180 530,192"/>
+              <g fill="var(--primary)"><circle cx="80" cy="36" r="4.5"/><circle cx="230" cy="52" r="4.5"/><circle cx="380" cy="72" r="4.5"/><circle cx="530" cy="92" r="5.5"/></g>
+              <g fill="var(--fg)"><circle cx="80" cy="164" r="4"/><circle cx="230" cy="172" r="4"/><circle cx="380" cy="180" r="4"/><circle cx="530" cy="192" r="4.5"/></g>
+              <text x="68" y="24" style="fill:var(--fg);font-weight:600">162</text><text x="515" y="80" style="fill:var(--fg);font-weight:600">134</text>
+              <text x="68" y="158" style="fill:var(--fg)">98</text><text x="522" y="214" style="fill:var(--fg)">84</text>
+              <text x="40" y="244">Systolic, solid. Diastolic, dashed.</text>
+            </svg>
+            <div class="stamps"><div><b>Mar</b>Registered, BP station</div><div><b>Jun</b>Doctor review, plan set</div><div><b>Aug</b>Follow-up reminder sent</div><div><b>Oct</b>Reviewed, finalized</div></div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ B ============ -->
+<section class="block" id="b">
+  <div class="wrap">
+    <div class="concept-head">
+      <div>
+        <span class="tag"><span class="letter">B</span>Compact rail + contextual panel</span>
+        <h2>The Folder</h2>
+        <p class="thesis">The visit is an object that travels, like the OPD folder a patient carries from table to table. Each station stamps it; the doctor opens the whole folder. Nothing is filed until it is stamped.</p>
+        <div class="raises">
+          <div><b>Where it comes from:</b> the paper folder and folder number every Ghanaian outpatient clinic runs on, and the stations-as-tables layout of an Akomapa screening day.</div>
+          <div><b>Signature:</b> stamps. Done is a solid stamp with time and initials, not yet is dashed, saved offline is orange "Held".</div>
+        </div>
+      </div>
+      <div>
+        <dl class="spec">
+          <dt>Shell</dt><dd>Option B. A 76px labelled rail for the five most-used areas plus More, and a contextual panel that appears only inside Today, Patients and Queues.</dd>
+          <dt>Header</dt><dd>Breadcrumb of where you are, clinic, sync, Message delivery, account.</dd>
+          <dt>Surfaces</dt><dd>Folders are the one card type. The open folder takes the pale gold accent, the only gold on screen.</dd>
+          <dt>Type</dt><dd>Serif for the patient's name on a folder and for page titles. Plex for stamps and fields.</dd>
+          <dt>Mobile</dt><dd>Bottom bar with four places. The folder fills the screen with station tabs.</dd>
+          <dt>Motion</dt><dd>A folder opens from its tab (200ms, ease-out). Stamps appear without animation.</dd>
+        </dl>
+        <p class="risk">Risk: the metaphor fits stations, patients and review well and strains on admin, audit and analytics, which have no folder. Card density also grows quickly on a busy day.</p>
+      </div>
+    </div>
+    <div class="surfaces">
+      <div>
+        <p class="surface-label"><b>Manager · Today</b> 1280 × 800</p>
+        <div class="stage" data-w="1280" data-h="800"><div class="scaler">
+          <div class="proto b-app">
+            <nav class="b-rail" aria-label="Prototype navigation">
+              <div class="mark">n<sup>+</sup></div>
+              <div class="b-ri on"><i data-lucide="activity"></i>Today</div>
+              <div class="b-ri"><i data-lucide="users"></i>Patients</div>
+              <div class="b-ri"><i data-lucide="clipboard-list"></i>Queues</div>
+              <div class="b-ri"><i data-lucide="calendar-days"></i>Appts</div>
+              <div class="b-ri"><i data-lucide="chart-no-axes-column"></i>Reports</div>
+              <div class="b-ri more"><i data-lucide="ellipsis"></i>More</div>
+            </nav>
+            <aside class="b-ctx">
+              <h4>Today's line</h4><div class="when">Sat 1 Nov · 9 in line</div>
+              <div class="b-ci on"><span class="dot"></span>All stations<span class="n">9</span></div>
+              <div class="b-ci"><span class="dot"></span>Registration<span class="n">2</span></div>
+              <div class="b-ci"><span class="dot w"></span>Blood pressure<span class="n">3</span></div>
+              <div class="b-ci"><span class="dot"></span>Glucose<span class="n">2</span></div>
+              <div class="b-ci"><span class="dot"></span>Anthropometry<span class="n">1</span></div>
+              <div class="b-ci"><span class="dot e"></span>Eye station<span class="n">1</span></div>
+              <div class="b-ci"><span class="dot"></span>Counselling<span class="n">1</span></div>
+              <div class="sep"></div>
+              <div class="b-ci"><i data-lucide="user-round-check"></i>On shift<span class="n">6</span></div>
+              <div class="b-ci"><i data-lucide="file-check-2"></i>Waiting for review<span class="n">15</span></div>
+              <div class="b-ci"><i data-lucide="settings-2"></i>Set up stations</div>
+            </aside>
+            <div class="b-main">
+              <div class="b-head"><span class="crumb">Akomapa Clinic · Demo <i data-lucide="chevron-right"></i><b>Today</b></span>
+                <div class="right"><span class="sync"><i data-lucide="circle-check"></i>Synced</span><span class="icon-btn" title="Message delivery"><i data-lucide="send"></i></span><span class="avatar">EB</span></div></div>
+              <div class="b-body">
+                <div class="intro-line"><h3>Who is where</h3><span class="muted">Folders move left to right as stations stamp them.</span><span class="btn btn-primary" style="margin-left:auto"><i data-lucide="log-in"></i>Check in a patient</span></div>
+                <div class="b-board">
+                  <div class="b-col"><h5>Registration <b>2</b></h5>
+                    <div class="folder" data-tab="NKP-000221"><div class="nm">Yaw Bediako</div><div class="wait">With Akua · 5 min</div><div class="stamps"><span class="stamp todo">REG</span><span class="stamp todo">BP</span><span class="stamp todo">GLU</span></div></div>
+                    <div class="folder" data-tab="NKP-000222"><div class="nm">Adwoa Sarpong</div><div class="wait">Waiting 3 min</div><div class="stamps"><span class="stamp todo">REG</span></div></div>
+                  </div>
+                  <div class="b-col"><h5>Blood pressure <b>3</b></h5>
+                    <div class="folder open" data-tab="NKP-000214"><div class="nm">Esi Quaye</div><div class="wait late">Waiting 26 min</div><div class="stamps"><span class="stamp">REG 09:12 AM</span><span class="stamp todo">BP</span></div></div>
+                    <div class="folder" data-tab="NKP-000209"><div class="nm">Kofi Antwi</div><div class="wait late">Waiting 22 min</div><div class="stamps"><span class="stamp">REG 09:18 AM</span><span class="stamp todo">BP</span></div></div>
+                    <div class="folder" data-tab="NKP-000218"><div class="nm">Ama Owusu</div><div class="wait">With Abena · 7 min</div><div class="stamps"><span class="stamp">REG</span><span class="stamp todo">BP</span></div></div>
+                  </div>
+                  <div class="b-col"><h5>Glucose <b>2</b></h5>
+                    <div class="folder" data-tab="NKP-000203"><div class="nm">Abena Kyei</div><div class="wait">Waiting 12 min</div><div class="stamps"><span class="stamp">REG</span><span class="stamp">BP</span><span class="stamp todo">GLU</span></div></div>
+                    <div class="folder" data-tab="NKP-000199"><div class="nm">Kwesi Mensah</div><div class="wait">With Kwabena · 4 min</div><div class="stamps"><span class="stamp">REG</span><span class="stamp held">BP HELD</span></div></div>
+                  </div>
+                  <div class="b-col"><h5>Eye and review <b>2</b></h5>
+                    <div class="folder" data-tab="NKP-000190"><div class="nm">Nana Agyeman</div><div class="wait late">Eye station has no one on shift</div><div class="stamps"><span class="stamp">REG</span><span class="stamp">BP</span><span class="stamp">GLU</span><span class="stamp todo">EYE</span></div></div>
+                    <div class="folder" data-tab="NKP-000187"><div class="nm">Kojo Tetteh</div><div class="wait">With Dr. Boateng · 11 min</div><div class="stamps"><span class="stamp">REG</span><span class="stamp">BP</span><span class="stamp">GLU</span><span class="stamp">EYE</span></div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div></div>
+      </div>
+      <div>
+        <p class="surface-label"><b>Volunteer · station</b> 390 × 800, offline</p>
+        <div class="stage" data-w="390" data-h="800"><div class="scaler">
+          <div class="proto b-phone">
+            <div class="ph-top"><div><div class="t">Blood pressure</div><div class="s">3 folders waiting</div></div><span class="avatar" style="margin-left:auto">AO</span></div>
+            <div class="offline-bar"><i data-lucide="wifi-off"></i>Offline. Stamps are held on this laptop.</div>
+            <div class="ph-body">
+              <div class="b-stack"><div class="behind"></div>
+                <div class="folder open" data-tab="NKP-2026-000214">
+                  <div class="nm">Esi Quaye</div><div class="wait late">Waiting 26 min · F, 54</div>
+                  <div class="b-tabs"><span>Reg</span><span class="on">BP</span><span>Glucose</span><span>Eye</span><span>Review</span></div>
+                  <div class="b-two">
+                    <div class="b-field"><label>Systolic (mmHg)</label><div class="inp">142</div></div>
+                    <div class="b-field"><label>Diastolic (mmHg)</label><div class="inp">90</div></div>
+                  </div>
+                  <div class="b-field"><label>Pulse (bpm)</label><div class="inp">84</div></div>
+                  <span class="btn btn-primary" style="width:100%;justify-content:center;min-height:48px;margin-top:16px">Stamp and pass on</span>
+                </div>
+              </div>
+            </div>
+            <div class="b-bottom"><div class="on"><i data-lucide="activity"></i>Station</div><div><i data-lucide="users"></i>Patients</div><div><i data-lucide="clipboard-list"></i>My work</div><div><i data-lucide="menu"></i>More</div></div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+    <div class="hero-row">
+      <p class="surface-label"><b>Landing hero</b> 1280 × 640. A real Akomapa screening photo with a folder laid over it.</p>
+      <div class="stage" data-w="1280" data-h="640"><div class="scaler">
+        <div class="proto b-hero">
+          <div class="copy">
+            <h3>One folder follows each patient through the clinic.</h3>
+            <p>Every table stamps the same record, so the doctor sees the whole visit and the next one starts from it.</p>
+            <div class="mk-ctas"><span class="btn btn-primary">Contact the team</span><span class="btn btn-secondary">Learn about Akomapa<i data-lucide="arrow-up-right"></i></span></div>
+          </div>
+          <div class="pic" style="background-image:url('{{PHOTO3}}')" role="img" aria-label="A volunteer enters a patient's details on a laptop at an intake table">
+            <div class="folder open" data-tab="NKP-2026-000214"><div class="nm">Esi Quaye</div><div class="wait">Screening day, 1 November</div><div class="stamps"><span class="stamp">REG 09:12</span><span class="stamp">BP 09:40</span><span class="stamp">GLU 09:52</span><span class="stamp todo">REVIEW</span></div></div>
+            <span class="syn">Synthetic patient</span>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ C ============ -->
+<section class="block" id="c">
+  <div class="wrap">
+    <div class="concept-head">
+      <div>
+        <span class="tag"><span class="letter">C</span>Top bar + page index</span>
+        <h2>Margin Review</h2>
+        <p class="thesis">A page of record with a working margin. The record runs in the centre, a rail of station keys holds it together, and the wide margin carries what needs a decision, bracketed to the line it is about.</p>
+        <div class="raises">
+          <div><b>Where it comes from:</b> the reference-setting challenger (two columns around a key rail, apparatus in the margin), fused with how doctors annotate a chart.</div>
+          <div><b>Signature:</b> margin notes. Review, cosign and follow-up sit next to the evidence instead of on another screen.</div>
+        </div>
+      </div>
+      <div>
+        <dl class="spec">
+          <dt>Shell</dt><dd>No sidebar. A top bar with four grouped menus, and a page index in the left margin.</dd>
+          <dt>Header</dt><dd>Clinic, sync, Message delivery and account sit at the right of the same bar.</dd>
+          <dt>Surfaces</dt><dd>No cards. Hairlines, a 1px ink rule under the bar, square corners (2px), teal as the ruling colour.</dd>
+          <dt>Type</dt><dd>Serif titles at a larger size; small caps for margin headings.</dd>
+          <dt>Mobile</dt><dd>The key rail becomes a strip of station keys across the top.</dd>
+          <dt>Motion</dt><dd>A margin note's bracket draws to its row on focus. That is all.</dd>
+        </dl>
+        <p class="risk">Risk: 21 destinations in four menus are one click further away. Square corners break the radius scale in MASTER.md, and three columns need 1280px or more, so laptops at 1024 to 1366px lose the margin.</p>
+      </div>
+    </div>
+    <div class="surfaces">
+      <div>
+        <p class="surface-label"><b>Manager · Today</b> 1280 × 800</p>
+        <div class="stage" data-w="1280" data-h="800"><div class="scaler">
+          <div class="proto c-app">
+            <div class="c-top">
+              <img class="logo-img" src="{{LOGO}}" alt="Nkwapa">
+              <nav aria-label="Prototype navigation"><span class="on">Today</span><span>Care<i data-lucide="chevron-down"></i></span><span>Patients</span><span>Oversight<i data-lucide="chevron-down"></i></span><span>Admin<i data-lucide="chevron-down"></i></span></nav>
+              <div class="right"><span class="clinic">Akomapa Clinic · Demo · Manager<i data-lucide="chevron-down"></i></span><span class="sync"><i data-lucide="circle-check"></i>Synced</span><span class="icon-btn" title="Message delivery"><i data-lucide="send"></i></span><span class="avatar" style="border-radius:2px">EB</span></div>
+            </div>
+            <div class="c-page">
+              <div class="c-index"><b>On this page</b><span><span class="k">1</span>Station line</span><span><span class="k">2</span>On shift</span><span><span class="k">3</span>Today's counts</span><span style="margin-top:16px"><b>Keys</b></span><span>REG BP GLU ANT EYE REV</span></div>
+              <div class="c-record">
+                <h3>Today</h3><div class="date">Saturday 1 November · Africa/Accra · 9 in line</div>
+                <div class="c-cols">
+                  <div class="h">Waiting</div><div class="h" style="text-align:center">Key</div><div class="h" style="padding-left:12px">With staff now</div>
+                  <div class="c-cell l">Adwoa Sarpong<span>3 min</span></div><div class="c-key">REG</div><div class="c-cell">Yaw Bediako with Akua Mensah<span>5 min</span></div>
+                  <div class="c-cell l">Esi Quaye, Kofi Antwi<span class="late">26 min, 22 min</span></div><div class="c-key alert">BP</div><div class="c-cell">Ama Owusu with Abena Ofori<span>7 min</span></div>
+                  <div class="c-cell l">Abena Kyei<span>12 min</span></div><div class="c-key">GLU</div><div class="c-cell">Kwesi Mensah with Kwabena Ofori<span>4 min</span></div>
+                  <div class="c-cell l">Nobody<span>&nbsp;</span></div><div class="c-key">ANT</div><div class="c-cell">Efua Ansah, free<span>&nbsp;</span></div>
+                  <div class="c-cell l">Nana Agyeman<span class="late">6 min, no one on shift</span></div><div class="c-key alert">EYE</div><div class="c-cell">Nobody<span>&nbsp;</span></div>
+                  <div class="c-cell l">Nobody<span>&nbsp;</span></div><div class="c-key">REV</div><div class="c-cell">Kojo Tetteh with Dr. Boateng<span>11 min</span></div>
+                </div>
+              </div>
+              <div class="c-margin">
+                <h4>Needs a decision</h4>
+                <div class="c-note w"><b>BP: two waits over 20 minutes</b><p>One of two seats staffed. Move Esi to the free volunteer?</p><span class="btn btn-secondary">Move a patient</span></div>
+                <div class="c-note w"><b>EYE: no one on shift</b><p>Selorm Dzokoto is unassigned.</p><span class="btn btn-secondary">Assign Selorm</span></div>
+                <div class="c-note"><b>15 visits waiting for review</b><p>Oldest started 10:05.</p><span class="btn btn-ghost" style="padding:0">Open queue<i data-lucide="arrow-right"></i></span></div>
+              </div>
+            </div>
+          </div>
+        </div></div>
+      </div>
+      <div>
+        <p class="surface-label"><b>Volunteer · station</b> 390 × 800, offline</p>
+        <div class="stage" data-w="390" data-h="800"><div class="scaler">
+          <div class="proto c-phone">
+            <div class="ph-top"><img class="logo-img" src="{{LOGO}}" alt="Nkwapa" style="height:20px"><i data-lucide="menu"></i></div>
+            <div class="keys"><span>REG</span><span class="on">BP</span><span>GLU</span><span>ANT</span><span>EYE</span><span>REV</span></div>
+            <div class="offline-bar"><i data-lucide="wifi-off"></i>Offline. 2 readings held on this laptop.</div>
+            <div class="ph-body">
+              <div><div class="muted" style="font-size:12.5px">Next at BP</div><h3>Esi Quaye</h3><div class="muted tnum" style="font-size:13px">NKP-2026-000214 · waiting 26 min</div></div>
+              <div class="c-note"><b>Last visit, 12 Oct</b><p>148/92 mmHg, pulse 84. Doctor asked for a recheck today.</p></div>
+              <span class="btn btn-primary" style="justify-content:center;min-height:48px">Call Esi to this station</span>
+              <div style="border-top:1px solid var(--fg)">
+                <div class="c-cell l" style="padding:0;height:46px">Kofi Antwi<span>22 min</span></div>
+                <div class="c-cell l" style="padding:0;height:46px">Adwoa Sarpong<span>9 min</span></div>
+              </div>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+    <div class="hero-row">
+      <p class="surface-label"><b>Landing hero</b> 1280 × 640</p>
+      <div class="stage" data-w="1280" data-h="640"><div class="scaler">
+        <div class="proto c-hero">
+          <div class="mg"><img class="logo-img" src="{{LOGO}}" alt="Nkwapa"><span style="margin-top:24px">Product</span><span>How it works</span><span>Who it's for</span><span>About</span></div>
+          <div class="mid">
+            <h3>The whole visit on one page, with room for the doctor's notes.</h3>
+            <p class="l">Nkwapa records every screening station into one visit and keeps it safe offline until it syncs.</p>
+            <div class="mk-ctas"><span class="btn btn-primary">Contact the team</span><span class="btn btn-secondary">Learn about Akomapa<i data-lucide="arrow-up-right"></i></span></div>
+            <div class="rec"><div><span>Registration and history</span><span>REG</span><span>09:12, Akua M.</span></div><div><span>Blood pressure 142/90 mmHg</span><span>BP</span><span>09:40, Abena O.</span></div><div><span>Glucose 6.1 mmol/L, fasting</span><span>GLU</span><span>09:52, Kwabena O.</span></div></div>
+          </div>
+          <div class="rt"><div class="c-note"><b>Recheck BP in two weeks</b><p>Dr. Boateng, at review</p></div><div class="c-note w"><b>Held offline, 2 readings</b><p>Sent at 10:31 when Wi-Fi returned</p></div><span class="muted" style="font-size:11px">Synthetic patient</span></div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="compare">
+  <div class="wrap">
+    <h2>How they compare</h2>
+    <p class="sub">Scored against the epic's acceptance criteria and what we know about the clinics: shared laptops at stations, phones in the portal, unreliable Wi-Fi, five staff roles.</p>
+    <div class="cmp-wrap">
+      <table class="cmp">
+        <thead><tr><th>Criterion</th><th>A. Ruled Chart</th><th>B. The Folder</th><th>C. Margin Review</th></tr></thead>
+        <tbody>
+          <tr><th>Station throughput on a laptop</th><td><span class="score"><i class="f"></i><i class="f"></i><i class="f"></i></span>Next patient and wait time are the first things read.</td><td><span class="score"><i class="f"></i><i class="f"></i><i class="f"></i></span>Folder-per-patient matches the room exactly.</td><td><span class="score"><i class="f"></i><i class="f"></i><i></i></span>Clear, but the margin is lost below 1280px.</td></tr>
+          <tr><th>Doctor review and sign-off</th><td><span class="score"><i class="f"></i><i class="f"></i><i></i></span>Ruled readings with struck-through corrections.</td><td><span class="score"><i class="f"></i><i class="f"></i><i class="f"></i></span>Open the folder, every station stamped.</td><td><span class="score"><i class="f"></i><i class="f"></i><i class="f"></i></span>Its best case: notes beside the evidence.</td></tr>
+          <tr><th>Admin, audit and analytics</th><td><span class="score"><i class="f"></i><i class="f"></i><i class="f"></i></span>Tables and charts are its native form.</td><td><span class="score"><i class="f"></i><i></i><i></i></span>No folder to show, falls back to plain tables.</td><td><span class="score"><i class="f"></i><i class="f"></i><i></i></span>Works, but menus hide 12 oversight and admin pages.</td></tr>
+          <tr><th>Fits the shipped component contract</th><td><span class="score"><i class="f"></i><i class="f"></i><i class="f"></i></span>Extends AppMetricGroup, DataTable and the five states.</td><td><span class="score"><i class="f"></i><i class="f"></i><i></i></span>Needs a new folder and stamp family.</td><td><span class="score"><i class="f"></i><i></i><i></i></span>Changes the radius scale and replaces the sidebar.</td></tr>
+          <tr><th>Navigation for 21 permission-filtered items</th><td><span class="score"><i class="f"></i><i class="f"></i><i class="f"></i></span>Labels always visible, collapsible.</td><td><span class="score"><i class="f"></i><i class="f"></i><i></i></span>Five on the rail, the rest under More.</td><td><span class="score"><i class="f"></i><i></i><i></i></span>Four menus, one click deeper.</td></tr>
+          <tr><th>Distinctiveness</th><td><span class="score"><i class="f"></i><i class="f"></i><i></i></span>Quiet, recognisable by its rules and figures.</td><td><span class="score"><i class="f"></i><i class="f"></i><i class="f"></i></span>The most ownable for Akomapa.</td><td><span class="score"><i class="f"></i><i class="f"></i><i class="f"></i></span>Strongly editorial.</td></tr>
+          <tr><th>Landing page reach</th><td><span class="score"><i class="f"></i><i class="f"></i><i></i></span>A real trace, honest and specific.</td><td><span class="score"><i class="f"></i><i class="f"></i><i class="f"></i></span>Photo plus folder tells the story at a glance.</td><td><span class="score"><i class="f"></i><i class="f"></i><i></i></span>Elegant, text-heavy above the fold.</td></tr>
+          <tr><th>Build risk across phases 01 to 09</th><td><b>Lowest.</b> Mostly hierarchy, tokens and layout.</td><td><b>Medium.</b> New card family, rail and More menu.</td><td><b>Highest.</b> New shell, new radius scale, menu IA.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="font-size:20px;margin-top:36px">Challengers that were weighed and not built</h3>
+    <div class="verdicts">
+      <div class="verdict"><div class="v">Declined</div><h4>Airline ticket wallet</h4><p>Strong on stations, foreign to a Ghanaian clinic, and one leg per sheet hides the rest of the visit from the doctor. A kept its "cancel, never delete" rule.</p></div>
+      <div class="verdict"><div class="v">Declined</div><h4>Dance score</h4><p>Time flowing upward is beautiful and unreadable at a station. A kept "bar length is wait time".</p></div>
+      <div class="verdict"><div class="v">Declined</div><h4>Black-and-white data field</h4><p>Conflicts with the brand colours and strobes. A kept "numbers before labels".</p></div>
+      <div class="verdict"><div class="v">Declined</div><h4>Streaming poster wall</h4><p>Patients are not posters. A kept the dimming of everything except the row you are reading.</p></div>
+      <div class="verdict"><div class="v">Declined</div><h4>Warm consumer app</h4><p>Right for the patient portal, too loose for staff. A kept "teal only on what can be pressed"; Phase 06 can borrow more of it.</p></div>
+      <div class="verdict canon"><div class="v">Always available</div><h4>The category standard</h4><p>A shadcn collapsible sidebar, KPI cards and charts, polished to the level of Heidi's app. Safe and familiar. Ask for it by name if you prefer it.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="decide">
+  <div class="wrap">
+    <div class="recbox">
+      <div>
+        <h3>Recommended: A, Ruled Chart</h3>
+        <ul>
+          <li>It puts "what needs me now" first for all five staff roles with data the API already returns. Nothing in A needs a new endpoint.</li>
+          <li>Stations run on shared laptops, so a labelled sidebar and dense ruled tables suit the work better than a phone-first rail.</li>
+          <li>It extends what ships today (hairline metric groups, DataTable, the five states, the help affordances) instead of replacing it, so phases 01 to 05 stay small and reviewable.</li>
+          <li>It is the only direction that is as strong on admin, audit and analytics as on clinical screens.</li>
+          <li>If you want more identity, B's stamps can become A's status language for visit progress without adopting the folder shell. I would treat that as a change to A, decided now.</li>
+        </ul>
+      </div>
+      <div class="asks">
+        <h3>Before Phase 01 starts</h3>
+        <ol>
+          <li>Pick A, B or C, or ask for the category standard.</li>
+          <li>Message delivery as a header icon (I used a send icon, not a bell, so it does not read as an inbox) and Clinic settings in the profile menu: confirm or change.</li>
+          <li>Manager and Director have no E2E identities yet, so their columns of the QA matrix cannot be captured. Approve adding them to the seed (a db change, outside this epic's guardrail) or accept the staff identity as a stand-in.</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+<footer><div class="wrap">Prepared for epic #229, Phase 00. Prototypes are static HTML on Nkwapa's tokens; nothing here changes the app. Patient names, codes and readings are synthetic. Source: <code>docs/design-system/concepts/</code>.</div></footer>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var btns = document.querySelectorAll('.seg button');
+  function apply(t) {
+    if (t === 'system') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', t);
+    btns.forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.t === t)); });
+    try { localStorage.setItem('nk2-theme', t); } catch (e) {}
+  }
+  var saved = 'system';
+  try { saved = localStorage.getItem('nk2-theme') || 'system'; } catch (e) {}
+  apply(saved);
+  btns.forEach(function (b) { b.addEventListener('click', function () { apply(b.dataset.t); }); });
+
+  function fit() {
+    document.querySelectorAll('.stage').forEach(function (s) {
+      var w = +s.dataset.w, h = +s.dataset.h, k = Math.min(1, s.clientWidth / w);
+      s.style.height = (h * k) + 'px';
+      s.firstElementChild.style.transform = 'scale(' + k + ')';
+      s.firstElementChild.style.width = w + 'px';
+    });
+  }
+  window.addEventListener('resize', fit);
+  if (window.lucide) lucide.createIcons();
+  fit();
+})();
+</script>
