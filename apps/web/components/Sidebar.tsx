@@ -41,7 +41,7 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
             Both marks stay mounted and cross-fade while the rail changes width, instead of one
             being swapped for the other mid-transition. The collapsed mark used the 192px
             favicon, a portrait squash of the square app tile, so it read as stretched; it is now
-            a square crop of the tile itself (`nkwapa-mark.png`).
+            a square tile drawn by scripts/generate-pwa-icons.mjs (`nkwapa-mark.png`).
           */}
           <div className="relative h-12 w-full overflow-hidden">
             <div
