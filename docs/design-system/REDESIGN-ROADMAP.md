@@ -1,6 +1,6 @@
 # Nkwapa 2.0 roadmap and handoff log
 
-Read this first if you are picking up epic #229. The spec is [NKWAPA-2-REDESIGN-MASTER.md](NKWAPA-2-REDESIGN-MASTER.md); the epic body on GitHub maps its phases to the epic's older numbering and holds the dependency map.
+Read this first if you are picking up epic #229. Implementing agents: follow [CODEX-HANDOFF.md](CODEX-HANDOFF.md) phase by phase. The spec is [NKWAPA-2-REDESIGN-MASTER.md](NKWAPA-2-REDESIGN-MASTER.md); the epic body on GitHub maps its phases to the epic's older numbering and holds the dependency map.
 
 ## Where it stands (2026-11-01)
 
