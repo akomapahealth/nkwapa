@@ -156,3 +156,67 @@ describe('UserProfileService.updateName', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 });
+
+describe('UserProfileService.updatePhone', () => {
+  const CONTEXT = { actorUserId: 'user-1', source: 'SELF' as const, requestId: 'req-1' };
+
+  function setup(phoneE164: string | null = null) {
+    const tx = { user: { update: jest.fn().mockResolvedValue({}) } };
+    const prisma = {
+      user: { findUnique: jest.fn().mockResolvedValue({ id: 'user-1', phoneE164 }) },
+      $transaction: jest.fn((fn: (client: typeof tx) => unknown) => fn(tx)),
+    };
+    const audit = { logWrite: jest.fn().mockResolvedValue(undefined) };
+    const service = new UserProfileService(
+      prisma as never,
+      audit as never,
+      createKeycloakAdminServiceMock() as never,
+    );
+    return { service, tx, audit };
+  }
+
+  it('stores a local Ghana number as E.164 and audits only its last four digits', async () => {
+    const { service, tx, audit } = setup();
+
+    await expect(service.updatePhone('user-1', '024 123 4567', CONTEXT)).resolves.toEqual({
+      userId: 'user-1',
+      phoneE164: '+233241234567',
+    });
+    expect(tx.user.update).toHaveBeenCalledWith({
+      where: { id: 'user-1' },
+      data: { phoneE164: '+233241234567' },
+    });
+    const event = audit.logWrite.mock.calls[0][0];
+    expect(event.action).toBe('USER.PHONE.UPDATE');
+    expect(event.afterJson).toContain('***4567');
+    expect(event.afterJson).not.toContain('241234567');
+  });
+
+  it('clears the phone when blank', async () => {
+    const { service, tx } = setup('+233241234567');
+
+    await service.updatePhone('user-1', '  ', CONTEXT);
+
+    expect(tx.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { phoneE164: null } }),
+    );
+  });
+
+  it('refuses a number that is not a phone, as a field error', async () => {
+    const { service, tx } = setup();
+
+    await expect(service.updatePhone('user-1', '12', CONTEXT)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(tx.user.update).not.toHaveBeenCalled();
+  });
+
+  it('writes nothing when the number is unchanged', async () => {
+    const { service, tx, audit } = setup('+233241234567');
+
+    await service.updatePhone('user-1', '+233241234567', CONTEXT);
+
+    expect(tx.user.update).not.toHaveBeenCalled();
+    expect(audit.logWrite).not.toHaveBeenCalled();
+  });
+});

@@ -62,6 +62,8 @@ export class AuditService {
     to?: Date;
     action?: string;
     actorUserId?: string;
+    /** Part of the actor's name or email, case-insensitive. */
+    actorSearch?: string;
     entityType?: string;
     entityId?: string;
     requestId?: string;
@@ -94,6 +96,12 @@ export class AuditService {
       entityType?: string;
       entityId?: string;
       requestId?: string;
+      actor?: {
+        OR: Array<
+          | { displayName: { contains: string; mode: 'insensitive' } }
+          | { email: { contains: string; mode: 'insensitive' } }
+        >;
+      };
       OR?: Array<{ createdAt: { lt: Date } } | { createdAt: Date; id: { lt: string } }>;
     } = { clinicId: params.clinicId };
 
@@ -107,6 +115,15 @@ export class AuditService {
     if (params.entityType) where.entityType = params.entityType;
     if (params.entityId) where.entityId = params.entityId;
     if (params.requestId) where.requestId = params.requestId;
+    const actorSearch = params.actorSearch?.trim().slice(0, 120);
+    if (actorSearch) {
+      where.actor = {
+        OR: [
+          { displayName: { contains: actorSearch, mode: 'insensitive' } },
+          { email: { contains: actorSearch, mode: 'insensitive' } },
+        ],
+      };
+    }
 
     if (decoded) {
       where.OR = [

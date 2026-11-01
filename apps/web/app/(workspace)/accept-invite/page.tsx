@@ -64,8 +64,8 @@ export default function AcceptInvitePage() {
       setAccepted(
         `You are now ${formatStaffRole(result.role)} at ${result.clinicName}. Opening your workspace…`,
       );
-      bootstrapCtx?.setActiveClinicId(result.clinicId);
-      await bootstrapCtx?.refetch();
+      // Also re-fetches whoami, so the new role is in hand before the dashboard opens.
+      await bootstrapCtx?.setActiveClinicId(result.clinicId);
       router.replace('/dashboard');
     } catch (error) {
       setFailure(toAcceptFailure(error));

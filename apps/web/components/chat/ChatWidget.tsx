@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { MessageCircle, X } from 'lucide-react';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import {
@@ -13,6 +14,12 @@ import { ChatConversationList } from './ChatConversationList';
 import { ChatConversation } from './ChatConversation';
 import { ChatUserPicker } from './ChatUserPicker';
 import { ChatUnreadBadge } from './ChatUnreadBadge';
+import {
+  CHAT_QUERY_PARAM,
+  NOTIFICATION_CLICK_MESSAGE,
+  OPEN_CHAT_EVENT,
+  openNotificationUrl,
+} from '@/lib/browser-notifications';
 
 type View = 'list' | 'conversation' | 'new-message' | 'new-group';
 
@@ -22,10 +29,49 @@ function ChatPanel() {
   const [view, setView] = useState<View>('list');
   const [activeConversation, setActiveConversation] = useState<ChatConversationType | null>(null);
 
+  const router = useRouter();
+  // A conversation a notification asked for, opened once the list has it.
+  const [requestedId, setRequestedId] = useState<string | null>(null);
+
   const handleOpenConversation = useCallback((conv: ChatConversationType) => {
     setActiveConversation(conv);
     setView('conversation');
   }, []);
+
+  useEffect(() => {
+    // A window the service worker opened arrives with ?chat=<id>; take it, then tidy the URL.
+    const url = new URL(window.location.href);
+    const fromUrl = url.searchParams.get(CHAT_QUERY_PARAM);
+    if (fromUrl) {
+      setRequestedId(fromUrl);
+      url.searchParams.delete(CHAT_QUERY_PARAM);
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}`);
+    }
+    const onOpenChat = (event: Event) => {
+      const id = (event as CustomEvent<{ conversationId?: string }>).detail?.conversationId;
+      if (id) setRequestedId(id);
+    };
+    const onWorkerMessage = (event: MessageEvent) => {
+      if (event.data?.type === NOTIFICATION_CLICK_MESSAGE && typeof event.data.url === 'string') {
+        openNotificationUrl(event.data.url, (next) => router.push(next));
+      }
+    };
+    window.addEventListener(OPEN_CHAT_EVENT, onOpenChat);
+    navigator.serviceWorker?.addEventListener('message', onWorkerMessage);
+    return () => {
+      window.removeEventListener(OPEN_CHAT_EVENT, onOpenChat);
+      navigator.serviceWorker?.removeEventListener('message', onWorkerMessage);
+    };
+  }, [router]);
+
+  useEffect(() => {
+    if (!requestedId) return;
+    const conv = chat?.conversations.find((entry) => entry.id === requestedId);
+    if (!conv) return;
+    setIsOpen(true);
+    handleOpenConversation(conv);
+    setRequestedId(null);
+  }, [requestedId, chat?.conversations, handleOpenConversation]);
 
   const handleUserSelect = useCallback(
     async (user: ChatUser) => {

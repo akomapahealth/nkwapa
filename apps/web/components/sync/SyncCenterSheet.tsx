@@ -110,7 +110,7 @@ export function SyncCenterSheet({
 
   // Switching makes the clinic active, which syncs it: its changes go to it and nowhere else.
   const handleSwitchClinic = (otherClinicId: string) => {
-    bootstrapCtx?.setActiveClinicId(otherClinicId);
+    void bootstrapCtx?.setActiveClinicId(otherClinicId);
   };
 
   // Only this account's own changes. Another account may still hold the seat this one lost.

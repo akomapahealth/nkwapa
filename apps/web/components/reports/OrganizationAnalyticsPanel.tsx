@@ -107,7 +107,7 @@ export function OrganizationAnalyticsPanel({
   );
 
   const openClinic = (row: ClinicAnalyticsRow) => {
-    bootstrapCtx?.setActiveClinicId(row.drilldown.clinicId);
+    void bootstrapCtx?.setActiveClinicId(row.drilldown.clinicId);
     router.push(row.drilldown.path);
   };
 

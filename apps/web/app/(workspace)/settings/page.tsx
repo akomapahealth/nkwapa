@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import {
   CheckCircle2,
   Compass,
@@ -19,11 +18,10 @@ import { useInstallAction } from '@/components/pwa/InstallApp';
 import { DeviceStorageDetails } from '@/components/sync/DeviceStorageDetails';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { buildAccountNameHref } from '@/lib/auth-routing';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { cn } from '@/lib/utils';
 import { THEME_PREFERENCE_OPTIONS, useTheme, type ThemePreference } from '@/lib/theme-context';
-import { WELCOME_TOUR_OPEN_EVENT, welcomeTourAudience } from '@/lib/welcome-tour';
+import { WELCOME_TOUR_OPEN_EVENT } from '@/lib/welcome-tour';
 
 const THEME_ICONS: Record<ThemePreference, typeof Sun> = {
   light: Sun,
@@ -37,9 +35,7 @@ const THEME_ICONS: Record<ThemePreference, typeof Sun> = {
  */
 export default function SettingsPage() {
   const bootstrap = useBootstrap()?.bootstrap ?? null;
-  const pathname = usePathname();
   const logout = useKeycloak()?.logout;
-  const isStaff = bootstrap != null && welcomeTourAudience(bootstrap) === 'staff';
 
   return (
     <div className="space-y-6">
@@ -63,14 +59,12 @@ export default function SettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
-            {isStaff ? (
-              <Button asChild variant="outline">
-                <Link href={buildAccountNameHref(pathname)}>
-                  <UserPen className="mr-2 h-4 w-4" aria-hidden="true" />
-                  Change your name
-                </Link>
-              </Button>
-            ) : null}
+            <Button asChild variant="outline">
+              <Link href="/account">
+                <UserPen className="mr-2 h-4 w-4" aria-hidden="true" />
+                Manage profile
+              </Link>
+            </Button>
             <Button
               variant="outline"
               onClick={() => window.dispatchEvent(new Event(WELCOME_TOUR_OPEN_EVENT))}

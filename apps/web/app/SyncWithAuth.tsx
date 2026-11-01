@@ -99,7 +99,8 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
     Account pages belong to every role, so they render in the account's own shell: a patient's
     settings sit in the portal, not in a staff sidebar they cannot use (#206).
   */
-  const isAccountPage = pathname === '/settings' || pathname === ACCOUNT_NAME_PATH;
+  const isAccountPage =
+    pathname === '/settings' || pathname === '/account' || pathname === ACCOUNT_NAME_PATH;
   const isPortal =
     pathname?.startsWith('/portal') ||
     (isAccountPage && getDefaultWorkspacePath(bootstrap) === '/portal');

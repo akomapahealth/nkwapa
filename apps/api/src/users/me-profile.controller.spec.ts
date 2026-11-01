@@ -59,3 +59,40 @@ describe('MeProfileController', () => {
     expect(userProfileService.updateName).not.toHaveBeenCalled();
   });
 });
+
+describe('MeProfileController.updatePhone', () => {
+  function setup(roles: ReqUser['roles']) {
+    const userProfileService = { updatePhone: jest.fn().mockResolvedValue({}) };
+    const controller = new MeProfileController(userProfileService as never);
+    const req = {
+      user: { user: { id: 'user-1', keycloakSub: 'kc-1', displayName: 'x', email: null }, roles },
+      headers: { 'x-request-id': 'req-1' },
+    };
+    return { controller, req, userProfileService };
+  }
+
+  it('writes the caller’s own phone', async () => {
+    const { controller, req, userProfileService } = setup([
+      { clinicId: 'clinic-1', role: UserRole.DOCTOR },
+    ]);
+
+    await controller.updatePhone(req, { phone: '0241234567' });
+
+    expect(userProfileService.updatePhone).toHaveBeenCalledWith(
+      'user-1',
+      '0241234567',
+      expect.objectContaining({ actorUserId: 'user-1', clinicId: 'clinic-1' }),
+    );
+  });
+
+  it('refuses a patient-only account, whose phone lives on the Patient record', async () => {
+    const { controller, req, userProfileService } = setup([
+      { clinicId: 'clinic-p', role: UserRole.PATIENT },
+    ]);
+
+    await expect(controller.updatePhone(req, { phone: '0241234567' })).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(userProfileService.updatePhone).not.toHaveBeenCalled();
+  });
+});

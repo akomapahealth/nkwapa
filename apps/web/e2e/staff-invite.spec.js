@@ -211,10 +211,10 @@ test('the name step holds them until they save, then lets them in', async () => 
   await expectMenuName(inviteePage, 'Ama K. Mensah');
 });
 
-test('the profile menu edits the name, and the header follows without signing in again', async () => {
+test('the profile page edits the name and phone, and the header follows without signing in again', async () => {
   await inviteePage.getByRole('button', { name: 'User menu' }).click();
-  await inviteePage.getByRole('menuitem', { name: 'Your name' }).click();
-  await inviteePage.waitForURL(/\/account\/name/, { timeout: 30_000 });
+  await inviteePage.getByRole('menuitem', { name: 'Manage profile' }).click();
+  await inviteePage.waitForURL(/\/account$/, { timeout: 30_000 });
   await expect(inviteePage.getByLabel('Last name')).toHaveValue('Mensah');
 
   await fillStaffName(inviteePage, {
@@ -224,8 +224,14 @@ test('the profile menu edits the name, and the header follows without signing in
   });
   await inviteePage.getByRole('button', { name: 'Save name' }).click();
   await expect(inviteePage.getByText('Saved', { exact: true })).toBeVisible({ timeout: 30_000 });
-  await inviteePage.waitForURL(/\/patients/, { timeout: 30_000 });
+  // The profile page stays put; the header picks up the new name from whoami.
   await expectMenuName(inviteePage, 'Ama B. Mensah-Owusu');
+
+  await inviteePage.getByLabel('Phone number').fill('024 123 4567');
+  await inviteePage.getByRole('button', { name: 'Save phone' }).click();
+  await expect(inviteePage.getByLabel('Phone number')).toHaveValue('+233241234567', {
+    timeout: 30_000,
+  });
 });
 
 test('an admin corrects the name, and only an admin can', async () => {

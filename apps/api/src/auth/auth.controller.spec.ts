@@ -578,6 +578,7 @@ describe('AuthController', () => {
         middleInitial: null,
         lastName: null,
         email: 'ama@clinic.org',
+        phoneE164: null,
       });
     });
 
