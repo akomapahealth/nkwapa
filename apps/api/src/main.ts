@@ -74,6 +74,10 @@ async function bootstrap() {
     exposedHeaders: ['X-Request-Id', 'X-Correlation-Id'],
   });
 
+  if (process.env.NODE_ENV === 'production' && !process.env.CLIENT_IP_HEADER) {
+    // Rate limits and audit addresses would trust a client-written X-Forwarded-For.
+    console.warn('CLIENT_IP_HEADER is not set; client addresses can be spoofed');
+  }
   await app.listen(port);
   console.log(`API listening on http://localhost:${port}`);
 }
