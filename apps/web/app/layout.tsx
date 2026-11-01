@@ -58,13 +58,16 @@ export const metadata: Metadata = {
   authors: [{ name: 'Nkwapa' }],
   creator: 'Nkwapa',
   publisher: 'Nkwapa',
+  // ?v= busts the browser and iOS icon caches; bump it whenever the icons are regenerated.
   icons: {
     icon: [
-      { url: '/images/favicon/favicon.ico' },
-      { url: '/images/favicon/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
-      { url: '/images/favicon/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/images/favicon/favicon.ico?v=2' },
+      { url: '/images/favicon/favicon-16x16.png?v=2', sizes: '16x16', type: 'image/png' },
+      { url: '/images/favicon/favicon-32x32.png?v=2', sizes: '32x32', type: 'image/png' },
     ],
-    apple: [{ url: '/images/favicon/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+    apple: [
+      { url: '/images/favicon/apple-touch-icon.png?v=2', sizes: '180x180', type: 'image/png' },
+    ],
   },
   openGraph: {
     type: 'website',

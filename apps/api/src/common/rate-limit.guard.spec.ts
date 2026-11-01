@@ -84,3 +84,55 @@ describe('RateLimitGuard telemetry', () => {
     await expect(guard.canActivate(contextFor(request))).resolves.toBe(true);
   });
 });
+
+describe('RateLimitGuard default limit', () => {
+  class Open {
+    route() {}
+  }
+  const contextForOpen = (ip: string) =>
+    ({
+      getHandler: () => Open.prototype.route,
+      getClass: () => Open,
+      switchToHttp: () => ({
+        getRequest: () => ({ headers: {}, method: 'GET', originalUrl: '/x', ip }),
+      }),
+    }) as unknown as ExecutionContext;
+
+  beforeEach(() => {
+    process.env.RATE_LIMIT_DEFAULT_LIMIT = '3';
+    mockIncr.mockReset();
+  });
+  afterEach(() => delete process.env.RATE_LIMIT_DEFAULT_LIMIT);
+
+  it('throttles an address past the default ceiling on a route without @RateLimit', async () => {
+    const telemetry = { record: jest.fn() };
+    const guard = new RateLimitGuard(new Reflector(), redisService as never, telemetry as never);
+    for (let i = 0; i < 3; i++) {
+      await expect(guard.canActivate(contextForOpen('203.0.113.9'))).resolves.toBe(true);
+    }
+    await expect(guard.canActivate(contextForOpen('203.0.113.9'))).rejects.toBeInstanceOf(
+      HttpException,
+    );
+    await expect(guard.canActivate(contextForOpen('203.0.113.9'))).rejects.toBeInstanceOf(
+      HttpException,
+    );
+    // Once per window, not per refused request, and never with the address.
+    expect(telemetry.record).toHaveBeenCalledTimes(1);
+    expect(telemetry.record).toHaveBeenCalledWith('security.rate_limit', {
+      bucket: 'default',
+      scope: 'ip',
+      clinicId: null,
+    });
+    await expect(guard.canActivate(contextForOpen('203.0.113.10'))).resolves.toBe(true);
+    expect(mockIncr).not.toHaveBeenCalled();
+  });
+
+  it('starts a fresh window once the old one expires', async () => {
+    const guard = new RateLimitGuard(new Reflector(), redisService as never);
+    const now = jest.spyOn(Date, 'now').mockReturnValue(1_000);
+    for (let i = 0; i < 3; i++) await guard.canActivate(contextForOpen('203.0.113.9'));
+    now.mockReturnValue(1_000 + 61_000);
+    await expect(guard.canActivate(contextForOpen('203.0.113.9'))).resolves.toBe(true);
+    now.mockRestore();
+  });
+});
