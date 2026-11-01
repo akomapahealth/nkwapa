@@ -19,6 +19,7 @@ import {
   readCookieConsent,
   saveCookieConsent,
 } from '@/lib/cookie-consent';
+import { withdrawPostHog } from '@/lib/posthog';
 import { COOKIES_HREF } from '@/components/landing/links';
 
 /**
@@ -49,6 +50,7 @@ export function CookieConsent() {
 
   const decide = (accept: boolean) => {
     saveCookieConsent(accept);
+    if (!accept) withdrawPostHog();
     setAnalytics(accept);
     setBannerOpen(false);
     setSettingsOpen(false);

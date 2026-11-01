@@ -16,7 +16,7 @@ export const metadata: Metadata = {
     'How Nkwapa, the electronic medical record developed by Akomapa Health Foundation, collects, uses, protects and shares patient and staff information.',
 };
 
-const UPDATED = 'October 31, 2026';
+const UPDATED = 'November 1, 2026';
 
 const contact = <a href={CONTACT_HREF}>{CONTACT_EMAIL}</a>;
 
@@ -250,8 +250,9 @@ const sections: LegalSection[] = [
           they are deleted after 180 days by default.
         </p>
         <p>
-          On this public website, we may count page views and clicks on our contact links. We do not
-          use advertising trackers.
+          If you accept analytics cookies, we also count a few actions in your browser, such as home
+          page visits and app installs, using PostHog in the European Union. See the{' '}
+          <Link href={COOKIES_HREF}>cookie policy</Link>. We do not use advertising trackers.
         </p>
       </>
     ),
@@ -265,8 +266,9 @@ const sections: LegalSection[] = [
         <ul>
           <li>
             With service providers that host the service and its database, handle sign-in, deliver
-            email and text messages, and report errors so we can fix them. They may use it only to
-            provide that service to us, and error reports are scrubbed of personal details first.
+            email and text messages, report errors so we can fix them, and, for people who accept
+            analytics cookies, count visits. They may use it only to provide that service to us, and
+            error reports are scrubbed of personal details first.
           </li>
           <li>With other members of a patient&rsquo;s care team, within the access rules above</li>
           <li>As de-identified research data, under the conditions above</li>

@@ -5,6 +5,7 @@ import {
   type TelemetryProperties,
 } from '@nkwapa/db/telemetry-events';
 import { analyticsConsented } from './cookie-consent';
+import { loadPostHog } from './posthog';
 
 /**
  * Browser analytics, held to the same allow-list as the API's telemetry.
@@ -13,7 +14,8 @@ import { analyticsConsented } from './cookie-consent';
  * the catalog's sanitizer first, so a provider script on the page can never be handed a name, a
  * patient identifier, or anything else the catalog does not name. Nothing is sent unless
  * NEXT_PUBLIC_ANALYTICS_ENABLED is 'true' and the person accepted analytics cookies, and even then
- * only to a provider already loaded on the page (Google tag or PostHog). Product metrics that must be reliable are recorded server-side.
+ * only to PostHog, which loads on the first event after consent. Product metrics that must be
+ * reliable are recorded server-side.
  */
 
 type ClientEvents = {
@@ -49,16 +51,10 @@ export function trackEvent(name: AnalyticsEventName, properties?: Record<string,
   const payload = buildAnalyticsPayload(name, properties);
   if (!payload) return;
 
-  const target = window as unknown as {
-    gtag?: (...args: unknown[]) => void;
-    posthog?: { capture: (name: string, properties?: object) => void };
-  };
-  try {
-    target.gtag?.('event', payload.name, payload.properties);
-    target.posthog?.capture(payload.name, payload.properties);
-  } catch {
-    // A provider script failing must never break the page that called it.
-  }
+  // A provider failing to load or send must never break the page that called it.
+  void loadPostHog()
+    .then((posthog) => posthog?.capture(payload.name, payload.properties))
+    .catch(() => undefined);
 
   if (process.env.NODE_ENV === 'development') {
     console.debug('[Analytics]', payload.name, payload.properties);

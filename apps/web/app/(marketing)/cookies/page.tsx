@@ -15,7 +15,7 @@ export const metadata: Metadata = {
     'The cookies and browser storage Nkwapa uses, why each one is needed, how long it lasts, and how to change your choice.',
 };
 
-const UPDATED = 'October 31, 2026';
+const UPDATED = 'November 1, 2026';
 
 const contact = <a href={CONTACT_HREF}>{CONTACT_EMAIL}</a>;
 
@@ -116,11 +116,19 @@ const sections: LegalSection[] = [
     body: (
       <>
         <p>
-          When analytics is switched on for this site, and only if you accept it, we count page
-          visits and clicks on our contact links, using Google Analytics or PostHog. These counts
-          never include names, contact details, ID numbers, health information or anything typed
-          into Nkwapa: every event passes a fixed list of what may be sent. Declining has no effect
-          on what you can do.
+          Only if you accept it, we count visits to our home page, clicks on our contact links,
+          whether people install the app, and how often the sync center is used, using PostHog,
+          hosted in the European Union. These counts never include names, contact details, ID
+          numbers, health information or anything typed into Nkwapa: every event passes a fixed list
+          of what may be sent, and nothing records your clicks, your screen or the pages you open
+          inside the app. Declining has no effect on what you can do.
+        </p>
+        <p>
+          If you accept, PostHog keeps a random identifier for this browser in a cookie and in local
+          storage, both named <code>ph_&hellip;_posthog</code>, for up to a year, so a returning
+          visitor is counted once, and short-lived markers for the open tab in session storage. If
+          you decline later, all of them are deleted and no more counts are sent; a marker (
+          <code>__ph_opt_in_out_&hellip;</code>) remembers that PostHog is switched off.
         </p>
         <p>
           Inside the app, Nkwapa also counts whether its workflows succeed or fail. That count is
