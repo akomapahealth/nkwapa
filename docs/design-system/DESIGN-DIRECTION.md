@@ -44,17 +44,19 @@ Option on the table: adopt B's stamps as A's visit-progress language without the
 
 Airline ticket wallet, dance score, black-and-white data field, streaming poster wall, warm consumer app. Each was rejected as a whole direction; A keeps one idea from each (cancel never delete, length means time, numerals lead, focus dims other rows, accent only on actions). The category standard (shadcn sidebar, KPI cards, charts) stays available if the owner prefers it.
 
-## Open decisions for the owner
+## Owner decisions
 
 1. ~~Direction~~: A approved 2026-11-01. B's stamps were not adopted.
-2. Confirm Message delivery as a header icon (a send icon, not a bell, so it does not read as an inbox) and Clinic settings in the profile menu.
-3. Manager and Director E2E identities: approve adding them to the seed (outside the epic guardrail) or accept the staff identity as a stand-in.
+2. **Confirmed 2026-11-01:** Message delivery is a header icon (a send icon, not a bell, so it does not read as an inbox) and Clinic settings moves to the profile menu. Built in #267.
+3. **Approved 2026-11-01:** add Manager-only and Director-only E2E identities to the seed, as an owner-approved exception to the epic's no-data-change guardrail. Needed by #269 and #282.
 
 ## Decision log
 
-| Date       | Decision                                       | By    |
-| ---------- | ---------------------------------------------- | ----- |
-| 2026-11-01 | Station devices are mostly laptops             | owner |
-| 2026-11-01 | Create all 23 UX sub-issues now (#261 to #283) | owner |
-| 2026-11-01 | English only for this redesign                 | owner |
-| 2026-11-01 | Direction A, Ruled Chart                       | owner |
+| Date       | Decision                                                            | By    |
+| ---------- | ------------------------------------------------------------------- | ----- |
+| 2026-11-01 | Station devices are mostly laptops                                  | owner |
+| 2026-11-01 | Create all 23 UX sub-issues now (#261 to #283)                      | owner |
+| 2026-11-01 | English only for this redesign                                      | owner |
+| 2026-11-01 | Direction A, Ruled Chart                                            | owner |
+| 2026-11-01 | Message delivery in the header, Clinic settings in the profile menu | owner |
+| 2026-11-01 | Add Manager and Director E2E identities to the seed                 | owner |

@@ -75,7 +75,7 @@ No dependency was added in Phase 00.
 
 ## 7. QA matrix gap (Confirmed)
 
-`apps/web/playwright/roles.js` defines staff (System Admin plus all clinic roles), doctor, volunteer, patient and claimant. **There is no Manager-only or Director-only identity**, so those dashboards and nav sets cannot be captured on their own. Adding them changes the seed, which the epic's guardrail does not cover; the owner decides (see DESIGN-DIRECTION.md, open decisions).
+`apps/web/playwright/roles.js` defines staff (System Admin plus all clinic roles), doctor, volunteer, patient and claimant. **There is no Manager-only or Director-only identity**, so those dashboards and nav sets cannot be captured on their own. Adding them changes the seed, outside the epic's guardrail; the owner approved it on 2026-11-01.
 
 ## 8. Privacy
 
