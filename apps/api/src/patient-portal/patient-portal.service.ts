@@ -129,7 +129,7 @@ type AppointmentScheduleWithRelations = Prisma.AppointmentGetPayload<{
 
 type AppointmentLifecycleAction = 'reschedule' | 'cancel' | 'complete' | 'no-show';
 
-interface PortalPatientSummary {
+export interface PortalPatientSummary {
   id: string;
   patientCode: string;
   firstName: string;
@@ -1941,10 +1941,8 @@ export class PatientPortalService {
     return this.listCompatibilitySelfReports(patientId, clinicId);
   }
 
-  private async resolvePortalPatient(
-    clinicId: string,
-    userId: string,
-  ): Promise<PortalPatientSummary> {
+  /** The signed-in patient at this clinic; used by sibling portal services. */
+  async resolvePortalPatient(clinicId: string, userId: string): Promise<PortalPatientSummary> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, keycloakSub: true, isActive: true },

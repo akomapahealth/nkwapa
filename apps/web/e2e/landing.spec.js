@@ -23,6 +23,7 @@ const CTA_HREFS = [
   'https://akomapa.org',
   '/privacy',
   '/terms',
+  '/cookies',
   '/login?next=%2Fstatus',
 ];
 

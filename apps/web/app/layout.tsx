@@ -4,6 +4,7 @@ import { APP_DESCRIPTION, APP_NAME, APP_SHORT_NAME, themeColorFor } from '@/lib/
 import { PwaBoot } from '@/components/pwa/PwaBoot';
 import { ServiceWorkerRegistration } from '@/components/pwa/ServiceWorkerRegistration';
 import { ToastProvider } from '@/components/ui/toast';
+import { CookieConsent } from '@/components/CookieConsent';
 import { ThemeProvider } from '@/lib/theme-context';
 import { themeStorageKey } from '@/lib/theme-storage';
 
@@ -103,6 +104,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {children}
             <ServiceWorkerRegistration />
             <PwaBoot />
+            <CookieConsent />
           </ToastProvider>
         </ThemeProvider>
       </body>

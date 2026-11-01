@@ -14,6 +14,11 @@ import { PatientClaimController } from './patient-claim.controller';
 import { PatientPortalService } from './patient-portal.service';
 import { PortalInviteExpiryService } from './portal-invite-expiry.service';
 import { PortalInviteExpirySweep } from './portal-invite-expiry.sweep';
+import { PatientDataRequestsService } from './patient-data-requests.service';
+import {
+  ClinicDataRequestsController,
+  PatientDataRequestsController,
+} from './patient-data-requests.controller';
 
 @Module({
   imports: [
@@ -30,12 +35,15 @@ import { PortalInviteExpirySweep } from './portal-invite-expiry.sweep';
     ClinicAppointmentsController,
     ClinicAppointmentRequestsController,
     PatientClaimController,
+    PatientDataRequestsController,
+    ClinicDataRequestsController,
   ],
   providers: [
     EmailDeliverabilityService,
     PatientPortalService,
     PortalInviteExpiryService,
     PortalInviteExpirySweep,
+    PatientDataRequestsService,
   ],
   exports: [PatientPortalService, PortalInviteExpiryService],
 })

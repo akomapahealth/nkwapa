@@ -297,6 +297,10 @@
   .legal-prose strong {
     @apply font-semibold text-foreground;
   }
+  /* Storage keys like nkwapa-clinician-plan-seal-key are wider than a 320px column. */
+  .legal-prose code {
+    overflow-wrap: anywhere;
+  }
 }
 
 /* The hero fills the first screen: the sticky header always, the release banner while it shows. */

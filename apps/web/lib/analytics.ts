@@ -4,6 +4,7 @@ import {
   type TelemetryEventName,
   type TelemetryProperties,
 } from '@nkwapa/db/telemetry-events';
+import { analyticsConsented } from './cookie-consent';
 
 /**
  * Browser analytics, held to the same allow-list as the API's telemetry.
@@ -11,8 +12,8 @@ import {
  * Only events the shared catalog marks `client` can be sent from here, and their properties pass
  * the catalog's sanitizer first, so a provider script on the page can never be handed a name, a
  * patient identifier, or anything else the catalog does not name. Nothing is sent unless
- * NEXT_PUBLIC_ANALYTICS_ENABLED is 'true', and even then only to a provider already loaded on the
- * page (Google tag or PostHog). Product metrics that must be reliable are recorded server-side.
+ * NEXT_PUBLIC_ANALYTICS_ENABLED is 'true' and the person accepted analytics cookies, and even then
+ * only to a provider already loaded on the page (Google tag or PostHog). Product metrics that must be reliable are recorded server-side.
  */
 
 type ClientEvents = {
@@ -26,8 +27,9 @@ export interface AnalyticsPayload {
   properties: TelemetryProperties;
 }
 
+/** Switched on for the deployment, and agreed to by this person in the cookie banner. */
 function analyticsEnabled(): boolean {
-  return typeof window !== 'undefined' && process.env.NEXT_PUBLIC_ANALYTICS_ENABLED === 'true';
+  return typeof window !== 'undefined' && analyticsConsented();
 }
 
 /** The exact payload a provider would receive, or null for an event the browser may not send. */

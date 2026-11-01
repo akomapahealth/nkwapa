@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import { LandingHeader } from './LandingHeader';
 import { LandingFooter } from './LandingFooter';
 import { LegalContents } from './LegalContents';
-import { CONTACT_EMAIL, CONTACT_HREF, PRIVACY_HREF, TERMS_HREF } from './links';
+import { CONTACT_EMAIL, CONTACT_HREF, COOKIES_HREF, PRIVACY_HREF, TERMS_HREF } from './links';
 
 export interface LegalSection {
   id: string;
@@ -14,6 +14,7 @@ export interface LegalSection {
 const LEGAL_PAGES = [
   { href: PRIVACY_HREF, label: 'Privacy notice' },
   { href: TERMS_HREF, label: 'Terms of use' },
+  { href: COOKIES_HREF, label: 'Cookie policy' },
 ];
 
 /**
@@ -28,7 +29,7 @@ export function LegalPage({
   updated,
   sections,
 }: {
-  path: typeof PRIVACY_HREF | typeof TERMS_HREF;
+  path: typeof PRIVACY_HREF | typeof TERMS_HREF | typeof COOKIES_HREF;
   title: string;
   lede: ReactNode;
   updated: string;

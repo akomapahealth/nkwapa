@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Building2, Mail, Phone, Settings, UserPen } from 'lucide-react';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { NotificationsCard } from '@/components/account/NotificationsCard';
+import { YourDataCard } from '@/components/account/YourDataCard';
 import { StaffNameForm } from '@/components/account/StaffNameForm';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { InlineNotice } from '@/components/ops/OpsShared';
@@ -79,15 +80,18 @@ export default function AccountPage() {
                 <PhoneCard key={bootstrap.userId} bootstrap={bootstrap} />
               </>
             ) : (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Your details</CardTitle>
-                  <CardDescription>
-                    Your name, phone and date of birth are on your clinic record. Ask the clinic to
-                    correct them at your next visit.
-                  </CardDescription>
-                </CardHeader>
-              </Card>
+              <>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Your details</CardTitle>
+                    <CardDescription>
+                      Your name, phone and date of birth are on your clinic record. To correct them,
+                      send a request below or ask at your next visit.
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+                <YourDataCard />
+              </>
             )}
             {/* Messages are the only thing that notifies today, so only those who can chat. */}
             {canChat ? <NotificationsCard /> : null}
