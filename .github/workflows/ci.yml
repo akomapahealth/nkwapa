@@ -348,6 +348,7 @@ jobs:
       RATE_LIMIT_AUTH_ME_LIMIT: '100000'
       RATE_LIMIT_SYNC_PULL_LIMIT: '100000'
       RATE_LIMIT_SYNC_PUSH_LIMIT: '100000'
+      RATE_LIMIT_DEFAULT_LIMIT: '100000'
     steps:
       - uses: actions/checkout@v4
 

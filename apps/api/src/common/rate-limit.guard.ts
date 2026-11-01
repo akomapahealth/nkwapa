@@ -27,6 +27,8 @@ type RequestWithUser = {
 @Injectable()
 export class RateLimitGuard implements CanActivate {
   private readonly logger = new Logger(RateLimitGuard.name);
+  // shortcut: counts per API instance, so N instances allow N times the limit; move to Redis if we scale out.
+  private readonly defaultBuckets = new Map<string, { count: number; resetAt: number }>();
 
   constructor(
     private readonly reflector: Reflector,
@@ -40,11 +42,11 @@ export class RateLimitGuard implements CanActivate {
       [context.getHandler(), context.getClass()],
     );
 
+    const request = context.switchToHttp().getRequest<RequestWithUser>();
     if (!config) {
-      return true;
+      return this.checkDefaultLimit(request);
     }
 
-    const request = context.switchToHttp().getRequest<RequestWithUser>();
     const identity = this.resolveIdentity(request, config);
     if (!identity) {
       return true;
@@ -82,14 +84,7 @@ export class RateLimitGuard implements CanActivate {
           scope: config.scope ?? 'user-or-ip',
           clinicId: request.params?.clinicId ?? null,
         });
-        throw new HttpException(
-          {
-            code: 'RATE_LIMITED',
-            message: 'Too many requests. Please slow down and try again shortly.',
-            recoveryAction: 'Wait a moment and retry the request.',
-          },
-          HttpStatus.TOO_MANY_REQUESTS,
-        );
+        throw rateLimited();
       }
 
       return true;
@@ -111,6 +106,46 @@ export class RateLimitGuard implements CanActivate {
     }
   }
 
+  /**
+   * A per-address ceiling for every route without its own @RateLimit, so none is unbounded. It is
+   * kept in memory to add no Redis commands per request, and set high because a whole clinic can
+   * share one public address.
+   */
+  private checkDefaultLimit(request: RequestWithUser) {
+    const ip = getRequestIp(request as never);
+    if (!ip) return true;
+
+    const limit = getRateLimitValue('RATE_LIMIT_DEFAULT_LIMIT', 600);
+    const windowMs = getRateLimitValue('RATE_LIMIT_DEFAULT_WINDOW_SECONDS', 60) * 1000;
+    const now = Date.now();
+
+    // Bounds memory when many addresses pass through, as a crawler farm would.
+    if (this.defaultBuckets.size > 10_000) {
+      for (const [key, bucket] of this.defaultBuckets) {
+        if (bucket.resetAt <= now) this.defaultBuckets.delete(key);
+      }
+    }
+
+    let bucket = this.defaultBuckets.get(ip);
+    if (!bucket || bucket.resetAt <= now) {
+      bucket = { count: 0, resetAt: now + windowMs };
+      this.defaultBuckets.set(ip, bucket);
+    }
+    bucket.count += 1;
+
+    if (bucket.count > limit) {
+      if (bucket.count === limit + 1) {
+        this.telemetry?.record('security.rate_limit', {
+          bucket: 'default',
+          scope: 'ip',
+          clinicId: request.params?.clinicId ?? null,
+        });
+      }
+      throw rateLimited();
+    }
+    return true;
+  }
+
   private resolveIdentity(request: RequestWithUser, config: RateLimitConfig) {
     const userId = request.user?.user?.id;
     if (config.scope === 'user') {
@@ -124,4 +159,15 @@ export class RateLimitGuard implements CanActivate {
 
     return userId ?? ip ?? null;
   }
+}
+
+function rateLimited() {
+  return new HttpException(
+    {
+      code: 'RATE_LIMITED',
+      message: 'Too many requests. Please slow down and try again shortly.',
+      recoveryAction: 'Wait a moment and retry the request.',
+    },
+    HttpStatus.TOO_MANY_REQUESTS,
+  );
 }
