@@ -392,7 +392,7 @@ roleless row keyed on the real one. The symptom is "No clinic selected" on every
 2. Read the real ids from the Keycloak admin API
    (`/admin/realms/nkwapa/users?username=<username>&exact=true`) and write them into `.env`
    (`SEED_SYSTEM_ADMIN_SUB`, `SEED_E2E_STAFF_SUB`, `SEED_E2E_DOCTOR_SUB`, `SEED_E2E_VOLUNTEER_SUB`,
-   `SEED_E2E_PATIENT_SUB`).
+   `SEED_E2E_MANAGER_SUB`, `SEED_E2E_DIRECTOR_SUB`, `SEED_E2E_PATIENT_SUB`).
 3. Drop the database and reseed once.
 
 ---

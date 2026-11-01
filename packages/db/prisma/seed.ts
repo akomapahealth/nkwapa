@@ -150,7 +150,8 @@ async function ensureResearchSettings(
  *
  * The multi-role E2E user is convenient for walking the product and useless for proving what a
  * single role can see, because it holds every role at once. These identities exist so the browser
- * can show what a doctor and a volunteer actually get, including what they are refused.
+ * can show what a doctor, a volunteer, a manager and a director actually get, including what they
+ * are refused.
  */
 async function ensureSingleRoleUser(
   prisma: PrismaClient,
@@ -1179,6 +1180,28 @@ async function main() {
       role: UserRole.VOLUNTEER,
     });
     console.log('Seeded deterministic single-role E2E volunteer.');
+  }
+
+  if (plan.e2e.manager) {
+    await ensureSingleRoleUser(prisma, {
+      sub: plan.e2e.manager.sub,
+      displayName: plan.e2e.manager.name,
+      email: plan.e2e.manager.email,
+      clinicId: clinic.id,
+      role: UserRole.MANAGER,
+    });
+    console.log('Seeded deterministic single-role E2E manager.');
+  }
+
+  if (plan.e2e.director) {
+    await ensureSingleRoleUser(prisma, {
+      sub: plan.e2e.director.sub,
+      displayName: plan.e2e.director.name,
+      email: plan.e2e.director.email,
+      clinicId: clinic.id,
+      role: UserRole.DIRECTOR,
+    });
+    console.log('Seeded deterministic single-role E2E director.');
   }
 
   /*

@@ -33,8 +33,8 @@ const resetUser = {
  *
  * The staff user holds SYSTEM_ADMIN plus every clinic role at once, which is convenient for
  * walking the whole product and useless for proving that a role sees only what it should. These
- * two hold exactly one seat each, so the browser can show what a doctor and a volunteer actually
- * get -- including what they are refused.
+ * hold exactly one seat each, so the browser can show what a doctor, a volunteer, a manager and a
+ * director actually get -- including what they are refused.
  */
 const doctorUser = {
   id: process.env.E2E_DOCTOR_SUB || '00000000-0000-4000-8000-000000000044',
@@ -50,6 +50,22 @@ const volunteerUser = {
   password: process.env.E2E_VOLUNTEER_PASSWORD || 'NkwapaVolunteer!23',
   email: process.env.E2E_VOLUNTEER_EMAIL || 'e2e.volunteer@nkwapa.local',
   displayName: process.env.E2E_VOLUNTEER_NAME || 'E2E Volunteer',
+};
+
+const managerUser = {
+  id: process.env.E2E_MANAGER_SUB || '00000000-0000-4000-8000-000000000048',
+  username: process.env.E2E_MANAGER_USERNAME || 'e2e.manager',
+  password: process.env.E2E_MANAGER_PASSWORD || 'NkwapaManager!23',
+  email: process.env.E2E_MANAGER_EMAIL || 'e2e.manager@nkwapa.local',
+  displayName: process.env.E2E_MANAGER_NAME || 'E2E Manager',
+};
+
+const directorUser = {
+  id: process.env.E2E_DIRECTOR_SUB || '00000000-0000-4000-8000-000000000049',
+  username: process.env.E2E_DIRECTOR_USERNAME || 'e2e.director',
+  password: process.env.E2E_DIRECTOR_PASSWORD || 'NkwapaDirector!23',
+  email: process.env.E2E_DIRECTOR_EMAIL || 'e2e.director@nkwapa.local',
+  displayName: process.env.E2E_DIRECTOR_NAME || 'E2E Director',
 };
 
 /**
@@ -95,6 +111,8 @@ const identities = {
   reset: resetUser,
   doctor: doctorUser,
   volunteer: volunteerUser,
+  manager: managerUser,
+  director: directorUser,
   patient: patientUser,
   claimant: claimantUser,
 };
