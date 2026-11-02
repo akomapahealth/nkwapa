@@ -651,6 +651,31 @@ Every dashboard chart (`TrendChart`, `DistributionChart`) now sits in
 Lines are `type="linear"`. Manager, director and admin charts get the frame too;
 their order and content are #269.
 
+### Phase 03 manager, director and admin dashboards (#269)
+
+**Needs you now** also leads for a manager, director or system administrator. Their
+rows are the clinic's held-up queues, from `DashboardData.summary`: visits nobody
+has reviewed, reviewed visits no doctor has finalized, and (director data only) HAP
+notes waiting for a cosign. A clinic row is left out when the person's own doctor
+or review rows already say it. The cosign row has no action, because a manager has
+no page of their own for it; `AppActionRow`'s `action` is optional for that case
+only.
+
+- **Station line now** (`StationLineLanes.tsx`, station workflow only): one lane
+  per open station. The bar is the longest current wait, minutes since that
+  patient's `queuedAt`, on a labelled minute scale with a dashed 20-minute marker.
+  Past 20 minutes the bar takes `bg-warning` and the lane says "Over 20 minutes";
+  a station with no one on it says "No one staffing". Words carry both readings,
+  so neither depends on colour. These are aggregates; the dashboard has no
+  per-patient queue data.
+- Both station charts (median wait, hourly flow) are in `ChartFrame`, and the
+  "By station" table, staff activity and clinic comparison lose their cards for
+  the same 2px ruled section heading.
+- **One role section at a time.** An account with more than one of the clinic,
+  network, doctor and volunteer sections sees them as a "Dashboard view" tab set,
+  oversight first (Clinic trends, Network overview, then the person's own queues).
+  A single-role account sees no tabs. Doctor and review stay one view.
+
 ### The combobox, and when it is not the answer
 
 `Select` is still the default. `Combobox` exists for one case: a list long enough that scrolling

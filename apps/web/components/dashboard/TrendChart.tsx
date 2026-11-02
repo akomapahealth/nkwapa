@@ -48,7 +48,7 @@ export function TrendChart({
       columns={['Day', 'Count']}
       rows={data.map((point) => ({
         label: parseChartDate(point.date).toLocaleDateString(),
-        value: point.count,
+        values: [point.count],
       }))}
       hasData={hasData}
       empty={

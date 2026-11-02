@@ -7,7 +7,8 @@ import { InfoHint } from '@/components/ui/info-hint';
 
 export interface ChartTableRow {
   label: string;
-  value: number;
+  /** One cell per value column, already formatted where a unit applies ("12 min"). */
+  values: (number | string)[];
 }
 
 /**
@@ -22,15 +23,18 @@ export function ChartFrame({
   rows,
   hasData,
   empty,
+  height,
   children,
 }: {
   title: string;
   hint?: string;
-  /** Header cells for the table view: what the label is, what the value counts. */
-  columns: [string, string];
+  /** Header cells for the table view: what the label is, then what each value counts. */
+  columns: [string, ...string[]];
   rows: ChartTableRow[];
   hasData: boolean;
   empty: ReactNode;
+  /** Fixed chart height in px, for charts sized by their row count. */
+  height?: number;
   children: ReactNode;
 }) {
   const [showTable, setShowTable] = useState(false);
@@ -63,12 +67,15 @@ export function ChartFrame({
           <caption className="sr-only">{title}</caption>
           <thead>
             <tr className="border-b border-rule text-left text-muted-foreground">
-              <th scope="col" className="py-2 font-medium">
-                {columns[0]}
-              </th>
-              <th scope="col" className="py-2 text-right font-medium">
-                {columns[1]}
-              </th>
+              {columns.map((column, index) => (
+                <th
+                  key={column}
+                  scope="col"
+                  className={index ? 'py-2 pl-3 text-right font-medium' : 'py-2 font-medium'}
+                >
+                  {column}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -77,13 +84,22 @@ export function ChartFrame({
                 <th scope="row" className="py-2 text-left font-normal text-foreground">
                   {row.label}
                 </th>
-                <td className="py-2 text-right tabular-nums text-foreground">{row.value}</td>
+                {row.values.map((value, index) => (
+                  <td key={index} className="py-2 pl-3 text-right tabular-nums text-foreground">
+                    {value}
+                  </td>
+                ))}
               </tr>
             ))}
           </tbody>
         </table>
       ) : (
-        <div className="mt-2 h-[240px] sm:h-[260px]">{children}</div>
+        <div
+          className={height ? 'mt-2' : 'mt-2 h-[240px] sm:h-[260px]'}
+          style={height ? { height } : undefined}
+        >
+          {children}
+        </div>
       )}
     </section>
   );

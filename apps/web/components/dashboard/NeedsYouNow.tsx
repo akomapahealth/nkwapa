@@ -13,6 +13,11 @@ interface NeedsYouNowProps {
   };
   doctor?: { awaitingFinalization: number; pendingClinicalNoteCosigns?: number };
   review?: { awaitingReview: number };
+  /**
+   * For managers, directors and system administrators: the active clinic's queue counts
+   * (`DashboardData.summary`) and, for managers and directors, its pending HAP cosigns.
+   */
+  clinic?: { pendingReview: number; readyToFinalize: number; pendingClinicalNoteCosigns?: number };
   /** Where this person's next patient is: their station, Today Board or My Assigned. */
   worklistHref: string | null;
 }
@@ -37,16 +42,17 @@ const WORKLIST_LABELS: Record<string, { title: string; detail: string; action: s
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
-type Row = Omit<AppActionRowProps, 'action'> & { href: string; label: string };
+type Row = Omit<AppActionRowProps, 'action'> & { href?: string; label?: string };
 
 /**
- * The first thing on a volunteer's or doctor's dashboard: the work waiting on them, one ruled row
- * per kind with one action (MASTER.md section 12). Built only from `DashboardData` counts; it
- * never names a patient, because the dashboard contract carries none. Renders nothing for roles
- * without a volunteer or doctor section, whose dashboards #269 redesigns.
+ * The first thing on every staff dashboard: the work waiting on this person, one ruled row per
+ * kind with one action (MASTER.md section 12). Volunteers and doctors see their own queues;
+ * managers, directors and administrators see where the clinic's queues are held up. Built only
+ * from `DashboardData` counts; it never names a patient, because the dashboard contract carries
+ * none.
  */
-export function NeedsYouNow({ volunteer, doctor, review, worklistHref }: NeedsYouNowProps) {
-  if (!volunteer && !doctor && !review) return null;
+export function NeedsYouNow({ volunteer, doctor, review, clinic, worklistHref }: NeedsYouNowProps) {
+  if (!volunteer && !doctor && !review && !clinic) return null;
 
   const rows: Row[] = [];
   const worklist = worklistHref ? WORKLIST_LABELS[worklistHref] : undefined;
@@ -99,6 +105,36 @@ export function NeedsYouNow({ volunteer, doctor, review, worklistHref }: NeedsYo
       label: 'Cosign notes',
     });
   }
+  // Clinic-wide, and only where this person's own rows above do not already say it.
+  if (clinic && !review && clinic.pendingReview > 0) {
+    rows.push({
+      title: `${plural(clinic.pendingReview, 'visit', 'visits')} waiting for review in this clinic`,
+      detail: 'Submitted visits nobody has reviewed yet.',
+      icon: Eye,
+      tone: 'info',
+      href: '/queues',
+      label: 'Open queues',
+    });
+  }
+  if (clinic && !doctor && clinic.readyToFinalize > 0) {
+    rows.push({
+      title: `${plural(clinic.readyToFinalize, 'visit', 'visits')} waiting for a doctor's sign-off`,
+      detail: 'Reviewed visits no doctor has finalized yet.',
+      icon: CheckCircle,
+      tone: 'info',
+      href: '/queues',
+      label: 'Open queues',
+    });
+  }
+  if (clinic && !doctor && clinic.pendingClinicalNoteCosigns) {
+    rows.push({
+      title: `${plural(clinic.pendingClinicalNoteCosigns, 'HAP note', 'HAP notes')} waiting for a doctor's cosign`,
+      // No action: cosigning is a doctor's, and the content stays with the clinical team.
+      detail: 'A clinic count only; the notes themselves stay with the clinical team.',
+      icon: ClipboardList,
+      tone: 'info',
+    });
+  }
 
   return (
     <section aria-labelledby="needs-you-now" className="border-t-2 border-rule-strong pt-4">
@@ -123,12 +159,14 @@ export function NeedsYouNow({ volunteer, doctor, review, worklistHref }: NeedsYo
         <ul className="mt-1">
           {rows.map(({ href, label, ...row }) => (
             <AppActionRow
-              key={href}
+              key={row.title}
               {...row}
               action={
-                <Button asChild variant="outline" className="min-h-11">
-                  <Link href={href}>{label}</Link>
-                </Button>
+                href ? (
+                  <Button asChild variant="outline" className="min-h-11">
+                    <Link href={href}>{label}</Link>
+                  </Button>
+                ) : undefined
               }
             />
           ))}

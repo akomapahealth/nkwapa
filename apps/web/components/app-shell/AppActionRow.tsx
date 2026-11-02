@@ -6,8 +6,11 @@ export interface AppActionRowProps {
   title: string;
   detail?: string;
   icon: LucideIcon;
-  /** Pass one real Button or Link. The caller retains permissions and behaviour. */
-  action: ReactElement;
+  /**
+   * Pass one real Button or Link. The caller retains permissions and behaviour. Omit it only for
+   * a count the reader should know about but has no page of their own to act on.
+   */
+  action?: ReactElement;
   tone?: 'neutral' | 'info' | 'warning' | 'destructive';
 }
 
@@ -37,7 +40,7 @@ export function AppActionRow({
           ) : null}
         </div>
       </div>
-      <div className="shrink-0">{action}</div>
+      {action ? <div className="shrink-0">{action}</div> : null}
     </li>
   );
 }

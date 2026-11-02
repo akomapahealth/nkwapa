@@ -4,6 +4,8 @@ const { storageStateFor } = require('../playwright/roles');
 /**
  * #268: a volunteer's and a doctor's dashboard lead with the work waiting on them, then today's
  * counts, then trends, and every chart offers its numbers as a table.
+ * #269: so do the manager's, director's and system administrator's, with the clinic's held-up
+ * queues as their rows, and an account with several roles sees one role's section at a time.
  */
 
 async function needsSection(page) {
@@ -78,5 +80,49 @@ test.describe('doctor', () => {
     }
     // A doctor has no volunteer worklist row.
     await expect(section.getByText(/^Today you added/)).toHaveCount(0);
+  });
+});
+
+for (const role of ['manager', 'director']) {
+  test.describe(role, () => {
+    test.use({ storageState: storageStateFor(role) });
+
+    test('leads with where the clinic queues are held up, then clinic trends', async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.goto('/dashboard');
+      const section = await needsSection(page);
+      await expectWorkFirst(page);
+
+      const hrefs = await section
+        .getByRole('link')
+        .evaluateAll((links) => links.map((a) => a.getAttribute('href')));
+      for (const href of hrefs) expect(href).toBe('/queues');
+      // Not a volunteer's or doctor's own rows.
+      await expect(section.getByText(/^Today you added/)).toHaveCount(0);
+      await expect(section.getByRole('link', { name: 'Review visits' })).toHaveCount(0);
+
+      // One role, so no view switcher; the oversight section is on the page.
+      await expect(page.getByRole('tablist', { name: 'Dashboard view' })).toHaveCount(0);
+      await expect(page.getByRole('heading', { name: 'Clinic trends', exact: true })).toBeVisible();
+    });
+  });
+}
+
+test.describe('an account holding every role', () => {
+  test.use({ storageState: storageStateFor('staff') });
+
+  test('sees one role section at a time, on a far shorter page', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/dashboard');
+    await needsSection(page);
+    const views = page.getByRole('tablist', { name: 'Dashboard view' });
+    await expect(views.getByRole('tab', { name: 'Clinic trends' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    await expect(page.getByRole('tabpanel')).toHaveCount(1);
+    await page.waitForLoadState('networkidle').catch(() => {});
+    // The #229 baseline was 7,342px, and stacking every role section made it 8,178px.
+    expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThan(5_000);
   });
 });

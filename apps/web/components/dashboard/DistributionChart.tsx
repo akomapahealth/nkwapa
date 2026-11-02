@@ -97,7 +97,7 @@ export function DistributionChart({
       title={title}
       hint={hint}
       columns={['Category', 'Count']}
-      rows={displayData.map((entry) => ({ label: entry.label, value: entry.value }))}
+      rows={displayData.map((entry) => ({ label: entry.label, values: [entry.value] }))}
       hasData={hasData}
       empty={
         <EmptyState
