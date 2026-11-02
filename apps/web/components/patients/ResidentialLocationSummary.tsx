@@ -2,7 +2,11 @@
 
 import { Home, MapPin } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import {
+  RecordSection as Card,
+  RecordSectionContent as CardContent,
+  RecordSectionHeader as CardHeader,
+} from '@/components/patients/RecordSection';
 import { EmptyState } from '@/components/feedback/AppState';
 import { describeResidentialLocation } from '@/lib/residential-location';
 import type { GhanaRegion, PatientLocationStatus } from '@/lib/residential-location';
@@ -17,9 +21,9 @@ interface PatientLocationFields {
 
 function Tile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-border/80 bg-background/75 p-4">
-      <p className="text-eyebrow text-muted-foreground">{label}</p>
-      <p className="mt-2 text-sm text-foreground">{value}</p>
+    <div className="border-b border-rule py-3">
+      <p className="type-label font-normal text-muted-foreground">{label}</p>
+      <p className="mt-1 text-sm text-foreground">{value}</p>
     </div>
   );
 }
@@ -38,20 +42,18 @@ export function ResidentialLocationSummary({ patient }: { patient: PatientLocati
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Home className="h-4 w-4 text-muted-foreground" aria-hidden />
-            <h2 className="text-lg font-semibold">Residential location</h2>
+            <h2 className="type-section-title">Residential location</h2>
           </div>
-          <Badge variant={location.isRecorded ? 'default' : 'outline'}>
-            {location.statusLabel}
-          </Badge>
+          <Badge variant={'outline'}>{location.statusLabel}</Badge>
         </div>
         <p className="text-sm text-muted-foreground">
-          Where the patient lives — separate from their primary clinic.
+          Where the patient lives, separate from their primary clinic.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
         {location.isRecorded ? (
           <>
-            <div className="flex items-start gap-2 rounded-lg border border-border/80 bg-background/75 p-4">
+            <div className="flex items-start gap-2 border-b border-rule py-3">
               <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
               <p className="text-sm font-medium text-foreground">{location.summary}</p>
             </div>
@@ -60,9 +62,9 @@ export function ResidentialLocationSummary({ patient }: { patient: PatientLocati
               <Tile label="District" value={location.district ?? 'Not recorded'} />
               <Tile label="Community" value={location.community ?? 'Not recorded'} />
               {location.addressNote ? (
-                <div className="rounded-lg border border-border/80 bg-background/75 p-4 sm:col-span-2">
-                  <p className="text-eyebrow text-muted-foreground">Address note</p>
-                  <p className="mt-2 whitespace-pre-line text-sm text-foreground">
+                <div className="border-b border-rule py-3 sm:col-span-2">
+                  <p className="type-label font-normal text-muted-foreground">Address note</p>
+                  <p className="mt-1 whitespace-pre-line text-sm text-foreground">
                     {location.addressNote}
                   </p>
                 </div>

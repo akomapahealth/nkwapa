@@ -3,19 +3,19 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, FileText, ShieldCheck, UserCheck } from 'lucide-react';
+import { ArrowLeft, ShieldCheck } from 'lucide-react';
+import { readApiError } from '@/lib/ops';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { CONSENT_TEXT_V1_EN } from '@/lib/consent-text';
 import { db } from '@/lib/db';
 import { enqueueOutboxMutation, SYNC_OPERATION } from '@/lib/outbox';
-import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
-import { InlineNotice } from '@/components/ops/OpsShared';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { FormSectionCard } from '@/components/app-shell/FormSectionCard';
+import { PatientFormErrors } from './PatientFormErrors';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 
@@ -95,8 +95,7 @@ export function RecordConsentScreen({
         return;
       }
 
-      const errorText = await response.text();
-      setError(errorText || 'Failed to record consent');
+      setError(await readApiError(response));
       setLoading(false);
       return;
     } catch {
@@ -172,83 +171,62 @@ export function RecordConsentScreen({
         withdraw it later. Record it only after the patient has agreed.
       </ProgressiveHelp>
 
-      <AppMetricGroup className="md:grid-cols-3">
-        <AppMetricCard
-          title="Consent type"
-          value="De-identified"
-          icon={ShieldCheck}
-          detail="This flow records approval for de-identified research use only."
-        />
-        <AppMetricCard
-          title="Workflow"
-          value="Attested"
-          icon={UserCheck}
-          detail="A staff attestation is required before consent can be recorded."
-        />
-        <AppMetricCard
-          title="Document"
-          value="v1-en"
-          icon={FileText}
-          detail="The current English consent text is captured with the audit record."
-        />
-      </AppMetricGroup>
+      <FormSectionCard
+        title="Consent text"
+        description="Review the current consent language exactly as it will be stored with the record."
+      >
+        <p className="text-sm text-muted-foreground">De-identified research · Document v1-en</p>
+        <div className="max-w-prose whitespace-pre-wrap text-base leading-7 text-foreground">
+          {CONSENT_TEXT_V1_EN}
+        </div>
+      </FormSectionCard>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xl">Consent text</CardTitle>
-          <CardDescription>
-            Review the current consent language exactly as it will be stored with the record.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="whitespace-pre-wrap rounded-lg border border-border/80 bg-muted/35 p-5 text-sm leading-7 text-foreground">
-            {CONSENT_TEXT_V1_EN}
+      <FormSectionCard
+        title="Confirm and record"
+        description="Confirm that the patient was informed and granted consent before saving."
+        className="max-w-3xl border-t-2 border-rule-strong"
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <PatientFormErrors message={error} />
+
+          <div className="flex items-start gap-3 border-y border-border py-4">
+            <Checkbox
+              id="consentAttested"
+              aria-describedby="consent-attestation-help"
+              aria-invalid={(!!error && !attested) || undefined}
+              checked={attested}
+              onCheckedChange={(checked) => setAttested(checked === true)}
+              className="mt-1"
+            />
+            <div className="space-y-2">
+              <Label
+                htmlFor="consentAttested"
+                className="inline-flex min-h-11 cursor-pointer items-center text-sm font-medium text-foreground"
+              >
+                I attest that the patient has been informed and has granted consent.
+              </Label>
+              <p id="consent-attestation-help" className="text-sm text-muted-foreground">
+                This confirmation is stored as part of the research consent audit trail.
+              </p>
+            </div>
           </div>
-        </CardContent>
-      </Card>
 
-      <Card className="max-w-3xl">
-        <CardHeader>
-          <CardTitle className="text-xl">Confirm and record</CardTitle>
-          <CardDescription>
-            Confirm that the patient was informed and granted consent before saving.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
-
-            <div className="flex items-start gap-3 rounded-lg border border-border/80 bg-background/75 p-4">
-              <Checkbox
-                id="consentAttested"
-                checked={attested}
-                onCheckedChange={(checked) => setAttested(checked === true)}
-                className="mt-1"
-              />
-              <div className="space-y-2">
-                <Label
-                  htmlFor="consentAttested"
-                  className="cursor-pointer text-sm font-medium text-foreground"
-                >
-                  I attest that the patient has been informed and has granted consent.
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  This confirmation is stored as part of the research consent audit trail.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <Button type="submit" disabled={loading || !attested}>
-                {loading ? 'Recording...' : 'Record Consent'}
-              </Button>
-              <Button variant="outline" asChild>
-                <Link href={patientHref}>Cancel</Link>
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="submit"
+              variant="outline"
+              className="border-warning text-warning-ink"
+              disabled={loading || !attested}
+            >
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+              {loading ? 'Recording...' : 'Record Consent'}
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href={patientHref}>Cancel</Link>
+            </Button>
+          </div>
+        </form>
+      </FormSectionCard>
     </div>
   );
 }

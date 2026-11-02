@@ -38,17 +38,17 @@ export function PatientChartTabs({ sections, controller, renderSection }: Patien
       onValueChange={(value) => goToSection(value as PatientChartSectionId)}
       className="w-full"
     >
-      <div className="max-w-full overflow-x-auto pb-1">
+      <div className="max-w-full overflow-x-auto border-b border-rule pb-1">
         <TabsList
           aria-label="Patient chart sections"
-          className="w-max justify-start gap-2 rounded-lg border border-border/80 bg-card/75 p-2"
+          className="w-max justify-start gap-1 rounded-none bg-transparent p-0"
         >
           {sections.map((section) => (
             <TabsTrigger
               key={section.id}
               value={section.id}
               title={section.description}
-              className="min-h-9 cursor-pointer"
+              className="min-h-11 cursor-pointer rounded-none border-b-2 border-transparent px-3 shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none"
             >
               {section.label}
             </TabsTrigger>

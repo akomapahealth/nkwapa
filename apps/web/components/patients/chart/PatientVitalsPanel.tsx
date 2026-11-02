@@ -3,7 +3,11 @@
 import { useCallback } from 'react';
 import Link from 'next/link';
 import { ArrowUpRight, HeartPulse } from 'lucide-react';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import {
+  RecordSection as Card,
+  RecordSectionContent as CardContent,
+  RecordSectionHeader as CardHeader,
+} from '@/components/patients/RecordSection';
 import { PatientTrendsPanel } from '@/components/patients/PatientTrendsPanel';
 import {
   buildEncounterHref,
@@ -41,7 +45,7 @@ function VitalsRecordCard({ record, clinicId }: { record: ChartVitalsRecord; cli
       footer={
         <Link
           href={buildEncounterHref(clinicId, record.encounterId)}
-          className="inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 transition-colors duration-150 hover:underline"
+          className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-primary underline-offset-4 transition-colors duration-150 hover:underline"
         >
           Open source visit
           <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
@@ -85,13 +89,11 @@ export function PatientVitalsPanel({
 
   return (
     <div className="space-y-4">
-      <PatientTrendsPanel clinicId={clinicId} patientId={patientId} />
-
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
-            <HeartPulse className="h-5 w-5 text-primary" aria-hidden="true" />
-            <h2 className="text-lg font-semibold">Recorded vitals</h2>
+            <HeartPulse className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+            <h2 className="type-section-title">Recorded vitals</h2>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
             Every measurement set in reverse chronological order, linked to the visit it was
@@ -110,6 +112,8 @@ export function PatientVitalsPanel({
           </ChartRecordList>
         </CardContent>
       </Card>
+
+      <PatientTrendsPanel clinicId={clinicId} patientId={patientId} />
     </div>
   );
 }

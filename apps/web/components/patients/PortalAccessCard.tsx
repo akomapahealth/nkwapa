@@ -4,7 +4,11 @@ import { useCallback, useMemo, useState, type ChangeEvent } from 'react';
 import { Check, ClipboardCopy, Link2, Mail, ShieldCheck, UserPlus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import {
+  RecordSection as Card,
+  RecordSectionContent as CardContent,
+  RecordSectionHeader as CardHeader,
+} from '@/components/patients/RecordSection';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -218,21 +222,21 @@ export function PortalAccessCard({
     <>
       <Card>
         <CardHeader>
-          <h2 className="text-lg font-semibold">Portal account</h2>
+          <h2 className="type-section-title">Portal account</h2>
           <p className="text-sm text-muted-foreground">
             Link the patient to an existing app account, or stage an invitation they claim on first
             sign-in.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="rounded-lg border border-border bg-background p-4">
+          <div className="border-b border-rule py-3">
             {/*
               The status is said once. The old card printed the raw enum as both a heading
               and a badge beside it, so the same word appeared twice and the second carried
               nothing the first had not. The badge is the token; the sentence under it is
               what the reader actually needs.
             */}
-            <p className="text-eyebrow text-muted-foreground">Portal status</p>
+            <p className="type-label font-normal text-muted-foreground">Portal status</p>
             <p className="mt-2">
               <Badge variant={accessState.variant} className="rounded-full text-sm">
                 {accessState.label}
@@ -257,7 +261,7 @@ export function PortalAccessCard({
                   first.
                 */}
                 <div className="flex flex-wrap items-baseline gap-2">
-                  <dt className="text-eyebrow text-muted-foreground">Expiry</dt>
+                  <dt className="type-label font-normal text-muted-foreground">Expiry</dt>
                   <dd
                     className={
                       expiry.tone === 'neutral'
@@ -272,14 +276,14 @@ export function PortalAccessCard({
 
                 <div className="flex flex-wrap gap-x-4 gap-y-1">
                   <div className="min-w-0">
-                    <dt className="text-eyebrow text-muted-foreground">Sent to</dt>
+                    <dt className="type-label font-normal text-muted-foreground">Sent to</dt>
                     <dd className="break-words text-foreground">
                       {describeInviteContact(currentInvite)}
                     </dd>
                   </div>
                   {currentInvite.createdByName ? (
                     <div className="min-w-0">
-                      <dt className="text-eyebrow text-muted-foreground">Issued by</dt>
+                      <dt className="type-label font-normal text-muted-foreground">Issued by</dt>
                       <dd className="break-words text-foreground">{currentInvite.createdByName}</dd>
                     </div>
                   ) : null}
@@ -339,8 +343,10 @@ export function PortalAccessCard({
                 <span className="font-medium">{deliveryGap.title}</span>{' '}
                 <span>{deliveryGap.detail}</span>
               </InlineNotice>
-              <div className="rounded-lg border border-border bg-muted/40 p-3">
-                <p className="text-eyebrow text-muted-foreground">Read this to the patient</p>
+              <div className="border-t border-rule py-3">
+                <p className="type-label font-normal text-muted-foreground">
+                  Read this to the patient
+                </p>
                 <pre className="mt-2 whitespace-pre-wrap break-words font-body text-sm text-foreground">
                   {manualInstructions}
                 </pre>
@@ -463,10 +469,7 @@ export function PortalAccessCard({
                     const settledAt =
                       invite.claimedAt ?? invite.cancelledAt ?? invite.expiresAt ?? null;
                     return (
-                      <li
-                        key={invite.id}
-                        className="rounded-lg border border-border bg-background p-3 text-sm"
-                      >
+                      <li key={invite.id} className="border-b border-rule py-3 text-sm">
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge variant={state.variant} className="rounded-full">
                             {state.label}

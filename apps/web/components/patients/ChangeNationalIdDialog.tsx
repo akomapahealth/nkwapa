@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { FieldLabel } from '@/components/ui/field';
+import { FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -24,6 +24,8 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { InlineNotice } from '@/components/feedback/InlineNotice';
+
+import { PatientFormErrors, usePatientFormErrors } from './PatientFormErrors';
 
 type IdType = 'NATIONAL_ID' | 'VOTER_ID' | 'PASSPORT' | 'OTHER' | 'NONE';
 
@@ -61,6 +63,7 @@ export function ChangeNationalIdDialog({
   getToken: GetToken | null | undefined;
   onChanged: (next: ChangedNationalId) => void;
 }) {
+  const validation = usePatientFormErrors();
   const [type, setType] = useState<IdType>('NATIONAL_ID');
   const [number, setNumber] = useState('');
   const [reason, setReason] = useState('');
@@ -69,6 +72,7 @@ export function ChangeNationalIdDialog({
   const [clash, setClash] = useState<Clash | null>(null);
 
   const reset = () => {
+    validation.clear();
     setType('NATIONAL_ID');
     setNumber('');
     setReason('');
@@ -131,7 +135,12 @@ export function ChangeNationalIdDialog({
       }}
     >
       <DialogContent>
-        <form onSubmit={submit} className="space-y-4">
+        <form
+          onSubmit={submit}
+          onInvalidCapture={validation.onInvalidCapture}
+          onChange={validation.onChange}
+          className="space-y-4"
+        >
           <DialogHeader>
             <DialogTitle>Change ID document</DialogTitle>
             <DialogDescription>
@@ -149,11 +158,17 @@ export function ChangeNationalIdDialog({
               to check whether they are the same person; duplicate review can combine the charts.
             </InlineNotice>
           ) : null}
-          {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
+          <PatientFormErrors errors={validation.errors} message={error} />
 
           <div className="space-y-2">
             <Label htmlFor="change-id-type">ID type</Label>
-            <Select value={type} onValueChange={(value) => setType(value as IdType)}>
+            <Select
+              value={type}
+              onValueChange={(value) => {
+                validation.clear('change-id-number');
+                setType(value as IdType);
+              }}
+            >
               <SelectTrigger id="change-id-type">
                 <SelectValue />
               </SelectTrigger>
@@ -178,10 +193,16 @@ export function ChangeNationalIdDialog({
               </FieldLabel>
               <Input
                 id="change-id-number"
+                {...validation.fieldProps('change-id-number')}
                 required
                 autoComplete="off"
                 value={number}
                 onChange={(event) => setNumber(event.target.value)}
+              />
+              <FieldError
+                reserveSpace={validation.submitted}
+                id="change-id-number"
+                message={validation.fieldMessage('change-id-number')}
               />
             </div>
           )}
@@ -192,12 +213,18 @@ export function ChangeNationalIdDialog({
             </FieldLabel>
             <Textarea
               id="change-id-reason"
+              {...validation.fieldProps('change-id-reason')}
               required
               minLength={3}
               maxLength={300}
               placeholder="e.g. Brought their Ghana Card; ID mistyped at registration"
               value={reason}
               onChange={(event) => setReason(event.target.value)}
+            />
+            <FieldError
+              reserveSpace={validation.submitted}
+              id="change-id-reason"
+              message={validation.fieldMessage('change-id-reason')}
             />
           </div>
 

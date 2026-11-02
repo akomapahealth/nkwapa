@@ -55,8 +55,8 @@ export function ChartRecordList<T extends { id: string }>({
   }
 
   return (
-    <div className="space-y-3">
-      <ul aria-label={label} className="space-y-3">
+    <div className="divide-y divide-rule">
+      <ul aria-label={label} className="divide-y divide-rule">
         {list.items.map((item, index) => (
           <li key={item.id}>{children(item, index)}</li>
         ))}
@@ -103,10 +103,10 @@ export function ChartRecordCard({
   footer?: ReactNode;
 }) {
   return (
-    <article className="rounded-lg border border-border bg-background p-4 transition-colors duration-150 hover:bg-accent/40">
+    <article className="min-w-0 py-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold">{title}</h3>
+          <h3 className="type-label font-body font-semibold">{title}</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">{meta}</p>
         </div>
         {badges ? <div className="flex flex-wrap items-center gap-2">{badges}</div> : null}
@@ -129,9 +129,9 @@ export function ChartMeasurement({
 }) {
   const isMissing = value === null || value === undefined || value === '';
   return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2">
+    <div className="border-b border-rule py-2">
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className={isMissing ? 'text-sm text-muted-foreground' : 'text-sm font-medium'}>
+      <dd className={isMissing ? 'type-data text-muted-foreground' : 'type-data font-medium'}>
         {isMissing ? 'Not recorded' : `${value}${suffix ?? ''}`}
       </dd>
     </div>

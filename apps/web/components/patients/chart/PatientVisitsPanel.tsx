@@ -3,7 +3,11 @@
 import { useCallback } from 'react';
 import Link from 'next/link';
 import { ArrowUpRight, CalendarClock } from 'lucide-react';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import {
+  RecordSection as Card,
+  RecordSectionContent as CardContent,
+  RecordSectionHeader as CardHeader,
+} from '@/components/patients/RecordSection';
 import {
   buildEncounterHref,
   fetchPatientChartVisits,
@@ -46,10 +50,7 @@ function CaptureChips({ visit }: { visit: ChartVisitRecord }) {
   return (
     <ul className="flex flex-wrap gap-2">
       {captured.map((label) => (
-        <li
-          key={label}
-          className="rounded-full border border-border/60 bg-card/60 px-2.5 py-1 text-xs text-muted-foreground"
-        >
+        <li key={label} className="border-r border-rule pr-2 text-xs text-muted-foreground">
           {label}
         </li>
       ))}
@@ -85,7 +86,7 @@ function VisitRecordCard({ visit, clinicId }: { visit: ChartVisitRecord; clinicI
       footer={
         <Link
           href={buildEncounterHref(clinicId, visit.id)}
-          className="inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 transition-colors duration-150 hover:underline"
+          className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-primary underline-offset-4 transition-colors duration-150 hover:underline"
         >
           Open visit
           <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
@@ -120,8 +121,8 @@ export function PatientVisitsPanel({
     <Card>
       <CardHeader>
         <div className="flex items-center gap-2">
-          <CalendarClock className="h-5 w-5 text-primary" aria-hidden="true" />
-          <h2 className="text-lg font-semibold">Visit history</h2>
+          <CalendarClock className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+          <h2 className="type-section-title">Visit history</h2>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
           Every encounter for this patient, newest first, with what was recorded at each one.
