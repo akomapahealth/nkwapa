@@ -1,0 +1,14 @@
+
+> design:check-charts
+> node scripts/check-chart-palette.mjs
+
+Chart series palette — apps/web/app/globals.css
+  light/adjacent worst CVD ΔE  22.2 (ok), normal ΔE  28.2
+  light/all      worst CVD ΔE   7.9 (floor band), normal ΔE  17.5
+  dark/adjacent worst CVD ΔE  16.3 (ok), normal ΔE  22.0
+  dark/all      worst CVD ΔE   6.5 (floor band), normal ΔE  15.6
+  WARN  --chart-2 contrast 2.04:1 — permitted, but every chart using it must label its series directly
+  WARN  light/all: --chart-1 vs --chart-4 (tritan) is ΔE 7.9, inside the 6-8 floor band — legal only where the series is also encoded without colour
+  WARN  dark/all: --chart-3 vs --chart-5 (tritan) is ΔE 6.5, inside the 6-8 floor band — legal only where the series is also encoded without colour
+
+Chart palette check passed.

@@ -174,6 +174,51 @@ a clinician reads before prescribing.
 
 Do not "fix" `--border` or `--sidebar-border` to reach 3:1. They are correctly exempt, and hardening them would add visual noise for no accessibility benefit.
 
+### Ruled Chart rules and status surfaces (#264)
+
+These are additive foundation tokens. Existing action, text, input-boundary and
+chart-series values stay unchanged. `--rule` aliases `--border` for decorative
+1px dividers; `--rule-strong` aliases `--foreground` for the direction's 2px group
+rule. Neither replaces `--input` on form controls.
+
+Opaque status surfaces have explicit light and dark values, so their measured
+contrast does not depend on which parent surface happens to sit behind them.
+They were derived from a 12% status fill over the light card and a 22% fill over
+the dark card, then rounded to 0.1 HSL units and measured again. Future consumers
+use `bg-success-surface text-success-ink` (and the corresponding other tones),
+with a plain-language label and an icon where helpful. Existing alpha-tint
+consumers remain unchanged in this foundation PR; #265 applies shared contracts.
+
+| Surface token           | Light HSL           | Dark HSL            | Paired ink          | Light contrast | Dark contrast |
+| ----------------------- | ------------------- | ------------------- | ------------------- | -------------: | ------------: |
+| `--success-surface`     | `137.8 23.2% 90.3%` | `161.2 37.8% 19.0%` | `--success-ink`     |         5.20:1 |        6.83:1 |
+| `--warning-surface`     | `33.8 72.1% 92.0%`  | `38.9 30.9% 21.3%`  | `--warning-ink`     |         5.90:1 |        6.75:1 |
+| `--info-surface`        | `192.4 25.7% 91.0%` | `200.0 34.0% 21.3%` | `--info-ink`        |         7.29:1 |        6.37:1 |
+| `--destructive-surface` | `6.0 63.0% 92.4%`   | `350.2 15.5% 22.5%` | `--destructive-ink` |         6.02:1 |        6.66:1 |
+
+All four text pairings exceed the 4.5:1 normal-text floor in both modes. Draft
+continues to use `--muted` / `--muted-foreground`; this issue does not reclassify
+workflow or clinical states.
+
+| Rule token      | Background     | Light contrast | Dark contrast | Requirement        |
+| --------------- | -------------- | -------------: | ------------: | ------------------ |
+| `--rule-strong` | `--background` |        14.30:1 |       15.66:1 | >= 3:1 non-text    |
+| `--rule-strong` | `--card`       |        14.31:1 |       14.50:1 | >= 3:1 non-text    |
+| `--rule`        | `--background` |         1.26:1 |        1.47:1 | Decorative, exempt |
+| `--rule`        | `--card`       |         1.26:1 |        1.36:1 | Decorative, exempt |
+
+`npm run design:check-tokens` measures these and the neutral primary/supporting
+text pairings at full precision, resolving aliases and requiring every new token
+in both theme blocks. CI runs it alongside the existing chart palette check.
+Only the report is rounded; thresholds never use rounded ratios. Regression
+checks deliberately break a dark ink and remove a dark surface, and verify that
+both failures are caught. All 24 pair measurements and the rendered specimen are
+in [the #264 evidence](evidence/264/README.md).
+
+The five chart series are confirmed unchanged by `scripts/check-chart-palette.mjs`.
+Section 3's existing chart-2 contrast exception and redundant-label requirements
+still apply. The owner's chart-animation decision is unchanged by these tokens.
+
 ### Charts
 
 Series identity. Verified in CI by `scripts/check-chart-palette.mjs`; **do not hand-edit these
@@ -383,6 +428,41 @@ The four registration screenshot pairs are pixel-identical. No colour tokens or
 type scale values changed. [Evidence](evidence/263/README.md).
 
 ---
+
+### Semantic type roles (#264)
+
+These opt-in utilities are the shared type contract for #265 and later page
+work. They introduce no new font family and do not globally replace the current
+page/component classes. Existing routes retain their layout while consumers
+migrate one issue at a time. The small set of public roles and new colour utility
+classes is safelisted so the production foundation CSS can be rendered and
+verified before those consumers exist.
+
+| Utility              | Family         | Size / line height, below 640px | Size / line height, from 640px | Weight | Figures      |
+| -------------------- | -------------- | ------------------------------- | ------------------------------ | ------ | ------------ |
+| `type-page-title`    | Source Serif 4 | 30 / 36px                       | 36 / 40px                      | 600    | Proportional |
+| `type-record-title`  | Source Serif 4 | 24 / 32px                       | 30 / 36px                      | 600    | Proportional |
+| `type-section-title` | IBM Plex Sans  | 18 / 28px                       | 18 / 28px                      | 600    | Proportional |
+| `type-body`          | IBM Plex Sans  | 16 / 24px                       | 16 / 24px                      | 400    | Proportional |
+| `type-label`         | IBM Plex Sans  | 14 / 20px                       | 14 / 20px                      | 500    | Proportional |
+| `type-meta`          | IBM Plex Sans  | 12 / 16px                       | 12 / 16px                      | 400    | Proportional |
+| `type-metric`        | IBM Plex Sans  | 32 / 36px                       | 32 / 36px                      | 600    | Tabular      |
+| `type-data`          | IBM Plex Sans  | 14 / 20px                       | 14 / 20px                      | 400    | Tabular      |
+
+Sizes and line heights are stored in rem in `tailwind.config.js`; the table
+assumes the browser's default 16px root. Browser text scaling remains enabled.
+Page and record titles wrap long words when needed; prose containers should
+remain roughly 45 to 75 characters wide (the specimen uses 65ch). Use the serif
+roles for page titles and patient names; use Plex roles for operational section
+headings, body, labels and measurements. Units must accompany clinical values.
+Choose one role rather than layering conflicting font/size utilities on it.
+
+The existing `font-heading` / `font-body` family utilities, `text-eyebrow`, and
+tabular figures in DataTable and AppMetricCard remain supported. A test-only
+synthetic specimen verifies the shipped role styles, equal-width digits,
+opaque status backgrounds, contrast, both themes, 1440/390px and 200% root text
+scaling. It is not a new public route or a claim that every legacy page has
+already migrated to these roles. [Rendered evidence](evidence/264/README.md).
 
 ## 7. Motion
 
@@ -784,6 +864,7 @@ Run after any change to this file or to `globals.css`:
 
 ```bash
 npm run design:check-charts      # from the repo root
+npm run design:check-tokens      # semantic pair contrast, both themes
 npm run keycloak:validate-realm  # if the login theme moved
 
 cd apps/web

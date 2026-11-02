@@ -2,6 +2,23 @@
 module.exports = {
   darkMode: ['class'],
   content: ['./app/**/*.{js,ts,jsx,tsx,mdx}', './components/**/*.{js,ts,jsx,tsx,mdx}'],
+  // Public foundation roles, staged and rendered for shared consumers in #265.
+  safelist: [
+    'type-page-title',
+    'type-record-title',
+    'type-section-title',
+    'type-body',
+    'type-label',
+    'type-meta',
+    'type-metric',
+    'type-data',
+    'bg-success-surface',
+    'bg-warning-surface',
+    'bg-info-surface',
+    'bg-destructive-surface',
+    'border-rule',
+    'border-rule-strong',
+  ],
   theme: {
     extend: {
       // The whole radius scale, per docs/design-system/MASTER.md section 5. `xl` is added here
@@ -17,6 +34,18 @@ module.exports = {
       fontFamily: {
         heading: ['var(--font-heading)', 'Georgia', 'serif'],
         body: ['var(--font-body)', 'system-ui', 'sans-serif'],
+      },
+      fontSize: {
+        'page-title': ['1.875rem', '2.25rem'],
+        'page-title-lg': ['2.25rem', '2.5rem'],
+        'record-title': ['1.5rem', '2rem'],
+        'record-title-lg': ['1.875rem', '2.25rem'],
+        'section-title': ['1.125rem', '1.75rem'],
+        'body-copy': ['1rem', '1.5rem'],
+        'field-label': ['0.875rem', '1.25rem'],
+        metadata: ['0.75rem', '1rem'],
+        'metric-value': ['2rem', '2.25rem'],
+        'data-value': ['0.875rem', '1.25rem'],
       },
       // Named rather than overriding Tailwind's own `ease-out`, so existing call sites keep the
       // curve they were tuned with and new motion opts in. Values live in globals.css.
@@ -62,6 +91,10 @@ module.exports = {
       },
       colors: {
         border: 'hsl(var(--border))',
+        rule: {
+          DEFAULT: 'hsl(var(--rule))',
+          strong: 'hsl(var(--rule-strong))',
+        },
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
         background: 'hsl(var(--background))',
@@ -78,6 +111,7 @@ module.exports = {
           DEFAULT: 'hsl(var(--destructive))',
           foreground: 'hsl(var(--destructive-foreground))',
           ink: 'hsl(var(--destructive-ink))',
+          surface: 'hsl(var(--destructive-surface))',
         },
         muted: {
           DEFAULT: 'hsl(var(--muted))',
@@ -87,16 +121,19 @@ module.exports = {
           DEFAULT: 'hsl(var(--success))',
           foreground: 'hsl(var(--success-foreground))',
           ink: 'hsl(var(--success-ink))',
+          surface: 'hsl(var(--success-surface))',
         },
         warning: {
           DEFAULT: 'hsl(var(--warning))',
           foreground: 'hsl(var(--warning-foreground))',
           ink: 'hsl(var(--warning-ink))',
+          surface: 'hsl(var(--warning-surface))',
         },
         info: {
           DEFAULT: 'hsl(var(--info))',
           foreground: 'hsl(var(--info-foreground))',
           ink: 'hsl(var(--info-ink))',
+          surface: 'hsl(var(--info-surface))',
         },
         sidebar: {
           DEFAULT: 'hsl(var(--sidebar))',
