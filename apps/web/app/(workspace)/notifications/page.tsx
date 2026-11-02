@@ -1,5 +1,6 @@
 'use client';
 
+import { StatusLabel } from '@/components/ui/status-label';
 import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, Bell, CheckCheck, Clock3, SendHorizontal, Timer } from 'lucide-react';
 import { useBootstrap } from '@/lib/bootstrap-context';
@@ -14,7 +15,6 @@ import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppStat
 import { RouteGuard } from '@/components/RouteGuard';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ProgressiveHelp } from '@/components/ui/progressive-help';
@@ -264,7 +264,7 @@ export default function RemindersPage() {
       accessorKey: 'status',
       header: 'Status',
       cell: ({ getValue }) => (
-        <Badge variant={getStatusVariant(String(getValue()))}>{String(getValue())}</Badge>
+        <StatusLabel variant={getStatusVariant(String(getValue()))} value={String(getValue())} />
       ),
     },
     { id: 'channel', accessorKey: 'channel', header: 'Channel' },
@@ -592,7 +592,7 @@ export default function RemindersPage() {
                             {new Date(row.scheduledAt).toLocaleString()}
                           </p>
                         </div>
-                        <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge>
+                        <StatusLabel variant={getStatusVariant(row.status)} value={row.status} />
                       </div>
                       <div className="mt-3 grid gap-1 text-sm text-muted-foreground">
                         <p>

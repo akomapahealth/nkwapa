@@ -2,7 +2,7 @@
 
 import * as Popover from '@radix-ui/react-popover';
 import { CircleHelp } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
@@ -48,6 +48,7 @@ export function InfoHint({
   side?: 'top' | 'bottom' | 'left' | 'right';
   className?: string;
 }) {
+  const contentId = useId();
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
 
@@ -65,6 +66,8 @@ export function InfoHint({
       <Popover.Trigger
         type="button"
         aria-label={`Show help: ${label}`}
+        aria-describedby={open ? contentId : undefined}
+        aria-controls={open ? contentId : undefined}
         className={cn(
           // The 44px touch target is a centred pseudo-element, so the glyph sits at the size the
           // layout needs and the tap area still clears the contract's floor (MASTER.md section 8).
@@ -81,6 +84,7 @@ export function InfoHint({
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
+          id={contentId}
           // A tooltip in behaviour: focus stays on the trigger, so Tab carries on through the page
           // and Escape hands back to where the user was.
           role="tooltip"
@@ -90,7 +94,7 @@ export function InfoHint({
           collisionPadding={12}
           onOpenAutoFocus={(event) => event.preventDefault()}
           className={cn(
-            'z-[120] w-72 max-w-[calc(100vw-24px)] rounded-lg border border-border/80 bg-popover px-4 py-3 text-left text-sm leading-6 text-popover-foreground shadow-md outline-none',
+            'z-[120] w-72 max-w-[calc(100vw-24px)] rounded-lg border border-border/80 bg-popover px-4 py-3 type-body text-left text-popover-foreground shadow-md outline-none',
             // Scales from the trigger, not from its own centre. Exit is quicker than entry: the
             // user has already decided to move on.
             'origin-[--radix-popover-content-transform-origin]',

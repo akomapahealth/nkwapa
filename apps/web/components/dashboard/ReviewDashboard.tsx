@@ -1,5 +1,6 @@
 'use client';
 
+import { StatusLabel } from '@/components/ui/status-label';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ClipboardList } from 'lucide-react';
 import { DashboardSectionHeader } from './DashboardSectionHeader';
@@ -27,7 +28,12 @@ interface ReviewDashboardProps {
 const columns: DataTableColumn<ReviewDashboardProps['recentReviews'][number]>[] = [
   { id: 'patientCode', accessorKey: 'patientCode', header: 'Patient Code' },
   { id: 'patientName', accessorKey: 'patientName', header: 'Patient Name' },
-  { id: 'status', accessorKey: 'status', header: 'Status' },
+  {
+    id: 'status',
+    accessorKey: 'status',
+    header: 'Status',
+    cell: ({ getValue }) => <StatusLabel value={String(getValue())} />,
+  },
   {
     id: 'createdAt',
     accessorKey: 'createdAt',

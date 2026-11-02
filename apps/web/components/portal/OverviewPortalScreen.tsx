@@ -1,5 +1,6 @@
 'use client';
 
+import { statusLabel } from '@/lib/status-presentation';
 import Link from 'next/link';
 import {
   BellRing,
@@ -290,7 +291,9 @@ export function OverviewPortalScreen() {
                               <p className="text-sm font-medium tabular-nums text-foreground">
                                 {formatPortalDateTime(reminder.scheduledAt)}
                               </p>
-                              <p className="text-xs text-muted-foreground">{reminder.status}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {statusLabel(reminder.status)}
+                              </p>
                             </div>
                             <Badge variant="outline" className="rounded-full border-border">
                               {reminder.channel}

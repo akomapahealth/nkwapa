@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { AppActionRow } from '@/components/app-shell/AppActionRow';
 import { Button } from '@/components/ui/button';
 import type { LucideIcon } from 'lucide-react';
 
@@ -8,13 +9,38 @@ interface Action {
   href: string;
   label: string;
   icon: LucideIcon;
+  title?: string;
+  detail?: string;
 }
 
 interface DashboardActionRowProps {
   actions: Action[];
+  presentation?: 'buttons' | 'rows';
 }
 
-export function DashboardActionRow({ actions }: DashboardActionRowProps) {
+export function DashboardActionRow({ actions, presentation = 'buttons' }: DashboardActionRowProps) {
+  if (presentation === 'rows') {
+    return (
+      <section aria-label="Needs you now">
+        <h2 className="type-section-title border-t-2 border-rule-strong pt-4">Needs you now</h2>
+        <ul>
+          {actions.map(({ href, label, icon, title, detail }) => (
+            <AppActionRow
+              key={href}
+              title={title ?? label}
+              detail={detail}
+              icon={icon}
+              action={
+                <Button asChild variant="outline">
+                  <Link href={href}>{label}</Link>
+                </Button>
+              }
+            />
+          ))}
+        </ul>
+      </section>
+    );
+  }
   return (
     <div className="flex flex-wrap gap-3">
       {actions.map(({ href, label, icon: Icon }) => (

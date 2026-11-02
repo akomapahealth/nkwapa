@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { isValidElement } from 'react';
 import type { LucideIcon } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -117,22 +118,17 @@ export function DashboardLoadingState({ clinicName }: { clinicName?: string | nu
 
 export function SectionSkeleton({ lines = 4, className }: { lines?: number; className?: string }) {
   return (
-    <Card className={cn('border-border/70 bg-card/90', className)}>
-      <CardContent className="space-y-4 p-0">
-        <div className="space-y-3">
-          <div className="h-5 w-40 animate-pulse rounded-full bg-muted/50" />
-          <div className="h-4 w-72 animate-pulse rounded-full bg-muted/40" />
-        </div>
-        <div className="grid gap-3">
-          {Array.from({ length: lines }).map((_, index) => (
-            <div
-              key={index}
-              className="h-20 animate-pulse rounded-md border border-border/60 bg-muted/35"
-            />
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+    <div aria-hidden="true" className={cn('space-y-4 border-t border-rule py-5', className)}>
+      <div className="space-y-3">
+        <Skeleton className="h-5 w-40 max-w-full" />
+        <Skeleton className="h-4 w-72 max-w-full" />
+      </div>
+      <div className="grid gap-3">
+        {Array.from({ length: lines }).map((_, index) => (
+          <Skeleton key={index} className="h-20 w-full" />
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -169,16 +165,16 @@ export function InlineErrorState({
   return (
     <div
       className={cn(
-        'rounded-lg border border-destructive/20 bg-destructive/5 p-5 text-sm shadow-sm',
+        'border-y border-rule bg-destructive-surface p-5 text-destructive-ink',
         className,
       )}
     >
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="flex gap-3">
-          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+          <AlertTriangle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" />
           <div className="space-y-1">
-            <p className="font-medium text-foreground">{title}</p>
-            <p className="leading-6 text-muted-foreground">{description}</p>
+            <p className="type-label">{title}</p>
+            <p className="type-body">{description}</p>
           </div>
         </div>
         {onRetry ? <RetryAction onRetry={onRetry} label={retryLabel} /> : null}
@@ -328,17 +324,12 @@ export function EmptyState({
 
   if (density === 'compact') {
     return (
-      <div
-        className={cn(
-          'rounded-lg border border-dashed border-border bg-muted/30 p-5 text-sm text-muted-foreground',
-          className,
-        )}
-      >
+      <div className={cn('border-y border-rule py-5 text-muted-foreground', className)}>
         <div className="flex items-start gap-3">
           <span className="mt-0.5 shrink-0 text-muted-foreground">{glyph}</span>
           <div>
-            <h3 className="font-medium text-foreground">{title}</h3>
-            <p className="mt-1 leading-6">{description}</p>
+            <h3 className="type-section-title text-foreground">{title}</h3>
+            <p className="type-body mt-1">{description}</p>
             {action ? <div className="pt-3">{action}</div> : null}
           </div>
         </div>
@@ -349,7 +340,7 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        'flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-muted/30 px-6 py-12 text-center',
+        'flex flex-col items-center justify-center gap-3 border-y border-rule px-6 py-12 text-center',
         className,
       )}
     >
@@ -357,8 +348,8 @@ export function EmptyState({
         {glyph}
       </span>
       <div className="space-y-1">
-        <h3 className="font-medium text-foreground">{title}</h3>
-        <p className="mx-auto max-w-prose text-sm leading-6 text-muted-foreground">{description}</p>
+        <h3 className="type-section-title text-foreground">{title}</h3>
+        <p className="type-body mx-auto max-w-prose text-muted-foreground">{description}</p>
       </div>
       {action ? <div className="pt-1">{action}</div> : null}
     </div>

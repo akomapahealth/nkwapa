@@ -1,0 +1,64 @@
+# #265 raw-enum sweep, 2026-11-01, on the PR tree
+# grep -rnE "(IN_REVIEW|DRAFT|FINALIZED|STAGE2|UNKNOWN)" apps/web/components apps/web/app
+# 59 hits. Each is a comparison, record key, type, default value, select option value or comment.
+# None is rendered text: displayed values pass through statusLabel / StatusLabel or an existing label map.
+
+apps/web/components/DiabetesScreeningForm.tsx:38:  { value: 'UNKNOWN', label: 'Unknown / not documented' },
+apps/web/components/DiabetesScreeningForm.tsx:85:    (initialData?.glucoseType as DiabetesGlucoseType) ?? 'UNKNOWN',
+apps/web/components/DiabetesScreeningForm.tsx:103:    setGlucoseType((initialData.glucoseType as DiabetesGlucoseType) ?? 'UNKNOWN');
+apps/web/components/DiabetesScreeningForm.tsx:239:      glucoseType === 'UNKNOWN'
+apps/web/components/HypertensionForm.tsx:60:    initialData?.classification ?? 'UNKNOWN',
+apps/web/components/HypertensionForm.tsx:79:    setClassification(initialData.classification ?? 'UNKNOWN');
+apps/web/components/HypertensionForm.tsx:108:        : 'UNKNOWN',
+apps/web/components/stations/StationResultsSummary.tsx:17:  UNKNOWN: 'timing not known',
+apps/web/components/stations/StationResultsSummary.tsx:51:  const bpFlag = bp === 'STAGE1' || bp === 'STAGE2' || bp === 'CRISIS';
+apps/web/components/stations/StationResultsSummary.tsx:73:      detail: bp !== 'UNKNOWN' ? HYPERTENSION_LABELS[bp] : undefined,
+apps/web/components/stations/StationResultsSummary.tsx:83:              GLUCOSE_TIMING[diabetes?.glucoseType ?? 'UNKNOWN'],
+apps/web/components/stations/GlucoseReadingForm.tsx:37:  UNKNOWN: 'Not known',
+apps/web/components/patients/ResidentialLocationSummary.tsx:77:              location.status === 'UNKNOWN' ? 'Location not known' : 'No location recorded yet'
+apps/web/components/patients/ResidentialLocationSummary.tsx:80:              location.status === 'UNKNOWN'
+apps/web/components/patients/chart/PatientChartOverview.tsx:317:                    (latestHypertension.classification ?? 'UNKNOWN') as HypertensionClassification
+apps/web/components/patients/DiabetesHistoryPanel.tsx:23:  glucoseType: 'FASTING' | 'RANDOM' | 'UNKNOWN';
+apps/web/components/patients/DiabetesHistoryPanel.tsx:62:    glucoseType: (record.glucoseType as DiabetesHistoryItem['glucoseType']) ?? 'UNKNOWN',
+apps/web/components/patients/DiabetesHistoryPanel.tsx:74:    isEditable: encounterStatus !== 'FINALIZED',
+apps/web/components/patients/RegisterPatientScreen.tsx:44:  sex?: 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN';
+apps/web/components/patients/RegisterPatientScreen.tsx:79:    sex: 'UNKNOWN',
+apps/web/components/patients/RegisterPatientScreen.tsx:295:                    <SelectItem value="UNKNOWN">Unknown</SelectItem>
+apps/web/components/patients/HypertensionHistoryPanel.tsx:63:  STAGE2: 'destructive',
+apps/web/components/patients/HypertensionHistoryPanel.tsx:65:  UNKNOWN: 'draft',
+apps/web/components/patients/HypertensionHistoryPanel.tsx:69:  return value && value in HYPERTENSION_LABELS ? (value as HypertensionClassification) : 'UNKNOWN';
+apps/web/components/patients/MedicalHistoryPanel.tsx:89:  severity: 'MILD' | 'MODERATE' | 'SEVERE' | 'UNKNOWN';
+apps/web/components/patients/MedicalHistoryPanel.tsx:108:  severity: 'UNKNOWN',
+apps/web/components/patients/MedicalHistoryPanel.tsx:244:      severity: (value(details, 'severity') as FormState['severity']) || 'UNKNOWN',
+apps/web/components/patients/MedicalHistoryPanel.tsx:261:          ? { kind: form.kind, severity: 'UNKNOWN' }
+apps/web/components/patients/MedicalHistoryPanel.tsx:674:      severity: value(record.currentRevision.details, 'severity') || 'UNKNOWN',
+apps/web/components/patients/MedicalHistoryPanel.tsx:834:              options={['UNKNOWN', 'MILD', 'MODERATE', 'SEVERE'].map((severity) => ({
+apps/web/components/patients/ScreeningHistoryCard.tsx:41:            <Badge variant={item.sourceEncounter.status === 'FINALIZED' ? 'default' : 'secondary'}>
+apps/web/components/patients/chart/ChartStatusBadge.tsx:12:  | 'DRAFT'
+apps/web/components/patients/chart/ChartStatusBadge.tsx:13:  | 'IN_REVIEW'
+apps/web/components/patients/chart/ChartStatusBadge.tsx:14:  | 'FINALIZED'
+apps/web/components/patients/chart/ChartStatusBadge.tsx:25:  DRAFT: { variant: 'draft' },
+apps/web/components/patients/chart/ChartStatusBadge.tsx:26:  IN_REVIEW: { variant: 'review' },
+apps/web/components/patients/chart/ChartStatusBadge.tsx:27:  FINALIZED: { variant: 'finalized' },
+apps/web/components/clinical-notes/ClinicalNoteStatusBadge.tsx:6:    status === 'DRAFT'
+apps/web/components/clinical-notes/ClinicalNotePanel.tsx:106:   * DRAFT-only rule and the optimistic version check all still decide whether it lands.
+apps/web/components/clinical-notes/ClinicalNotePanel.tsx:154:  const editable = note?.status === 'DRAFT' && note.authorUserId === userId;
+apps/web/components/dashboard/DistributionChart.tsx:86:    hypertension donut this replaced had six classifications, so NORMAL and UNKNOWN came out the
+apps/web/components/encounters/hypertension/HypertensionInterviewForm.tsx:1000:                Seed the override from the derivation rather than from UNKNOWN.
+apps/web/components/encounters/hypertension/HypertensionInterviewForm.tsx:1006:              if (checked && values.classification === 'UNKNOWN') {
+apps/web/components/reports/OrganizationAnalyticsPanel.tsx:129:        accessorFn: (row) => row.encountersByStatus.FINALIZED,
+apps/web/components/reports/OrganizationAnalyticsPanel.tsx:328:                  hint={`${data.totals.encountersByStatus.FINALIZED.toLocaleString()} finalized`}
+apps/web/app/(workspace)/clinics/[clinicId]/patients/[patientId]/edit/page.tsx:74:  const [sex, setSex] = useState('UNKNOWN');
+apps/web/app/(workspace)/clinics/[clinicId]/patients/[patientId]/edit/page.tsx:100:            sex: local.sex ?? 'UNKNOWN',
+apps/web/app/(workspace)/clinics/[clinicId]/patients/[patientId]/edit/page.tsx:333:                  <SelectItem value="UNKNOWN">Unknown</SelectItem>
+apps/web/app/(workspace)/queues/page.tsx:77:    async (stage: 'DRAFT' | 'REVIEW' | 'DOCTOR_READY') => {
+apps/web/app/(workspace)/queues/page.tsx:79:      const params = stage === 'DRAFT' ? 'status=DRAFT' : `status=IN_REVIEW&stage=${stage}`;
+apps/web/app/(workspace)/queues/page.tsx:129:        canDrafts ? fetchQueue('DRAFT') : [],
+apps/web/app/(workspace)/clinics/[clinicId]/patients/[patientId]/page.tsx:373:            status: e.status ?? 'DRAFT',
+apps/web/app/(workspace)/clinics/[clinicId]/patients/[patientId]/page.tsx:385:              sex: patient.sex ?? 'UNKNOWN',
+apps/web/app/(workspace)/encounters/[encounterId]/page.tsx:128:            status: dbEnc.status ?? 'DRAFT',
+apps/web/app/(workspace)/encounters/[encounterId]/page.tsx:254:  const isFinalized = encounter.status === 'FINALIZED';
+apps/web/app/(workspace)/encounters/[encounterId]/page.tsx:257:    encounter.status === 'DRAFT' && hasPermission(perms, 'ENCOUNTER.SUBMIT_FOR_REVIEW');
+apps/web/app/(workspace)/encounters/[encounterId]/page.tsx:259:    encounter.status === 'IN_REVIEW' &&
+apps/web/app/(workspace)/encounters/[encounterId]/page.tsx:263:    encounter.status === 'IN_REVIEW' &&
+apps/web/app/(workspace)/encounters/[encounterId]/page.tsx:287:                  isFinalized ? 'finalized' : encounter.status === 'IN_REVIEW' ? 'review' : 'draft'

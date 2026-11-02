@@ -1,5 +1,6 @@
 'use client';
 
+import { statusLabel } from '@/lib/status-presentation';
 import { useCallback, useState } from 'react';
 import { CalendarClock, Loader2, Pause, Pencil, Play, Plus, Zap } from 'lucide-react';
 import { apiFetch, getErrorMessage, readApiError } from '@/lib/api';
@@ -418,7 +419,7 @@ function LastRun({ run }: { run: ResearchExportItem }) {
       <span className="text-muted-foreground">Last run</span>
       <ResearchRunKey runKey={run.runKey} />
       <Badge variant="outline" className={EXPORT_STATUS_STYLES[run.status]}>
-        {run.status.replaceAll('_', ' ')}
+        {statusLabel(run.status)}
       </Badge>
     </div>
   );

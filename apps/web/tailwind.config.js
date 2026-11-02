@@ -2,23 +2,9 @@
 module.exports = {
   darkMode: ['class'],
   content: ['./app/**/*.{js,ts,jsx,tsx,mdx}', './components/**/*.{js,ts,jsx,tsx,mdx}'],
-  // Public foundation roles, staged and rendered for shared consumers in #265.
-  safelist: [
-    'type-page-title',
-    'type-record-title',
-    'type-section-title',
-    'type-body',
-    'type-label',
-    'type-meta',
-    'type-metric',
-    'type-data',
-    'bg-success-surface',
-    'bg-warning-surface',
-    'bg-info-surface',
-    'bg-destructive-surface',
-    'border-rule',
-    'border-rule-strong',
-  ],
+  // No source uses these yet; e2e/design-foundations.spec.js injects them at runtime. Drop each
+  // entry once a component uses it.
+  safelist: ['type-record-title', 'type-meta'],
   theme: {
     extend: {
       // The whole radius scale, per docs/design-system/MASTER.md section 5. `xl` is added here

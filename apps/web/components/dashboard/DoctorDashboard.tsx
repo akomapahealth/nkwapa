@@ -1,5 +1,6 @@
 'use client';
 
+import { StatusLabel } from '@/components/ui/status-label';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { DistributionChart } from './DistributionChart';
 import { HYPERTENSION_ORDER, HYPERTENSION_TONES, toLabelledDistribution } from '@/lib/hypertension';
@@ -31,7 +32,12 @@ interface DoctorDashboardProps {
 const columns: DataTableColumn<DoctorDashboardProps['recentEncounters'][number]>[] = [
   { id: 'patientCode', accessorKey: 'patientCode', header: 'Patient Code' },
   { id: 'patientName', accessorKey: 'patientName', header: 'Patient Name' },
-  { id: 'status', accessorKey: 'status', header: 'Status' },
+  {
+    id: 'status',
+    accessorKey: 'status',
+    header: 'Status',
+    cell: ({ getValue }) => <StatusLabel value={String(getValue())} />,
+  },
   {
     id: 'createdAt',
     accessorKey: 'createdAt',

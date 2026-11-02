@@ -1,5 +1,6 @@
 'use client';
 
+import { statusLabel } from '@/lib/status-presentation';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { CalendarClock, ExternalLink, UserRound, type LucideIcon } from 'lucide-react';
@@ -38,7 +39,7 @@ export function ScreeningRecordFrame({
             {current ? <Badge>Current encounter</Badge> : null}
             {badges}
             <Badge variant={item.sourceEncounter.status === 'FINALIZED' ? 'default' : 'secondary'}>
-              {item.sourceEncounter.status.replaceAll('_', ' ')}
+              {statusLabel(item.sourceEncounter.status)}
             </Badge>
           </div>
           {children}

@@ -1,5 +1,5 @@
-import { Badge } from '@/components/ui/badge';
-import { clinicalNoteStatusLabel, type ClinicalNoteStatus } from '@/lib/clinical-notes';
+import { StatusLabel } from '@/components/ui/status-label';
+import { type ClinicalNoteStatus } from '@/lib/clinical-notes';
 
 export function ClinicalNoteStatusBadge({ status }: { status: ClinicalNoteStatus }) {
   const variant =
@@ -10,5 +10,5 @@ export function ClinicalNoteStatusBadge({ status }: { status: ClinicalNoteStatus
         : status === 'AMENDED'
           ? 'warning'
           : 'finalized';
-  return <Badge variant={variant}>{clinicalNoteStatusLabel(status)}</Badge>;
+  return <StatusLabel value={status} variant={variant} />;
 }
