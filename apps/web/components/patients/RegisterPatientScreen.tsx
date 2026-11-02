@@ -278,7 +278,7 @@ export function RegisterPatientScreen({
                 />
               </div>
               <div className="space-y-2">
-                <Label>Sex</Label>
+                <Label htmlFor="sex">Sex</Label>
                 <Select
                   value={form.sex}
                   onValueChange={(value) =>
@@ -288,7 +288,7 @@ export function RegisterPatientScreen({
                     }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="sex">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

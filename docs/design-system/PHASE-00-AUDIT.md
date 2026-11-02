@@ -26,6 +26,12 @@ The screenshots are not committed (23 MB). Re-run the spec to regenerate them; l
 
 Everything else passed. **Hypothesis:** the unnamed button is a Radix `SelectTrigger` (or an icon-only button) on the registration form with no label association. Fix belongs in #270 or as a standalone bug before it.
 
+**Confirmed follow-up, 2026-11-01 (#261):** the failing node is the Sex
+`SelectTrigger` in `RegisterPatientScreen`. Associating its existing visible
+label with the trigger removes the critical finding in all four affected scans.
+See [the focused before/after evidence](evidence/261/README.md). This follow-up
+preserves the original Phase 00 results above.
+
 Axe does not cover focus order, screen-reader announcements or target size in every case; the manual VoiceOver pass stays in #282.
 
 ## 3. Design findings (Confirmed from screenshots unless marked)
