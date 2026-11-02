@@ -607,6 +607,25 @@ is `sr-only` and also shown at the top of the menu sheet, and the sheet no longe
 repeats the picker. The sync control's "Sync now" is the shell's only refresh.
 The `--sidebar` tokens are kept but have no consumer in the staff shell now.
 
+### Phase 02 navigation utilities (#267)
+
+`app-nav.ts` items carry `placement: 'sidebar' | 'header' | 'profile'`
+(default `'sidebar'`), and `getAccessibleNavSections(bootstrap, placement)` keeps
+one filter for all three, so a permission or flag gates an item the same way
+wherever it is drawn. Two items left the rail:
+
+- **Message delivery** (`/notifications`, `REMINDER.READ`, formerly
+  "Notifications") is a 44px ghost icon button in the header from `md`, lucide
+  `Send`, named by its `aria-label` and the shared tooltip. No badge: the ledger is
+  outbound delivery, so nothing is unread. It takes the selected tint and
+  `aria-current="page"` on its own page. The page heading is unchanged.
+- **Clinic settings** (`/settings/clinic`, `RESEARCH.SETTINGS.UPDATE`) is an
+  account menu item after "Your settings".
+
+On phones the header has no room for the icon, so both appear at the end of the
+menu sheet in an "Account" list (its own `nav` landmark), drawn by `AppNavList`.
+Without a clinic selected each shows disabled, as the rail does.
+
 ### The combobox, and when it is not the answer
 
 `Select` is still the default. `Combobox` exists for one case: a list long enough that scrolling

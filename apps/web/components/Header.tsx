@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -25,6 +25,9 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { THEME_PREFERENCE_OPTIONS, useTheme, type ThemePreference } from '@/lib/theme-context';
 import { AppNavList } from '@/components/app-shell/AppNavList';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { getAccessibleNavItems, getNavItemHref, isNavItemActive } from '@/lib/app-nav';
+import { cn } from '@/lib/utils';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { formatRoleLabel, getOpsDestination, getVisibleRoleLabels } from '@/lib/ops';
 import { useKeycloak } from '@/app/KeycloakProvider';
@@ -66,6 +69,7 @@ export function Header({
   const { showToast } = useToast();
   const { preference: themePreference, setPreference: setThemePreference } = useTheme();
   const router = useRouter();
+  const pathname = usePathname();
 
   const clinicId = contextActiveClinicId ?? null;
   const memberships = bootstrap?.memberships ?? [];
@@ -83,6 +87,10 @@ export function Header({
   // Plain text, not the gold badges: the role is context for the clinic name, not an alert.
   const roleText = roleLabels.map(formatRoleLabel).join(', ');
   const clinicName = activeClinic?.clinicName ?? 'Choose an active clinic';
+  // Gated by the same filter as the rail (#267); only where they are drawn differs.
+  const headerItems = getAccessibleNavItems(bootstrap, 'header');
+  const profileItems = getAccessibleNavItems(bootstrap, 'profile');
+  const sheetUtilities = [...headerItems, ...profileItems];
 
   const handleClinicChange = async (value: string) => {
     if (!value || value === clinicId) return;
@@ -210,6 +218,16 @@ export function Header({
                 mobile
                 onNavigate={() => onMobileOpenChange(false)}
               />
+              {/* The header icon and the account menu item, mirrored where a phone looks for them. */}
+              {sheetUtilities.length ? (
+                <AppNavList
+                  bootstrap={bootstrap}
+                  mobile
+                  label="Account"
+                  sections={[{ id: 'account', label: 'Account', items: sheetUtilities }]}
+                  onNavigate={() => onMobileOpenChange(false)}
+                />
+              ) : null}
             </div>
           </SheetContent>
         </Sheet>
@@ -243,6 +261,57 @@ export function Header({
         <div className="flex min-w-0 flex-1 items-center">{clinicSwitcher}</div>
 
         <div className="flex items-center gap-2">
+          {/*
+            Message delivery: an icon with its name in a tooltip, and no badge, because the ledger
+            is outbound delivery with nothing to read (MASTER.md section 12). From `md`; on a phone
+            it is in the menu sheet, where the header has no room for it.
+          */}
+          <TooltipProvider delayDuration={200}>
+            {headerItems.map((item) => {
+              const Icon = item.icon;
+              const href = getNavItemHref(item, clinicId);
+              if (href === '#') {
+                return (
+                  <Button
+                    key={item.href}
+                    variant="ghost"
+                    size="icon"
+                    disabled
+                    aria-label={`${item.label}: select a clinic first`}
+                    className="hidden md:inline-flex"
+                  >
+                    <Icon aria-hidden="true" className="h-[18px] w-[18px]" />
+                  </Button>
+                );
+              }
+              const active = isNavItemActive(pathname, item, clinicId);
+              return (
+                <Tooltip key={item.href}>
+                  <TooltipTrigger asChild>
+                    <Button
+                      asChild
+                      variant="ghost"
+                      size="icon"
+                      className={cn(
+                        'hidden md:inline-flex',
+                        active && 'bg-primary/10 text-primary',
+                      )}
+                    >
+                      <Link
+                        href={href}
+                        aria-label={item.label}
+                        aria-current={active ? 'page' : undefined}
+                      >
+                        <Icon aria-hidden="true" className="h-[18px] w-[18px]" />
+                      </Link>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">{item.label}</TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </TooltipProvider>
+
           <SyncStatusBar clinicId={clinicId} canSync={canSync} recoveryAccess={recoveryAccess} />
 
           <DropdownMenu>
@@ -294,6 +363,23 @@ export function Header({
                   Your settings
                 </Link>
               </DropdownMenuItem>
+              {profileItems.map((item) => {
+                const Icon = item.icon;
+                const href = getNavItemHref(item, clinicId);
+                return href === '#' ? (
+                  <DropdownMenuItem key={item.href} disabled>
+                    <Icon className="mr-2 h-4 w-4" />
+                    {item.label}
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem key={item.href} asChild>
+                    <Link href={href}>
+                      <Icon className="mr-2 h-4 w-4" />
+                      {item.label}
+                    </Link>
+                  </DropdownMenuItem>
+                );
+              })}
               <InstallAppMenuItem />
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">

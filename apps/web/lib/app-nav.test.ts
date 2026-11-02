@@ -1,4 +1,9 @@
-import { getAccessibleNavSections, isNavItemActive, type AppNavItem } from './app-nav';
+import {
+  getAccessibleNavItems,
+  getAccessibleNavSections,
+  isNavItemActive,
+  type AppNavItem,
+} from './app-nav';
 import type { WhoAmIResponse } from './bootstrap-context';
 
 function bootstrapAs(roles: string[], permissions: string[], globalRoles: string[] = []) {
@@ -83,5 +88,29 @@ describe('isNavItemActive', () => {
     expect(isNavItemActive('/admin/duplicates-old', item('/admin/duplicates'), 'clinic-1')).toBe(
       false,
     );
+  });
+});
+
+describe('placement (#267)', () => {
+  const hrefs = (bootstrap: WhoAmIResponse, placement: 'header' | 'profile') =>
+    getAccessibleNavItems(bootstrap, placement).map((item) => item.href);
+
+  it('takes message delivery and clinic settings out of the rail, and nothing else', () => {
+    const admin = bootstrapAs([], ['*'], ['SYSTEM_ADMIN']);
+    const rail = hrefsFor(admin);
+    expect(rail).not.toContain('/notifications');
+    expect(rail).not.toContain('/settings/clinic');
+    expect(hrefs(admin, 'header')).toEqual(['/notifications']);
+    expect(hrefs(admin, 'profile')).toEqual(['/settings/clinic']);
+  });
+
+  it('gates each by the same permission as before', () => {
+    const volunteer = bootstrapAs(['VOLUNTEER'], ['REMINDER.READ']);
+    expect(hrefs(volunteer, 'header')).toEqual(['/notifications']);
+    expect(hrefs(volunteer, 'profile')).toEqual([]);
+
+    const settingsOnly = bootstrapAs(['DIRECTOR'], ['RESEARCH.SETTINGS.UPDATE']);
+    expect(hrefs(settingsOnly, 'header')).toEqual([]);
+    expect(hrefs(settingsOnly, 'profile')).toEqual(['/settings/clinic']);
   });
 });

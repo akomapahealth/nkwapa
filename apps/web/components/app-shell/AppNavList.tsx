@@ -4,7 +4,12 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { getAccessibleNavSections, getNavItemHref, isNavItemActive } from '@/lib/app-nav';
+import {
+  getAccessibleNavSections,
+  getNavItemHref,
+  isNavItemActive,
+  type AppNavSection,
+} from '@/lib/app-nav';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import type { WhoAmIResponse } from '@/lib/bootstrap-context';
 
@@ -13,20 +18,26 @@ export function AppNavList({
   collapsed = false,
   mobile = false,
   onNavigate,
+  label = 'Workspace',
+  sections: sectionsOverride,
 }: {
   bootstrap: WhoAmIResponse | null;
   collapsed?: boolean;
   mobile?: boolean;
   onNavigate?: () => void;
+  /** The landmark's name; a second list in the same sheet needs its own. */
+  label?: string;
+  /** Defaults to the sidebar's sections. The phone sheet passes the header and account items. */
+  sections?: AppNavSection[];
 }) {
   const pathname = usePathname();
   const clinicId = getBootstrapActiveClinicId(bootstrap);
-  const sections = getAccessibleNavSections(bootstrap);
+  const sections = sectionsOverride ?? getAccessibleNavSections(bootstrap);
 
   const showLabels = !collapsed || mobile;
 
   return (
-    <nav aria-label="Workspace" className="flex flex-col gap-4">
+    <nav aria-label={label} className="flex flex-col gap-4">
       {sections.map((section, index) => (
         <div
           key={section.id}

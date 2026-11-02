@@ -2,7 +2,6 @@ import type { LucideIcon } from 'lucide-react';
 import {
   CalendarCheck,
   BarChart3,
-  Bell,
   Building2,
   CalendarDays,
   ClipboardList,
@@ -12,6 +11,7 @@ import {
   FlaskConical,
   LayoutDashboard,
   Network,
+  Send,
   Settings,
   Shield,
   ShieldCheck,
@@ -22,6 +22,13 @@ import {
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import type { WhoAmIResponse } from '@/lib/bootstrap-context';
 import { isWebFeatureEnabled, type WebFeatureFlag } from '@/lib/feature-flags';
+
+/**
+ * Where the shell shows an item. Most live in the sidebar rail; message delivery is a header icon
+ * and clinic settings sits in the account menu (#267). One list and one filter either way, so a
+ * permission or flag gates an item identically wherever it is drawn.
+ */
+export type AppNavPlacement = 'sidebar' | 'header' | 'profile';
 
 export interface AppNavItem {
   href: string;
@@ -42,6 +49,8 @@ export interface AppNavItem {
   featureFlag?: WebFeatureFlag;
   /** Hidden while this feature flag is on: the surface it replaces. */
   hiddenWhenFlag?: WebFeatureFlag;
+  /** Defaults to `'sidebar'`. */
+  placement?: AppNavPlacement;
 }
 
 export interface AppNavSection {
@@ -166,11 +175,13 @@ const NAV_SECTIONS: AppNavSection[] = [
       },
       {
         href: '/notifications',
-        label: 'Notifications',
+        // A delivery ledger, not an inbox: no unread badge, because nothing is unread.
+        label: 'Message delivery',
         description: 'Outbound message delivery.',
-        icon: Bell,
+        icon: Send,
         permission: 'REMINDER.READ',
         requiresClinic: true,
+        placement: 'header',
       },
       {
         href: '/research',
@@ -188,6 +199,7 @@ const NAV_SECTIONS: AppNavSection[] = [
         icon: Settings,
         permission: 'RESEARCH.SETTINGS.UPDATE',
         requiresClinic: true,
+        placement: 'profile',
       },
     ],
   },
@@ -252,7 +264,10 @@ function hasAnyPermission(permissions: string[], perms: string[]): boolean {
   return permissions.includes('*') || perms.some((perm) => permissions.includes(perm));
 }
 
-export function getAccessibleNavSections(bootstrap: WhoAmIResponse | null): AppNavSection[] {
+export function getAccessibleNavSections(
+  bootstrap: WhoAmIResponse | null,
+  placement: AppNavPlacement = 'sidebar',
+): AppNavSection[] {
   const clinicId = getBootstrapActiveClinicId(bootstrap);
   const memberships = bootstrap?.memberships ?? [];
   const activeMembership = memberships.find((membership) => membership.clinicId === clinicId);
@@ -264,6 +279,9 @@ export function getAccessibleNavSections(bootstrap: WhoAmIResponse | null): AppN
   return NAV_SECTIONS.map((section) => ({
     ...section,
     items: section.items.filter((item) => {
+      if ((item.placement ?? 'sidebar') !== placement) {
+        return false;
+      }
       if (item.featureFlag && !isWebFeatureEnabled(item.featureFlag)) {
         return false;
       }
@@ -282,6 +300,13 @@ export function getAccessibleNavSections(bootstrap: WhoAmIResponse | null): AppN
       return !item.permission || hasPermission(perms, item.permission);
     }),
   })).filter((section) => section.items.length > 0);
+}
+
+export function getAccessibleNavItems(
+  bootstrap: WhoAmIResponse | null,
+  placement: AppNavPlacement,
+): AppNavItem[] {
+  return getAccessibleNavSections(bootstrap, placement).flatMap((section) => section.items);
 }
 
 export function getNavItemHref(item: AppNavItem, clinicId: string | null) {
