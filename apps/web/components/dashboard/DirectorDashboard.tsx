@@ -1,11 +1,9 @@
 'use client';
 
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { TrendChart } from './TrendChart';
 import { DistributionChart } from './DistributionChart';
-import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
+import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { DashboardSectionHeader } from './DashboardSectionHeader';
-import { DashboardKpiCard } from './DashboardKpiCard';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 
 interface StaffActivityRow {
@@ -50,7 +48,6 @@ export function DirectorDashboard({
   followUpComplianceRate,
   staffActivity,
   encounterStatusDistribution,
-  pendingClinicalNoteCosigns,
 }: DirectorDashboardProps) {
   return (
     <section className="space-y-6">
@@ -58,16 +55,6 @@ export function DirectorDashboard({
         title="Clinic trends"
         hint="Use this section to watch how the clinic is performing across patient flow and follow-up."
       />
-
-      {pendingClinicalNoteCosigns !== undefined ? (
-        <AppMetricGroup className="sm:max-w-sm">
-          <DashboardKpiCard
-            title="Pending HAP cosigns"
-            value={pendingClinicalNoteCosigns}
-            hint="Clinic-level operational count only. Clinical note content remains restricted."
-          />
-        </AppMetricGroup>
-      ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">
         <TrendChart
@@ -111,23 +98,20 @@ export function DirectorDashboard({
         />
       </div>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Staff activity summary</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-y-hidden">
-            <DataTable
-              caption="Staff activity"
-              columns={staffColumns}
-              data={staffActivity}
-              getRowId={(row) => row.userId}
-              pageSizeOptions={[10]}
-              initialPageSize={10}
-            />
-          </div>
-        </CardContent>
-      </Card>
+      {/* Pending HAP cosigns lead the page as a "Needs you now" row when there are any. */}
+      <section className="space-y-3 border-t-2 border-rule-strong pt-3">
+        <h3 className="type-label pt-2.5 text-foreground">Staff activity summary</h3>
+        <div className="overflow-y-hidden">
+          <DataTable
+            caption="Staff activity"
+            columns={staffColumns}
+            data={staffActivity}
+            getRowId={(row) => row.userId}
+            pageSizeOptions={[10]}
+            initialPageSize={10}
+          />
+        </div>
+      </section>
     </section>
   );
 }

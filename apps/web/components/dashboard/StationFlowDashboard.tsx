@@ -18,10 +18,11 @@ import { fetchStationMetrics, formatMinutes, type StationMetrics } from '@/lib/s
 import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { EmptyState, InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ChartFrame } from './ChartFrame';
 import { DashboardSectionHeader } from './DashboardSectionHeader';
+import { StationLineLanes } from './StationLineLanes';
 
 /*
   Recharts draws axis ticks as SVG text, out of reach of the `tabular-nums` utility, so the figures
@@ -116,6 +117,11 @@ export function StationFlowDashboard({ clinicId }: { clinicId: string }) {
         </div>
       </div>
 
+      {/* Right now first: who is waiting where, before the day's aggregates. */}
+      {metrics?.live && !error ? (
+        <StationLineLanes stations={metrics.stations} onShiftNow={metrics.staffing.onShiftNow} />
+      ) : null}
+
       {error ? (
         <InlineErrorState
           title="Station flow could not be loaded"
@@ -185,11 +191,9 @@ export function StationFlowDashboard({ clinicId }: { clinicId: string }) {
             </p>
           ) : null}
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">By station</CardTitle>
-            </CardHeader>
-            <CardContent className="overflow-x-auto">
+          <section className="border-t-2 border-rule-strong pt-3">
+            <h3 className="type-label pt-2.5 text-foreground">By station</h3>
+            <div className="mt-2 overflow-x-auto">
               <table className="w-full min-w-[720px] text-sm" data-testid="station-flow-table">
                 <caption className="sr-only">Wait and service time at each station</caption>
                 <thead>
@@ -276,147 +280,96 @@ export function StationFlowDashboard({ clinicId }: { clinicId: string }) {
                   })}
                 </tbody>
               </table>
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Median wait by station</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {waitChart.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nobody has been taken yet.</p>
-                ) : waitChart.every((row) => row.median === 0) ? (
-                  <p className="text-sm text-muted-foreground">
-                    Every station took its patients within a minute, so there is nothing to compare.
-                  </p>
-                ) : (
-                  <div
-                    className="w-full"
-                    style={{ height: Math.max(160, waitChart.length * 44) }}
-                    role="img"
-                    aria-label={`Median wait by station: ${waitChart
-                      .map((row) => `${row.name} ${formatMinutes(row.median)}`)
-                      .join(', ')}.`}
-                  >
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={waitChart}
-                        layout="vertical"
-                        margin={{ top: 4, right: 56, bottom: 4, left: 8 }}
-                      >
-                        <CartesianGrid horizontal={false} stroke="hsl(var(--border))" />
-                        <XAxis type="number" tick={TICK} unit=" min" allowDecimals={false} />
-                        <YAxis type="category" dataKey="name" tick={TICK} width={140} />
-                        <Tooltip
-                          cursor={{ fill: 'hsl(var(--muted))' }}
-                          contentStyle={TOOLTIP_STYLE}
-                          formatter={(value) => [formatMinutes(Number(value)), 'Median wait']}
-                        />
-                        <Bar dataKey="median" fill={ARRIVALS} radius={[0, 4, 4, 0]} barSize={18}>
-                          <LabelList
-                            dataKey="median"
-                            position="right"
-                            formatter={(value: unknown) => formatMinutes(Number(value))}
-                            style={{ ...TICK, fill: 'hsl(var(--foreground))' }}
-                          />
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Arrivals and completions by hour
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div
-                  className="h-[240px] w-full"
-                  role="img"
-                  aria-label="Patients checked in and sessions completed in each clinic hour. The same figures are in the table below."
+            <ChartFrame
+              title="Median wait by station"
+              columns={['Station', 'Median wait']}
+              rows={waitChart.map((row) => ({
+                label: row.name,
+                values: [formatMinutes(row.median)],
+              }))}
+              hasData={waitChart.length > 0 && !waitChart.every((row) => row.median === 0)}
+              height={Math.max(160, waitChart.length * 44)}
+              empty={
+                <p className="pt-3 text-sm text-muted-foreground">
+                  {waitChart.length === 0
+                    ? 'Nobody has been taken yet.'
+                    : 'Every station took its patients within a minute, so there is nothing to compare.'}
+                </p>
+              }
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={waitChart}
+                  layout="vertical"
+                  margin={{ top: 4, right: 56, bottom: 4, left: 8 }}
                 >
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={metrics.hourly}
-                      barGap={2}
-                      margin={{ top: 4, right: 8, bottom: 4, left: -16 }}
-                    >
-                      <CartesianGrid vertical={false} stroke="hsl(var(--border))" />
-                      <XAxis dataKey="hour" tick={TICK} />
-                      <YAxis tick={TICK} allowDecimals={false} />
-                      <Tooltip
-                        cursor={{ fill: 'hsl(var(--muted))' }}
-                        contentStyle={TOOLTIP_STYLE}
-                      />
-                      <Legend
-                        wrapperStyle={{ fontSize: 12 }}
-                        // Text wears text ink; the swatch beside it carries the series colour.
-                        formatter={(value) => (
-                          <span style={{ color: 'hsl(var(--foreground))' }}>{value}</span>
-                        )}
-                      />
-                      <Bar
-                        dataKey="checkedIn"
-                        name="Checked in"
-                        fill={ARRIVALS}
-                        radius={[4, 4, 0, 0]}
-                      />
-                      <Bar
-                        dataKey="completed"
-                        name="Completed"
-                        fill={COMPLETIONS}
-                        radius={[4, 4, 0, 0]}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-                <details className="text-sm">
-                  <summary className="cursor-pointer text-muted-foreground">
-                    Show as a table
-                  </summary>
-                  <table className="mt-2 w-full tabular-nums">
-                    <caption className="sr-only">Arrivals and completions by hour</caption>
-                    <thead>
-                      <tr className="text-left text-xs text-muted-foreground">
-                        <th scope="col" className="py-1 font-medium">
-                          Hour
-                        </th>
-                        <th scope="col" className="py-1 text-right font-medium">
-                          Checked in
-                        </th>
-                        <th scope="col" className="py-1 text-right font-medium">
-                          Completed
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {metrics.hourly.map((row) => (
-                        <tr key={row.hour}>
-                          <th scope="row" className="py-1 text-left font-normal">
-                            {row.hour}
-                          </th>
-                          <td className="py-1 text-right">{row.checkedIn}</td>
-                          <td className="py-1 text-right">{row.completed}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </details>
-              </CardContent>
-            </Card>
-          </div>
+                  <CartesianGrid horizontal={false} stroke="hsl(var(--border))" />
+                  <XAxis type="number" tick={TICK} unit=" min" allowDecimals={false} />
+                  <YAxis type="category" dataKey="name" tick={TICK} width={140} />
+                  <Tooltip
+                    cursor={{ fill: 'hsl(var(--muted))' }}
+                    contentStyle={TOOLTIP_STYLE}
+                    formatter={(value) => [formatMinutes(Number(value)), 'Median wait']}
+                  />
+                  <Bar dataKey="median" fill={ARRIVALS} radius={[0, 4, 4, 0]} barSize={18}>
+                    <LabelList
+                      dataKey="median"
+                      position="right"
+                      formatter={(value: unknown) => formatMinutes(Number(value))}
+                      style={{ ...TICK, fill: 'hsl(var(--foreground))' }}
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartFrame>
 
-          {metrics.live && metrics.staffing.onShiftNow !== null ? (
-            <p className="text-sm text-muted-foreground">
-              {metrics.staffing.onShiftNow} staff on shift now.
-            </p>
-          ) : null}
+            <ChartFrame
+              title="Arrivals and completions by hour"
+              columns={['Hour', 'Checked in', 'Completed']}
+              rows={metrics.hourly.map((row) => ({
+                label: row.hour,
+                values: [row.checkedIn, row.completed],
+              }))}
+              hasData={metrics.hourly.length > 0}
+              empty={null}
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={metrics.hourly}
+                  barGap={2}
+                  margin={{ top: 4, right: 8, bottom: 4, left: -16 }}
+                >
+                  <CartesianGrid vertical={false} stroke="hsl(var(--border))" />
+                  <XAxis dataKey="hour" tick={TICK} />
+                  <YAxis tick={TICK} allowDecimals={false} />
+                  <Tooltip cursor={{ fill: 'hsl(var(--muted))' }} contentStyle={TOOLTIP_STYLE} />
+                  <Legend
+                    wrapperStyle={{ fontSize: 12 }}
+                    // Text wears text ink; the swatch beside it carries the series colour.
+                    formatter={(value) => (
+                      <span style={{ color: 'hsl(var(--foreground))' }}>{value}</span>
+                    )}
+                  />
+                  <Bar
+                    dataKey="checkedIn"
+                    name="Checked in"
+                    fill={ARRIVALS}
+                    radius={[4, 4, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="completed"
+                    name="Completed"
+                    fill={COMPLETIONS}
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartFrame>
+          </div>
         </>
       ) : null}
     </section>

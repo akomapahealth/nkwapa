@@ -1,0 +1,86 @@
+[
+  {
+    "name": "manager-dashboard",
+    "width": 1440,
+    "theme": "light",
+    "height": 2734,
+    "violations": []
+  },
+  {
+    "name": "manager-dashboard",
+    "width": 390,
+    "theme": "light",
+    "height": 5079,
+    "violations": []
+  },
+  {
+    "name": "manager-dashboard",
+    "width": 1440,
+    "theme": "dark",
+    "height": 2734,
+    "violations": []
+  },
+  {
+    "name": "manager-dashboard",
+    "width": 390,
+    "theme": "dark",
+    "height": 5079,
+    "violations": []
+  },
+  {
+    "name": "director-dashboard",
+    "width": 1440,
+    "theme": "light",
+    "height": 2734,
+    "violations": []
+  },
+  {
+    "name": "director-dashboard",
+    "width": 390,
+    "theme": "light",
+    "height": 5079,
+    "violations": []
+  },
+  {
+    "name": "director-dashboard",
+    "width": 1440,
+    "theme": "dark",
+    "height": 2734,
+    "violations": []
+  },
+  {
+    "name": "director-dashboard",
+    "width": 390,
+    "theme": "dark",
+    "height": 5079,
+    "violations": []
+  },
+  {
+    "name": "staff-dashboard",
+    "width": 1440,
+    "theme": "light",
+    "height": 2986,
+    "violations": []
+  },
+  {
+    "name": "staff-dashboard",
+    "width": 390,
+    "theme": "light",
+    "height": 5535,
+    "violations": []
+  },
+  {
+    "name": "staff-dashboard",
+    "width": 1440,
+    "theme": "dark",
+    "height": 2986,
+    "violations": []
+  },
+  {
+    "name": "staff-dashboard",
+    "width": 390,
+    "theme": "dark",
+    "height": 5535,
+    "violations": []
+  }
+]

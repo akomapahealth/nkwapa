@@ -394,6 +394,13 @@ test.describe('station flow metrics on the dashboard (#24)', () => {
     });
     const table = page.getByTestId('station-flow-table');
     await expect(table.getByRole('rowheader', { name: new RegExp(intake.name) })).toBeVisible();
+
+    // #269: one lane per open station, each saying in words who is waiting and for how long.
+    const lanes = page.getByTestId('station-lane');
+    await expect(lanes).toHaveCount(body.stations.filter((station) => station.active).length);
+    await expect(lanes.filter({ hasText: intake.name })).toContainText(
+      /No one waiting|\d+ waiting, longest/,
+    );
   });
 
   for (const theme of ['light', 'dark']) {

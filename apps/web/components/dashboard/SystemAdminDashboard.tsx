@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Building2, Users, Activity, Map } from 'lucide-react';
 import { DashboardSectionHeader } from './DashboardSectionHeader';
 import { DashboardKpiCard } from './DashboardKpiCard';
@@ -145,10 +144,10 @@ export function SystemAdminDashboard({
         hint="Daily visit count across every clinic."
       />
 
-      <Card>
-        <CardHeader className="space-y-3 pb-2">
+      <section className="space-y-3 border-t-2 border-rule-strong pt-3">
+        <div className="space-y-3">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <CardTitle className="text-sm font-medium">Clinic comparison</CardTitle>
+            <h3 className="type-label pt-2.5 text-foreground">Clinic comparison</h3>
             <div className="space-y-2 lg:w-64">
               <Label htmlFor="network-zone-filter">Zone</Label>
               <Select
@@ -182,8 +181,8 @@ export function SystemAdminDashboard({
             ]}
             emptyLabel="All zones"
           />
-        </CardHeader>
-        <CardContent>
+        </div>
+        <div>
           {clinicComparison.length === 0 ? (
             <div className="rounded-lg border border-border bg-muted/40 px-4 py-6 text-center text-sm text-muted-foreground">
               <p>
@@ -255,8 +254,8 @@ export function SystemAdminDashboard({
               </div>
             </>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
     </section>
   );
 }
