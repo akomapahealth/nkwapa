@@ -16,12 +16,13 @@ import { DirectorDashboard } from '@/components/dashboard/DirectorDashboard';
 import { VolunteerDashboard } from '@/components/dashboard/VolunteerDashboard';
 import { SystemAdminDashboard } from '@/components/dashboard/SystemAdminDashboard';
 import { StationFlowDashboard } from '@/components/dashboard/StationFlowDashboard';
+import { NeedsYouNow } from '@/components/dashboard/NeedsYouNow';
+import { getOpsDestination } from '@/lib/ops';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 import {
   ClinicalMeasurementsDashboard,
   type ClinicalMeasurementMetrics,
 } from '@/components/dashboard/ClinicalMeasurementsDashboard';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { EmptyStateCard } from '@/components/ops/OpsShared';
@@ -205,13 +206,8 @@ export default function DashboardPage() {
           // a bubble; the disclosure was costing a block of vertical space above the metrics on
           // every visit, to every user, forever.
           hint="The dashboard always reflects the clinic selected in the header. Start with the clinic snapshot, then use the role sections below to clear intake work, reviews, finalizations, and oversight tasks."
-          badges={
-            activeClinic ? (
-              <Badge variant="secondary" className="rounded-full px-3 py-1">
-                {activeClinic.clinicName}
-              </Badge>
-            ) : null
-          }
+          // No clinic-name badge: the title and the header's switcher already say which clinic,
+          // and on a phone the chip pushed the volunteer's own work below the first screen.
           actions={
             clinicId ? (
               <Button
@@ -260,6 +256,14 @@ export default function DashboardPage() {
 
         {data && clinicId && (
           <>
+            {/* Work first (MASTER.md section 12), then today's counts, then trends. */}
+            <NeedsYouNow
+              volunteer={data.volunteer}
+              doctor={data.doctor}
+              review={data.review}
+              worklistHref={getOpsDestination(perms, isWebFeatureEnabled('stationWorkflow'))}
+            />
+
             <DashboardSectionHeader
               title="Today at a glance"
               hint="These totals help you see what is active now before you move into the role-specific sections below."
@@ -273,6 +277,16 @@ export default function DashboardPage() {
             />
 
             <div className="space-y-8 border-t border-border/70 pt-6">
+              {/*
+                A volunteer's or doctor's own section comes before the clinic-wide measurement
+                coverage; the manager, director and admin order is #269's to change.
+              */}
+              {data.doctor && <DoctorDashboard {...data.doctor} />}
+
+              {data.review && <ReviewDashboard {...data.review} />}
+
+              {data.volunteer && <VolunteerDashboard {...data.volunteer} />}
+
               {(data.director?.clinicalMeasurements ??
                 data.doctor?.clinicalMeasurements ??
                 data.volunteer?.clinicalMeasurements) && (
@@ -287,13 +301,7 @@ export default function DashboardPage() {
 
               {showStationFlow && clinicId ? <StationFlowDashboard clinicId={clinicId} /> : null}
 
-              {data.doctor && <DoctorDashboard {...data.doctor} />}
-
-              {data.review && <ReviewDashboard {...data.review} />}
-
               {data.director && <DirectorDashboard {...data.director} />}
-
-              {data.volunteer && <VolunteerDashboard {...data.volunteer} />}
 
               {data.systemAdmin && (
                 <SystemAdminDashboard
