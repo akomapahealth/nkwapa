@@ -1,5 +1,6 @@
 'use client';
 
+import { statusLabel } from '@/lib/status-presentation';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -286,7 +287,7 @@ export default function EncounterDetailPage() {
                   isFinalized ? 'finalized' : encounter.status === 'IN_REVIEW' ? 'review' : 'draft'
                 }
               >
-                {encounter.status}
+                {statusLabel(encounter.status)}
               </Badge>
             </>
           }
@@ -320,7 +321,7 @@ export default function EncounterDetailPage() {
         <AppMetricGroup className="md:grid-cols-3">
           <AppMetricCard
             title="Encounter state"
-            value={encounter.status}
+            value={statusLabel(encounter.status)}
             icon={ClipboardPlus}
             detail="The current review stage for this encounter."
           />

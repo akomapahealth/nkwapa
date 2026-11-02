@@ -1,5 +1,6 @@
 'use client';
 
+import { statusLabel } from '@/lib/status-presentation';
 import {
   ResponsiveContainer,
   BarChart,
@@ -72,6 +73,7 @@ export function DistributionChart({
         return (ai === -1 ? order.length : ai) - (bi === -1 ? order.length : bi);
       })
     : unordered;
+  const displayData = chartData.map((entry) => ({ ...entry, label: statusLabel(entry.name) }));
   const hasData = hasRenderableDistributionData(chartData);
   const isHorizontal = layout === 'horizontal';
 
@@ -104,7 +106,7 @@ export function DistributionChart({
           {hasData ? (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
-                data={chartData}
+                data={displayData}
                 layout={isHorizontal ? 'vertical' : 'horizontal'}
                 margin={
                   isHorizontal ? { top: 4, right: 36, bottom: 4, left: 4 } : { top: 18, right: 8 }
@@ -121,7 +123,7 @@ export function DistributionChart({
                     <XAxis type="number" tick={TICK} allowDecimals={false} />
                     <YAxis
                       type="category"
-                      dataKey="name"
+                      dataKey="label"
                       tick={TICK}
                       width={110}
                       interval={0}
@@ -132,7 +134,7 @@ export function DistributionChart({
                 ) : (
                   <>
                     <XAxis
-                      dataKey="name"
+                      dataKey="label"
                       tick={TICK}
                       tickFormatter={(value) =>
                         String(value).length > 14

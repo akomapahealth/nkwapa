@@ -295,6 +295,11 @@ test('the clinic registry, its filters, its dialog, and its combobox survive an 
   await page.getByRole('button', { name: 'Create clinic', exact: true }).first().click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
+  // Mid-entrance the dialog is translucent over the overlay, so axe blends the two and reports
+  // contrast the settled dialog does not have. Let the entrance finish first, as landing.spec does.
+  await dialog.evaluate((el) =>
+    Promise.all(el.getAnimations({ subtree: true }).map((animation) => animation.finished)),
+  );
 
   expect(describeViolations((await analyze(page)).violations), 'dialog closed combobox').toBe('');
 

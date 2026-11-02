@@ -434,9 +434,9 @@ type scale values changed. [Evidence](evidence/263/README.md).
 These opt-in utilities are the shared type contract for #265 and later page
 work. They introduce no new font family and do not globally replace the current
 page/component classes. Existing routes retain their layout while consumers
-migrate one issue at a time. The small set of public roles and new colour utility
-classes is safelisted so the production foundation CSS can be rendered and
-verified before those consumers exist.
+migrate one issue at a time. #265 consumes most roles and colour utilities directly; only
+`type-record-title` and `type-meta` stay safelisted, because the foundations
+specimen injects them before any component uses them.
 
 | Utility              | Family         | Size / line height, below 640px | Size / line height, from 640px | Weight | Figures      |
 | -------------------- | -------------- | ------------------------------- | ------------------------------ | ------ | ------------ |
@@ -524,9 +524,63 @@ Shared primitives live in `apps/web/components/app-shell/` and `apps/web/compone
 
 ### Metrics and page headers
 
-Related metrics share one `AppMetricGroup` panel divided by hairlines; a metric is a quiet label with a 16px icon, then the figure. A grid of separately bordered cards, each with a 48px tinted icon tile, made the tiles the loudest thing on a dashboard and every page read as a template. A phrase standing in for a figure ("No reading yet") drops to `text-xl` so an empty state is not the largest text on screen.
+Related metrics share one `AppMetricGroup` panel divided by hairlines; a metric is a quiet label with a 16px icon, then the figure. A grid of separately bordered cards, each with a 48px tinted icon tile, made the tiles the loudest thing on a dashboard and every page read as a template. A phrase standing in for a figure ("No reading yet") uses `type-section-title` so an empty state is not the largest text on screen.
 
 `AppPageHeader` sits on the canvas with a hairline under it, not inside a card: the title is the page's heading, not one more panel among the panels below it. Workspace pages fade in over 150ms (`app/(workspace)/template.tsx`, opacity only), and a 2px bar crosses the top while an in-app link loads (`NavigationProgress`).
+
+### Phase 01 shared foundations (#265)
+
+`AppPageHeader` uses `type-page-title` and `type-body`, with an optional `breadcrumbs`
+slot above the title. `AppMetricGroup` is an unfilled ledger with a strong top rule,
+hairlines between cells, `type-label` labels and tabular `type-metric` figures.
+`FormSectionCard` keeps its existing API while drawing a ruled section on the canvas;
+its default heading is `h2`, with `titleAs="h3"` for nested sections.
+`DashboardSectionHeader` uses the Plex section role.
+
+`DataTable` retains its sorting, pagination, filtering, server/client modes and
+mobile renderer. Its optional `toolbar` slot holds caller-owned filters; it does
+not fetch or change filter state. The table has a strong top rule, tabular data,
+a quiet header and 44px sorting controls.
+
+`StatusLabel` is the shared badge for system states. `statusLabel` in
+`lib/status-presentation.ts` owns plain-language labels, reuses the hypertension
+vocabulary and preserves already-written copy. Examples: `IN_REVIEW` → In review,
+`DRAFT` → Draft, `FINALIZED` → Finalized, `STAGE2` → Stage 2, `UNKNOWN` → Unknown.
+The clinical hypertension helper retains its contextual "Not classified" label.
+Unknown future codes receive a readable fallback. Use the helper only at the
+render boundary: API payloads, stored values, transitions, filters, sort accessors
+and permissions retain their original codes. Existing domain-specific tone mappings
+remain supported through the `variant` prop. Review, finalized and warning badges
+use the measured opaque status surfaces from #264.
+
+The `--rule` hairline (1.26:1 in light) is a decorative separator only: #265 uses
+`border-rule` between sections, rows and states, never as the only visible edge of
+an input, select, button or other control. Controls keep `--input`.
+
+`AppActionRow` supplies one ruled list item with a title, optional detail, icon and
+one caller-provided action. Render it inside a `ul`. `DashboardActionRow` can render
+these under "Needs you now" with `presentation="rows"`; its existing button mode
+is unchanged. Dashboard prioritization and counts belong to #268/#269.
+
+Breadcrumb and Skeleton source was retrieved with shadcn CLI 4.23.0 (`view
+breadcrumb skeleton`) and adapted to the existing Tailwind 3/React 18 stack.
+Breadcrumb navigation is named, current-page semantics are retained, and links
+have 44px targets and visible focus. Skeletons are neutral, decorative, and stop
+pulsing with reduced motion. `ResourceState` supplies the named loading live
+region. No new dependency is needed; the existing Radix Slot and Lucide suffice.
+Separator adoption remains deferred: the new rules use ordinary CSS borders.
+
+`ResourceState` keeps the existing five-state order and stale-data branch logic.
+Offline and error messages use measured warning/destructive surfaces, empty states
+use quiet rules, and `SectionSkeleton` uses the shared Skeleton. A failed refresh
+still leaves loaded records visible. `InfoHint` retains its single-open registry,
+keyboard dismissal and focus return, and now explicitly connects its open trigger
+to the tooltip through `aria-describedby` and `aria-controls`.
+
+The browser-only fixture in `e2e/component-fixtures/SharedComponents.tsx` renders
+these actual primitives with synthetic data, including all five states, stale data,
+saved copies and refreshing. It is bundled with the installed webpack/TypeScript
+for Playwright and creates no public route or production dependency.
 
 ### The combobox, and when it is not the answer
 

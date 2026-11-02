@@ -1,5 +1,6 @@
 'use client';
 
+import { statusLabel } from '@/lib/status-presentation';
 import Link from 'next/link';
 import {
   Activity,
@@ -356,7 +357,10 @@ export function PatientChartOverview({
                   <li key={allergy.recordId} className="text-sm">
                     <span className="font-medium">{allergy.substance ?? 'Unnamed substance'}</span>
                     {allergy.severity ? (
-                      <span className="text-muted-foreground"> · {allergy.severity}</span>
+                      <span className="text-muted-foreground">
+                        {' '}
+                        · {statusLabel(allergy.severity)}
+                      </span>
                     ) : null}
                   </li>
                 ))}

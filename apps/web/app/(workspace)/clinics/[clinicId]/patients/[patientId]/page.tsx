@@ -1,5 +1,6 @@
 'use client';
 
+import { statusLabel } from '@/lib/status-presentation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -730,7 +731,9 @@ function PatientChartWorkspace() {
                           </div>
                           <div className="rounded-lg border border-border bg-background p-4">
                             <p className="text-eyebrow text-muted-foreground">Sex</p>
-                            <p className="mt-2 text-sm text-foreground">{patient.sex}</p>
+                            <p className="mt-2 text-sm text-foreground">
+                              {statusLabel(patient.sex)}
+                            </p>
                           </div>
                           {patient.nationalIdLast4 || patient.nationalIdType === 'NONE' ? (
                             <div className="rounded-lg border border-border bg-background p-4 sm:col-span-2">

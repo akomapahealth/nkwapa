@@ -1,5 +1,6 @@
 'use client';
 
+import { statusLabel } from '@/lib/status-presentation';
 import { AlertTriangle, CheckCircle2, CircleHelp, History } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -72,7 +73,7 @@ export function AllergySummaryBanner({
               <Badge variant="destructive" className="gap-1">
                 {allergy.substance || 'Unspecified substance'}
                 <span aria-hidden="true">·</span>
-                {allergy.severity}
+                {statusLabel(allergy.severity)}
                 {allergy.reaction ? ` · ${allergy.reaction}` : ''}
               </Badge>
             </li>

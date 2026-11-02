@@ -1,5 +1,6 @@
 'use client';
 
+import { StatusLabel } from '@/components/ui/status-label';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ClipboardList, Eye, FileCheck2, FileEdit, Stethoscope } from 'lucide-react';
@@ -183,7 +184,7 @@ export default function QueuesPage() {
       accessorKey: 'bpStage',
       header: 'BP',
       cell: ({ getValue }) =>
-        getValue() ? <Badge variant="warning">{String(getValue())}</Badge> : null,
+        getValue() ? <StatusLabel variant="warning" value={String(getValue())} /> : null,
     },
     {
       id: 'glucoseFlag',
@@ -354,10 +355,10 @@ function QueueContent({
                 <h3 className="text-sm font-semibold text-foreground">{row.patientName}</h3>
                 <p className="mt-1 text-sm text-muted-foreground">{row.patientCode}</p>
               </div>
-              <Badge variant="outline">{row.status}</Badge>
+              <StatusLabel variant="outline" value={row.status} />
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
-              {row.bpStage ? <Badge variant="warning">{row.bpStage}</Badge> : null}
+              {row.bpStage ? <StatusLabel variant="warning" value={row.bpStage} /> : null}
               {row.glucoseFlag ? <Badge variant="destructive">DM Flag</Badge> : null}
             </div>
             <Button
