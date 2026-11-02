@@ -61,7 +61,8 @@ export function ChartFrame({
         ) : null}
       </div>
       {!hasData ? (
-        <div className="h-[240px] sm:h-[260px]">{empty}</div>
+        // A fixed-height chart's empty note needs no room for a chart.
+        <div className={height ? undefined : 'h-[240px] sm:h-[260px]'}>{empty}</div>
       ) : showTable ? (
         <table className="mt-2 w-full text-sm">
           <caption className="sr-only">{title}</caption>

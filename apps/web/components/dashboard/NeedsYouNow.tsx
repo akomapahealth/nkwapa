@@ -138,9 +138,17 @@ export function NeedsYouNow({ volunteer, doctor, review, clinic, worklistHref }:
 
   return (
     <section aria-labelledby="needs-you-now" className="border-t-2 border-rule-strong pt-4">
-      <h2 id="needs-you-now" className="type-section-title text-foreground">
-        Needs you now
-      </h2>
+      <div className="flex items-baseline gap-2">
+        <h2 id="needs-you-now" className="type-section-title text-foreground">
+          Needs you now
+        </h2>
+        {rows.length ? (
+          <span className="type-body tabular-nums text-muted-foreground">
+            {rows.length}
+            <span className="sr-only"> {rows.length === 1 ? 'item' : 'items'}</span>
+          </span>
+        ) : null}
+      </div>
       {/* Own work, in the first screen on a phone, before any clinic-wide figure. */}
       {volunteer ? (
         <p className="type-body mt-1 text-muted-foreground">

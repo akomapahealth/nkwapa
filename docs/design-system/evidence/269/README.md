@@ -21,7 +21,7 @@ The #229 baseline for the staff page was 7,342px; at `cf393e7` (after #268) it m
 
 The CI E2E build has the station workflow off, so `station/before/` and `station/after/` hold a separate pair built with `NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED=true` and the API flag on, after `station-workflow.spec.js` had queued patients (`station-capture.spec.js`, manager, 1440 light, full page). Before, the station section had no lanes; after, "Station line now" leads it.
 
-In this seed no wait has passed 20 minutes, so the warning state ("Over 20 minutes", warning bar) does not appear in the images. The metrics also report `staffNow` as 0 for every station (with 2 staff on shift clinic-wide), so every lane says "No one staffing".
+By the time of the after image, one Blood pressure patient had waited 32 minutes, so that lane shows the warning state (warning bar, "Over 20 minutes"); the before image, taken earlier, had no wait that long. The metrics report `staffNow` as 0 for every station (with 2 staff on shift clinic-wide), so every lane says "No one staffing" and "0 of 1".
 
 The lanes use each station's aggregate `longestCurrentWaitMinutes` and `staffNow` from the station metrics the dashboard already fetches. There is no per-patient queue data on the dashboard, so no patient is named.
 

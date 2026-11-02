@@ -118,7 +118,9 @@ export function StationFlowDashboard({ clinicId }: { clinicId: string }) {
       </div>
 
       {/* Right now first: who is waiting where, before the day's aggregates. */}
-      {metrics?.live && !error ? <StationLineLanes stations={metrics.stations} /> : null}
+      {metrics?.live && !error ? (
+        <StationLineLanes stations={metrics.stations} onShiftNow={metrics.staffing.onShiftNow} />
+      ) : null}
 
       {error ? (
         <InlineErrorState
@@ -368,12 +370,6 @@ export function StationFlowDashboard({ clinicId }: { clinicId: string }) {
               </ResponsiveContainer>
             </ChartFrame>
           </div>
-
-          {metrics.live && metrics.staffing.onShiftNow !== null ? (
-            <p className="text-sm text-muted-foreground">
-              {metrics.staffing.onShiftNow} staff on shift now.
-            </p>
-          ) : null}
         </>
       ) : null}
     </section>
