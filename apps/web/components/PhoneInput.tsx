@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 
 const DEFAULT_REGION = 'GH' as const;
@@ -44,36 +46,23 @@ export function PhoneInput({
   );
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+    <div className="flex min-w-0 items-center gap-1">
       <span
-        style={{
-          padding: '0.375rem 0.5rem',
-          background: '#f5f5f5',
-          border: '1px solid #ccc',
-          borderRadius: '4px 0 0 4px',
-          fontSize: '0.875rem',
-          color: '#666',
-        }}
+        className="inline-flex h-11 items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground"
         title="Ghana"
       >
         +233
       </span>
-      <input
+      <Input
         type="tel"
         id={id}
         value={raw}
         onChange={handleChange}
         placeholder={placeholder}
         disabled={disabled}
-        className={className}
+        className={cn('min-w-0 flex-1', className)}
         autoComplete="tel"
         aria-label="Phone number (Ghana)"
-        style={{
-          padding: '0.375rem 0.5rem',
-          border: '1px solid #ccc',
-          borderRadius: '0 4px 4px 0',
-          flex: 1,
-        }}
       />
     </div>
   );

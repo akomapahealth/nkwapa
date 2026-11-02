@@ -10,25 +10,20 @@ import { useBootstrap } from '@/lib/bootstrap-context';
 import { apiFetch } from '@/lib/api';
 import { hasPermission, readApiError } from '@/lib/ops';
 import { usePatientCheckIn } from '@/lib/use-patient-check-in';
-import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { db } from '@/lib/db';
 import { enqueueOutboxMutation } from '@/lib/outbox';
 import { SYNC_OPERATION } from '@/lib/outbox';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import {
+  RecordSection as Card,
+  RecordSectionContent as CardContent,
+  RecordSectionHeader as CardHeader,
+} from '@/components/patients/RecordSection';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Activity,
-  ArrowLeft,
-  CalendarClock,
-  FileCheck,
-  Pencil,
-  ShieldCheck,
-  Stethoscope,
-} from 'lucide-react';
+import { ArrowLeft, FileCheck, Pencil, Stethoscope } from 'lucide-react';
 import { MedicalHistoryPanel } from '@/components/patients/MedicalHistoryPanel';
 import { ScheduleFollowUpReminderCard } from '@/components/patients/ScheduleFollowUpReminderCard';
 import { PortalAccessCard } from '@/components/patients/PortalAccessCard';
@@ -576,7 +571,7 @@ function PatientChartWorkspace() {
     );
   }
 
-  const { patient, recentEncounters } = data;
+  const { patient } = data;
   // The offline fallback rebuilds the chart from IndexedDB and carries no portal state,
   // so the card is told there is none rather than being handed a partial object.
   const portalAccess: PortalAccess = data.portalAccess ?? {
@@ -593,12 +588,11 @@ function PatientChartWorkspace() {
   return (
     <div className="space-y-6">
       <AppPageHeader
-        eyebrow="Clinic patient chart"
         title={`${patient.firstName} ${patient.lastName}`}
         description="Review clinic-scoped demographics, encounter history, portal access, and patient-reported updates from a single chart workspace."
         badges={
           <>
-            <Badge variant="outline" className="border-primary/25 bg-background/80 font-mono">
+            <Badge variant="outline" className="tabular-nums">
               {patient.patientCode}
             </Badge>
             {hasGrantedResearchConsent ? <Badge variant="finalized">Consent Granted</Badge> : null}
@@ -640,37 +634,6 @@ function PatientChartWorkspace() {
         }
       />
 
-      <AppMetricGroup className="md:grid-cols-3">
-        <AppMetricCard
-          title="Recent encounters"
-          value={recentEncounters.length}
-          icon={CalendarClock}
-          detail="Most recent visit records available from this chart."
-        />
-        <AppMetricCard
-          title="Patient-reported updates"
-          value={canViewSelfReports ? selfReports.length : 'Locked'}
-          icon={Activity}
-          detail={
-            canViewSelfReports
-              ? 'Portal submissions visible to your role.'
-              : 'Your role does not include patient-reported data access.'
-          }
-        />
-        <AppMetricCard
-          title="Research consent"
-          value={
-            hasGrantedResearchConsent
-              ? 'Granted'
-              : researchConsent?.status === 'REVOKED'
-                ? 'Revoked'
-                : 'Pending'
-          }
-          icon={ShieldCheck}
-          detail="Current de-identified research consent status for this patient."
-        />
-      </AppMetricGroup>
-
       {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
       {mergedFrom ? (
         <InlineNotice tone="info">
@@ -706,39 +669,45 @@ function PatientChartWorkspace() {
                     <div className="space-y-4">
                       <Card>
                         <CardHeader>
-                          <h2 className="text-lg font-semibold">Patient details</h2>
+                          <h2 className="type-section-title">Patient details</h2>
                         </CardHeader>
                         <CardContent className="grid gap-4 sm:grid-cols-2">
-                          <div className="rounded-lg border border-border bg-background p-4">
-                            <p className="text-eyebrow text-muted-foreground">Patient code</p>
-                            <p className="mt-2 font-mono text-lg font-semibold text-foreground">
+                          <div className="border-b border-rule py-3">
+                            <p className="type-label font-normal text-muted-foreground">
+                              Patient code
+                            </p>
+                            <p className="mt-1 type-data font-semibold text-foreground">
                               {patient.patientCode}
                             </p>
                           </div>
-                          <div className="rounded-lg border border-border bg-background p-4">
-                            <p className="text-eyebrow text-muted-foreground">Contact</p>
-                            <p className="mt-2 text-sm text-foreground">
+                          <div className="border-b border-rule py-3">
+                            <p className="type-label font-normal text-muted-foreground">Contact</p>
+                            <p className="mt-1 type-data text-foreground">
                               {patient.phoneE164 || 'No phone on file'}
                             </p>
                           </div>
-                          <div className="rounded-lg border border-border bg-background p-4">
-                            <p className="text-eyebrow text-muted-foreground">Date of birth</p>
-                            <p className="mt-2 text-sm text-foreground">
+                          <div className="border-b border-rule py-3">
+                            <p className="type-label font-normal text-muted-foreground">
+                              Date of birth
+                            </p>
+                            <p className="mt-1 type-data text-foreground">
                               {patient.dob
                                 ? new Date(patient.dob).toLocaleDateString()
                                 : 'Not recorded'}
                             </p>
                           </div>
-                          <div className="rounded-lg border border-border bg-background p-4">
-                            <p className="text-eyebrow text-muted-foreground">Sex</p>
-                            <p className="mt-2 text-sm text-foreground">
+                          <div className="border-b border-rule py-3">
+                            <p className="type-label font-normal text-muted-foreground">Sex</p>
+                            <p className="mt-1 type-data text-foreground">
                               {statusLabel(patient.sex)}
                             </p>
                           </div>
                           {patient.nationalIdLast4 || patient.nationalIdType === 'NONE' ? (
-                            <div className="rounded-lg border border-border bg-background p-4 sm:col-span-2">
-                              <p className="text-eyebrow text-muted-foreground">National ID</p>
-                              <p className="mt-2 text-sm text-foreground">
+                            <div className="border-b border-rule py-3 sm:col-span-2">
+                              <p className="type-label font-normal text-muted-foreground">
+                                National ID
+                              </p>
+                              <p className="mt-1 type-data text-foreground">
                                 {patient.nationalIdType === 'NONE'
                                   ? 'No ID document'
                                   : `...${patient.nationalIdLast4}`}
@@ -771,14 +740,14 @@ function PatientChartWorkspace() {
                       {isSystemAdmin ? (
                         <Card>
                           <CardHeader>
-                            <h2 className="text-lg font-semibold">Duplicate repair</h2>
+                            <h2 className="type-section-title">Duplicate repair</h2>
                             <p className="text-sm text-muted-foreground">
                               Fold a duplicate record into this chart, keeping every visit, note and
                               consent.
                             </p>
                           </CardHeader>
                           <CardContent className="space-y-3">
-                            <p className="rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground">
+                            <p className="border-b border-rule py-3 text-sm text-muted-foreground">
                               Use this only when two patient rows represent the same real person in
                               the same clinic. You will see exactly what moves before anything
                               changes.
@@ -797,13 +766,13 @@ function PatientChartWorkspace() {
 
                       <Card>
                         <CardHeader>
-                          <h2 className="text-lg font-semibold">Next steps</h2>
+                          <h2 className="type-section-title">Next steps</h2>
                         </CardHeader>
                         <CardContent className="space-y-3 text-sm text-muted-foreground">
                           <p>
-                            Open Trends to review longitudinal readings and measurement changes.
+                            Open Vitals to review longitudinal readings and measurement changes.
                           </p>
-                          <p>Use Encounters to continue from prior visits or start chart review.</p>
+                          <p>Use Visits to continue from prior visits or start chart review.</p>
                           {canCreateOpsCheckIn ? (
                             <p>
                               Use Check In Patient to move this chart straight into today’s clinic
@@ -951,7 +920,7 @@ function PatientChartWorkspace() {
               return (
                 <Card>
                   <CardHeader>
-                    <h2 className="text-lg font-semibold">Patient self-reports</h2>
+                    <h2 className="type-section-title">Patient self-reports</h2>
                     <p className="text-sm text-muted-foreground">
                       Data entered by the patient via the portal
                     </p>
@@ -967,7 +936,7 @@ function PatientChartWorkspace() {
                         {selfReports.map((report) => (
                           <li
                             key={report.id}
-                            className="flex flex-col gap-1 rounded-lg border border-border bg-background p-4"
+                            className="flex flex-col gap-1 border-b border-rule py-4 tabular-nums"
                           >
                             <div className="flex items-center justify-between">
                               <span className="font-medium">{report.type.replace(/_/g, ' ')}</span>
@@ -977,7 +946,8 @@ function PatientChartWorkspace() {
                             </div>
                             {report.systolicBp != null || report.diastolicBp != null ? (
                               <p className="text-sm">
-                                BP: {report.systolicBp ?? '—'}/{report.diastolicBp ?? '—'}
+                                BP: {report.systolicBp ?? 'Not recorded'}/
+                                {report.diastolicBp ?? 'Not recorded'} mmHg
                               </p>
                             ) : null}
                             {report.glucoseMgDl != null ? (
@@ -997,7 +967,7 @@ function PatientChartWorkspace() {
               return (
                 <Card>
                   <CardHeader>
-                    <h2 className="text-lg font-semibold">Research consent</h2>
+                    <h2 className="type-section-title">Research consent</h2>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <p className="text-sm text-muted-foreground">

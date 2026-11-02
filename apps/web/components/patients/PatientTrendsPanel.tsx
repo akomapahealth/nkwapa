@@ -25,7 +25,12 @@ import {
 import { MeasurementTrendChart } from '@/components/portal/MeasurementTrendChart';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
+import {
+  RecordSection as Card,
+  RecordSectionContent as CardContent,
+  RecordSectionDescription as CardDescription,
+  RecordSectionHeader as CardHeader,
+} from '@/components/patients/RecordSection';
 import {
   ChartSectionError,
   ChartSectionLoading,
@@ -133,7 +138,7 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
             </Badge>
           </div>
           <div className="space-y-2">
-            <h2 className="text-lg font-semibold">Trend view for clinic and home readings</h2>
+            <h2 className="type-section-title">Trend view for clinic and home readings</h2>
             <CardDescription className="max-w-3xl text-sm md:text-base">
               Blood pressure and glucose combine patient-entered logs with encounter data for this
               clinic. Staff views include in-progress encounter readings so the timeline stays
@@ -149,7 +154,8 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
                 type="button"
                 variant={days === rangeDays ? 'default' : 'outline'}
                 size="sm"
-                className="rounded-full"
+                className="min-h-11"
+                aria-pressed={days === rangeDays}
                 onClick={() => setRangeDays(days)}
               >
                 {days} days
@@ -158,9 +164,9 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {FOLLOW_UP_LABELS.map((item) => (
-              <div key={item.key} className="rounded-lg border border-border bg-background p-4">
-                <p className="text-eyebrow text-muted-foreground">{item.label}</p>
-                <p className="mt-2 text-2xl font-semibold">{followUp[item.key]}</p>
+              <div key={item.key} className="border-b border-rule py-3">
+                <p className="type-metric">{followUp[item.key]}</p>
+                <p className="mt-1 type-label font-normal text-muted-foreground">{item.label}</p>
               </div>
             ))}
           </div>
@@ -180,34 +186,32 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
       {!loading && !error && (
         <>
           <div className="grid gap-4 md:grid-cols-2">
-            <Card className="border-border/70 bg-card/95">
+            <Card>
               <CardHeader className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <HeartPulse className="h-5 w-5 text-primary" />
+                  <HeartPulse className="h-5 w-5 text-muted-foreground" />
                   <Badge variant="outline" className="rounded-full">
                     Blood pressure
                   </Badge>
                 </div>
                 <div>
-                  {/* A real heading: CardTitle renders a div, so these summary counts were
-                      invisible to anything navigating the page by structure. */}
-                  <h3 className="text-xl font-semibold">{trends?.bp.length ?? 0}</h3>
+                  <p className="type-metric">{trends?.bp.length ?? 0}</p>
                   <CardDescription>
                     Blood pressure readings in the selected timeframe.
                   </CardDescription>
                 </div>
               </CardHeader>
             </Card>
-            <Card className="border-border/70 bg-card/95">
+            <Card>
               <CardHeader className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <Syringe className="h-5 w-5 text-secondary" />
+                  <Syringe className="h-5 w-5 text-muted-foreground" />
                   <Badge variant="outline" className="rounded-full">
                     Glucose
                   </Badge>
                 </div>
                 <div>
-                  <h3 className="text-xl font-semibold">{trends?.glucose.length ?? 0}</h3>
+                  <p className="type-metric">{trends?.glucose.length ?? 0}</p>
                   <CardDescription>Glucose readings in the selected timeframe.</CardDescription>
                 </div>
               </CardHeader>
@@ -223,18 +227,18 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
                     key={key}
                     type="button"
                     onClick={() => setSelectedMeasurement(key)}
-                    className={`min-h-24 cursor-pointer rounded-lg border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                    className={`min-h-24 cursor-pointer border-b-2 p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                       selectedMeasurement === key
-                        ? 'border-primary/40 bg-primary/10'
-                        : 'border-border/70 bg-card/95 hover:bg-muted/40'
+                        ? 'border-primary bg-primary/10'
+                        : 'border-input hover:bg-muted/40'
                     }`}
                     aria-pressed={selectedMeasurement === key}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-eyebrow text-muted-foreground">{label}</span>
-                      <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
+                      <span className="type-label font-normal text-muted-foreground">{label}</span>
+                      <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                     </div>
-                    <p className="mt-3 text-xl font-semibold">
+                    <p className="mt-3 type-metric">
                       {latest == null ? 'No data' : `${latest}${suffix}`}
                     </p>
                   </button>
@@ -242,6 +246,7 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
               })}
             </div>
             <MeasurementTrendChart
+              staffRecord
               title={`${selectedConfig.label} trend`}
               description="Encounter measurements recorded by clinic staff across the selected range."
               emptyMessage={`No ${selectedConfig.label.toLowerCase()} readings were recorded in this timeframe.`}
@@ -254,6 +259,7 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
           <section className="grid gap-4 lg:grid-cols-2">
             <div className="lg:col-span-2">
               <MeasurementTrendChart
+                staffRecord
                 title="Blood pressure trend"
                 description="Encounter and patient-entered systolic/diastolic values across the selected range."
                 emptyMessage="No blood pressure readings were recorded in this timeframe."
@@ -266,6 +272,7 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
               />
             </div>
             <MeasurementTrendChart
+              staffRecord
               title="Glucose trend"
               description="Encounter and patient-entered glucose values across the selected range."
               emptyMessage="No glucose readings were recorded in this timeframe."
@@ -273,23 +280,23 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
               lines={[{ key: 'glucose', label: 'Glucose', color: 'hsl(var(--chart-2))' }]}
               data={glucoseTrend}
             />
-            <Card className="border-border/70 bg-card/95">
+            <Card>
               <CardHeader>
-                <h3 className="text-base font-semibold">How to read this panel</h3>
+                <h3 className="font-body text-base font-semibold">How to read this panel</h3>
                 <CardDescription>
                   Use this trend view to compare clinic intake readings with patient logs before or
                   after the visit.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-sm text-muted-foreground">
-                <div className="flex items-start gap-3 rounded-lg border border-border bg-background p-4">
+                <div className="flex items-start gap-3 border-b border-rule py-3">
                   <Activity className="mt-0.5 h-4 w-4 text-muted-foreground" />
                   <p>
                     Encounter readings appear as soon as the visit data exists in this clinic,
                     including draft and review-stage encounters.
                   </p>
                 </div>
-                <div className="flex items-start gap-3 rounded-lg border border-border bg-background p-4">
+                <div className="flex items-start gap-3 border-b border-rule py-3">
                   <CalendarClock className="mt-0.5 h-4 w-4 text-muted-foreground" />
                   <p>
                     Follow-up counts summarize requests and appointment outcomes for the selected

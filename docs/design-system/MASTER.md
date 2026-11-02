@@ -676,6 +676,39 @@ only.
   oversight first (Clinic trends, Network overview, then the person's own queues).
   A single-role account sees no tabs. Doctor and review stay one view.
 
+### Phase 04 patient registry and records (#270)
+
+The registry starts with search and the existing location and completed-screening
+filters (#224), followed by one result count and the shared sortable, paginated
+DataTable. Patient identities use the serif record role on phones; row actions
+have 44px targets. URL state, clinic scope, masking and check-in behavior stay as
+implemented before this phase.
+
+Patient records use local `RecordSection` groups on the canvas, with plain
+label/value rows for demographics and longitudinal readings. Overview starts with
+**Needs you now** using the existing pending actions and destinations. Chart tabs
+remain role-filtered, lazy and addressable through `?tab=`; their targets are 44px.
+Staff measurement trends opt into the existing `ChartFrame` table alternative and
+straight line segments. Portal chart defaults are unchanged.
+
+Registration and Change ID surface browser constraint failures in a linked error
+summary and the shared `FieldError`, with `aria-invalid` / `aria-describedby`.
+Native required, email, date and length constraints still decide submission.
+Error messages revalidate from the form's bubbling change event, after the
+control's own handler; values are captured before functional state updates so
+correcting an invalid field cannot restore an older value. Registry results
+reserve bottom clearance for pagination beside the fixed chat launcher.
+Inline error space is reserved after the first failed submit; changing the ID type
+removes only the obsolete ID error. Request errors use the existing `readApiError`
+formatter so recovery instructions are readable rather than raw JSON. Edit retains its existing
+button save and offline outbox behavior, with an announced save-error summary;
+it gains no new client constraints. Consent retains its exact text, attestation
+requirement and disabled submit behavior, with an outlined warning action to
+separate consent recording from routine saves. Ghana phone input styling now uses
+tokens and 44px controls; parsing and its accessible name are unchanged.
+
+[Before/after evidence and validation](evidence/270/README.md).
+
 ### The combobox, and when it is not the answer
 
 `Select` is still the default. `Combobox` exists for one case: a list long enough that scrolling
@@ -734,6 +767,14 @@ An empty state's title is an `<h3>`. An empty region is still a region, and a sc
 | Secondary   | Transparent, `--input` border, `--primary` text | Supporting actions                   |
 | Ghost       | Transparent, no border, `--foreground` text     | Tertiary, in-table actions           |
 | Destructive | `--destructive` fill, white text                | Delete, merge, anything irreversible |
+
+Primary-button hover uses `bg-primary/95` (#270). The previous 90% fill
+measured 4.39:1 under the hovered registration submit button in a light-theme
+error-state axe scan. At 95%, opaque foreground contrast measures 4.78:1 on the
+light canvas/card and 7.10:1 / 7.13:1 on the dark canvas/card. Muted, accent and
+secondary grounds also pass (minimum 4.81:1 light, 7.20:1 dark). Values are
+computed by compositing the existing HSL tokens in sRGB, then applying WCAG
+relative luminance. Tokens and non-primary variants are unchanged.
 
 One primary per view. Destructive actions require a confirmation step naming what will change.
 

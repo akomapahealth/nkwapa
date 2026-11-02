@@ -80,8 +80,8 @@ export function ChartFrame({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.label} className="border-b border-rule">
+            {rows.map((row, rowIndex) => (
+              <tr key={`${row.label}-${rowIndex}`} className="border-b border-rule">
                 <th scope="row" className="py-2 text-left font-normal text-foreground">
                   {row.label}
                 </th>
