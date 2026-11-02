@@ -1,5 +1,6 @@
 import './globals.css';
 import type { Metadata, Viewport } from 'next';
+import { IBM_Plex_Sans, Source_Serif_4 } from 'next/font/google';
 import { APP_DESCRIPTION, APP_NAME, APP_SHORT_NAME, themeColorFor } from '@/lib/app-identity';
 import { PwaBoot } from '@/components/pwa/PwaBoot';
 import { ServiceWorkerRegistration } from '@/components/pwa/ServiceWorkerRegistration';
@@ -7,6 +8,23 @@ import { ToastProvider } from '@/components/ui/toast';
 import { CookieConsent } from '@/components/CookieConsent';
 import { ThemeProvider } from '@/lib/theme-context';
 import { themeStorageKey } from '@/lib/theme-storage';
+
+// Download at build time and serve locally. Preload Latin for the English UI;
+// other subsets remain available for patient names without third-party requests.
+const bodyFont = IBM_Plex_Sans({
+  subsets: ['latin'],
+  weight: 'variable',
+  display: 'swap',
+  variable: '--font-body',
+  fallback: ['system-ui', 'sans-serif'],
+});
+const headingFont = Source_Serif_4({
+  subsets: ['latin'],
+  weight: 'variable',
+  display: 'swap',
+  variable: '--font-heading',
+  fallback: ['Georgia', 'serif'],
+});
 
 /**
  * Runs before first paint so the correct theme is on <html> when the page renders, rather
@@ -97,7 +115,11 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     // suppressHydrationWarning: themeBootScript mutates <html> before React hydrates.
-    <html lang="en" suppressHydrationWarning>
+    <html
+      lang="en"
+      className={`${bodyFont.variable} ${headingFont.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
