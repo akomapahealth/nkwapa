@@ -22,12 +22,14 @@ const GLUCOSE_TIMING: Record<string, string> = {
  * station can interpret them together. Out-of-range values are flagged, not diagnosed.
  */
 export function StationResultsSummary({
+  ruled = false,
   timeline,
   vitals,
   diabetes,
   eye = null,
   timezone,
 }: {
+  ruled?: boolean;
   timeline: StationVisit[];
   vitals: VitalsRecord | null;
   diabetes: DiabetesScreeningRecord | null;
@@ -120,15 +122,21 @@ export function StationResultsSummary({
   ];
 
   return (
-    <Card>
-      <CardHeader>
+    <Card
+      className={
+        ruled
+          ? 'rounded-none border-0 border-t-2 border-rule-strong bg-transparent shadow-none'
+          : undefined
+      }
+    >
+      <CardHeader className={ruled ? 'px-0 pb-3 pt-4' : undefined}>
         <CardTitle className="text-xl">Results from today’s stations</CardTitle>
         <CardDescription>
           Medical history recorded at intake: {recordedAt('INTAKE')}. Open the patient’s chart for
           the full history and allergies.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className={ruled ? 'px-0 pb-5' : undefined}>
         <dl className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {rows.map((row) => (
             <div

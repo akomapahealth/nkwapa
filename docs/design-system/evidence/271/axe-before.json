@@ -1,0 +1,154 @@
+[
+  {
+    "name": "today",
+    "width": 1440,
+    "theme": "light",
+    "height": 1573,
+    "violations": []
+  },
+  {
+    "name": "today",
+    "width": 390,
+    "theme": "light",
+    "height": 2481,
+    "violations": []
+  },
+  {
+    "name": "today",
+    "width": 1440,
+    "theme": "dark",
+    "height": 1573,
+    "violations": []
+  },
+  {
+    "name": "today",
+    "width": 390,
+    "theme": "dark",
+    "height": 2481,
+    "violations": []
+  },
+  {
+    "name": "stations",
+    "width": 1440,
+    "theme": "light",
+    "height": 1118,
+    "violations": []
+  },
+  {
+    "name": "stations",
+    "width": 390,
+    "theme": "light",
+    "height": 2519,
+    "violations": []
+  },
+  {
+    "name": "stations",
+    "width": 1440,
+    "theme": "dark",
+    "height": 1118,
+    "violations": []
+  },
+  {
+    "name": "stations",
+    "width": 390,
+    "theme": "dark",
+    "height": 2519,
+    "violations": []
+  },
+  {
+    "name": "setup",
+    "width": 1440,
+    "theme": "light",
+    "height": 1490,
+    "violations": []
+  },
+  {
+    "name": "setup",
+    "width": 390,
+    "theme": "light",
+    "height": 4158,
+    "violations": []
+  },
+  {
+    "name": "setup",
+    "width": 1440,
+    "theme": "dark",
+    "height": 1490,
+    "violations": []
+  },
+  {
+    "name": "setup",
+    "width": 390,
+    "theme": "dark",
+    "height": 4158,
+    "violations": []
+  },
+  {
+    "name": "visit",
+    "width": 1440,
+    "theme": "light",
+    "height": 1235,
+    "violations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "nodes": [".underline-offset-4"]
+      }
+    ]
+  },
+  {
+    "name": "visit",
+    "width": 390,
+    "theme": "light",
+    "height": 1699,
+    "violations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "nodes": [".underline-offset-4"]
+      }
+    ]
+  },
+  {
+    "name": "visit",
+    "width": 1440,
+    "theme": "dark",
+    "height": 1235,
+    "violations": []
+  },
+  {
+    "name": "visit",
+    "width": 390,
+    "theme": "dark",
+    "height": 1699,
+    "violations": []
+  },
+  {
+    "name": "assigned",
+    "width": 1440,
+    "theme": "light",
+    "height": 1049,
+    "violations": []
+  },
+  {
+    "name": "assigned",
+    "width": 390,
+    "theme": "light",
+    "height": 2107,
+    "violations": []
+  },
+  {
+    "name": "assigned",
+    "width": 1440,
+    "theme": "dark",
+    "height": 1049,
+    "violations": []
+  },
+  {
+    "name": "assigned",
+    "width": 390,
+    "theme": "dark",
+    "height": 2107,
+    "violations": []
+  }
+]

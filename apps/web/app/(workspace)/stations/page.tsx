@@ -35,6 +35,8 @@ import {
   type StationVisit,
 } from '@/lib/stations';
 import type { ActiveShiftsResponse } from '@/lib/ops';
+import { AppActionRow } from '@/components/app-shell/AppActionRow';
+import { LONG_WAIT_MINUTES } from '@/components/dashboard/StationLineLanes';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
@@ -48,7 +50,13 @@ import {
 } from '@/components/ops/OpsShared';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection as Card,
+  RecordSectionContent as CardContent,
+  RecordSectionDescription as CardDescription,
+  RecordSectionHeader as CardHeader,
+  RecordSectionTitle as CardTitle,
+} from '@/components/patients/RecordSection';
 import { cn } from '@/lib/utils';
 
 interface StationsView {
@@ -210,7 +218,6 @@ export default function StationsPage() {
     <RouteGuard requiredPermission="OPS.STATION.READ" requiresClinic>
       <div className="space-y-6">
         <AppPageHeader
-          eyebrow="Clinic ops"
           title="Stations"
           description="Take the next patient at your station, record what the station measures, and hand them on."
           actions={
@@ -252,6 +259,66 @@ export default function StationsPage() {
         {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
         <OpsFeedbackNotice feedback={shiftControls.feedback} />
 
+        {!view.isInitialLoading ? (
+          <section
+            aria-labelledby="station-work-needs"
+            className="border-t-2 border-rule-strong pt-4"
+          >
+            <h2 id="station-work-needs" className="type-section-title">
+              Needs you now
+            </h2>
+            <ul>
+              {myPatients.map((visit) => (
+                <AppActionRow
+                  key={visit.id}
+                  icon={UserCheck}
+                  title={patientName(visit.patient)}
+                  detail={`With you at ${visit.station.name}. Continue recording or hand the patient on.`}
+                  action={
+                    <Button asChild>
+                      <Link href={`/stations/visits/${visit.id}`}>Continue</Link>
+                    </Button>
+                  }
+                />
+              ))}
+              {!myPatients.length && myStation && queue.find((visit) => visit.status === 'QUEUED')
+                ? (() => {
+                    const next = queue.find((visit) => visit.status === 'QUEUED')!;
+                    return (
+                      <AppActionRow
+                        icon={ListOrdered}
+                        title={`${patientName(next.patient)} is next`}
+                        detail={`Waiting ${minutesSince(next.queuedAt)} min at ${myStation.name}.`}
+                        action={
+                          <Button
+                            disabled={!currentShift || !isOnline || busyId !== null}
+                            onClick={() => void claim(next)}
+                          >
+                            {busyId === next.id ? 'Taking…' : 'Take patient'}
+                          </Button>
+                        }
+                      />
+                    );
+                  })()
+                : null}
+            </ul>
+            {!myPatients.length && !myStation ? (
+              <p className="py-3 text-sm text-muted-foreground">
+                {currentShift
+                  ? 'Choose your station below to see the next patient.'
+                  : 'Start your shift below to take a patient.'}
+              </p>
+            ) : null}
+            {!myPatients.length &&
+            myStation &&
+            !queue.some((visit) => visit.status === 'QUEUED') ? (
+              <p className="py-3 text-sm text-muted-foreground">
+                Nobody is waiting at your station.
+              </p>
+            ) : null}
+          </section>
+        ) : null}
+
         {view.isInitialLoading ? (
           <div className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
             <SectionSkeleton lines={3} />
@@ -261,6 +328,7 @@ export default function StationsPage() {
           <div className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
             <div className="min-w-0 space-y-6">
               <ShiftControlCard
+                ruled
                 currentShift={currentShift}
                 selectedRole={shiftControls.selectedRole}
                 availableRoles={eligibleShiftRoles}
@@ -348,10 +416,12 @@ export default function StationsPage() {
                     {myPatients.map((visit) => (
                       <div
                         key={visit.id}
-                        className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between"
+                        className="flex flex-col gap-2 border-b border-rule py-3 sm:flex-row sm:items-center sm:justify-between"
                       >
                         <div>
-                          <p className="font-medium">{patientName(visit.patient)}</p>
+                          <p className="font-heading text-lg font-semibold">
+                            {patientName(visit.patient)}
+                          </p>
                           <p className="text-sm text-muted-foreground">
                             {visit.patient.patientCode} · {visit.station.name}
                           </p>
@@ -413,7 +483,7 @@ export default function StationsPage() {
                 </CardHeader>
                 <CardContent className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2">
                   {stations.map((station) => (
-                    <div key={station.id} className="min-w-0 rounded-lg border p-3">
+                    <div key={station.id} className="min-w-0 border-b border-rule py-3">
                       <p className="break-words text-sm font-medium">{station.name}</p>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {station.visits.filter((v) => v.status === 'QUEUED').length} waiting ·{' '}
@@ -463,7 +533,8 @@ function QueueRow({
   return (
     <div
       className={cn(
-        'flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-start sm:justify-between',
+        'flex flex-col gap-3 border-b border-rule py-3 sm:flex-row sm:items-start sm:justify-between',
+        !taken && minutesSince(visit.queuedAt) > LONG_WAIT_MINUTES && 'bg-warning-surface',
         taken && !mine && 'bg-muted/40',
       )}
     >
@@ -476,7 +547,10 @@ function QueueRow({
         </p>
         <p className="flex items-center gap-1 text-xs text-muted-foreground">
           <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-          Waiting {minutesSince(visit.queuedAt)} min · checked in{' '}
+          {!taken && minutesSince(visit.queuedAt) > LONG_WAIT_MINUTES
+            ? 'Waiting over 20 min'
+            : 'Waiting'}{' '}
+          {minutesSince(visit.queuedAt)} min · checked in{' '}
           {formatOpsDateTime(visit.checkedInAt, timezone)}
         </p>
         {visit.previous ? (

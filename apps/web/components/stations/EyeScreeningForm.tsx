@@ -76,12 +76,14 @@ const RESULT_OPTIONS: Array<{ value: EyeFindingResult; label: string }> = [
  * Online only, like counselling; see EyeScreeningService.
  */
 export function EyeScreeningForm({
+  ruled = false,
   clinicId,
   encounterId,
   canEdit,
   onSaved,
   onLoaded,
 }: {
+  ruled?: boolean;
   clinicId: string;
   encounterId: string;
   canEdit: boolean;
@@ -269,8 +271,14 @@ export function EyeScreeningForm({
   );
 
   return (
-    <Card>
-      <CardHeader>
+    <Card
+      className={
+        ruled
+          ? 'rounded-none border-0 border-t-2 border-rule-strong bg-transparent shadow-none'
+          : undefined
+      }
+    >
+      <CardHeader className={ruled ? 'px-0 pb-3 pt-4' : undefined}>
         <CardTitle className="flex items-center gap-2 text-xl">
           <EyeIcon className="h-5 w-5 text-primary" aria-hidden="true" />
           Eye examination
@@ -281,7 +289,7 @@ export function EyeScreeningForm({
             : 'Visual acuity, then the penlight examination, then ophthalmoscopy.'}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className={(ruled ? 'px-0 pb-5 ' : '') + 'space-y-6'}>
         {!isOnline ? (
           <InlineNotice tone="warning" live={false}>
             The eye examination needs a connection to load and save.

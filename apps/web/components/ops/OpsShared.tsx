@@ -250,6 +250,7 @@ export function EmptyStateCard({
 }
 
 export function ShiftControlCard({
+  ruled = false,
   currentShift,
   selectedRole,
   availableRoles,
@@ -262,6 +263,7 @@ export function ShiftControlCard({
   onCheckOut,
   className,
 }: {
+  ruled?: boolean;
   currentShift: WithPendingSync<ActiveShift> | null;
   selectedRole: ShiftRole | '';
   availableRoles: readonly ShiftRole[];
@@ -278,8 +280,14 @@ export function ShiftControlCard({
   const hasShiftRole = availableRoles.length > 0;
 
   return (
-    <Card className={cn('overflow-hidden', className)}>
-      <CardHeader className="pb-4">
+    <Card
+      className={cn(
+        'overflow-hidden',
+        ruled && 'rounded-none border-0 border-t-2 border-rule-strong bg-transparent shadow-none',
+        className,
+      )}
+    >
+      <CardHeader className={ruled ? 'px-0 pb-3 pt-4' : 'pb-4'}>
         <div className="flex items-start justify-between gap-4">
           <div>
             <CardTitle className="flex items-center gap-2 text-lg font-semibold">
@@ -304,10 +312,16 @@ export function ShiftControlCard({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className={ruled ? 'space-y-4 px-0 pb-5' : 'space-y-4'}>
         {currentShift ? (
           <div className="space-y-4">
-            <div className="grid gap-3 rounded-lg border border-border/80 bg-card/75 p-4 sm:grid-cols-2">
+            <div
+              className={
+                ruled
+                  ? 'grid gap-3 border-y border-rule py-3 sm:grid-cols-2'
+                  : 'grid gap-3 rounded-lg border border-border/80 bg-card/75 p-4 sm:grid-cols-2'
+              }
+            >
               <div>
                 <p className="text-eyebrow text-muted-foreground">Checked In As</p>
                 <div className="mt-2">

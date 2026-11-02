@@ -709,6 +709,40 @@ tokens and 44px controls; parsing and its accessible name are unchanged.
 
 [Before/after evidence and validation](evidence/270/README.md).
 
+### Phase 04 stations and screenings (#271)
+
+The station-enabled Today board leads with ruled **Needs you now** rows for waits
+over 20 minutes, open stations with no staff, and patients queued at the review
+station. These use the existing `StationBoard` response; review counts refer to
+patients queued at that station. Long-wait detail names the three oldest waits and counts any
+remainder. The **On shift** roster retains screener attribution.
+
+Each patient has a separate station-line bar. Its width is minutes since
+`queuedAt`, including for a claimed visit, on a shared scale rounded up to ten
+minutes (minimum 30). Gridlines are every ten minutes; long scales thin only the
+numeric labels. Numeric axes remain visible on mobile, alongside the scale and
+20-minute guide description. The 20-minute guide, warning text, three-state legend,
+exact name/time labels and table alternative keep the reading available without colour.
+With-staff bars use primary/primary-foreground; waiting uses neutral tokens;
+queued waits strictly over 20 minutes use warning-surface/warning-ink. Narrow
+bars can clip their decorative label; the full patient name, state and exact
+minutes remain beside every bar. Staffing is shown as Staffed N of capacity,
+separately from places in use. Manager controls retain their permission, day,
+connection and reason gates.
+
+Station setup, the station workbench, visit history/hand-off and My Assigned use
+`RecordSection` rules. Shared history, eye, counselling, results and shift panels
+opt into that treatment only on these routes; VitalsForm uses its existing
+station `sections` boundary. Existing clinical fields, units, validation,
+defaults, correction history, offline outbox, held states and save payloads stay
+unchanged. Station BP/anthropometry saves add a linked summary from the existing
+validation errors. The screener Change link now uses the measured info ink on its
+info surface, fixing the two light-mode before axe findings without token changes.
+My Assigned's follow-through summary excludes completed and cancelled check-ins;
+its assignment table retains the full list and existing filters.
+
+[Before/after evidence and verification](evidence/271/README.md).
+
 ### The combobox, and when it is not the answer
 
 `Select` is still the default. `Combobox` exists for one case: a list long enough that scrolling

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useState } from 'react';
-import { Clock, RefreshCw } from 'lucide-react';
+import { RefreshCw, AlertTriangle, UserX, ClipboardCheck } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
@@ -30,7 +30,9 @@ import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppStat
 import { InlineNotice, OfflineOpsBanner } from '@/components/ops/OpsShared';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { LONG_WAIT_MINUTES } from '@/components/dashboard/StationLineLanes';
+import { AppActionRow } from '@/components/app-shell/AppActionRow';
+import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import {
   Dialog,
@@ -77,6 +79,7 @@ export function StationLineBoard() {
   const clinicId = getBootstrapActiveClinicId(bootstrap);
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
   const canManage = perms.includes('*') || perms.includes('OPS.STATION.MANAGE');
+  const [tableView, setTableView] = useState(false);
   const [date, setDate] = useState(getTodayInTimeZone());
   const [override, setOverride] = useState<Override | null>(null);
   const [reason, setReason] = useState('');
@@ -101,6 +104,35 @@ export function StationLineBoard() {
   const stations = (view.data?.stations ?? []).filter(
     (station) => station.active || station.visits.length > 0,
   );
+
+  const visits = stations.flatMap((station) => station.visits);
+  const longWaits = visits.filter(
+    (visit) => visit.status === 'QUEUED' && minutesSince(visit.queuedAt) > LONG_WAIT_MINUTES,
+  );
+  const longestWaitExamples = [...longWaits]
+    .sort((a, b) => minutesSince(b.queuedAt) - minutesSince(a.queuedAt))
+    .slice(0, 3);
+  const longWaitDetail =
+    longestWaitExamples
+      .map(
+        (visit) =>
+          `${patientName(visit.patient)}, ${minutesSince(visit.queuedAt)} min at ${visit.station.name}`,
+      )
+      .join('; ') +
+    (longWaits.length > longestWaitExamples.length
+      ? `; and ${longWaits.length - longestWaitExamples.length} more.`
+      : '');
+  const unstaffed = stations.filter((station) => station.active && station.staff.length === 0);
+  const reviewWaiting = stations
+    .filter((station) => station.kind === 'REVIEW')
+    .flatMap((station) => station.visits.filter((visit) => visit.status === 'QUEUED'));
+  const scaleEnd = Math.max(
+    30,
+    Math.ceil(Math.max(0, ...visits.map((visit) => minutesSince(visit.queuedAt))) / 10) * 10,
+  );
+  const ticks = Array.from({ length: scaleEnd / 10 + 1 }, (_, i) => i * 10);
+  const labelStep = Math.max(10, Math.ceil(scaleEnd / 60) * 10);
+  const at = (minutes: number) => `${(Math.min(minutes, scaleEnd) / scaleEnd) * 100}%`;
 
   const close = () => {
     setOverride(null);
@@ -146,7 +178,6 @@ export function StationLineBoard() {
   return (
     <div className="space-y-6">
       <AppPageHeader
-        eyebrow="Clinic ops"
         title="Station line"
         description="Where every checked-in patient is, and who is seeing them."
         actions={
@@ -198,114 +229,376 @@ export function StationLineBoard() {
       {view.isInitialLoading ? (
         <SectionSkeleton lines={6} />
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-4">
-          {stations.map((station) => (
-            <Card key={station.id} className="min-w-0">
-              <CardHeader className="space-y-1 pb-3">
-                <div className="flex items-start justify-between gap-2">
-                  <CardTitle className="min-w-0 break-words text-base">{station.name}</CardTitle>
-                  {station.capacity ? (
-                    <Badge
-                      className="shrink-0"
-                      variant={(station.inUse ?? 0) >= station.capacity ? 'warning' : 'secondary'}
-                      data-testid="station-occupancy"
-                    >
-                      {station.inUse ?? 0} of {station.capacity} in use
-                    </Badge>
-                  ) : null}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {station.staff.length
-                    ? station.staff
-                        .map((member) => withScreener(member.displayName, member.screenerName))
-                        .join(', ')
-                    : 'Nobody at this station'}
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {station.visits.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Empty</p>
-                ) : (
-                  station.visits.map((visit) => (
-                    <div key={visit.id} className="space-y-2 rounded-lg border p-2 text-sm">
-                      <div>
-                        <p className="font-medium">{patientName(visit.patient)}</p>
-                        <p className="text-xs text-muted-foreground">{visit.patient.patientCode}</p>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2 text-xs">
-                        {visit.status === 'IN_PROGRESS' ? (
-                          <Badge variant="default">
-                            With{' '}
-                            {visit.claimedBy
-                              ? withScreener(
-                                  visit.claimedBy.displayName,
-                                  screeners.get(visit.claimedBy.id),
-                                )
-                              : null}
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary">Waiting</Badge>
-                        )}
-                        <span className="flex items-center gap-1 text-muted-foreground">
-                          <Clock className="h-3 w-3" aria-hidden="true" />
-                          {minutesSince(visit.claimedAt ?? visit.queuedAt)} min
-                        </span>
-                      </div>
-                      {visit.status === 'IN_PROGRESS' && visit.assignedBy ? (
-                        <p className="text-xs text-muted-foreground">
-                          Assigned by {visit.assignedBy.displayName}
-                        </p>
-                      ) : null}
-                      {canManage && isToday ? (
-                        <div className="flex flex-wrap gap-1">
-                          {visit.status === 'QUEUED' ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={!isOnline}
-                              onClick={() => setOverride({ kind: 'assign', visit })}
-                            >
-                              Assign
-                            </Button>
-                          ) : null}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={!isOnline}
-                            onClick={() => setOverride({ kind: 'move', visit })}
-                          >
-                            Move
-                          </Button>
-                          {visit.status === 'IN_PROGRESS' ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={!isOnline}
-                              onClick={() => setOverride({ kind: 'release', visit })}
-                            >
-                              Release
-                            </Button>
-                          ) : null}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            disabled={!isOnline}
-                            onClick={() => setOverride({ kind: 'left', visit })}
-                          >
-                            Left
-                          </Button>
-                          <Button asChild size="sm" variant="ghost">
-                            <Link href={`/stations/visits/${visit.id}`}>Open</Link>
-                          </Button>
-                        </div>
+        <>
+          <section aria-labelledby="station-needs" className="border-t-2 border-rule-strong pt-4">
+            <h2 id="station-needs" className="type-section-title">
+              Needs you now
+            </h2>
+            <ul>
+              {longWaits.length ? (
+                <AppActionRow
+                  icon={AlertTriangle}
+                  tone="warning"
+                  title={`${longWaits.length} patient${longWaits.length === 1 ? '' : 's'} waiting over ${LONG_WAIT_MINUTES} minutes`}
+                  detail={longWaitDetail}
+                  action={
+                    <Button asChild variant="outline">
+                      <a href="#patient-station-line">Review waits</a>
+                    </Button>
+                  }
+                />
+              ) : null}
+              {unstaffed.length ? (
+                <AppActionRow
+                  icon={UserX}
+                  tone="warning"
+                  title={`${unstaffed.length} open station${unstaffed.length === 1 ? ' has' : 's have'} no staff`}
+                  detail={unstaffed.map((station) => station.name).join(', ')}
+                  action={
+                    <Button asChild variant="outline">
+                      <a href="#on-shift">View on shift</a>
+                    </Button>
+                  }
+                />
+              ) : null}
+              {reviewWaiting.length ? (
+                <AppActionRow
+                  icon={ClipboardCheck}
+                  tone="info"
+                  title={`${reviewWaiting.length} patient${reviewWaiting.length === 1 ? '' : 's'} waiting at the review station`}
+                  detail="Station review is the next step for these patients."
+                  action={
+                    <Button asChild variant="outline">
+                      <a href="#patient-station-line">View review station</a>
+                    </Button>
+                  }
+                />
+              ) : null}
+            </ul>
+            {!longWaits.length && !unstaffed.length && !reviewWaiting.length ? (
+              <p className="py-3 text-sm text-muted-foreground">
+                No long waits or unstaffed stations in this line.
+              </p>
+            ) : null}
+          </section>
+
+          <section
+            id="patient-station-line"
+            aria-labelledby="patient-line-heading"
+            className="scroll-mt-24 border-t-2 border-rule-strong pt-4"
+          >
+            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+              <h2 id="patient-line-heading" className="type-section-title">
+                Patients at each station
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Minutes since each patient joined the station queue
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="ml-auto"
+                aria-pressed={tableView}
+                onClick={() => setTableView(!tableView)}
+              >
+                {tableView ? 'Show station line' : 'Show data table'}
+              </Button>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Scale from 0 to {scaleEnd} minutes, with gridlines every 10 minutes. The dashed guide
+              marks {LONG_WAIT_MINUTES} minutes; longer waits carry a warning.
+            </p>
+            {tableView ? (
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <caption className="sr-only">
+                    Station line, exact patient queue times and staffing
+                  </caption>
+                  <thead>
+                    <tr className="border-b border-rule">
+                      <th className="p-3">Station</th>
+                      <th className="p-3">Patient</th>
+                      <th className="p-3">Status</th>
+                      <th className="p-3">Minutes since queued</th>
+                      <th className="p-3">Staffed</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stations.flatMap((station) =>
+                      station.visits.map((visit) => (
+                        <tr key={visit.id} className="border-b border-rule">
+                          <th scope="row" className="p-3 font-normal">
+                            {station.name}
+                          </th>
+                          <td className="p-3 font-heading">{patientName(visit.patient)}</td>
+                          <td className="p-3">
+                            {visit.status === 'IN_PROGRESS'
+                              ? 'With staff'
+                              : minutesSince(visit.queuedAt) > LONG_WAIT_MINUTES
+                                ? 'Waiting over 20 min'
+                                : 'Waiting'}
+                          </td>
+                          <td className="p-3 tabular-nums">{minutesSince(visit.queuedAt)}</td>
+                          <td className="p-3 tabular-nums">
+                            {station.staff.length} of {station.capacity ?? 1}
+                          </td>
+                        </tr>
+                      )),
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+            <div className="mt-4">
+              {stations.map((station) => (
+                <section
+                  key={station.id}
+                  aria-label={station.name}
+                  className="border-b border-rule py-4"
+                  data-testid="patient-station-lane"
+                >
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <div className="min-w-0">
+                      <h3 className="type-label">{station.name}</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {station.staff.length
+                          ? station.staff
+                              .map((member) =>
+                                withScreener(member.displayName, member.screenerName),
+                              )
+                              .join(', ')
+                          : 'Nobody at this station'}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <p className="text-sm tabular-nums">
+                        Staffed {station.staff.length} of {station.capacity ?? 1}
+                      </p>
+                      {station.capacity ? (
+                        <Badge
+                          variant={
+                            (station.inUse ?? 0) >= station.capacity ? 'warning' : 'secondary'
+                          }
+                          data-testid="station-occupancy"
+                        >
+                          {station.inUse ?? 0} of {station.capacity} in use
+                        </Badge>
                       ) : null}
                     </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                  </div>
+                  {!tableView ? (
+                    <div
+                      aria-hidden="true"
+                      className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)] xl:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_20rem]"
+                    >
+                      <span className="hidden text-xs text-muted-foreground sm:block">Patient</span>
+                      <div
+                        data-testid="station-minute-scale"
+                        className="relative h-5 text-xs tabular-nums text-muted-foreground"
+                      >
+                        {ticks
+                          .filter((tick) => tick % labelStep === 0 || tick === scaleEnd)
+                          .map((tick) => (
+                            <span
+                              key={tick}
+                              className="absolute -translate-x-1/2 whitespace-nowrap first:translate-x-0 last:-translate-x-full"
+                              style={{ left: at(tick) }}
+                            >
+                              {tick}
+                              <span className="hidden sm:inline"> min</span>
+                            </span>
+                          ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  {station.visits.length === 0 ? (
+                    <p className="py-3 text-sm text-muted-foreground">Empty</p>
+                  ) : (
+                    station.visits.map((visit) => {
+                      const minutes = minutesSince(visit.queuedAt);
+                      const withStaff = visit.status === 'IN_PROGRESS';
+                      const long = !withStaff && minutes > LONG_WAIT_MINUTES;
+                      return (
+                        <div
+                          key={visit.id}
+                          data-testid="patient-station-row"
+                          className="grid items-center gap-x-4 gap-y-2 border-t border-rule py-3 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)] xl:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_20rem]"
+                        >
+                          <div className="min-w-0">
+                            <p className="break-words font-heading text-lg font-semibold">
+                              {patientName(visit.patient)}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {visit.patient.patientCode}
+                            </p>
+                            <p
+                              className={cn(
+                                'mt-1 text-sm tabular-nums',
+                                long ? 'text-warning-ink' : 'text-muted-foreground',
+                              )}
+                            >
+                              {withStaff ? 'With staff' : long ? 'Waiting over 20 min' : 'Waiting'}{' '}
+                              · {minutes} min
+                            </p>
+                            {withStaff && visit.claimedBy ? (
+                              <p className="text-xs text-muted-foreground">
+                                With{' '}
+                                {withScreener(
+                                  visit.claimedBy.displayName,
+                                  screeners.get(visit.claimedBy.id),
+                                )}
+                              </p>
+                            ) : null}
+                            {withStaff && visit.assignedBy ? (
+                              <p className="text-xs text-muted-foreground">
+                                Assigned by {visit.assignedBy.displayName}
+                              </p>
+                            ) : null}
+                          </div>
+                          {!tableView ? (
+                            <div
+                              aria-hidden="true"
+                              className="relative h-8"
+                              data-testid="patient-wait-track"
+                              data-minutes={minutes}
+                              data-scale={scaleEnd}
+                            >
+                              {ticks.map((tick) => (
+                                <div
+                                  key={tick}
+                                  className={cn(
+                                    'absolute inset-y-0 border-l',
+                                    tick === LONG_WAIT_MINUTES
+                                      ? 'border-dashed border-warning'
+                                      : 'border-rule',
+                                  )}
+                                  style={{ left: at(tick) }}
+                                />
+                              ))}
+                              <div
+                                data-testid="patient-wait-bar"
+                                className={cn(
+                                  'absolute inset-y-1 left-0 overflow-hidden whitespace-nowrap rounded-sm text-xs tabular-nums',
+                                  withStaff
+                                    ? 'bg-primary text-primary-foreground'
+                                    : long
+                                      ? 'border border-warning bg-warning-surface text-warning-ink'
+                                      : 'border border-input bg-muted text-foreground',
+                                )}
+                                style={{ width: at(minutes) }}
+                              >
+                                <span className="px-2">
+                                  {patientName(visit.patient)} · {minutes} min
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-sm tabular-nums">{minutes} min since queued</span>
+                          )}
+                          {canManage && isToday ? (
+                            <div className="flex flex-wrap gap-1 xl:justify-end">
+                              {visit.status === 'QUEUED' ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={!isOnline}
+                                  onClick={() => setOverride({ kind: 'assign', visit })}
+                                >
+                                  Assign
+                                </Button>
+                              ) : null}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={!isOnline}
+                                onClick={() => setOverride({ kind: 'move', visit })}
+                              >
+                                Move
+                              </Button>
+                              {visit.status === 'IN_PROGRESS' ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={!isOnline}
+                                  onClick={() => setOverride({ kind: 'release', visit })}
+                                >
+                                  Release
+                                </Button>
+                              ) : null}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                disabled={!isOnline}
+                                onClick={() => setOverride({ kind: 'left', visit })}
+                              >
+                                Left
+                              </Button>
+                              <Button asChild size="sm" variant="ghost">
+                                <Link href={`/stations/visits/${visit.id}`}>Open</Link>
+                              </Button>
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })
+                  )}
+                </section>
+              ))}
+            </div>
+            <div
+              className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground"
+              aria-label="Station line legend"
+            >
+              <span className="inline-flex items-center gap-2">
+                <span aria-hidden="true" className="h-3 w-5 rounded-sm bg-primary" />
+                With staff
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="h-3 w-5 rounded-sm border border-input bg-muted"
+                />
+                Waiting
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="h-3 w-5 rounded-sm border border-warning bg-warning-surface"
+                />
+                Waiting over {LONG_WAIT_MINUTES} min
+              </span>
+            </div>
+          </section>
+
+          <section
+            id="on-shift"
+            aria-labelledby="on-shift-title"
+            className="scroll-mt-24 border-t-2 border-rule-strong pt-4"
+          >
+            <h2 id="on-shift-title" className="type-section-title">
+              On shift
+            </h2>
+            {onShift.length ? (
+              <ul className="mt-2 grid gap-x-8 sm:grid-cols-2 lg:grid-cols-3">
+                {onShift.map((member) => (
+                  <li key={member.user.id} className="border-b border-rule py-3">
+                    <p className="type-label">
+                      {withScreener(member.user.displayName, member.screenerName)}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {member.roleAtShift.charAt(0) + member.roleAtShift.slice(1).toLowerCase()} ·{' '}
+                      {stations.find((station) => station.id === member.stationId)?.name ??
+                        'No station chosen'}{' '}
+                      · {member.activeVisitCount} active patients
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="py-3 text-sm text-muted-foreground">Nobody is on shift.</p>
+            )}
+          </section>
+        </>
       )}
 
       <p className="text-xs text-muted-foreground">

@@ -110,12 +110,14 @@ function fromRecord(record: CounsellingRecord | null): FormState {
  * locks when the session completes, so a copy queued on one laptop could land after that.
  */
 export function CounsellingForm({
+  ruled = false,
   clinicId,
   encounterId,
   canEdit,
   onSaved,
   onLoaded,
 }: {
+  ruled?: boolean;
   clinicId: string;
   encounterId: string;
   canEdit: boolean;
@@ -204,8 +206,14 @@ export function CounsellingForm({
     }));
 
   return (
-    <Card>
-      <CardHeader>
+    <Card
+      className={
+        ruled
+          ? 'rounded-none border-0 border-t-2 border-rule-strong bg-transparent shadow-none'
+          : undefined
+      }
+    >
+      <CardHeader className={ruled ? 'px-0 pb-3 pt-4' : undefined}>
         <CardTitle className="flex items-center gap-2 text-xl">
           <MessageSquareHeart className="h-5 w-5 text-primary" aria-hidden="true" />
           Counselling and advice
@@ -216,7 +224,7 @@ export function CounsellingForm({
             : 'Record the health education given and any follow-up or referral.'}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-5">
+      <CardContent className={(ruled ? 'px-0 pb-5 ' : '') + 'space-y-5'}>
         {!isOnline ? (
           <InlineNotice tone="warning" live={false}>
             Counselling needs a connection to load and save.

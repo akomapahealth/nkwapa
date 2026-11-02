@@ -1,0 +1,142 @@
+[
+  {
+    "name": "today",
+    "width": 1440,
+    "theme": "light",
+    "height": 3283,
+    "violations": []
+  },
+  {
+    "name": "today",
+    "width": 390,
+    "theme": "light",
+    "height": 4726,
+    "violations": []
+  },
+  {
+    "name": "today",
+    "width": 1440,
+    "theme": "dark",
+    "height": 3283,
+    "violations": []
+  },
+  {
+    "name": "today",
+    "width": 390,
+    "theme": "dark",
+    "height": 4726,
+    "violations": []
+  },
+  {
+    "name": "stations",
+    "width": 1440,
+    "theme": "light",
+    "height": 1563,
+    "violations": []
+  },
+  {
+    "name": "stations",
+    "width": 390,
+    "theme": "light",
+    "height": 3441,
+    "violations": []
+  },
+  {
+    "name": "stations",
+    "width": 1440,
+    "theme": "dark",
+    "height": 1563,
+    "violations": []
+  },
+  {
+    "name": "stations",
+    "width": 390,
+    "theme": "dark",
+    "height": 3441,
+    "violations": []
+  },
+  {
+    "name": "setup",
+    "width": 1440,
+    "theme": "light",
+    "height": 1555,
+    "violations": []
+  },
+  {
+    "name": "setup",
+    "width": 390,
+    "theme": "light",
+    "height": 4453,
+    "violations": []
+  },
+  {
+    "name": "setup",
+    "width": 1440,
+    "theme": "dark",
+    "height": 1555,
+    "violations": []
+  },
+  {
+    "name": "setup",
+    "width": 390,
+    "theme": "dark",
+    "height": 4453,
+    "violations": []
+  },
+  {
+    "name": "visit",
+    "width": 1440,
+    "theme": "light",
+    "height": 1309,
+    "violations": []
+  },
+  {
+    "name": "visit",
+    "width": 390,
+    "theme": "light",
+    "height": 1789,
+    "violations": []
+  },
+  {
+    "name": "visit",
+    "width": 1440,
+    "theme": "dark",
+    "height": 1309,
+    "violations": []
+  },
+  {
+    "name": "visit",
+    "width": 390,
+    "theme": "dark",
+    "height": 1789,
+    "violations": []
+  },
+  {
+    "name": "assigned",
+    "width": 1440,
+    "theme": "light",
+    "height": 1105,
+    "violations": []
+  },
+  {
+    "name": "assigned",
+    "width": 390,
+    "theme": "light",
+    "height": 2158,
+    "violations": []
+  },
+  {
+    "name": "assigned",
+    "width": 1440,
+    "theme": "dark",
+    "height": 1105,
+    "violations": []
+  },
+  {
+    "name": "assigned",
+    "width": 390,
+    "theme": "dark",
+    "height": 2158,
+    "violations": []
+  }
+]
