@@ -128,7 +128,7 @@ export function StationLineLanes({
                       'absolute left-0 top-1/2 flex h-6 -translate-y-1/2 items-center overflow-hidden whitespace-nowrap rounded-sm px-2 text-xs tabular-nums',
                       long
                         ? 'border border-warning bg-warning-surface text-warning-ink'
-                        : 'bg-chart-1 text-background',
+                        : 'bg-primary text-primary-foreground',
                     )}
                     style={{ width: at(Math.max(longest, end / 15)) }}
                   >
@@ -151,7 +151,7 @@ export function StationLineLanes({
 
       <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted-foreground">
         <span aria-hidden="true" className="inline-flex items-center gap-1.5">
-          <span className="h-3 w-5 rounded-sm bg-chart-1" />
+          <span className="h-3 w-5 rounded-sm bg-primary" />
           Longest wait
         </span>
         <span aria-hidden="true" className="inline-flex items-center gap-1.5">
