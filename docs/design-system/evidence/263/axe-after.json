@@ -1,0 +1,866 @@
+[
+  {
+    "role": "public",
+    "route": "/",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "public",
+    "route": "/",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "public",
+    "route": "/",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "public",
+    "route": "/",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "public",
+    "route": "/privacy",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "public",
+    "route": "/privacy",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "public",
+    "route": "/privacy",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "public",
+    "route": "/privacy",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/dashboard",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/dashboard",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/dashboard",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/dashboard",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/today",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/today",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/today",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/today",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/queues",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/queues",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/queues",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/queues",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/patients",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/patients",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/patients",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/patients",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/appointments",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/appointments",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/appointments",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/appointments",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/audit",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/audit",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/audit",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/audit",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/metrics",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/metrics",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/metrics",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/metrics",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/admin/users",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/admin/users",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/admin/users",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/admin/users",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/admin/clinics",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/admin/clinics",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/admin/clinics",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/admin/clinics",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/reports/organization",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/reports/organization",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/reports/organization",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "staff",
+    "route": "/reports/organization",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "doctor",
+    "route": "/dashboard",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "doctor",
+    "route": "/dashboard",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "doctor",
+    "route": "/dashboard",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "doctor",
+    "route": "/dashboard",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "doctor",
+    "route": "/queues",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "doctor",
+    "route": "/queues",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "doctor",
+    "route": "/queues",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "doctor",
+    "route": "/queues",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "doctor",
+    "route": "/patients",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "doctor",
+    "route": "/patients",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "doctor",
+    "route": "/patients",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "doctor",
+    "route": "/patients",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "volunteer",
+    "route": "/dashboard",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "volunteer",
+    "route": "/dashboard",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "volunteer",
+    "route": "/dashboard",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "volunteer",
+    "route": "/dashboard",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "volunteer",
+    "route": "/patients",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "volunteer",
+    "route": "/patients",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "volunteer",
+    "route": "/patients",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "volunteer",
+    "route": "/patients",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "volunteer",
+    "route": "/patients/new",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "volunteer",
+    "route": "/patients/new",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "volunteer",
+    "route": "/patients/new",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "volunteer",
+    "route": "/patients/new",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "manager",
+    "route": "/dashboard",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "manager",
+    "route": "/dashboard",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "manager",
+    "route": "/dashboard",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "manager",
+    "route": "/dashboard",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "manager",
+    "route": "/today",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "manager",
+    "route": "/today",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "manager",
+    "route": "/today",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "manager",
+    "route": "/today",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "manager",
+    "route": "/queues",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "manager",
+    "route": "/queues",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "manager",
+    "route": "/queues",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "manager",
+    "route": "/queues",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "director",
+    "route": "/dashboard",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "director",
+    "route": "/dashboard",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "director",
+    "route": "/dashboard",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "director",
+    "route": "/dashboard",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "director",
+    "route": "/metrics",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "director",
+    "route": "/metrics",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "director",
+    "route": "/metrics",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "director",
+    "route": "/metrics",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "director",
+    "route": "/audit",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "director",
+    "route": "/audit",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "director",
+    "route": "/audit",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "director",
+    "route": "/audit",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "patient",
+    "route": "/portal",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "patient",
+    "route": "/portal",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "patient",
+    "route": "/portal",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "patient",
+    "route": "/portal",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "patient",
+    "route": "/portal/appointments",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "patient",
+    "route": "/portal/appointments",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "patient",
+    "route": "/portal/appointments",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "patient",
+    "route": "/portal/appointments",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "patient",
+    "route": "/portal/health",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "patient",
+    "route": "/portal/health",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "patient",
+    "route": "/portal/health",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": []
+  },
+  {
+    "role": "patient",
+    "route": "/portal/health",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": []
+  }
+]

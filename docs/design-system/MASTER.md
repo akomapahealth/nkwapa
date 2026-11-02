@@ -57,8 +57,8 @@ Two things worth carrying forward from that work:
 
 - The theme **self-hosts** IBM Plex Sans and Source Serif 4 as `latin`-subset variable woff2
   (~91 KB together, with their OFL licences). It previously blocked first paint on two serialized
-  `@import`s to `fonts.googleapis.com` and `fonts.cdnfonts.com`. The application still loads its
-  own fonts the old way; see section 6.
+  `@import`s to `fonts.googleapis.com` and `fonts.cdnfonts.com`. The application now self-hosts
+  its fonts through `next/font` as well; see section 6.
 - The theme is **deliberately light-only**. The app's theme choice lives in `localStorage` on the
   web origin, which Keycloak cannot read, so honouring `prefers-color-scheme` there would give a
   dark-OS user a dark login followed by a light workspace -- worse drift than staying light.
@@ -220,10 +220,16 @@ colours with `COLORS[i % COLORS.length]`, so `NORMAL` and `UNKNOWN` were the sam
 horizontal bar chart ordered by clinical severity now. Bars put the category on an axis, so colour
 never has to carry identity.
 
-**Charts do not animate.** Recharts' 1500ms draw-in is driven from JavaScript and the global
-`prefers-reduced-motion` rule cannot switch it off, so every chart passes
-`isAnimationActive={false}`. Axis ticks set `fontVariantNumeric: 'tabular-nums'` inline, because
-Recharts renders them as SVG text where the utility class cannot reach.
+**Chart animation is permitted by owner decision (2026-11-01).** Use short,
+purposeful reveals or transitions when they improve reading the chart. Honour
+`prefers-reduced-motion` in the JavaScript animation settings too; a CSS override
+does not disable Recharts' draw-in. Keep final values, labels and the table
+alternative available without waiting for animation. Do not replay animation on
+routine background refresh or morph readings into invented intermediate data.
+The existing charts still use `isAnimationActive={false}`; enabling motion belongs
+to their implementation phase, with reduced-motion and data-fidelity checks.
+Straight segments between real readings remain required. Axis ticks keep
+`fontVariantNumeric: 'tabular-nums'` inline because they render as SVG text.
 
 **The landing page has no tokens of its own.** It is built from the tokens above: `--accent` and
 `--primary` bands, plus a section scoped with `.dark` for the product screenshots. `--landing-accent`
@@ -362,7 +368,19 @@ The serif heading is deliberate. It separates headings from data at a glance, wh
 
 **`tabular-nums` on every numeric column and every clinical value.** It was applied nowhere, so vitals columns did not align. It now ships from `DataTable` for every table cell and from `AppMetricCard` for every metric; individual clinical values in panels take the utility directly.
 
-**Known performance issue.** Fonts load via `@import` at the top of `globals.css`, which is render-blocking and serialized. On clinic wifi this delays first paint of any text. Migrating to `next/font` would self-host and remove the blocking request. Its own issue, not #61.
+**Self-hosted through `next/font` (#263).** `app/layout.tsx` loads the variable
+IBM Plex Sans (100 to 700) and Source Serif 4 (200 to 900) faces with
+`next/font/google`, `display: 'swap'`, and the existing `--font-body` /
+`--font-heading` variables. The loader downloads fonts at build time and emits
+first-party WOFF2 assets. There is no runtime Google Fonts stylesheet import or
+font-host request. Builds need access to Google Fonts; deployed pages do not.
+Latin is preloaded for the English interface; the other supplied subsets remain
+available for names without falling back merely because the UI is English.
+The measured build emits 12 subset files (318,328 bytes total), of which the two
+Latin files total 91,192 bytes and are preloaded. Runtime tests block external
+font hosts and verify both applied, loaded faces and first-party preload URLs.
+The four registration screenshot pairs are pixel-identical. No colour tokens or
+type scale values changed. [Evidence](evidence/263/README.md).
 
 ---
 
@@ -688,17 +706,73 @@ Every screen reads like a well-kept observation chart: ruled, time-ordered, numb
 - **Labels.** System values (`IN_REVIEW`, `DRAFT`, `UNKNOWN`) never reach the UI; map them to plain language in one shared place.
 - **Shell.** A labelled 232px sidebar on the canvas, collapsing to 64px icons with tooltips. The header holds the clinic switcher with the active role as text, sync state with the only refresh, the Message delivery icon and the account menu.
 - **Type.** Source Serif 4 for page titles and a patient's name; IBM Plex Sans for everything else.
-- **Motion.** Focusing or hovering a row in a dense list may dim its siblings (150 ms opacity, off under reduced motion). Nothing else beyond section 7.
+- **Motion.** Focusing or hovering a row in a dense list may dim its siblings (150 ms opacity, off under reduced motion). Owner-approved chart animation follows section 3; other motion follows section 7.
 
 ---
 
 ## 13. Still open
 
+### #263 library decisions, 2026-11-01
+
+**Owner decision updated 2026-11-01:** chart animation and selective use of
+shadcn, Bklit and Kokonut components are allowed where they enhance the product.
+Animation alone is not a reason to reject a library. Sileo rejection is approved;
+retain Sonner. This supersedes the initial blanket Bklit/Kokonut rejection and
+no-chart-animation policy. Each selected component still needs the recorded
+compatibility, token, contrast, target-size, data-fidelity and reduced-motion
+adaptations before shipping. No wholesale import or framework upgrade is approved.
+The #263 PR adds no production dependency or UI library component; actual
+adoption belongs to the issue that uses it.
+
+Confirmed production stack: Next 16.3.0-canary.104, **workspace-local React and
+React DOM 18.3.1**, Tailwind 3.4.19, Recharts 3.10.1. The root-hoisted React is a
+different version; resolving from the web workspace is essential. Experiments
+ran in a disposable branch from `release/dev`, using npm 10.9.9.
+
+| Library and version evidence                                                                        | Recommendation                                    | Compatibility, bundle and accessibility evidence                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| shadcn CLI **4.23.0**, existing `new-york` / Radix registry                                         | **Adopt selectively**, with the adaptations below | CLI installation succeeds on React 18 / Tailwind 3 after forcing npm instead of stale pnpm workspace detection. The legacy chart registry requests **Recharts 2.15.4**; keep 3.10.1 and adapt its content types. The combined adapted fixture passes WCAG axe in both themes at 1440/390. Standalone gzip examples: skeleton 8,722 B, tooltip 28,599 B, sidebar 48,573 B, chart 88,095 B; shared dependencies make these non-additive, not production route deltas.                 |
+| Bklit `line-chart` registry snapshot, 2026-11-01, SHA-256 in the evidence                           | **Adopt selectively, with adaptations**           | Owner welcomes animated charts. All four adapted axe scans pass. Keep the existing HSL palette rather than the installer's OKLCH replacements, adapt the React 18 ref declaration, use straight clinical segments and JavaScript reduced-motion controls. The 92-file install and D3/Motion overlap are costs to assess for each selected chart, not blanket rejection reasons. Standalone bundle: 82,205 B gzip.                                                                   |
+| Kokonut `metric-card` **2.0.0** (source header, 2026-10-17), registry snapshot hash in the evidence | **Adopt selectively; tested card needs repairs**  | React 18-compatible hooks, no extra package for this candidate. Adapt Tailwind 4 fragments to 3.4 and raw zinc / `dark:` colours to the approved tokens; repair the measured serious contrast failures and targets below 44px. Animation is permitted, but clinical lines must represent actual readings without smoothing/resampling. Extend the shared metric contract rather than adding a parallel system. Standalone bundle: 13,926 B gzip. The raw card is not ready to ship. |
+| Sileo **0.1.6**, npm manifest: React / React DOM `>=18`, dependency `motion ^12.34.0`               | **Reject adoption; keep Sonner (owner approved)** | React 18-compatible; four error-toast axe scans pass. Public API lacks `id`-based updates and rendered errors use `aria-live="polite"` instead of the wrapper's assertive-error contract. Standalone bundle: 48,810 B gzip. Rejection is approved; #280 keeps Sonner and focuses on feedback/motion polish unless the owner reopens this decision.                                                                                                                                  |
+
+The bundle experiment used esbuild 0.28.2, browser ESM, production minification,
+all exports of each candidate module, React/React DOM external and other
+dependencies included. These are measured standalone comparison costs, not an
+incremental production-size claim. No experimental package or registry change
+is carried into the application's package files.
+
+#### shadcn component decisions
+
+| Candidate                             | Decision and named workflow                                                                   | Required before production adoption                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sidebar`                             | Adopt selectively for #266's collapsible shell                                                | Preserve `app-nav.ts`, role visibility and existing Sheet/Button/Input; map sidebar colours to current HSL tokens, use 232/64px widths, 44px targets and visible focus. Do not accept the CLI's sidebar token replacements.                                                                                                                                |
+| `chart`                               | Adopt selectively for #275's existing Recharts analytics                                      | Preserve Recharts 3.10.1; use its `TooltipContentProps` / `LegendPayload` types, handle function-valued `dataKey` safely in React keys, restore visible SVG focus, and require straight lines, labels and a table, with optional owner-approved animation that honours reduced motion. The raw legacy output has ten TypeScript errors against Recharts 3. |
+| `breadcrumb`, `skeleton`, `separator` | Adopt selectively for #265's shared foundations where an existing equivalent does not suffice | Breadcrumbs need labelled navigation and 44px link targets. Wrap skeletons in a named status region, rather than putting an ARIA label on a generic div. Separators are structural and should remain decorative unless interactive.                                                                                                                        |
+| `tooltip`                             | Adopt selectively for collapsed navigation icons in #266                                      | Keep InfoHint for the help contract it already owns; tooltips name their trigger and work on keyboard focus, with 44px targets.                                                                                                                                                                                                                            |
+| `command`                             | Reject adoption for now                                                                       | No approved command-palette workflow requires adding `cmdk`. The embedded command fixture works; that does not establish that its dialog variant meets the app's dialog contract. Existing Combobox remains in use.                                                                                                                                        |
+| `toggle-group`                        | Reject adoption for now                                                                       | Existing SegmentedControl covers current needs. The generated default uses smaller targets; a future multi-select workflow needs a named use case and 44px variants.                                                                                                                                                                                       |
+| `calendar`                            | Reject this generated variant for now                                                         | CLI resolves react-day-picker 10.0.2 and date-fns 4.4.0. Generated source includes v4-style `shadow-xs`, `has-focus:` and `rtl:**` fragments despite v3 detection, plus 32px cells. Any future picker needs those converted, 44px cells and its own keyboard/form tests. Existing date fields and #224's filter stay intact.                               |
+
+The throwaway fixture's React 18 typecheck and production build pass after the
+recorded type adaptations. That proves feasibility, not product adoption. The
+fixture also exercises candidates requiring repairs so that their axe results are not
+inferred from documentation. Full commands, source hashes, measurements,
+screenshots and the distinction between harness corrections and library findings
+are in [the #263 evidence](evidence/263/README.md).
+
+Primary sources: [shadcn Sidebar](https://ui.shadcn.com/docs/components/radix/sidebar),
+[shadcn Chart](https://ui.shadcn.com/docs/components/radix/chart),
+[Bklit registry](https://ui.bklit.com/r/line-chart.json),
+[Kokonut installation](https://kokonutui.com/docs),
+[Kokonut metric registry](https://kokonutui.com/r/metric-card.json),
+[Sileo docs](https://sileo.aaryan.design/docs),
+[Sileo package manifest](https://registry.npmjs.org/sileo/0.1.6).
+
+### Other open items
+
 - **Wireframes as artwork.** #61 offers "approved wireframes **or** annotated patterns"; sections
   9 and 10 are the annotated patterns, and drawn wireframes were not attempted.
-- **The application's own fonts** still load through a render-blocking `@import` in `globals.css`
-  plus a second CDN link in `layout.tsx`. The Keycloak theme self-hosts (section 2); the app does
-  not. Moving it to `next/font` is its own issue.
 - **More optimistic updates**, if a surface ever gains a status a mutation toggles. Section 11
   records why there is only one today.
 

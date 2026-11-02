@@ -45,6 +45,8 @@ const PLAN = {
   ],
   doctor: ['/dashboard', '/queues', '/patients'],
   volunteer: ['/dashboard', '/patients', '/patients/new'],
+  manager: ['/dashboard', '/today', '/queues'],
+  director: ['/dashboard', '/metrics', '/audit'],
   patient: ['/portal', '/portal/appointments', '/portal/health'],
 };
 

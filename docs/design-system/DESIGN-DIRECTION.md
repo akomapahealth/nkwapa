@@ -60,3 +60,11 @@ Airline ticket wallet, dance score, black-and-white data field, streaming poster
 | 2026-11-01 | Direction A, Ruled Chart                                            | owner |
 | 2026-11-01 | Message delivery in the header, Clinic settings in the profile menu | owner |
 | 2026-11-01 | Add Manager and Director E2E identities to the seed                 | owner |
+
+### Owner update, 2026-11-01
+
+Chart animation is allowed where it improves the experience, with reduced-motion
+support and faithful clinical data. Selective shadcn, Bklit and Kokonut components
+are welcome after the documented compatibility and accessibility repairs. Sileo
+rejection is approved; retain Sonner. Ruled Chart, straight clinical segments,
+measured tokens and table alternatives remain the foundation.

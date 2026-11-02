@@ -1,0 +1,156 @@
+{
+  "date": "2026-11-01",
+  "base": "ed2cbd5b09dd792c25a7f3709eef1d3fffc82a37",
+  "cli": "shadcn@4.23.0",
+  "packageManager": "npm@10.9.9",
+  "resolvedSpikeVersions": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "next": "16.3.0-canary.104",
+    "tailwindcss": "3.4.19",
+    "recharts": "3.10.1",
+    "cmdk": "1.1.1",
+    "date-fns": "4.4.0",
+    "react-day-picker": "10.0.2",
+    "motion": "14.9.0",
+    "sileo": "0.1.6",
+    "@radix-ui/react-tooltip": "1.4.1",
+    "@radix-ui/react-toggle-group": "1.2.1",
+    "esbuild": "0.28.2"
+  },
+  "registrySnapshots": {
+    "bklit-line-chart": {
+      "url": "https://ui.bklit.com/r/line-chart.json",
+      "cliViewSha256": "57295fdd8928c5713ee6ac65af65ae82a21d508a35d97c18a7fa0a1a42f85dae",
+      "resolvedSourceBytes": 145915,
+      "registryDependencies": [
+        "@bklit/chart-context",
+        "@bklit/chart-animation",
+        "@bklit/chart-series",
+        "@bklit/grid",
+        "@bklit/x-axis",
+        "@bklit/chart-tooltip",
+        "@bklit/shimmering-text",
+        "@bklit/utils",
+        "@bklit/chart-parent-size",
+        "@bklit/background",
+        "@bklit/gradients"
+      ],
+      "dependencies": ["d3-shape", "motion"]
+    },
+    "kokonut-metric-card": {
+      "url": "https://kokonutui.com/r/metric-card.json",
+      "cliViewSha256": "673c5346cdd21001e3bec635214a400ace8e0facc8ae47d129065410c0ab1909",
+      "resolvedSourceBytes": 28235,
+      "registryDependencies": [],
+      "dependencies": []
+    }
+  },
+  "bundleMethod": "esbuild 0.28.2, production browser ESM, minified, React and React DOM external, all exports from each candidate module, dependencies included; standalone gzip sizes, not incremental production route costs or additive totals",
+  "bundleSizes": {
+    "sidebar": {
+      "minifiedBytes": 148232,
+      "gzipBytes": 48573
+    },
+    "chart": {
+      "minifiedBytes": 283612,
+      "gzipBytes": 88095
+    },
+    "breadcrumb": {
+      "minifiedBytes": 34120,
+      "gzipBytes": 11225
+    },
+    "command": {
+      "minifiedBytes": 85280,
+      "gzipBytes": 27981
+    },
+    "skeleton": {
+      "minifiedBytes": 27541,
+      "gzipBytes": 8722
+    },
+    "tooltip": {
+      "minifiedBytes": 83919,
+      "gzipBytes": 28599
+    },
+    "toggleGroup": {
+      "minifiedBytes": 61500,
+      "gzipBytes": 18925
+    },
+    "calendar": {
+      "minifiedBytes": 108500,
+      "gzipBytes": 33478
+    },
+    "separator": {
+      "minifiedBytes": 32064,
+      "gzipBytes": 10562
+    },
+    "bklit": {
+      "minifiedBytes": 235619,
+      "gzipBytes": 82205
+    },
+    "kokonut": {
+      "minifiedBytes": 42140,
+      "gzipBytes": 13926
+    },
+    "sileo": {
+      "minifiedBytes": 147191,
+      "gzipBytes": 48810
+    }
+  },
+  "shadcnGeneratedSourceSizes": {
+    "sidebar": {
+      "sourceBytes": 23586,
+      "sourceGzipBytes": 5013,
+      "sha256": "a5df76725d722a8a4607a0dc9178ded5bf7c0d08c36b4a81e7622da65afcecff"
+    },
+    "chart": {
+      "sourceBytes": 10777,
+      "sourceGzipBytes": 2890,
+      "sha256": "2d7c4634b85fbd0bbe0c4636d0d333e02398fa49ad70fd24eece5853dc3975cc"
+    },
+    "breadcrumb": {
+      "sourceBytes": 2712,
+      "sourceGzipBytes": 878,
+      "sha256": "c3d3dcb0d82fc5e91d8830bac7fead905686fe876f1f42c3ed872bb0a6b6584e"
+    },
+    "command": {
+      "sourceBytes": 4887,
+      "sourceGzipBytes": 1238,
+      "sha256": "5a57ebc119f2357b097098d22865d45de8fda623ee88fe98b99999838c13633b"
+    },
+    "skeleton": {
+      "sourceBytes": 266,
+      "sourceGzipBytes": 213,
+      "sha256": "87608e7cc815ad3d88e0b9de6c402bb37b58ea1b38636cf69709da1baff6e334"
+    },
+    "tooltip": {
+      "sourceBytes": 1267,
+      "sourceGzipBytes": 534,
+      "sha256": "ce6afa34fb9dae51053a863b4c3f7c6e55f3da23b00149f31a8e4402bc963be0"
+    },
+    "toggle-group": {
+      "sourceBytes": 1753,
+      "sourceGzipBytes": 584,
+      "sha256": "dba95ead40d163af6959198ded9853a2cc9282b2cb534980f99937a65edf4e2d"
+    },
+    "calendar": {
+      "sourceBytes": 7608,
+      "sourceGzipBytes": 1983,
+      "sha256": "8f52316a1569cc97eaf784e1331655a7e3dd0bbaf950250a966e6c83b32870a9"
+    },
+    "separator": {
+      "sourceBytes": 770,
+      "sourceGzipBytes": 373,
+      "sha256": "995c54f1c5c688f712a675fe35d55bcada2b31dba561dcc71553a1ad601e59ec"
+    }
+  },
+  "fontBuild": {
+    "fontFiles": 12,
+    "fontBytes": 318328,
+    "latinPreloadFiles": [
+      "03fc1b4a8d284b5e.p.0wiir8udbzjvx.woff2",
+      "68d403cf9f2c68c5.p.012bmydply3go.woff2"
+    ],
+    "latinPreloadBytes": 91192
+  }
+}

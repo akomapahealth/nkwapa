@@ -1,0 +1,17 @@
+--- a/components/ui/chart.tsx
++++ b/components/ui/chart.tsx
+@@ -107 +107 @@
+-  React.ComponentProps<typeof RechartsPrimitive.Tooltip> &
++  Partial<RechartsPrimitive.TooltipContentProps<RechartsPrimitive.TooltipValueType, number | string>> &
+@@ -197 +197 @@
+-                  key={item.dataKey}
++                  key={String(item.dataKey ?? index)}
+@@ -266 +266,2 @@
+-    Pick<RechartsPrimitive.LegendProps, "payload" | "verticalAlign"> & {
++    Pick<RechartsPrimitive.LegendProps, "verticalAlign"> & {
++      payload?: ReadonlyArray<RechartsPrimitive.LegendPayload>
+--- a/components/charts/line.tsx
++++ b/components/charts/line.tsx
+@@ -173 +173 @@
+-  pathRef?: RefObject<SVGPathElement | null>;
++  pathRef?: RefObject<SVGPathElement>;
