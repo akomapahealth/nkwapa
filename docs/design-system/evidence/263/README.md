@@ -155,12 +155,12 @@ chart, Kokonut MetricCard with explicit synthetic data and a Sileo error toast.
 Each ran WCAG-tagged axe at 1440 and 390px in light and dark, reduced motion.
 All 16 final scans have no runtime page errors or horizontal overflow.
 
-| Fixture                  | Final WCAG axe result                                                                            | Interpretation                                                                                                                |
-| ------------------------ | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| shadcn, adapted          | 0 violations in all 4 scans; 0 measured targets below 44px                                       | Feasible with explicit integration work, not unchanged wholesale adoption                                                     |
-| Bklit, ref types adapted | 0 violations in all 4 scans                                                                      | Axe does not detect the palette contract, natural-curve default, chart-animation policy or duplicate-stack cost; still reject |
-| Kokonut MetricCard       | `color-contrast`, serious: 8 nodes per light scan, 6 per dark scan; 6 sampled targets below 44px | Reject the candidate; defaults also conflict with the visual/data contracts                                                   |
-| Sileo error toast        | 0 violations in all 4 scans; error region is `polite`                                            | Axe does not test the wrapper's assertive-error or id-update contract; reject adoption, keep Sonner                           |
+| Fixture                  | Final WCAG axe result                                                                            | Interpretation                                                                                                                         |
+| ------------------------ | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| shadcn, adapted          | 0 violations in all 4 scans; 0 measured targets below 44px                                       | Feasible with explicit integration work, not unchanged wholesale adoption                                                              |
+| Bklit, ref types adapted | 0 violations in all 4 scans                                                                      | Eligible for selective adoption after preserving tokens, straight clinical segments, reduced-motion controls and assessing bundle cost |
+| Kokonut MetricCard       | `color-contrast`, serious: 8 nodes per light scan, 6 per dark scan; 6 sampled targets below 44px | Repair this raw candidate before adoption; use approved tokens, 44px targets and faithful clinical data                                |
+| Sileo error toast        | 0 violations in all 4 scans; error region is `polite`                                            | Axe does not test the wrapper's assertive-error or id-update contract; owner-approved rejection, keep Sonner                           |
 
 The two small targets recorded on the Sileo page are the harness's Show buttons,
 not a claim about Sileo's optional action button. The final shadcn harness maps
@@ -210,10 +210,18 @@ interpret its 8,722-byte standalone bundle as an added application cost.
 
 ## Decision and limitations
 
-Proposed decisions in MASTER.md section 13: adopt shadcn selectively, reject
-Bklit/Kokonut for this redesign, reject Sileo adoption and retain Sonner.
-**Owner approval is required before merge** by `CODEX-HANDOFF.md` section 8.
-No new production dependency is introduced while that decision is pending.
+**Owner update, 2026-11-01:** chart animation is welcome. shadcn, Bklit and
+Kokonut may be adopted selectively where they improve the UI, with the measured
+compatibility and accessibility issues repaired. Animation is not itself a
+rejection reason. The owner approved rejecting Sileo and retaining Sonner.
+This supersedes the initial Bklit/Kokonut rejection recommendation.
+
+MASTER.md sections 3 and 13 and the handoff now record that decision. No
+production dependency or chart animation is introduced by #263. The static
+fixtures above do not prove that a future animated production chart honours
+reduced motion or preserves reading accuracy; test those behaviours when the
+selected components land in their implementation phase. The raw Kokonut card
+still has the recorded contrast/target failures and cannot ship unchanged.
 Stop after this PR; #264 has not started.
 
 Axe covers automated WCAG rules, not every clinical, data, keyboard or screen

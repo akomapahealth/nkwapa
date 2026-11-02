@@ -18,6 +18,7 @@ Instructions for the agent continuing epic #229 from Phase 01. Work one phase at
 - Message delivery is a header icon (lucide `Send`, `aria-label="Message delivery"`, tooltip, **no badge**), shown only with `REMINDER.READ`. Clinic settings is a profile-menu item, only with `RESEARCH.SETTINGS.UPDATE`. Mirror both in the mobile sheet.
 - Station devices are mostly shared laptops (design for 1024 to 1440 first, 390 must still work).
 - English only.
+- **Owner update, 2026-11-01:** chart animation is allowed. shadcn, Bklit and Kokonut may be adopted selectively where they improve the UI, after compatibility/accessibility repairs. Sileo rejection is approved; keep Sonner.
 - Single-role `manager` and `director` E2E identities exist (PR #285).
 
 ## 3. Guardrails (every PR)
@@ -26,7 +27,7 @@ Instructions for the agent continuing epic #229 from Phase 01. Work one phase at
 - Nav visibility per role must stay identical apart from the two moves above. `apps/web/lib/app-nav.ts` stays the single source; add a `placement` field rather than a second list.
 - No new dependency without a recorded adopt decision in MASTER.md (from #263). No Tailwind 4, React 19 or Next upgrade.
 - No `dark:` utilities; theme through the HSL tokens in `globals.css`. Re-measure contrast for any token you change and keep the comments in `globals.css` accurate.
-- No pie charts, no chart animation, no smoothed lines; `scripts/check-chart-palette.mjs` must pass.
+- No pie charts or smoothed clinical lines. Chart animation is allowed under MASTER.md section 3: honour reduced motion in JavaScript, keep values/table access immediate, and avoid invented intermediate readings. `scripts/check-chart-palette.mjs` must pass.
 - 44px targets, visible focus, `prefers-reduced-motion` respected, status never carried by colour alone.
 - Seeded or synthetic data only in screenshots. Never use production patient data anywhere.
 - No em dashes in UI copy.
@@ -110,7 +111,7 @@ Each phase: read its spec section (`### PHASE 0N` in the redesign master), the i
 
 ### Phase 08: Motion and responsive (#280, #281)
 
-- #280: evaluate Sileo against the `showToast` contract in `components/ui/toast.tsx`; keep Sonner unless Sileo passes every check. Callers of `showToast` must not change.
+- #280: retain Sonner under the owner-approved #263 Sileo rejection. Polish feedback and motion through the existing `showToast` contract; callers must not change. Re-evaluate Sileo only if the owner reopens that decision.
 - #281: pass at 390, 768, 1024, 1280, 1440 and offline states; coordinate with #207.
 
 ### Phase 09: QA and release (#282, #283)
@@ -120,6 +121,6 @@ Each phase: read its spec section (`### PHASE 0N` in the redesign master), the i
 ## 8. Stop and ask the owner when
 
 - A change would alter an API response, permission, flag, clinical field or data.
-- #263 recommends adopting a library, or Sileo passes (both are owner decisions before merge).
+- An adoption falls outside the owner-approved selective shadcn/Bklit/Kokonut scope, requires a framework upgrade, or revisits the approved Sileo rejection.
 - A phase's design needs something MASTER.md section 12 does not cover.
 - Any production database or deployment action.

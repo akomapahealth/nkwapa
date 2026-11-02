@@ -8,7 +8,7 @@ Read this first if you are picking up epic #229. Implementing agents: follow [CO
 - Sub-issues #261 to #283 exist and are attached to #229 with dependencies by number.
 - Phase 00 documentation and baseline are merged into `release/dev` in PR #284. Manager-only and Director-only E2E identities are merged in PR #285.
 - Before Phase 01: the #261 registration label fix is merged in [PR #286](https://github.com/akomapahealth/nkwapa/pull/286), with zero WCAG-tagged axe violations in light/dark at 1440/390. [Evidence](evidence/261/README.md). #261 is closed and the #229 prerequisite checklist is checked.
-- #263 feasibility and self-hosted fonts are ready for review in [PR #287](https://github.com/akomapahealth/nkwapa/pull/287), branched directly from updated `release/dev`. Proposed library decisions in MASTER.md section 13 require owner approval before merge. No production dependency was added. [Evidence](evidence/263/README.md). #264 has not started.
+- #263 feasibility and self-hosted fonts are ready for review in [PR #287](https://github.com/akomapahealth/nkwapa/pull/287), branched directly from updated `release/dev`. Owner approved chart animation and selective shadcn/Bklit/Kokonut use with required repairs; Sileo rejection is approved. MASTER.md section 13 records the updated decisions. No production dependency was added. [Evidence](evidence/263/README.md). #264 has not started.
 
 ## Phase 00 outputs
 
@@ -24,7 +24,7 @@ Read this first if you are picking up epic #229. Implementing agents: follow [CO
 1. ~~Owner approves a direction (#262)~~: done, A.
 2. ~~Add Manager-only and Director-only E2E identities~~: merged in PR #285 (mind the Keycloak sub desync after any reseed).
 3. ~~Fix the critical `button-name` finding on `/patients/new`~~: merged in PR #286; #261 closed.
-4. Review [PR #287](https://github.com/akomapahealth/nkwapa/pull/287) for #263 feasibility and `next/font`. Approve the proposed library decisions in MASTER.md section 13 before merge. Stop here before #264.
+4. Review [PR #287](https://github.com/akomapahealth/nkwapa/pull/287) for #263 feasibility and `next/font`. The owner decisions in MASTER.md section 13 are recorded; review and merge before continuing. Stop here before #264.
 5. #264 tokens, then #265 components, then #266 shell and #267 nav utilities. Each is its own PR from `release/dev`.
 6. Phases 03 to 09 per the dependency map in #229.
 
@@ -47,3 +47,4 @@ Read this first if you are picking up epic #229. Implementing agents: follow [CO
 
 | 2026-11-01 | PR #286 merged into `release/dev`; #261 closed as completed and the #229 prerequisite checked. Started #263 from the updated base, with the compatibility work isolated on a disposable branch. |
 | 2026-11-01 | #263: opened [PR #287](https://github.com/akomapahealth/nkwapa/pull/287) from `release/dev`. Fonts self-hosted with next/font; disposable compatibility spike completed, selective shadcn adoption proposed, Bklit/Kokonut/Sileo adoption rejected. No production dependency added. 108 app axe scans clean before and after, 57 E2E and 919 unit tests pass, production build and required static checks pass. Evidence in `evidence/263/`. #229 checklist updated; pending owner decision and merge, stopped before #264. |
+| 2026-11-01 | Owner updated #263 direction: animated charts are welcome; shadcn, Bklit and Kokonut may be adopted selectively after compatibility, token, contrast, target-size and reduced-motion repairs. Initial blanket Bklit/Kokonut rejection superseded. Sileo rejection approved; retain Sonner. PR #287 and #229 updated; no chart implementation or dependency change in this decision update. Stopped before #264. |
