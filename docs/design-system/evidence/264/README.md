@@ -108,7 +108,7 @@ Only a seeded volunteer identity and blank form are shown.
 - Repo script tests: **20 passed**, including the 4 new contrast-check tests.
 - CI-configured final production build, repository lint and typecheck: passed.
 - Security scan, semantic token check, chart palette check: passed.
-- Formatting and diff whitespace checks are run again before commit/push.
+- Whole-repository formatting and diff whitespace checks: passed.
 
 No test was weakened, no rule was disabled, and no dependency was installed.
 Full clinical E2E and manual VoiceOver were not run for this additive CSS
