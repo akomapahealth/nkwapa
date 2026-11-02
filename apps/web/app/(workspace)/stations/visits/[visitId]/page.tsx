@@ -48,7 +48,13 @@ import { PerformerCorrection } from '@/components/stations/PerformerCorrection';
 import { ScreenerControl } from '@/components/stations/ScreenerControl';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection as Card,
+  RecordSectionContent as CardContent,
+  RecordSectionDescription as CardDescription,
+  RecordSectionHeader as CardHeader,
+  RecordSectionTitle as CardTitle,
+} from '@/components/patients/RecordSection';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -246,6 +252,21 @@ export default function StationVisitPage() {
               }
             />
 
+            <section aria-labelledby="visit-needs" className="border-t-2 border-rule-strong pt-4">
+              <h2 id="visit-needs" className="type-section-title">
+                Needs you now
+              </h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {mine
+                  ? `Record ${visit.station.name.toLowerCase()} findings, then hand the patient on. Readings pending sync must reach the server before hand-off.`
+                  : visit.status === 'QUEUED'
+                    ? 'Take this patient before recording findings.'
+                    : visit.status === 'IN_PROGRESS'
+                      ? 'This patient is with another member of staff.'
+                      : 'This station stop is complete. Earlier findings remain available below.'}
+              </p>
+            </section>
+
             {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
             {!isOnline ? (
               <InlineNotice tone="warning" live={false}>
@@ -278,7 +299,7 @@ export default function StationVisitPage() {
                   type="button"
                   variant="link"
                   size="sm"
-                  className="h-auto p-0"
+                  className="min-h-11 px-2 text-info-ink"
                   aria-label="Change who is screening"
                   aria-expanded={changingScreener}
                   onClick={() => setChangingScreener((open) => !open)}
@@ -428,7 +449,7 @@ function Timeline({
       <CardContent>
         <ol className="space-y-2">
           {earlier.map((stop) => (
-            <li key={stop.id} className="rounded-lg border p-3 text-sm">
+            <li key={stop.id} className="border-b border-rule py-3 text-sm">
               <p className="font-medium">
                 {stop.station.name} · {STATUS_LABELS[stop.status]}
                 {stop.completedBy
@@ -479,6 +500,7 @@ function StationForm({
     case 'INTAKE':
       return (
         <MedicalHistoryPanel
+          ruled
           clinicId={clinicId}
           patientId={visit.patient.id}
           userId={userId}
@@ -518,19 +540,26 @@ function StationForm({
       );
     case 'EYE':
       return (
-        <EyeScreeningForm clinicId={clinicId} encounterId={encounterId} canEdit onSaved={onSaved} />
+        <EyeScreeningForm
+          ruled
+          clinicId={clinicId}
+          encounterId={encounterId}
+          canEdit
+          onSaved={onSaved}
+        />
       );
     case 'REVIEW':
       return (
         <div className="space-y-6">
           <StationResultsSummary
+            ruled
             timeline={visit.timeline}
             vitals={readings.vitals}
             diabetes={readings.diabetes}
             eye={readings.eye}
             timezone={timezone}
           />
-          <CounsellingForm clinicId={clinicId} encounterId={encounterId} canEdit />
+          <CounsellingForm ruled clinicId={clinicId} encounterId={encounterId} canEdit />
           <ClinicalNotePanel
             clinicId={clinicId}
             encounterId={encounterId}
@@ -628,7 +657,7 @@ function HandOff({
               </Select>
             </div>
             {passedOver.length ? (
-              <div className="space-y-2 rounded-lg border p-3">
+              <div className="space-y-2 border-b border-rule py-3">
                 <p className="text-sm font-medium">Skipping, with a reason for each</p>
                 {passedOver.map((station) => (
                   <div key={station.id} className="space-y-1">
@@ -714,7 +743,7 @@ function ReasonButton({
     );
   }
   return (
-    <div className="flex flex-col gap-2 rounded-lg border p-2 sm:flex-row sm:items-center">
+    <div className="flex flex-col gap-2 border-b border-rule py-3 sm:flex-row sm:items-center">
       <Input
         aria-label={prompt}
         placeholder={prompt}

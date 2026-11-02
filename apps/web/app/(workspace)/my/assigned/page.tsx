@@ -25,6 +25,7 @@ import { useOpsView } from '@/lib/use-ops-view';
 import { usePendingOpsWrites } from '@/lib/use-pending-ops-writes';
 import { useShiftControls } from '@/lib/use-shift-controls';
 import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
+import { AppActionRow } from '@/components/app-shell/AppActionRow';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
@@ -39,7 +40,13 @@ import {
   opsOfflineHint,
 } from '@/components/ops/OpsShared';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection as Card,
+  RecordSectionContent as CardContent,
+  RecordSectionDescription as CardDescription,
+  RecordSectionHeader as CardHeader,
+  RecordSectionTitle as CardTitle,
+} from '@/components/patients/RecordSection';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
@@ -121,6 +128,10 @@ export default function MyAssignedPage() {
 
     return assignment.checkInStatus === statusFilter;
   });
+
+  const pendingAssignments = assignments.filter(
+    (item) => item.checkInStatus !== 'COMPLETED' && item.checkInStatus !== 'CANCELLED',
+  );
 
   async function handleStartIntake(assignment: MyAssignmentSummary) {
     if (!clinicId || !getToken) {
@@ -258,7 +269,6 @@ export default function MyAssignedPage() {
     <RouteGuard requiredPermission="OPS.ASSIGNMENT.READ_SELF">
       <div className="space-y-6">
         <AppPageHeader
-          eyebrow="Clinic ops"
           title="My Assigned"
           description="A focused worklist for volunteer intake and doctor follow-through."
           actions={
@@ -302,6 +312,33 @@ export default function MyAssignedPage() {
             </div>
           }
         />
+
+        {!view.isInitialLoading ? (
+          <section
+            aria-labelledby="assignment-needs"
+            className="border-t-2 border-rule-strong pt-4"
+          >
+            <h2 id="assignment-needs" className="type-section-title">
+              Needs you now
+            </h2>
+            <ul>
+              <AppActionRow
+                icon={Stethoscope}
+                title={
+                  pendingAssignments.length
+                    ? `${pendingAssignments.length} assigned patient${pendingAssignments.length === 1 ? ' needs' : 's need'} follow-through`
+                    : 'No assigned patients need follow-through'
+                }
+                detail="Your worklist below keeps intake, active encounters and completed cases together."
+                action={
+                  <Button asChild variant="outline">
+                    <a href="#assigned-patients">View worklist</a>
+                  </Button>
+                }
+              />
+            </ul>
+          </section>
+        ) : null}
 
         <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
           <AppMetricCard
@@ -374,6 +411,7 @@ export default function MyAssignedPage() {
           <div className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
             <div className="min-w-0 space-y-6">
               <ShiftControlCard
+                ruled
                 currentShift={shiftControls.currentShift}
                 selectedRole={shiftControls.selectedRole}
                 availableRoles={eligibleShiftRoles}
@@ -410,7 +448,7 @@ export default function MyAssignedPage() {
               </Card>
             </div>
 
-            <Card className="min-w-0">
+            <Card id="assigned-patients" className="min-w-0 scroll-mt-24">
               <CardHeader className="space-y-4">
                 <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                   <div>
@@ -430,7 +468,7 @@ export default function MyAssignedPage() {
                         variant={statusFilter === value ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => setStatusFilter(value)}
-                        className="rounded-full"
+                        aria-pressed={statusFilter === value}
                       >
                         {value === 'ALL'
                           ? 'All'

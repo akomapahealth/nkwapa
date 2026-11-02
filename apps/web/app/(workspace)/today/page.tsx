@@ -35,6 +35,7 @@ import { useOpsView } from '@/lib/use-ops-view';
 import { usePendingOpsWrites } from '@/lib/use-pending-ops-writes';
 import { useShiftControls } from '@/lib/use-shift-controls';
 import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
+import { AppActionRow } from '@/components/app-shell/AppActionRow';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
@@ -50,7 +51,13 @@ import {
   opsOfflineHint,
 } from '@/components/ops/OpsShared';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection as Card,
+  RecordSectionContent as CardContent,
+  RecordSectionDescription as CardDescription,
+  RecordSectionHeader as CardHeader,
+  RecordSectionTitle as CardTitle,
+} from '@/components/patients/RecordSection';
 import {
   Dialog,
   DialogContent,
@@ -304,7 +311,6 @@ function TodayBoardPage() {
     <RouteGuard requiredPermission="OPS.CHECKIN.READ">
       <div className="space-y-6">
         <AppPageHeader
-          eyebrow="Clinic ops"
           title="Today Board"
           description="Live clinic flow for the selected day."
           helpTitle="How the board updates"
@@ -353,6 +359,26 @@ function TodayBoardPage() {
             </div>
           }
         />
+
+        {!board.isInitialLoading ? (
+          <section aria-labelledby="today-needs" className="border-t-2 border-rule-strong pt-4">
+            <h2 id="today-needs" className="type-section-title">
+              Needs you now
+            </h2>
+            <ul>
+              <AppActionRow
+                icon={Users}
+                title={`${groupedCheckins.WAITING.length} patients waiting for assignment`}
+                detail="Review new arrivals and pair them with the available care team below."
+                action={
+                  <Button asChild variant="outline">
+                    <a href="#today-work">View patients</a>
+                  </Button>
+                }
+              />
+            </ul>
+          </section>
+        ) : null}
 
         <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
           <AppMetricCard
@@ -415,9 +441,13 @@ function TodayBoardPage() {
             <SectionSkeleton lines={6} />
           </div>
         ) : (
-          <div className="grid gap-6 xl:grid-cols-[360px,minmax(0,1fr)]">
+          <div
+            id="today-work"
+            className="grid scroll-mt-24 gap-6 xl:grid-cols-[360px,minmax(0,1fr)]"
+          >
             <div className="min-w-0 space-y-6">
               <ShiftControlCard
+                ruled
                 currentShift={shiftControls.currentShift}
                 selectedRole={shiftControls.selectedRole}
                 availableRoles={eligibleShiftRoles}

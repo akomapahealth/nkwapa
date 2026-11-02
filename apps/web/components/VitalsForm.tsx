@@ -482,8 +482,14 @@ export function VitalsForm({
   );
 
   return (
-    <Card>
-      <CardHeader className="space-y-2">
+    <Card
+      className={
+        sections
+          ? 'rounded-none border-0 border-t-2 border-rule-strong bg-transparent shadow-none'
+          : undefined
+      }
+    >
+      <CardHeader className={sections ? 'space-y-2 px-0 pb-3 pt-4' : 'space-y-2'}>
         <h2 className="font-heading text-xl font-semibold">
           {sections ? 'Measurements' : 'Vitals and tobacco screening'}
         </h2>
@@ -492,9 +498,41 @@ export function VitalsForm({
           available offline.
         </p>
       </CardHeader>
-      <CardContent className="space-y-5">
+      <CardContent className={sections ? 'space-y-5 px-0 pb-5' : 'space-y-5'}>
+        {sections && Object.keys(errors).length ? (
+          <section
+            role="alert"
+            aria-label="Check measurements"
+            className="border-y border-destructive py-3 text-sm"
+          >
+            <h3 className="font-semibold">Check before saving</h3>
+            <ul>
+              {Object.entries(errors).map(([id, message]) => (
+                <li key={id}>
+                  <a
+                    className="inline-flex min-h-11 items-center text-primary underline"
+                    href={`#${id}`}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      document.getElementById(id)?.focus();
+                    }}
+                  >
+                    {message}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
         {shows('bloodPressure') ? (
-          <section className="space-y-5 rounded-lg border border-border bg-background p-4 sm:p-6">
+          <section
+            className={
+              sections
+                ? 'space-y-5 border-t border-rule py-4'
+                : 'space-y-5 rounded-lg border border-border bg-background p-4 sm:p-6'
+            }
+          >
             <SectionHeading
               icon={HeartPulse}
               title="Blood Pressure"
@@ -577,7 +615,13 @@ export function VitalsForm({
         ) : null}
 
         {shows('otherVitals') ? (
-          <section className="space-y-5 rounded-lg border border-border bg-background p-4 sm:p-6">
+          <section
+            className={
+              sections
+                ? 'space-y-5 border-t border-rule py-4'
+                : 'space-y-5 rounded-lg border border-border bg-background p-4 sm:p-6'
+            }
+          >
             <SectionHeading
               icon={Thermometer}
               title="Other Measurements"
@@ -652,7 +696,13 @@ export function VitalsForm({
         ) : null}
 
         {shows('anthropometry') ? (
-          <section className="space-y-5 rounded-lg border border-border bg-background p-4 sm:p-6">
+          <section
+            className={
+              sections
+                ? 'space-y-5 border-t border-rule py-4'
+                : 'space-y-5 rounded-lg border border-border bg-background p-4 sm:p-6'
+            }
+          >
             <SectionHeading
               icon={Ruler}
               title="Anthropometrics"
