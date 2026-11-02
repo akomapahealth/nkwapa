@@ -5,9 +5,9 @@ const path = require('path');
  *
  * `staff` holds SYSTEM_ADMIN plus every clinic role at once, which is what most specs want: it can
  * walk the whole product without arranging permissions first. It is exactly the wrong identity for
- * proving that a role sees only what it should, because it sees everything. `doctor` and
- * `volunteer` each hold a single clinic seat, so a spec can assert both what a role reaches and
- * what it is refused.
+ * proving that a role sees only what it should, because it sees everything. `doctor`,
+ * `volunteer`, `manager` and `director` each hold a single clinic seat, so a spec can assert both
+ * what a role reaches and what it is refused.
  *
  * `patient` is the portal identity, and it is the reason the portal now has coverage at all. Every
  * spec used to run as staff, so roughly 2,900 lines of migrated portal screens were never once
@@ -35,6 +35,16 @@ const ROLES = {
     storageState: path.join(AUTH_DIR, 'volunteer.json'),
     username: process.env.E2E_VOLUNTEER_USERNAME || 'e2e.volunteer',
     password: process.env.E2E_VOLUNTEER_PASSWORD || 'NkwapaVolunteer!23',
+  },
+  manager: {
+    storageState: path.join(AUTH_DIR, 'manager.json'),
+    username: process.env.E2E_MANAGER_USERNAME || 'e2e.manager',
+    password: process.env.E2E_MANAGER_PASSWORD || 'NkwapaManager!23',
+  },
+  director: {
+    storageState: path.join(AUTH_DIR, 'director.json'),
+    username: process.env.E2E_DIRECTOR_USERNAME || 'e2e.director',
+    password: process.env.E2E_DIRECTOR_PASSWORD || 'NkwapaDirector!23',
   },
   patient: {
     storageState: path.join(AUTH_DIR, 'patient.json'),
