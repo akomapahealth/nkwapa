@@ -1,0 +1,218 @@
+[
+  {
+    "theme": "light",
+    "foreground": "--success-ink",
+    "background": "--success-surface",
+    "ratio": 5.2002209799778525,
+    "minimum": 4.5,
+    "use": "status text and icon",
+    "pass": true
+  },
+  {
+    "theme": "light",
+    "foreground": "--warning-ink",
+    "background": "--warning-surface",
+    "ratio": 5.904507235415716,
+    "minimum": 4.5,
+    "use": "status text and icon",
+    "pass": true
+  },
+  {
+    "theme": "light",
+    "foreground": "--info-ink",
+    "background": "--info-surface",
+    "ratio": 7.291355619801086,
+    "minimum": 4.5,
+    "use": "status text and icon",
+    "pass": true
+  },
+  {
+    "theme": "light",
+    "foreground": "--destructive-ink",
+    "background": "--destructive-surface",
+    "ratio": 6.020882779328436,
+    "minimum": 4.5,
+    "use": "status text and icon",
+    "pass": true
+  },
+  {
+    "theme": "light",
+    "foreground": "--rule-strong",
+    "background": "--background",
+    "ratio": 14.297103115894544,
+    "minimum": 3,
+    "use": "2px group rule",
+    "pass": true
+  },
+  {
+    "theme": "light",
+    "foreground": "--rule",
+    "background": "--background",
+    "ratio": 1.259391453298731,
+    "minimum": null,
+    "use": "decorative hairline; not a control boundary",
+    "pass": true
+  },
+  {
+    "theme": "light",
+    "foreground": "--foreground",
+    "background": "--background",
+    "ratio": 14.297103115894544,
+    "minimum": 4.5,
+    "use": "primary text and figures",
+    "pass": true
+  },
+  {
+    "theme": "light",
+    "foreground": "--muted-foreground",
+    "background": "--background",
+    "ratio": 5.438779188813203,
+    "minimum": 4.5,
+    "use": "supporting text",
+    "pass": true
+  },
+  {
+    "theme": "light",
+    "foreground": "--rule-strong",
+    "background": "--card",
+    "ratio": 14.314583105544363,
+    "minimum": 3,
+    "use": "2px group rule",
+    "pass": true
+  },
+  {
+    "theme": "light",
+    "foreground": "--rule",
+    "background": "--card",
+    "ratio": 1.2609312162416348,
+    "minimum": null,
+    "use": "decorative hairline; not a control boundary",
+    "pass": true
+  },
+  {
+    "theme": "light",
+    "foreground": "--foreground",
+    "background": "--card",
+    "ratio": 14.314583105544363,
+    "minimum": 4.5,
+    "use": "primary text and figures",
+    "pass": true
+  },
+  {
+    "theme": "light",
+    "foreground": "--muted-foreground",
+    "background": "--card",
+    "ratio": 5.445428773918483,
+    "minimum": 4.5,
+    "use": "supporting text",
+    "pass": true
+  },
+  {
+    "theme": "dark",
+    "foreground": "--success-ink",
+    "background": "--success-surface",
+    "ratio": 6.827156990073334,
+    "minimum": 4.5,
+    "use": "status text and icon",
+    "pass": true
+  },
+  {
+    "theme": "dark",
+    "foreground": "--warning-ink",
+    "background": "--warning-surface",
+    "ratio": 6.748042996017492,
+    "minimum": 4.5,
+    "use": "status text and icon",
+    "pass": true
+  },
+  {
+    "theme": "dark",
+    "foreground": "--info-ink",
+    "background": "--info-surface",
+    "ratio": 6.365794234454965,
+    "minimum": 4.5,
+    "use": "status text and icon",
+    "pass": true
+  },
+  {
+    "theme": "dark",
+    "foreground": "--destructive-ink",
+    "background": "--destructive-surface",
+    "ratio": 6.657856974101323,
+    "minimum": 4.5,
+    "use": "status text and icon",
+    "pass": true
+  },
+  {
+    "theme": "dark",
+    "foreground": "--rule-strong",
+    "background": "--background",
+    "ratio": 15.659662759109944,
+    "minimum": 3,
+    "use": "2px group rule",
+    "pass": true
+  },
+  {
+    "theme": "dark",
+    "foreground": "--rule",
+    "background": "--background",
+    "ratio": 1.4650357291275178,
+    "minimum": null,
+    "use": "decorative hairline; not a control boundary",
+    "pass": true
+  },
+  {
+    "theme": "dark",
+    "foreground": "--foreground",
+    "background": "--background",
+    "ratio": 15.659662759109944,
+    "minimum": 4.5,
+    "use": "primary text and figures",
+    "pass": true
+  },
+  {
+    "theme": "dark",
+    "foreground": "--muted-foreground",
+    "background": "--background",
+    "ratio": 6.497048804170418,
+    "minimum": 4.5,
+    "use": "supporting text",
+    "pass": true
+  },
+  {
+    "theme": "dark",
+    "foreground": "--rule-strong",
+    "background": "--card",
+    "ratio": 14.501506757105215,
+    "minimum": 3,
+    "use": "2px group rule",
+    "pass": true
+  },
+  {
+    "theme": "dark",
+    "foreground": "--rule",
+    "background": "--card",
+    "ratio": 1.3566847416930445,
+    "minimum": null,
+    "use": "decorative hairline; not a control boundary",
+    "pass": true
+  },
+  {
+    "theme": "dark",
+    "foreground": "--foreground",
+    "background": "--card",
+    "ratio": 14.501506757105215,
+    "minimum": 4.5,
+    "use": "primary text and figures",
+    "pass": true
+  },
+  {
+    "theme": "dark",
+    "foreground": "--muted-foreground",
+    "background": "--card",
+    "ratio": 6.016540623143964,
+    "minimum": 4.5,
+    "use": "supporting text",
+    "pass": true
+  }
+]
