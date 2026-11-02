@@ -13,7 +13,7 @@ const SIDEBAR_STORAGE_KEY = 'nkwapa.sidebar.collapsed';
  * Resolve the rail's starting width before the first paint rather than after it.
  *
  * This used to start `false` and get corrected in an effect, so on any screen at or below 1280px
- * the sidebar painted at 320px and then snapped to 96px — a visible jump on every cold load, and
+ * the sidebar painted expanded and then snapped to its collapsed width — a visible jump on every cold load, and
  * exactly the layout shift the design system forbids.
  *
  * Reading storage in the initializer is safe here because `AppLayout` never appears in the
@@ -53,6 +53,26 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       // See above: a preference that cannot be persisted must not break the session.
     }
   }, [sidebarCollapsed]);
+
+  /*
+    `[` collapses and expands the rail, as the label at its foot says. Ignored while typing, with
+    a modifier held, or below `md`, where the rail is not shown and the menu sheet replaces it.
+  */
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== '[' || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]')
+      )
+        return;
+      if (!window.matchMedia('(min-width: 768px)').matches) return;
+      event.preventDefault();
+      setSidebarCollapsed((current) => !current);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   return (
     <div className="min-h-screen bg-background px-safe">
