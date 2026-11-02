@@ -132,7 +132,7 @@ npx --yes npm@10 install --save-exact recharts@3.10.1 sileo@0.1.6 --ignore-scrip
   `RefObject<SVGPathElement | null>` declaration causes two React 18 ref errors.
   It was adapted to the React 18 equivalent for the runtime experiment.
   [Type errors](fixture-original-type-errors.txt) and
-  [type-only adaptations](spike-type-adaptations.patch) (zero-context patch,
+  [Recharts and ref adaptations](spike-type-adaptations.patch) (zero-context patch,
   apply with `git apply --unidiff-zero`).
 - **Kokonut:** the inspected MetricCard header declares 2.0.0, dated 2026-10-17.
   It uses React 18-compatible hooks, with no added package in this candidate.
