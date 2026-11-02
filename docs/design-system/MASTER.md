@@ -582,6 +582,31 @@ these actual primitives with synthetic data, including all five states, stale da
 saved copies and refreshing. It is bundled with the installed webpack/TypeScript
 for Playwright and creates no public route or production dependency.
 
+### Phase 02 staff shell (#266)
+
+The rail is 232px on the canvas (`--background`, a `--border` hairline edge) and
+collapses to 64px of icons. Group names come from `app-nav.ts`; collapsed, a
+`border-rule` hairline separates the groups. Rows are 44px in both widths. The
+selected row takes a `bg-primary/10` tint, a semibold label and a primary icon,
+with `aria-current="page"`; nothing else is teal. Item descriptions no longer show
+in the rail. The aside stretches with the page and only its contents are sticky,
+so its edge runs the full height of a long page. `[` toggles the rail from `md` up,
+except while typing or with a modifier held; the header button keeps
+`aria-expanded` / `aria-controls`. Below 1280px the rail still starts collapsed.
+
+Collapsed icons are named by the shadcn `tooltip` (`components/ui/tooltip.tsx`,
+`@radix-ui/react-tooltip` ^1.4.1, the #263 "adopt selectively" decision). It opens
+on hover and on keyboard focus; each link also keeps its label as `sr-only` text.
+`InfoHint` remains the only help bubble.
+
+The header is 56px: the rail toggle, one clinic switcher, the sync control and the
+account menu. The switcher shows the clinic name with the active clinic's roles
+after it as plain muted text (no badges); with one clinic it is text, with several
+a borderless `Select` whose accessible name carries both. On phones the role text
+is `sr-only` and also shown at the top of the menu sheet, and the sheet no longer
+repeats the picker. The sync control's "Sync now" is the shell's only refresh.
+The `--sidebar` tokens are kept but have no consumer in the staff shell now.
+
 ### The combobox, and when it is not the answer
 
 `Select` is still the default. `Combobox` exists for one case: a list long enough that scrolling

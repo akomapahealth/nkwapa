@@ -22,8 +22,6 @@ import {
 } from '@/components/ui/select';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { InfoHint } from '@/components/ui/info-hint';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { THEME_PREFERENCE_OPTIONS, useTheme, type ThemePreference } from '@/lib/theme-context';
 import { AppNavList } from '@/components/app-shell/AppNavList';
@@ -82,6 +80,9 @@ export function Header({
     opsBoardHref: getOpsDestination(perms, isWebFeatureEnabled('stationWorkflow')),
   };
   const roleLabels = getVisibleRoleLabels(activeMembership?.roles, bootstrap?.globalRoles);
+  // Plain text, not the gold badges: the role is context for the clinic name, not an alert.
+  const roleText = roleLabels.map(formatRoleLabel).join(', ');
+  const clinicName = activeClinic?.clinicName ?? 'Choose an active clinic';
 
   const handleClinicChange = async (value: string) => {
     if (!value || value === clinicId) return;
@@ -123,18 +124,30 @@ export function Header({
       .toUpperCase() ?? '?';
 
   /*
-    One clinic picker, rendered in two places.
-
-    The switcher used to live inside a `hidden lg:flex` block, so below 1024px there was no way to
-    change clinic at all -- on a tablet or a phone the workspace was simply locked to whichever
-    clinic was last chosen on a laptop. A 220px select does not belong in a 375px header bar, so
-    the narrow answer is the navigation sheet, which has room for it.
+    One clinic switcher, in the header at every width: the clinic name with the active role beside
+    it as text (MASTER.md section 12). It used to be three things (an "Active clinic" label, a
+    separate picker from md, and role badges from lg) plus a second copy of the picker in the
+    navigation sheet, because the header had no room for a 220px select below 1024px. As a
+    borderless trigger sized to its text it fits a 390px header beside the menu, sync and account.
   */
-  const clinicPicker =
+  const switcherLabel = `Active clinic: ${clinicName}${roleText ? `, ${roleText}` : ''}`;
+  const roleSuffix = roleText ? (
+    // Visible from `sm`; on a phone it stays in the accessible name and shows in the menu sheet.
+    <span className="sr-only shrink-0 font-normal text-muted-foreground sm:not-sr-only">
+      {roleText}
+    </span>
+  ) : null;
+  const clinicSwitcher =
     switchableClinics.length > 1 ? (
       <Select value={clinicId ?? ''} onValueChange={(value) => void handleClinicChange(value)}>
-        <SelectTrigger aria-label="Active clinic" className="w-full md:w-[190px] lg:w-[220px]">
-          <SelectValue placeholder="Select clinic" />
+        <SelectTrigger
+          aria-label={`${switcherLabel}. Switch clinic`}
+          className="w-auto min-w-0 max-w-full justify-start gap-2 border-transparent bg-transparent px-2.5 shadow-none hover:bg-muted [&>span]:line-clamp-none"
+        >
+          <span className="min-w-0 truncate font-semibold text-foreground">
+            <SelectValue placeholder="Select clinic" />
+          </span>
+          {roleSuffix}
         </SelectTrigger>
         <SelectContent>
           {switchableClinics.map((clinic) => (
@@ -144,22 +157,16 @@ export function Header({
           ))}
         </SelectContent>
       </Select>
-    ) : null;
-
-  const roleBadges =
-    roleLabels.length > 0 ? (
-      <div className="flex flex-wrap items-center gap-2">
-        {roleLabels.map((role) => (
-          <Badge key={role} variant="secondary" className="rounded-full">
-            {formatRoleLabel(role)}
-          </Badge>
-        ))}
-      </div>
-    ) : null;
+    ) : (
+      <p className="flex min-w-0 items-center gap-2 px-2.5 text-sm">
+        <span className="truncate font-semibold text-foreground">{clinicName}</span>
+        {roleSuffix}
+      </p>
+    );
 
   return (
     <header className="pt-safe sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur">
-      <div className="flex h-16 items-center gap-3 px-4 md:px-6">
+      <div className="flex h-14 items-center gap-2 px-4 md:px-6">
         <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon" className="md:hidden">
@@ -174,9 +181,9 @@ export function Header({
           */}
           <SheetContent
             side="left"
-            className="flex w-[88vw] max-w-[340px] flex-col border-sidebar-border bg-sidebar p-0"
+            className="flex w-[88vw] max-w-[320px] flex-col border-border bg-background p-0"
           >
-            <SheetHeader className="border-b border-sidebar-border p-5 text-left">
+            <SheetHeader className="border-b border-border p-5 text-left">
               <SheetTitle className="text-left">
                 <div className="space-y-3">
                   <div className="relative h-11 w-40">
@@ -188,23 +195,15 @@ export function Header({
                       className="object-contain object-left"
                     />
                   </div>
-                  <p className="text-xs font-medium text-sidebar-muted-foreground">
-                    Workspace menu
-                  </p>
+                  <p className="text-xs font-medium text-muted-foreground">Workspace menu</p>
                 </div>
               </SheetTitle>
             </SheetHeader>
             <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
-              {clinicPicker || roleBadges ? (
-                <div className="space-y-3 rounded-lg border border-sidebar-border bg-background p-3 md:hidden">
-                  <p className="text-eyebrow text-sidebar-muted-foreground">Active clinic</p>
-                  {clinicPicker ?? (
-                    <p className="text-sm font-medium text-foreground">
-                      {activeClinic?.clinicName ?? 'Choose an active clinic'}
-                    </p>
-                  )}
-                  {roleBadges}
-                </div>
+              {roleText ? (
+                <p className="px-3 text-sm text-muted-foreground">
+                  Signed in as <span className="font-medium text-foreground">{roleText}</span>
+                </p>
               ) : null}
               <AppNavList
                 bootstrap={bootstrap}
@@ -241,28 +240,7 @@ export function Header({
           </Button>
         ) : null}
 
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <p className="text-eyebrow text-primary">Active clinic</p>
-            {/* The help was `hidden lg:inline-flex`, so the one explanation of what switching
-                clinic actually changes was invisible on exactly the devices used in a clinic. */}
-            <InfoHint
-              size="sm"
-              label="Use the clinic picker to switch the records, queues, notifications, and dashboard data shown across this workspace."
-            />
-          </div>
-          <p className="truncate text-sm font-medium text-foreground">
-            {activeClinic?.clinicName ?? 'Choose an active clinic'}
-          </p>
-        </div>
-
-        <div className="hidden items-center gap-2 md:flex">
-          {clinicPicker}
-
-          {/* Role chips were xl-only, so a doctor on a laptop could not see which role the app
-              had them in. They are visible from lg, and in the navigation sheet below that. */}
-          <div className="hidden lg:flex">{roleBadges}</div>
-        </div>
+        <div className="flex min-w-0 flex-1 items-center">{clinicSwitcher}</div>
 
         <div className="flex items-center gap-2">
           <SyncStatusBar clinicId={clinicId} canSync={canSync} recoveryAccess={recoveryAccess} />
