@@ -12,10 +12,9 @@ import {
   Cell,
   LabelList,
 } from 'recharts';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/feedback/AppState';
-import { InfoHint } from '@/components/ui/info-hint';
 import { BarChart3 } from 'lucide-react';
+import { ChartFrame } from './ChartFrame';
 import { hasRenderableDistributionData, toDistributionChartData } from './chart-utils';
 
 /** A clinical reading of a category, for the charts where one exists. */
@@ -94,93 +93,84 @@ export function DistributionChart({
     tones?.[name] ? TONE_FILL[tones[name]] : 'hsl(var(--chart-1))';
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-start gap-2">
-          <CardTitle className="text-base font-semibold leading-snug">{title}</CardTitle>
-          {hint ? <InfoHint label={hint} size="sm" /> : null}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="h-[240px] sm:h-[260px]">
-          {hasData ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={displayData}
-                layout={isHorizontal ? 'vertical' : 'horizontal'}
-                margin={
-                  isHorizontal ? { top: 4, right: 36, bottom: 4, left: 4 } : { top: 18, right: 8 }
-                }
-              >
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="hsl(var(--border))"
-                  horizontal={!isHorizontal}
-                  vertical={isHorizontal}
-                />
-                {isHorizontal ? (
-                  <>
-                    <XAxis type="number" tick={TICK} allowDecimals={false} />
-                    <YAxis
-                      type="category"
-                      dataKey="label"
-                      tick={TICK}
-                      width={110}
-                      interval={0}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <XAxis
-                      dataKey="label"
-                      tick={TICK}
-                      tickFormatter={(value) =>
-                        String(value).length > 14
-                          ? `${String(value).slice(0, 12)}...`
-                          : String(value)
-                      }
-                    />
-                    <YAxis tick={TICK} allowDecimals={false} />
-                  </>
-                )}
-                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'hsl(var(--accent))' }} />
-                <Bar
-                  dataKey="value"
-                  radius={isHorizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]}
-                  // Recharts animates over 1500ms in JavaScript, which the global
-                  // prefers-reduced-motion rule cannot reach.
-                  isAnimationActive={false}
-                >
-                  {chartData.map((entry) => (
-                    <Cell key={entry.name} fill={fillFor(entry.name)} />
-                  ))}
-                  {/* The count in text, so the chart is readable without reading the axis --
-                      and so no series depends on its fill being distinguishable. */}
-                  <LabelList
-                    dataKey="value"
-                    position={isHorizontal ? 'right' : 'top'}
-                    style={{
-                      fontSize: 11,
-                      fontVariantNumeric: 'tabular-nums',
-                      fill: 'hsl(var(--foreground))',
-                    }}
-                  />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+    <ChartFrame
+      title={title}
+      hint={hint}
+      columns={['Category', 'Count']}
+      rows={displayData.map((entry) => ({ label: entry.label, value: entry.value }))}
+      hasData={hasData}
+      empty={
+        <EmptyState
+          icon={BarChart3}
+          title="No chart data yet"
+          description={emptyMessage}
+          className="h-full justify-center"
+        />
+      }
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart
+          data={displayData}
+          layout={isHorizontal ? 'vertical' : 'horizontal'}
+          margin={isHorizontal ? { top: 4, right: 36, bottom: 4, left: 4 } : { top: 18, right: 8 }}
+        >
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke="hsl(var(--border))"
+            horizontal={!isHorizontal}
+            vertical={isHorizontal}
+          />
+          {isHorizontal ? (
+            <>
+              <XAxis type="number" tick={TICK} allowDecimals={false} />
+              <YAxis
+                type="category"
+                dataKey="label"
+                tick={TICK}
+                width={110}
+                interval={0}
+                axisLine={false}
+                tickLine={false}
+              />
+            </>
           ) : (
-            <EmptyState
-              icon={BarChart3}
-              title="No chart data yet"
-              description={emptyMessage}
-              className="h-full justify-center"
-            />
+            <>
+              <XAxis
+                dataKey="label"
+                tick={TICK}
+                tickFormatter={(value) =>
+                  String(value).length > 14 ? `${String(value).slice(0, 12)}...` : String(value)
+                }
+              />
+              <YAxis tick={TICK} allowDecimals={false} />
+            </>
           )}
-        </div>
-      </CardContent>
-    </Card>
+          <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'hsl(var(--accent))' }} />
+          <Bar
+            dataKey="value"
+            radius={isHorizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]}
+            // Recharts animates over 1500ms in JavaScript, which the global
+            // prefers-reduced-motion rule cannot reach.
+            isAnimationActive={false}
+          >
+            {chartData.map((entry) => (
+              <Cell key={entry.name} fill={fillFor(entry.name)} />
+            ))}
+            {/* The count in text, so the chart is readable without reading the axis --
+                      and so no series depends on its fill being distinguishable. */}
+            <LabelList
+              dataKey="value"
+              position={isHorizontal ? 'right' : 'top'}
+              style={{
+                fontSize: 11,
+                fontVariantNumeric: 'tabular-nums',
+                fill: 'hsl(var(--foreground))',
+              }}
+            />
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </ChartFrame>
   );
 }
 

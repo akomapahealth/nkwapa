@@ -1,0 +1,58 @@
+[
+  {
+    "name": "volunteer-dashboard",
+    "width": 1440,
+    "theme": "light",
+    "height": 2203,
+    "violations": []
+  },
+  {
+    "name": "volunteer-dashboard",
+    "width": 390,
+    "theme": "light",
+    "height": 4683,
+    "violations": []
+  },
+  {
+    "name": "volunteer-dashboard",
+    "width": 1440,
+    "theme": "dark",
+    "height": 2203,
+    "violations": []
+  },
+  {
+    "name": "volunteer-dashboard",
+    "width": 390,
+    "theme": "dark",
+    "height": 4683,
+    "violations": []
+  },
+  {
+    "name": "doctor-dashboard",
+    "width": 1440,
+    "theme": "light",
+    "height": 3500,
+    "violations": []
+  },
+  {
+    "name": "doctor-dashboard",
+    "width": 390,
+    "theme": "light",
+    "height": 5917,
+    "violations": []
+  },
+  {
+    "name": "doctor-dashboard",
+    "width": 1440,
+    "theme": "dark",
+    "height": 3500,
+    "violations": []
+  },
+  {
+    "name": "doctor-dashboard",
+    "width": 390,
+    "theme": "dark",
+    "height": 5917,
+    "violations": []
+  }
+]

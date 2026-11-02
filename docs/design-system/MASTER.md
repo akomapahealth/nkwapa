@@ -626,6 +626,31 @@ On phones the header has no room for the icon, so both appear at the end of the
 menu sheet in an "Account" list (its own `nav` landmark), drawn by `AppNavList`.
 Without a clinic selected each shows disabled, as the rail does.
 
+### Phase 03 volunteer and doctor dashboards (#268)
+
+The dashboard leads with **Needs you now** (`components/dashboard/NeedsYouNow.tsx`)
+for anyone with a volunteer or doctor section, then "Today at a glance", then the
+role sections, then clinic-wide measurement coverage. Rows are `AppActionRow`s with
+one 44px action each, built only from `DashboardData` counts; no patient is named,
+because the contract carries none.
+
+- **Volunteer:** a sentence with their own counts today, a row to their worklist
+  (`getOpsDestination`: Stations in the station line, otherwise My Assigned), and
+  a draft-visits row when they have drafts. This is the first phone screen.
+- **Doctor:** rows for visits waiting for review, waiting for sign-off and HAP
+  notes to cosign, each opening its `/queues?tab=` tab. With nothing waiting, one
+  line says so.
+
+Counts that became rows left the role sections' figure groups, so nothing is
+counted twice there. The page header's clinic-name badge is gone; the title and
+the header switcher name the clinic.
+
+Every dashboard chart (`TrendChart`, `DistributionChart`) now sits in
+`ChartFrame`: a 2px ruled top, a small heading, and a 44px "Show table" toggle
+(`aria-pressed`) that swaps the SVG for a two-column table of the same values.
+Lines are `type="linear"`. Manager, director and admin charts get the frame too;
+their order and content are #269.
+
 ### The combobox, and when it is not the answer
 
 `Select` is still the default. `Combobox` exists for one case: a list long enough that scrolling
