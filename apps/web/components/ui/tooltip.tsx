@@ -6,8 +6,8 @@ import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { cn } from '@/lib/utils';
 
 /*
-  shadcn tooltip, adopted in #263 for one job: naming the collapsed navigation icons (MASTER.md
-  section 13). Contextual help stays with InfoHint. Radix opens it on hover and on keyboard focus,
+  shadcn tooltip, adopted in #263 for one job: naming icon-only navigation, the collapsed rail and
+  the header's message delivery icon (MASTER.md section 13). Contextual help stays with InfoHint. Radix opens it on hover and on keyboard focus,
   and Escape dismisses it.
 */
 const TooltipProvider = TooltipPrimitive.Provider;
