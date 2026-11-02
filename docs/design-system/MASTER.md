@@ -672,7 +672,27 @@ toggles.
 
 ---
 
-## 12. Still open
+## 12. Nkwapa 2.0 direction: Ruled Chart
+
+**Approved 2026-11-01** for epic [#229](https://github.com/akomapahealth/nkwapa/issues/229) ([#262](https://github.com/akomapahealth/nkwapa/issues/262)). Rationale, the rejected directions and the review prototypes: [DESIGN-DIRECTION.md](DESIGN-DIRECTION.md). These rules sit on top of sections 1 to 11; token values do not change because of them.
+
+Every screen reads like a well-kept observation chart: ruled, time-ordered, numbers first. Chrome drops to hairlines so readings, waits and decisions carry the hierarchy.
+
+- **Surfaces.** Group with a 2px ink top rule and 1px `--border` hairlines between rows, on the canvas. Cards only for things that float: dialogs, sheets, popovers, toasts. No cards inside cards.
+- **Order.** Each staff page leads with "Needs you now": ruled action rows, each with a status icon, a plain sentence, a detail line and one action. Trends come after.
+- **Figures.** The number is set first and large (tabular figures), its label second and quiet. Units always shown.
+- **Accent.** Teal only on what can be pressed or what is selected. Status keeps its own tokens (success, warning, destructive, info) and always carries a text label, never colour alone.
+- **Time as length.** Waits and durations on the station line are bars whose length is minutes since `queuedAt`, on a labelled scale. Past 20 minutes a bar takes the warning tokens and the row says it in words.
+- **Corrections stay visible.** A corrected or cancelled value is struck through next to its replacement, with who and when. Nothing silently disappears.
+- **Charts.** Straight segments between real readings (no monotone or spline smoothing), direct labels instead of legends where possible, a table toggle on every chart. Section 3's palette check still applies.
+- **Labels.** System values (`IN_REVIEW`, `DRAFT`, `UNKNOWN`) never reach the UI; map them to plain language in one shared place.
+- **Shell.** A labelled 232px sidebar on the canvas, collapsing to 64px icons with tooltips. The header holds the clinic switcher with the active role as text, sync state with the only refresh, the Message delivery icon and the account menu.
+- **Type.** Source Serif 4 for page titles and a patient's name; IBM Plex Sans for everything else.
+- **Motion.** Focusing or hovering a row in a dense list may dim its siblings (150 ms opacity, off under reduced motion). Nothing else beyond section 7.
+
+---
+
+## 13. Still open
 
 - **Wireframes as artwork.** #61 offers "approved wireframes **or** annotated patterns"; sections
   9 and 10 are the annotated patterns, and drawn wireframes were not attempted.
@@ -684,7 +704,7 @@ toggles.
 
 ---
 
-## 13. Verification
+## 14. Verification
 
 Run after any change to this file or to `globals.css`:
 
