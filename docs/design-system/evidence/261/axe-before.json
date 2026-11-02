@@ -1,0 +1,62 @@
+[
+  {
+    "role": "volunteer",
+    "route": "/patients/new",
+    "theme": "light",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": [
+      {
+        "id": "button-name",
+        "impact": "critical",
+        "nodes": 1,
+        "help": "Buttons must have discernible text"
+      }
+    ]
+  },
+  {
+    "role": "volunteer",
+    "route": "/patients/new",
+    "theme": "light",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": [
+      {
+        "id": "button-name",
+        "impact": "critical",
+        "nodes": 1,
+        "help": "Buttons must have discernible text"
+      }
+    ]
+  },
+  {
+    "role": "volunteer",
+    "route": "/patients/new",
+    "theme": "dark",
+    "viewport": "desktop",
+    "horizontalOverflow": false,
+    "violations": [
+      {
+        "id": "button-name",
+        "impact": "critical",
+        "nodes": 1,
+        "help": "Buttons must have discernible text"
+      }
+    ]
+  },
+  {
+    "role": "volunteer",
+    "route": "/patients/new",
+    "theme": "dark",
+    "viewport": "mobile",
+    "horizontalOverflow": false,
+    "violations": [
+      {
+        "id": "button-name",
+        "impact": "critical",
+        "nodes": 1,
+        "help": "Buttons must have discernible text"
+      }
+    ]
+  }
+]
