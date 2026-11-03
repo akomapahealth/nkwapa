@@ -119,17 +119,17 @@ function MetricsContent() {
               </AppMetricGroup>
 
               <section aria-labelledby="metrics-funnels" className="space-y-3">
-                <h2 id="metrics-funnels" className="text-base font-semibold">
+                <h2 id="metrics-funnels" className="type-section-title">
                   Conversions
                 </h2>
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid gap-x-6 gap-y-4 md:grid-cols-2 xl:grid-cols-3">
                   {summary.funnels.map((funnel) => (
                     <MetricsFunnelCard key={funnel.id} funnel={funnel} />
                   ))}
                 </div>
               </section>
 
-              <div className="grid gap-3 lg:grid-cols-2">
+              <div className="grid gap-x-6 gap-y-4 lg:grid-cols-2">
                 <TrendChart
                   title="Completed actions per day"
                   hint="Tracked workflow steps that succeeded, per day."
@@ -148,10 +148,10 @@ function MetricsContent() {
               </div>
 
               <section aria-labelledby="metrics-workflows" className="space-y-3">
-                <h2 id="metrics-workflows" className="text-base font-semibold">
+                <h2 id="metrics-workflows" className="type-section-title">
                   By workflow
                 </h2>
-                <div className="grid gap-3 lg:grid-cols-2">
+                <div className="grid gap-x-6 gap-y-4 lg:grid-cols-2">
                   {METRICS_SECTIONS.map((section) => (
                     <MetricsEventTable
                       key={section.category}
