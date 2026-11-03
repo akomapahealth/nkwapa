@@ -12,6 +12,7 @@ import { apiFetch } from '@/lib/api';
 import { formatRoleLabel, readApiError } from '@/lib/ops';
 import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
+import { ShieldCheck } from 'lucide-react';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
 import {
@@ -47,6 +48,13 @@ import {
 } from '@/lib/organization-filter';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  RecordSection,
+  RecordSectionContent,
+  RecordSectionDescription,
+  RecordSectionHeader,
+  RecordSectionTitle,
+} from '@/components/patients/RecordSection';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
@@ -1087,17 +1095,17 @@ export default function AdminUsersPage() {
         ) : null}
 
         <section className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
-          <Card className="min-w-0">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl">
+          <RecordSection className="min-w-0">
+            <RecordSectionHeader>
+              <RecordSectionTitle className="flex items-center gap-2 text-xl">
                 <Layers3 className="h-5 w-5 text-primary" />
                 Filters
-              </CardTitle>
-              <CardDescription>
+              </RecordSectionTitle>
+              <RecordSectionDescription>
                 Refine the roster before opening a user’s access panel.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
+              </RecordSectionDescription>
+            </RecordSectionHeader>
+            <RecordSectionContent className="space-y-5">
               <div className="space-y-2">
                 <Label htmlFor="staff-status-filter">Account status</Label>
                 <Select
@@ -1263,8 +1271,8 @@ export default function AdminUsersPage() {
                   then relink from the correct patient record.
                 </ProgressiveHelp>
               ) : null}
-            </CardContent>
-          </Card>
+            </RecordSectionContent>
+          </RecordSection>
 
           {/*
             min-w-0 on the wide column. Below xl this is a single-column grid, and a grid item
@@ -1273,21 +1281,21 @@ export default function AdminUsersPage() {
             minmax(0,1fr) already permits the shrink, which is why the overflow only appeared at
             768 and 1024.
           */}
-          <Card className="min-w-0">
-            <CardHeader className="space-y-4">
+          <RecordSection className="min-w-0">
+            <RecordSectionHeader className="space-y-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <CardTitle className="flex items-center gap-2 text-xl">
+                  <RecordSectionTitle className="flex items-center gap-2 text-xl">
                     <Users className="h-5 w-5 text-primary" />
                     {viewMode === 'clinic' ? 'Clinic roster' : 'All users'}
-                  </CardTitle>
-                  <CardDescription className="mt-1">
+                  </RecordSectionTitle>
+                  <RecordSectionDescription className="mt-1">
                     {viewMode === 'clinic'
                       ? activeClinicName
                         ? `Lifecycle controls for ${activeClinicName}.`
                         : 'Choose a clinic to load the roster.'
                       : 'System-wide user visibility for platform administration.'}
-                  </CardDescription>
+                  </RecordSectionDescription>
                 </div>
                 <div className="hidden rounded-lg border border-border bg-background px-4 py-3 text-right sm:block">
                   <p className="text-eyebrow text-muted-foreground">Showing</p>
@@ -1319,8 +1327,8 @@ export default function AdminUsersPage() {
                   { label: 'Clinic zone', value: activeClinicZoneLabel },
                 ]}
               />
-            </CardHeader>
-            <CardContent className="space-y-4">
+            </RecordSectionHeader>
+            <RecordSectionContent className="space-y-4">
               {loading ? (
                 <div className="space-y-4">
                   <SectionSkeleton lines={5} className="border-0 bg-transparent p-0 shadow-none" />
@@ -1382,6 +1390,7 @@ export default function AdminUsersPage() {
 
                   <div className="hidden md:block">
                     <DataTable
+                      keyboardScroll
                       caption="Staff accounts"
                       columns={columns}
                       data={visibleRows}
@@ -1392,8 +1401,8 @@ export default function AdminUsersPage() {
                   </div>
                 </>
               )}
-            </CardContent>
-          </Card>
+            </RecordSectionContent>
+          </RecordSection>
         </section>
       </div>
 
@@ -1803,11 +1812,12 @@ export default function AdminUsersPage() {
                       </InlineNotice>
                     ) : null}
                     <Button
-                      variant="destructive"
+                      variant="outline"
                       onClick={() => setDeactivateOpen(true)}
                       disabled={!selectedCanDeactivate || mutationLoading}
-                      className="w-full sm:w-auto"
+                      className="w-full border-warning text-warning-ink sm:w-auto"
                     >
+                      <ShieldCheck className="h-4 w-4" aria-hidden="true" />
                       Deactivate account
                     </Button>
                   </CardContent>
@@ -1845,10 +1855,12 @@ export default function AdminUsersPage() {
               Cancel
             </Button>
             <Button
-              variant="destructive"
+              variant="outline"
+              className="border-warning text-warning-ink"
               onClick={() => void handleConfirmRoleRevoke()}
               disabled={mutationLoading}
             >
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
               {mutationLoading ? 'Removing...' : 'Remove role'}
             </Button>
           </DialogFooter>
@@ -1915,10 +1927,12 @@ export default function AdminUsersPage() {
               Cancel
             </Button>
             <Button
-              variant="destructive"
+              variant="outline"
+              className="border-warning text-warning-ink"
               onClick={() => void handleConfirmDeactivate()}
               disabled={mutationLoading || !selectedCanDeactivate}
             >
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
               {mutationLoading ? 'Deactivating...' : 'Deactivate account'}
             </Button>
           </DialogFooter>

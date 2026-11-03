@@ -15,7 +15,13 @@ import { RouteGuard } from '@/components/RouteGuard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection,
+  RecordSectionContent,
+  RecordSectionDescription,
+  RecordSectionHeader,
+  RecordSectionTitle,
+} from '@/components/patients/RecordSection';
 import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import { EmptyStateCard } from '@/components/ops/OpsShared';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
@@ -184,12 +190,14 @@ export default function AuditPage() {
           />
         </AppMetricGroup>
 
-        <Card>
-          <CardHeader className="space-y-3">
-            <CardTitle className="text-xl">Filters</CardTitle>
-            <CardDescription>Focus the timeline before loading results.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <RecordSection>
+          <RecordSectionHeader className="space-y-3">
+            <RecordSectionTitle>Filters</RecordSectionTitle>
+            <RecordSectionDescription>
+              Focus the timeline before loading results.
+            </RecordSectionDescription>
+          </RecordSectionHeader>
+          <RecordSectionContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
               <div className="space-y-2">
                 <Label htmlFor="from">From</Label>
@@ -294,8 +302,8 @@ export default function AuditPage() {
               the results to follow that one person. Add a date range, action, entity, or request ID
               to rebuild a narrower timeline for support or incident review.
             </ProgressiveHelp>
-          </CardContent>
-        </Card>
+          </RecordSectionContent>
+        </RecordSection>
 
         {error ? (
           <InlineErrorState
@@ -305,20 +313,22 @@ export default function AuditPage() {
           />
         ) : null}
 
-        <Card>
-          <CardHeader className="space-y-3">
+        <RecordSection>
+          <RecordSectionHeader className="space-y-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <CardTitle className="text-xl">Audit events</CardTitle>
-                <CardDescription>Recent activity for the active clinic.</CardDescription>
+                <RecordSectionTitle>Audit events</RecordSectionTitle>
+                <RecordSectionDescription>
+                  Recent activity for the active clinic.
+                </RecordSectionDescription>
               </div>
               <div className="rounded-lg border border-border bg-background px-4 py-3 text-sm">
                 <p className="text-muted-foreground">Loaded rows</p>
                 <p className="mt-1 text-xl font-semibold text-foreground">{rows.length}</p>
               </div>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          </RecordSectionHeader>
+          <RecordSectionContent className="space-y-4">
             {loading && rows.length === 0 ? (
               <SectionSkeleton lines={4} className="border-0 bg-transparent p-0 shadow-none" />
             ) : !loading && rows.length === 0 ? (
@@ -328,12 +338,9 @@ export default function AuditPage() {
               />
             ) : (
               <>
-                <div className="space-y-3 md:hidden">
+                <div className="divide-y divide-border md:hidden">
                   {rows.map((row) => (
-                    <article
-                      key={row.id}
-                      className="rounded-lg border border-border bg-background p-4"
-                    >
+                    <article key={row.id} className="py-4">
                       <div className="flex items-start justify-between gap-3">
                         {/*
                           min-w-0 and break-words, because an audit action is an unbroken token
@@ -366,6 +373,7 @@ export default function AuditPage() {
 
                 <div className="hidden md:block">
                   <DataTable
+                    keyboardScroll
                     caption="Audit events"
                     columns={columns}
                     data={rows}
@@ -392,8 +400,8 @@ export default function AuditPage() {
                 </Button>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </RecordSectionContent>
+        </RecordSection>
       </div>
     </RouteGuard>
   );

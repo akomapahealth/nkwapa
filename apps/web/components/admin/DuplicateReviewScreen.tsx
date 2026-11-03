@@ -39,7 +39,13 @@ import { ResourceState } from '@/components/feedback/ResourceState';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection,
+  RecordSectionContent,
+  RecordSectionDescription,
+  RecordSectionHeader,
+  RecordSectionTitle,
+} from '@/components/patients/RecordSection';
 import {
   Dialog,
   DialogContent,
@@ -436,12 +442,14 @@ export function DuplicateReviewScreen() {
         scrolling inside its own container.
       */}
       <section className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
-        <Card className="min-w-0">
-          <CardHeader>
-            <CardTitle className="text-lg">Filters</CardTitle>
-            <CardDescription>Narrow the queue to the work in front of you.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <RecordSection className="min-w-0">
+          <RecordSectionHeader>
+            <RecordSectionTitle>Filters</RecordSectionTitle>
+            <RecordSectionDescription>
+              Narrow the queue to the work in front of you.
+            </RecordSectionDescription>
+          </RecordSectionHeader>
+          <RecordSectionContent className="space-y-4">
             <DuplicateFilterFields
               idPrefix="duplicate"
               filters={filters}
@@ -464,17 +472,17 @@ export function DuplicateReviewScreen() {
                 Always open the comparison before you act.
               </p>
             </ProgressiveHelp>
-          </CardContent>
-        </Card>
+          </RecordSectionContent>
+        </RecordSection>
 
-        <Card className="min-w-0">
-          <CardHeader className="space-y-3">
+        <RecordSection className="min-w-0">
+          <RecordSectionHeader className="space-y-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="space-y-1.5">
-                <CardTitle className="text-xl">Candidates</CardTitle>
-                <CardDescription>
+                <RecordSectionTitle>Candidates</RecordSectionTitle>
+                <RecordSectionDescription>
                   Open a pair to compare the two charts side by side.
-                </CardDescription>
+                </RecordSectionDescription>
               </div>
               <div className="rounded-lg border border-border/70 bg-background/75 px-4 py-3 text-sm">
                 <p className="text-muted-foreground">Showing</p>
@@ -483,8 +491,8 @@ export function DuplicateReviewScreen() {
                 </p>
               </div>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          </RecordSectionHeader>
+          <RecordSectionContent className="space-y-4">
             {!scopeReady ? (
               <SelectClinicState surface="The duplicate review queue" />
             ) : (
@@ -540,6 +548,7 @@ export function DuplicateReviewScreen() {
                     */}
                     <div className="hidden lg:block">
                       <DataTable
+                        keyboardScroll
                         caption="Possible duplicate charts"
                         columns={columns}
                         data={data.items}
@@ -582,8 +591,8 @@ export function DuplicateReviewScreen() {
                 )}
               </ResourceState>
             )}
-          </CardContent>
-        </Card>
+          </RecordSectionContent>
+        </RecordSection>
       </section>
 
       <DuplicateComparisonSheet
@@ -636,7 +645,17 @@ export function DuplicateReviewScreen() {
             >
               Cancel
             </Button>
-            <Button onClick={() => void submitDecision()} disabled={saving}>
+            <Button
+              variant={pendingDecision === 'CONFIRMED' ? 'outline' : 'default'}
+              className={
+                pendingDecision === 'CONFIRMED' ? 'border-warning text-warning-ink' : undefined
+              }
+              onClick={() => void submitDecision()}
+              disabled={saving}
+            >
+              {pendingDecision === 'CONFIRMED' ? (
+                <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+              ) : null}
               {DECISION_COPY[pendingDecision ?? 'DISMISSED'].confirm}
             </Button>
           </DialogFooter>
