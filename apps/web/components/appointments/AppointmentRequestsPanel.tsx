@@ -5,9 +5,13 @@ import { CalendarPlus, CheckCircle2, Inbox, RefreshCw, XCircle } from 'lucide-re
 import { AppointmentRequestStatusBadge } from '@/components/appointments/AppointmentStatusBadge';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { EmptyStateCard } from '@/components/ops/OpsShared';
-import { Badge } from '@/components/ui/badge';
+import {
+  RecordSection,
+  RecordSectionDescription,
+  RecordSectionHeader,
+  RecordSectionTitle,
+} from '@/components/patients/RecordSection';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -27,7 +31,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/toast';
-import { getAppointmentRequestTypeLabel } from '@/lib/appointment-status';
+import { describeTimeEntryZone, getAppointmentRequestTypeLabel } from '@/lib/appointment-status';
 import type { GetToken } from '@/lib/api';
 import { formatOpsDate, formatOpsDateTime } from '@/lib/ops';
 import {
@@ -228,39 +232,37 @@ export function AppointmentRequestsPanel({
   }
 
   return (
-    <Card>
-      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1">
-          <CardTitle className="flex items-center gap-2">
+    <RecordSection>
+      <RecordSectionHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1.5">
+          <RecordSectionTitle id="patient-requests-title" className="flex items-center gap-2">
             <Inbox className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
             Patient requests
-          </CardTitle>
-          <CardDescription>
+            <span className="ml-1 font-sans text-base font-normal tabular-nums text-muted-foreground">
+              {pending.length} awaiting
+            </span>
+          </RecordSectionTitle>
+          <RecordSectionDescription>
             {canManage
               ? 'Confirm a request to book the visit and schedule the reminder, or decline it with a reason the patient can read.'
               : 'Requests patients have sent this clinic. Acting on them requires appointment write access.'}
-          </CardDescription>
+          </RecordSectionDescription>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="rounded-full bg-background/80 px-3 py-1">
-            {pending.length} awaiting
-          </Badge>
-          <Button
-            type="button"
-            variant="outline"
-            className="cursor-pointer"
-            onClick={() => void load({ background: true })}
-            disabled={loading || refreshing}
-          >
-            <RefreshCw
-              className={cn('h-4 w-4', refreshing && 'animate-spin motion-reduce:animate-none')}
-              aria-hidden="true"
-            />
-            Refresh requests
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-11 shrink-0 cursor-pointer"
+          onClick={() => void load({ background: true })}
+          disabled={loading || refreshing}
+        >
+          <RefreshCw
+            className={cn('h-4 w-4', refreshing && 'animate-spin motion-reduce:animate-none')}
+            aria-hidden="true"
+          />
+          Refresh requests
+        </Button>
+      </RecordSectionHeader>
+      <div className="pb-2">
         <div aria-live="polite" aria-busy={loading || refreshing}>
           {loading ? (
             <SectionSkeleton lines={3} />
@@ -278,24 +280,18 @@ export function AppointmentRequestsPanel({
               description="New visit, reschedule, and cancellation requests from patients appear here as soon as they are sent."
             />
           ) : (
-            <ul className="space-y-3">
+            <ul>
               {pending.map((request) => (
-                <li
-                  key={request.id}
-                  className="rounded-lg border border-border/70 bg-background/80 p-4"
-                >
+                <li key={request.id} className="border-t border-border py-4">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0 space-y-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="outline" className="rounded-full bg-card">
+                      <div className="flex flex-wrap items-center gap-2 text-sm">
+                        <span className="font-medium text-foreground">
                           {getAppointmentRequestTypeLabel(request.requestType)}
-                        </Badge>
-                        <AppointmentRequestStatusBadge
-                          status={request.status}
-                          className="rounded-full"
-                        />
+                        </span>
+                        <AppointmentRequestStatusBadge status={request.status} />
                       </div>
-                      <p className="truncate font-medium text-foreground">
+                      <p className="truncate text-base font-medium text-foreground">
                         {patientName(request)}
                         {request.patient?.patientCode ? (
                           <span className="ml-2 text-sm font-normal text-muted-foreground">
@@ -313,7 +309,7 @@ export function AppointmentRequestsPanel({
                         </p>
                       ) : null}
                       {request.reason ? (
-                        <p className="rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground">
+                        <p className="border-l-2 border-border pl-3 text-sm text-foreground">
                           {request.reason}
                         </p>
                       ) : null}
@@ -349,7 +345,7 @@ export function AppointmentRequestsPanel({
             </ul>
           )}
         </div>
-      </CardContent>
+      </div>
 
       <Dialog open={Boolean(dialog)} onOpenChange={(open) => (!open ? closeDialog() : undefined)}>
         <DialogContent className="max-w-lg rounded-lg">
@@ -366,68 +362,93 @@ export function AppointmentRequestsPanel({
 
           {dialog ? (
             <div className="space-y-4">
-              <p className="rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground">
+              {dialogError ? (
+                <p
+                  id="triage-dialog-error"
+                  role="alert"
+                  className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive-ink"
+                >
+                  {dialogError}
+                </p>
+              ) : null}
+
+              <p className="border-y border-border py-3 text-sm text-foreground">
                 {requestSummary(dialog.request, timezone)}
               </p>
 
               {dialog.action === 'confirm' ? (
                 <>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="confirm-starts-at">Start time</Label>
-                      <Input
-                        id="confirm-starts-at"
-                        type="datetime-local"
-                        value={startsAt}
-                        onChange={(event) => setStartsAt(event.target.value)}
-                        aria-describedby={dialogError ? 'triage-dialog-error' : undefined}
-                      />
+                  <fieldset className="space-y-2">
+                    <legend className="text-sm font-semibold text-foreground">Visit time</legend>
+                    <p id="confirm-zone" className="text-sm text-muted-foreground">
+                      {describeTimeEntryZone(timezone)}
+                    </p>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="confirm-starts-at">Start time</Label>
+                        <Input
+                          id="confirm-starts-at"
+                          type="datetime-local"
+                          value={startsAt}
+                          onChange={(event) => setStartsAt(event.target.value)}
+                          aria-describedby={
+                            dialogError ? 'confirm-zone triage-dialog-error' : 'confirm-zone'
+                          }
+                          aria-invalid={Boolean(dialogError)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="confirm-ends-at">End time</Label>
+                        <Input
+                          id="confirm-ends-at"
+                          type="datetime-local"
+                          value={endsAt}
+                          onChange={(event) => setEndsAt(event.target.value)}
+                          aria-describedby={
+                            dialogError ? 'confirm-zone triage-dialog-error' : 'confirm-zone'
+                          }
+                          aria-invalid={Boolean(dialogError)}
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="confirm-ends-at">End time</Label>
-                      <Input
-                        id="confirm-ends-at"
-                        type="datetime-local"
-                        value={endsAt}
-                        onChange={(event) => setEndsAt(event.target.value)}
-                        aria-describedby={dialogError ? 'triage-dialog-error' : undefined}
-                      />
+                  </fieldset>
+                  <fieldset className="space-y-2">
+                    <legend className="text-sm font-semibold text-foreground">Care team</legend>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="confirm-doctor">Doctor</Label>
+                        <Select value={doctorId} onValueChange={setDoctorId}>
+                          <SelectTrigger id="confirm-doctor">
+                            <SelectValue placeholder="Unassigned" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+                            {staffOptions.doctors.map((option) => (
+                              <SelectItem key={option.id} value={option.id}>
+                                {option.displayName}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="confirm-volunteer">Volunteer</Label>
+                        <Select value={volunteerId} onValueChange={setVolunteerId}>
+                          <SelectTrigger id="confirm-volunteer">
+                            <SelectValue placeholder="Unassigned" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+                            {staffOptions.volunteers.map((option) => (
+                              <SelectItem key={option.id} value={option.id}>
+                                {option.displayName}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="confirm-doctor">Doctor</Label>
-                      <Select value={doctorId} onValueChange={setDoctorId}>
-                        <SelectTrigger id="confirm-doctor">
-                          <SelectValue placeholder="Unassigned" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
-                          {staffOptions.doctors.map((option) => (
-                            <SelectItem key={option.id} value={option.id}>
-                              {option.displayName}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="confirm-volunteer">Volunteer</Label>
-                      <Select value={volunteerId} onValueChange={setVolunteerId}>
-                        <SelectTrigger id="confirm-volunteer">
-                          <SelectValue placeholder="Unassigned" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
-                          {staffOptions.volunteers.map((option) => (
-                            <SelectItem key={option.id} value={option.id}>
-                              {option.displayName}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
+                  </fieldset>
                   <div className="space-y-2">
                     <Label htmlFor="confirm-notes">Visit notes</Label>
                     <Textarea
@@ -451,19 +472,10 @@ export function AppointmentRequestsPanel({
                     onChange={(event) => setReason(event.target.value)}
                     placeholder="For example: no capacity that week, please request another date."
                     aria-describedby={dialogError ? 'triage-dialog-error' : undefined}
+                    aria-invalid={Boolean(dialogError)}
                   />
                 </div>
               )}
-
-              {dialogError ? (
-                <p
-                  id="triage-dialog-error"
-                  role="alert"
-                  className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive-ink"
-                >
-                  {dialogError}
-                </p>
-              ) : null}
             </div>
           ) : null}
 
@@ -497,7 +509,7 @@ export function AppointmentRequestsPanel({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+    </RecordSection>
   );
 }
 

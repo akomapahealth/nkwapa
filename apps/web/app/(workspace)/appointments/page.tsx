@@ -22,10 +22,15 @@ import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { EmptyStateCard } from '@/components/ops/OpsShared';
+import {
+  RecordSection,
+  RecordSectionDescription,
+  RecordSectionHeader,
+  RecordSectionTitle,
+} from '@/components/patients/RecordSection';
 import { RouteGuard } from '@/components/RouteGuard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -60,6 +65,7 @@ import { cn } from '@/lib/utils';
 import { AppointmentRequestsPanel } from '@/components/appointments/AppointmentRequestsPanel';
 import { AppointmentStatusBadge } from '@/components/appointments/AppointmentStatusBadge';
 import {
+  describeTimeEntryZone,
   getAppointmentActionLabel as getActionLabel,
   getAppointmentStatusFilterLabel as getStatusLabel,
 } from '@/lib/appointment-status';
@@ -322,7 +328,28 @@ function AppointmentActions({
   );
 }
 
-function AppointmentMobileCard({
+function AppointmentTime({
+  appointment,
+  timezone,
+}: {
+  appointment: StaffAppointmentRecord;
+  timezone: string;
+}) {
+  // A cancelled visit keeps its slot visible, struck through beside its status label.
+  return (
+    <span
+      className={cn(
+        'tabular-nums',
+        appointment.status === 'CANCELLED' && 'text-muted-foreground line-through',
+      )}
+    >
+      {formatOpsTime(appointment.startsAt, timezone)} to{' '}
+      {formatOpsTime(appointment.endsAt, timezone)}
+    </span>
+  );
+}
+
+function AppointmentRow({
   appointment,
   timezone,
   canManage,
@@ -336,44 +363,93 @@ function AppointmentMobileCard({
   onAction: (action: LifecycleAction, appointment: StaffAppointmentRecord) => void;
 }) {
   return (
-    <article className="rounded-lg border border-border bg-background p-4">
+    <li className="border-t border-border py-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="truncate text-base font-semibold text-foreground">
+          <p className="text-sm font-semibold text-foreground">
+            <AppointmentTime appointment={appointment} timezone={timezone} />
+          </p>
+          <p className="mt-1 truncate text-base font-medium text-foreground">
             {appointment.patient.displayName}
-          </h3>
-          <p className="mt-1 text-sm text-muted-foreground">{appointment.patient.patientCode}</p>
+          </p>
+          <p className="text-sm text-muted-foreground">{appointment.patient.patientCode}</p>
         </div>
         <AppointmentStatusBadge status={appointment.status} />
       </div>
-      <div className="mt-4 grid gap-3 text-sm">
-        <div className="flex items-center gap-2 text-foreground">
-          <Clock3 className="h-4 w-4 text-primary" />
-          <span>
-            {formatOpsTime(appointment.startsAt, timezone)} to{' '}
-            {formatOpsTime(appointment.endsAt, timezone)}
-          </span>
-        </div>
-        <div className="grid gap-2 rounded-lg border border-border bg-card p-3">
-          <p className="text-muted-foreground">Doctor: {staffName(appointment.assignedDoctor)}</p>
-          <p className="text-muted-foreground">
-            Volunteer: {staffName(appointment.assignedVolunteer)}
-          </p>
-        </div>
-        <AppointmentReminderStatus appointment={appointment} timezone={timezone} />
-        {appointment.notes ? (
-          <p className="rounded-lg bg-muted/40 p-3 text-muted-foreground">{appointment.notes}</p>
-        ) : null}
-        <div className="flex justify-end">
-          <AppointmentActions
-            appointment={appointment}
-            canManage={canManage}
-            disabled={disabled}
-            onAction={onAction}
-          />
-        </div>
+      <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+        <dt className="text-muted-foreground">Doctor</dt>
+        <dd className="text-foreground">{staffName(appointment.assignedDoctor)}</dd>
+        <dt className="text-muted-foreground">Volunteer</dt>
+        <dd className="text-foreground">{staffName(appointment.assignedVolunteer)}</dd>
+        <dt className="text-muted-foreground">Reminders</dt>
+        <dd>
+          <AppointmentReminderStatus appointment={appointment} timezone={timezone} />
+        </dd>
+      </dl>
+      {appointment.notes ? (
+        <p className="mt-3 text-sm text-muted-foreground">{appointment.notes}</p>
+      ) : null}
+      <div className="mt-2 flex justify-end">
+        <AppointmentActions
+          appointment={appointment}
+          canManage={canManage}
+          disabled={disabled}
+          onAction={onAction}
+        />
       </div>
-    </article>
+    </li>
+  );
+}
+
+/** The week as seven days with their counts; choosing one opens that day. */
+function WeekStrip({
+  days,
+  today,
+  onOpenDay,
+}: {
+  days: Array<[string, StaffAppointmentRecord[]]>;
+  today: string;
+  onOpenDay: (date: string) => void;
+}) {
+  return (
+    <nav aria-label="Days in this week" className="border-t border-border py-3">
+      <ol className="grid grid-cols-7 gap-1">
+        {days.map(([date, appointments]) => {
+          const day = parseDateInput(date);
+          const weekday = day.toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' });
+          const count = appointments.length;
+          return (
+            <li key={date}>
+              <button
+                type="button"
+                onClick={() => onOpenDay(date)}
+                aria-current={date === today ? 'date' : undefined}
+                className={cn(
+                  'flex min-h-11 w-full cursor-pointer flex-col items-center rounded-md px-1 py-2 text-center hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  date === today && 'bg-muted/60 font-semibold',
+                )}
+              >
+                <span className="text-xs text-muted-foreground">{weekday}</span>
+                <span className="text-sm text-foreground">{day.getUTCDate()}</span>
+                <span
+                  className={cn(
+                    'text-xs tabular-nums',
+                    count ? 'text-foreground' : 'text-muted-foreground',
+                  )}
+                >
+                  {count}
+                  <span className="sr-only">
+                    {' '}
+                    appointment{count === 1 ? '' : 's'}
+                    {date === today ? ', today' : ''}. Open this day.
+                  </span>
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
   );
 }
 
@@ -574,24 +650,20 @@ export default function StaffAppointmentsPage() {
     }
   }
 
+  const today = getTodayInTimeZone(timezone);
+  const filtersBusy = loading || refreshing;
+
   return (
     <RouteGuard requiredPermission="APPOINTMENT.READ">
-      <div className="space-y-6">
+      <div className="space-y-8">
         <AppPageHeader
           eyebrow="Appointment schedule"
           title="Appointments"
-          description="Review scheduled clinic visits by day or week, then narrow the list by status, assigned staff, or patient."
+          description="Requests from patients come first, then the schedule by day or week."
           hint={
             canManageAppointments
               ? 'Use lifecycle actions on confirmed appointments to reschedule, cancel, complete, or reconcile no-shows.'
               : 'Schedule actions require appointment write access.'
-          }
-          badges={
-            activeClinic ? (
-              <Badge variant="outline" className="rounded-full bg-background/80 px-3 py-1">
-                {activeClinic.clinicName}
-              </Badge>
-            ) : null
           }
           actions={
             <Button
@@ -599,7 +671,7 @@ export default function StaffAppointmentsPage() {
               variant="outline"
               className="h-11 cursor-pointer"
               onClick={() => void loadSchedule({ background: true })}
-              disabled={refreshing || loading}
+              disabled={filtersBusy}
             >
               <RefreshCw
                 className={cn('h-4 w-4', refreshing && 'animate-spin motion-reduce:animate-none')}
@@ -619,197 +691,208 @@ export default function StaffAppointmentsPage() {
           onRequestResolved={() => loadSchedule({ background: true })}
         />
 
-        <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
-          <AppMetricCard
-            title="Scheduled"
-            value={summary.total}
-            icon={CalendarDays}
-            detail={`Appointments in ${viewMode === 'day' ? 'this day' : 'this week'}.`}
-          />
-          <AppMetricCard
-            title="Confirmed"
-            value={summary.confirmed}
-            icon={CalendarClock}
-            detail="Upcoming or active confirmed visits."
-          />
-          <AppMetricCard
-            title="Completed"
-            value={summary.completed}
-            icon={UserRound}
-            detail="Appointments already completed in this range."
-          />
-          <AppMetricCard
-            title="Next visit"
-            value={nextAppointment ? formatOpsTime(nextAppointment.startsAt, timezone) : 'None'}
-            icon={Clock3}
-            detail={
-              nextAppointment
-                ? `${nextAppointment.patient.displayName} on ${formatOpsDateTime(
-                    nextAppointment.startsAt,
-                    timezone,
-                  )}`
-                : 'No confirmed visit in the current filters.'
-            }
-          />
-        </AppMetricGroup>
-
-        <Card className="rounded-lg border-border/80 bg-card">
-          <CardHeader className="space-y-4">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <CardTitle className="text-xl">Schedule controls</CardTitle>
-                <CardDescription>{rangeLabel}</CardDescription>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="h-11 w-11 cursor-pointer"
-                  onClick={() => shiftRange(-1)}
-                >
-                  <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-                  <span className="sr-only">Previous range</span>
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-11 cursor-pointer"
-                  onClick={() => setSelectedDate(getTodayInTimeZone())}
-                >
-                  Today
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="h-11 w-11 cursor-pointer"
-                  onClick={() => shiftRange(1)}
-                >
-                  <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                  <span className="sr-only">Next range</span>
-                </Button>
-              </div>
+        <RecordSection aria-labelledby="appointment-range-title">
+          <RecordSectionHeader className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="space-y-1.5">
+              <p className="text-eyebrow text-muted-foreground">
+                {viewMode === 'day' ? 'Day schedule' : 'Week schedule'}
+              </p>
+              <RecordSectionTitle id="appointment-range-title">{rangeLabel}</RecordSectionTitle>
+              <RecordSectionDescription>
+                Times in {timezone}
+                {activeClinic ? ` at ${activeClinic.clinicName}` : ''}.
+              </RecordSectionDescription>
             </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-11 w-11 cursor-pointer"
+                onClick={() => shiftRange(-1)}
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                <span className="sr-only">Previous range</span>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 cursor-pointer"
+                onClick={() => setSelectedDate(getTodayInTimeZone())}
+              >
+                Today
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-11 w-11 cursor-pointer"
+                onClick={() => shiftRange(1)}
+              >
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                <span className="sr-only">Next range</span>
+              </Button>
+              <SegmentedControl
+                label="Schedule range"
+                value={viewMode}
+                onChange={setViewMode}
+                className="w-[260px] p-1"
+                options={[
+                  { value: 'day', label: 'Day', description: 'Show one day of appointments.' },
+                  { value: 'week', label: 'Week', description: 'Show one week of appointments.' },
+                ]}
+              />
+            </div>
+          </RecordSectionHeader>
 
-            <SegmentedControl
-              label="Schedule range"
-              value={viewMode}
-              onChange={setViewMode}
-              className="sm:w-[320px]"
-              options={[
-                { value: 'day', label: 'Day', description: 'Show one day of appointments.' },
-                { value: 'week', label: 'Week', description: 'Show one week of appointments.' },
-              ]}
+          {viewMode === 'week' && !loading && !error ? (
+            <WeekStrip
+              days={groupedAppointments}
+              today={today}
+              onOpenDay={(date) => {
+                setSelectedDate(date);
+                setViewMode('day');
+              }}
             />
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-              <div className="space-y-2">
-                <Label htmlFor="appointment-date">Anchor date</Label>
+          ) : null}
+
+          <div className="grid gap-4 border-t border-border py-4 md:grid-cols-2 xl:grid-cols-5">
+            <div className="space-y-2">
+              <Label htmlFor="appointment-date">Go to date</Label>
+              <Input
+                id="appointment-date"
+                type="date"
+                value={selectedDate}
+                onChange={(event) => setSelectedDate(event.target.value || getTodayInTimeZone())}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="appointment-status">Status</Label>
+              <Select
+                value={statusFilter}
+                onValueChange={(value) => setStatusFilter(value as StatusFilter)}
+              >
+                <SelectTrigger id="appointment-status">
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_FILTERS.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {getStatusLabel(status)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="appointment-doctor">Doctor</Label>
+              <Select value={doctorFilter} onValueChange={setDoctorFilter}>
+                <SelectTrigger id="appointment-doctor">
+                  <SelectValue placeholder="All doctors" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All doctors</SelectItem>
+                  {staffOptions.doctors.map((doctor) => (
+                    <SelectItem key={doctor.id} value={doctor.id}>
+                      {doctor.displayName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="appointment-volunteer">Volunteer</Label>
+              <Select value={volunteerFilter} onValueChange={setVolunteerFilter}>
+                <SelectTrigger id="appointment-volunteer">
+                  <SelectValue placeholder="All volunteers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All volunteers</SelectItem>
+                  {staffOptions.volunteers.map((volunteer) => (
+                    <SelectItem key={volunteer.id} value={volunteer.id}>
+                      {volunteer.displayName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="appointment-patient-search">Patient</Label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  id="appointment-date"
-                  type="date"
-                  value={selectedDate}
-                  onChange={(event) => setSelectedDate(event.target.value || getTodayInTimeZone())}
+                  id="appointment-patient-search"
+                  type="search"
+                  value={patientSearch}
+                  onChange={(event) => setPatientSearch(event.target.value)}
+                  placeholder="Name or code"
+                  className="pl-9"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="appointment-status">Status</Label>
-                <Select
-                  value={statusFilter}
-                  onValueChange={(value) => setStatusFilter(value as StatusFilter)}
-                >
-                  <SelectTrigger id="appointment-status">
-                    <SelectValue placeholder="All statuses" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STATUS_FILTERS.map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {getStatusLabel(status)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="appointment-doctor">Doctor</Label>
-                <Select value={doctorFilter} onValueChange={setDoctorFilter}>
-                  <SelectTrigger id="appointment-doctor">
-                    <SelectValue placeholder="All doctors" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">All doctors</SelectItem>
-                    {staffOptions.doctors.map((doctor) => (
-                      <SelectItem key={doctor.id} value={doctor.id}>
-                        {doctor.displayName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="appointment-volunteer">Volunteer</Label>
-                <Select value={volunteerFilter} onValueChange={setVolunteerFilter}>
-                  <SelectTrigger id="appointment-volunteer">
-                    <SelectValue placeholder="All volunteers" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">All volunteers</SelectItem>
-                    {staffOptions.volunteers.map((volunteer) => (
-                      <SelectItem key={volunteer.id} value={volunteer.id}>
-                        {volunteer.displayName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="appointment-patient-search">Patient</Label>
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="appointment-patient-search"
-                    type="search"
-                    value={patientSearch}
-                    onChange={(event) => setPatientSearch(event.target.value)}
-                    placeholder="Name or code"
-                    className="pl-9"
-                  />
-                </div>
-              </div>
             </div>
+          </div>
 
-            <ActiveFilterSummary
-              items={[
-                { label: 'Range', value: rangeLabel },
-                {
-                  label: 'Status',
-                  value: statusFilter === 'ALL' ? null : getStatusLabel(statusFilter),
-                },
-                {
-                  label: 'Doctor',
-                  value:
-                    doctorFilter === 'ALL'
-                      ? null
-                      : staffOptions.doctors.find((doctor) => doctor.id === doctorFilter)
-                          ?.displayName,
-                },
-                {
-                  label: 'Volunteer',
-                  value:
-                    volunteerFilter === 'ALL'
-                      ? null
-                      : staffOptions.volunteers.find(
-                          (volunteer) => volunteer.id === volunteerFilter,
-                        )?.displayName,
-                },
-                { label: 'Patient', value: debouncedPatientSearch || null },
-              ]}
-              emptyLabel="Showing the full selected schedule range"
+          <ActiveFilterSummary
+            items={[
+              {
+                label: 'Status',
+                value: statusFilter === 'ALL' ? null : getStatusLabel(statusFilter),
+              },
+              {
+                label: 'Doctor',
+                value:
+                  doctorFilter === 'ALL'
+                    ? null
+                    : staffOptions.doctors.find((doctor) => doctor.id === doctorFilter)
+                        ?.displayName,
+              },
+              {
+                label: 'Volunteer',
+                value:
+                  volunteerFilter === 'ALL'
+                    ? null
+                    : staffOptions.volunteers.find((volunteer) => volunteer.id === volunteerFilter)
+                        ?.displayName,
+              },
+              { label: 'Patient', value: debouncedPatientSearch || null },
+            ]}
+            emptyLabel="Showing every appointment in this range"
+          />
+
+          <AppMetricGroup className="mt-4 sm:grid-cols-2 xl:grid-cols-4">
+            <AppMetricCard
+              title="Scheduled"
+              value={summary.total}
+              icon={CalendarDays}
+              detail={`Appointments in ${viewMode === 'day' ? 'this day' : 'this week'}.`}
             />
-          </CardContent>
-        </Card>
+            <AppMetricCard
+              title="Confirmed"
+              value={summary.confirmed}
+              icon={CalendarClock}
+              detail="Upcoming or active confirmed visits."
+            />
+            <AppMetricCard
+              title="Completed"
+              value={summary.completed}
+              icon={UserRound}
+              detail={`${summary.cancelled} cancelled, ${summary.noShow} no-show in this range.`}
+            />
+            <AppMetricCard
+              title="Next visit"
+              value={nextAppointment ? formatOpsTime(nextAppointment.startsAt, timezone) : 'None'}
+              icon={Clock3}
+              detail={
+                nextAppointment
+                  ? `${nextAppointment.patient.displayName} on ${formatOpsDateTime(
+                      nextAppointment.startsAt,
+                      timezone,
+                    )}`
+                  : 'No confirmed visit in the current filters.'
+              }
+            />
+          </AppMetricGroup>
+        </RecordSection>
 
         {error ? (
           <InlineErrorState
@@ -819,7 +902,7 @@ export default function StaffAppointmentsPage() {
           />
         ) : null}
 
-        <div aria-live="polite" aria-busy={loading || refreshing} className="space-y-6">
+        <div aria-live="polite" aria-busy={filtersBusy} className="space-y-6">
           <p className="sr-only">
             {loading
               ? 'Loading the appointment schedule.'
@@ -829,160 +912,134 @@ export default function StaffAppointmentsPage() {
           </p>
           {loading ? (
             <SectionSkeleton lines={viewMode === 'day' ? 3 : 5} className="rounded-lg p-6" />
-          ) : !error ? (
-            <Card className="rounded-lg border-border/80 bg-card">
-              <CardHeader className="space-y-3">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <CardTitle className="text-xl">
-                      {viewMode === 'day' ? 'Day schedule' : 'Week schedule'}
-                    </CardTitle>
-                    <CardDescription>
-                      {viewMode === 'day'
-                        ? 'A compact answer to who is scheduled today.'
-                        : 'Appointments grouped by the day they start.'}
-                    </CardDescription>
-                  </div>
-                  <Badge
-                    variant="outline"
-                    className="w-fit rounded-full bg-background/80 px-3 py-1"
-                  >
-                    {items.length} shown
-                  </Badge>
+          ) : error ? null : items.length === 0 ? (
+            <EmptyStateCard
+              title="No appointments found"
+              description="Try a different date range or clear one of the filters to broaden the schedule."
+            />
+          ) : (
+            groupedAppointments.map(([date, appointments]) => (
+              <RecordSection key={date} aria-labelledby={`appointments-${date}`}>
+                <div className="flex items-baseline justify-between gap-3 py-3">
+                  <h3 id={`appointments-${date}`} className="font-semibold text-foreground">
+                    {formatOpsDate(date, timezone)}
+                    {date === today ? (
+                      <span className="ml-2 text-sm font-normal text-muted-foreground">Today</span>
+                    ) : null}
+                  </h3>
+                  <p className="text-sm tabular-nums text-muted-foreground">
+                    {appointments.length} appointment{appointments.length === 1 ? '' : 's'}
+                  </p>
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-5">
-                {items.length === 0 ? (
-                  <EmptyStateCard
-                    title="No appointments found"
-                    description="Try a different date range or clear one of the filters to broaden the schedule."
-                  />
+
+                {appointments.length === 0 ? (
+                  <p className="border-t border-border py-3 text-sm text-muted-foreground">
+                    Nothing scheduled for this day.
+                  </p>
                 ) : (
-                  groupedAppointments.map(([date, appointments]) => (
-                    <section key={date} className="space-y-3">
-                      <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-background/70 px-4 py-3">
-                        <div>
-                          <h2 className="font-semibold text-foreground">
-                            {formatOpsDate(date, timezone)}
-                          </h2>
-                          <p className="text-sm text-muted-foreground">
-                            {appointments.length} appointment{appointments.length === 1 ? '' : 's'}
-                          </p>
-                        </div>
-                      </div>
+                  <>
+                    <ul className="xl:hidden">
+                      {appointments.map((appointment) => (
+                        <AppointmentRow
+                          key={appointment.id}
+                          appointment={appointment}
+                          timezone={timezone}
+                          canManage={canManageAppointments}
+                          disabled={lifecycleSubmitting}
+                          onAction={openLifecycleDialog}
+                        />
+                      ))}
+                    </ul>
 
-                      {appointments.length === 0 ? (
-                        <div className="rounded-lg border border-dashed border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
-                          Nothing scheduled for this day.
-                        </div>
-                      ) : (
-                        <>
-                          <div className="space-y-3 xl:hidden">
-                            {appointments.map((appointment) => (
-                              <AppointmentMobileCard
-                                key={appointment.id}
-                                appointment={appointment}
-                                timezone={timezone}
-                                canManage={canManageAppointments}
-                                disabled={lifecycleSubmitting}
-                                onAction={openLifecycleDialog}
-                              />
-                            ))}
-                          </div>
-
-                          <div className="hidden overflow-x-auto rounded-lg border border-border/80 xl:block">
-                            <table className="w-full min-w-[1080px] border-collapse text-sm">
-                              <caption className="sr-only">
-                                Appointments on {formatOpsDate(date, timezone)}, with status,
-                                reminders, assigned staff, and available actions.
-                              </caption>
-                              <thead className="bg-muted/50 text-left text-eyebrow text-muted-foreground">
-                                <tr>
-                                  <th scope="col" className="px-4 py-3">
-                                    Time
-                                  </th>
-                                  <th scope="col" className="px-4 py-3">
-                                    Patient
-                                  </th>
-                                  <th scope="col" className="px-4 py-3">
-                                    Status
-                                  </th>
-                                  <th scope="col" className="px-4 py-3">
-                                    Reminders
-                                  </th>
-                                  <th scope="col" className="px-4 py-3">
-                                    Doctor
-                                  </th>
-                                  <th scope="col" className="px-4 py-3">
-                                    Volunteer
-                                  </th>
-                                  <th scope="col" className="px-4 py-3">
-                                    Notes
-                                  </th>
-                                  <th scope="col" className="px-4 py-3 text-right">
-                                    Actions
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {appointments.map((appointment) => (
-                                  <tr
-                                    key={appointment.id}
-                                    className="border-t border-border/70 bg-background/70 transition-colors hover:bg-muted/30"
-                                  >
-                                    <td className="whitespace-nowrap px-4 py-3 font-medium text-foreground">
-                                      {formatOpsTime(appointment.startsAt, timezone)} to{' '}
-                                      {formatOpsTime(appointment.endsAt, timezone)}
-                                    </td>
-                                    <td className="px-4 py-3">
-                                      <div className="font-medium text-foreground">
-                                        {appointment.patient.displayName}
-                                      </div>
-                                      <div className="text-xs text-muted-foreground">
-                                        {appointment.patient.patientCode}
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                      <AppointmentStatusBadge status={appointment.status} />
-                                    </td>
-                                    <td className="px-4 py-3">
-                                      <AppointmentReminderStatus
-                                        appointment={appointment}
-                                        timezone={timezone}
-                                      />
-                                    </td>
-                                    <td className="px-4 py-3 text-muted-foreground">
-                                      {staffName(appointment.assignedDoctor)}
-                                    </td>
-                                    <td className="px-4 py-3 text-muted-foreground">
-                                      {staffName(appointment.assignedVolunteer)}
-                                    </td>
-                                    <td className="max-w-[260px] px-4 py-3 text-muted-foreground">
-                                      <span className="line-clamp-2">
-                                        {appointment.notes || 'No notes'}
-                                      </span>
-                                    </td>
-                                    <td className="px-4 py-3 text-right">
-                                      <AppointmentActions
-                                        appointment={appointment}
-                                        canManage={canManageAppointments}
-                                        disabled={lifecycleSubmitting}
-                                        onAction={openLifecycleDialog}
-                                      />
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </>
-                      )}
-                    </section>
-                  ))
+                    <div className="hidden overflow-x-auto xl:block">
+                      <table className="w-full min-w-[1080px] border-collapse text-sm">
+                        <caption className="sr-only">
+                          Appointments on {formatOpsDate(date, timezone)}, with status, reminders,
+                          assigned staff, and available actions.
+                        </caption>
+                        <thead className="border-b border-border text-left text-eyebrow text-muted-foreground">
+                          <tr>
+                            <th scope="col" className="px-3 py-2 font-medium">
+                              Time
+                            </th>
+                            <th scope="col" className="px-3 py-2 font-medium">
+                              Patient
+                            </th>
+                            <th scope="col" className="px-3 py-2 font-medium">
+                              Status
+                            </th>
+                            <th scope="col" className="px-3 py-2 font-medium">
+                              Reminders
+                            </th>
+                            <th scope="col" className="px-3 py-2 font-medium">
+                              Doctor
+                            </th>
+                            <th scope="col" className="px-3 py-2 font-medium">
+                              Volunteer
+                            </th>
+                            <th scope="col" className="px-3 py-2 font-medium">
+                              Notes
+                            </th>
+                            <th scope="col" className="px-3 py-2 text-right font-medium">
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {appointments.map((appointment) => (
+                            <tr
+                              key={appointment.id}
+                              className="border-t border-border transition-colors hover:bg-muted/30"
+                            >
+                              <td className="whitespace-nowrap px-3 py-2 font-medium text-foreground">
+                                <AppointmentTime appointment={appointment} timezone={timezone} />
+                              </td>
+                              <td className="px-3 py-2">
+                                <div className="font-medium text-foreground">
+                                  {appointment.patient.displayName}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {appointment.patient.patientCode}
+                                </div>
+                              </td>
+                              <td className="px-3 py-2">
+                                <AppointmentStatusBadge status={appointment.status} />
+                              </td>
+                              <td className="px-3 py-2">
+                                <AppointmentReminderStatus
+                                  appointment={appointment}
+                                  timezone={timezone}
+                                />
+                              </td>
+                              <td className="px-3 py-2 text-muted-foreground">
+                                {staffName(appointment.assignedDoctor)}
+                              </td>
+                              <td className="px-3 py-2 text-muted-foreground">
+                                {staffName(appointment.assignedVolunteer)}
+                              </td>
+                              <td className="max-w-[260px] px-3 py-2 text-muted-foreground">
+                                <span className="line-clamp-2">
+                                  {appointment.notes || 'No notes'}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 text-right">
+                                <AppointmentActions
+                                  appointment={appointment}
+                                  canManage={canManageAppointments}
+                                  disabled={lifecycleSubmitting}
+                                  onAction={openLifecycleDialog}
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
                 )}
-              </CardContent>
-            </Card>
-          ) : null}
+              </RecordSection>
+            ))
+          )}
         </div>
       </div>
 
@@ -999,36 +1056,82 @@ export default function StaffAppointmentsPage() {
             </DialogTitle>
             <DialogDescription className="leading-6">
               {lifecycleDialog
-                ? `${lifecycleDialog.appointment.patient.patientCode} · ${lifecycleDialog.appointment.patient.displayName}`
+                ? `${lifecycleDialog.appointment.patient.displayName}, ${lifecycleDialog.appointment.patient.patientCode}`
                 : null}
             </DialogDescription>
           </DialogHeader>
 
+          {lifecycleError ? (
+            <div
+              id="lifecycle-dialog-error"
+              role="alert"
+              className="rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive-ink"
+            >
+              {lifecycleError}
+            </div>
+          ) : null}
+
+          {lifecycleDialog ? (
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 border-y border-border py-3 text-sm">
+              <dt className="text-muted-foreground">Booked</dt>
+              <dd className="tabular-nums text-foreground">
+                {formatOpsDateTime(lifecycleDialog.appointment.startsAt, timezone)} to{' '}
+                {formatOpsTime(lifecycleDialog.appointment.endsAt, timezone)}
+              </dd>
+              <dt className="text-muted-foreground">Doctor</dt>
+              <dd className="text-foreground">
+                {staffName(lifecycleDialog.appointment.assignedDoctor)}
+              </dd>
+              <dt className="text-muted-foreground">Volunteer</dt>
+              <dd className="text-foreground">
+                {staffName(lifecycleDialog.appointment.assignedVolunteer)}
+              </dd>
+            </dl>
+          ) : null}
+
           {lifecycleDialog?.action === 'reschedule' ? (
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-4">
+              <fieldset className="space-y-2">
+                <legend className="text-sm font-semibold text-foreground">New time</legend>
+                <p id="reschedule-zone" className="text-sm text-muted-foreground">
+                  {describeTimeEntryZone(timezone)}
+                </p>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="reschedule-starts-at">Start time</Label>
+                    <Input
+                      id="reschedule-starts-at"
+                      aria-describedby={
+                        lifecycleError
+                          ? 'reschedule-zone lifecycle-dialog-error'
+                          : 'reschedule-zone'
+                      }
+                      aria-invalid={Boolean(lifecycleError)}
+                      type="datetime-local"
+                      value={rescheduleStartsAt}
+                      onChange={(event) => setRescheduleStartsAt(event.target.value)}
+                      disabled={lifecycleSubmitting}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reschedule-ends-at">End time</Label>
+                    <Input
+                      id="reschedule-ends-at"
+                      aria-describedby={
+                        lifecycleError
+                          ? 'reschedule-zone lifecycle-dialog-error'
+                          : 'reschedule-zone'
+                      }
+                      aria-invalid={Boolean(lifecycleError)}
+                      type="datetime-local"
+                      value={rescheduleEndsAt}
+                      onChange={(event) => setRescheduleEndsAt(event.target.value)}
+                      disabled={lifecycleSubmitting}
+                    />
+                  </div>
+                </div>
+              </fieldset>
               <div className="space-y-2">
-                <Label htmlFor="reschedule-starts-at">Start time</Label>
-                <Input
-                  id="reschedule-starts-at"
-                  aria-describedby={lifecycleError ? 'lifecycle-dialog-error' : undefined}
-                  type="datetime-local"
-                  value={rescheduleStartsAt}
-                  onChange={(event) => setRescheduleStartsAt(event.target.value)}
-                  disabled={lifecycleSubmitting}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="reschedule-ends-at">End time</Label>
-                <Input
-                  id="reschedule-ends-at"
-                  aria-describedby={lifecycleError ? 'lifecycle-dialog-error' : undefined}
-                  type="datetime-local"
-                  value={rescheduleEndsAt}
-                  onChange={(event) => setRescheduleEndsAt(event.target.value)}
-                  disabled={lifecycleSubmitting}
-                />
-              </div>
-              <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="reschedule-notes">Notes</Label>
                 <Textarea
                   id="reschedule-notes"
@@ -1049,6 +1152,7 @@ export default function StaffAppointmentsPage() {
               <Textarea
                 id="lifecycle-reason"
                 aria-describedby={lifecycleError ? 'lifecycle-dialog-error' : undefined}
+                aria-invalid={Boolean(lifecycleError)}
                 value={lifecycleReason}
                 onChange={(event) => setLifecycleReason(event.target.value)}
                 disabled={lifecycleSubmitting}
@@ -1071,16 +1175,6 @@ export default function StaffAppointmentsPage() {
                 disabled={lifecycleSubmitting}
                 placeholder="Optional visit outcome note"
               />
-            </div>
-          ) : null}
-
-          {lifecycleError ? (
-            <div
-              id="lifecycle-dialog-error"
-              role="alert"
-              className="rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive-ink"
-            >
-              {lifecycleError}
             </div>
           ) : null}
 
