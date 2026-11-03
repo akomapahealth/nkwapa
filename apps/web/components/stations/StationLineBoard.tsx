@@ -28,7 +28,6 @@ import {
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { InlineNotice, OfflineOpsBanner } from '@/components/ops/OpsShared';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { LONG_WAIT_MINUTES } from '@/components/dashboard/StationLineLanes';
 import { AppActionRow } from '@/components/app-shell/AppActionRow';
@@ -52,11 +51,148 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 type Override = { kind: 'assign' | 'move' | 'release' | 'left'; visit: StationVisit };
 
 /** Only assigning needs no reason: it changes who sees the patient, not whether they are seen. */
 const needsReason = (override: Override | null) => override?.kind !== 'assign';
+
+/** A fixed scale keeps normal waits readable; a longer wait fills the lane and keeps its real minutes. */
+const SCALE_END = 40;
+const TICKS = [0, 10, 20, 30, 40];
+const share = (minutes: number) => (Math.min(minutes, SCALE_END) / SCALE_END) * 100;
+const at = (minutes: number) => `${share(minutes)}%`;
+
+const isLongWait = (visit: StationVisit) =>
+  visit.status === 'QUEUED' && minutesSince(visit.queuedAt) > LONG_WAIT_MINUTES;
+
+function visitStatus(visit: StationVisit) {
+  if (visit.status === 'IN_PROGRESS') return 'With staff';
+  return isLongWait(visit) ? 'Waiting over 20 min' : 'Waiting';
+}
+
+/** "Ama O.": the full name stays in the bar's accessible name and its menu. */
+function shortName(patient: StationVisit['patient']) {
+  const initial = patient.lastName.trim().charAt(0);
+  return initial ? `${patient.firstName} ${initial}.` : patient.firstName;
+}
+
+/**
+ * One patient on a station lane. The bar's length is minutes since queuedAt; it opens a menu with
+ * who the patient is with and, for managers on today's board, the per-visit actions.
+ */
+function PatientBar({
+  visit,
+  canAct,
+  isOnline,
+  claimedByName,
+  onAction,
+}: {
+  visit: StationVisit;
+  canAct: boolean;
+  isOnline: boolean;
+  claimedByName: string | null;
+  onAction: (kind: Override['kind']) => void;
+}) {
+  const minutes = minutesSince(visit.queuedAt);
+  const withStaff = visit.status === 'IN_PROGRESS';
+  const long = isLongWait(visit);
+  // Under 20 minutes the bar is at most half the lane, too short to hold the label on a phone.
+  const labelInside = Math.min(minutes, SCALE_END) >= LONG_WAIT_MINUTES;
+  const label = `${shortName(visit.patient)} ${minutes} min`;
+  return (
+    <li data-testid="patient-station-row" className="relative">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="flex min-h-11 items-center gap-1.5 rounded-sm text-left text-xs tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <span
+              data-testid="patient-wait-bar"
+              data-minutes={minutes}
+              className={cn(
+                'flex h-6 shrink-0 items-center whitespace-nowrap rounded-sm',
+                labelInside && 'px-2',
+                withStaff
+                  ? 'bg-primary text-primary-foreground'
+                  : long
+                    ? 'border border-warning bg-warning-surface text-warning-ink'
+                    : 'border border-input bg-muted text-foreground',
+              )}
+              // cqw: a share of the lane's track, whichever row of the wrapped lane the bar sits on.
+              style={{ width: `${share(minutes)}cqw` }}
+            >
+              {labelInside ? <span aria-hidden="true">{label}</span> : null}
+            </span>
+            {labelInside ? null : (
+              <span aria-hidden="true" className="whitespace-nowrap pr-1 text-foreground">
+                {label}
+              </span>
+            )}
+            <span className="sr-only">
+              {patientName(visit.patient)}, {visitStatus(visit)}, {minutes} min
+            </span>
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-64">
+          <DropdownMenuLabel className="font-normal">
+            <span className="block text-sm font-medium">{patientName(visit.patient)}</span>
+            <span className="block text-xs text-muted-foreground">{visit.patient.patientCode}</span>
+            <span
+              className={cn(
+                'mt-1 block text-xs tabular-nums',
+                long ? 'text-warning-ink' : 'text-muted-foreground',
+              )}
+            >
+              {visitStatus(visit)} · {minutes} min
+            </span>
+            {withStaff && claimedByName ? (
+              <span className="block text-xs text-muted-foreground">With {claimedByName}</span>
+            ) : null}
+            {withStaff && visit.assignedBy ? (
+              <span className="block text-xs text-muted-foreground">
+                Assigned by {visit.assignedBy.displayName}
+              </span>
+            ) : null}
+          </DropdownMenuLabel>
+          {canAct ? (
+            <>
+              <DropdownMenuSeparator />
+              {visit.status === 'QUEUED' ? (
+                <DropdownMenuItem disabled={!isOnline} onSelect={() => onAction('assign')}>
+                  Assign
+                </DropdownMenuItem>
+              ) : null}
+              <DropdownMenuItem disabled={!isOnline} onSelect={() => onAction('move')}>
+                Move
+              </DropdownMenuItem>
+              {withStaff ? (
+                <DropdownMenuItem disabled={!isOnline} onSelect={() => onAction('release')}>
+                  Release
+                </DropdownMenuItem>
+              ) : null}
+              <DropdownMenuItem disabled={!isOnline} onSelect={() => onAction('left')}>
+                Left
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/stations/visits/${visit.id}`}>Open</Link>
+              </DropdownMenuItem>
+            </>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </li>
+  );
+}
 
 function staffOptionLabel(member: OnShiftStaff) {
   const role = member.roleAtShift.charAt(0) + member.roleAtShift.slice(1).toLowerCase();
@@ -106,9 +242,7 @@ export function StationLineBoard() {
   );
 
   const visits = stations.flatMap((station) => station.visits);
-  const longWaits = visits.filter(
-    (visit) => visit.status === 'QUEUED' && minutesSince(visit.queuedAt) > LONG_WAIT_MINUTES,
-  );
+  const longWaits = visits.filter(isLongWait);
   const longestWaitExamples = [...longWaits]
     .sort((a, b) => minutesSince(b.queuedAt) - minutesSince(a.queuedAt))
     .slice(0, 3);
@@ -123,17 +257,13 @@ export function StationLineBoard() {
       ? `; and ${longWaits.length - longestWaitExamples.length} more.`
       : '');
   const unstaffed = stations.filter((station) => station.active && station.staff.length === 0);
+  const unstaffedWaiting = unstaffed
+    .flatMap((station) => station.visits)
+    .find((visit) => visit.status === 'QUEUED');
+  const canAct = canManage && isToday;
   const reviewWaiting = stations
     .filter((station) => station.kind === 'REVIEW')
     .flatMap((station) => station.visits.filter((visit) => visit.status === 'QUEUED'));
-  const scaleEnd = Math.max(
-    30,
-    Math.ceil(Math.max(0, ...visits.map((visit) => minutesSince(visit.queuedAt))) / 10) * 10,
-  );
-  const ticks = Array.from({ length: scaleEnd / 10 + 1 }, (_, i) => i * 10);
-  const labelStep = Math.max(10, Math.ceil(scaleEnd / 60) * 10);
-  const at = (minutes: number) => `${(Math.min(minutes, scaleEnd) / scaleEnd) * 100}%`;
-
   const close = () => {
     setOverride(null);
     setReason('');
@@ -242,9 +372,20 @@ export function StationLineBoard() {
                   title={`${longWaits.length} patient${longWaits.length === 1 ? '' : 's'} waiting over ${LONG_WAIT_MINUTES} minutes`}
                   detail={longWaitDetail}
                   action={
-                    <Button asChild variant="outline">
-                      <a href="#patient-station-line">Review waits</a>
-                    </Button>
+                    canAct ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={!isOnline}
+                        onClick={() => setOverride({ kind: 'move', visit: longestWaitExamples[0] })}
+                      >
+                        Move a patient
+                      </Button>
+                    ) : (
+                      <Button asChild variant="outline">
+                        <a href="#patient-station-line">Review waits</a>
+                      </Button>
+                    )
                   }
                 />
               ) : null}
@@ -255,9 +396,20 @@ export function StationLineBoard() {
                   title={`${unstaffed.length} open station${unstaffed.length === 1 ? ' has' : 's have'} no staff`}
                   detail={unstaffed.map((station) => station.name).join(', ')}
                   action={
-                    <Button asChild variant="outline">
-                      <a href="#on-shift">View on shift</a>
-                    </Button>
+                    canAct && unstaffedWaiting ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={!isOnline}
+                        onClick={() => setOverride({ kind: 'assign', visit: unstaffedWaiting })}
+                      >
+                        Assign staff
+                      </Button>
+                    ) : (
+                      <Button asChild variant="outline">
+                        <a href="#on-shift">View on shift</a>
+                      </Button>
+                    )
                   }
                 />
               ) : null}
@@ -305,8 +457,9 @@ export function StationLineBoard() {
               </Button>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              Scale from 0 to {scaleEnd} minutes, with gridlines every 10 minutes. The dashed guide
-              marks {LONG_WAIT_MINUTES} minutes; longer waits carry a warning.
+              Scale from 0 to {SCALE_END} minutes, with gridlines every 10 minutes. The dashed guide
+              marks {LONG_WAIT_MINUTES} minutes; longer waits carry a warning. A longer wait runs to
+              the end of the scale and its label shows the real minutes.
             </p>
             {tableView ? (
               <div className="mt-4 overflow-x-auto">
@@ -330,14 +483,8 @@ export function StationLineBoard() {
                           <th scope="row" className="p-3 font-normal">
                             {station.name}
                           </th>
-                          <td className="p-3 font-heading">{patientName(visit.patient)}</td>
-                          <td className="p-3">
-                            {visit.status === 'IN_PROGRESS'
-                              ? 'With staff'
-                              : minutesSince(visit.queuedAt) > LONG_WAIT_MINUTES
-                                ? 'Waiting over 20 min'
-                                : 'Waiting'}
-                          </td>
+                          <td className="p-3">{patientName(visit.patient)}</td>
+                          <td className="p-3">{visitStatus(visit)}</td>
                           <td className="p-3 tabular-nums">{minutesSince(visit.queuedAt)}</td>
                           <td className="p-3 tabular-nums">
                             {station.staff.length} of {station.capacity ?? 1}
@@ -349,18 +496,46 @@ export function StationLineBoard() {
                 </table>
               </div>
             ) : null}
-            <div className="mt-4">
-              {stations.map((station) => (
-                <section
-                  key={station.id}
-                  aria-label={station.name}
-                  className="border-b border-rule py-4"
-                  data-testid="patient-station-lane"
+            <div className="mt-4 border-t-2 border-foreground">
+              {!tableView ? (
+                <div
+                  aria-hidden="true"
+                  className="grid grid-cols-1 gap-x-4 border-b border-rule py-1.5 text-xs tabular-nums text-muted-foreground sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_7rem]"
                 >
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="hidden sm:block">Station</span>
+                  <div data-testid="station-minute-scale" className="relative h-4">
+                    {TICKS.map((tick) => (
+                      <span
+                        key={tick}
+                        className="absolute -translate-x-1/2 whitespace-nowrap first:translate-x-0 last:-translate-x-full"
+                        style={{ left: at(tick) }}
+                      >
+                        {tick}
+                        <span className="hidden sm:inline"> min</span>
+                      </span>
+                    ))}
+                  </div>
+                  <span className="hidden text-right sm:block">Staffed</span>
+                </div>
+              ) : null}
+              {stations.map((station) => {
+                const stationLongWaits = station.visits.filter(isLongWait).length;
+                const open = station.active && station.staff.length === 0;
+                return (
+                  <section
+                    key={station.id}
+                    aria-label={station.name}
+                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 border-b border-rule py-2 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_7rem]"
+                    data-testid="patient-station-lane"
+                  >
                     <div className="min-w-0">
-                      <h3 className="type-label">{station.name}</h3>
-                      <p className="mt-1 text-sm text-muted-foreground">
+                      <h3 className="font-sans text-sm font-medium">{station.name}</h3>
+                      <p
+                        className={cn(
+                          'text-xs',
+                          open ? 'text-warning-ink' : 'text-muted-foreground',
+                        )}
+                      >
                         {station.staff.length
                           ? station.staff
                               .map((member) =>
@@ -369,181 +544,83 @@ export function StationLineBoard() {
                               .join(', ')
                           : 'Nobody at this station'}
                       </p>
+                      {stationLongWaits ? (
+                        <p className="text-xs text-warning-ink">
+                          {stationLongWaits} waiting over {LONG_WAIT_MINUTES} min
+                        </p>
+                      ) : null}
                     </div>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <p className="text-sm tabular-nums">
+                    <div className="text-right text-xs tabular-nums sm:order-last">
+                      <p>
                         Staffed {station.staff.length} of {station.capacity ?? 1}
                       </p>
                       {station.capacity ? (
-                        <Badge
-                          variant={
-                            (station.inUse ?? 0) >= station.capacity ? 'warning' : 'secondary'
-                          }
+                        <p
                           data-testid="station-occupancy"
+                          className={
+                            (station.inUse ?? 0) >= station.capacity
+                              ? 'text-warning-ink'
+                              : 'text-muted-foreground'
+                          }
                         >
                           {station.inUse ?? 0} of {station.capacity} in use
-                        </Badge>
+                        </p>
                       ) : null}
                     </div>
-                  </div>
-                  {!tableView ? (
-                    <div
-                      aria-hidden="true"
-                      className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)] xl:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_20rem]"
-                    >
-                      <span className="hidden text-xs text-muted-foreground sm:block">Patient</span>
+                    {station.visits.length === 0 ? (
+                      <p className="col-span-2 text-sm text-muted-foreground sm:col-span-1">
+                        Empty
+                      </p>
+                    ) : tableView ? (
+                      <p className="col-span-2 text-sm text-muted-foreground sm:col-span-1">
+                        {station.visits.length} patient{station.visits.length === 1 ? '' : 's'}
+                      </p>
+                    ) : (
                       <div
-                        data-testid="station-minute-scale"
-                        className="relative h-5 text-xs tabular-nums text-muted-foreground"
+                        data-testid="patient-wait-track"
+                        data-scale={SCALE_END}
+                        className="relative col-span-2 [container-type:inline-size] sm:col-span-1"
                       >
-                        {ticks
-                          .filter((tick) => tick % labelStep === 0 || tick === scaleEnd)
-                          .map((tick) => (
-                            <span
-                              key={tick}
-                              className="absolute -translate-x-1/2 whitespace-nowrap first:translate-x-0 last:-translate-x-full"
-                              style={{ left: at(tick) }}
-                            >
-                              {tick}
-                              <span className="hidden sm:inline"> min</span>
-                            </span>
-                          ))}
-                      </div>
-                    </div>
-                  ) : null}
-                  {station.visits.length === 0 ? (
-                    <p className="py-3 text-sm text-muted-foreground">Empty</p>
-                  ) : (
-                    station.visits.map((visit) => {
-                      const minutes = minutesSince(visit.queuedAt);
-                      const withStaff = visit.status === 'IN_PROGRESS';
-                      const long = !withStaff && minutes > LONG_WAIT_MINUTES;
-                      return (
-                        <div
-                          key={visit.id}
-                          data-testid="patient-station-row"
-                          className="grid items-center gap-x-4 gap-y-2 border-t border-rule py-3 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)] xl:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_20rem]"
+                        {TICKS.map((tick) => (
+                          <div
+                            key={tick}
+                            aria-hidden="true"
+                            className={cn(
+                              'pointer-events-none absolute inset-y-0 border-l',
+                              tick === LONG_WAIT_MINUTES
+                                ? 'border-dashed border-warning'
+                                : 'border-rule',
+                            )}
+                            style={{ left: at(tick) }}
+                          />
+                        ))}
+                        <ul
+                          aria-label={`Patients at ${station.name}`}
+                          className="relative flex min-h-11 flex-wrap items-center gap-x-1"
                         >
-                          <div className="min-w-0">
-                            <p className="break-words font-heading text-lg font-semibold">
-                              {patientName(visit.patient)}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {visit.patient.patientCode}
-                            </p>
-                            <p
-                              className={cn(
-                                'mt-1 text-sm tabular-nums',
-                                long ? 'text-warning-ink' : 'text-muted-foreground',
-                              )}
-                            >
-                              {withStaff ? 'With staff' : long ? 'Waiting over 20 min' : 'Waiting'}{' '}
-                              · {minutes} min
-                            </p>
-                            {withStaff && visit.claimedBy ? (
-                              <p className="text-xs text-muted-foreground">
-                                With{' '}
-                                {withScreener(
-                                  visit.claimedBy.displayName,
-                                  screeners.get(visit.claimedBy.id),
-                                )}
-                              </p>
-                            ) : null}
-                            {withStaff && visit.assignedBy ? (
-                              <p className="text-xs text-muted-foreground">
-                                Assigned by {visit.assignedBy.displayName}
-                              </p>
-                            ) : null}
-                          </div>
-                          {!tableView ? (
-                            <div
-                              aria-hidden="true"
-                              className="relative h-8"
-                              data-testid="patient-wait-track"
-                              data-minutes={minutes}
-                              data-scale={scaleEnd}
-                            >
-                              {ticks.map((tick) => (
-                                <div
-                                  key={tick}
-                                  className={cn(
-                                    'absolute inset-y-0 border-l',
-                                    tick === LONG_WAIT_MINUTES
-                                      ? 'border-dashed border-warning'
-                                      : 'border-rule',
-                                  )}
-                                  style={{ left: at(tick) }}
-                                />
-                              ))}
-                              <div
-                                data-testid="patient-wait-bar"
-                                className={cn(
-                                  'absolute inset-y-1 left-0 overflow-hidden whitespace-nowrap rounded-sm text-xs tabular-nums',
-                                  withStaff
-                                    ? 'bg-primary text-primary-foreground'
-                                    : long
-                                      ? 'border border-warning bg-warning-surface text-warning-ink'
-                                      : 'border border-input bg-muted text-foreground',
-                                )}
-                                style={{ width: at(minutes) }}
-                              >
-                                <span className="px-2">
-                                  {patientName(visit.patient)} · {minutes} min
-                                </span>
-                              </div>
-                            </div>
-                          ) : (
-                            <span className="text-sm tabular-nums">{minutes} min since queued</span>
-                          )}
-                          {canManage && isToday ? (
-                            <div className="flex flex-wrap gap-1 xl:justify-end">
-                              {visit.status === 'QUEUED' ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  disabled={!isOnline}
-                                  onClick={() => setOverride({ kind: 'assign', visit })}
-                                >
-                                  Assign
-                                </Button>
-                              ) : null}
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={!isOnline}
-                                onClick={() => setOverride({ kind: 'move', visit })}
-                              >
-                                Move
-                              </Button>
-                              {visit.status === 'IN_PROGRESS' ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  disabled={!isOnline}
-                                  onClick={() => setOverride({ kind: 'release', visit })}
-                                >
-                                  Release
-                                </Button>
-                              ) : null}
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                disabled={!isOnline}
-                                onClick={() => setOverride({ kind: 'left', visit })}
-                              >
-                                Left
-                              </Button>
-                              <Button asChild size="sm" variant="ghost">
-                                <Link href={`/stations/visits/${visit.id}`}>Open</Link>
-                              </Button>
-                            </div>
-                          ) : null}
-                        </div>
-                      );
-                    })
-                  )}
-                </section>
-              ))}
+                          {station.visits.map((visit) => (
+                            <PatientBar
+                              key={visit.id}
+                              visit={visit}
+                              canAct={canManage && isToday}
+                              isOnline={isOnline}
+                              claimedByName={
+                                visit.claimedBy
+                                  ? withScreener(
+                                      visit.claimedBy.displayName,
+                                      screeners.get(visit.claimedBy.id),
+                                    )
+                                  : null
+                              }
+                              onAction={(kind) => setOverride({ kind, visit })}
+                            />
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </section>
+                );
+              })}
             </div>
             <div
               className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground"

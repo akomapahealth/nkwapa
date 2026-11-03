@@ -1,0 +1,58 @@
+[
+  {
+    "name": "today",
+    "width": 1440,
+    "theme": "light",
+    "height": 2069,
+    "violations": []
+  },
+  {
+    "name": "today",
+    "width": 390,
+    "theme": "light",
+    "height": 2852,
+    "violations": []
+  },
+  {
+    "name": "today",
+    "width": 1440,
+    "theme": "dark",
+    "height": 2069,
+    "violations": []
+  },
+  {
+    "name": "today",
+    "width": 390,
+    "theme": "dark",
+    "height": 2852,
+    "violations": []
+  },
+  {
+    "name": "today-synthetic",
+    "width": 1440,
+    "theme": "light",
+    "height": 2002,
+    "violations": []
+  },
+  {
+    "name": "today-synthetic",
+    "width": 390,
+    "theme": "light",
+    "height": 3106,
+    "violations": []
+  },
+  {
+    "name": "today-synthetic",
+    "width": 1440,
+    "theme": "dark",
+    "height": 2002,
+    "violations": []
+  },
+  {
+    "name": "today-synthetic",
+    "width": 390,
+    "theme": "dark",
+    "height": 3106,
+    "violations": []
+  }
+]
