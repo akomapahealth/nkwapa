@@ -26,7 +26,13 @@ import { SectionSkeleton } from '@/components/feedback/AppState';
 import { InlineNotice } from '@/components/feedback/InlineNotice';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection,
+  RecordSectionContent,
+  RecordSectionDescription,
+  RecordSectionHeader,
+  RecordSectionTitle,
+} from '@/components/patients/RecordSection';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ProgressiveHelp } from '@/components/ui/progressive-help';
@@ -428,6 +434,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
         <FormSectionCard
+          className="border-t-2 border-rule-strong"
           title="Request export pack"
           description="Choose the date range, then submit the pack for approval or processing."
           hint="The exported format is a fixed v1 ZIP bundle of CSV tables plus manifest files."
@@ -531,17 +538,17 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
           </div>
         </FormSectionCard>
 
-        <Card className="rounded-lg border-border/80 bg-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <GitBranch aria-hidden="true" className="h-5 w-5 text-primary" />
+        <RecordSection>
+          <RecordSectionHeader>
+            <RecordSectionTitle className="flex items-center gap-2">
+              <GitBranch aria-hidden="true" className="h-5 w-5 text-muted-foreground" />
               Pack contents
-            </CardTitle>
-            <CardDescription>
+            </RecordSectionTitle>
+            <RecordSectionDescription>
               Every completed export produces the same de-identified bundle.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="text-sm">
+            </RecordSectionDescription>
+          </RecordSectionHeader>
+          <RecordSectionContent className="text-sm">
             {/* These are filenames, so they are marked up as filenames. They were wrapped in
                 markdown backticks, which rendered as literal backtick characters. */}
             <ul className="space-y-2">
@@ -558,8 +565,8 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                 </li>
               ))}
             </ul>
-          </CardContent>
-        </Card>
+          </RecordSectionContent>
+        </RecordSection>
       </div>
 
       <ResearchSchedulesPanel
@@ -569,17 +576,17 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
         onRunCreated={refreshExports}
       />
 
-      <Card className="rounded-lg border-border/80 bg-card">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <CheckCircle2 aria-hidden="true" className="h-5 w-5 text-primary" />
+      <RecordSection>
+        <RecordSectionHeader>
+          <RecordSectionTitle className="flex items-center gap-2">
+            <CheckCircle2 aria-hidden="true" className="h-5 w-5 text-muted-foreground" />
             Export activity
-          </CardTitle>
-          <CardDescription>
+          </RecordSectionTitle>
+          <RecordSectionDescription>
             Manual and scheduled runs, approval, processing, publishing and downloads.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          </RecordSectionDescription>
+        </RecordSectionHeader>
+        <RecordSectionContent className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:max-w-xl">
             <div className="space-y-2">
               <Label htmlFor="researchStatusFilter">Status</Label>
@@ -657,7 +664,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                     <div
                       key={item.id}
                       data-testid="research-run"
-                      className="space-y-4 rounded-lg border border-border/70 bg-background/60 p-4 sm:p-5"
+                      className="space-y-4 border-t border-rule pt-4"
                     >
                       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div className="space-y-2">
@@ -848,8 +855,8 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
               </div>
             )}
           </ResourceState>
-        </CardContent>
-      </Card>
+        </RecordSectionContent>
+      </RecordSection>
 
       <ResearchReasonDialog prompt={reasonPrompt} onClose={() => setReasonPrompt(null)} />
     </div>

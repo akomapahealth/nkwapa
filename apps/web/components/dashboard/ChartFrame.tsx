@@ -24,6 +24,7 @@ export function ChartFrame({
   hasData,
   empty,
   height,
+  summary,
   children,
 }: {
   title: string;
@@ -33,8 +34,10 @@ export function ChartFrame({
   rows: ChartTableRow[];
   hasData: boolean;
   empty: ReactNode;
-  /** Fixed chart height in px, for charts sized by their row count. */
-  height?: number;
+  /** Fixed chart height in px, for charts sized by their row count; `auto` for HTML bars. */
+  height?: number | 'auto';
+  /** Always-visible lead under the title: a headline figure or a one-line description. */
+  summary?: ReactNode;
   children: ReactNode;
 }) {
   const [showTable, setShowTable] = useState(false);
@@ -60,6 +63,7 @@ export function ChartFrame({
           </Button>
         ) : null}
       </div>
+      {summary}
       {!hasData ? (
         // A fixed-height chart's empty note needs no room for a chart.
         <div className={height ? undefined : 'h-[240px] sm:h-[260px]'}>{empty}</div>
@@ -97,7 +101,7 @@ export function ChartFrame({
       ) : (
         <div
           className={height ? 'mt-2' : 'mt-2 h-[240px] sm:h-[260px]'}
-          style={height ? { height } : undefined}
+          style={typeof height === 'number' ? { height } : undefined}
         >
           {children}
         </div>
