@@ -22,7 +22,13 @@ import { ResourceState } from '@/components/feedback/ResourceState';
 import { SectionSkeleton } from '@/components/feedback/AppState';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection,
+  RecordSectionContent,
+  RecordSectionDescription,
+  RecordSectionHeader,
+  RecordSectionTitle,
+} from '@/components/patients/RecordSection';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -127,25 +133,25 @@ function StaffActivityContent() {
                 <ArrowLeft aria-hidden="true" />
                 All staff
               </Button>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg">
+              <RecordSection>
+                <RecordSectionHeader>
+                  <RecordSectionTitle>
                     {detail.person?.displayName ?? 'Unknown person'}
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground">
+                  </RecordSectionTitle>
+                  <RecordSectionDescription>
                     {formatRoles(detail.person?.roles ?? [])}
                     {detail.person && !detail.person.active ? ' · Deactivated' : ''} · {detail.from}{' '}
                     to {detail.to}, clinic time ({detail.timezone})
-                  </p>
-                </CardHeader>
-                <CardContent className="overflow-x-auto">
+                  </RecordSectionDescription>
+                </RecordSectionHeader>
+                <RecordSectionContent className="overflow-x-auto">
                   {detail.days.length === 0 ? (
                     <p className="text-sm text-muted-foreground">Nothing recorded in this range.</p>
                   ) : (
                     <table className="w-full min-w-[640px] text-sm" data-testid="activity-days">
                       <caption className="sr-only">Activity by day</caption>
                       <thead>
-                        <tr className="border-b text-left text-xs text-muted-foreground">
+                        <tr className="border-b border-rule text-left text-xs text-muted-foreground">
                           <th scope="col" className="py-2 pr-3 font-medium">
                             Day
                           </th>
@@ -162,7 +168,7 @@ function StaffActivityContent() {
                       </thead>
                       <tbody className="tabular-nums">
                         {detail.days.map((day) => (
-                          <tr key={day.day} className="border-b last:border-0">
+                          <tr key={day.day} className="border-b border-rule last:border-0">
                             <th scope="row" className="py-2 pr-3 text-left font-medium">
                               {day.day}
                             </th>
@@ -176,20 +182,18 @@ function StaffActivityContent() {
                       </tbody>
                     </table>
                   )}
-                </CardContent>
-              </Card>
+                </RecordSectionContent>
+              </RecordSection>
 
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    Records worked on, newest first
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
+              <RecordSection>
+                <RecordSectionHeader>
+                  <RecordSectionTitle>Records worked on, newest first</RecordSectionTitle>
+                </RecordSectionHeader>
+                <RecordSectionContent>
                   {detail.records.length === 0 ? (
                     <p className="text-sm text-muted-foreground">None in this range.</p>
                   ) : (
-                    <ul className="divide-y text-sm" data-testid="activity-records">
+                    <ul className="divide-y divide-rule text-sm" data-testid="activity-records">
                       {detail.records.map((record, index) => {
                         const category =
                           detail.categories.find((entry) => entry.key === record.category)?.label ??
@@ -209,7 +213,7 @@ function StaffActivityContent() {
                               {formatAt(record.at, detail.timezone)}
                               {record.href ? (
                                 <Link
-                                  className="text-primary underline-offset-4 hover:underline"
+                                  className="inline-flex min-h-11 items-center text-primary underline-offset-4 hover:underline"
                                   href={record.href}
                                 >
                                   Open
@@ -221,8 +225,8 @@ function StaffActivityContent() {
                       })}
                     </ul>
                   )}
-                </CardContent>
-              </Card>
+                </RecordSectionContent>
+              </RecordSection>
             </div>
           )}
         </ResourceState>
@@ -234,13 +238,17 @@ function StaffActivityContent() {
           offlineDescription="Staff activity is calculated on the server, so it needs a connection."
         >
           {(data) => (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">
-                  {data.from} to {data.to}, clinic time ({data.timezone})
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="overflow-x-auto">
+            <RecordSection>
+              <RecordSectionHeader>
+                <RecordSectionTitle>
+                  {data.from} to {data.to}
+                </RecordSectionTitle>
+                <RecordSectionDescription>
+                  Clinic time ({data.timezone}). Choose a name to see that person&apos;s days and
+                  records.
+                </RecordSectionDescription>
+              </RecordSectionHeader>
+              <RecordSectionContent className="overflow-x-auto">
                 {data.staff.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Nobody works at this clinic yet.</p>
                 ) : (
@@ -252,7 +260,7 @@ function StaffActivityContent() {
                       Work recorded by each member of staff, listed by name
                     </caption>
                     <thead>
-                      <tr className="border-b text-left text-xs text-muted-foreground">
+                      <tr className="border-b border-rule text-left text-xs text-muted-foreground">
                         <th scope="col" className="py-2 pr-3 font-medium">
                           Name
                         </th>
@@ -272,11 +280,11 @@ function StaffActivityContent() {
                     </thead>
                     <tbody className="tabular-nums">
                       {data.staff.map((row) => (
-                        <tr key={row.userId} className="border-b last:border-0">
+                        <tr key={row.userId} className="border-b border-rule last:border-0">
                           <th scope="row" className="py-2 pr-3 text-left font-normal">
                             <button
                               type="button"
-                              className="text-left font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              className="inline-flex min-h-11 items-center text-left font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                               onClick={() => setSelected(row.userId)}
                             >
                               {row.displayName}
@@ -303,7 +311,7 @@ function StaffActivityContent() {
                       ))}
                     </tbody>
                     <tfoot>
-                      <tr className="border-t text-xs text-muted-foreground">
+                      <tr className="border-t-2 border-rule-strong text-xs text-muted-foreground">
                         <th scope="row" className="py-2 pr-3 text-left font-medium">
                           Clinic total
                         </th>
@@ -317,8 +325,8 @@ function StaffActivityContent() {
                     </tfoot>
                   </table>
                 )}
-              </CardContent>
-            </Card>
+              </RecordSectionContent>
+            </RecordSection>
           )}
         </ResourceState>
       )}

@@ -804,6 +804,38 @@ unchanged.
 
 [Before/after evidence and verification](evidence/273/README.md).
 
+### Phase 05 analytics and reporting (#275)
+
+`/metrics`, `/staff-activity`, `/reports/organization` (Report and Cohort
+analytics) and `/clinics/[clinicId]/research/exports` drop their cards for the
+ruled sections of section 12: a 2px top rule, a `type-section-title` heading,
+a quiet description and hairline rows. The patient chart's `RecordSection`
+primitives are reused rather than adding a second set. Tables keep their
+captions, names and test ids; status badges and actions are unchanged.
+
+- **Every chart is a `ChartFrame`.** The trend and distribution charts already
+  were. The three metrics conversions now are too, so each gains "Show table"
+  with Step, Count and Share of first step. `ChartFrame` takes
+  `height="auto"` for HTML bars and an optional `summary` line, which carries
+  the conversion figure and description above the bars. Conversion bars use
+  `--chart-1`, not the teal reserved for what can be pressed, and lose their
+  rounded ends and width transition.
+- **No shadcn `chart` and no new dependency.** The existing Recharts 3.10.1
+  charts in `ChartFrame` already meet the section 13 adaptations (straight
+  segments, a table on every chart, the HSL palette, tabular ticks), so
+  wrapping them again would add code without changing what a reader sees.
+- **No chart animation.** The owner allows it, and the issue asks for none;
+  the charts keep `isAnimationActive={false}`, so readings never pass through
+  invented intermediate values. No reduced-motion code was needed.
+- Staff activity: the date range is the section title with the clinic zone
+  beneath it; names and the Open links are 44px targets; the clinic total sits
+  under a strong rule.
+- Research exports: Needs a decision, export runs and schedules are hairline
+  rows instead of boxes inside a card. "Request export pack" takes the strong
+  rule; the icons beside section titles are muted, not teal.
+
+[Before/after evidence and verification](evidence/275/README.md).
+
 ### The combobox, and when it is not the answer
 
 `Select` is still the default. `Combobox` exists for one case: a list long enough that scrolling

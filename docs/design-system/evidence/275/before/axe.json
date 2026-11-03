@@ -1,0 +1,198 @@
+[
+  {
+    "name": "metrics-director",
+    "width": 1440,
+    "theme": "light",
+    "height": 2385,
+    "violations": []
+  },
+  {
+    "name": "research-exports",
+    "width": 1440,
+    "theme": "light",
+    "height": 15926,
+    "violations": []
+  },
+  {
+    "name": "metrics-director",
+    "width": 390,
+    "theme": "light",
+    "height": 4592,
+    "violations": []
+  },
+  {
+    "name": "research-exports",
+    "width": 390,
+    "theme": "light",
+    "height": 30370,
+    "violations": []
+  },
+  {
+    "name": "metrics-director",
+    "width": 1440,
+    "theme": "dark",
+    "height": 2385,
+    "violations": []
+  },
+  {
+    "name": "research-exports",
+    "width": 1440,
+    "theme": "dark",
+    "height": 15926,
+    "violations": []
+  },
+  {
+    "name": "metrics-director",
+    "width": 390,
+    "theme": "dark",
+    "height": 4592,
+    "violations": []
+  },
+  {
+    "name": "research-exports",
+    "width": 390,
+    "theme": "dark",
+    "height": 30370,
+    "violations": []
+  },
+  {
+    "name": "metrics-manager",
+    "width": 1440,
+    "theme": "light",
+    "height": 2385,
+    "violations": []
+  },
+  {
+    "name": "staff-activity",
+    "width": 1440,
+    "theme": "light",
+    "height": 3971,
+    "violations": []
+  },
+  {
+    "name": "staff-activity-person",
+    "width": 1440,
+    "theme": "light",
+    "height": 900,
+    "violations": []
+  },
+  {
+    "name": "metrics-manager",
+    "width": 390,
+    "theme": "light",
+    "height": 4592,
+    "violations": []
+  },
+  {
+    "name": "staff-activity",
+    "width": 390,
+    "theme": "light",
+    "height": 4203,
+    "violations": []
+  },
+  {
+    "name": "staff-activity-person",
+    "width": 390,
+    "theme": "light",
+    "height": 844,
+    "violations": []
+  },
+  {
+    "name": "metrics-manager",
+    "width": 1440,
+    "theme": "dark",
+    "height": 2385,
+    "violations": []
+  },
+  {
+    "name": "staff-activity",
+    "width": 1440,
+    "theme": "dark",
+    "height": 3971,
+    "violations": []
+  },
+  {
+    "name": "staff-activity-person",
+    "width": 1440,
+    "theme": "dark",
+    "height": 900,
+    "violations": []
+  },
+  {
+    "name": "metrics-manager",
+    "width": 390,
+    "theme": "dark",
+    "height": 4592,
+    "violations": []
+  },
+  {
+    "name": "staff-activity",
+    "width": 390,
+    "theme": "dark",
+    "height": 4203,
+    "violations": []
+  },
+  {
+    "name": "staff-activity-person",
+    "width": 390,
+    "theme": "dark",
+    "height": 844,
+    "violations": []
+  },
+  {
+    "name": "organization-report",
+    "width": 1440,
+    "theme": "light",
+    "height": 1658,
+    "violations": []
+  },
+  {
+    "name": "organization-analytics",
+    "width": 1440,
+    "theme": "light",
+    "height": 2356,
+    "violations": []
+  },
+  {
+    "name": "organization-report",
+    "width": 390,
+    "theme": "light",
+    "height": 2365,
+    "violations": []
+  },
+  {
+    "name": "organization-analytics",
+    "width": 390,
+    "theme": "light",
+    "height": 3955,
+    "violations": []
+  },
+  {
+    "name": "organization-report",
+    "width": 1440,
+    "theme": "dark",
+    "height": 1658,
+    "violations": []
+  },
+  {
+    "name": "organization-analytics",
+    "width": 1440,
+    "theme": "dark",
+    "height": 2356,
+    "violations": []
+  },
+  {
+    "name": "organization-report",
+    "width": 390,
+    "theme": "dark",
+    "height": 2365,
+    "violations": []
+  },
+  {
+    "name": "organization-analytics",
+    "width": 390,
+    "theme": "dark",
+    "height": 3955,
+    "violations": []
+  }
+]
