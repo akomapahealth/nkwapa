@@ -208,6 +208,11 @@ test.describe('as a doctor', () => {
 
     await context.setOffline(true);
     await page.getByRole('button', { name: 'Add prescription' }).click();
+    // The click starts an async local write. Reconnecting before its success notice appears can
+    // make the drain check see an empty queue before the mutation has even been enqueued.
+    await expect(
+      page.getByText('Prescription saved on this device and pending sync.'),
+    ).toBeVisible();
 
     await context.setOffline(false);
     await waitForOutboxDrain(page, expect, { entityType: 'prescription' });

@@ -330,8 +330,8 @@ jobs:
       E2E_PATIENT_PASSWORD: NkwapaPatient!23
       E2E_PATIENT_NAME: E2E Patient
       E2E_PATIENT_EMAIL: e2e.patient@nkwapa.local
-      # The same patient one step earlier: invited, not yet linked. A claimed account is
-      # redirected off /claim-record, so the claim page had no identity that could reach it.
+      # Legacy seeded claimant identity retained for seed compatibility. Claim and PWA specs now
+      # create fresh invitations and accounts per run because a successful claim is irreversible.
       E2E_CLAIMANT_SUB: 00000000-0000-4000-8000-000000000047
       E2E_CLAIMANT_USERNAME: e2e.claimant
       E2E_CLAIMANT_PASSWORD: NkwapaClaimant!23

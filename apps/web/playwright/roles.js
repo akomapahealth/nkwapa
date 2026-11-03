@@ -14,7 +14,7 @@ const path = require('path');
  * loaded by the suite. The seed links it to a real patient record through `Patient.portalUserId`,
  * which is what makes the portal show a chart rather than "ask your clinic to link this account".
  *
- * `claimant` is that same patient one step earlier: invited, not yet linked. The two cannot be one
+ * `claimant` storage is created by a fresh invitation in the specs that need it. The two cannot be one
  * identity, because the link is what decides where the account is allowed to be -- a claimed
  * account is redirected off /claim-record, so the claim page had no identity that could reach it.
  */
@@ -54,14 +54,7 @@ const ROLES = {
     landingUrl: '/portal',
   },
   claimant: {
-    storageState: path.join(AUTH_DIR, 'claimant.json'),
-    username: process.env.E2E_CLAIMANT_USERNAME || 'e2e.claimant',
-    password: process.env.E2E_CLAIMANT_PASSWORD || 'NkwapaClaimant!23',
-    /*
-      Holds an invitation and nothing else -- no record link, no roles. `SyncWithAuth` sends any
-      account in that state to /claim-record and holds it there, so this identity cannot land
-      anywhere else, and `patient` cannot land here: a claimed record is redirected away.
-    */
+    fixture: 'invited-patient',
     landingUrl: '/claim-record',
   },
 };
@@ -70,6 +63,7 @@ const ROLES = {
 function storageStateFor(role) {
   const entry = ROLES[role];
   if (!entry) throw new Error(`Unknown e2e role: ${role}`);
+  if (!entry.storageState) throw new Error(`${role} needs its own invitation fixture.`);
   return entry.storageState;
 }
 

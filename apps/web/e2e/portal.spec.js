@@ -1,6 +1,8 @@
+const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 
+const { apiRequestAs } = require('../playwright/api-client');
 const { storageStateFor } = require('../playwright/roles');
 
 /*
@@ -25,6 +27,12 @@ const PORTAL_ROUTES = [
   { path: '/portal/appointments/request', heading: /visit request details/i },
   { path: '/portal/self-reports/new', heading: /measurement details/i },
 ];
+
+async function waitForPageEntrance(page) {
+  // The workspace template fades in over 150ms. Axe otherwise measures text through a partially
+  // transparent ancestor and reports transient contrast instead of the settled page colours.
+  await expect(page.locator('.animate-page-in')).toHaveCSS('opacity', '1');
+}
 
 /** Staff surfaces a patient must never be shown the contents of. */
 const STAFF_ROUTES = [
@@ -78,12 +86,13 @@ test('the portal has no automatically detectable accessibility violations', asyn
   for (const route of PORTAL_ROUTES) {
     await page.goto(route.path);
     await expect(page.locator('#main-content')).toBeVisible({ timeout: 30_000 });
+    await waitForPageEntrance(page);
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
     for (const violation of results.violations) {
       failures.push(
-        `${route.path}: ${violation.id} (${violation.nodes.length}) — ${violation.help}`,
+        `${route.path}: ${violation.id} (${violation.nodes.length}) — ${violation.help}: ${violation.nodes.map((node) => `${node.target.join(' ')}: ${node.failureSummary}`).join('; ')}`,
       );
     }
   }
@@ -122,4 +131,68 @@ test('a patient can reach every portal action by keyboard', async ({ page }) => 
     blind.map((stop) => stop.name),
     'these take focus with no visible indicator',
   ).toEqual([]);
+});
+
+for (const theme of ['light', 'dark']) {
+  test(`measurement choices retain readable descriptions while selection changes (${theme})`, async ({
+    page,
+  }) => {
+    await page.addInitScript((theme) => localStorage.setItem('nkwapa-theme', theme), theme);
+    await page.goto('/portal/self-reports/new');
+    await expect(
+      page.getByRole('heading', { name: 'Measurement details', exact: true }),
+    ).toBeVisible();
+    await waitForPageEntrance(page);
+    // Keep normal motion: a scan must not rely on suppressing the transition that exposed this.
+    for (const choice of [
+      /Glucose.*Share fasting/,
+      /Weight.*Capture weight/,
+      /Blood pressure.*Track systolic/,
+    ]) {
+      const tile = page.getByRole('button', { name: choice });
+      await tile.click();
+      await expect(tile).toHaveAttribute('aria-pressed', 'true');
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    }
+  });
+}
+
+test.describe('clinic notes on rejected requests', () => {
+  let reason;
+  test.beforeAll(async () => {
+    reason = `E2E clinic note ${randomUUID()}`;
+    const identity = await apiRequestAs('patient', 'get', '/auth/whoami');
+    expect(identity.ok(), identity.text()).toBeTruthy();
+    const clinicId = identity.json().activeClinicId;
+    expect(clinicId).toBeTruthy();
+    const day = new Date(Date.now() + 24 * 60 * 60_000).toISOString().slice(0, 10);
+    const created = await apiRequestAs('patient', 'post', '/patients/me/appointment-requests', {
+      clinicId,
+      data: { preferredStartDate: day, preferredEndDate: day, reason },
+    });
+    expect(created.ok(), created.text()).toBeTruthy();
+    const rejected = await apiRequestAs(
+      'staff',
+      'post',
+      `/clinics/${clinicId}/appointment-requests/${created.json().id}/reject`,
+      { clinicId, data: { reason } },
+    );
+    expect(rejected.ok(), rejected.text()).toBeTruthy();
+  });
+
+  for (const theme of ['light', 'dark']) {
+    test(`clinic note remains readable on its tinted surface (${theme})`, async ({ page }) => {
+      await page.addInitScript((value) => localStorage.setItem('nkwapa-theme', value), theme);
+      await page.goto('/portal/appointments');
+      await expect(page.getByText(reason, { exact: true }).first()).toBeVisible();
+      await waitForPageEntrance(page);
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  }
 });

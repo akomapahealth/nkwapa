@@ -2,9 +2,19 @@ const { test, expect } = require('@playwright/test');
 const { skipWelcomeTour } = require('../playwright/welcome-tour');
 const AxeBuilder = require('@axe-core/playwright').default;
 
-const { storageStateFor } = require('../playwright/roles');
+const { createClaimantStorageState } = require('../playwright/claimant-fixture');
 
-test.use({ storageState: storageStateFor('claimant') });
+let claimantState;
+test.beforeAll(async ({ browser }) => {
+  test.setTimeout(180_000);
+  claimantState = await createClaimantStorageState(browser);
+});
+test.use({
+  storageState: async ({ browser }, applyState) => {
+    void browser;
+    await applyState(claimantState);
+  },
+});
 
 /**
  * Claiming a patient record, as the patient.
@@ -17,8 +27,8 @@ test.use({ storageState: storageStateFor('claimant') });
  * This needed an identity the suite did not have. `patient` is seeded already linked to a record,
  * and `SyncWithAuth` redirects any account holding a record away from /claim-record -- so the page
  * could not be reached at all. `claimant` is that same patient one step earlier: invited, no link,
- * no roles. `SEED_SAMPLE_IDENTITY` stages it and puts it back to unclaimed on every seed, because
- * a successful claim is not reversible from the product.
+ * no roles. This spec creates its own real account and invitation on each invocation, because
+ * a successful claim is not reversible from the product. Repeated runs need no reseed.
  *
  * Order matters in this file. The refusals run first and change nothing; the successful claim runs
  * last because it consumes the invitation and links the account for good.
@@ -145,7 +155,7 @@ test.describe('a patient holding an invitation', () => {
 
     A successful claim links the account, stamps portalUserId, grants a PATIENT role and settles
     the invitation, none of which the product can undo. Every test above runs against an unclaimed
-    account, so this one goes at the end; `SEED_SAMPLE_IDENTITY` puts it all back on the next seed.
+    account, so this one goes at the end; the next run creates a different, unclaimed account.
   */
   test('claims the record and lands in the portal', async ({ page }) => {
     const { patientCode } = await openClaimForm(page);

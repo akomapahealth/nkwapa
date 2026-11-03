@@ -46,6 +46,8 @@ async function authenticate(page, { username, password, storageState, landingUrl
 // One sign-in per identity, each saved separately, so a spec picks the role it needs rather than
 // arranging permissions inside the test.
 for (const [role, credentials] of Object.entries(ROLES)) {
+  // Single-use claim invitations belong to the specs that need them, not global setup.
+  if (credentials.fixture === 'invited-patient') continue;
   setup(`authenticate deterministic ${role} user`, async ({ page }) => {
     await authenticate(page, credentials);
   });

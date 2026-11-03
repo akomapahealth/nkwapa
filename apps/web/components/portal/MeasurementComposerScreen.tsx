@@ -242,7 +242,12 @@ export function MeasurementComposerScreen() {
                     )}
                   </div>
                   <p className="mt-4 font-medium text-foreground">{option.label}</p>
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  <p
+                    className={cn(
+                      'mt-1 text-sm leading-6',
+                      isActive ? 'text-foreground' : 'text-muted-foreground',
+                    )}
+                  >
                     {option.description}
                   </p>
                 </button>

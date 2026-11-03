@@ -73,11 +73,14 @@ for (const route of ROUTES) {
 
     for (const { name, width, height } of BREAKPOINTS) {
       await page.setViewportSize({ width, height });
-      const overflow = await horizontalOverflow(page);
-      expect(
-        overflow,
-        `${route.path} scrolls horizontally on ${name} (${width}px)`,
-      ).toBeLessThanOrEqual(1);
+      // setViewportSize returns before responsive layout and its sidebar transition settle.
+      // Poll the same strict overflow bound so a persistent escape still fails.
+      await expect
+        .poll(() => horizontalOverflow(page), {
+          timeout: 5_000,
+          message: `${route.path} scrolls horizontally on ${name} (${width}px)`,
+        })
+        .toBeLessThanOrEqual(1);
     }
   });
 }
@@ -110,11 +113,12 @@ test.describe('the patient portal', () => {
 
       for (const { name, width, height } of BREAKPOINTS) {
         await page.setViewportSize({ width, height });
-        const overflow = await horizontalOverflow(page);
-        expect(
-          overflow,
-          `${route.path} scrolls horizontally on ${name} (${width}px)`,
-        ).toBeLessThanOrEqual(1);
+        await expect
+          .poll(() => horizontalOverflow(page), {
+            timeout: 5_000,
+            message: `${route.path} scrolls horizontally on ${name} (${width}px)`,
+          })
+          .toBeLessThanOrEqual(1);
       }
     });
   }
