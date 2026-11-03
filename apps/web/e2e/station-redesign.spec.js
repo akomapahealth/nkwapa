@@ -75,26 +75,39 @@ for (const theme of ['light', 'dark']) {
     await expect(needs.getByText('1 patient waiting at the review station')).toBeVisible();
     const rows = page.getByTestId('patient-station-row');
     await expect(rows).toHaveCount(5);
+    // One lane per station; that station's patients sit side by side in it.
+    await expect(page.getByTestId('patient-station-lane')).toHaveCount(3);
+    const bpLane = page.getByTestId('patient-station-lane').filter({ hasText: 'Blood pressure' });
+    await expect(bpLane.getByTestId('patient-station-row')).toHaveCount(4);
+    await expect(bpLane.getByText('1 waiting over 20 min', { exact: true })).toBeVisible();
+    const [first, second] = await bpLane
+      .getByTestId('patient-wait-bar')
+      .evaluateAll((bars) => bars.slice(0, 2).map((bar) => bar.getBoundingClientRect().y));
+    expect(second).toBe(first);
     for (const [name, minutes, status] of [
       ['WithStaff', 7, 'With staff'],
       ['Waiting', 12, 'Waiting'],
       ['LongWait', 26, 'Waiting over 20 min'],
       ['Boundary', 20, 'Waiting'],
     ]) {
-      const row = rows.filter({
-        has: page.getByText(`Synthetic ${name}`, { exact: true }).first(),
-      });
-      await expect(row.getByText(`${status} · ${minutes} min`, { exact: true })).toBeVisible();
-      const track = row.getByTestId('patient-wait-track');
-      await expect(track).toHaveAttribute('data-minutes', String(minutes));
-      await expect(track).toHaveAttribute('data-scale', '30');
-      const ratio = await track.evaluate(
+      const row = rows.filter({ hasText: `Synthetic ${name},` });
+      await expect(row).toContainText(`Synthetic ${name}, ${status}, ${minutes} min`);
+      await expect(row).toContainText(`Synthetic ${name.charAt(0)}. ${minutes} min`);
+      const bar = row.getByTestId('patient-wait-bar');
+      await expect(bar).toHaveAttribute('data-minutes', String(minutes));
+      const ratio = await bar.evaluate(
         (el) =>
-          el.querySelector('[data-testid="patient-wait-bar"]').getBoundingClientRect().width /
-          el.getBoundingClientRect().width,
+          el.getBoundingClientRect().width /
+          el.closest('[data-testid="patient-wait-track"]').getBoundingClientRect().width,
       );
-      expect(ratio).toBeCloseTo(minutes / 30, 2);
+      expect(ratio).toBeCloseTo(minutes / 40, 2);
+      // Labels sit inside long bars and beside short ones; neither is cut off.
+      expect(await bar.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
     }
+    await expect(page.getByTestId('patient-wait-track').first()).toHaveAttribute(
+      'data-scale',
+      '40',
+    );
     await expect(page.getByText('Staffed 1 of 2', { exact: true })).toBeVisible();
     await expect(
       page
@@ -106,6 +119,26 @@ for (const theme of ['light', 'dark']) {
       .getByRole('heading', { name: 'Patients at each station' })
       .boundingBox();
     expect(needsBox.y).toBeLessThan(lineBox.y);
+    // Actions live in the bar's menu, not on the lane.
+    await rows.filter({ hasText: 'Synthetic WithStaff,' }).getByRole('button').click();
+    const menu = page.getByRole('menu');
+    await expect(menu.getByText('With Synthetic Screener', { exact: true })).toBeVisible();
+    for (const item of ['Move', 'Release', 'Left', 'Open'])
+      await expect(menu.getByRole('menuitem', { name: item, exact: true })).toBeVisible();
+    await expect(menu.getByRole('menuitem', { name: 'Assign', exact: true })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('button', { name: 'Assign', exact: true })).toHaveCount(0);
+    // "Needs you now" opens the existing dialogs for the oldest wait and an unstaffed station.
+    await needs.getByRole('button', { name: 'Move a patient' }).click();
+    await expect(page.getByRole('dialog', { name: 'Move patient' })).toContainText(
+      'Synthetic LongWait',
+    );
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await needs.getByRole('button', { name: 'Assign staff' }).click();
+    await expect(page.getByRole('dialog', { name: 'Assign patient' })).toContainText(
+      'Synthetic Review',
+    );
+    await page.getByRole('button', { name: 'Cancel' }).click();
     await page.getByRole('button', { name: 'Show data table' }).click();
     const table = page.getByRole('table', {
       name: 'Station line, exact patient queue times and staffing',
@@ -229,4 +262,31 @@ test('long-wait action names only the three oldest patients and keeps the full c
   ).toBeVisible();
   await expect(needs.getByText(/Synthetic Long27/)).toHaveCount(0);
   await expect(page.getByTestId('patient-station-row')).toHaveCount(9);
+});
+
+test('a wait past the scale fills its lane and keeps its real minutes', async ({ page }) => {
+  const now = Date.now();
+  await page.clock.setFixedTime(now);
+  const board = syntheticBoard(now);
+  const bp = board.stations[0];
+  const template = bp.visits.find((visit) => visit.id === 'LongWait');
+  bp.visits.push({
+    ...template,
+    id: 'Overnight',
+    patient: { ...template.patient, id: 'Overnight', lastName: 'Overnight' },
+    queuedAt: new Date(now - 444 * 60_000).toISOString(),
+  });
+  await page.route('**/stations/board*', (route) => route.fulfill({ json: board }));
+  await page.goto('/today');
+  const row = page.getByTestId('patient-station-row').filter({ hasText: 'Synthetic Overnight,' });
+  await expect(row).toContainText('Synthetic O. 444 min');
+  const ratio = await row
+    .getByTestId('patient-wait-bar')
+    .evaluate(
+      (el) =>
+        el.getBoundingClientRect().width /
+        el.closest('[data-testid="patient-wait-track"]').getBoundingClientRect().width,
+    );
+  expect(ratio).toBeCloseTo(1, 2);
+  await expect(page.getByTestId('patient-wait-track').first()).toHaveAttribute('data-scale', '40');
 });

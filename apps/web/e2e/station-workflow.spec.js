@@ -560,9 +560,12 @@ test('a manager hands a waiting patient to a volunteer on shift', async ({ page 
   expect(again.status()).toBe(400);
 
   await page.goto('/today');
+  // The bar opens the patient's menu, which says who handed them over.
+  await page.getByRole('button', { name: new RegExp(`^${patient.name}, With staff`) }).click();
   await expect(
-    page.getByText(`Assigned by ${assigned.json().assignedBy.displayName}`),
+    page.getByRole('menu').getByText(`Assigned by ${assigned.json().assignedBy.displayName}`),
   ).toBeVisible();
+  await page.keyboard.press('Escape');
 
   const left = await apiRequestAs(
     'staff',
