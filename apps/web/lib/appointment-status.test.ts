@@ -6,6 +6,7 @@ import {
   isPatientAppointmentActionable,
   getAppointmentActionLabel,
   getAppointmentStatusFilterLabel,
+  describeTimeEntryZone,
 } from '@/lib/appointment-status';
 import type { AppointmentSummary } from '@/lib/patient-portal';
 
@@ -155,5 +156,17 @@ describe('one vocabulary across staff and portal', () => {
   it('falls back readably for a status this build does not know', () => {
     expect(getAppointmentStatusView('SOME_NEW_STATE').label).toBe('Some New State');
     expect(getAppointmentRequestStatusView('SOME_NEW_STATE').badgeVariant).toBe('outline');
+  });
+});
+
+describe('describeTimeEntryZone', () => {
+  it('names the clinic zone when the device uses it', () => {
+    expect(describeTimeEntryZone('Africa/Accra', 'Africa/Accra')).toBe('Times in Africa/Accra.');
+  });
+
+  it('names both zones when the device differs from the clinic', () => {
+    expect(describeTimeEntryZone('Africa/Accra', 'America/Chicago')).toBe(
+      "Times here use this device's time zone, America/Chicago. The schedule shows Africa/Accra.",
+    );
   });
 });

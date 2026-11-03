@@ -773,6 +773,37 @@ with three ruled links, including the real queues.
 
 [Before/after evidence and verification](evidence/272/README.md).
 
+### Phase 04 appointments (#273)
+
+`/appointments` leads with patient requests: a ruled section whose title
+carries the awaiting count, one hairline row per request with its type and
+status as text, the patient's reason set off by a rule, and the same Confirm
+request and Decline actions. The schedule follows as one ruled section: the
+range itself is the title, with "Times in Africa/Accra" (the zone the API
+returns) beneath it, previous, Today, next and Day/Week beside it. Week view
+adds a seven-day strip with each day's count; choosing a day opens it in Day
+view (`aria-current="date"` marks today). Filters, the ledger counts and the
+day lists sit under the same rule. Completed's detail line now also states the
+range's cancelled and no-show counts from the existing summary.
+
+Day lists are hairline rows on phones and a ruled table from 1280px. A
+cancelled visit's time is struck through beside its "Cancelled" label; the
+schedule response carries no who or when for a cancellation, so those are not
+shown (API change, deferred). Statuses still come from
+`lib/appointment-status.ts`.
+
+Reschedule and Confirm request put the error summary first (`role="alert"`,
+fields `aria-invalid` and `aria-describedby` it), show the booked visit or the
+request as ruled context, and group fields under "New time" / "Visit time" and
+"Care team" legends. `datetime-local` reads the device clock, so the time
+fields say which zone they use: the clinic zone, or the device zone beside the
+clinic zone when they differ. Converting typed times to the clinic zone would
+change saved instants, so it is left for the deferred API and data work.
+Validation, lifecycle and triage calls, permissions and reminders are
+unchanged.
+
+[Before/after evidence and verification](evidence/273/README.md).
+
 ### The combobox, and when it is not the answer
 
 `Select` is still the default. `Combobox` exists for one case: a list long enough that scrolling

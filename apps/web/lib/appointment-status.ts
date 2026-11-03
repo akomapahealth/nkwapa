@@ -186,3 +186,16 @@ export function getAppointmentActionLabel(action: AppointmentLifecycleAction | s
       return 'Update';
   }
 }
+
+/**
+ * `datetime-local` fields read and write the device's clock, while the schedule is shown in the
+ * clinic's zone. Say which zone a time is typed in whenever the two differ.
+ */
+export function describeTimeEntryZone(
+  clinicTimeZone: string,
+  deviceTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone,
+) {
+  return deviceTimeZone === clinicTimeZone
+    ? `Times in ${clinicTimeZone}.`
+    : `Times here use this device's time zone, ${deviceTimeZone}. The schedule shows ${clinicTimeZone}.`;
+}
