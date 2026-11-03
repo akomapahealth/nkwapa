@@ -11,7 +11,6 @@ import {
   YAxis,
 } from 'recharts';
 import { EmptyState } from '@/components/feedback/AppState';
-import { PortalPanel } from '@/components/portal/PortalPanels';
 import { ChartFrame } from '@/components/dashboard/ChartFrame';
 
 interface TrendLine {
@@ -22,12 +21,6 @@ interface TrendLine {
 
 interface MeasurementTrendChartProps {
   title: string;
-  /**
-   * Defaults to `h3`, which is right for the staff chart panel: it nests these under its own
-   * section heading. The portal's health page puts them at the top level of the page and passes
-   * `h2`.
-   */
-  headingLevel?: 'h2' | 'h3';
   description: string;
   emptyMessage: string;
   lines: TrendLine[];
@@ -55,7 +48,6 @@ const dashFor = (index: number) => DASHES[index % DASHES.length];
 
 export function MeasurementTrendChart({
   title,
-  headingLevel = 'h3',
   description,
   emptyMessage,
   lines,
@@ -119,7 +111,7 @@ export function MeasurementTrendChart({
             {lines.map((line, index) => (
               <Line
                 key={line.key}
-                type={staffRecord ? 'linear' : 'monotone'}
+                type="linear"
                 dataKey={line.key}
                 stroke={line.color}
                 strokeWidth={2.5}
@@ -139,31 +131,28 @@ export function MeasurementTrendChart({
     </div>
   );
 
-  if (staffRecord) {
-    return (
-      <ChartFrame
-        height={260}
-        title={title}
-        hint={description}
-        columns={[
-          'Recorded',
-          ...lines.map((line) => `${line.label}${valueSuffix ? ` (${valueSuffix.trim()})` : ''}`),
-        ]}
-        rows={data.map((reading) => ({
-          label: String(reading.label ?? ''),
-          values: lines.map((line) => reading[line.key] ?? 'Not recorded'),
-        }))}
-        hasData={data.length > 0}
-        empty={empty}
-      >
-        {chart}
-      </ChartFrame>
-    );
-  }
-
   return (
-    <PortalPanel title={title} headingLevel={headingLevel} description={description}>
-      {data.length === 0 ? empty : chart}
-    </PortalPanel>
+    <ChartFrame
+      height={staffRecord ? 260 : 'auto'}
+      title={title}
+      hint={staffRecord ? description : undefined}
+      summary={
+        staffRecord ? undefined : (
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
+        )
+      }
+      columns={[
+        'Recorded',
+        ...lines.map((line) => `${line.label}${valueSuffix ? ` (${valueSuffix.trim()})` : ''}`),
+      ]}
+      rows={data.map((reading) => ({
+        label: String(reading.label ?? ''),
+        values: lines.map((line) => reading[line.key] ?? 'Not recorded'),
+      }))}
+      hasData={data.length > 0}
+      empty={empty}
+    >
+      {chart}
+    </ChartFrame>
   );
 }
