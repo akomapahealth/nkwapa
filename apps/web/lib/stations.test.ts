@@ -1,6 +1,7 @@
 import {
   assignableStaff,
   canCorrectPerformer,
+  describeRouteStop,
   formatMinutes,
   isStationBoard,
   moveStation,
@@ -177,5 +178,41 @@ describe('canCorrectPerformer (#227)', () => {
     expect(canCorrectPerformer({ ...done, checkInStatus: 'COMPLETED' }, manager)).toBe(true);
     expect(canCorrectPerformer(done, { userId: 'esi', canManage: false })).toBe(false);
     expect(canCorrectPerformer({ ...done, status: 'IN_PROGRESS' }, manager)).toBe(false);
+  });
+});
+
+describe('describeRouteStop', () => {
+  const at = (iso: string) => `at ${iso}`;
+  const base = {
+    completedBy: { id: 'u1', displayName: 'Kofi Boateng' },
+    completedAt: '2026-11-03T10:04:00Z',
+    performedByName: null,
+    endReason: null,
+  };
+
+  it('strikes a cancelled stop and keeps who, when and why', () => {
+    expect(
+      describeRouteStop({ ...base, status: 'CANCELLED', endReason: 'Patient left' }, at),
+    ).toEqual({
+      struck: true,
+      summary: 'Cancelled by Kofi Boateng, at 2026-11-03T10:04:00Z',
+      reason: 'Reason: Patient left',
+    });
+  });
+
+  it('names the screener on a completed stop and gives no reason line', () => {
+    expect(describeRouteStop({ ...base, status: 'COMPLETED', performedByName: 'Ama' }, at)).toEqual(
+      {
+        struck: false,
+        summary: 'Completed by Ama · signed in as Kofi Boateng, at 2026-11-03T10:04:00Z',
+        reason: null,
+      },
+    );
+  });
+
+  it('says a queued stop is queued, without inventing who or when', () => {
+    expect(
+      describeRouteStop({ ...base, completedBy: null, completedAt: null, status: 'QUEUED' }, at),
+    ).toEqual({ struck: false, summary: 'Queued', reason: null });
   });
 });

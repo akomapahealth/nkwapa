@@ -357,6 +357,35 @@ export const screenerFromName = (screenerName: string | null | undefined): Scree
 export const performerLabel = (account: string, performedByName: string | null | undefined) =>
   performedByName ? `${performedByName} · signed in as ${account}` : account;
 
+/**
+ * One stop on an encounter's route, in words: "Cancelled by Kofi Boateng, 3 Nov, 10:04".
+ * A cancelled stop keeps its station name (struck through by the caller) beside who and when.
+ */
+export function describeRouteStop(
+  stop: Pick<
+    StationVisit,
+    'status' | 'completedBy' | 'completedAt' | 'performedByName' | 'endReason'
+  >,
+  formatTime: (iso: string) => string,
+) {
+  const verb: Record<StationVisitStatus, string> = {
+    QUEUED: 'Queued',
+    IN_PROGRESS: 'In progress',
+    COMPLETED: 'Completed',
+    SKIPPED: 'Skipped',
+    CANCELLED: 'Cancelled',
+  };
+  const who = stop.completedBy
+    ? ` by ${performerLabel(stop.completedBy.displayName, stop.performedByName)}`
+    : '';
+  const when = stop.completedAt ? `, ${formatTime(stop.completedAt)}` : '';
+  return {
+    struck: stop.status === 'CANCELLED',
+    summary: `${verb[stop.status]}${who}${when}`,
+    reason: stop.status !== 'COMPLETED' && stop.endReason ? `Reason: ${stop.endReason}` : null,
+  };
+}
+
 /** "Kofi Boateng (Ama Mensah screening)" when someone else works on the account. */
 export const withScreener = (displayName: string, screenerName: string | null | undefined) =>
   screenerName ? `${displayName} (${screenerName} screening)` : displayName;

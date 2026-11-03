@@ -743,6 +743,36 @@ its assignment table retains the full list and existing filters.
 
 [Before/after evidence and verification](evidence/271/README.md).
 
+### Phase 04 queues and encounters (#272)
+
+`/queues` shows each lane's count once, on its tab; the metric row and the
+"Active lane" box that repeated it are gone. Each lane opens with one sentence
+saying what it holds, then a ruled list: patient first, chart code, created
+time, BP classification in plain words and a "High glucose" label where the
+existing fasting 126 / random 200 mg/dL flag applies. Phones get ruled rows
+with the same "Open encounter" action. Fetching, permissions and lane choice
+are unchanged.
+
+The encounter workspace drops the three metric cards and the second patient
+heading. A ruled progress line names the stage in words (Draft, Pending review,
+Awaiting sign-off, Finalized) with `aria-current="step"`, derived from the
+existing status and preceptor review. Submit for Review and Mark Reviewed stay
+routine header actions. Sign-off actions (encounter Finalize, HAP Sign note and
+Cosign note) use the consent precedent: outlined warning ink with `ShieldCheck`.
+Finalize sits in its own "Ready for your sign-off" row saying it locks every
+tab. A finalized care plan reads back as a ruled `<dl>`.
+
+The Station session route uses `RecordSection` rows. A cancelled stop's station
+name is struck through beside "Cancelled by", the name, the time and the reason;
+skipped and completed stops keep who and when without the strike. Performer
+corrections still show the corrected name only: the prior name is in the audit
+trail, not the timeline response, so showing it struck through needs an API
+change (out of scope). The new-encounter wizard names its five steps instead of
+unlabelled bars. The clinic encounters hub replaces placeholder metric values
+with three ruled links, including the real queues.
+
+[Before/after evidence and verification](evidence/272/README.md).
+
 ### The combobox, and when it is not the answer
 
 `Select` is still the default. `Combobox` exists for one case: a list long enough that scrolling

@@ -12,7 +12,12 @@ import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppStat
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { RouteGuard } from '@/components/RouteGuard';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import {
+  RecordSection,
+  RecordSectionContent,
+  RecordSectionHeader,
+  RecordSectionTitle,
+} from '@/components/patients/RecordSection';
 import { VitalsForm } from '@/components/VitalsForm';
 import { DiabetesScreeningForm } from '@/components/DiabetesScreeningForm';
 import { HypertensionForm } from '@/components/HypertensionForm';
@@ -21,6 +26,13 @@ import { HypertensionInterviewForm } from '@/components/encounters/hypertension/
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 
 const STEPS = ['confirm', 'vitals', 'htn', 'diabetes', 'review'] as const;
+const STEP_LABELS: Record<(typeof STEPS)[number], string> = {
+  confirm: 'Patient',
+  vitals: 'Vitals',
+  htn: 'Hypertension',
+  diabetes: 'Diabetes',
+  review: 'Submit',
+};
 
 function NewEncounterFlow({ clinicId }: { clinicId: string }) {
   const params = useParams();
@@ -180,34 +192,41 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
         </span>
       </div>
 
-      <div className="flex gap-2">
+      <ol aria-label="Visit steps" className="grid grid-cols-5 gap-2 border-t-2 border-rule-strong">
         {STEPS.map((s, i) => (
-          <div
+          <li
             key={s}
-            className={`h-1.5 flex-1 rounded-full transition-colors ${
-              i <= step ? 'bg-primary' : 'bg-muted'
+            aria-current={i === step ? 'step' : undefined}
+            className={`truncate border-t-2 pt-2 text-xs sm:text-sm ${
+              i === step
+                ? 'border-primary font-semibold text-foreground'
+                : i < step
+                  ? 'border-primary/40 text-muted-foreground'
+                  : 'border-transparent text-muted-foreground'
             }`}
-          />
+          >
+            {STEP_LABELS[s]}
+          </li>
         ))}
-      </div>
+      </ol>
 
       {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
 
       {currentStep === 'confirm' && (
-        <Card>
-          <CardHeader>
-            <h2 className="font-heading text-xl font-semibold">Confirm Patient</h2>
-          </CardHeader>
-          <CardContent>
-            <p className="text-lg">
+        <RecordSection aria-labelledby="new-visit-confirm">
+          <RecordSectionHeader>
+            <RecordSectionTitle id="new-visit-confirm">Confirm Patient</RecordSectionTitle>
+          </RecordSectionHeader>
+          <RecordSectionContent>
+            <p className="font-heading text-2xl">
               {patient.firstName} {patient.lastName}
             </p>
-            <p className="font-mono text-muted-foreground">{patient.patientCode}</p>
+            <p className="font-mono text-sm text-muted-foreground">{patient.patientCode}</p>
             <Button className="mt-4" onClick={() => setStep(1)}>
               Continue to Vitals
             </Button>
-          </CardContent>
-        </Card>
+          </RecordSectionContent>
+        </RecordSection>
       )}
 
       {currentStep === 'vitals' && (
@@ -281,11 +300,11 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
         ))}
 
       {currentStep === 'review' && (
-        <Card>
-          <CardHeader>
-            <h2 className="font-heading text-xl font-semibold">Review &amp; Submit</h2>
-          </CardHeader>
-          <CardContent>
+        <RecordSection aria-labelledby="new-visit-review">
+          <RecordSectionHeader>
+            <RecordSectionTitle id="new-visit-review">Review &amp; Submit</RecordSectionTitle>
+          </RecordSectionHeader>
+          <RecordSectionContent>
             <p className="text-muted-foreground mb-4">
               Review the data in each section. You can go back to edit. When ready, submit for
               clinical review.
@@ -298,8 +317,8 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
                 {submitting ? 'Submitting…' : 'Submit for Clinical Review'}
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </RecordSectionContent>
+        </RecordSection>
       )}
 
       {!isLastStep && currentStep !== 'confirm' && currentStep !== 'review' && (

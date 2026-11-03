@@ -8,12 +8,17 @@ import type { DiabetesScreeningRecord, VitalsRecord } from '@/lib/db';
 import { OPS_DEFAULT_TIMEZONE, formatOpsDateTime } from '@/lib/ops';
 import {
   canCorrectPerformer,
+  describeRouteStop,
   fetchEncounterStationTimeline,
-  performerLabel,
   type StationVisit,
 } from '@/lib/stations';
 import { InlineNotice } from '@/components/ops/OpsShared';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection,
+  RecordSectionContent,
+  RecordSectionHeader,
+  RecordSectionTitle,
+} from '@/components/patients/RecordSection';
 import type { EyeScreeningRecord } from '@/lib/eye-screening';
 import { CounsellingForm, type CounsellingRecord } from './CounsellingForm';
 import { EyeScreeningForm } from './EyeScreeningForm';
@@ -103,47 +108,51 @@ export function StationSessionPanel({
         eye={eye}
         timezone={OPS_DEFAULT_TIMEZONE}
       />
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Route through the stations</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ol className="space-y-2 text-sm">
-            {timeline.map((stop) => (
-              <li key={stop.id} className="rounded-lg border p-3">
-                <p className="font-medium">
-                  {stop.station.name} · {stop.status.toLowerCase().replace('_', ' ')}
-                  {stop.completedBy
-                    ? ` · ${performerLabel(stop.completedBy.displayName, stop.performedByName)}`
-                    : ''}
-                  {stop.completedAt
-                    ? ` · ${formatOpsDateTime(stop.completedAt, OPS_DEFAULT_TIMEZONE)}`
-                    : ''}
-                </p>
-                {stop.handoffNote ? <p className="mt-1">{stop.handoffNote}</p> : null}
-                {stop.endReason && stop.status !== 'COMPLETED' ? (
-                  <p className="mt-1 text-muted-foreground">Reason: {stop.endReason}</p>
-                ) : null}
-                {getToken && canCorrectPerformer(stop, viewer) ? (
-                  <PerformerCorrection
-                    clinicId={clinicId}
-                    stop={stop}
-                    isOnline={isOnline}
-                    getToken={getToken}
-                    onCorrected={(corrected) =>
-                      setTimeline((current) =>
-                        (current ?? []).map((item) =>
-                          item.id === corrected.id ? { ...item, ...corrected } : item,
-                        ),
-                      )
-                    }
-                  />
-                ) : null}
-              </li>
-            ))}
+      <RecordSection aria-labelledby="station-route-title">
+        <RecordSectionHeader>
+          <RecordSectionTitle id="station-route-title">
+            Route through the stations
+          </RecordSectionTitle>
+        </RecordSectionHeader>
+        <RecordSectionContent>
+          <ol className="border-t border-rule text-sm">
+            {timeline.map((stop) => {
+              const line = describeRouteStop(stop, (iso) =>
+                formatOpsDateTime(iso, OPS_DEFAULT_TIMEZONE),
+              );
+              return (
+                <li key={stop.id} className="border-b border-rule py-3">
+                  <p>
+                    {line.struck ? (
+                      <s className="font-medium text-muted-foreground">{stop.station.name}</s>
+                    ) : (
+                      <span className="font-medium">{stop.station.name}</span>
+                    )}
+                    <span className="text-muted-foreground"> · {line.summary}</span>
+                  </p>
+                  {stop.handoffNote ? <p className="mt-1">{stop.handoffNote}</p> : null}
+                  {line.reason ? <p className="mt-1 text-muted-foreground">{line.reason}</p> : null}
+                  {getToken && canCorrectPerformer(stop, viewer) ? (
+                    <PerformerCorrection
+                      clinicId={clinicId}
+                      stop={stop}
+                      isOnline={isOnline}
+                      getToken={getToken}
+                      onCorrected={(corrected) =>
+                        setTimeline((current) =>
+                          (current ?? []).map((item) =>
+                            item.id === corrected.id ? { ...item, ...corrected } : item,
+                          ),
+                        )
+                      }
+                    />
+                  ) : null}
+                </li>
+              );
+            })}
           </ol>
-        </CardContent>
-      </Card>
+        </RecordSectionContent>
+      </RecordSection>
       {counselling?.followUpRecommended && canSetCarePlan ? (
         <InlineNotice tone="warning" live={false}>
           The review station recommended follow-up{' '}
