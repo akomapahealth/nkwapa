@@ -804,6 +804,23 @@ unchanged.
 
 [Before/after evidence and verification](evidence/273/README.md).
 
+### Phase 05 administration (#274)
+
+Staff and access, clinics, duplicate review, data requests, audit, message
+delivery and clinic settings group filters, records and policy with
+`RecordSection`. Audit and delivery use hairline rows on phones. The
+administration tables opt into a named, focusable scroll area so a keyboard
+user can reach and scroll the results before moving into their controls.
+
+Actions that deactivate access, remove a role, take a clinic offline, close a
+deletion request or relax a research safeguard use the outlined warning
+treatment from consent: warning ink and `ShieldCheck`. Confirming a duplicate
+uses the same treatment when it queues the pair for merge. The review decision
+does not merge charts; the patient chart retains the existing merge flow.
+Data request status words are rendered through `lib/status-presentation.ts`.
+
+[Before/after evidence and verification](evidence/274/README.md).
+
 ### The combobox, and when it is not the answer
 
 `Select` is still the default. `Combobox` exists for one case: a list long enough that scrolling

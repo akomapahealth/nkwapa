@@ -1,0 +1,226 @@
+[
+  {
+    "name": "users",
+    "width": 1440,
+    "theme": "light",
+    "height": 2094,
+    "violations": []
+  },
+  {
+    "name": "clinics",
+    "width": 1440,
+    "theme": "light",
+    "height": 1387,
+    "violations": []
+  },
+  {
+    "name": "duplicates",
+    "width": 1440,
+    "theme": "light",
+    "height": 1351,
+    "violations": []
+  },
+  {
+    "name": "cross-clinic",
+    "width": 1440,
+    "theme": "light",
+    "height": 1577,
+    "violations": []
+  },
+  {
+    "name": "data-requests",
+    "width": 1440,
+    "theme": "light",
+    "height": 960,
+    "violations": []
+  },
+  {
+    "name": "audit",
+    "width": 1440,
+    "theme": "light",
+    "height": 1672,
+    "violations": []
+  },
+  {
+    "name": "message-delivery",
+    "width": 1440,
+    "theme": "light",
+    "height": 1693,
+    "violations": []
+  },
+  {
+    "name": "clinic-settings",
+    "width": 1440,
+    "theme": "light",
+    "height": 960,
+    "violations": []
+  },
+  {
+    "name": "users",
+    "width": 390,
+    "theme": "light",
+    "height": 31615,
+    "violations": []
+  },
+  {
+    "name": "clinics",
+    "width": 390,
+    "theme": "light",
+    "height": 34131,
+    "violations": []
+  },
+  {
+    "name": "duplicates",
+    "width": 390,
+    "theme": "light",
+    "height": 5122,
+    "violations": []
+  },
+  {
+    "name": "cross-clinic",
+    "width": 390,
+    "theme": "light",
+    "height": 3510,
+    "violations": []
+  },
+  {
+    "name": "data-requests",
+    "width": 390,
+    "theme": "light",
+    "height": 844,
+    "violations": []
+  },
+  {
+    "name": "audit",
+    "width": 390,
+    "theme": "light",
+    "height": 8414,
+    "violations": []
+  },
+  {
+    "name": "message-delivery",
+    "width": 390,
+    "theme": "light",
+    "height": 9703,
+    "violations": []
+  },
+  {
+    "name": "clinic-settings",
+    "width": 390,
+    "theme": "light",
+    "height": 1273,
+    "violations": []
+  },
+  {
+    "name": "users",
+    "width": 1440,
+    "theme": "dark",
+    "height": 2094,
+    "violations": []
+  },
+  {
+    "name": "clinics",
+    "width": 1440,
+    "theme": "dark",
+    "height": 1387,
+    "violations": []
+  },
+  {
+    "name": "duplicates",
+    "width": 1440,
+    "theme": "dark",
+    "height": 1351,
+    "violations": []
+  },
+  {
+    "name": "cross-clinic",
+    "width": 1440,
+    "theme": "dark",
+    "height": 1577,
+    "violations": []
+  },
+  {
+    "name": "data-requests",
+    "width": 1440,
+    "theme": "dark",
+    "height": 960,
+    "violations": []
+  },
+  {
+    "name": "audit",
+    "width": 1440,
+    "theme": "dark",
+    "height": 1672,
+    "violations": []
+  },
+  {
+    "name": "message-delivery",
+    "width": 1440,
+    "theme": "dark",
+    "height": 1693,
+    "violations": []
+  },
+  {
+    "name": "clinic-settings",
+    "width": 1440,
+    "theme": "dark",
+    "height": 960,
+    "violations": []
+  },
+  {
+    "name": "users",
+    "width": 390,
+    "theme": "dark",
+    "height": 31615,
+    "violations": []
+  },
+  {
+    "name": "clinics",
+    "width": 390,
+    "theme": "dark",
+    "height": 34131,
+    "violations": []
+  },
+  {
+    "name": "duplicates",
+    "width": 390,
+    "theme": "dark",
+    "height": 5122,
+    "violations": []
+  },
+  {
+    "name": "cross-clinic",
+    "width": 390,
+    "theme": "dark",
+    "height": 3510,
+    "violations": []
+  },
+  {
+    "name": "data-requests",
+    "width": 390,
+    "theme": "dark",
+    "height": 844,
+    "violations": []
+  },
+  {
+    "name": "audit",
+    "width": 390,
+    "theme": "dark",
+    "height": 8414,
+    "violations": []
+  },
+  {
+    "name": "message-delivery",
+    "width": 390,
+    "theme": "dark",
+    "height": 9703,
+    "violations": []
+  },
+  {
+    "name": "clinic-settings",
+    "width": 390,
+    "theme": "dark",
+    "height": 1273,
+    "violations": []
+  }
+]

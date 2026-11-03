@@ -110,6 +110,8 @@ export function DataTable<TData extends RowData>({
   renderMobileRow,
   onRowClick,
   maxHeight = 560,
+  keyboardScroll = false,
+  paginationClassName,
   className,
 }: {
   columns: DataTableColumn<TData>[];
@@ -140,6 +142,9 @@ export function DataTable<TData extends RowData>({
   onRowClick?: (row: TData) => void;
   /** Height the body may grow to before it scrolls under the sticky header. */
   maxHeight?: number;
+  /** Make this view’s scroll area reachable even when its rows are read-only. */
+  keyboardScroll?: boolean;
+  paginationClassName?: string;
   className?: string;
 }) {
   const serverMode = rowCount !== undefined;
@@ -213,7 +218,17 @@ export function DataTable<TData extends RowData>({
         >
           <div className="h-full w-1/4 animate-refresh-sweep bg-primary" />
         </div>
-        <div className="overflow-auto" style={{ maxHeight }}>
+        <div
+          className={cn(
+            'overflow-auto',
+            keyboardScroll &&
+              'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
+          )}
+          style={{ maxHeight }}
+          tabIndex={keyboardScroll ? 0 : undefined}
+          role={keyboardScroll ? 'region' : undefined}
+          aria-label={keyboardScroll ? caption : undefined}
+        >
           <table className="type-data w-full caption-bottom border-collapse">
             <caption className="sr-only">{caption}</caption>
             <thead className="sticky top-0 z-10 bg-muted">
@@ -313,7 +328,12 @@ export function DataTable<TData extends RowData>({
       </div>
 
       {total > 0 ? (
-        <div className="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+        <div
+          className={cn(
+            'flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between',
+            paginationClassName,
+          )}
+        >
           <p className="tabular-nums text-muted-foreground" aria-live="polite">
             {first}–{last} of {total}
           </p>

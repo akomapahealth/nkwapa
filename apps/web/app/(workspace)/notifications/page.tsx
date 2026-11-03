@@ -16,7 +16,13 @@ import { RouteGuard } from '@/components/RouteGuard';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection,
+  RecordSectionContent,
+  RecordSectionDescription,
+  RecordSectionHeader,
+  RecordSectionTitle,
+} from '@/components/patients/RecordSection';
 import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import {
   Select,
@@ -362,8 +368,8 @@ export default function RemindersPage() {
     <RouteGuard requiredPermission="REMINDER.READ">
       <div className="space-y-6">
         <AppPageHeader
-          eyebrow="Message delivery"
-          title="Notifications"
+          eyebrow="Oversight"
+          title="Message delivery"
           description={
             seesStaffNotices
               ? 'Review every message the clinic has sent: reminders, portal invites, appointment updates, and staff access notices.'
@@ -420,12 +426,14 @@ export default function RemindersPage() {
           />
         </AppMetricGroup>
 
-        <Card>
-          <CardHeader className="space-y-3">
-            <CardTitle className="text-xl">Filters</CardTitle>
-            <CardDescription>Focus the reminder history before opening results.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <RecordSection>
+          <RecordSectionHeader className="space-y-3">
+            <RecordSectionTitle>Filters</RecordSectionTitle>
+            <RecordSectionDescription>
+              Focus the reminder history before opening results.
+            </RecordSectionDescription>
+          </RecordSectionHeader>
+          <RecordSectionContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <div className="space-y-2">
                 <Label htmlFor="status">Status</Label>
@@ -543,8 +551,8 @@ export default function RemindersPage() {
               to answer for. Failed rows name the reason and what to do about it, so start there
               when a patient says they heard nothing.
             </ProgressiveHelp>
-          </CardContent>
-        </Card>
+          </RecordSectionContent>
+        </RecordSection>
 
         {error ? (
           <InlineErrorState
@@ -554,20 +562,22 @@ export default function RemindersPage() {
           />
         ) : null}
 
-        <Card>
-          <CardHeader className="space-y-3">
+        <RecordSection>
+          <RecordSectionHeader className="space-y-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <CardTitle className="text-xl">Reminder history</CardTitle>
-                <CardDescription>Delivery timing, channel, and failure details.</CardDescription>
+                <RecordSectionTitle>Reminder history</RecordSectionTitle>
+                <RecordSectionDescription>
+                  Delivery timing, channel, and failure details.
+                </RecordSectionDescription>
               </div>
               <div className="rounded-lg border border-border bg-background px-4 py-3 text-sm">
                 <p className="text-muted-foreground">Loaded rows</p>
                 <p className="mt-1 text-xl font-semibold text-foreground">{rows.length}</p>
               </div>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          </RecordSectionHeader>
+          <RecordSectionContent className="space-y-4">
             {loading && rows.length === 0 ? (
               <SectionSkeleton lines={4} className="border-0 bg-transparent p-0 shadow-none" />
             ) : !loading && rows.length === 0 ? (
@@ -577,12 +587,9 @@ export default function RemindersPage() {
               />
             ) : (
               <>
-                <div className="space-y-3 md:hidden">
+                <div className="divide-y divide-border md:hidden">
                   {rows.map((row) => (
-                    <article
-                      key={row.id}
-                      className="rounded-lg border border-border bg-background p-4"
-                    >
+                    <article key={row.id} className="py-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <h3 className="text-sm font-semibold text-foreground">
@@ -619,6 +626,7 @@ export default function RemindersPage() {
 
                 <div className="hidden md:block">
                   <DataTable
+                    keyboardScroll
                     caption="Messages sent by the clinic"
                     columns={columns}
                     data={rows}
@@ -645,8 +653,8 @@ export default function RemindersPage() {
                 </Button>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </RecordSectionContent>
+        </RecordSection>
       </div>
     </RouteGuard>
   );

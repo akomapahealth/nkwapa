@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { statusLabel } from '@/lib/status-presentation';
+import { ShieldCheck } from 'lucide-react';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { RecordSection, RecordSectionContent } from '@/components/patients/RecordSection';
 import {
   Dialog,
   DialogContent,
@@ -23,7 +25,6 @@ import { ApiError, getErrorMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import {
-  DATA_REQUEST_STATUS_LABEL,
   dataRequestTypeLabel,
   describeDataRequestDue,
   isOpenDataRequest,
@@ -78,7 +79,7 @@ export function DataRequestsScreen() {
       setNote('');
       showToast({
         tone: 'success',
-        title: `Marked ${DATA_REQUEST_STATUS_LABEL[status].toLowerCase()}`,
+        title: `Marked ${statusLabel(status).toLowerCase()}`,
       });
       await load();
     } catch (err) {
@@ -124,8 +125,8 @@ export function DataRequestsScreen() {
           description="When a patient asks for a copy, a correction or a deletion, it appears here."
         />
       ) : (
-        <Card>
-          <CardContent className="p-0">
+        <RecordSection>
+          <RecordSectionContent className="p-0">
             <ul className="divide-y divide-border" aria-label="Data requests">
               {rows.map((row) => {
                 const due = describeDataRequestDue(row);
@@ -149,7 +150,7 @@ export function DataRequestsScreen() {
                       </div>
                       <p className="text-xs text-muted-foreground">
                         <span className="font-medium text-foreground">
-                          {DATA_REQUEST_STATUS_LABEL[row.status]}
+                          {statusLabel(row.status)}
                         </span>
                         {' · '}Received {formatInviteDate(row.createdAt)}
                         {due ? (
@@ -186,9 +187,15 @@ export function DataRequestsScreen() {
                         <Button
                           size="sm"
                           variant="outline"
+                          className={
+                            row.type === 'DELETION' ? 'border-warning text-warning-ink' : undefined
+                          }
                           disabled={saving}
                           onClick={() => setClosing({ request: row, status: 'COMPLETED' })}
                         >
+                          {row.type === 'DELETION' ? (
+                            <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                          ) : null}
                           Complete
                         </Button>
                         <Button
@@ -205,8 +212,8 @@ export function DataRequestsScreen() {
                 );
               })}
             </ul>
-          </CardContent>
-        </Card>
+          </RecordSectionContent>
+        </RecordSection>
       )}
 
       <Dialog
@@ -255,9 +262,16 @@ export function DataRequestsScreen() {
               Cancel
             </Button>
             <Button
+              variant={closing?.request.type === 'DELETION' ? 'outline' : 'default'}
+              className={
+                closing?.request.type === 'DELETION' ? 'border-warning text-warning-ink' : undefined
+              }
               disabled={saving || note.trim().length === 0}
               onClick={() => closing && void save(closing.request, closing.status, note)}
             >
+              {closing?.request.type === 'DELETION' ? (
+                <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+              ) : null}
               {saving ? 'Saving…' : closing?.status === 'DECLINED' ? 'Decline' : 'Complete'}
             </Button>
           </DialogFooter>
