@@ -8,7 +8,7 @@ import {
   Plus,
   Save,
   Sparkles,
-  Stethoscope,
+  ShieldCheck,
 } from 'lucide-react';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { useAuth } from '@/lib/auth-context';
@@ -418,9 +418,10 @@ export function ClinicalNotePanel({
                   </Button>
                   <Button
                     type="button"
+                    variant="outline"
                     onClick={() => setConfirmAction('submit')}
                     disabled={busy}
-                    className="cursor-pointer"
+                    className="cursor-pointer border-warning text-warning-ink"
                   >
                     <FileCheck2 className="h-4 w-4" aria-hidden="true" />
                     {note.authorRole === 'DOCTOR' ? 'Sign note' : 'Submit for cosign'}
@@ -430,11 +431,12 @@ export function ClinicalNotePanel({
               {canCosign ? (
                 <Button
                   type="button"
+                  variant="outline"
                   onClick={() => setConfirmAction('cosign')}
                   disabled={busy}
-                  className="cursor-pointer"
+                  className="cursor-pointer border-warning text-warning-ink"
                 >
-                  <Stethoscope className="h-4 w-4" aria-hidden="true" />
+                  <ShieldCheck className="h-4 w-4" aria-hidden="true" />
                   Cosign note
                 </Button>
               ) : null}

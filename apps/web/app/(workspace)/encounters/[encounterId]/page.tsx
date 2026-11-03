@@ -1,6 +1,5 @@
 'use client';
 
-import { statusLabel } from '@/lib/status-presentation';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -9,7 +8,6 @@ import { useBootstrap } from '@/lib/bootstrap-context';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { apiFetch } from '@/lib/api';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
-import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { InlineErrorState } from '@/components/feedback/AppState';
@@ -17,7 +15,12 @@ import { RouteGuard } from '@/components/RouteGuard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import {
+  RecordSection,
+  RecordSectionContent,
+  RecordSectionHeader,
+  RecordSectionTitle,
+} from '@/components/patients/RecordSection';
 import { VitalsForm } from '@/components/VitalsForm';
 import { DiabetesScreeningForm } from '@/components/DiabetesScreeningForm';
 import { HypertensionForm } from '@/components/HypertensionForm';
@@ -30,7 +33,7 @@ import {
   type TobaccoScreeningRecord,
   type VitalsRecord,
 } from '@/lib/db';
-import { ArrowLeft, ClipboardPlus, HeartPulse, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Check, ShieldCheck } from 'lucide-react';
 import { PrescriptionPanel } from '@/components/patients/PrescriptionPanel';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 import { DiabetesHistoryPanel } from '@/components/patients/DiabetesHistoryPanel';
@@ -40,6 +43,15 @@ import { StationSessionPanel } from '@/components/stations/StationSessionPanel';
 
 function hasPermission(permissions: string[], perm: string): boolean {
   return permissions.includes('*') || permissions.includes(perm);
+}
+
+// The review path as people say it; DRAFT and IN_REVIEW never reach the screen.
+const STAGES = ['Draft', 'Pending review', 'Awaiting sign-off', 'Finalized'] as const;
+
+function encounterStage(status: string, reviewed: boolean): number {
+  if (status === 'FINALIZED') return 3;
+  if (status === 'IN_REVIEW') return reviewed ? 2 : 1;
+  return 0;
 }
 
 interface EncounterDetail {
@@ -263,6 +275,7 @@ export default function EncounterDetailPage() {
     encounter.status === 'IN_REVIEW' &&
     encounter.preceptorReviewedById &&
     hasPermission(perms, 'DOCTOR.FINALIZE');
+  const stage = encounterStage(encounter.status, Boolean(encounter.preceptorReviewedById));
 
   return (
     <RouteGuard requiredPermission="ENCOUNTER.READ">
@@ -287,7 +300,7 @@ export default function EncounterDetailPage() {
                   isFinalized ? 'finalized' : encounter.status === 'IN_REVIEW' ? 'review' : 'draft'
                 }
               >
-                {statusLabel(encounter.status)}
+                {STAGES[stage]}
               </Badge>
             </>
           }
@@ -309,35 +322,11 @@ export default function EncounterDetailPage() {
                   Mark Reviewed
                 </Button>
               ) : null}
-              {canFinalize ? (
-                <Button size="sm" onClick={() => doTransition('finalize')} disabled={transitioning}>
-                  Finalize
-                </Button>
-              ) : null}
             </>
           }
         />
 
-        <AppMetricGroup className="md:grid-cols-3">
-          <AppMetricCard
-            title="Encounter state"
-            value={statusLabel(encounter.status)}
-            icon={ClipboardPlus}
-            detail="The current review stage for this encounter."
-          />
-          <AppMetricCard
-            title="Forms"
-            value={canFinalize ? '4' : '3'}
-            icon={HeartPulse}
-            detail="Vitals, diabetes, hypertension, and care plan appear based on workflow state."
-          />
-          <AppMetricCard
-            title="Editability"
-            value={isFinalized ? 'Locked' : 'Open'}
-            icon={ShieldCheck}
-            detail="Finalized encounters are preserved as read-only records."
-          />
-        </AppMetricGroup>
+        <EncounterProgress stage={stage} createdAt={encounter.createdAt} />
 
         {error ? (
           <InlineErrorState
@@ -347,20 +336,35 @@ export default function EncounterDetailPage() {
           />
         ) : null}
 
-        {encounter.patient ? (
-          <Card>
-            <CardHeader>
-              <h1 className="text-xl font-semibold font-heading">
-                {encounter.patient.firstName} {encounter.patient.lastName}
-              </h1>
-              <p className="text-sm text-muted-foreground font-mono">
-                {encounter.patient.patientCode}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Created: {new Date(encounter.createdAt).toLocaleString()}
-              </p>
-            </CardHeader>
-          </Card>
+        {canFinalize ? (
+          <section
+            aria-labelledby="encounter-signoff"
+            className="flex flex-col gap-3 border-y-2 border-warning py-4 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div className="flex items-start gap-3">
+              <ShieldCheck
+                className="mt-0.5 h-5 w-5 shrink-0 text-warning-ink"
+                aria-hidden="true"
+              />
+              <div>
+                <h2 id="encounter-signoff" className="font-sans text-base font-semibold">
+                  Ready for your sign-off
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Finalizing locks every clinical tab. Check the care plan first.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              className="border-warning text-warning-ink"
+              onClick={() => doTransition('finalize')}
+              disabled={transitioning}
+            >
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+              Finalize
+            </Button>
+          </section>
         ) : null}
 
         {canReadPrescriptions && clinicId ? (
@@ -548,35 +552,78 @@ export default function EncounterDetailPage() {
             <InlineNotice tone="info">
               This encounter is finalized. Every clinical tab remains available in read-only mode.
             </InlineNotice>
-            <Card>
-              <CardContent className="pt-6">
-                {carePlan && (
-                  <div className="mt-4 space-y-2">
-                    <p>
-                      <span className="font-medium">Counseling given:</span>{' '}
-                      {(carePlan as { counselingGiven?: boolean }).counselingGiven ? 'Yes' : 'No'}
-                    </p>
-                    <p>
-                      <span className="font-medium">Medication prescribed:</span>{' '}
-                      {(carePlan as { medicationPrescribed?: boolean }).medicationPrescribed
-                        ? 'Yes'
-                        : 'No'}
-                    </p>
+            {carePlan ? (
+              <RecordSection aria-labelledby="finalized-care-plan">
+                <RecordSectionHeader>
+                  <RecordSectionTitle id="finalized-care-plan">
+                    Care plan as finalized
+                  </RecordSectionTitle>
+                </RecordSectionHeader>
+                <RecordSectionContent>
+                  <dl className="divide-y divide-rule border-y border-rule text-sm">
+                    <div className="grid grid-cols-[minmax(0,12rem)_1fr] gap-4 py-2">
+                      <dt className="text-muted-foreground">Counseling given</dt>
+                      <dd className="font-medium">
+                        {(carePlan as { counselingGiven?: boolean }).counselingGiven ? 'Yes' : 'No'}
+                      </dd>
+                    </div>
+                    <div className="grid grid-cols-[minmax(0,12rem)_1fr] gap-4 py-2">
+                      <dt className="text-muted-foreground">Medication prescribed</dt>
+                      <dd className="font-medium">
+                        {(carePlan as { medicationPrescribed?: boolean }).medicationPrescribed
+                          ? 'Yes'
+                          : 'No'}
+                      </dd>
+                    </div>
                     {(carePlan as { followUpDate?: string }).followUpDate && (
-                      <p>
-                        <span className="font-medium">Follow-up:</span>{' '}
-                        {new Date(
-                          (carePlan as { followUpDate: string }).followUpDate,
-                        ).toLocaleDateString()}
-                      </p>
+                      <div className="grid grid-cols-[minmax(0,12rem)_1fr] gap-4 py-2">
+                        <dt className="text-muted-foreground">Follow-up</dt>
+                        <dd className="font-medium tabular-nums">
+                          {new Date(
+                            (carePlan as { followUpDate: string }).followUpDate,
+                          ).toLocaleDateString()}
+                        </dd>
+                      </div>
                     )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                  </dl>
+                </RecordSectionContent>
+              </RecordSection>
+            ) : null}
           </div>
         )}
       </div>
     </RouteGuard>
+  );
+}
+
+/** Where this visit is on the review path, in words; the current step is not colour alone. */
+function EncounterProgress({ stage, createdAt }: { stage: number; createdAt: string }) {
+  return (
+    <section aria-label="Review progress" className="border-t-2 border-rule-strong pt-3">
+      <ol className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
+        {STAGES.map((label, index) => (
+          <li
+            key={label}
+            aria-current={index === stage ? 'step' : undefined}
+            className={
+              index === stage
+                ? 'border-t-2 border-primary pt-2 text-sm font-semibold text-foreground'
+                : 'border-t-2 border-transparent pt-2 text-sm text-muted-foreground'
+            }
+          >
+            <span className="inline-flex items-center gap-1.5">
+              {index < stage ? <Check className="h-4 w-4" aria-hidden="true" /> : null}
+              {label}
+            </span>
+            <span className="block text-xs font-normal text-muted-foreground">
+              {index < stage ? 'Done' : index === stage ? 'Current' : 'Not yet'}
+            </span>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-3 text-xs text-muted-foreground tabular-nums">
+        Started {new Date(createdAt).toLocaleString()}
+      </p>
+    </section>
   );
 }
