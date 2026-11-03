@@ -1,3 +1,5 @@
+const { randomUUID } = require('crypto');
+const { apiRequestAs } = require('../playwright/api-client');
 const { test, expect } = require('@playwright/test');
 const { storageStateFor } = require('../playwright/roles');
 
@@ -9,13 +11,24 @@ const { storageStateFor } = require('../playwright/roles');
  * what those cannot show: that a person can reach the workflow through the browser, that a role
  * sees only the actions it holds, and that the schedule stays usable at every supported width.
  *
- * They depend on the fixtures SEED_SAMPLE_APPOINTMENTS seeds: one confirmed visit ahead of now, one
- * appointment in each terminal state, and two pending requests. A confirmed appointment cannot be
- * created any other way without first triaging a request, so the suite would otherwise have no
- * subject on a fresh database.
+ * Schedule and terminal-state cases depend on SEED_SAMPLE_APPOINTMENTS. The triage cases below
+ * create their own pending requests, because confirming a seeded request consumes it for later runs.
  */
 
-const SEED_PATIENT = 'Appointment Demo';
+async function createTriageRequest() {
+  const identity = await apiRequestAs('patient', 'get', '/auth/whoami');
+  expect(identity.ok(), identity.text()).toBeTruthy();
+  const clinicId = identity.json().activeClinicId;
+  expect(clinicId).toBeTruthy();
+  const preferredStartDate = new Date(Date.now() + 24 * 60 * 60_000).toISOString().slice(0, 10);
+  const reason = `E2E triage ${randomUUID()}`;
+  const response = await apiRequestAs('patient', 'post', '/patients/me/appointment-requests', {
+    clinicId,
+    data: { preferredStartDate, preferredEndDate: preferredStartDate, reason },
+  });
+  expect(response.ok(), response.text()).toBeTruthy();
+  return { ...response.json(), reason, clinicId };
+}
 
 /** Widen the range to a week so the seeded terminal appointments, which sit in the past, show. */
 async function openWeekSchedule(page) {
@@ -71,26 +84,42 @@ test.describe('patient request triage', () => {
   test('lists the requests patients sent and refuses a decline with no reason', async ({
     page,
   }) => {
+    const request = await createTriageRequest();
     await page.goto('/appointments');
     await expect(page.getByText('Patient requests')).toBeVisible();
-    await expect(page.getByText(SEED_PATIENT).first()).toBeVisible({ timeout: 15_000 });
+    const row = page
+      .getByRole('listitem')
+      .filter({ has: page.getByText(request.reason, { exact: true }) });
+    await expect(row).toBeVisible({ timeout: 15_000 });
 
-    await page.getByRole('button', { name: 'Decline' }).first().click();
+    await row.getByRole('button', { name: 'Decline', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Decline request' })).toBeVisible();
 
     await page.getByRole('button', { name: 'Decline request' }).click();
     await expect(page.getByRole('alert')).toContainText(/reason/i);
 
     await page.getByRole('button', { name: 'Keep waiting' }).click();
+    await expect(row).toBeVisible();
+    const cleanup = await apiRequestAs(
+      'staff',
+      'post',
+      `/clinics/${request.clinicId}/appointment-requests/${request.id}/reject`,
+      { clinicId: request.clinicId, data: { reason: 'E2E fixture finished' } },
+    );
+    expect(cleanup.ok(), cleanup.text()).toBeTruthy();
   });
 
   test('confirming a request books the visit onto the schedule', async ({ page }) => {
+    const request = await createTriageRequest();
     await page.goto('/appointments');
     await expect(page.getByText('Patient requests')).toBeVisible();
 
     // Wait for a request to actually be on screen before reading the count: the badge renders
     // "0 awaiting" while the fetch is still in flight.
-    const confirm = page.getByRole('button', { name: 'Confirm request' }).first();
+    const row = page
+      .getByRole('listitem')
+      .filter({ has: page.getByText(request.reason, { exact: true }) });
+    const confirm = row.getByRole('button', { name: 'Confirm request', exact: true });
     await expect(confirm).toBeVisible({ timeout: 20_000 });
 
     const awaiting = page.getByText(/\d+ awaiting/);
@@ -109,6 +138,13 @@ test.describe('patient request triage', () => {
       timeout: 20_000,
     });
     await expect(awaiting).toContainText(`${before - 1} awaiting`, { timeout: 20_000 });
+    await expect(row).toHaveCount(0);
+    const requests = await apiRequestAs('patient', 'get', '/patients/me/appointment-requests', {
+      clinicId: request.clinicId,
+    });
+    expect(requests.ok(), requests.text()).toBeTruthy();
+    const saved = requests.json().find((item) => item.id === request.id);
+    expect(saved).toMatchObject({ status: 'CONFIRMED', appointment: { status: 'CONFIRMED' } });
   });
 });
 

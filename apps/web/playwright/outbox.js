@@ -75,20 +75,58 @@ async function userIdFor(role) {
 async function queueOfflineChange(page, row, { owner = 'staff' } = {}) {
   const record =
     'ownerUserId' in row || owner === null ? row : { ...row, ownerUserId: await userIdFor(owner) };
-  await page.evaluate(
-    (record) =>
-      new Promise((resolve, reject) => {
-        const request = indexedDB.open('NkwapaDb');
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-          const transaction = request.result.transaction('outbox', 'readwrite');
-          transaction.objectStore('outbox').put(record);
-          transaction.oncomplete = () => resolve(undefined);
-          transaction.onerror = () => reject(transaction.error);
-        };
-      }),
-    record,
+  // A visible dashboard and an active service worker do not mean Dexie has finished opening its
+  // schema. Opening NkwapaDb ourselves first would create an empty v1 database with no outbox.
+  await page.waitForFunction(
+    async () =>
+      (await indexedDB.databases()).some(
+        (entry) => entry.name === 'NkwapaDb' && (entry.version ?? 0) >= 14,
+      ),
+    null,
+    { timeout: 30_000 },
   );
+  // A long Playwright run can make Chromium collect the promise returned by an async
+  // page.evaluate before an IndexedDB callback fires. Start the write synchronously, retain
+  // its requests on the page until settled, and poll from Node for the transaction result.
+  await page.evaluate((row) => {
+    const state = { status: 'pending', error: null, request: null, db: null, transaction: null };
+    window.__nkwapaE2EOutboxWrite = state;
+    const fail = (error) => {
+      state.error = error?.message || String(error);
+      state.status = 'error';
+      state.db?.close();
+    };
+    const request = indexedDB.open('NkwapaDb');
+    state.request = request;
+    request.onerror = () => fail(request.error);
+    request.onsuccess = () => {
+      try {
+        const db = request.result;
+        state.db = db;
+        const transaction = db.transaction('outbox', 'readwrite');
+        state.transaction = transaction;
+        transaction.oncomplete = () => {
+          db.close();
+          state.status = 'done';
+        };
+        transaction.onerror = () => fail(transaction.error);
+        transaction.onabort = () => fail(transaction.error);
+        transaction.objectStore('outbox').put(row);
+      } catch (error) {
+        fail(error);
+      }
+    };
+  }, record);
+  await page.waitForFunction(() => window.__nkwapaE2EOutboxWrite?.status !== 'pending', null, {
+    timeout: 15_000,
+  });
+  const outcome = await page.evaluate(() => {
+    const { status, error } = window.__nkwapaE2EOutboxWrite;
+    delete window.__nkwapaE2EOutboxWrite;
+    return { status, error };
+  });
+  if (outcome.status !== 'done')
+    throw new Error(`Failed to queue offline change: ${outcome.error}`);
   return record;
 }
 

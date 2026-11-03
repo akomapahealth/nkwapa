@@ -298,7 +298,7 @@ function RequestRow({ request }: { request: AppointmentRequestRecord }) {
 
           {request.rejectionReason ? (
             <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4">
-              <h4 className="text-eyebrow text-destructive">Clinic note</h4>
+              <h4 className="text-eyebrow text-destructive-ink">Clinic note</h4>
               <p className="mt-2 text-sm leading-6 text-foreground">{request.rejectionReason}</p>
             </div>
           ) : null}

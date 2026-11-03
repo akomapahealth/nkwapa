@@ -44,8 +44,12 @@ test('a staff message survives the round trip to the server', async ({ page }) =
   const recipients = await (await users).json();
   expect(recipients.length, 'the clinic needs a second staff member to message').toBeGreaterThan(0);
 
-  // Whoever the clinic offers first; the point is the transport, not the recipient.
-  await page.getByRole('button', { name: new RegExp(recipients[0].displayName, 'i') }).click();
+  // Whoever the clinic offers first; several synthetic staff can share a display name after
+  // repeated runs, while the transport assertion does not depend on a particular recipient.
+  await page
+    .getByRole('button', { name: new RegExp(recipients[0].displayName, 'i') })
+    .first()
+    .click();
 
   const composer = page.getByPlaceholder('Type a message...');
   await expect(composer).toBeVisible();

@@ -789,6 +789,11 @@ test.describe('the station screens keep separate offline copies (#197)', () => {
         .toContain('|station-board');
       await openStations(page);
       await expect(page.getByText('This page ran into a problem')).toHaveCount(0);
+      // Heading visibility precedes the board + shifts fetch. Leaving now correctly aborts
+      // that read; first wait for the saved copy whose later survival this test asserts.
+      await expect
+        .poll(async () => Object.keys(await readOpsCacheRows(page)).join(','))
+        .toContain('|station-workspace');
       await openBoard(page);
       await expect(page.getByText('This page ran into a problem')).toHaveCount(0);
 
@@ -849,6 +854,9 @@ test.describe('the station screens keep separate offline copies (#197)', () => {
     // Back online, both screens load and save their own shapes again.
     await context.unroute('**/stations/board*');
     await openStations(page);
+    await expect
+      .poll(async () => Boolean((await readOpsCacheRows(page))[`${clinicId}|station-workspace`]))
+      .toBe(true);
     await openBoard(page);
     await expect
       .poll(async () => {

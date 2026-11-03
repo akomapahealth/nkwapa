@@ -1,3 +1,4 @@
+const { createClaimantStorageState } = require('../playwright/claimant-fixture');
 const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
 const { queueOfflineChange } = require('../playwright/outbox');
@@ -187,19 +188,20 @@ test('a cold start with no connection shows the offline screen at once, not a si
 test.describe('installed launch for every role', () => {
   for (const role of Object.keys(ROLES)) {
     test(`${role} lands on their own home, and the shortcuts do not break`, async ({ browser }) => {
-      const context = await browser.newContext({ storageState: storageStateFor(role) });
+      const invited = ROLES[role].fixture === 'invited-patient';
+      if (invited) test.setTimeout(180_000);
+      const storageState = invited
+        ? await createClaimantStorageState(browser)
+        : storageStateFor(role);
+      const context = await browser.newContext({ storageState });
       const page = await context.newPage();
       const errors = [];
       page.on('pageerror', (error) => errors.push(error.message));
 
       await page.goto('/login?source=pwa');
-      // The claimant's invitation is consumed by patient-claim.spec.js, which runs first in CI;
-      // once claimed the account is a patient and its home is the portal.
-      const homes =
-        role === 'claimant'
-          ? ['/claim-record', '/portal']
-          : [ROLES[role].landingUrl ?? '/dashboard'];
-      await page.waitForURL((url) => homes.includes(url.pathname), { timeout: 30_000 });
+      await page.waitForURL((url) => url.pathname === (ROLES[role].landingUrl ?? '/dashboard'), {
+        timeout: 30_000,
+      });
 
       for (const shortcut of ['/dashboard?source=pwa-shortcut', '/patients?source=pwa-shortcut']) {
         await page.goto(shortcut);
