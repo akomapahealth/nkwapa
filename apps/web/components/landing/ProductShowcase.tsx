@@ -10,6 +10,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { DESKTOP_ALT, DesktopFrame, PhoneFrame } from './ProductFrames';
+import { SectionRule } from './SectionRule';
 
 // Marker positions are percentages of the desktop screenshot, measured from desktop.png.
 const ANNOTATIONS = [
@@ -55,7 +56,8 @@ export function ProductShowcase() {
       className="dark bg-background py-20 text-foreground sm:py-28"
     >
       <div className="landing-container">
-        <div className="grid gap-6 lg:grid-cols-12 lg:items-end" data-reveal>
+        <SectionRule>Product</SectionRule>
+        <div className="mt-8 grid gap-6 lg:grid-cols-12 lg:items-end" data-reveal>
           <h2
             id="product-title"
             data-split

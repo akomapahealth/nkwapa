@@ -911,6 +911,41 @@ The flows, redirects, required actions, API calls and validation are unchanged.
 
 [Before/after evidence and verification](evidence/277/README.md).
 
+### Phase 07 public landing page (#278)
+
+The landing page leads with the clinic, then the product. Copy is unchanged
+apart from section names, photo captions and the scroll link, so every claim is
+still one the product makes; there are no counts, quotes, logos or outcomes.
+
+- **Photograph first.** Akomapa-17 fills the hero on wide screens with the copy
+  on a dark scrim at its foot, so the hero reads the same in both themes; on
+  phones the photograph sits above the copy, framed on the volunteer. It is the
+  LCP: eager, high fetch priority, visible from the first frame, and moved only
+  by transform once the reader scrolls. Each of the eight Akomapa photographs
+  appears once. `nkwapa_animate.mp4` is not used (watermark, letterbox, audio,
+  morphing artefacts).
+- **Ruled sections.** `SectionRule` (`components/landing/`) is the 2px ink rule
+  with the section's name, replacing the three tracked eyebrows. Photographs
+  are square; the offline block is no longer a card.
+- **Motion.** Everything stays in `LandingMotion`, behind GSAP `matchMedia`
+  with no reduced-motion preference. Text fades by opacity, never visibility,
+  so headings stay in the accessibility tree before they scroll in. The word
+  scrub on the problem heading is gone (it left words at 18% opacity). New:
+  the hero photograph drifts as it leaves, and the about photograph opens from
+  the content width to the window edges (clip-path, wide screens).
+- **Lenis 1.3.27** (MIT, 5.4 KB gzip) smooths wheel and trackpad scrolling on
+  wide screens with a fine pointer, driven by GSAP's ticker so the pinned
+  scenes scrub without stepping. It writes the native scroll position, so
+  keyboard, scrollbar, anchor links and find-in-page stay native; its own
+  anchor handling is off so a followed link still moves focus. It ignores
+  wheel events inside a dialog and while Radix has locked the page.
+- **Not adopted.** React Bits, Kokonut and Bklit were reviewed for this page.
+  Their scroll-text and stack components duplicate what GSAP already does here;
+  marquees need a pause control for a gain the photographs already give; a
+  Bklit chart would need invented readings. None earned a copied component.
+
+[Before/after evidence and verification](evidence/278/README.md).
+
 ### The combobox, and when it is not the answer
 
 `Select` is still the default. `Combobox` exists for one case: a list long enough that scrolling

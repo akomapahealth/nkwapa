@@ -1,0 +1,24 @@
+{
+  "mobile": {
+    "runs": [77, 78, 79],
+    "performance": 78,
+    "accessibility": 98,
+    "lcp": "4.7 s",
+    "lcpElement": "section#top > div.landing-container > div.lg:col-span-6 > p.mt-6",
+    "fcp": "0.9 s",
+    "tbt": "260 ms",
+    "cls": "0",
+    "failedAccessibility": ["heading-order"]
+  },
+  "desktop": {
+    "runs": [99, 99, 99],
+    "performance": 99,
+    "accessibility": 98,
+    "lcp": "0.9 s",
+    "lcpElement": "div.relative > div.overflow-hidden > div.relative > img.block",
+    "fcp": "0.3 s",
+    "tbt": "10 ms",
+    "cls": "0",
+    "failedAccessibility": ["heading-order"]
+  }
+}
