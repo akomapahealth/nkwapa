@@ -1,30 +1,12 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
+import { RecordSection } from '@/components/patients/RecordSection';
 import { cn } from '@/lib/utils';
 
-/**
- * One hero ratio for the whole portal.
- *
- * Five screens laid out the same two-column hero at five different ratios -- 1.3/0.9, 1.35/0.95,
- * 1.15/0.85 twice, and 1.1/0.9 -- so the right-hand column moved every time a patient changed
- * page. Import this instead of writing another one.
- */
-export const PORTAL_HERO_GRID = 'grid gap-4 lg:grid-cols-[1.2fr_0.8fr]';
+export const PORTAL_HERO_GRID = 'grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]';
 
-/**
- * Real headings, not `CardTitle`.
- *
- * `CardTitle` renders a `div`, so the portal shipped with almost no heading structure: a screen
- * reader user could not navigate it at all. The staff chart panels already make the same choice
- * for the same reason (see components/patients/PatientTrendsPanel.tsx). `PortalLayout` owns the
- * page's single `<h1>`, so every panel and hero here is an `<h2>`, and anything nested inside one
- * -- an `EmptyState`, a sub-label -- is an `<h3>`.
- */
 export function PortalHero({
-  eyebrow,
   title,
   description,
   clinicName,
@@ -32,7 +14,6 @@ export function PortalHero({
   className,
   contentClassName,
 }: {
-  eyebrow: string;
   title: string;
   description?: string;
   clinicName?: string | null;
@@ -41,31 +22,18 @@ export function PortalHero({
   contentClassName?: string;
 }) {
   return (
-    <Card className={className}>
-      <CardHeader className="space-y-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary" className="rounded-full px-3 py-1">
-            {eyebrow}
-          </Badge>
-          {clinicName ? (
-            <Badge variant="outline" className="rounded-full border-border px-3 py-1">
-              {clinicName}
-            </Badge>
-          ) : null}
-        </div>
-        <div className="space-y-2">
-          <h2 className="font-heading text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
-            {title}
-          </h2>
-          {description ? (
-            <CardDescription className="max-w-2xl text-sm leading-6 md:text-base">
-              {description}
-            </CardDescription>
-          ) : null}
-        </div>
-      </CardHeader>
-      {children ? <CardContent className={contentClassName}>{children}</CardContent> : null}
-    </Card>
+    <div className={cn('min-w-0 space-y-4', className)}>
+      <div className="space-y-2">
+        <h2 className="font-heading text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
+          {title}
+        </h2>
+        {clinicName ? <p className="text-sm text-muted-foreground">{clinicName}</p> : null}
+        {description ? (
+          <p className="max-w-prose text-base leading-6 text-muted-foreground">{description}</p>
+        ) : null}
+      </div>
+      {children ? <div className={contentClassName}>{children}</div> : null}
+    </div>
   );
 }
 
@@ -93,20 +61,18 @@ export function PortalPanel({
   contentClassName?: string;
 }) {
   return (
-    <Card className={className}>
-      <CardHeader
-        className={cn(action && 'gap-3 space-y-0 md:flex-row md:items-start md:justify-between')}
-      >
+    <RecordSection className={className}>
+      <div className={cn('py-3', action && 'flex flex-wrap items-start justify-between gap-3')}>
         <div className="space-y-1.5">
-          <Heading className="font-heading text-lg font-semibold leading-none tracking-tight text-foreground">
-            {title}
-          </Heading>
-          {description ? <CardDescription>{description}</CardDescription> : null}
+          <Heading className="type-section-title text-foreground">{title}</Heading>
+          {description ? (
+            <p className="text-sm leading-6 text-muted-foreground">{description}</p>
+          ) : null}
         </div>
         {action ? <div className="shrink-0">{action}</div> : null}
-      </CardHeader>
-      {children ? <CardContent className={contentClassName}>{children}</CardContent> : null}
-    </Card>
+      </div>
+      {children ? <div className={contentClassName}>{children}</div> : null}
+    </RecordSection>
   );
 }
 
@@ -131,8 +97,8 @@ export function PortalFact({
   valueClassName?: string;
 }) {
   return (
-    <div className={cn('rounded-lg border border-border bg-background p-4', className)}>
-      <p className="text-eyebrow text-muted-foreground">{label}</p>
+    <div className={cn('border-b border-border py-3', className)}>
+      <p className="text-sm text-muted-foreground">{label}</p>
       <p className={cn('mt-2 text-sm font-medium tabular-nums text-foreground', valueClassName)}>
         {value}
       </p>
@@ -160,7 +126,7 @@ export function PortalConfirmedVisit({
   icon: ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-success/30 bg-success/12 p-4 text-success-ink">
+    <div className="border-t border-success/30 py-3 text-success-ink">
       <div className="flex items-center gap-2">
         {icon}
         <h3 className="font-medium">{title}</h3>

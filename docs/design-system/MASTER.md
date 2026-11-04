@@ -853,6 +853,21 @@ captions, names and test ids; status badges and actions are unchanged.
 
 [Before/after evidence and verification](evidence/275/README.md).
 
+### Phase 06 patient portal (#276)
+
+Overview, My Health and Appointments share a three-column navigation strip on
+phones. Each destination has an icon, a text label and a 44px minimum target.
+The strip indicates the current section when a patient opens a form. Request
+an appointment is available from Overview and Appointments. Patients reach
+past readings through My Health.
+
+The six portal routes use the existing `RecordSection` top rule, serif
+headings and hairlines between records. The reading and request forms keep
+their fields, defaults, validation and save behavior. The portal keeps the
+same saved-copy notices and connection requirements.
+
+[Before/after evidence and verification](evidence/276/README.md).
+
 ### Phase 06 authentication and onboarding (#277)
 
 Account setup crosses two systems: the password is chosen on Keycloak's pages,

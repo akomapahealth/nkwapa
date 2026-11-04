@@ -20,7 +20,6 @@ import { getAppointmentRequestTypeLabel } from '@/lib/appointment-status';
 import { EmptyState, InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { ResourceState } from '@/components/feedback/ResourceState';
 import {
-  PORTAL_HERO_GRID,
   PortalConfirmedVisit,
   PortalFact,
   PortalHero,
@@ -147,107 +146,18 @@ export function AppointmentRequestScreen() {
   return (
     <RouteGuard requiredPermission="PATIENT.PORTAL.WRITE_SELF_REPORT">
       <div className="space-y-6">
-        <Button asChild variant="ghost" size="sm">
+        <Button asChild variant="ghost" size="default">
           <Link href="/portal/appointments">
             <ArrowLeft aria-hidden="true" className="mr-2 h-4 w-4" />
             Back to appointments
           </Link>
         </Button>
 
-        <section className={PORTAL_HERO_GRID}>
-          <PortalHero
-            eyebrow="Request a visit"
-            clinicName={clinicName}
-            title="Tell your clinic when you would like to be seen."
-            description="Share your preferred date window, a short reason for the visit, and any helpful context so staff can schedule you faster."
-            contentClassName="grid gap-4 md:grid-cols-2"
-          >
-            <PortalFact
-              label="Best for"
-              value="Routine follow-ups, reviewing symptoms, medication questions, or discussing home readings."
-              valueClassName="font-normal leading-6"
-            />
-            <PortalFact
-              label="Scheduling note"
-              value="Your clinic confirms the exact time after reviewing your request."
-              valueClassName="font-normal leading-6"
-            />
-          </PortalHero>
-
-          <div className="space-y-4">
-            <PortalPanel
-              title="Current scheduling snapshot"
-              description="Helpful context before you submit a new request."
-              contentClassName="space-y-4"
-            >
-              <ResourceState
-                state={context}
-                // Pinned by e2e/appointments.spec.js: a failed context read must say what failed
-                // and offer a retry, rather than printing a raw message into the page.
-                errorTitle="We couldn't load your appointment context"
-                skeleton={
-                  <SectionSkeleton lines={1} className="border-0 bg-transparent p-0 shadow-none" />
-                }
-              >
-                {(requests) => {
-                  const nextAppointment = getNextAppointment(requests);
-                  const latestRequest = requests[0] ?? null;
-
-                  return (
-                    <div className="space-y-4">
-                      {nextAppointment ? (
-                        <PortalConfirmedVisit
-                          title="Next confirmed visit"
-                          startsAt={formatPortalDateTime(nextAppointment.startsAt)}
-                          endsAt={formatPortalDateTime(nextAppointment.endsAt)}
-                          icon={<CalendarRange aria-hidden="true" className="h-4 w-4" />}
-                        />
-                      ) : (
-                        <EmptyState
-                          density="compact"
-                          icon={CalendarRange}
-                          title="No confirmed appointment yet"
-                          description="Send a request below and your clinic will confirm a time for you."
-                        />
-                      )}
-
-                      <PortalFact
-                        label="Latest request"
-                        value={
-                          latestRequest
-                            ? `${formatPortalDate(latestRequest.preferredStartDate)} to ${formatPortalDate(latestRequest.preferredEndDate)}`
-                            : 'No recent request'
-                        }
-                        detail={
-                          latestRequest
-                            ? `${getAppointmentRequestTypeLabel(latestRequest.requestType)} - ${
-                                latestRequest.reason || 'No reason provided'
-                              }`
-                            : 'Your next request will appear here after submission.'
-                        }
-                      />
-                    </div>
-                  );
-                }}
-              </ResourceState>
-            </PortalPanel>
-
-            <PortalPanel
-              title="Before you submit"
-              contentClassName="space-y-3 text-sm leading-6 text-muted-foreground"
-            >
-              <p>Share the date range that works best for you, not the exact time.</p>
-              <p>
-                Add a short reason so staff know whether you need a routine follow-up, symptom
-                review, or medication discussion.
-              </p>
-              <p>
-                If your clinic confirms the visit, it will show up in your appointments dashboard
-                automatically.
-              </p>
-            </PortalPanel>
-          </div>
-        </section>
+        <PortalHero
+          clinicName={clinicName}
+          title="Request an appointment"
+          description="Tell your clinic when you can come and why you would like an appointment."
+        />
 
         {error ? (
           <div id="appointment-request-error" role="alert">
@@ -257,7 +167,7 @@ export function AppointmentRequestScreen() {
 
         <PortalPanel
           title="Visit request details"
-          description="Pick a date window and add any details that will help your care team prepare."
+          description="Choose the dates that work for you. Your clinic will confirm the time."
         >
           <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
             <div className="space-y-5">
@@ -332,7 +242,7 @@ export function AppointmentRequestScreen() {
             </div>
 
             <div className="space-y-4">
-              <div className="rounded-lg border border-border bg-background p-5">
+              <div className="border-t border-border py-4">
                 <h3 className="flex items-center gap-2 font-medium text-foreground">
                   <Clock3 aria-hidden="true" className="h-4 w-4 text-primary" />
                   Request summary
@@ -368,6 +278,79 @@ export function AppointmentRequestScreen() {
             </div>
           </form>
         </PortalPanel>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <PortalPanel
+            title="Your appointments"
+            description="Helpful context before you submit a new request."
+            contentClassName="space-y-4"
+          >
+            <ResourceState
+              state={context}
+              // Pinned by e2e/appointments.spec.js: a failed context read must say what failed
+              // and offer a retry, rather than printing a raw message into the page.
+              errorTitle="We couldn't load your appointment context"
+              skeleton={
+                <SectionSkeleton lines={1} className="border-0 bg-transparent p-0 shadow-none" />
+              }
+            >
+              {(requests) => {
+                const nextAppointment = getNextAppointment(requests);
+                const latestRequest = requests[0] ?? null;
+
+                return (
+                  <div className="space-y-4">
+                    {nextAppointment ? (
+                      <PortalConfirmedVisit
+                        title="Next confirmed visit"
+                        startsAt={formatPortalDateTime(nextAppointment.startsAt)}
+                        endsAt={formatPortalDateTime(nextAppointment.endsAt)}
+                        icon={<CalendarRange aria-hidden="true" className="h-4 w-4" />}
+                      />
+                    ) : (
+                      <EmptyState
+                        density="compact"
+                        icon={CalendarRange}
+                        title="No confirmed appointment yet"
+                        description="Send a request and your clinic will confirm a time for you."
+                      />
+                    )}
+
+                    <PortalFact
+                      label="Latest request"
+                      value={
+                        latestRequest
+                          ? `${formatPortalDate(latestRequest.preferredStartDate)} to ${formatPortalDate(latestRequest.preferredEndDate)}`
+                          : 'No recent request'
+                      }
+                      detail={
+                        latestRequest
+                          ? `${getAppointmentRequestTypeLabel(latestRequest.requestType)} - ${
+                              latestRequest.reason || 'No reason provided'
+                            }`
+                          : 'Your next request will appear here after submission.'
+                      }
+                    />
+                  </div>
+                );
+              }}
+            </ResourceState>
+          </PortalPanel>
+
+          <PortalPanel
+            title="What happens next"
+            contentClassName="space-y-3 text-sm leading-6 text-muted-foreground"
+          >
+            <p>Share the date range that works best for you, not the exact time.</p>
+            <p>
+              Add a short reason so your clinic knows whether you need a routine follow-up, symptom
+              review, or medication discussion.
+            </p>
+            <p>
+              If your clinic confirms the visit, it will show up under Appointments automatically.
+            </p>
+          </PortalPanel>
+        </div>
       </div>
     </RouteGuard>
   );

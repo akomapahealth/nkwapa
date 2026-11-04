@@ -1,50 +1,36 @@
 'use client';
 
 import Link from 'next/link';
+import { CalendarDays, HeartPulse, House } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { Header } from '@/components/Header';
 import { NavigationProgress } from '@/components/app-shell/NavigationProgress';
-import { Badge } from '@/components/ui/badge';
-import { InfoHint } from '@/components/ui/info-hint';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   {
     href: '/portal',
     label: 'Overview',
+    icon: House,
     matches: (pathname: string) => pathname === '/portal',
   },
   {
     href: '/portal/health',
     label: 'My Health',
+    icon: HeartPulse,
     matches: (pathname: string) =>
       pathname.startsWith('/portal/health') || pathname.startsWith('/portal/self-reports'),
   },
   {
     href: '/portal/appointments',
     label: 'Appointments',
-    // Request Visit lives under this path but has its own pill; lighting both says neither.
-    matches: (pathname: string) =>
-      pathname.startsWith('/portal/appointments') && pathname !== '/portal/appointments/request',
-  },
-  {
-    href: '/portal/appointments/request',
-    label: 'Request Visit',
-    matches: (pathname: string) => pathname === '/portal/appointments/request',
+    icon: CalendarDays,
+    matches: (pathname: string) => pathname.startsWith('/portal/appointments'),
   },
 ] as const;
 
-/**
- * The patient shell.
- *
- * It stays visibly different from the clinical workspace on purpose -- a patient and a clinician
- * must never be unsure which surface they are on -- and the difference is carried by structure,
- * not by a private palette: no nav rail, no chat widget, a named "Patient Portal" band, a reading
- * column at `max-w-6xl` against the workspace's `max-w-[1440px]`, and lower density throughout.
- * The colours, radii and type are the same tokens the workspace uses.
- */
 export function PortalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const bootstrap = useBootstrap()?.bootstrap ?? null;
@@ -54,11 +40,6 @@ export function PortalLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col bg-background px-safe">
-      {/*
-        First thing in the tab order, hidden until focused. Without it a keyboard or screen reader
-        user walks the whole header and the four-item pill nav on every portal page before reaching
-        their own readings. The workspace shell has had this; the portal did not.
-      */}
       <a
         href="#main-content"
         className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:left-4 focus-visible:top-4 focus-visible:z-50 focus-visible:rounded-lg focus-visible:bg-background focus-visible:px-4 focus-visible:py-3 focus-visible:text-sm focus-visible:font-medium focus-visible:shadow-sm focus-visible:ring-2 focus-visible:ring-ring"
@@ -67,51 +48,38 @@ export function PortalLayout({ children }: { children: React.ReactNode }) {
       </a>
       <NavigationProgress />
       <Header />
-      <div className="border-b border-border bg-card">
-        <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
-          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div className="space-y-2">
-              <p className="text-eyebrow text-primary">Patient Portal</p>
-              <div className="space-y-1">
-                <h1 className="font-heading text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
-                  Welcome back, {displayName.split(' ')[0]}
-                </h1>
-                <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
-                  <span className="align-middle">Your care and visits in one place.</span>
-                  <InfoHint
-                    size="sm"
-                    label="Review finalized readings, check appointment details, and send visit requests without leaving the portal."
-                    className="ml-1.5"
-                  />
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary" className="rounded-full px-3 py-1">
-                Secure patient access
-              </Badge>
-              {activeClinic?.clinicName && (
-                <Badge variant="outline" className="rounded-full border-border px-3 py-1">
-                  {activeClinic.clinicName}
-                </Badge>
-              )}
-            </div>
+      <div className="border-b border-border">
+        <div className="mx-auto max-w-5xl px-4 md:px-6">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-4">
+            <h1 className="font-heading text-2xl font-semibold text-foreground">
+              {pathname === '/portal'
+                ? `Welcome back, ${displayName.split(' ')[0]}`
+                : 'Patient portal'}
+            </h1>
+            {activeClinic?.clinicName && (
+              <p className="text-sm text-muted-foreground">{activeClinic.clinicName}</p>
+            )}
           </div>
-          <nav aria-label="Patient portal" className="flex flex-wrap gap-2">
+          <nav
+            aria-label="Patient portal"
+            className="grid grid-cols-3 border-t border-border sm:flex sm:gap-4"
+          >
             {navItems.map((item) => {
+              const Icon = item.icon;
               const active = item.matches(pathname);
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  aria-current={active ? 'page' : undefined}
+                  aria-current={pathname === item.href ? 'page' : active ? 'location' : undefined}
                   className={cn(
-                    'inline-flex min-h-11 items-center rounded-full border px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                    'inline-flex min-h-14 flex-col items-center justify-center gap-1 border-b-2 px-1 text-center text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:min-h-11 sm:flex-row sm:gap-2 sm:px-3',
                     active
-                      ? 'border-primary bg-primary text-primary-foreground'
-                      : 'border-border bg-background text-muted-foreground hover:text-foreground',
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:text-foreground',
                   )}
                 >
+                  <Icon aria-hidden="true" className="size-4" />
                   {item.label}
                 </Link>
               );
@@ -122,9 +90,9 @@ export function PortalLayout({ children }: { children: React.ReactNode }) {
       <main
         id="main-content"
         tabIndex={-1}
-        className="flex-1 overflow-auto px-4 py-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] focus-visible:outline-none md:px-6 lg:px-8"
+        className="flex-1 overflow-auto [&_button]:min-h-11 [&_button]:min-w-11 [&_input]:min-h-11 [&_select]:min-h-11 [&_textarea]:min-h-11 px-4 py-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] focus-visible:outline-none md:px-6 lg:px-8"
       >
-        <div className="mx-auto max-w-6xl">{children}</div>
+        <div className="mx-auto max-w-5xl">{children}</div>
       </main>
     </div>
   );

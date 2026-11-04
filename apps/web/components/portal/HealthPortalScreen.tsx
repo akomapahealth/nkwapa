@@ -149,10 +149,9 @@ export function HealthPortalScreen() {
       <div className="space-y-6">
         <section className={PORTAL_HERO_GRID}>
           <PortalHero
-            eyebrow="My Health"
             clinicName={clinicName}
-            title="Build a clearer picture of your progress."
-            description="Review recent readings, spot patterns over time, and keep your care team updated before your next visit."
+            title="Your health readings"
+            description="See how your readings change over time and share new readings with your care team."
             contentClassName="flex flex-wrap gap-3"
           >
             <Button asChild>
@@ -171,7 +170,7 @@ export function HealthPortalScreen() {
 
           <PortalPanel
             title="Time window"
-            description="Focus your charts on the range that matters most right now."
+            description="Choose how far back to look."
             contentClassName="space-y-4"
           >
             <SegmentedControl
@@ -236,7 +235,7 @@ export function HealthPortalScreen() {
                 {me.recommendations && (
                   <PortalPanel
                     title="Care team guidance"
-                    description="Guidance from your most recent finalized care plan."
+                    description="The latest advice from your care team."
                     contentClassName="grid gap-4 md:grid-cols-3"
                   >
                     <PortalFact
@@ -292,11 +291,11 @@ export function HealthPortalScreen() {
                 </PortalPanel>
 
                 <section className="grid gap-4 lg:grid-cols-2">
+                  <h2 className="type-section-title lg:col-span-2">Reading trends</h2>
                   <div className="lg:col-span-2">
                     <MeasurementTrendChart
-                      headingLevel="h2"
                       title="Blood pressure trend"
-                      description="Finalized clinic readings combined with the blood pressure logs you entered at home."
+                      description="Blood pressure readings from your clinic and from home."
                       emptyMessage="Add a blood pressure reading to start building your trend line."
                       valueSuffix=" mmHg"
                       lines={[
@@ -307,16 +306,14 @@ export function HealthPortalScreen() {
                     />
                   </div>
                   <MeasurementTrendChart
-                    headingLevel="h2"
                     title="Glucose trend"
-                    description="Finalized clinic readings combined with the glucose logs you entered at home."
+                    description="Blood sugar readings from your clinic and from home."
                     emptyMessage="Log a glucose reading to see your trend."
                     valueSuffix=" mg/dL"
                     lines={[{ key: 'glucose', label: 'Glucose', color: 'hsl(var(--chart-2))' }]}
                     data={glucoseTrend}
                   />
                   <MeasurementTrendChart
-                    headingLevel="h2"
                     title="Weight trend"
                     description="Track steady changes in weight over time."
                     emptyMessage="Log your weight to start a trend."
@@ -327,18 +324,18 @@ export function HealthPortalScreen() {
                 </section>
 
                 <PortalPanel
-                  title="Submission history"
-                  description="Your recent readings and older portal updates appear together here."
+                  title="Past readings"
+                  description="See the readings you have shared."
                   action={
-                    <Button asChild variant="outline" size="sm">
-                      <Link href="/portal/self-reports/new">Log another update</Link>
+                    <Button asChild variant="outline" size="default">
+                      <Link href="/portal/self-reports/new">Log a reading</Link>
                     </Button>
                   }
                 >
                   {history.length === 0 ? (
                     <EmptyState
                       icon={Activity}
-                      title="No submissions yet"
+                      title="No readings yet"
                       description="Start by logging a blood pressure, glucose, or weight reading."
                       action={
                         <Button asChild>
@@ -351,7 +348,7 @@ export function HealthPortalScreen() {
                       {history.slice(0, 12).map((entry) => (
                         <div
                           key={entry.id}
-                          className="flex flex-col gap-3 rounded-lg border border-border bg-background p-4 md:flex-row md:items-center md:justify-between"
+                          className="flex flex-col gap-3 border-b border-border py-3 md:flex-row md:items-center md:justify-between"
                         >
                           <div className="space-y-1">
                             <div className="flex flex-wrap items-center gap-2">
@@ -363,7 +360,7 @@ export function HealthPortalScreen() {
                               </span>
                             </div>
                             <p className="text-sm leading-6 text-muted-foreground">
-                              {entry.notes?.trim() || 'No notes added for this submission.'}
+                              {entry.notes?.trim() || 'No notes for this reading.'}
                             </p>
                           </div>
                           <div className="text-sm tabular-nums text-muted-foreground">

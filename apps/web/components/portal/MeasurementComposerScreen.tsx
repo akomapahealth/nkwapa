@@ -20,12 +20,7 @@ import {
 import { cn } from '@/lib/utils';
 import { EmptyState, InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { ResourceState } from '@/components/feedback/ResourceState';
-import {
-  PORTAL_HERO_GRID,
-  PortalFact,
-  PortalHero,
-  PortalPanel,
-} from '@/components/portal/PortalPanels';
+import { PortalFact, PortalHero, PortalPanel } from '@/components/portal/PortalPanels';
 import { PortalWriteGateNotice, usePortalWriteGate } from '@/components/portal/PortalWriteGate';
 import { usePortalResource } from '@/components/portal/use-portal-resource';
 import { RouteGuard } from '@/components/RouteGuard';
@@ -46,7 +41,7 @@ const MEASUREMENT_OPTIONS = [
   {
     value: 'BP' as const,
     label: 'Blood pressure',
-    description: 'Track systolic and diastolic values from home.',
+    description: 'Share the top and bottom numbers from your reading.',
     icon: HeartPulse,
   },
   {
@@ -201,105 +196,55 @@ export function MeasurementComposerScreen() {
   return (
     <RouteGuard requiredPermission="PATIENT.PORTAL.WRITE_SELF_REPORT">
       <div className="space-y-6">
-        <Button asChild variant="ghost" size="sm">
+        <Button asChild variant="ghost" size="default">
           <Link href="/portal/health">
             <ArrowLeft aria-hidden="true" className="mr-2 h-4 w-4" />
             Back to health trends
           </Link>
         </Button>
 
-        <section className={PORTAL_HERO_GRID}>
-          <PortalHero
-            eyebrow="Home readings"
-            clinicName={clinicName}
-            title="Log a reading your care team can use right away."
-            description="Add blood pressure, glucose, or weight measurements in a clean format that is easy to review during follow-up."
-            contentClassName="grid gap-3 md:grid-cols-3"
-          >
-            {MEASUREMENT_OPTIONS.map((option) => {
-              const Icon = option.icon;
-              const isActive = option.value === type;
+        <PortalHero
+          clinicName={clinicName}
+          title="Log a reading"
+          description="Choose a reading to share with your care team."
+          contentClassName="grid gap-3 md:grid-cols-3"
+        >
+          {MEASUREMENT_OPTIONS.map((option) => {
+            const Icon = option.icon;
+            const isActive = option.value === type;
 
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  aria-pressed={isActive}
-                  onClick={() => setType(option.value)}
+            return (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={isActive}
+                onClick={() => setType(option.value)}
+                className={cn(
+                  'border-b px-2 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                  isActive ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent',
+                )}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <Icon aria-hidden="true" className="h-5 w-5 text-primary" />
+                  <span className="mr-auto font-medium text-foreground">{option.label}</span>
+                  {isActive && (
+                    <Badge variant="secondary" className="rounded-full">
+                      Selected
+                    </Badge>
+                  )}
+                </div>
+                <p
                   className={cn(
-                    'rounded-lg border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                    isActive
-                      ? 'border-primary bg-primary/10'
-                      : 'border-input bg-background hover:bg-accent',
+                    'mt-1 text-sm leading-6',
+                    isActive ? 'text-foreground' : 'text-muted-foreground',
                   )}
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <Icon aria-hidden="true" className="h-5 w-5 text-primary" />
-                    {isActive && (
-                      <Badge variant="secondary" className="rounded-full">
-                        Selected
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="mt-4 font-medium text-foreground">{option.label}</p>
-                  <p
-                    className={cn(
-                      'mt-1 text-sm leading-6',
-                      isActive ? 'text-foreground' : 'text-muted-foreground',
-                    )}
-                  >
-                    {option.description}
-                  </p>
-                </button>
-              );
-            })}
-          </PortalHero>
-
-          <div className="space-y-4">
-            <PortalPanel
-              title={`Latest ${activeOption.label.toLowerCase()}`}
-              description="Recent portal reading for quick comparison."
-            >
-              <ResourceState
-                state={latest}
-                errorTitle="Your previous reading could not be loaded"
-                // The empty case is rendered below rather than through `empty`, because this panel
-                // sits in a side column where the comfortable density would push the form off the
-                // fold. Same component, the density the contract asks for in a card.
-                skeleton={
-                  <SectionSkeleton lines={1} className="border-0 bg-transparent p-0 shadow-none" />
-                }
-              >
-                {(measurements) =>
-                  measurements.length === 0 ? (
-                    <EmptyState
-                      density="compact"
-                      icon={activeOption.icon}
-                      title="No saved reading yet"
-                      description={`Your most recent ${activeOption.label.toLowerCase()} reading will appear here once you save one.`}
-                    />
-                  ) : (
-                    <div className="rounded-lg border border-border bg-background p-4">
-                      <p className="font-medium tabular-nums text-foreground">
-                        {formatMeasurementValue(measurements[0])}
-                      </p>
-                      <p className="mt-2 text-sm tabular-nums text-muted-foreground">
-                        Recorded {formatPortalDateTime(measurements[0].recordedAt)}
-                      </p>
-                    </div>
-                  )
-                }
-              </ResourceState>
-            </PortalPanel>
-
-            <PortalPanel
-              title="Helpful tip"
-              contentClassName="text-sm leading-6 text-muted-foreground"
-            >
-              {getTypeTips(type)}
-            </PortalPanel>
-          </div>
-        </section>
+                  {option.description}
+                </p>
+              </button>
+            );
+          })}
+        </PortalHero>
 
         {/*
           role="alert" so a validation message reaches a screen reader at the moment it appears.
@@ -441,7 +386,7 @@ export function MeasurementComposerScreen() {
             </div>
 
             <div className="space-y-4">
-              <div className="rounded-lg border border-border bg-background p-5">
+              <div className="border-t border-border py-4">
                 <h3 className="flex items-center gap-2 font-medium text-foreground">
                   <Activity aria-hidden="true" className="h-4 w-4 text-primary" />
                   What will be saved
@@ -475,6 +420,51 @@ export function MeasurementComposerScreen() {
             </div>
           </form>
         </PortalPanel>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <PortalPanel
+            title={`Latest ${activeOption.label.toLowerCase()}`}
+            description="Recent portal reading for quick comparison."
+          >
+            <ResourceState
+              state={latest}
+              errorTitle="Your previous reading could not be loaded"
+              // The empty case is rendered below rather than through `empty`, because this panel
+              // sits in a side column where the comfortable density would push the form off the
+              // fold. Same component, the density the contract asks for in a card.
+              skeleton={
+                <SectionSkeleton lines={1} className="border-0 bg-transparent p-0 shadow-none" />
+              }
+            >
+              {(measurements) =>
+                measurements.length === 0 ? (
+                  <EmptyState
+                    density="compact"
+                    icon={activeOption.icon}
+                    title="No saved reading yet"
+                    description={`Your most recent ${activeOption.label.toLowerCase()} reading will appear here once you save one.`}
+                  />
+                ) : (
+                  <div className="border-b border-border py-3">
+                    <p className="font-medium tabular-nums text-foreground">
+                      {formatMeasurementValue(measurements[0])}
+                    </p>
+                    <p className="mt-2 text-sm tabular-nums text-muted-foreground">
+                      Recorded {formatPortalDateTime(measurements[0].recordedAt)}
+                    </p>
+                  </div>
+                )
+              }
+            </ResourceState>
+          </PortalPanel>
+
+          <PortalPanel
+            title="Helpful tip"
+            contentClassName="text-sm leading-6 text-muted-foreground"
+          >
+            {getTypeTips(type)}
+          </PortalPanel>
+        </div>
       </div>
     </RouteGuard>
   );

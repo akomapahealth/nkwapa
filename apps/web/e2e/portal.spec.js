@@ -69,6 +69,28 @@ for (const route of PORTAL_ROUTES) {
   });
 }
 
+test('portal controls are at least 44px at phone width', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const route of PORTAL_ROUTES) {
+    await page.goto(route.path);
+    await expect(page.getByRole('heading', { name: route.heading })).toBeVisible();
+    const undersized = await page
+      .locator(
+        'nav[aria-label="Patient portal"] a, main :is(a[href], button, input, select, textarea)',
+      )
+      .evaluateAll((controls) =>
+        controls.flatMap((control) => {
+          const { width, height } = control.getBoundingClientRect();
+          if (!width || !height || (width >= 44 && height >= 44)) return [];
+          const name =
+            control.getAttribute('aria-label') || control.textContent.trim() || control.id;
+          return [`${name}: ${width} × ${height}`];
+        }),
+      );
+    expect(undersized, route.path).toEqual([]);
+  }
+});
+
 test('a patient is refused every staff surface', async ({ page }) => {
   // The boundary #82 cares about most, and the one identity that could never be used to test it.
   for (const path of STAFF_ROUTES) {
@@ -147,7 +169,7 @@ for (const theme of ['light', 'dark']) {
     for (const choice of [
       /Glucose.*Share fasting/,
       /Weight.*Capture weight/,
-      /Blood pressure.*Track systolic/,
+      /Blood pressure.*Share the top and bottom/,
     ]) {
       const tile = page.getByRole('button', { name: choice });
       await tile.click();
