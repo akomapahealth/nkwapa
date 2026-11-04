@@ -52,6 +52,7 @@ export function ClinicSettingsScreen({ clinicId }: { clinicId: string }) {
   );
 
   const settings = useAsyncResource<ResearchSettings>({
+    requiresOnline: true,
     resourceKey: clinicId,
     errorMessage: 'The research settings for this clinic could not be loaded.',
     fetcher: async (token, signal) => {

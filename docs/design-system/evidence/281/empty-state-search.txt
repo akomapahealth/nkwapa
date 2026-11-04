@@ -1,0 +1,130 @@
+apps/web/components/reports/OrganizationReportScreen.tsx:182:          title: 'No organizations yet',
+apps/web/components/feedback/AppState.tsx:295: * land on "No visits yet" the same way a sighted user's eye does. Three e2e specs assert it by
+apps/web/components/feedback/AppState.tsx:298:export function EmptyState({
+apps/web/components/feedback/AppState.tsx:310:   * A Lucide component. A rendered element is also accepted so the older `EmptyStateCard`
+apps/web/components/feedback/AppState.tsx:440:    <EmptyState
+apps/web/components/sync/SyncCenterSheet.tsx:13:import { EmptyState } from '@/components/feedback/AppState';
+apps/web/components/sync/SyncCenterSheet.tsx:203:            <EmptyState
+apps/web/components/feedback/ResourceState.tsx:5:import { EmptyState, InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
+apps/web/components/feedback/ResourceState.tsx:153:        <EmptyState
+apps/web/components/encounters/hypertension/HypertensionInterviewForm.tsx:523:            No blood pressure has been recorded for this visit yet. Record it on the Vitals tab and
+apps/web/components/portal/AppointmentRequestScreen.tsx:20:import { EmptyState, InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
+apps/web/components/portal/AppointmentRequestScreen.tsx:311:                      <EmptyState
+apps/web/components/portal/AppointmentRequestScreen.tsx:314:                        title="No confirmed appointment yet"
+apps/web/components/admin/CrossClinicInvestigationScreen.tsx:38:import { EmptyState, SectionSkeleton } from '@/components/feedback/AppState';
+apps/web/components/admin/CrossClinicInvestigationScreen.tsx:418:                    <EmptyState
+apps/web/app/(workspace)/notifications/page.tsx:34:import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
+apps/web/app/(workspace)/notifications/page.tsx:584:              <EmptyStateCard
+apps/web/components/appointments/AppointmentRequestsPanel.tsx:7:import { EmptyStateCard } from '@/components/ops/OpsShared';
+apps/web/components/appointments/AppointmentRequestsPanel.tsx:277:            <EmptyStateCard
+apps/web/components/portal/OverviewPortalScreen.tsx:31:import { EmptyState, SectionSkeleton } from '@/components/feedback/AppState';
+apps/web/components/portal/OverviewPortalScreen.tsx:183:                        : 'No reading yet'
+apps/web/components/portal/OverviewPortalScreen.tsx:197:                        : 'No reading yet'
+apps/web/components/portal/OverviewPortalScreen.tsx:211:                        : 'No reading yet'
+apps/web/components/portal/OverviewPortalScreen.tsx:255:                      <EmptyState
+apps/web/components/portal/OverviewPortalScreen.tsx:258:                        title="No confirmed appointment yet"
+apps/web/components/portal/OverviewPortalScreen.tsx:297:                      <EmptyState
+apps/web/components/portal/OverviewPortalScreen.tsx:317:                      'No care plan notes have been published for your latest visit yet.'
+apps/web/components/portal/MeasurementComposerScreen.tsx:21:import { EmptyState, InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
+apps/web/components/portal/MeasurementComposerScreen.tsx:441:                  <EmptyState
+apps/web/components/portal/MeasurementComposerScreen.tsx:444:                    title="No saved reading yet"
+apps/web/components/ops/OpsShared.tsx:15:import { EmptyState } from '@/components/feedback/AppState';
+apps/web/components/ops/OpsShared.tsx:225:            : 'No saved copy of this day on this device yet.'}
+apps/web/components/ops/OpsShared.tsx:236: * own: it is `EmptyState` at compact density. Prefer importing `EmptyState` directly in new
+apps/web/components/ops/OpsShared.tsx:239:export function EmptyStateCard({
+apps/web/components/ops/OpsShared.tsx:249:  return <EmptyState density="compact" title={title} description={description} icon={icon} />;
+apps/web/components/ops/OpsShared.tsx:392:          <EmptyStateCard
+apps/web/components/clinical-notes/ClinicalNotePanel.tsx:21:import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
+apps/web/components/clinical-notes/ClinicalNotePanel.tsx:289:        <EmptyStateCard
+apps/web/components/portal/HealthPortalScreen.tsx:36:import { EmptyState, SectionSkeleton } from '@/components/feedback/AppState';
+apps/web/components/portal/HealthPortalScreen.tsx:79:  if (!measurement) return 'No readings yet';
+apps/web/components/portal/HealthPortalScreen.tsx:88:  if (!point) return 'No readings yet';
+apps/web/components/portal/HealthPortalScreen.tsx:93:  if (!point) return 'No readings yet';
+apps/web/components/portal/HealthPortalScreen.tsx:214:                    value={latestBp ? `${latestBp.sys}/${latestBp.dia} mmHg` : 'No reading yet'}
+apps/web/components/portal/HealthPortalScreen.tsx:220:                    value={latestGlucose ? `${latestGlucose.value} mg/dL` : 'No reading yet'}
+apps/web/components/portal/HealthPortalScreen.tsx:229:                        : 'No reading yet'
+apps/web/components/portal/HealthPortalScreen.tsx:271:                        me.recommendations.carePlanNotes || 'No care plan notes were shared yet.'
+apps/web/components/portal/HealthPortalScreen.tsx:336:                    <EmptyState
+apps/web/components/portal/HealthPortalScreen.tsx:338:                      title="No readings yet"
+apps/web/components/dashboard/StationFlowDashboard.tsx:19:import { EmptyState, InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
+apps/web/components/dashboard/StationFlowDashboard.tsx:134:        <EmptyState
+apps/web/components/dashboard/StationFlowDashboard.tsx:172:                  : 'No session has finished yet.'
+apps/web/components/admin/ClinicRegistryScreen.tsx:484:              title: 'No clinics yet',
+apps/web/components/app-shell/AppMetricCard.tsx:57:          // A figure gets the full size; a phrase standing in for one ("No reading yet") does not,
+apps/web/app/(workspace)/volunteers/page.tsx:332:          title: 'No volunteers yet',
+apps/web/app/(workspace)/volunteers/events/page.tsx:115:          title: 'No screening days yet',
+apps/web/components/admin/DataRequestsScreen.tsx:9:import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
+apps/web/components/admin/DataRequestsScreen.tsx:123:        <EmptyStateCard
+apps/web/components/portal/AppointmentsPortalScreen.tsx:19:import { EmptyState, InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
+apps/web/components/portal/AppointmentsPortalScreen.tsx:522:              <EmptyState
+apps/web/components/portal/AppointmentsPortalScreen.tsx:525:                title="No visit booked yet"
+apps/web/components/portal/AppointmentsPortalScreen.tsx:609:                    <EmptyState
+apps/web/components/portal/AppointmentsPortalScreen.tsx:650:                    <EmptyState
+apps/web/app/(workspace)/queues/page.tsx:22:import { EmptyState, InlineErrorState } from '@/components/feedback/AppState';
+apps/web/app/(workspace)/queues/page.tsx:326:      <EmptyState
+apps/web/components/dashboard/DoctorDashboard.tsx:91:        emptyMessage="No visits have been finalized in this date range yet. Finalized encounters will appear here automatically."
+apps/web/components/dashboard/DoctorDashboard.tsx:102:          emptyMessage="No hypertension assessments have been recorded for this clinic yet."
+apps/web/components/dashboard/DoctorDashboard.tsx:111:          emptyMessage="No diabetes screenings have been recorded for this clinic yet."
+apps/web/components/staff/StaffInvitesCard.tsx:337:            No invitations have been sent for this clinic yet.
+apps/web/components/portal/MeasurementTrendChart.tsx:13:import { EmptyState } from '@/components/feedback/AppState';
+apps/web/components/portal/MeasurementTrendChart.tsx:59:    <EmptyState
+apps/web/components/portal/MeasurementTrendChart.tsx:62:      title="No readings to chart yet"
+apps/web/components/settings/ClinicSettingsScreen.tsx:197:                    : 'No changes recorded yet.'
+apps/web/components/chat/ChatConversationList.tsx:67:            <p className="text-xs text-muted-foreground">No conversations yet.</p>
+apps/web/app/(workspace)/my/assigned/page.tsx:35:  EmptyStateCard,
+apps/web/app/(workspace)/my/assigned/page.tsx:485:                  <EmptyStateCard
+apps/web/components/dashboard/DistributionChart.tsx:15:import { EmptyState } from '@/components/feedback/AppState';
+apps/web/components/dashboard/DistributionChart.tsx:62:  emptyMessage = 'No records have been classified for this chart yet.',
+apps/web/components/dashboard/DistributionChart.tsx:103:        <EmptyState
+apps/web/components/dashboard/DistributionChart.tsx:105:          title="No chart data yet"
+apps/web/components/dashboard/TrendChart.tsx:12:import { EmptyState } from '@/components/feedback/AppState';
+apps/web/components/dashboard/TrendChart.tsx:40:  emptyMessage = 'No activity has been recorded for this period yet.',
+apps/web/components/dashboard/TrendChart.tsx:55:        <EmptyState
+apps/web/components/dashboard/TrendChart.tsx:57:          title="No chart activity yet"
+apps/web/components/dashboard/SystemAdminDashboard.tsx:191:                  : 'No clinic has any activity to compare yet.'}
+apps/web/app/(workspace)/audit/page.tsx:26:import { EmptyStateCard } from '@/components/ops/OpsShared';
+apps/web/app/(workspace)/audit/page.tsx:335:              <EmptyStateCard
+apps/web/app/(workspace)/admin/users/page.tsx:30:  EmptyState,
+apps/web/app/(workspace)/admin/users/page.tsx:978:      <EmptyState
+apps/web/app/(workspace)/admin/users/page.tsx:1453:                          No name yet. They are asked for it at their next sign-in.
+apps/web/app/(workspace)/admin/users/page.tsx:1639:                    <EmptyState
+apps/web/app/(workspace)/admin/users/page.tsx:1681:                    <EmptyState
+apps/web/app/(workspace)/dashboard/page.tsx:29:import { EmptyStateCard } from '@/components/ops/OpsShared';
+apps/web/app/(workspace)/dashboard/page.tsx:282:          <EmptyStateCard
+apps/web/app/(workspace)/appointments/page.tsx:24:import { EmptyStateCard } from '@/components/ops/OpsShared';
+apps/web/app/(workspace)/appointments/page.tsx:916:            <EmptyStateCard
+apps/web/app/(workspace)/stations/page.tsx:45:  EmptyStateCard,
+apps/web/app/(workspace)/stations/page.tsx:209:        <EmptyStateCard
+apps/web/app/(workspace)/stations/page.tsx:452:                    <EmptyStateCard
+apps/web/app/(workspace)/stations/page.tsx:457:                    <EmptyStateCard
+apps/web/app/(workspace)/today/page.tsx:44:  EmptyStateCard,
+apps/web/app/(workspace)/today/page.tsx:517:                    <EmptyStateCard
+apps/web/app/(workspace)/today/page.tsx:578:                    <EmptyStateCard
+apps/web/app/(workspace)/today/page.tsx:579:                      title="No patient check-ins yet"
+apps/web/app/(workspace)/today/page.tsx:604:                          <EmptyStateCard
+apps/web/app/(workspace)/clinics/[clinicId]/patients/[patientId]/page.tsx:51:import { EmptyStateCard, InlineNotice, OpsFeedbackNotice } from '@/components/ops/OpsShared';
+apps/web/app/(workspace)/clinics/[clinicId]/patients/[patientId]/page.tsx:847:                                No matching app accounts found yet.
+apps/web/app/(workspace)/clinics/[clinicId]/patients/[patientId]/page.tsx:930:                      <EmptyStateCard
+apps/web/app/(workspace)/clinics/[clinicId]/patients/[patientId]/page.tsx:931:                        title="No patient-reported updates yet"
+apps/web/components/patients/chart/PatientChartOverview.tsx:25:import { EmptyStateCard } from '@/components/ops/OpsShared';
+apps/web/components/patients/chart/PatientChartOverview.tsx:269:              <NotRecorded>No vitals recorded yet.</NotRecorded>
+apps/web/components/patients/chart/PatientChartOverview.tsx:305:              <NotRecorded>No screening recorded yet.</NotRecorded>
+apps/web/components/patients/chart/PatientChartOverview.tsx:346:              <NotRecorded>No assessment recorded yet.</NotRecorded>
+apps/web/components/patients/chart/PatientChartOverview.tsx:449:                : 'No visits recorded yet.'}
+apps/web/components/patients/chart/PatientChartOverview.tsx:457:        <EmptyStateCard
+apps/web/components/patients/chart/PatientChartTabs.tsx:5:import { EmptyStateCard } from '@/components/ops/OpsShared';
+apps/web/components/patients/chart/PatientChartTabs.tsx:28:      <EmptyStateCard
+apps/web/components/patients/chart/PatientVitalsPanel.tsx:107:            emptyTitle="No vitals recorded yet"
+apps/web/components/patients/chart/ChartSectionState.tsx:6:import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
+apps/web/components/patients/chart/ChartSectionState.tsx:60:    <EmptyStateCard
+apps/web/components/PrescriptionList.tsx:85:    return <p className="text-sm text-muted-foreground">No prescriptions yet.</p>;
+apps/web/components/research/ResearchSchedulesPanel.tsx:228:                  <p className="font-medium text-foreground">No schedules yet</p>
+apps/web/components/research/ResearchRunDetails.tsx:119:              <p className="text-sm text-muted-foreground">No tables have been generated yet.</p>
+apps/web/components/patients/chart/PatientVisitsPanel.tsx:135:          emptyTitle="No visits yet"
+apps/web/components/patients/ResidentialLocationSummary.tsx:10:import { EmptyState } from '@/components/feedback/AppState';
+apps/web/components/patients/ResidentialLocationSummary.tsx:75:          <EmptyState
+apps/web/components/patients/ResidentialLocationSummary.tsx:79:              location.status === 'UNKNOWN' ? 'Location not known' : 'No location recorded yet'
+apps/web/components/patients/ResidentialLocationSummary.tsx:84:                : 'No residential location has been recorded yet. Edit the patient to add one.'
+apps/web/components/patients/HypertensionHistoryPanel.tsx:51:  emptyTitle: 'No hypertension assessments yet',
+apps/web/components/patients/PatientRegistryScreen.tsx:317:      title: otherFiltersActive ? 'No patients found' : 'No patients in this clinic yet',
+apps/web/components/research/ResearchExportsScreen.tsx:649:                    title: 'No exports yet',

@@ -14,7 +14,7 @@ import { useOtherClinicQueues } from '@/lib/other-clinic-queue';
 import { cn } from '@/lib/utils';
 import { SyncCenterSheet } from './SyncCenterSheet';
 
-type PillState = 'offline' | 'syncing' | 'attention' | 'failed' | 'queued' | 'synced';
+type PillState = 'offline' | 'syncing' | 'attention' | 'failed' | 'queued' | 'held' | 'synced';
 
 const PILL = {
   offline: { icon: WifiOff, className: 'text-destructive' },
@@ -22,6 +22,7 @@ const PILL = {
   attention: { icon: AlertTriangle, className: 'text-warning' },
   failed: { icon: CloudOff, className: 'text-destructive' },
   queued: { icon: RefreshCw, className: 'text-muted-foreground' },
+  held: { icon: AlertTriangle, className: 'text-warning-ink' },
   synced: { icon: CheckCircle2, className: 'text-success' },
 } as const;
 
@@ -54,6 +55,8 @@ export function SyncStatusBar({
   });
   // Counted apart from the active clinic's, which the pill's number is about.
   const otherClinicChanges = otherClinics.reduce((sum, other) => sum + other.own.length, 0);
+  const hasHeldChanges =
+    queue.held.length > 0 || otherClinics.some((other) => other.others.length > 0);
   const blocked = queue.blocked.length;
   const waiting = queue.retrying.length + queue.pending.length;
 
@@ -81,10 +84,7 @@ export function SyncStatusBar({
     [clinicId, setSyncCenterOpen, showToast],
   );
 
-  if (
-    !clinicId ||
-    (!canSync && queue.total === 0 && queue.held.length === 0 && otherClinicChanges === 0)
-  ) {
+  if (!clinicId || (!canSync && queue.total === 0 && !hasHeldChanges && otherClinicChanges === 0)) {
     return null;
   }
 
@@ -98,13 +98,16 @@ export function SyncStatusBar({
           ? 'failed'
           : waiting > 0
             ? 'queued'
-            : 'synced';
+            : hasHeldChanges || otherClinicChanges > 0
+              ? 'held'
+              : 'synced';
   const label = {
     offline: waiting + blocked > 0 ? `Offline · ${waiting + blocked} saved` : 'Offline',
     syncing: 'Syncing…',
     attention: `${blocked} need${blocked === 1 ? 's' : ''} attention`,
     failed: 'Sync failed',
     queued: `${waiting} queued`,
+    held: 'Review saved changes',
     synced: 'All synced',
   }[state];
   const count = state === 'attention' ? blocked : waiting + (state === 'offline' ? blocked : 0);
@@ -114,7 +117,7 @@ export function SyncStatusBar({
     <>
       <div
         className={cn(
-          'flex items-center rounded-lg border bg-card text-sm transition-colors',
+          'flex items-center rounded-lg border bg-card text-sm transition-colors duration-fast ease-out-strong',
           state === 'attention' ? 'border-warning/40' : 'border-border',
         )}
       >
@@ -137,7 +140,7 @@ export function SyncStatusBar({
           >
             {label}
           </span>
-          {otherClinicChanges > 0 ? (
+          {otherClinicChanges > 0 || hasHeldChanges ? (
             // A quiet marker, not a count: it says "look in the sync center" without inflating
             // the active clinic's number.
             <span

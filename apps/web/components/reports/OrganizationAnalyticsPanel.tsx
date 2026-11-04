@@ -86,6 +86,7 @@ export function OrganizationAnalyticsPanel({
   const query = organizationAnalyticsQuery(organizationId, filters);
 
   const analytics = useAsyncResource<OrganizationAnalytics>({
+    requiresOnline: true,
     resourceKey: query.resourceKey,
     errorMessage: 'The cohort analytics could not be loaded.',
     // An impossible range is said beside the dates; there is no point asking the API.

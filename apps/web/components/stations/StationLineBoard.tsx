@@ -1,5 +1,7 @@
 'use client';
 
+import { StaleDataNotice } from '@/components/feedback/StaleDataNotice';
+
 import Link from 'next/link';
 import { useCallback, useState } from 'react';
 import { RefreshCw, AlertTriangle, UserX, ClipboardCheck } from 'lucide-react';
@@ -346,6 +348,13 @@ export function StationLineBoard() {
           timeZone={timezone}
           unavailable="Assigning and moving patients, and releasing claims"
         />
+      ) : view.savedCopyAt ? (
+        <StaleDataNotice
+          savedAt={view.savedCopyAt}
+          isOnline
+          onRefresh={refresh}
+          isRefreshing={view.isRefreshing}
+        />
       ) : null}
       {view.error ? (
         <InlineErrorState
@@ -358,7 +367,7 @@ export function StationLineBoard() {
 
       {view.isInitialLoading ? (
         <SectionSkeleton lines={6} />
-      ) : (
+      ) : !view.data ? null : (
         <>
           <section aria-labelledby="station-needs" className="border-t-2 border-rule-strong pt-4">
             <h2 id="station-needs" className="type-section-title">
@@ -462,7 +471,12 @@ export function StationLineBoard() {
               the end of the scale and its label shows the real minutes.
             </p>
             {tableView ? (
-              <div className="mt-4 overflow-x-auto">
+              <div
+                role="region"
+                aria-label="Station line, exact patient queue times and staffing"
+                tabIndex={0}
+                className="scroll-region mt-4 overflow-x-auto"
+              >
                 <table className="w-full text-left text-sm">
                   <caption className="sr-only">
                     Station line, exact patient queue times and staffing

@@ -28,7 +28,12 @@ export function PatientComparisonTable({
   const rows = buildComparisonRows(left, right);
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border/70">
+    <div
+      role="region"
+      aria-label={caption}
+      tabIndex={0}
+      className="scroll-region overflow-x-auto rounded-lg border border-border/70"
+    >
       <table className="w-full min-w-[32rem] text-sm">
         <caption className="sr-only">{caption}</caption>
         <thead className="bg-muted">

@@ -1,5 +1,8 @@
 'use client';
 
+import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { StaleDataNotice } from '@/components/feedback/StaleDataNotice';
+
 import { StatusLabel } from '@/components/ui/status-label';
 import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, Bell, CheckCheck, Clock3, SendHorizontal, Timer } from 'lucide-react';
@@ -82,6 +85,7 @@ function maskAddress(value: string) {
 export default function RemindersPage() {
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const getToken = useAuth();
+  const { isOnline } = useSync();
   const clinicId = getBootstrapActiveClinicId(bootstrap);
   // Staff lifecycle notices are withheld by the server from anyone without this (#116).
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
@@ -554,6 +558,7 @@ export default function RemindersPage() {
           </RecordSectionContent>
         </RecordSection>
 
+        {!isOnline ? <StaleDataNotice isOnline={false} /> : null}
         {error ? (
           <InlineErrorState
             description={error}
@@ -580,7 +585,7 @@ export default function RemindersPage() {
           <RecordSectionContent className="space-y-4">
             {loading && rows.length === 0 ? (
               <SectionSkeleton lines={4} className="border-0 bg-transparent p-0 shadow-none" />
-            ) : !loading && rows.length === 0 ? (
+            ) : error && rows.length === 0 ? null : !loading && rows.length === 0 ? (
               <EmptyStateCard
                 title="No reminders match the current filters"
                 description="Try a wider date range or a broader status filter to review reminder activity."

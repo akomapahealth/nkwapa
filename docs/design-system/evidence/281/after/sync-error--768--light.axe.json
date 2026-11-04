@@ -1,0 +1,451 @@
+{
+  "violations": [],
+  "incomplete": [
+    {
+      "id": "aria-hidden-focus",
+      "impact": "serious",
+      "tags": [
+        "cat.name-role-value",
+        "wcag2a",
+        "wcag412",
+        "TTv5",
+        "TT6.a",
+        "EN-301-549",
+        "EN-9.4.1.2",
+        "RGAAv4",
+        "RGAA-10.8.1"
+      ],
+      "description": "Ensure aria-hidden elements are not focusable nor contain focusable elements",
+      "help": "ARIA hidden element must not be focusable or contain focusable elements",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-hidden-focus?application=playwright",
+      "nodes": [
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "focusable-modal-open",
+              "data": null,
+              "relatedNodes": [
+                {
+                  "html": "<span data-radix-focus-guard=\"\" tabindex=\"0\" data-aria-hidden=\"true\" aria-hidden=\"true\" style=\"outline: none; opacity: 0; position: fixed; pointer-events: none;\"></span>",
+                  "target": ["span[data-radix-focus-guard=\"\"]:nth-child(1)"]
+                }
+              ],
+              "impact": "serious",
+              "message": "Check that focusable elements are not tabbable in the current state"
+            }
+          ],
+          "none": [],
+          "impact": "serious",
+          "html": "<span data-radix-focus-guard=\"\" tabindex=\"0\" data-aria-hidden=\"true\" aria-hidden=\"true\" style=\"outline: none; opacity: 0; position: fixed; pointer-events: none;\"></span>",
+          "target": ["span[data-radix-focus-guard=\"\"]:nth-child(1)"],
+          "failureSummary": "Fix all of the following:\n  Check that focusable elements are not tabbable in the current state"
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "focusable-modal-open",
+              "data": null,
+              "relatedNodes": [
+                {
+                  "html": "<button class=\"relative inline-flex...\">",
+                  "target": [".text-primary-foreground.shadow.hover\\:bg-primary\\/95:nth-child(1)"]
+                },
+                {
+                  "html": "<button class=\"relative inline-flex...\">",
+                  "target": [
+                    ".flex-wrap.gap-2[data-aria-hidden=\"true\"] > .text-primary-foreground.shadow.hover\\:bg-primary\\/95:nth-child(2)"
+                  ]
+                },
+                {
+                  "html": "<button class=\"relative inline-flex...\">",
+                  "target": [".text-primary-foreground.shadow.hover\\:bg-primary\\/95:nth-child(3)"]
+                },
+                {
+                  "html": "<button class=\"relative inline-flex...\">",
+                  "target": [".text-primary-foreground.shadow.hover\\:bg-primary\\/95:nth-child(4)"]
+                },
+                {
+                  "html": "<button class=\"relative inline-flex...\">",
+                  "target": [".text-primary-foreground.shadow.hover\\:bg-primary\\/95:nth-child(5)"]
+                }
+              ],
+              "impact": "serious",
+              "message": "Check that focusable elements are not tabbable in the current state"
+            }
+          ],
+          "none": [],
+          "impact": "serious",
+          "html": "<div class=\"flex flex-wrap gap-2\" data-aria-hidden=\"true\" aria-hidden=\"true\">",
+          "target": [".flex-wrap.gap-2[data-aria-hidden=\"true\"]"],
+          "failureSummary": "Fix all of the following:\n  Check that focusable elements are not tabbable in the current state"
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "focusable-modal-open",
+              "data": null,
+              "relatedNodes": [
+                {
+                  "html": "<div class=\"overflow-auto focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring\" tabindex=\"0\" role=\"region\" aria-label=\"Synthetic wide clinical readings\" style=\"max-height: 560px;\">",
+                  "target": [".focus-visible\\:outline-2"]
+                },
+                {
+                  "html": "<button type=\"button\" class=\"-mx-2 inline-flex h-11 min-w-11 items-center gap-1.5 rounded-md px-2 text-sm font-medium transition-colors duration-fast hover:bg-background/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring text-foreground\">",
+                  "target": ["th[aria-sort=\"none\"]:nth-child(1) > .-mx-2.gap-1\\.5.px-2"]
+                },
+                {
+                  "html": "<button type=\"button\" class=\"-mx-2 inline-flex h-11 min-w-11 items-center gap-1.5 rounded-md px-2 text-sm font-medium transition-colors duration-fast hover:bg-background/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring text-foreground\">",
+                  "target": ["th[aria-sort=\"none\"]:nth-child(2) > .-mx-2.gap-1\\.5.px-2"]
+                }
+              ],
+              "impact": "serious",
+              "message": "Check that focusable elements are not tabbable in the current state"
+            }
+          ],
+          "none": [],
+          "impact": "serious",
+          "html": "<div class=\"relative min-w-0 max-w-full overflow-hidden border-t-2 border-rule-strong\" data-aria-hidden=\"true\" aria-hidden=\"true\">",
+          "target": [".overflow-hidden.border-t-2.border-rule-strong"],
+          "failureSummary": "Fix all of the following:\n  Check that focusable elements are not tabbable in the current state"
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "focusable-modal-open",
+              "data": null,
+              "relatedNodes": [
+                {
+                  "html": "<button type=\"button\" role=\"combobox\" aria-expanded=\"false\" aria-autocomplete=\"none\" dir=\"ltr\" data-state=\"closed\" class=\"flex items-center ju...\" aria-label=\"Rows per page\">",
+                  "target": [".bg-card"]
+                }
+              ],
+              "impact": "serious",
+              "message": "Check that focusable elements are not tabbable in the current state"
+            }
+          ],
+          "none": [],
+          "impact": "serious",
+          "html": "<div class=\"flex items-center gap-2\" data-aria-hidden=\"true\" aria-hidden=\"true\">",
+          "target": [".sm\\:flex-row > .gap-2.flex[data-aria-hidden=\"true\"]"],
+          "failureSummary": "Fix all of the following:\n  Check that focusable elements are not tabbable in the current state"
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "focusable-modal-open",
+              "data": null,
+              "relatedNodes": [
+                {
+                  "html": "<button type=\"button\" aria-haspopup=\"dialog\" aria-expanded=\"false\" data-state=\"closed\" aria-label=\"Show help: Synthetic...\" class=\"relative inline-flex...\">",
+                  "target": [".before\\:absolute"]
+                },
+                {
+                  "html": "<button class=\"relative inline-flex...\" type=\"button\" aria-pressed=\"false\">",
+                  "target": [".hover\\:bg-accent.hover\\:text-accent-foreground[type=\"button\"]"]
+                }
+              ],
+              "impact": "serious",
+              "message": "Check that focusable elements are not tabbable in the current state"
+            }
+          ],
+          "none": [],
+          "impact": "serious",
+          "html": "<div class=\"flex items-start justify-between gap-3\" data-aria-hidden=\"true\" aria-hidden=\"true\">",
+          "target": [".justify-between.items-start.gap-3"],
+          "failureSummary": "Fix all of the following:\n  Check that focusable elements are not tabbable in the current state"
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "focusable-modal-open",
+              "data": null,
+              "relatedNodes": [
+                {
+                  "html": "<svg role=\"application\" tabindex=\"0\" class=\"recharts-surface\" width=\"736\" height=\"232\" viewBox=\"0 0 736 232\" style=\"width: 100%; height: 100%; display: block;\" data-aria-hidden=\"true\" aria-hidden=\"true\">",
+                  "target": [".recharts-surface"]
+                }
+              ],
+              "impact": "serious",
+              "message": "Check that focusable elements are not tabbable in the current state"
+            }
+          ],
+          "none": [],
+          "impact": "serious",
+          "html": "<svg role=\"application\" tabindex=\"0\" class=\"recharts-surface\" width=\"736\" height=\"232\" viewBox=\"0 0 736 232\" style=\"width: 100%; height: 100%; display: block;\" data-aria-hidden=\"true\" aria-hidden=\"true\">",
+          "target": [".recharts-surface"],
+          "failureSummary": "Fix all of the following:\n  Check that focusable elements are not tabbable in the current state"
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "focusable-modal-open",
+              "data": null,
+              "relatedNodes": [
+                {
+                  "html": "<span data-radix-focus-guard=\"\" tabindex=\"0\" data-aria-hidden=\"true\" aria-hidden=\"true\" style=\"outline: none; opacity: 0; position: fixed; pointer-events: none;\"></span>",
+                  "target": ["span[data-radix-focus-guard=\"\"]:nth-child(6)"]
+                }
+              ],
+              "impact": "serious",
+              "message": "Check that focusable elements are not tabbable in the current state"
+            }
+          ],
+          "none": [],
+          "impact": "serious",
+          "html": "<span data-radix-focus-guard=\"\" tabindex=\"0\" data-aria-hidden=\"true\" aria-hidden=\"true\" style=\"outline: none; opacity: 0; position: fixed; pointer-events: none;\"></span>",
+          "target": ["span[data-radix-focus-guard=\"\"]:nth-child(6)"],
+          "failureSummary": "Fix all of the following:\n  Check that focusable elements are not tabbable in the current state"
+        }
+      ]
+    },
+    {
+      "id": "color-contrast",
+      "impact": "serious",
+      "tags": [
+        "cat.color",
+        "wcag2aa",
+        "wcag143",
+        "TTv5",
+        "TT13.c",
+        "EN-301-549",
+        "EN-9.1.4.3",
+        "ACT",
+        "RGAAv4",
+        "RGAA-3.2.1"
+      ],
+      "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+      "help": "Elements must meet minimum color contrast ratio thresholds",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/color-contrast?application=playwright",
+      "nodes": [
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "contrastRatio": 0,
+                "fontSize": "8.3pt (11px)",
+                "fontWeight": "normal",
+                "messageKey": "imgNode",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [
+                {
+                  "html": "<svg role=\"application\" tabindex=\"0\" class=\"recharts-surface\" width=\"736\" height=\"232\" viewBox=\"0 0 736 232\" style=\"width: 100%; height: 100%; display: block;\" data-aria-hidden=\"true\" aria-hidden=\"true\">",
+                  "target": [".recharts-surface"]
+                }
+              ],
+              "impact": "serious",
+              "message": "Element's background color could not be determined because element contains an image node"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<tspan x=\"65\" dy=\"0.71em\">Visit 1</tspan>",
+          "target": [
+            ".recharts-cartesian-axis-tick-label.recharts-layer:nth-child(1) > text[y=\"205\"][text-anchor=\"middle\"][height=\"30\"] > tspan[dy=\"0.71em\"]"
+          ],
+          "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node"
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "contrastRatio": 0,
+                "fontSize": "8.3pt (11px)",
+                "fontWeight": "normal",
+                "messageKey": "imgNode",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [
+                {
+                  "html": "<svg role=\"application\" tabindex=\"0\" class=\"recharts-surface\" width=\"736\" height=\"232\" viewBox=\"0 0 736 232\" style=\"width: 100%; height: 100%; display: block;\" data-aria-hidden=\"true\" aria-hidden=\"true\">",
+                  "target": [".recharts-surface"]
+                }
+              ],
+              "impact": "serious",
+              "message": "Element's background color could not be determined because element contains an image node"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<tspan x=\"720.6875\" dy=\"0.71em\">Visit 2</tspan>",
+          "target": ["tspan[x=\"720.6875\"][dy=\"0.71em\"]"],
+          "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node"
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "contrastRatio": 0,
+                "fontSize": "8.3pt (11px)",
+                "fontWeight": "normal",
+                "messageKey": "imgNode",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [
+                {
+                  "html": "<svg role=\"application\" tabindex=\"0\" class=\"recharts-surface\" width=\"736\" height=\"232\" viewBox=\"0 0 736 232\" style=\"width: 100%; height: 100%; display: block;\" data-aria-hidden=\"true\" aria-hidden=\"true\">",
+                  "target": [".recharts-surface"]
+                }
+              ],
+              "impact": "serious",
+              "message": "Element's background color could not be determined because element contains an image node"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<tspan x=\"57\" dy=\"0.355em\">75</tspan>",
+          "target": ["text[y=\"197\"][text-anchor=\"end\"] > tspan[dy=\"0.355em\"]"],
+          "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node"
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "contrastRatio": 0,
+                "fontSize": "8.3pt (11px)",
+                "fontWeight": "normal",
+                "messageKey": "imgNode",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [
+                {
+                  "html": "<svg role=\"application\" tabindex=\"0\" class=\"recharts-surface\" width=\"736\" height=\"232\" viewBox=\"0 0 736 232\" style=\"width: 100%; height: 100%; display: block;\" data-aria-hidden=\"true\" aria-hidden=\"true\">",
+                  "target": [".recharts-surface"]
+                }
+              ],
+              "impact": "serious",
+              "message": "Element's background color could not be determined because element contains an image node"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<tspan x=\"57\" dy=\"0.355em\">90</tspan>",
+          "target": ["text[y=\"149\"] > tspan[dy=\"0.355em\"]"],
+          "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node"
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "contrastRatio": 0,
+                "fontSize": "8.3pt (11px)",
+                "fontWeight": "normal",
+                "messageKey": "imgNode",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [
+                {
+                  "html": "<svg role=\"application\" tabindex=\"0\" class=\"recharts-surface\" width=\"736\" height=\"232\" viewBox=\"0 0 736 232\" style=\"width: 100%; height: 100%; display: block;\" data-aria-hidden=\"true\" aria-hidden=\"true\">",
+                  "target": [".recharts-surface"]
+                }
+              ],
+              "impact": "serious",
+              "message": "Element's background color could not be determined because element contains an image node"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<tspan x=\"57\" dy=\"0.355em\">105</tspan>",
+          "target": ["text[y=\"101\"] > tspan[dy=\"0.355em\"]"],
+          "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node"
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "contrastRatio": 0,
+                "fontSize": "8.3pt (11px)",
+                "fontWeight": "normal",
+                "messageKey": "imgNode",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [
+                {
+                  "html": "<svg role=\"application\" tabindex=\"0\" class=\"recharts-surface\" width=\"736\" height=\"232\" viewBox=\"0 0 736 232\" style=\"width: 100%; height: 100%; display: block;\" data-aria-hidden=\"true\" aria-hidden=\"true\">",
+                  "target": [".recharts-surface"]
+                }
+              ],
+              "impact": "serious",
+              "message": "Element's background color could not be determined because element contains an image node"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<tspan x=\"57\" dy=\"0.355em\">120</tspan>",
+          "target": ["text[y=\"53\"] > tspan[dy=\"0.355em\"]"],
+          "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node"
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "contrastRatio": 0,
+                "fontSize": "8.3pt (11px)",
+                "fontWeight": "normal",
+                "messageKey": "imgNode",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [
+                {
+                  "html": "<svg role=\"application\" tabindex=\"0\" class=\"recharts-surface\" width=\"736\" height=\"232\" viewBox=\"0 0 736 232\" style=\"width: 100%; height: 100%; display: block;\" data-aria-hidden=\"true\" aria-hidden=\"true\">",
+                  "target": [".recharts-surface"]
+                }
+              ],
+              "impact": "serious",
+              "message": "Element's background color could not be determined because element contains an image node"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<tspan x=\"57\" dy=\"0.355em\">135</tspan>",
+          "target": ["text[y=\"8.25\"] > tspan[dy=\"0.355em\"]"],
+          "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node"
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "contrastRatio": 0,
+                "fontSize": "10.5pt (14px)",
+                "fontWeight": "normal",
+                "messageKey": "elmPartiallyObscuring",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element's background color could not be determined because it partially overlaps other elements"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<p id=\"sync-center-description\" class=\"text-sm text-muted-foreground\">Changes saved on this device, and whether the server has them yet.</p>",
+          "target": ["#sync-center-description"],
+          "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it partially overlaps other elements"
+        }
+      ]
+    }
+  ]
+}

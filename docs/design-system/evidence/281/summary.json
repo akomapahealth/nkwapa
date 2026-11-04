@@ -1,0 +1,1698 @@
+{
+  "before": {
+    "screenshots": 120,
+    "axeScans": 120,
+    "violationsByRule": {
+      "region": 10
+    },
+    "scans": [
+      {
+        "source": "sync-error--1280--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes-bottom--1440--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "tables-chart-offline--1024--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes--1440--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-error--1440--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-offline--390--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes--1024--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes-bottom--1280--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-online--390--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes-bottom--1440--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes-bottom--1024--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-error--1280--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "registration",
+        "width": 390,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "patient-chart",
+        "width": 390,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "clinical-workspace",
+        "width": 390,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "portal-health",
+        "width": 390,
+        "theme": "light",
+        "violations": ["region"]
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "registration",
+        "width": 768,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "patient-chart",
+        "width": 768,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "clinical-workspace",
+        "width": 768,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "portal-health",
+        "width": 768,
+        "theme": "light",
+        "violations": ["region"]
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "registration",
+        "width": 1024,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "patient-chart",
+        "width": 1024,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "clinical-workspace",
+        "width": 1024,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "portal-health",
+        "width": 1024,
+        "theme": "light",
+        "violations": ["region"]
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "registration",
+        "width": 1280,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "patient-chart",
+        "width": 1280,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "clinical-workspace",
+        "width": 1280,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "portal-health",
+        "width": 1280,
+        "theme": "light",
+        "violations": ["region"]
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "registration",
+        "width": 1440,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "patient-chart",
+        "width": 1440,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "clinical-workspace",
+        "width": 1440,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "portal-health",
+        "width": 1440,
+        "theme": "light",
+        "violations": ["region"]
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "registration",
+        "width": 390,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "patient-chart",
+        "width": 390,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "clinical-workspace",
+        "width": 390,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "portal-health",
+        "width": 390,
+        "theme": "dark",
+        "violations": ["region"]
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "registration",
+        "width": 768,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "patient-chart",
+        "width": 768,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "clinical-workspace",
+        "width": 768,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "portal-health",
+        "width": 768,
+        "theme": "dark",
+        "violations": ["region"]
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "registration",
+        "width": 1024,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "patient-chart",
+        "width": 1024,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "clinical-workspace",
+        "width": 1024,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "portal-health",
+        "width": 1024,
+        "theme": "dark",
+        "violations": ["region"]
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "registration",
+        "width": 1280,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "patient-chart",
+        "width": 1280,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "clinical-workspace",
+        "width": 1280,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "portal-health",
+        "width": 1280,
+        "theme": "dark",
+        "violations": ["region"]
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "registration",
+        "width": 1440,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "patient-chart",
+        "width": 1440,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "clinical-workspace",
+        "width": 1440,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "portal-health",
+        "width": 1440,
+        "theme": "dark",
+        "violations": ["region"]
+      },
+      {
+        "source": "sync-online--768--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "tables-chart-offline--1280--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-error--1024--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "tables-chart-offline--1024--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "tables-chart-offline--1440--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "tables-chart-offline--1440--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes-bottom--1024--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-offline--768--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes-bottom--768--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-offline--390--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-discard--1024--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-discard--1280--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-discard--1440--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-offline--1280--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-loading--1280--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-loading--390--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes--1024--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-discard--1440--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes--390--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-discard--1024--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes-bottom--390--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes--1440--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-loading--768--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes--768--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-offline--768--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes--1280--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-online--1280--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-error--390--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-online--1440--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-error--1440--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes-bottom--1280--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-online--768--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes-bottom--390--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "tables-chart-offline--390--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-error--1024--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-online--1280--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "tables-chart-offline--768--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes--1280--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "tables-chart-offline--390--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes-bottom--768--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-online--1024--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "tables-chart-offline--768--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-error--768--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-online--390--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "tables-chart-offline--1280--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-discard--1280--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes--768--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-loading--1440--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-offline--1280--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-error--390--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-discard--390--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-discard--768--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-loading--390--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-loading--1280--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-loading--1024--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-offline--1440--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-offline--1024--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-offline--1440--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-loading--1440--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-discard--390--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-error--768--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-offline--1024--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-online--1024--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-discard--768--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-online--1440--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes--390--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-loading--1024--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-loading--768--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      }
+    ]
+  },
+  "after": {
+    "screenshots": 120,
+    "axeScans": 120,
+    "violationsByRule": {},
+    "scans": [
+      {
+        "source": "sync-error--1280--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes-bottom--1440--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "tables-chart-offline--1024--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes--1440--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-error--1440--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-offline--390--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes--1024--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes-bottom--1280--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-online--390--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes-bottom--1440--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes-bottom--1024--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-error--1280--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "registration",
+        "width": 390,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "patient-chart",
+        "width": 390,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "clinical-workspace",
+        "width": 390,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "portal-health",
+        "width": 390,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "registration",
+        "width": 768,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "patient-chart",
+        "width": 768,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "clinical-workspace",
+        "width": 768,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "portal-health",
+        "width": 768,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "registration",
+        "width": 1024,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "patient-chart",
+        "width": 1024,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "clinical-workspace",
+        "width": 1024,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "portal-health",
+        "width": 1024,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "registration",
+        "width": 1280,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "patient-chart",
+        "width": 1280,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "clinical-workspace",
+        "width": 1280,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "portal-health",
+        "width": 1280,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "registration",
+        "width": 1440,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "patient-chart",
+        "width": 1440,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "clinical-workspace",
+        "width": 1440,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "portal-health",
+        "width": 1440,
+        "theme": "light",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "registration",
+        "width": 390,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "patient-chart",
+        "width": 390,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "clinical-workspace",
+        "width": 390,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "portal-health",
+        "width": 390,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "registration",
+        "width": 768,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "patient-chart",
+        "width": 768,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "clinical-workspace",
+        "width": 768,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "portal-health",
+        "width": 768,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "registration",
+        "width": 1024,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "patient-chart",
+        "width": 1024,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "clinical-workspace",
+        "width": 1024,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "portal-health",
+        "width": 1024,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "registration",
+        "width": 1280,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "patient-chart",
+        "width": 1280,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "clinical-workspace",
+        "width": 1280,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "portal-health",
+        "width": 1280,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "registration",
+        "width": 1440,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "patient-chart",
+        "width": 1440,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "clinical-workspace",
+        "width": 1440,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "routes.axe.json",
+        "name": "portal-health",
+        "width": 1440,
+        "theme": "dark",
+        "violations": []
+      },
+      {
+        "source": "sync-online--768--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "tables-chart-offline--1280--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-error--1024--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "tables-chart-offline--1024--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "tables-chart-offline--1440--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "tables-chart-offline--1440--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes-bottom--1024--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-offline--768--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes-bottom--768--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-offline--390--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-discard--1024--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-discard--1280--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-discard--1440--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-offline--1280--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-loading--1280--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-loading--390--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes--1024--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-discard--1440--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes--390--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-discard--1024--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes-bottom--390--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes--1440--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-loading--768--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes--768--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-offline--768--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes--1280--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-online--1280--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-error--390--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-online--1440--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-error--1440--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes-bottom--1280--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-online--768--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes-bottom--390--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "tables-chart-offline--390--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-error--1024--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-online--1280--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "tables-chart-offline--768--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes--1280--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "tables-chart-offline--390--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes-bottom--768--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-online--1024--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "tables-chart-offline--768--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-error--768--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-online--390--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "tables-chart-offline--1280--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-discard--1280--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes--768--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-loading--1440--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-offline--1280--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-error--390--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-discard--390--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-discard--768--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-loading--390--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-loading--1280--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-loading--1024--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-offline--1440--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-offline--1024--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-offline--1440--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-loading--1440--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-discard--390--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-error--768--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-offline--1024--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-online--1024--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-discard--768--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-online--1440--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-changes--390--light.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-loading--1024--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      },
+      {
+        "source": "sync-loading--768--dark.axe.json",
+        "name": null,
+        "width": null,
+        "theme": null,
+        "violations": []
+      }
+    ]
+  }
+}

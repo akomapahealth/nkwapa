@@ -152,6 +152,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
   }, [urlQuery]);
 
   const registry = useAsyncResource<PatientRegistryResponse>({
+    requiresOnline: true,
     resourceKey: `${clinicId}|${apiQuery}`,
     errorMessage: 'The patient registry could not be loaded.',
     fetcher: async (token, signal) => {

@@ -45,7 +45,7 @@ export function ChatConversationList({
         <div className="flex items-center gap-1">
           <button
             onClick={onNewGroup}
-            className="cursor-pointer rounded-md p-1.5 transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-md transition-colors duration-fast ease-out-strong hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             title="New group"
             aria-label="New group"
           >
@@ -53,7 +53,7 @@ export function ChatConversationList({
           </button>
           <button
             onClick={onNewMessage}
-            className="cursor-pointer rounded-md p-1.5 transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-md transition-colors duration-fast ease-out-strong hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             title="New message"
             aria-label="New message"
           >
@@ -62,12 +62,24 @@ export function ChatConversationList({
         </div>
       </div>
       <div className="flex-1 overflow-y-auto">
-        {conversations.length === 0 ? (
+        {!chat.isConnected || chat.conversationLoadError ? (
+          <p role="status" className="px-4 py-3 text-sm text-muted-foreground">
+            {chat.conversationLoadError ??
+              'Messages need a connection. Conversations already shown are the last version loaded.'}
+          </p>
+        ) : null}
+        {conversations.length === 0 &&
+        (!chat.isConnected || chat.conversationLoadError) ? null : !chat.conversationsLoaded &&
+          conversations.length === 0 ? (
+          <p role="status" className="p-4 text-sm text-muted-foreground">
+            Loading conversations…
+          </p>
+        ) : conversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center px-4 py-8 text-center">
             <p className="text-xs text-muted-foreground">No conversations yet.</p>
             <button
               onClick={onNewMessage}
-              className="mt-2 cursor-pointer rounded-sm text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className="mt-2 min-h-11 cursor-pointer rounded-sm text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               Start a new conversation
             </button>
@@ -87,7 +99,7 @@ export function ChatConversationList({
                 key={conv.id}
                 onClick={() => onSelect(conv)}
                 data-testid="chat-conversation-row"
-                className="flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
+                className="flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left transition-colors duration-fast ease-out-strong hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
               >
                 {group ? (
                   <ChatGroupAvatar onlineCount={onlineCount} />

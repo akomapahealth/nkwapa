@@ -110,7 +110,7 @@ export function DataTable<TData extends RowData>({
   renderMobileRow,
   onRowClick,
   maxHeight = 560,
-  keyboardScroll = false,
+  keyboardScroll = true,
   paginationClassName,
   className,
 }: {
@@ -190,7 +190,7 @@ export function DataTable<TData extends RowData>({
   const last = Math.min(total, (pagination.pageIndex + 1) * pagination.pageSize);
 
   return (
-    <div className={cn('space-y-3', className)}>
+    <div className={cn('min-w-0 max-w-full space-y-3', className)}>
       {toolbar ? (
         <div className="flex flex-wrap items-end justify-between gap-3">{toolbar}</div>
       ) : null}
@@ -204,7 +204,7 @@ export function DataTable<TData extends RowData>({
 
       <div
         className={cn(
-          'relative overflow-hidden border-t-2 border-rule-strong',
+          'relative min-w-0 max-w-full overflow-hidden border-t-2 border-rule-strong',
           renderMobileRow && 'hidden md:block',
         )}
       >
@@ -226,8 +226,8 @@ export function DataTable<TData extends RowData>({
           )}
           style={{ maxHeight }}
           tabIndex={keyboardScroll ? 0 : undefined}
-          role={keyboardScroll ? 'region' : undefined}
-          aria-label={keyboardScroll ? caption : undefined}
+          role="region"
+          aria-label={caption}
         >
           <table className="type-data w-full caption-bottom border-collapse">
             <caption className="sr-only">{caption}</caption>

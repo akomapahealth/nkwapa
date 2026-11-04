@@ -71,6 +71,8 @@ const TYPING_EXPIRY_MS = 6_000;
 
 interface ChatContextValue {
   isConnected: boolean;
+  conversationsLoaded: boolean;
+  conversationLoadError: string | null;
   conversations: ChatConversation[];
   onlineUserIds: Set<string>;
   /** When each person was last seen, for the ones not online now. */
@@ -116,6 +118,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const activeClinicId = bootstrapCtx?.activeClinicId;
 
   const [isConnected, setIsConnected] = useState(false);
+  const [conversationsLoaded, setConversationsLoaded] = useState(false);
+  const [conversationLoadError, setConversationLoadError] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
   const [lastSeen, setLastSeen] = useState<Record<string, string>>({});
@@ -177,9 +181,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         const data = (await res.json()) as ChatConversation[];
         knownConversationsRef.current = new Set(data.map((conv) => conv.id));
         setConversations(data);
+        setConversationsLoaded(true);
+        setConversationLoadError(null);
+      } else {
+        setConversationLoadError('Conversations could not be loaded. Reconnect and try again.');
       }
     } catch {
-      // Silently fail - conversations will refresh on next message
+      setConversationLoadError('Conversations could not be loaded. Reconnect and try again.');
     }
   }, [activeClinicId, getToken]);
 
@@ -557,6 +565,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
   const value: ChatContextValue = {
     isConnected,
+    conversationsLoaded,
+    conversationLoadError,
     conversations,
     onlineUserIds,
     lastSeen,

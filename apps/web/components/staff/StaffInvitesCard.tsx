@@ -1,5 +1,8 @@
 'use client';
 
+import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { StaleDataNotice } from '@/components/feedback/StaleDataNotice';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
@@ -123,6 +126,7 @@ export function StaffInvitesCard({
   getToken,
   onChanged,
 }: StaffInvitesCardProps) {
+  const { isOnline } = useSync();
   const [invites, setInvites] = useState<StaffInvite[]>([]);
   const [invitableRoles, setInvitableRoles] = useState<StaffInviteRole[]>([]);
   const [loading, setLoading] = useState(true);
@@ -321,6 +325,7 @@ export function StaffInvitesCard({
       </RecordSectionHeader>
 
       <RecordSectionContent className="space-y-4">
+        {!isOnline ? <StaleDataNotice isOnline={false} /> : null}
         {notice ? <InlineNotice tone="success">{notice}</InlineNotice> : null}
         {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
 
