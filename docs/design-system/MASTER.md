@@ -1085,6 +1085,47 @@ Removals split by what a mistake costs.
 
 ---
 
+### Phase 08 responsive and offline (#281)
+
+The route regression derives its inventory from all workspace App Router pages and
+starts at 390px before checking 768, 1024, 1280 and 1440. It measures both the document
+and `#main-content`, because the shell can conceal page overflow inside its own scroll
+area. Dynamic patient and encounter routes use fresh synthetic records. Redirects and
+flag-disabled routes are recorded explicitly in the evidence findings.
+
+Button enforces a 44px minimum height and width even when a call site asks for a smaller
+visible size. Tables scroll inside named, keyboard-focusable regions, including DataTable by default,
+chart alternatives, staff activity, appointments, station flow, visual acuity, comparisons
+and metrics. Sheet close controls have 44px targets. Sheets retain vertical safe-area
+borders and gain horizontal protection; dialogs subtract top/bottom safe insets from the
+available height. Sheet entrances/exits use the 200ms token and `--ease-out`; the existing
+global reduced-motion override applies. No clinical fields or interaction payloads change.
+
+Missing network data never becomes an empty clinical list. Queues, audit, delivery,
+clinical notes, prescriptions, self-reports, staff-role lists, patient-link searches, portal appointment summaries and chat
+now distinguish failed/unavailable
+reads from genuinely empty results. Mounted offline manual lists show a stale notice.
+Today, My Assigned and Stations suppress empty lists without a saved copy while keeping
+shift controls and pending-write overlays available. Loaded records remain visible.
+
+The sync center names the local account/clinic scope, waits for the device queue to load
+and withholds its success empty state while offline or failed. Held-account and
+other-clinic changes remain visible; the header pill says “Review saved changes” rather
+than “All synced” when those rows exist. Long record/account/clinic names wrap, including
+clinic-switch actions, without removing actions. Storage details keep a 44px disclosure
+and flexible columns. Discard/claim confirmations and all outbox ownership rules are
+unchanged.
+
+Destructive button hover uses 95% of its token rather than 90%: the latter failed the
+white-text contrast threshold. Chat creation controls retain 44px targets. The portal
+context is a named section landmark. The browser-only responsive fixture
+renders real components against synthetic rows, without a public demo route or real
+outbox writes. Main-list regressions cover both a mounted connection drop and an
+interrupted first read. #207 still owns cold-start offline authentication; no Keycloak,
+grant, token, route-guard, cache-ownership or outbox-ownership change is included here.
+
+[Before/after evidence, route findings and verification](evidence/281/README.md).
+
 ## 10. Clinical form contract
 
 Six encounter forms, roughly 1,900 lines, and until #61 closed they ran three different validation

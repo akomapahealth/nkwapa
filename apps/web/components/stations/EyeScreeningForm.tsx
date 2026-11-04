@@ -335,7 +335,12 @@ export function EyeScreeningForm({
                   Snellen chart at 6 m. Test the right eye, then the left, then both.
                 </p>
               </div>
-              <div className="overflow-x-auto">
+              <div
+                role="region"
+                aria-label="Visual acuity readings"
+                tabIndex={0}
+                className="scroll-region overflow-x-auto"
+              >
                 <table className="w-full min-w-[560px] text-sm">
                   <thead>
                     <tr className="text-left text-muted-foreground">

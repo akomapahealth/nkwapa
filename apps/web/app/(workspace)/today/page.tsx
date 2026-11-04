@@ -513,7 +513,8 @@ function TodayBoardPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {filteredShifts.length === 0 ? (
+                  {filteredShifts.length === 0 && !board.data ? null : filteredShifts.length ===
+                    0 ? (
                     <EmptyStateCard
                       title="No staff checked in"
                       description="The roster will populate as staff start their shifts."
@@ -572,7 +573,7 @@ function TodayBoardPage() {
                 </div>
               </div>
 
-              {checkins.length === 0 ? (
+              {checkins.length === 0 && !board.data ? null : checkins.length === 0 ? (
                 <Card className="border-dashed">
                   <CardContent className="flex min-h-[260px] items-center justify-center p-10">
                     <EmptyStateCard
@@ -600,7 +601,8 @@ function TodayBoardPage() {
                         </div>
                       </CardHeader>
                       <CardContent className="space-y-3 overflow-y-auto pb-6">
-                        {groupedCheckins[status].length === 0 ? (
+                        {groupedCheckins[status].length === 0 &&
+                        !board.data ? null : groupedCheckins[status].length === 0 ? (
                           <EmptyStateCard
                             title="Nothing here"
                             description={`No ${formatRoleLabel(status).toLowerCase()} check-ins at the moment.`}

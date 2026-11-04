@@ -78,7 +78,7 @@ test("another account's queued change is held, attributed, and never sent", asyn
   expect(pushed.join('\n')).not.toContain(held.id);
 
   // Not this account's work, so not in its count.
-  await expect(page.getByTestId('sync-status')).toHaveAttribute('data-state', 'synced');
+  await expect(page.getByTestId('sync-status')).toHaveAttribute('data-state', 'held');
   await page.getByTestId('sync-status').click();
   const group = page.getByTestId('sync-held-group');
   await expect(group).toBeVisible();

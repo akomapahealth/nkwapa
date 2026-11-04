@@ -1,5 +1,8 @@
 'use client';
 
+import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { StaleDataNotice } from '@/components/feedback/StaleDataNotice';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Ban,
@@ -457,6 +460,7 @@ export default function StaffAppointmentsPage() {
   const bootstrapCtx = useBootstrap();
   const bootstrap = bootstrapCtx?.bootstrap ?? null;
   const getToken = useAuth();
+  const { isOnline } = useSync();
   const { showToast } = useToast();
   const clinicId = bootstrapCtx?.activeClinicId ?? getBootstrapActiveClinicId(bootstrap);
   const activeClinic = getActiveBootstrapClinic(bootstrap, clinicId);
@@ -894,6 +898,7 @@ export default function StaffAppointmentsPage() {
           </AppMetricGroup>
         </RecordSection>
 
+        {!isOnline ? <StaleDataNotice isOnline={false} /> : null}
         {error ? (
           <InlineErrorState
             description={getPortalErrorMessage(error)}
@@ -951,7 +956,12 @@ export default function StaffAppointmentsPage() {
                       ))}
                     </ul>
 
-                    <div className="hidden overflow-x-auto xl:block">
+                    <div
+                      role="region"
+                      aria-label={`Appointments on ${formatOpsDate(date, timezone)}`}
+                      tabIndex={0}
+                      className="scroll-region hidden overflow-x-auto xl:block"
+                    >
                       <table className="w-full min-w-[1080px] border-collapse text-sm">
                         <caption className="sr-only">
                           Appointments on {formatOpsDate(date, timezone)}, with status, reminders,

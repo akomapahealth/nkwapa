@@ -1,5 +1,8 @@
 'use client';
 
+import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { StaleDataNotice } from '@/components/feedback/StaleDataNotice';
+
 import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, Layers3, RefreshCw, ShieldAlert, UserPen, Users } from 'lucide-react';
 import { formatStaffDisplayName } from '@nkwapa/db/staff-name';
@@ -419,6 +422,8 @@ export default function AdminUsersPage() {
   const [nameOpen, setNameOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<StaffAccessRow | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const { isOnline } = useSync();
+  const [detailReadError, setDetailReadError] = useState<string | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [userRoles, setUserRoles] = useState<UserRoleRow[]>([]);
   const [assignRole, setAssignRole] = useState<string>('');
@@ -553,6 +558,7 @@ export default function AdminUsersPage() {
       }
 
       setDetailLoading(true);
+      setDetailReadError(null);
       try {
         const res = await apiFetch(`/admin/users/${encodeURIComponent(userId)}/roles`, {
           getToken,
@@ -563,7 +569,9 @@ export default function AdminUsersPage() {
         }
         setUserRoles((await res.json()) as UserRoleRow[]);
       } catch (nextError) {
-        setError(nextError instanceof Error ? nextError.message : String(nextError));
+        const message = nextError instanceof Error ? nextError.message : String(nextError);
+        setError(message);
+        setDetailReadError(message);
         setUserRoles([]);
       } finally {
         setDetailLoading(false);
@@ -1071,6 +1079,7 @@ export default function AdminUsersPage() {
           ) : null}
         </AppMetricGroup>
 
+        {!isOnline ? <StaleDataNotice isOnline={false} /> : null}
         {error ? (
           <InlineErrorState
             title="The staff roster could not be loaded"
@@ -1333,7 +1342,7 @@ export default function AdminUsersPage() {
                 <div className="space-y-4">
                   <SectionSkeleton lines={5} className="border-0 bg-transparent p-0 shadow-none" />
                 </div>
-              ) : visibleRows.length === 0 ? (
+              ) : error && rows.length === 0 ? null : visibleRows.length === 0 ? (
                 emptyState
               ) : (
                 <>
@@ -1430,6 +1439,14 @@ export default function AdminUsersPage() {
               changes.
             </SheetDescription>
           </SheetHeader>
+          {!isOnline ? <StaleDataNotice isOnline={false} /> : null}
+          {detailReadError ? (
+            <InlineErrorState
+              title="Role records could not be loaded"
+              description={detailReadError}
+              onRetry={() => selectedUser && void fetchUserRoles(selectedUser.id)}
+            />
+          ) : null}
 
           {selectedUser ? (
             <div className="mt-8 space-y-6">
@@ -1605,7 +1622,8 @@ export default function AdminUsersPage() {
                       lines={2}
                       className="border-0 bg-transparent p-0 shadow-none"
                     />
-                  ) : selectedCurrentClinicRoles.length > 0 ? (
+                  ) : detailReadError &&
+                    userRoles.length === 0 ? null : selectedCurrentClinicRoles.length > 0 ? (
                     selectedCurrentClinicRoles.map((role) => {
                       const canRevokeRole = Boolean(
                         canManageLifecycle && activeClinicId && lifecycleRoles.includes(role.role),
@@ -1660,7 +1678,7 @@ export default function AdminUsersPage() {
                       lines={2}
                       className="border-0 bg-transparent p-0 shadow-none"
                     />
-                  ) : userRoles.length > 0 ? (
+                  ) : detailReadError && userRoles.length === 0 ? null : userRoles.length > 0 ? (
                     userRoles.map((role) => (
                       <div key={role.id} className="rounded-lg border border-border bg-card p-4">
                         <div className="flex flex-wrap items-center gap-2">

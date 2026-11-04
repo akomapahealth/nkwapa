@@ -109,7 +109,10 @@ export function SyncMutationCard({
 
   return (
     <article
-      className={cn('rounded-lg border p-4 transition-colors', tone.card)}
+      className={cn(
+        'min-w-0 rounded-lg border p-4 [overflow-wrap:anywhere] transition-colors duration-fast ease-out-strong',
+        tone.card,
+      )}
       aria-labelledby={`sync-item-${row.id}`}
     >
       <div className="flex items-start gap-3">
@@ -199,7 +202,7 @@ export function SyncMutationCard({
           <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
             <ChevronDown
               aria-hidden="true"
-              className="h-4 w-4 transition-transform duration-150 group-open:rotate-180"
+              className="h-4 w-4 transition-transform duration-fast ease-out-strong group-open:rotate-180"
             />
             Technical details
           </summary>

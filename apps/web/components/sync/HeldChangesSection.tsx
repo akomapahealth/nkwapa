@@ -71,7 +71,7 @@ export function HeldChangesSection({
           return (
             <li key={item.row.id}>
               <article
-                className="rounded-lg border border-border bg-muted/30 p-4"
+                className="min-w-0 rounded-lg border border-border bg-muted/30 p-4 [overflow-wrap:anywhere]"
                 aria-labelledby={`sync-held-${item.row.id}`}
               >
                 <div className="flex items-start gap-3">
@@ -120,7 +120,7 @@ export function HeldChangesSection({
         open={claiming !== null}
         onOpenChange={(open) => (!open && !busy ? setClaiming(null) : undefined)}
       >
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md [overflow-wrap:anywhere]">
           <DialogHeader>
             <DialogTitle>Send this change as yours?</DialogTitle>
             <DialogDescription>

@@ -520,8 +520,9 @@ export function HypertensionInterviewForm({
 
         {!hasBloodPressure(todaysVitals) ? (
           <InlineNotice tone="info" live={false}>
-            No blood pressure has been recorded for this visit yet. Record it on the Vitals tab and
-            it will appear here.
+            {isOnline
+              ? 'No blood pressure has been recorded for this visit yet. Record it on the Vitals tab and it will appear here.'
+              : 'No blood pressure is available on this device for this visit. Reconnect to check for readings, or record one on the Vitals tab.'}
           </InlineNotice>
         ) : null}
 

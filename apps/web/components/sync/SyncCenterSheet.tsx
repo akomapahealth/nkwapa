@@ -10,6 +10,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import { InlineNotice } from '@/components/ops/OpsShared';
 import { EmptyState } from '@/components/feedback/AppState';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { db } from '@/lib/db';
@@ -130,10 +131,10 @@ export function SyncCenterSheet({
     <Sheet open={syncCenterOpen} onOpenChange={setSyncCenterOpen}>
       <SheetContent
         side="right"
-        className="flex w-full flex-col gap-0 p-0 sm:max-w-lg"
+        className="flex w-full min-w-0 flex-col gap-0 p-0 [overflow-wrap:anywhere] sm:max-w-lg"
         aria-describedby="sync-center-description"
       >
-        <SheetHeader className="space-y-1 border-b border-border p-5 pr-14 text-left">
+        <SheetHeader className="space-y-1 border-b border-border p-5 pr-20 text-left">
           <SheetTitle>Offline changes</SheetTitle>
           <SheetDescription id="sync-center-description">
             Changes saved on this device, and whether the server has them yet.
@@ -142,19 +143,27 @@ export function SyncCenterSheet({
 
         <div className="space-y-3 border-b border-border p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="flex items-center gap-2 text-sm" role="status" aria-live="polite">
+            <p
+              className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-sm"
+              role="status"
+              aria-live="polite"
+            >
               {isOnline ? (
                 <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-success" />
               ) : (
-                <WifiOff aria-hidden="true" className="h-4 w-4 text-destructive" />
+                <WifiOff aria-hidden="true" className="h-4 w-4 shrink-0 text-destructive" />
               )}
-              <span className="font-medium">{isOnline ? 'Online' : 'Offline'}</span>
-              <span className="text-muted-foreground">
+              <span className="shrink-0 whitespace-nowrap font-medium">
+                {isOnline ? 'Online' : 'Offline'}
+              </span>
+              <span className="min-h-10 min-w-0 basis-full text-muted-foreground">
                 {syncing
                   ? 'Syncing…'
-                  : queue.total === 0
-                    ? 'Everything is synced'
-                    : `${queue.total} on this device`}
+                  : !queue.loaded
+                    ? 'Checking saved changes…'
+                    : queue.total === 0
+                      ? 'No changes queued by this account in this clinic'
+                      : `${queue.total} on this device`}
               </span>
             </p>
             <Button
@@ -163,7 +172,7 @@ export function SyncCenterSheet({
               disabled={!isOnline || syncing || !canSync}
             >
               <RefreshCw aria-hidden="true" className={syncing ? 'animate-spin' : undefined} />
-              {syncing ? 'Syncing' : 'Sync now'}
+              Sync now
             </Button>
           </div>
           {syncStatus === 'error' && syncError ? (
@@ -177,7 +186,7 @@ export function SyncCenterSheet({
               </p>
               {syncErrorDetail ? (
                 <details className="mt-2 pl-6">
-                  <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+                  <summary className="min-h-11 cursor-pointer py-3 text-xs font-medium text-muted-foreground">
                     Technical details
                   </summary>
                   <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-muted p-2 font-mono text-xs">
@@ -195,8 +204,11 @@ export function SyncCenterSheet({
           ) : null}
         </div>
 
-        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-5">
+        <div className="min-h-0 min-w-0 flex-1 space-y-6 overflow-y-auto overscroll-contain p-5">
+          {!queue.loaded ? <p role="status">Checking saved changes…</p> : null}
           {queue.loaded &&
+          isOnline &&
+          syncStatus !== 'error' &&
           queue.total === 0 &&
           queue.held.length === 0 &&
           otherClinics.length === 0 ? (
@@ -206,6 +218,12 @@ export function SyncCenterSheet({
               title="Everything is synced"
               description="Changes saved while offline appear here until the server has them."
             />
+          ) : null}
+          {queue.loaded && queue.total === 0 && !isOnline ? (
+            <InlineNotice tone="warning">
+              No changes queued by this account in this clinic on this device. Reconnect to check
+              for updates from the server.
+            </InlineNotice>
           ) : null}
           {GROUPS.map((group) => {
             const items = queue[group.key];

@@ -109,6 +109,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
   const [limit, setLimit] = useState(PAGE_SIZE);
 
   const overviewResource = useAsyncResource<ResearchOverview>({
+    requiresOnline: true,
     resourceKey: clinicId,
     errorMessage: 'The research overview could not be loaded.',
     fetcher: async (token, signal) => {
@@ -129,6 +130,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
   }, [limit, statusFilter, triggerFilter]);
 
   const exportsResource = useAsyncResource<{ items: ResearchExportItem[]; hasMore: boolean }>({
+    requiresOnline: true,
     resourceKey: `${clinicId}?${exportsQuery}`,
     errorMessage: 'The research export queue could not be loaded.',
     fetcher: async (token, signal) => {

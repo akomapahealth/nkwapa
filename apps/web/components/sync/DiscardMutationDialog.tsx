@@ -59,7 +59,7 @@ export function DiscardMutationDialog({
         }
       }}
     >
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md [overflow-wrap:anywhere]">
         <DialogHeader>
           <DialogTitle>Discard this offline change?</DialogTitle>
           <DialogDescription>

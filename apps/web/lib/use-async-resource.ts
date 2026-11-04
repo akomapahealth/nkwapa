@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type SetStateAction } from 'react';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { useAuth } from '@/lib/auth-context';
 import { getErrorMessage, type GetToken } from '@/lib/api';
@@ -36,7 +36,7 @@ export interface AsyncResourceState<T> {
   refresh: () => void;
   retry: () => void;
   /** For a mutation that already knows the new value; avoids a round trip and a flash. */
-  setData: (next: T | null) => void;
+  setData: (next: SetStateAction<T | null>) => void;
 }
 
 export interface UseAsyncResourceOptions<T> {

@@ -22,7 +22,12 @@ export function MetricsEventTable({
         {title}
       </h3>
       <p className="text-xs text-muted-foreground">{description}</p>
-      <div className="mt-2 overflow-x-auto">
+      <div
+        role="region"
+        aria-labelledby={headingId}
+        tabIndex={0}
+        className="scroll-region mt-2 overflow-x-auto"
+      >
         <table aria-labelledby={headingId} className="w-full min-w-[20rem] text-sm">
           <thead>
             <tr className="border-b border-rule text-left text-xs text-muted-foreground">

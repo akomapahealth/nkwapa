@@ -282,6 +282,10 @@ export function ClinicalNotePanel({
   // heard nothing at all while the note was fetching.
   if (loading) return <ChartSectionLoading label="clinical note" lines={4} />;
 
+  if (!note && error) {
+    return <InlineNotice tone="error">{error}</InlineNotice>;
+  }
+
   if (!note) {
     return (
       <div className="space-y-4">

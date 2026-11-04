@@ -588,6 +588,23 @@ test("a volunteer screening on someone else's account is named on each stop (#22
   const { clinicId } = patient;
   await ensureShift('staff', clinicId);
   await ensureShift('volunteer', clinicId);
+  // An interrupted prior run may have left this test account screening under a volunteer's
+  // name. Establish the precondition this scenario asserts, through the same normal API as
+  // its cleanup below; historical completed stops are untouched.
+  const volunteerId = (await apiRequestAs('volunteer', 'get', '/auth/whoami')).json().userId;
+  const startingBoard = (
+    await apiRequestAs('volunteer', 'get', `/clinics/${clinicId}/stations/board`, { clinicId })
+  ).json();
+  const startingShift = startingBoard.onShift.find((member) => member.user.id === volunteerId);
+  expect(startingShift).toBeTruthy();
+  const startingScreener = await apiRequestAs(
+    'volunteer',
+    'patch',
+    `/clinics/${clinicId}/shifts/${startingShift.shiftId}/screener`,
+    { clinicId, data: { isAccountHolder: true } },
+  );
+  expect(startingScreener.ok(), startingScreener.text()).toBeTruthy();
+
   const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
     clinicId,
     data: { patientId: patient.patientId },

@@ -95,6 +95,7 @@ export function CrossClinicInvestigationScreen() {
   );
 
   const investigation = useAsyncResource<CrossClinicInvestigation>({
+    requiresOnline: true,
     resourceKey: `${ENDPOINT}?${query}`,
     errorMessage: 'The cross-clinic investigation could not be loaded.',
     fetcher: async (token, signal) => {

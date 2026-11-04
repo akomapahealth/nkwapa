@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
+import { useAsyncResource } from '@/lib/use-async-resource';
+import { ResourceState } from '@/components/feedback/ResourceState';
 import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
 import { confirmAction } from '@/components/ui/confirm-dialog';
@@ -34,29 +35,19 @@ export function PrescriptionList({
   refreshKey,
 }: PrescriptionListProps) {
   const getToken = useAuth();
-  const [items, setItems] = useState<PrescriptionItem[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchList = useCallback(async () => {
-    setLoading(true);
-    try {
+  const resource = useAsyncResource<PrescriptionItem[]>({
+    resourceKey: `${clinicId}:${encounterId}:${refreshKey ?? 0}`,
+    requiresOnline: true,
+    errorMessage: 'Prescriptions could not be loaded.',
+    fetcher: async (getToken, signal) => {
       const res = await apiFetch(
         `/clinics/${encodeURIComponent(clinicId)}/encounters/${encodeURIComponent(encounterId)}/prescriptions`,
-        { getToken, activeClinicId: clinicId },
+        { getToken, activeClinicId: clinicId, signal },
       );
-      if (res.ok) {
-        setItems((await res.json()) as PrescriptionItem[]);
-      }
-    } catch {
-      // Silently fail; can fall back to offline data if needed
-    } finally {
-      setLoading(false);
-    }
-  }, [clinicId, encounterId, getToken]);
-
-  useEffect(() => {
-    fetchList();
-  }, [fetchList, refreshKey]);
+      if (!res.ok) throw new Error('Prescriptions could not be loaded.');
+      return (await res.json()) as PrescriptionItem[];
+    },
+  });
 
   const handleDelete = async (item: PrescriptionItem) => {
     const confirmed = await confirmAction({
@@ -73,60 +64,72 @@ export function PrescriptionList({
         { method: 'DELETE', getToken, activeClinicId: clinicId },
       );
       if (res.ok) {
-        setItems((prev) => prev.filter((p) => p.id !== id));
+        resource.setData((previous) => (previous ?? []).filter((p) => p.id !== id));
       }
     } catch {
       // Silently fail
     }
   };
 
-  if (loading) return <p className="text-sm text-muted-foreground">Loading prescriptions...</p>;
-  if (items.length === 0)
-    return <p className="text-sm text-muted-foreground">No prescriptions yet.</p>;
-
   return (
-    <ul className="space-y-2">
-      {items.map((p) => (
-        <li key={p.id} className="flex items-start justify-between rounded-md border p-3">
-          <div>
-            <p className="font-medium">
-              {p.drug.name}
-              {p.drug.genericName && (
-                <span className="ml-1 text-muted-foreground">({p.drug.genericName})</span>
-              )}
-            </p>
-            {/*
+    <ResourceState
+      state={resource}
+      empty={{
+        title: 'No prescriptions yet.',
+        description: 'Prescriptions recorded for this visit appear here.',
+      }}
+      isEmpty={(items) => items.length === 0}
+    >
+      {(items) => (
+        <ul className="space-y-2">
+          {items.map((p) => (
+            <li
+              key={p.id}
+              className="flex items-start justify-between gap-3 rounded-md border p-3 [overflow-wrap:anywhere]"
+            >
+              <div>
+                <p className="font-medium">
+                  {p.drug.name}
+                  {p.drug.genericName && (
+                    <span className="ml-1 text-muted-foreground">({p.drug.genericName})</span>
+                  )}
+                </p>
+                {/*
               These separators were `&middot;` inside template strings, so they reached the page
               as the literal seven characters rather than a bullet. Only the first one, which is
               real JSX, ever rendered.
             */}
-            <p className="text-sm">
-              {[
-                p.dosage,
-                p.frequency,
-                p.duration || null,
-                p.quantity != null ? `Qty: ${p.quantity}` : null,
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            </p>
-            {p.instructions && <p className="text-sm text-muted-foreground">{p.instructions}</p>}
-            <p className="text-xs text-muted-foreground">
-              Prescribed by {p.prescribedBy.displayName}
-            </p>
-          </div>
-          {canWrite && !isFinalized && (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={`Remove ${p.drug.name}`}
-              onClick={() => void handleDelete(p)}
-            >
-              <Trash2 className="h-4 w-4 text-destructive" />
-            </Button>
-          )}
-        </li>
-      ))}
-    </ul>
+                <p className="text-sm">
+                  {[
+                    p.dosage,
+                    p.frequency,
+                    p.duration || null,
+                    p.quantity != null ? `Qty: ${p.quantity}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </p>
+                {p.instructions && (
+                  <p className="text-sm text-muted-foreground">{p.instructions}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Prescribed by {p.prescribedBy.displayName}
+                </p>
+              </div>
+              {canWrite && !isFinalized && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Remove ${p.drug.name}`}
+                  onClick={() => void handleDelete(p)}
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </ResourceState>
   );
 }
