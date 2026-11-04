@@ -77,8 +77,8 @@ privacy policy and terms that users read are the `/privacy` and `/terms` pages i
 
 ## Releases
 
-| Document               | Read it for                                             |
-| ---------------------- | ------------------------------------------------------- |
-| [2.0](releases/2.0.md) | The Nkwapa 2.0 release notes and rollback notes (draft) |
+| Document               | Read it for                                     |
+| ---------------------- | ----------------------------------------------- |
+| [2.0](releases/2.0.md) | The Nkwapa 2.0 release notes and rollback notes |
 
 Earlier releases are on the [GitHub releases page](https://github.com/akomapahealth/nkwapa/releases).
