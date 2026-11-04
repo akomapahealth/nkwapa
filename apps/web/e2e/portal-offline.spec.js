@@ -145,7 +145,8 @@ test('offline, history pages keep their saved copy and writes wait for a connect
   await expect(notice).toContainText('need a connection');
   await expect(page.getByRole('heading', { name: /blood pressure trend/i })).toBeVisible();
 
-  await page.getByRole('link', { name: 'Request Visit', exact: true }).click();
+  await page.getByRole('link', { name: 'Appointments', exact: true }).click();
+  await page.getByRole('link', { name: 'Request an appointment', exact: true }).click();
   await expect(page.getByRole('heading', { name: /visit request details/i })).toBeVisible();
   await expect(page.getByTestId('portal-write-gate')).toContainText('You are offline');
   await expect(page.getByRole('button', { name: 'Submit appointment request' })).toBeDisabled();
