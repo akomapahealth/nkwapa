@@ -1,5 +1,10 @@
 # #281: responsive and offline refinements evidence
 
+Generated screenshots, raw axe JSON, route measurements and search dumps were removed from
+the current tree at the owner's request. The findings, audit and reproduction scripts remain.
+[Original captures and raw results](https://github.com/akomapahealth/nkwapa/tree/e07d818cb263f940d1e4e5180eac1205fa21ecb1/docs/design-system/evidence/281)
+are retained in the implementation commit; counts below describe that completed audit.
+
 Captured 2026-11-04 from production builds (`next build` with the `ci.yml` web environment)
 served by `next start -p 3100`. Before: unchanged `release/dev` at `deb5f80`. After: this
 branch. The original workspace and its local edits were left alone; work used an isolated
@@ -30,8 +35,8 @@ The route audit measures those real screens without saving their patient content
 | Ops without saved copy | Missing data defaulted to empty lists                                                                                                                       | No false empty state; shift controls and pending-write overlays stay mounted                 |
 | Portal landmark        | Portal title/clinic context outside a landmark                                                                                                              | Named section, preserving layout and navigation                                              |
 
-The complete render-boundary audit and original search are in
-[empty-state-audit.md](empty-state-audit.md) and [empty-state-search.txt](empty-state-search.txt).
+The render-boundary audit is in [empty-state-audit.md](empty-state-audit.md). The original
+search dumps are available with the archived captures linked above.
 
 ## Capture plan
 
@@ -72,7 +77,7 @@ Set `RESPONSIVE_EVIDENCE_DIR` to an absolute `before` or `after` evidence direct
 Before captures require the baseline build and, for components, `RESPONSIVE_BASELINE_WEB`
 pointing at baseline web source. Stop only your own server before rebuilding. The station
 variant must be a separate build, with both station flags true as in CI. Final station
-measurements for all 51 routes are also in [station-route-measures](after/station-route-measures).
+measurements for all 51 routes are also in [archived station-route-measures](https://github.com/akomapahealth/nkwapa/tree/e07d818cb263f940d1e4e5180eac1205fa21ecb1/docs/design-system/evidence/281/after/station-route-measures).
 
 ## Responsive findings
 
@@ -148,11 +153,11 @@ scrollable sync/discard dialogs, beyond just resizing the viewport.
   sync recovery, prescription/offline replay, portal caching, foundations, reduced motion,
   navigation and chat). Final responsive/hover/dashboard/chat pass: **83 passed**.
 - Strengthened failed-list/generic-table and interrupted-first-read checks: **8 passed**.
-- Station-enabled final run: 121 checks passed in the broad matrix; the remaining screener scenario passed with the complete **19-test station suite** after making its fixture precondition explicit..
+- Station-enabled final run: 121 checks passed in the broad matrix; the remaining screener scenario passed with the complete **19-test station suite** after making its fixture precondition explicit.
 - All E2E runs use `CI=1`, one worker and the existing seeded role identities. Production
   builds use CI feature flags; the station variant is a separate build as in `ci.yml`.
-- Before: 120 screenshots / 120 axe scans, {'region': 10}. After: 120 screenshots / 120 axe scans, {}. Raw axe violations and incomplete checks are
-  retained beside captures; `summary.json` aggregates the rules without treating incomplete
+- Before: 120 screenshots / 120 axe scans, with 10 `region` findings. After: 120 screenshots / 120 axe scans, with zero violations. Raw axe violations and incomplete checks are
+  retained beside the archived captures; the archived `summary.json` aggregates the rules without treating incomplete
   checks as passes. The before portal `region` finding was a best-practice landmark issue.
 - Final primary configuration: **74 passed** in the matrix; all **4 role dashboards passed** on rerun after replacing a polling-sensitive network-idle wait with the loaded-data heading assertion. This verifies every case without treating background polling as a page-ready signal.
 - The #227 screener scenario now establishes its own seeded shift precondition, so an interrupted run cannot leave a volunteer name selected for the next run. Historical stops and production code are unchanged by this test setup.

@@ -1,7 +1,8 @@
 # Empty-state audit (#281)
 
 Search: `rg -n 'EmptyState|No .{0,65}yet' apps/web/app apps/web/components`.
-The original hits are retained in `empty-state-search.txt`. This audit treats local absence
+The original hits are retained in `empty-state-search.txt` in the implementation commit
+linked from the evidence README; generated search dumps were removed from the current tree. This audit treats local absence
 separately from a server read: an empty outbox is knowable without a connection; an empty
 server list is only knowable after a successful response. A saved empty copy may remain visible
 with a notice explaining its age. It is not evidence of a successful current network read.
