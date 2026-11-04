@@ -18,14 +18,14 @@ DATABASE_URL=postgresql://nkwapa:nkwapa@localhost:5433/nkwapa
 
 ### Hosted environments
 
-Staging and production can run on Supabase or another managed PostgreSQL provider.
+Staging and production run on Neon. Any managed PostgreSQL with row-level security works.
 
 Recommended pattern:
 
 - use a pooled runtime connection for the API
 - use a direct connection only when running Prisma migrations
 
-Nkwapa currently reads a single `DATABASE_URL`, so migration commands against hosted environments should temporarily override `DATABASE_URL` with the direct connection string for that command.
+`DATABASE_URL` is the owner credential: it runs migrations and owns the tables. The API runs on `APP_DATABASE_URL`, an unprivileged role that row-level security applies to (see `.env.example` and `scripts/provision-app-db-role.mjs`); without it the API falls back to `DATABASE_URL` and the policies are not enforced. Migration commands against hosted environments should temporarily override `DATABASE_URL` with the direct connection string for that command.
 
 ---
 
@@ -47,6 +47,9 @@ After that, switch the deployed API back to the pooled runtime connection string
 ---
 
 ## Local Setup Flow
+
+The full first-run path, including the test identities and running the apps, is
+[GETTING_STARTED.md](GETTING_STARTED.md). The database part is:
 
 1. Start infra:
 
@@ -363,7 +366,7 @@ and email themes beside it in `infra/nkwapa/keycloak/themes/nkwapa/`.
 3. The `nkwapa-api` service account (needed for staff and portal invites, deactivation sync and
    password-reset emails) is applied to an existing realm with
    `npm run keycloak:apply-service-account -- --dry-run`, then without `--dry-run`. It is
-   idempotent. See `docs/KEYCLOAK_SERVICE_ACCOUNT_ROLLOUT.md`.
+   idempotent. See `docs/OPERATIONS.md` ("Keycloak service account for patient identity").
 4. Realm SMTP is re-applied from `KC_SMTP_*` on every Keycloak boot.
 
 ### Retiring a realm role

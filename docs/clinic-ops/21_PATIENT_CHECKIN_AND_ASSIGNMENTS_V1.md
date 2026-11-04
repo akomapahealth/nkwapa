@@ -8,7 +8,7 @@ Implemented in the current codebase.
 (#167) have no manager assignment: the assignment and start-intake routes answer
 `409 STATION_WORKFLOW_ACTIVE`. See `27_STATION_WORKFLOW_V1.md`.
 
-This document is still useful as the original design brief, but the live workflow should be cross-checked against `IMPLEMENTATION_STATUS.md` and `docs/FEATURE_WORKFLOWS_GUIDE.md`.
+This document is still useful as the original design brief, but the live workflow should be cross-checked against `docs/FEATURE_WORKFLOWS_GUIDE.md`.
 
 ---
 

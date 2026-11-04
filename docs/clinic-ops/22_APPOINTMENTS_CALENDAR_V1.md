@@ -10,8 +10,7 @@ to every transition. A regression and acceptance suite covers it.
 
 See `docs/specs/12_APPOINTMENT_OPERATIONS_RELEASE_GATE.md` for the release gate and what it found,
 `docs/security/appointment-lifecycle-matrix.md` for the generated transition and permission matrix,
-and `docs/USER_TESTING_GUIDE.md` section 17, the Appointment Lifecycle Matrix, for the manual acceptance checks. Use
-`docs/FEATURE_GAPS_AND_NEXT_ADDITIONS.md` for the remaining gap summary.
+and `docs/USER_TESTING_GUIDE.md` section 17, the Appointment Lifecycle Matrix, for the manual acceptance checks.
 
 ---
 

@@ -1,8 +1,8 @@
 # Nkwapa Design System
 
-**Status:** approved 2026-08-26 · **Issue:** [#61](https://github.com/akomapahealth/nkwapa/issues/69) · **Implements:** the token and component contract half of #61
+**Status:** approved 2026-08-26, updated 2026-11-04 for the Nkwapa 2.0 redesign (epic [#229](https://github.com/akomapahealth/nkwapa/issues/229)) · **Issue:** [#61](https://github.com/akomapahealth/nkwapa/issues/61) · **Implements:** the token and component contract half of #61
 
-This is the source of truth for Nkwapa's visual tokens and component contracts. It is the file [#66](https://github.com/akomapahealth/nkwapa/issues/66), [#65](https://github.com/akomapahealth/nkwapa/issues/65), [#22](https://github.com/akomapahealth/nkwapa/issues/22), and [#26](https://github.com/akomapahealth/nkwapa/issues/26) build against. Where this document and an issue body disagree, this document wins, and the issue should be amended.
+This is the source of truth for Nkwapa's visual tokens and component contracts, and the one design reference for the product as shipped. Each area's section names the pull request that built it; the before and after screenshots, axe results and verification for that work are in the pull request on GitHub. It is the file [#66](https://github.com/akomapahealth/nkwapa/issues/66), [#65](https://github.com/akomapahealth/nkwapa/issues/65), [#22](https://github.com/akomapahealth/nkwapa/issues/22), and [#26](https://github.com/akomapahealth/nkwapa/issues/26) build against. Where this document and an issue body disagree, this document wins, and the issue should be amended.
 
 Every contrast figure here is measured with the WCAG 2.1 relative luminance formula. Perceptual distances are CIEDE2000. Do not change a token value without re-measuring the pairings it appears in.
 
@@ -213,7 +213,7 @@ in both theme blocks. CI runs it alongside the existing chart palette check.
 Only the report is rounded; thresholds never use rounded ratios. Regression
 checks deliberately break a dark ink and remove a dark surface, and verify that
 both failures are caught. All 24 pair measurements and the rendered specimen are
-in [the #264 evidence](evidence/264/README.md).
+in [PR #288](https://github.com/akomapahealth/nkwapa/pull/288).
 
 The five chart series are confirmed unchanged by `scripts/check-chart-palette.mjs`.
 Section 3's existing chart-2 contrast exception and redundant-label requirements
@@ -425,7 +425,7 @@ The measured build emits 12 subset files (318,328 bytes total), of which the two
 Latin files total 91,192 bytes and are preloaded. Runtime tests block external
 font hosts and verify both applied, loaded faces and first-party preload URLs.
 The four registration screenshot pairs are pixel-identical. No colour tokens or
-type scale values changed. [Evidence](evidence/263/README.md).
+type scale values changed. Shipped in [PR #287](https://github.com/akomapahealth/nkwapa/pull/287).
 
 ---
 
@@ -462,7 +462,7 @@ tabular figures in DataTable and AppMetricCard remain supported. A test-only
 synthetic specimen verifies the shipped role styles, equal-width digits,
 opaque status backgrounds, contrast, both themes, 1440/390px and 200% root text
 scaling. It is not a new public route or a claim that every legacy page has
-already migrated to these roles. [Rendered evidence](evidence/264/README.md).
+already migrated to these roles. Shipped in [PR #288](https://github.com/akomapahealth/nkwapa/pull/288).
 
 ## 7. Motion
 
@@ -528,7 +528,7 @@ Related metrics share one `AppMetricGroup` panel divided by hairlines; a metric 
 
 `AppPageHeader` sits on the canvas with a hairline under it, not inside a card: the title is the page's heading, not one more panel among the panels below it. Workspace pages fade in over 150ms (`app/(workspace)/template.tsx`, opacity only), and a 2px bar crosses the top while an in-app link loads (`NavigationProgress`).
 
-### Phase 01 shared foundations (#265)
+### Shared foundations (#265)
 
 `AppPageHeader` uses `type-page-title` and `type-body`, with an optional `breadcrumbs`
 slot above the title. `AppMetricGroup` is an unfilled ledger with a strong top rule,
@@ -582,7 +582,7 @@ these actual primitives with synthetic data, including all five states, stale da
 saved copies and refreshing. It is bundled with the installed webpack/TypeScript
 for Playwright and creates no public route or production dependency.
 
-### Phase 02 staff shell (#266)
+### Staff shell (#266)
 
 The rail is 232px on the canvas (`--background`, a `--border` hairline edge) and
 collapses to 64px of icons. Group names come from `app-nav.ts`; collapsed, a
@@ -607,7 +607,7 @@ is `sr-only` and also shown at the top of the menu sheet, and the sheet no longe
 repeats the picker. The sync control's "Sync now" is the shell's only refresh.
 The `--sidebar` tokens are kept but have no consumer in the staff shell now.
 
-### Phase 02 navigation utilities (#267)
+### Navigation utilities (#267)
 
 `app-nav.ts` items carry `placement: 'sidebar' | 'header' | 'profile'`
 (default `'sidebar'`), and `getAccessibleNavSections(bootstrap, placement)` keeps
@@ -626,7 +626,7 @@ On phones the header has no room for the icon, so both appear at the end of the
 menu sheet in an "Account" list (its own `nav` landmark), drawn by `AppNavList`.
 Without a clinic selected each shows disabled, as the rail does.
 
-### Phase 03 volunteer and doctor dashboards (#268)
+### Volunteer and doctor dashboards (#268)
 
 The dashboard leads with **Needs you now** (`components/dashboard/NeedsYouNow.tsx`)
 for anyone with a volunteer or doctor section, then "Today at a glance", then the
@@ -651,7 +651,7 @@ Every dashboard chart (`TrendChart`, `DistributionChart`) now sits in
 Lines are `type="linear"`. Manager, director and admin charts get the frame too;
 their order and content are #269.
 
-### Phase 03 manager, director and admin dashboards (#269)
+### Manager, director and admin dashboards (#269)
 
 **Needs you now** also leads for a manager, director or system administrator. Their
 rows are the clinic's held-up queues, from `DashboardData.summary`: visits nobody
@@ -676,7 +676,7 @@ only.
   oversight first (Clinic trends, Network overview, then the person's own queues).
   A single-role account sees no tabs. Doctor and review stay one view.
 
-### Phase 04 patient registry and records (#270)
+### Patient registry and records (#270)
 
 The registry starts with search and the existing location and completed-screening
 filters (#224), followed by one result count and the shared sortable, paginated
@@ -707,9 +707,9 @@ requirement and disabled submit behavior, with an outlined warning action to
 separate consent recording from routine saves. Ghana phone input styling now uses
 tokens and 44px controls; parsing and its accessible name are unchanged.
 
-[Before/after evidence and validation](evidence/270/README.md).
+Shipped in [PR #294](https://github.com/akomapahealth/nkwapa/pull/294); before and after screenshots and verification are in the pull request.
 
-### Phase 04 stations and screenings (#271)
+### Stations and screenings (#271)
 
 The station-enabled Today board leads with ruled **Needs you now** rows for waits
 over 20 minutes, open stations with no staff, and patients queued at the review
@@ -741,9 +741,9 @@ info surface, fixing the two light-mode before axe findings without token change
 My Assigned's follow-through summary excludes completed and cancelled check-ins;
 its assignment table retains the full list and existing filters.
 
-[Before/after evidence and verification](evidence/271/README.md).
+Shipped in [PR #295](https://github.com/akomapahealth/nkwapa/pull/295); before and after screenshots and verification are in the pull request.
 
-### Phase 04 queues and encounters (#272)
+### Queues and encounters (#272)
 
 `/queues` shows each lane's count once, on its tab; the metric row and the
 "Active lane" box that repeated it are gone. Each lane opens with one sentence
@@ -771,9 +771,9 @@ change (out of scope). The new-encounter wizard names its five steps instead of
 unlabelled bars. The clinic encounters hub replaces placeholder metric values
 with three ruled links, including the real queues.
 
-[Before/after evidence and verification](evidence/272/README.md).
+Shipped in [PR #298](https://github.com/akomapahealth/nkwapa/pull/298); before and after screenshots and verification are in the pull request.
 
-### Phase 04 appointments (#273)
+### Appointments (#273)
 
 `/appointments` leads with patient requests: a ruled section whose title
 carries the awaiting count, one hairline row per request with its type and
@@ -802,9 +802,9 @@ change saved instants, so it is left for the deferred API and data work.
 Validation, lifecycle and triage calls, permissions and reminders are
 unchanged.
 
-[Before/after evidence and verification](evidence/273/README.md).
+Shipped in [PR #299](https://github.com/akomapahealth/nkwapa/pull/299); before and after screenshots and verification are in the pull request.
 
-### Phase 05 administration (#274)
+### Administration and oversight (#274)
 
 Staff and access, clinics, duplicate review, data requests, audit, message
 delivery and clinic settings group filters, records and policy with
@@ -819,9 +819,9 @@ uses the same treatment when it queues the pair for merge. The review decision
 does not merge charts; the patient chart retains the existing merge flow.
 Data request status words are rendered through `lib/status-presentation.ts`.
 
-[Before/after evidence and verification](evidence/274/README.md).
+Shipped in [PR #301](https://github.com/akomapahealth/nkwapa/pull/301); before and after screenshots and verification are in the pull request.
 
-### Phase 05 analytics and reporting (#275)
+### Analytics and reporting (#275)
 
 `/metrics`, `/staff-activity`, `/reports/organization` (Report and Cohort
 analytics) and `/clinics/[clinicId]/research/exports` drop their cards for the
@@ -851,9 +851,9 @@ captions, names and test ids; status badges and actions are unchanged.
   rows instead of boxes inside a card. "Request export pack" takes the strong
   rule; the icons beside section titles are muted, not teal.
 
-[Before/after evidence and verification](evidence/275/README.md).
+Shipped in [PR #300](https://github.com/akomapahealth/nkwapa/pull/300); before and after screenshots and verification are in the pull request.
 
-### Phase 06 patient portal (#276)
+### Patient portal (#276)
 
 Overview, My Health and Appointments share a three-column navigation strip on
 phones. Each destination has an icon, a text label and a 44px minimum target.
@@ -866,9 +866,9 @@ headings and hairlines between records. The reading and request forms keep
 their fields, defaults, validation and save behavior. The portal keeps the
 same saved-copy notices and connection requirements.
 
-[Before/after evidence and verification](evidence/276/README.md).
+Shipped in [PR #302](https://github.com/akomapahealth/nkwapa/pull/302); before and after screenshots and verification are in the pull request.
 
-### Phase 06 authentication and onboarding (#277)
+### Authentication and onboarding (#277)
 
 Account setup crosses two systems: the password is chosen on Keycloak's pages,
 everything else happens in the app. Each side now shows the whole path in the
@@ -909,9 +909,9 @@ The flows, redirects, required actions, API calls and validation are unchanged.
   Motion is unchanged: framer-motion reads reduced motion in JavaScript and
   falls back to a cross-fade.
 
-[Before/after evidence and verification](evidence/277/README.md).
+Shipped in [PR #303](https://github.com/akomapahealth/nkwapa/pull/303); before and after screenshots and verification are in the pull request.
 
-### Phase 07 public landing page (#278)
+### Public landing page (#278)
 
 The landing page leads with the clinic, then the product. Copy is unchanged
 apart from section names, photo captions and the scroll link, so every claim is
@@ -944,9 +944,9 @@ still one the product makes; there are no counts, quotes, logos or outcomes.
   marquees need a pause control for a gain the photographs already give; a
   Bklit chart would need invented readings. None earned a copied component.
 
-[Before/after evidence and verification](evidence/278/README.md).
+Shipped in [PR #304](https://github.com/akomapahealth/nkwapa/pull/304); before and after screenshots and verification are in the pull request.
 
-### Phase 08 motion and feedback (#280)
+### Motion and feedback (#280)
 
 Polish on the contracts above, not a new motion language. Every change respects the global
 reduced-motion rule and the section 7 tokens, and none touches a clinical save, validation,
@@ -970,9 +970,9 @@ permission, route guard, feature flag or analytics consent.
   badge use tabular figures.
 - **No `transition: all`.** Tab triggers transition colour, background and shadow only.
 
-[Before/after evidence, the 17-item audit and verification](evidence/280/README.md).
+Shipped in [PR #306](https://github.com/akomapahealth/nkwapa/pull/306); before and after screenshots and verification are in the pull request.
 
-### Phase 09 QA and landing restraint (#282)
+### Route QA and landing restraint (#282)
 
 UX-22 is the route-wide QA pass, plus an owner-requested restraint pass on the landing page and
 the What's New dialog. Same section order, motion, photographs and blur placeholders as #278 and
@@ -1001,7 +1001,7 @@ the What's New dialog. Same section order, motion, photographs and blur placehol
   collapsing scrolls the toggle back into view. The per-item stagger is gone (39 items took 2.8s
   to arrive). The data still comes from `lib/release-notes.ts` unchanged.
 
-[Before/after evidence, the route audit and verification](evidence/282/README.md).
+Shipped in [PR #309](https://github.com/akomapahealth/nkwapa/pull/309); before and after screenshots and verification are in the pull request.
 
 ### The combobox, and when it is not the answer
 
@@ -1085,13 +1085,13 @@ Removals split by what a mistake costs.
 
 ---
 
-### Phase 08 responsive and offline (#281)
+### Responsive and offline (#281)
 
 The route regression derives its inventory from all workspace App Router pages and
 starts at 390px before checking 768, 1024, 1280 and 1440. It measures both the document
 and `#main-content`, because the shell can conceal page overflow inside its own scroll
 area. Dynamic patient and encounter routes use fresh synthetic records. Redirects and
-flag-disabled routes are recorded explicitly in the evidence findings.
+flag-disabled routes are recorded explicitly in PR #308's route findings.
 
 Button enforces a 44px minimum height and width even when a call site asks for a smaller
 visible size. Tables scroll inside named, keyboard-focusable regions, including DataTable by default,
@@ -1124,7 +1124,7 @@ outbox writes. Main-list regressions cover both a mounted connection drop and an
 interrupted first read. #207 still owns cold-start offline authentication; no Keycloak,
 grant, token, route-guard, cache-ownership or outbox-ownership change is included here.
 
-[Before/after evidence, route findings and verification](evidence/281/README.md).
+Shipped in [PR #308](https://github.com/akomapahealth/nkwapa/pull/308); before and after screenshots and verification are in the pull request.
 
 ## 10. Clinical form contract
 
@@ -1296,7 +1296,7 @@ toggles.
 
 ## 12. Nkwapa 2.0 direction: Ruled Chart
 
-**Approved 2026-11-01** for epic [#229](https://github.com/akomapahealth/nkwapa/issues/229) ([#262](https://github.com/akomapahealth/nkwapa/issues/262)). Rationale, the rejected directions and the review prototypes: [DESIGN-DIRECTION.md](DESIGN-DIRECTION.md). These rules sit on top of sections 1 to 11; token values do not change because of them.
+**Approved 2026-11-01** for epic [#229](https://github.com/akomapahealth/nkwapa/issues/229) ([#262](https://github.com/akomapahealth/nkwapa/issues/262)). It was chosen over two other directions (a station "folder" metaphor and a margin-review layout) because it puts what needs each role first using data the API already returns, suits laptop stations and dense ruled tables, extends the existing component contract rather than replacing it, and works as well on admin and analytics screens as on clinical ones. These rules sit on top of sections 1 to 11; token values do not change because of them.
 
 Every screen reads like a well-kept observation chart: ruled, time-ordered, numbers first. Chrome drops to hairlines so readings, waits and decisions carry the hierarchy.
 
@@ -1312,7 +1312,7 @@ Every screen reads like a well-kept observation chart: ruled, time-ordered, numb
 - **Type.** Source Serif 4 for page titles and a patient's name; IBM Plex Sans for everything else.
 - **Motion.** Focusing or hovering a row in a dense list may dim its siblings (150 ms opacity, off under reduced motion). Owner-approved chart animation follows section 3; other motion follows section 7.
 
-### Phase 07 public navigation and supporting pages (#279)
+### Public navigation and supporting pages (#279)
 
 Public navigation inherits the workspace's Ruled Chart vocabulary: the real Nkwapa
 mark, Source Serif display type, `type-page-title` / `type-section-title`, 2px ink
@@ -1347,11 +1347,11 @@ wayfinding, [60fps](https://60fps.design/) for restrained interaction feedback, 
 are qualitative design references; no copy, layout, branding or measured values were
 imported. Impeccable and Taste review used the existing Nkwapa identity as authority.
 
-Evidence, access mapping and verification: [#279 evidence](evidence/279/README.md).
+Shipped in [PR #305](https://github.com/akomapahealth/nkwapa/pull/305), which holds the access mapping and verification.
 
 ---
 
-## 13. Still open
+## 13. Library decisions and open items
 
 ### #263 library decisions, 2026-11-01
 
@@ -1370,12 +1370,12 @@ React DOM 18.3.1**, Tailwind 3.4.19, Recharts 3.10.1. The root-hoisted React is 
 different version; resolving from the web workspace is essential. Experiments
 ran in a disposable branch from `release/dev`, using npm 10.9.9.
 
-| Library and version evidence                                                                        | Recommendation                                    | Compatibility, bundle and accessibility evidence                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| --------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| shadcn CLI **4.23.0**, existing `new-york` / Radix registry                                         | **Adopt selectively**, with the adaptations below | CLI installation succeeds on React 18 / Tailwind 3 after forcing npm instead of stale pnpm workspace detection. The legacy chart registry requests **Recharts 2.15.4**; keep 3.10.1 and adapt its content types. The combined adapted fixture passes WCAG axe in both themes at 1440/390. Standalone gzip examples: skeleton 8,722 B, tooltip 28,599 B, sidebar 48,573 B, chart 88,095 B; shared dependencies make these non-additive, not production route deltas.                 |
-| Bklit `line-chart` registry snapshot, 2026-11-01, SHA-256 in the evidence                           | **Adopt selectively, with adaptations**           | Owner welcomes animated charts. All four adapted axe scans pass. Keep the existing HSL palette rather than the installer's OKLCH replacements, adapt the React 18 ref declaration, use straight clinical segments and JavaScript reduced-motion controls. The 92-file install and D3/Motion overlap are costs to assess for each selected chart, not blanket rejection reasons. Standalone bundle: 82,205 B gzip.                                                                   |
-| Kokonut `metric-card` **2.0.0** (source header, 2026-10-17), registry snapshot hash in the evidence | **Adopt selectively; tested card needs repairs**  | React 18-compatible hooks, no extra package for this candidate. Adapt Tailwind 4 fragments to 3.4 and raw zinc / `dark:` colours to the approved tokens; repair the measured serious contrast failures and targets below 44px. Animation is permitted, but clinical lines must represent actual readings without smoothing/resampling. Extend the shared metric contract rather than adding a parallel system. Standalone bundle: 13,926 B gzip. The raw card is not ready to ship. |
-| Sileo **0.1.6**, npm manifest: React / React DOM `>=18`, dependency `motion ^12.34.0`               | **Reject adoption; keep Sonner (owner approved)** | React 18-compatible; four error-toast axe scans pass. Public API lacks `id`-based updates and rendered errors use `aria-live="polite"` instead of the wrapper's assertive-error contract. Standalone bundle: 48,810 B gzip. Rejection is approved; #280 keeps Sonner and focuses on feedback/motion polish unless the owner reopens this decision.                                                                                                                                  |
+| Library and version evidence                                                                   | Recommendation                                    | Compatibility, bundle and accessibility evidence                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| shadcn CLI **4.23.0**, existing `new-york` / Radix registry                                    | **Adopt selectively**, with the adaptations below | CLI installation succeeds on React 18 / Tailwind 3 after forcing npm instead of stale pnpm workspace detection. The legacy chart registry requests **Recharts 2.15.4**; keep 3.10.1 and adapt its content types. The combined adapted fixture passes WCAG axe in both themes at 1440/390. Standalone gzip examples: skeleton 8,722 B, tooltip 28,599 B, sidebar 48,573 B, chart 88,095 B; shared dependencies make these non-additive, not production route deltas.                 |
+| Bklit `line-chart` registry snapshot, 2026-11-01, SHA-256 in PR #287                           | **Adopt selectively, with adaptations**           | Owner welcomes animated charts. All four adapted axe scans pass. Keep the existing HSL palette rather than the installer's OKLCH replacements, adapt the React 18 ref declaration, use straight clinical segments and JavaScript reduced-motion controls. The 92-file install and D3/Motion overlap are costs to assess for each selected chart, not blanket rejection reasons. Standalone bundle: 82,205 B gzip.                                                                   |
+| Kokonut `metric-card` **2.0.0** (source header, 2026-10-17), registry snapshot hash in PR #287 | **Adopt selectively; tested card needs repairs**  | React 18-compatible hooks, no extra package for this candidate. Adapt Tailwind 4 fragments to 3.4 and raw zinc / `dark:` colours to the approved tokens; repair the measured serious contrast failures and targets below 44px. Animation is permitted, but clinical lines must represent actual readings without smoothing/resampling. Extend the shared metric contract rather than adding a parallel system. Standalone bundle: 13,926 B gzip. The raw card is not ready to ship. |
+| Sileo **0.1.6**, npm manifest: React / React DOM `>=18`, dependency `motion ^12.34.0`          | **Reject adoption; keep Sonner (owner approved)** | React 18-compatible; four error-toast axe scans pass. Public API lacks `id`-based updates and rendered errors use `aria-live="polite"` instead of the wrapper's assertive-error contract. Standalone bundle: 48,810 B gzip. Rejection is approved; #280 keeps Sonner and focuses on feedback/motion polish unless the owner reopens this decision.                                                                                                                                  |
 
 The bundle experiment used esbuild 0.28.2, browser ESM, production minification,
 all exports of each candidate module, React/React DOM external and other
@@ -1423,7 +1423,7 @@ recorded type adaptations. That proves feasibility, not product adoption. The
 fixture also exercises candidates requiring repairs so that their axe results are not
 inferred from documentation. Full commands, source hashes, measurements,
 screenshots and the distinction between harness corrections and library findings
-are in [the #263 evidence](evidence/263/README.md).
+are in [PR #287](https://github.com/akomapahealth/nkwapa/pull/287).
 
 Primary sources: [shadcn Sidebar](https://ui.shadcn.com/docs/components/radix/sidebar),
 [shadcn Chart](https://ui.shadcn.com/docs/components/radix/chart),
