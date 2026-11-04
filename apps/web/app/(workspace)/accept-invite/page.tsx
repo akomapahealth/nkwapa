@@ -2,17 +2,16 @@
 
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { MailQuestion, ShieldCheck } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { ApiError, getErrorMessage } from '@/lib/api';
 import { AUTH_CONTINUE_PARAM } from '@/lib/auth-routing';
 import { describeInviteExpiry } from '@/lib/portal-invite';
 import { acceptStaffInvite, formatStaffRole, type PendingStaffInvite } from '@/lib/staff-invite';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { EmptyState, InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
+import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
+import { InvitationNotFound, OnboardingFrame } from '@/components/onboarding/OnboardingFrame';
 import { InlineNotice } from '@/components/ops/OpsShared';
 
 interface AcceptFailure {
@@ -76,117 +75,114 @@ export default function AcceptInvitePage() {
     }
   };
 
+  // `needsName` is only raised once the account holds a staff role, so before accepting it says
+  // false for someone who will be asked next. Whether a name is on file is what decides it.
+  const needsName = !(bootstrap?.profile?.firstName && bootstrap?.profile?.lastName);
+
   return (
-    <div className="bg-clinical-grid min-h-screen px-4 py-10 md:px-6">
-      <a
-        href="#main-content"
-        className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:left-4 focus-visible:top-4 focus-visible:z-50 focus-visible:rounded-lg focus-visible:bg-background focus-visible:px-4 focus-visible:py-3 focus-visible:text-sm focus-visible:font-medium focus-visible:shadow-sm focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        Skip to main content
-      </a>
-      <main
-        id="main-content"
-        tabIndex={-1}
-        className="mx-auto flex max-w-3xl flex-col gap-6 focus-visible:outline-none"
-      >
-        <Card className="rounded-xl border-border bg-card shadow-sm">
-          <CardHeader className="space-y-3 px-6 pt-8 md:px-10">
-            <p className="text-eyebrow text-primary">Staff invitation</p>
-            <CardTitle className="font-heading text-3xl font-semibold tracking-tight md:text-4xl">
-              Join your clinic team
-            </CardTitle>
-            <CardDescription className="max-w-2xl text-sm leading-6 md:text-base">
-              {arrivedFromAccountSetup
-                ? 'Your account is ready. One last step: check the clinic and role below, and accept.'
-                : 'Check the clinic and role below before you accept. You get access to that clinic’s records in line with the role, and nothing before you accept.'}
-            </CardDescription>
-          </CardHeader>
+    <OnboardingFrame
+      journey="staff"
+      current={accepted ? 'name' : 'accept'}
+      needsName={needsName}
+      title="Join your clinic team"
+      lede={
+        arrivedFromAccountSetup
+          ? 'Your account is ready. Check the clinic and role below, then accept.'
+          : 'Check the clinic and role below before you accept. You get access to that clinic’s records in line with the role, and nothing before you accept.'
+      }
+    >
+      {arrivedFromAccountSetup && !accepted ? (
+        <InlineNotice tone="success">
+          <span className="font-medium">Password saved.</span> You are signed in.
+        </InlineNotice>
+      ) : null}
+      {accepted ? <InlineNotice tone="success">{accepted}</InlineNotice> : null}
+      {failure ? (
+        <InlineNotice tone="error">
+          <span className="block font-medium">{failure.message}</span>
+          {failure.recoveryAction ? (
+            <span className="mt-1 block text-xs leading-5">{failure.recoveryAction}</span>
+          ) : null}
+        </InlineNotice>
+      ) : null}
 
-          <CardContent className="space-y-5 px-6 pb-8 md:px-10">
-            {arrivedFromAccountSetup && !accepted ? (
-              <InlineNotice tone="success">
-                <span className="font-medium">Password saved.</span> You are signed in.
-              </InlineNotice>
-            ) : null}
-            {accepted ? <InlineNotice tone="success">{accepted}</InlineNotice> : null}
-            {failure ? (
-              <InlineNotice tone="error">
-                <span className="font-medium">{failure.message}</span>
-                {failure.recoveryAction ? ` ${failure.recoveryAction}` : null}
-              </InlineNotice>
-            ) : null}
-
-            {/* Loading first, so someone with an invitation is never told they have none. */}
-            {isLoading ? (
-              <div role="status" aria-live="polite" aria-busy="true">
-                <span className="sr-only">Looking for your invitation</span>
-                <SectionSkeleton lines={3} />
-              </div>
-            ) : bootstrapError ? (
-              <InlineErrorState
-                title="We couldn't check for your invitation"
-                description={bootstrapError}
-                onRetry={() => bootstrapCtx?.retry()}
-                retryLabel="Check again"
-              />
-            ) : invites.length === 0 && !accepted ? (
-              /*
-                Matching is on the address Keycloak has confirmed, so the commonest reason to land
-                here empty is an unfinished email verification, not a missing invitation.
-              */
-              <EmptyState
-                icon={MailQuestion}
-                title="No open invitation found"
-                description="If you have just set up your account, check your inbox for a message asking you to confirm your email address; your invitation appears once that is done. Invitations also lapse after a few days. If yours has, ask the person who invited you to send a new one."
-                action={
-                  <Button variant="outline" onClick={() => void bootstrapCtx?.refetch()}>
-                    Check again
-                  </Button>
-                }
-              />
-            ) : (
-              <ul className="space-y-3" aria-label="Your invitations">
-                {invites.map((invite) => {
-                  const expiry = describeInviteExpiry(invite.expiresAt);
-                  return (
-                    <li
-                      key={invite.id}
-                      className="rounded-lg border border-border/70 bg-background p-5"
+      {/* Loading first, so someone with an invitation is never told they have none. */}
+      {isLoading ? (
+        <div role="status" aria-live="polite" aria-busy="true">
+          <span className="sr-only">Looking for your invitation</span>
+          <SectionSkeleton lines={3} />
+        </div>
+      ) : bootstrapError ? (
+        <InlineErrorState
+          title="We couldn't check for your invitation"
+          description={bootstrapError}
+          onRetry={() => bootstrapCtx?.retry()}
+          retryLabel="Check again"
+        />
+      ) : invites.length === 0 && !accepted ? (
+        <InvitationNotFound
+          journey="staff"
+          onCheckAgain={() => void bootstrapCtx?.refetch()}
+          checking={bootstrapCtx?.isRefreshing}
+        />
+      ) : (
+        <section aria-labelledby="invites-title" className="border-t-2 border-rule-strong">
+          <h2 id="invites-title" className="type-section-title pb-2 pt-4">
+            {invites.length > 1 ? 'Your invitations' : 'Your invitation'}
+          </h2>
+          <ul aria-label="Your invitations">
+            {invites.map((invite) => {
+              const expiry = describeInviteExpiry(invite.expiresAt);
+              const role = formatStaffRole(invite.role);
+              return (
+                <li key={invite.id} className="space-y-3 border-t border-rule py-4">
+                  <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[8rem_minmax(0,1fr)]">
+                    <dt className="text-muted-foreground">Clinic</dt>
+                    <dd className="text-base font-semibold text-foreground">{invite.clinicName}</dd>
+                    <dt className="text-muted-foreground">Role</dt>
+                    <dd className="text-foreground">{role}</dd>
+                    {invite.invitedBy ? (
+                      <>
+                        <dt className="text-muted-foreground">Invited by</dt>
+                        <dd className="text-foreground">{invite.invitedBy}</dd>
+                      </>
+                    ) : null}
+                    <dt className="text-muted-foreground">Invitation</dt>
+                    <dd
+                      className={
+                        expiry.tone === 'neutral'
+                          ? 'text-foreground'
+                          : 'font-medium text-warning-ink'
+                      }
                     >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-lg font-semibold text-foreground">{invite.clinicName}</p>
-                        <Badge variant="secondary" className="rounded-full">
-                          {formatStaffRole(invite.role)}
-                        </Badge>
-                      </div>
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        {invite.invitedBy ? `Invited by ${invite.invitedBy}. ` : ''}
-                        {expiry.label}.
-                      </p>
-                      <div className="mt-4">
-                        <Button
-                          onClick={() => void accept(invite)}
-                          disabled={acceptingId !== null || accepted !== null}
-                        >
-                          <ShieldCheck className="mr-2 h-4 w-4" aria-hidden="true" />
-                          {acceptingId === invite.id
-                            ? 'Accepting…'
-                            : `Accept ${formatStaffRole(invite.role)} at ${invite.clinicName}`}
-                        </Button>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+                      {expiry.label}
+                    </dd>
+                  </dl>
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    Accepting lets you open {invite.clinicName}&rsquo;s records as a {role}. It
+                    gives you nothing at any other clinic.
+                  </p>
+                  <Button
+                    onClick={() => void accept(invite)}
+                    disabled={acceptingId !== null || accepted !== null}
+                    className="w-full sm:w-auto"
+                  >
+                    <ShieldCheck className="mr-2 h-4 w-4" aria-hidden="true" />
+                    {acceptingId === invite.id
+                      ? 'Accepting…'
+                      : `Accept ${role} at ${invite.clinicName}`}
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
-            <p className="text-xs leading-5 text-muted-foreground">
-              Not expecting this? Do nothing. The invitation lapses on its own, and nothing changes
-              unless it is accepted.
-            </p>
-          </CardContent>
-        </Card>
-      </main>
-    </div>
+      <p className="border-t border-rule pt-4 text-xs leading-5 text-muted-foreground">
+        Not expecting this? Do nothing. The invitation lapses on its own, and nothing changes unless
+        it is accepted.
+      </p>
+    </OnboardingFrame>
   );
 }

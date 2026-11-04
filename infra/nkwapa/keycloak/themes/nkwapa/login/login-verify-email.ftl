@@ -1,7 +1,7 @@
 <#import "template.ftl" as layout>
-<@layout.registrationLayout displayMessage=true; section>
+<@layout.registrationLayout displayMessage=true journey="setup" step=2 eyebrow="Account setup"; section>
     <#if section = "header">
-        verify your email
+        Confirm your email address
     <#elseif section = "form">
         <div class="nkwapa-status-copy">
             <p>

@@ -16,7 +16,74 @@
     </button>
 </#macro>
 
-<#macro registrationLayout displayMessage=true displayInfo=false displayRequiredFields=false>
+<#--
+  The journeys these pages sit inside (#277). The same lists, in the same words, appear on the
+  app's /login, /accept-invite and /claim-record, so a person crossing from Nkwapa to this server
+  and back sees one path rather than three unrelated screens. Presentation only: the steps
+  describe the existing flows and change none of them.
+-->
+<#macro journeyList journey step>
+    <#if journey == "signin">
+        <#local journeyTitle = "Signing in" />
+        <#local journeySteps = [
+            {"label": "Start from Nkwapa", "detail": "You chose to sign in."},
+            {"label": "Enter your email and password", "detail": "On this secure page, which is separate from Nkwapa."},
+            {"label": "Your work opens", "detail": "Staff see their clinic. Patients see their record."}
+        ] />
+    <#elseif journey == "setup">
+        <#local journeyTitle = "Setting up your account" />
+        <#local journeySteps = [
+            {"label": "Open your invitation email", "detail": "The link brought you here."},
+            {"label": "Choose a password", "detail": "And confirm your email address if asked."},
+            {"label": "Finish in Nkwapa", "detail": "Staff accept their clinic and role. Patients confirm their clinic card."}
+        ] />
+    <#elseif journey == "reset">
+        <#local journeyTitle = "Resetting your password" />
+        <#local journeySteps = [
+            {"label": "Ask for a reset link", "detail": "Enter the email address on your account."},
+            {"label": "Open the email", "detail": "It arrives in a few minutes. Check spam too."},
+            {"label": "Choose a new password", "detail": "Then sign in with it."}
+        ] />
+    </#if>
+    <#if journeySteps??>
+        <section class="nkwapa-journey" aria-labelledby="nkwapa-journey-title">
+            <h2 id="nkwapa-journey-title" class="nkwapa-journey__title">${journeyTitle}</h2>
+            <ol class="nkwapa-journey__list">
+                <#list journeySteps as item>
+                    <#local n = item?index + 1 />
+                    <#local state = (n < step)?then("done", (n == step)?then("current", "next")) />
+                    <li class="nkwapa-journey__step nkwapa-journey__step--${state}"<#if state == "current"> aria-current="step"</#if>>
+                        <span class="nkwapa-journey__marker" aria-hidden="true"><#if state == "done">&#10003;<#else>${n}</#if></span>
+                        <span class="nkwapa-journey__text">
+                            <span class="nkwapa-journey__label">${item.label}</span>
+                            <span class="nkwapa-journey__detail"><span class="nkwapa-journey__state"><#if state == "done">Done<#elseif state == "current">You are here<#else>Still to do</#if></span><#if state != "done">. ${item.detail}</#if></span>
+                        </span>
+                    </li>
+                </#list>
+            </ol>
+        </section>
+    <#elseif journey == "help">
+        <section class="nkwapa-journey" aria-labelledby="nkwapa-journey-title">
+            <h2 id="nkwapa-journey-title" class="nkwapa-journey__title">When a link stops working</h2>
+            <ul class="nkwapa-journey__list">
+                <li class="nkwapa-journey__help">
+                    <span class="nkwapa-journey__label">It has expired or been used</span>
+                    <span class="nkwapa-journey__detail">Invitation and password links stop working after a few days, and once their step is done. Ask whoever sent it for a new one.</span>
+                </li>
+                <li class="nkwapa-journey__help">
+                    <span class="nkwapa-journey__label">Someone else is signed in</span>
+                    <span class="nkwapa-journey__detail">On a shared laptop, sign the other person out of Nkwapa, then open your link again.</span>
+                </li>
+                <li class="nkwapa-journey__help">
+                    <span class="nkwapa-journey__label">You already chose a password</span>
+                    <span class="nkwapa-journey__detail">Then the link has done its job. Go back to sign in and use your password.</span>
+                </li>
+            </ul>
+        </section>
+    </#if>
+</#macro>
+
+<#macro registrationLayout displayMessage=true displayInfo=false displayRequiredFields=false journey="signin" step=2 eyebrow="Secure sign in" description="">
 <!DOCTYPE html>
 <html lang="${(locale.currentLanguageTag)!'en'}">
 <head>
@@ -33,76 +100,52 @@
     <#assign themeScripts = (properties.scripts)!'' />
 </head>
 <body class="nkwapa-auth-body">
+    <header class="nkwapa-auth-header">
+        <div class="nkwapa-auth-header__inner">
+            <img src="${url.resourcesPath}/img/nkwapa-logo.png" alt="Nkwapa" class="nkwapa-auth-logo" />
+            <span class="nkwapa-auth-header__note">Secure sign-in</span>
+        </div>
+    </header>
     <main class="nkwapa-auth-shell">
-        <section class="nkwapa-auth-card">
-            <aside class="nkwapa-auth-showcase" aria-hidden="true">
-                <div class="nkwapa-auth-showcase__inner">
-                    <img
-                        src="${url.resourcesPath}/img/nkwapa-logo.png"
-                        alt="Nkwapa"
-                        class="nkwapa-auth-logo"
-                    />
+        <section class="nkwapa-auth-panel">
+            <div class="nkwapa-auth-panel__header">
+                <p class="nkwapa-auth-panel__eyebrow">${eyebrow}</p>
+                <h1 id="kc-page-title" class="nkwapa-auth-title">
+                    <#nested "header">
+                </h1>
+                <#if description?has_content>
+                    <p class="nkwapa-auth-panel__description">${description}</p>
+                </#if>
+            </div>
 
-                    <div class="nkwapa-auth-copy">
-                        <span class="nkwapa-auth-eyebrow">Clinic care operations</span>
-                        <h2 class="nkwapa-auth-headline">
-                            Secure access for patient-safe clinic work.
-                        </h2>
-                        <p class="nkwapa-auth-description">
-                            Sign in once to reach clinic-scoped records, queues, follow-up, and dashboard context.
-                        </p>
-                    </div>
-
-                    <ul class="nkwapa-auth-feature-list">
-                        <li>Keycloak verifies your identity before records load</li>
-                        <li>Clinic permissions decide what you can view and update</li>
-                        <li>Password recovery stays available when sign-in needs attention</li>
-                    </ul>
-
-                    <div class="nkwapa-auth-photo-frame">
-                        <img
-                            src="${url.resourcesPath}/img/auth-clinic.jpg"
-                            alt=""
-                            class="nkwapa-auth-photo"
-                        />
-                    </div>
+            <#if displayMessage && message?has_content>
+                <div class="nkwapa-alert nkwapa-alert--${message.type!'info'}" role="alert">
+                    ${kcSanitize(message.summary)?no_esc}
                 </div>
-            </aside>
+            </#if>
 
-            <section class="nkwapa-auth-panel">
-                <div class="nkwapa-auth-panel__inner">
-                    <div class="nkwapa-auth-panel__header">
-                        <p class="nkwapa-auth-panel__eyebrow">Secure access</p>
-                        <h1 id="kc-page-title" class="nkwapa-auth-title">
-                            <#nested "header">
-                        </h1>
-                        <p class="nkwapa-auth-panel__description">
-                            Continue with the secure account your clinic uses for patient-safe operations.
-                        </p>
-                    </div>
+            <#if displayRequiredFields>
+                <p class="nkwapa-required-note">${msg("requiredFields")}</p>
+            </#if>
 
-                    <#if displayMessage && message?has_content>
-                        <div class="nkwapa-alert nkwapa-alert--${message.type!'info'}" role="alert">
-                            ${kcSanitize(message.summary)?no_esc}
-                        </div>
-                    </#if>
+            <div class="nkwapa-auth-form">
+                <#nested "form">
+            </div>
 
-                    <#if displayRequiredFields>
-                        <p class="nkwapa-required-note">${msg("requiredFields")}</p>
-                    </#if>
-
-                    <div class="nkwapa-auth-form">
-                        <#nested "form">
-                    </div>
-
-                    <#if displayInfo>
-                        <div class="nkwapa-auth-info">
-                            <#nested "info">
-                        </div>
-                    </#if>
+            <#if displayInfo>
+                <div class="nkwapa-auth-info">
+                    <#nested "info">
                 </div>
-            </section>
+            </#if>
         </section>
+
+        <#if journey != "none">
+            <aside class="nkwapa-auth-aside">
+                <@journeyList journey=journey step=step />
+                <#-- Desktop only, and lazy, so a phone on clinic data never downloads it. -->
+                <img src="${url.resourcesPath}/img/auth-clinic.jpg" alt="" class="nkwapa-auth-photo" loading="lazy" />
+            </aside>
+        </#if>
     </main>
     <#if themeScripts?has_content>
         <#list themeScripts?split(' ') as script>

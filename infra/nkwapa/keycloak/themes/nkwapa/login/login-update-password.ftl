@@ -1,8 +1,8 @@
 <#import "template.ftl" as layout>
 <#assign hasPasswordError = messagesPerField.existsError('password','password-new','password-confirm')>
-<@layout.registrationLayout displayMessage=!hasPasswordError displayRequiredFields=true; section>
+<@layout.registrationLayout displayMessage=!hasPasswordError displayRequiredFields=true journey="setup" step=2 eyebrow="Account setup" description="You will use this password every time you sign in to Nkwapa."; section>
     <#if section = "header">
-        choose a new password
+        Choose your password
     <#elseif section = "form">
         <form id="kc-passwd-update-form" action="${url.loginAction}" method="post">
             <div class="nkwapa-form-group">

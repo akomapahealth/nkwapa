@@ -868,6 +868,49 @@ same saved-copy notices and connection requirements.
 
 [Before/after evidence and verification](evidence/276/README.md).
 
+### Phase 06 authentication and onboarding (#277)
+
+Account setup crosses two systems: the password is chosen on Keycloak's pages,
+everything else happens in the app. Each side now shows the whole path in the
+same words, so leaving Nkwapa for sign-in and coming back reads as one journey.
+The flows, redirects, required actions, API calls and validation are unchanged.
+
+- **One frame for every account step.** `/accept-invite`, `/claim-record` and
+  the required `/account/name` step render in `OnboardingFrame`
+  (`components/onboarding/`): a hairline header with the mark, who is signed in
+  and Sign out, a "Step n of m" line, the serif title, ruled sections on the
+  canvas, and the journey beside them (below on phones). Journeys and their
+  steps live in `lib/onboarding-journey.ts`: staff (choose a password, accept,
+  add your name when needed, start work) and patient (choose a password,
+  confirm your details, open your record). Each step says in words whether it
+  is done, current or still to do; the marker colour only repeats it.
+- **No invitation is three causes, each with its fix.** `InvitationNotFound`
+  replaces the single paragraph: email not confirmed, invitation expired,
+  already used or withdrawn.
+- **`/login`** drops the teal card for the same canvas frame: the action first,
+  then "What happens next" as three numbered hairline rows, and "First time
+  here?" explaining that accounts start with an invitation.
+- **Keycloak theme.** `template.ftl` takes `journey`, `step`, `eyebrow` and
+  `description`, and renders the matching step list (signing in, setting up
+  your account, resetting your password) or, on `error.ftl` and
+  `login-page-expired.ftl`, "When a link stops working". The form sits under
+  the 2px ink rule; the clinic photo stays on desktop only, lazy loaded.
+  Lower-case page titles are sentence case. Expired, used and invalid link
+  messages are rewritten in `messages_en.properties` to say what happened and
+  what to do; the failed sign-in message is unchanged, so it still does not
+  reveal whether an account exists. The theme stays light only (see its header
+  comment) and fonts stay self-hosted.
+- **Welcome tour, by role.** Same dialog, completion and storage
+  (`CompleteWelcomeTourDto`, version 1). The step count is written out above a
+  segmented bar; the welcome names the role and clinic; staff get "What you
+  can do as {role}" with up to four places chosen by permission, then "Finding
+  your way" and offline work, each as a short ruled list of what and where.
+  The version was not bumped, so nobody is shown the tour again uninvited.
+  Motion is unchanged: framer-motion reads reduced motion in JavaScript and
+  falls back to a cross-fade.
+
+[Before/after evidence and verification](evidence/277/README.md).
+
 ### The combobox, and when it is not the answer
 
 `Select` is still the default. `Combobox` exists for one case: a list long enough that scrolling

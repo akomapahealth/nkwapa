@@ -1,26 +1,20 @@
 <#import "template.ftl" as layout>
-<@layout.registrationLayout displayMessage=true; section>
+<#-- Keycloak's own copy here is "To restart the login process, click here." twice over. Both
+     links keep their ids and targets; they are worded as the two choices they are. -->
+<@layout.registrationLayout displayMessage=true journey="help" eyebrow="Sign-in paused"; section>
     <#if section = "header">
         ${msg("pageExpiredTitle")}
     <#elseif section = "form">
         <div class="nkwapa-status-copy">
-            <p>
-                ${kcSanitize(msg("pageExpiredMsg1"))?no_esc}
-                <a id="loginRestartLink" class="nkwapa-inline-link" href="${url.loginRestartFlowUrl}">
-                    ${kcSanitize(msg("doClickHere"))?no_esc}
-                </a>.
-            </p>
-            <p>
-                ${kcSanitize(msg("pageExpiredMsg2"))?no_esc}
-                <a id="loginContinueLink" class="nkwapa-inline-link" href="${url.loginAction}">
-                    ${kcSanitize(msg("doClickHere"))?no_esc}
-                </a>.
-            </p>
+            <p>${msg("pageExpiredExplanation")}</p>
         </div>
 
         <div class="nkwapa-action-stack">
-            <a class="nkwapa-secondary-link" href="${url.loginUrl}">
-                ${kcSanitize(msg("backToLogin"))?no_esc}
+            <a id="loginRestartLink" class="nkwapa-btn-primary nkwapa-btn-primary--link" href="${url.loginRestartFlowUrl}">
+                ${msg("pageExpiredRestart")}
+            </a>
+            <a id="loginContinueLink" class="nkwapa-secondary-link" href="${url.loginAction}">
+                ${msg("pageExpiredContinue")}
             </a>
         </div>
     </#if>

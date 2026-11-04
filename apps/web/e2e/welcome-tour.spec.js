@@ -28,9 +28,17 @@ test('walks forward and back, then finishes', async ({ page }) => {
   await expect(dialog.getByRole('img', { name: /^Step 1 of \d+$/ })).toBeVisible();
   await expect(dialog.getByRole('button', { name: 'Back' })).toHaveCount(0);
 
+  // The count is written out, not left to the bar.
+  await expect(dialog.getByText(/^Step 1 of \d+$/)).toBeVisible();
+
   await dialog.getByRole('button', { name: 'Next' }).click();
   // A volunteer is pointed at a page a volunteer can open.
   await expect(dialog.getByRole('heading', { name: /your day starts/i })).toBeVisible();
+  // Then the work that role can do, each with where it lives (#277).
+  await dialog.getByRole('button', { name: 'Next' }).click();
+  await expect(dialog.getByRole('heading', { name: 'What you can do as Volunteer' })).toBeVisible();
+  await expect(dialog.getByText('Find a patient')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Back' }).click();
   await dialog.getByRole('button', { name: 'Back' }).click();
   await expect(dialog.getByRole('heading', { name: 'Welcome to Nkwapa' })).toBeVisible();
 
