@@ -1,6 +1,7 @@
 import { ArrowUpRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AKOMAPA_HREF, CONTACT_EMAIL, CONTACT_HREF } from './links';
+import { SectionRule } from './SectionRule';
 
 export function LandingCTA() {
   return (
@@ -9,6 +10,7 @@ export function LandingCTA() {
       className="bg-primary py-20 text-primary-foreground sm:py-28 lg:py-36"
     >
       <div className="landing-container grid gap-10 lg:grid-cols-12 lg:items-end" data-reveal>
+        <SectionRule className="border-primary-foreground lg:col-span-12">Contact</SectionRule>
         <h2
           id="cta-title"
           data-split

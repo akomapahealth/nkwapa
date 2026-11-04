@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import { DesktopFrame, PhoneFrame } from './ProductFrames';
+import { SectionRule } from './SectionRule';
 
 const PHOTO_CLASS = 'h-full w-full object-cover';
 
@@ -88,13 +89,13 @@ export function ClinicalJourney() {
       className="border-y border-border bg-card py-20 sm:py-28"
     >
       <div className="landing-container">
-        <div className="grid gap-6 lg:grid-cols-12 lg:items-end" data-reveal>
+        <SectionRule>How it works</SectionRule>
+        <div className="mt-8 grid gap-6 lg:grid-cols-12 lg:items-end" data-reveal>
           <div className="lg:col-span-7">
-            <p className="text-eyebrow text-primary">A clinic day</p>
             <h2
               id="journey-title"
               data-split
-              className="mt-3 text-balance font-heading text-4xl font-semibold leading-[1.1] tracking-[-0.015em] sm:text-5xl"
+              className="text-balance font-heading text-4xl font-semibold leading-[1.1] tracking-[-0.015em] sm:text-5xl"
             >
               One visit, from the front door to the follow-up.
             </h2>
@@ -132,7 +133,7 @@ export function ClinicalJourney() {
                   </p>
                 </div>
                 <figure data-step-media className="bg-card lg:col-span-7">
-                  <div className="aspect-[4/3] overflow-hidden rounded-xl lg:aspect-auto lg:h-[min(62vh,32rem)]">
+                  <div className="aspect-[4/3] overflow-hidden lg:aspect-auto lg:h-[min(62vh,32rem)]">
                     {step.media}
                   </div>
                   <figcaption className="mt-3 text-sm text-muted-foreground">

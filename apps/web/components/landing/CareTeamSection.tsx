@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import { DesktopFrame } from './ProductFrames';
+import { SectionRule } from './SectionRule';
 
 // shortcut: every card shows the clinic dashboard until each role's own dashboard is captured;
 // swap in `src` and `alt` (3840x2160, like desktop.png) per role when the screenshots exist.
@@ -42,13 +43,13 @@ export function CareTeamSection() {
       className="overflow-hidden bg-background py-20 sm:py-28 lg:py-32"
     >
       <div className="landing-container">
-        <div className="grid gap-6 lg:grid-cols-12 lg:items-end" data-reveal>
+        <SectionRule>Who it&apos;s for</SectionRule>
+        <div className="mt-8 grid gap-6 lg:grid-cols-12 lg:items-end" data-reveal>
           <div className="lg:col-span-7">
-            <p className="text-eyebrow text-primary">Who it&apos;s for</p>
             <h2
               id="care-teams-title"
               data-split
-              className="mt-3 text-balance font-heading text-4xl font-semibold leading-[1.08] tracking-[-0.015em] sm:text-5xl"
+              className="text-balance font-heading text-4xl font-semibold leading-[1.08] tracking-[-0.015em] sm:text-5xl"
             >
               Built around the people providing care.
             </h2>
@@ -96,7 +97,7 @@ export function CareTeamSection() {
 
         <div className="mt-20 grid gap-12 lg:mt-28 lg:grid-cols-12 lg:gap-16">
           <figure className="lg:col-span-5">
-            <div data-reveal-image className="overflow-hidden rounded-xl">
+            <div data-reveal-image className="overflow-hidden">
               <Image
                 src="/images/Akomapa-34.jpg"
                 alt="A volunteer points to letters on an eye chart while a seated patient reads them aloud."
@@ -110,7 +111,7 @@ export function CareTeamSection() {
               An eye screening station run by volunteers.
             </figcaption>
           </figure>
-          <ul className="border-t border-border lg:col-span-7 lg:self-center" data-reveal>
+          <ul className="border-t-2 border-foreground lg:col-span-7 lg:self-center" data-reveal>
             {OTHER_ROLES.map((item) => (
               <li
                 key={item.role}
