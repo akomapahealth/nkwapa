@@ -225,6 +225,14 @@
   h5,
   h6 {
     @apply font-heading;
+    /* Even lines, no one-word last line (#280). Ignored where unsupported. */
+    text-wrap: balance;
+  }
+  /* No orphaned last word in running text. Only changes where lines break, never the box. */
+  p,
+  li,
+  figcaption {
+    text-wrap: pretty;
   }
 }
 

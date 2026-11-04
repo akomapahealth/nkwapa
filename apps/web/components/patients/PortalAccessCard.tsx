@@ -456,7 +456,9 @@ export function PortalAccessCard({
               >
                 <span>
                   Previous invitations{' '}
-                  <span className="text-muted-foreground">({previousInvites.length})</span>
+                  <span className="tabular-nums text-muted-foreground">
+                    ({previousInvites.length})
+                  </span>
                 </span>
                 <span aria-hidden className="text-muted-foreground">
                   {previousOpen ? '−' : '+'}

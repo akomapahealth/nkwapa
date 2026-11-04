@@ -1,0 +1,26 @@
+[
+  {
+    "name": "harness",
+    "width": 1440,
+    "theme": "light",
+    "violations": []
+  },
+  {
+    "name": "harness",
+    "width": 390,
+    "theme": "light",
+    "violations": []
+  },
+  {
+    "name": "harness",
+    "width": 1440,
+    "theme": "dark",
+    "violations": []
+  },
+  {
+    "name": "harness",
+    "width": 390,
+    "theme": "dark",
+    "violations": []
+  }
+]

@@ -239,23 +239,35 @@ export function Header({
           announces as collapsing navigation the patient does not have.
         */}
         {onToggleSidebar ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onToggleSidebar}
-            aria-expanded={!sidebarCollapsed}
-            aria-controls="workspace-sidebar"
-            className="hidden md:inline-flex"
-          >
-            {sidebarCollapsed ? (
-              <PanelLeft aria-hidden="true" className="h-[18px] w-[18px]" />
-            ) : (
-              <PanelLeftClose aria-hidden="true" className="h-[18px] w-[18px]" />
-            )}
-            <span className="sr-only">
-              {sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-            </span>
-          </Button>
+          // The tooltip names the `[` shortcut AppLayout already handles (#280).
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onToggleSidebar}
+                  aria-expanded={!sidebarCollapsed}
+                  aria-controls="workspace-sidebar"
+                  aria-keyshortcuts="["
+                  className="hidden md:inline-flex"
+                >
+                  {sidebarCollapsed ? (
+                    <PanelLeft aria-hidden="true" className="h-[18px] w-[18px]" />
+                  ) : (
+                    <PanelLeftClose aria-hidden="true" className="h-[18px] w-[18px]" />
+                  )}
+                  <span className="sr-only">
+                    {sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+                  </span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="flex items-center gap-2">
+                {sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+                <kbd className="rounded-sm border border-border px-1.5 font-sans text-xs">[</kbd>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         ) : null}
 
         <div className="flex min-w-0 flex-1 items-center">{clinicSwitcher}</div>

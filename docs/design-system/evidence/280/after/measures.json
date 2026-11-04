@@ -1,0 +1,36 @@
+{
+  "390": {
+    "checkbox": {
+      "visible": [16, 16],
+      "target": [16, 16]
+    },
+    "toastClose": {
+      "visible": [24, 24],
+      "target": [44, 44]
+    },
+    "loadingRegion": {
+      "name": "Loading Akomapa Clinic",
+      "text": "Loading Akomapa Clinic"
+    },
+    "alerts": ["The draft could not be savedCheck the connection and try again."],
+    "liveRegions": ["section polite"],
+    "tabTransition": "color, background-color, box-shadow"
+  },
+  "1440": {
+    "checkbox": {
+      "visible": [16, 16],
+      "target": [16, 16]
+    },
+    "toastClose": {
+      "visible": [24, 24],
+      "target": [44, 44]
+    },
+    "loadingRegion": {
+      "name": "Loading Akomapa Clinic",
+      "text": "Loading Akomapa Clinic"
+    },
+    "alerts": ["The draft could not be savedCheck the connection and try again."],
+    "liveRegions": ["section polite"],
+    "tabTransition": "color, background-color, box-shadow"
+  }
+}

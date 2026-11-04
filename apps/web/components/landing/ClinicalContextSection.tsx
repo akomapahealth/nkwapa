@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import { LANDING_BLUR } from '@/lib/landing-blur';
 import { ArrowUpRight } from 'lucide-react';
 import { AKOMAPA_HREF } from './links';
 import { SectionRule } from './SectionRule';
@@ -36,6 +37,8 @@ export function ClinicalContextSection() {
         <div data-expand className="relative h-[min(78svh,46rem)] min-h-[20rem] overflow-hidden">
           <Image
             src="/images/Akomapa-31.jpg"
+            placeholder="blur"
+            blurDataURL={LANDING_BLUR['/images/Akomapa-31.jpg']}
             alt="A gloved health worker prepares a finger-prick glucose test on a patient's hand."
             fill
             sizes="100vw"

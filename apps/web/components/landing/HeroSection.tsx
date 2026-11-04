@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import { LANDING_BLUR } from '@/lib/landing-blur';
 import { ArrowUpRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AKOMAPA_HREF, CONTACT_HREF } from './links';
@@ -22,6 +23,8 @@ export function HeroSection() {
       >
         <Image
           src="/images/Akomapa-17.jpg"
+          placeholder="blur"
+          blurDataURL={LANDING_BLUR['/images/Akomapa-17.jpg']}
           alt="A volunteer in an Akomapa shirt writes down a reading while a woman's blood pressure is taken at a community screening."
           fill
           loading="eager"

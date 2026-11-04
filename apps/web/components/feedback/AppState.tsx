@@ -9,7 +9,6 @@ import {
   Lock,
   RefreshCw,
   ShieldCheck,
-  Stethoscope,
 } from 'lucide-react';
 import { isValidElement } from 'react';
 import type { LucideIcon } from 'lucide-react';
@@ -30,7 +29,12 @@ export function PageSkeleton({
   className?: string;
 }) {
   return (
-    <div className={cn('min-h-[60vh] bg-clinical-grid px-4 py-8 md:px-6', className)}>
+    <div
+      role="status"
+      aria-label={title}
+      aria-busy="true"
+      className={cn('min-h-[60vh] bg-clinical-grid px-4 py-8 md:px-6', className)}
+    >
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
         <div className="overflow-hidden rounded-xl border border-border/70 bg-card/95">
           <div className="h-1.5 w-full overflow-hidden bg-muted/50">
@@ -85,33 +89,46 @@ export function PageSkeleton({
   );
 }
 
+/**
+ * The dashboard's first load, drawn in the shape of what replaces it (#280): the ruled "Needs you
+ * now" rows, then the five-figure metric group, so nothing jumps when the data lands. One named
+ * status region carries the message; the shapes are hidden from assistive technology.
+ */
 export function DashboardLoadingState({ clinicName }: { clinicName?: string | null }) {
+  const label = clinicName ? `Loading ${clinicName}` : 'Loading clinic dashboard';
   return (
-    <div className="space-y-5">
-      <div className="rounded-lg border border-border/70 bg-card/90 p-5 shadow-sm">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-2">
-            <div className="h-4 w-36 animate-pulse rounded-full bg-primary/20" />
-            <div className="h-7 w-64 max-w-full animate-pulse rounded-full bg-muted/60" />
-            <div className="h-4 w-80 max-w-full animate-pulse rounded-full bg-muted/40" />
-          </div>
-          <div className="inline-flex items-center gap-3 rounded-md border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-medium text-primary">
-            <Stethoscope className="h-4 w-4 animate-pulse" />
-            {clinicName ? `Loading ${clinicName}` : 'Loading clinic dashboard'}
-          </div>
+    <div role="status" aria-label={label} aria-busy="true" className="space-y-8">
+      <p className="type-meta text-muted-foreground">{label}</p>
+      <div aria-hidden="true" className="border-t-2 border-rule-strong pt-4">
+        <Skeleton className="h-5 w-40" />
+        <ul className="mt-1">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <li
+              key={index}
+              className="flex items-center justify-between gap-3 border-b border-rule py-4"
+            >
+              <div className="flex min-w-0 flex-1 items-start gap-3">
+                <Skeleton className="h-5 w-5 shrink-0 rounded-full" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-4 w-64 max-w-full" />
+                  <Skeleton className="h-4 w-48 max-w-full" />
+                </div>
+              </div>
+              <Skeleton className="hidden h-11 w-28 shrink-0 rounded-md sm:block" />
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div aria-hidden="true" className="overflow-hidden border-t-2 border-rule-strong">
+        <div className="-mb-px -mr-px grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <div key={index} className="border-b border-r border-rule p-4 sm:p-5">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="mt-3 h-8 w-16" />
+            </div>
+          ))}
         </div>
       </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        {Array.from({ length: 5 }).map((_, index) => (
-          <div
-            key={index}
-            className="h-32 animate-pulse rounded-md border border-border/70 bg-card/80"
-          />
-        ))}
-      </div>
-
-      <SectionSkeleton lines={4} className="rounded-lg p-6" />
     </div>
   );
 }
