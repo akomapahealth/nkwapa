@@ -424,7 +424,7 @@ Notes that matter operationally:
   substitutes it into the realm import.
 - **Existing realms need a manual step.** `--import-realm` skips a realm that already exists, so
   redeploying the auth service does not add `nkwapa-api` to staging or production. See
-  `docs/KEYCLOAK_SERVICE_ACCOUNT_ROLLOUT.md`.
+  `docs/OPERATIONS.md` ("Keycloak service account for patient identity").
 
 ---
 

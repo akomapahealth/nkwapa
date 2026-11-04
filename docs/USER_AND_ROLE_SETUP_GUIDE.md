@@ -237,7 +237,7 @@ of truth: a later sign-in never overwrites a name set here with what Keycloak ho
   (read-only, administrative credential). Nothing is backfilled, because names cannot be guessed.
 
 If the list shows **Account not created**, the card says why. The usual causes are the
-service-account setup in `docs/KEYCLOAK_SERVICE_ACCOUNT_ROLLOUT.md`, or `APP_PUBLIC_URL` unset on
+service-account setup in `docs/OPERATIONS.md` ("Keycloak service account for patient identity"), or `APP_PUBLIC_URL` unset on
 the API. The invitation still stands; resend once it is fixed.
 
 ### Directors and system admins: assign by hand

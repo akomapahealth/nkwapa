@@ -226,7 +226,7 @@ test.describe('research presentation', () => {
   test('research exports retain readable synthetic content, focus and large copy targets at both widths', async ({
     page,
   }) => {
-    const { responseFor } = require('../../../docs/design-system/evidence/279/fixtures.cjs');
+    const { responseFor } = require('./component-fixtures/research-volunteer-responses.cjs');
     const writes = [];
     await page.route('**/clinics/**', (route) => {
       const json = responseFor(route.request().url());

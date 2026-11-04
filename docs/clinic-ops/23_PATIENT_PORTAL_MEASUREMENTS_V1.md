@@ -4,7 +4,7 @@
 
 Implemented for the core portal measurement and trends flow.
 
-The broader patient portal is still evolving, so use `IMPLEMENTATION_STATUS.md` and `docs/FEATURE_WORKFLOWS_GUIDE.md` for the live feature surface.
+The broader patient portal is still evolving, so use `docs/FEATURE_WORKFLOWS_GUIDE.md` for the live feature surface.
 
 ---
 
