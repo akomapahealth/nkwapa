@@ -67,8 +67,7 @@
   --nkwapa-primary: #00778a; /* --primary           5.24:1 white on  */
   --nkwapa-ring: #00778a; /* --ring                               */
   --nkwapa-accent: #ffcd1a; /* --secondary, the logo gold exactly   */
-  /* Derived from --primary by lightness alone, hsl(188 100% 18%). The showcase panel needs a
-     ground dark enough to carry white at a comfortable margin: 9.12:1. */
+  /* Derived from --primary by lightness alone, hsl(188 100% 18%): the primary button's hover. */
   --nkwapa-primary-deep: #00505c;
   --nkwapa-primary-soft: #e3eeed; /* --primary at 10% over --card         */
 
@@ -94,14 +93,10 @@
   --nkwapa-warning-soft: #faecdc;
   --nkwapa-warning-line: #f7ddbd;
 
-  /* Ink for the deep showcase panel. rgba(255,255,255,.84) and friends used to stand in for
-     these; naming them is what lets the ratios be checked. */
-  --nkwapa-on-deep: #f2f7f8; /* 8.44:1 on --nkwapa-primary-deep      */
-  --nkwapa-on-deep-muted: #ccdee0; /* 6.56:1                               */
-  --nkwapa-on-deep-chip: #246973; /* white at 14% over the panel          */
+  /* Ruled Chart (MASTER.md section 12): a 2px ink rule tops each group, hairlines divide rows. */
+  --nkwapa-rule: var(--nkwapa-border); /* --rule        */
+  --nkwapa-rule-strong: #1d2930; /* --rule-strong, which is --foreground */
   --nkwapa-on-primary: #ffffff; /* --primary-foreground 5.24:1 on --primary */
-  /* Derived from --foreground, so the elevation reads as the same ink as the type. */
-  --nkwapa-card-shadow: 0 12px 32px rgba(29, 41, 48, 0.1);
 
   /* Type -------------------------------------------------------- MASTER.md section 6.
      The application's faces. This theme used Poppins and Circular Std, which are the *landing
@@ -134,9 +129,8 @@ body {
 body.nkwapa-auth-body {
   font-family: var(--nkwapa-font-body);
   font-size: 16px;
-  overflow: hidden;
-  /* Flat. The two radial gradients and the linear wash here were exactly the "marketing
-     gradient" the design bar rules out, on a clinical product's front door. */
+  /* Flat canvas, as in the app. The two radial gradients and the linear wash here were exactly
+     the "marketing gradient" the design bar rules out, on a clinical product's front door. */
   background: var(--nkwapa-bg);
   color: var(--nkwapa-text);
   -webkit-font-smoothing: antialiased;
@@ -152,149 +146,58 @@ body.nkwapa-auth-body {
   border-radius: var(--nkwapa-radius-sm);
 }
 
-.nkwapa-auth-shell {
-  min-height: 100dvh;
+/*
+  #277: the same frame as the app's /login and account-setup pages. A hairline header with the
+  logo, then the form on the canvas under a strong rule, with the journey beside it. The deep
+  teal card, its shadow and its marketing copy are gone: MASTER.md section 12 keeps cards for
+  things that float, and this page should read as the next screen of Nkwapa, not a poster.
+*/
+.nkwapa-auth-header {
+  border-bottom: 1px solid var(--nkwapa-rule);
+}
+
+.nkwapa-auth-header__inner {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 10px 24px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.nkwapa-auth-card {
-  width: min(1080px, 100%);
-  max-height: calc(100dvh - 40px);
-  display: grid;
-  grid-template-columns: minmax(0, 0.92fr) minmax(400px, 1.08fr);
-  border-radius: var(--nkwapa-radius-xl);
-  overflow: hidden;
-  background: var(--nkwapa-surface);
-  border: 1px solid var(--nkwapa-border);
-  /* A real offset and a real blur, not a coloured halo. */
-  box-shadow: var(--nkwapa-card-shadow);
-}
-
-.nkwapa-auth-showcase {
-  position: relative;
-  background: var(--nkwapa-primary-deep);
-  color: var(--nkwapa-on-deep);
-}
-
-.nkwapa-auth-showcase__inner {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
   justify-content: space-between;
-  gap: 28px;
-  /* Scales continuously instead of stepping at a breakpoint, so there is one fewer media query
-     to keep in sync with the four widths the design system commits to. */
-  padding: clamp(22px, 3vw, 34px);
+  gap: 12px;
 }
 
 .nkwapa-auth-logo {
-  width: clamp(160px, 22vw, 244px);
-  max-width: 100%;
-  height: auto;
-}
-
-.nkwapa-auth-copy {
-  max-width: 420px;
-}
-
-.nkwapa-auth-eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: var(--nkwapa-on-deep-chip);
-  border: 1px solid var(--nkwapa-on-deep-chip);
-  font-size: 0.75rem;
-  font-weight: 600;
-  /* MASTER.md section 6 settles on one uppercase micro-label treatment. */
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.nkwapa-auth-headline {
-  margin: 18px 0 12px;
-  font-family: var(--nkwapa-font-heading);
-  font-size: clamp(1.9rem, 3.6vw, 2.75rem);
-  line-height: 1.1;
-  letter-spacing: -0.01em;
-  font-weight: 600;
-}
-
-.nkwapa-auth-description {
-  margin: 0;
-  font-size: 1rem;
-  line-height: 1.7;
-  color: var(--nkwapa-on-deep-muted);
-}
-
-.nkwapa-auth-feature-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 12px;
-  max-width: 420px;
-}
-
-.nkwapa-auth-feature-list li {
-  position: relative;
-  padding-left: 22px;
-  font-size: 0.92rem;
-  line-height: 1.55;
-  color: var(--nkwapa-on-deep-muted);
-}
-
-.nkwapa-auth-feature-list li::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0.55rem;
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--nkwapa-accent);
-}
-
-.nkwapa-auth-photo-frame {
-  width: 100%;
-  max-width: 420px;
-  aspect-ratio: 16 / 7;
-  align-self: center;
-  overflow: hidden;
-  border-radius: var(--nkwapa-radius-lg);
-  border: 1px solid var(--nkwapa-on-deep-chip);
-}
-
-.nkwapa-auth-photo {
+  height: 28px;
+  width: auto;
   display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: 48% 44%;
+}
+
+.nkwapa-auth-header__note {
+  color: var(--nkwapa-muted);
+  font-size: 0.85rem;
+}
+
+.nkwapa-auth-shell {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 48px 24px 64px;
+  display: grid;
+  grid-template-columns: minmax(0, 28rem) minmax(0, 18rem);
+  justify-content: space-between;
+  gap: 56px;
+  align-items: start;
 }
 
 .nkwapa-auth-panel {
-  background: var(--nkwapa-surface);
-}
-
-.nkwapa-auth-panel__inner {
-  height: 100%;
-  max-height: calc(100dvh - 40px);
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   gap: 20px;
-  padding: clamp(26px, 3.4vw, 38px) clamp(22px, 4vw, 50px);
+  min-width: 0;
 }
 
 .nkwapa-auth-panel__eyebrow {
-  margin: 0 0 12px;
-  color: var(--nkwapa-primary);
+  margin: 0 0 8px;
+  color: var(--nkwapa-muted);
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.14em;
@@ -304,19 +207,135 @@ body.nkwapa-auth-body {
 .nkwapa-auth-title {
   margin: 0;
   font-family: var(--nkwapa-font-heading);
-  font-size: clamp(1.9rem, 2.8vw, 2.5rem);
-  line-height: 1.1;
+  font-size: clamp(1.75rem, 2.6vw, 2.25rem);
+  line-height: 1.15;
   letter-spacing: -0.01em;
   font-weight: 600;
   color: var(--nkwapa-text);
 }
 
 .nkwapa-auth-panel__description {
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   max-width: 60ch;
   color: var(--nkwapa-muted);
   font-size: 0.95rem;
   line-height: 1.6;
+}
+
+/* The form sits under the same 2px ink rule as every group in the app. */
+.nkwapa-auth-form {
+  border-top: 2px solid var(--nkwapa-rule-strong);
+  padding-top: 20px;
+}
+
+.nkwapa-auth-aside {
+  min-width: 0;
+  display: grid;
+  gap: 24px;
+}
+
+.nkwapa-journey {
+  border-top: 2px solid var(--nkwapa-rule-strong);
+}
+
+.nkwapa-journey__title {
+  margin: 0;
+  padding: 16px 0 8px;
+  font-family: var(--nkwapa-font-body);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--nkwapa-text);
+}
+
+.nkwapa-journey__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nkwapa-journey__step,
+.nkwapa-journey__help {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--nkwapa-rule);
+}
+
+.nkwapa-journey__step:first-child {
+  border-top: 0;
+}
+
+.nkwapa-journey__help {
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nkwapa-journey__marker {
+  flex: 0 0 28px;
+  height: 28px;
+  margin-top: 1px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--nkwapa-border-strong);
+  color: var(--nkwapa-muted);
+}
+
+.nkwapa-journey__step--done .nkwapa-journey__marker {
+  border-color: transparent;
+  background: var(--nkwapa-success-soft);
+  color: var(--nkwapa-success-ink);
+}
+
+.nkwapa-journey__step--current .nkwapa-journey__marker {
+  border-color: transparent;
+  background: var(--nkwapa-primary);
+  color: var(--nkwapa-on-primary);
+}
+
+.nkwapa-journey__text {
+  min-width: 0;
+}
+
+.nkwapa-journey__label {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--nkwapa-text);
+}
+
+.nkwapa-journey__step--current .nkwapa-journey__label,
+.nkwapa-journey__help .nkwapa-journey__label {
+  font-weight: 600;
+}
+
+.nkwapa-journey__detail {
+  display: block;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--nkwapa-muted);
+}
+
+.nkwapa-journey__state {
+  font-weight: 500;
+}
+
+.nkwapa-journey__step--done .nkwapa-journey__state {
+  color: var(--nkwapa-success-ink);
+}
+
+.nkwapa-journey__step--current .nkwapa-journey__state {
+  color: var(--nkwapa-text);
+}
+
+.nkwapa-auth-photo {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: var(--nkwapa-radius-lg);
 }
 
 .nkwapa-alert {
@@ -630,57 +649,29 @@ body.nkwapa-auth-body {
 }
 
 /*
-  Breakpoints are the four the design system commits to (MASTER.md section 8), not the 1080 /
-  920 / 560 this file used to pick for itself. The card stacks below 1024 because the form column
-  has a 400px minimum: at 768 a side-by-side split would leave the showcase 328px wide.
+  Breakpoints are the ones the design system commits to (MASTER.md section 8). Below 1024 the
+  journey drops under the form, which is what the person came to fill in, and the photo goes.
 */
 @media (max-width: 1023px) {
-  body.nkwapa-auth-body {
-    overflow: auto;
-  }
-
   .nkwapa-auth-shell {
-    padding: 18px;
-    align-items: flex-start;
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 36rem;
+    padding: 32px 20px 48px;
+    gap: 40px;
   }
 
-  .nkwapa-auth-card {
-    max-height: none;
-    grid-template-columns: 1fr;
-  }
-
-  .nkwapa-auth-copy {
-    max-width: none;
-  }
-
-  .nkwapa-auth-headline {
-    margin-top: 16px;
-  }
-
-  .nkwapa-auth-feature-list {
+  .nkwapa-auth-photo {
     display: none;
-  }
-
-  .nkwapa-auth-photo-frame {
-    max-width: 360px;
-  }
-
-  .nkwapa-auth-panel__inner {
-    max-height: none;
-    overflow: visible;
   }
 }
 
 @media (max-width: 479px) {
-  .nkwapa-auth-shell {
-    padding: 0;
+  .nkwapa-auth-header__inner {
+    padding: 8px 16px;
   }
 
-  .nkwapa-auth-card {
-    min-height: 100dvh;
-    border-radius: 0;
-    border: 0;
-    box-shadow: none;
+  .nkwapa-auth-shell {
+    padding: 24px 16px 40px;
   }
 
   .nkwapa-form-options {

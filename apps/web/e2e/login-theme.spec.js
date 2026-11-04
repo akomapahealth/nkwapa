@@ -200,3 +200,24 @@ test('keyboard focus is visible and follows the reading order', async ({ page })
     [...tops].sort((a, b) => a - b),
   );
 });
+
+test('the sign-in page says where the person is in the journey', async ({ page }) => {
+  // #277: the same step list the app shows, so leaving Nkwapa for this server reads as one
+  // path. The current step is named in words, not only by its filled marker.
+  await gotoKeycloakLogin(page);
+  const current = page.locator('[aria-current="step"]');
+  await expect(current).toHaveCount(1);
+  await expect(current).toContainText(/enter your email and password/i);
+  await expect(current).toContainText(/you are here/i);
+});
+
+test('a broken account link says what happened and what to do next', async ({ page }) => {
+  // A made-up action token stands in for an expired or used invitation link; Keycloak refuses
+  // both on the same page. "We are sorry..." with no next step is what this replaced.
+  const keycloak = process.env.NEXT_PUBLIC_KEYCLOAK_URL || 'http://localhost:8080';
+  await page.goto(`${keycloak}/realms/nkwapa/login-actions/action-token?key=e2e-not-a-token`);
+  await expect(page.getByRole('heading', { name: 'This link needs attention' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'When a link stops working' })).toBeVisible();
+  await expect(page.getByText(/ask whoever sent it for a new one/i).first()).toBeVisible();
+  await expect(page.getByRole('link', { name: /back to sign in/i }).first()).toBeVisible();
+});

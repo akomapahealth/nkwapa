@@ -1,14 +1,14 @@
 <#import "template.ftl" as layout>
-<@layout.registrationLayout displayMessage=true; section>
+<@layout.registrationLayout displayMessage=true journey="help" eyebrow="Link problem"; section>
     <#if section = "header">
-        sign-in link needs attention
+        This link needs attention
     <#elseif section = "form">
         <#if skipLink??>
         <#else>
             <div class="nkwapa-action-stack">
                 <#if realm.resetPasswordAllowed && url.loginResetCredentialsUrl??>
                     <a class="nkwapa-btn-primary nkwapa-btn-primary--link" href="${url.loginResetCredentialsUrl}">
-                        Request a new reset link
+                        Email me a new password link
                     </a>
                 </#if>
                 <a class="nkwapa-secondary-link" href="${url.loginUrl}">

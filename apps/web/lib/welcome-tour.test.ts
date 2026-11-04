@@ -76,15 +76,45 @@ describe('welcomeTourAudience', () => {
 describe('welcomeTourSteps', () => {
   const ids = (steps: { id: string }[]) => steps.map((step) => step.id);
 
-  it('gives staff a start step, navigation, clinic, offline and help', () => {
+  it('gives staff a start step, their work, navigation and offline', () => {
+    expect(ids(welcomeTourSteps(bootstrap(), { stationWorkflow: true }))).toEqual([
+      'welcome',
+      'start',
+      'work',
+      'navigation',
+      'offline',
+    ]);
+  });
+
+  it('leaves out the work step when there is nothing to point at', () => {
     expect(ids(welcomeTourSteps(bootstrap(), { stationWorkflow: false }))).toEqual([
       'welcome',
       'start',
       'navigation',
-      'clinic',
       'offline',
-      'help',
     ]);
+  });
+
+  it('names the role and clinic in the welcome, keeping the title the dialog is named by', () => {
+    const [welcome] = welcomeTourSteps(bootstrap(), { stationWorkflow: false });
+    expect(welcome.title).toBe('Welcome to Nkwapa');
+    expect(welcome.body).toMatch(/Volunteer at Clinic One/);
+  });
+
+  it('lists only work this person can open, at most four', () => {
+    const work = (permissions: string[]) =>
+      welcomeTourSteps(bootstrap({ effectivePermissionsForActiveClinic: permissions }), {
+        stationWorkflow: true,
+      })
+        .find((step) => step.id === 'work')
+        ?.points?.map((point) => point.label);
+
+    expect(work(['ENCOUNTER.REVIEW'])).toEqual(['Review visits and co-sign notes']);
+    expect(work(['PATIENT.SEARCH', 'AUDIT.READ'])).toEqual([
+      'Find a patient',
+      'See who changed what',
+    ]);
+    expect(work(['*'])).toHaveLength(4);
   });
 
   it('points each person at a page they can actually open', () => {
@@ -106,7 +136,10 @@ describe('welcomeTourSteps', () => {
 
   it('mentions switching clinics only to someone who can', () => {
     const clinic = (b: WhoAmIResponse) =>
-      welcomeTourSteps(b, { stationWorkflow: false }).find((step) => step.id === 'clinic')?.body;
+      welcomeTourSteps(b, { stationWorkflow: false })
+        .find((step) => step.id === 'navigation')
+        ?.points?.map((point) => point.where)
+        .join(' ');
 
     expect(clinic(bootstrap())).not.toMatch(/switch/i);
     expect(

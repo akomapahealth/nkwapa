@@ -9,7 +9,7 @@ import { getPostAuthPath, getSafeNextPath, shouldAutoContinue } from '@/lib/auth
 import { useKeycloak } from '@/app/KeycloakProvider';
 import { PageSkeleton } from '@/components/feedback/AppState';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, ArrowRight, CheckCircle2, ShieldCheck, Wifi } from 'lucide-react';
+import { AlertTriangle, ArrowRight } from 'lucide-react';
 
 export default function LoginPage() {
   const searchParams = useSearchParams();
@@ -92,141 +92,158 @@ export default function LoginPage() {
 
   const destinationCopy = nextPath
     ? 'Continue where you left off after secure sign-in.'
-    : 'Open your Nkwapa clinic workspace after secure sign-in.';
+    : 'Open your Nkwapa clinic workspace or your patient record after secure sign-in.';
+
+  const nextSteps = [
+    {
+      title: 'A secure sign-in page opens',
+      detail: 'It is separate from this page, so your password never passes through it.',
+    },
+    {
+      title: 'Enter your email and password',
+      detail:
+        'The password you chose from your invitation email. Forgot it? Choose “Forgot password” there.',
+    },
+    {
+      title: nextPath ? 'You return to where you were' : 'Your work opens',
+      detail: nextPath
+        ? 'Nkwapa brings you back to the page you were on.'
+        : 'Staff land in their clinic workspace. Patients land on their own record.',
+    },
+  ];
 
   return (
-    <main className="min-h-dvh bg-clinical-grid px-4 py-5 sm:px-6 lg:flex lg:h-dvh lg:items-center lg:overflow-hidden lg:py-6">
-      <section className="mx-auto grid w-full max-w-6xl overflow-hidden rounded-xl border border-border bg-card shadow-sm lg:max-h-[calc(100dvh-3rem)] lg:grid-cols-[0.9fr_1.1fr]">
-        <aside className="relative hidden overflow-hidden bg-primary text-primary-foreground lg:block">
-          <div className="relative flex h-full min-h-[560px] flex-col justify-between gap-8 p-8 xl:p-10">
-            <div className="relative h-14 w-64">
+    <div className="flex min-h-dvh flex-col bg-background">
+      <header className="border-b border-rule">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-2 md:px-6">
+          <span className="flex items-center gap-2.5">
+            <span className="relative h-8 w-8">
               <Image
-                src="/images/nkwapa_logo-2.png"
-                alt="Nkwapa"
+                src="/images/nkwapa-mark.png"
+                alt=""
                 fill
                 priority
-                sizes="256px"
-                className="object-contain object-left"
+                sizes="32px"
+                className="object-contain"
               />
-            </div>
+            </span>
+            <span className="font-heading text-xl font-semibold tracking-tight text-foreground">
+              Nkwapa
+            </span>
+          </span>
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/">Back to home</Link>
+          </Button>
+        </div>
+      </header>
 
-            <div className="max-w-md space-y-5">
-              <p className="inline-flex items-center gap-2 rounded-full border border-primary-foreground/25 bg-primary-foreground/10 px-3 py-1 text-eyebrow text-primary-foreground/90">
-                <ShieldCheck className="h-3.5 w-3.5" />
-                Protected workspace
-              </p>
-              <div className="space-y-3">
-                <h1 className="font-heading text-4xl font-semibold leading-tight tracking-tight xl:text-5xl">
-                  Secure access for patient-safe clinic work.
-                </h1>
-                <p className="text-base leading-7 text-primary-foreground/85">
-                  Sign in once to reach clinic-scoped records, queues, follow-up, and dashboard
-                  context without exposing sensitive patient data on this page.
+      <main
+        id="main-content"
+        className="mx-auto grid w-full max-w-5xl flex-1 content-start gap-10 px-4 pb-12 pt-8 md:px-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-14 lg:pt-16"
+      >
+        <div className="min-w-0 max-w-xl space-y-6">
+          <div className="space-y-2">
+            <p className="text-eyebrow text-muted-foreground">Secure sign in</p>
+            <h1 className="type-page-title text-foreground">
+              {error
+                ? "We couldn't start secure sign-in"
+                : nextPath
+                  ? 'Sign in to continue'
+                  : 'Sign in to Nkwapa'}
+            </h1>
+            <p className="text-sm leading-6 text-muted-foreground md:text-base">
+              {error
+                ? 'The secure sign-in service did not respond. Your workspace data has not loaded, and you can retry without losing your place.'
+                : destinationCopy}
+            </p>
+          </div>
+
+          {error ? (
+            <div
+              role="alert"
+              className="flex gap-3 border-t-2 border-destructive pt-4 text-sm leading-6"
+            >
+              <AlertTriangle
+                className="mt-0.5 h-5 w-5 shrink-0 text-destructive-ink"
+                aria-hidden="true"
+              />
+              <div className="space-y-1">
+                <p className="font-semibold text-foreground">Secure sign-in is affected</p>
+                <p className="text-muted-foreground">
+                  {error} The public home page is still available, but clinic records stay protected
+                  until sign-in reconnects.
                 </p>
               </div>
             </div>
+          ) : null}
 
-            <div className="grid gap-3 text-sm text-primary-foreground/85">
-              {[
-                'Keycloak verifies your identity before records load.',
-                'Clinic permissions decide what you can view and update.',
-                'Offline sync keeps available tools clear when networks change.',
-              ].map((item) => (
-                <div
-                  key={item}
-                  className="flex items-start gap-3 rounded-lg bg-primary-foreground/10 p-3"
+          <Button onClick={login} size="lg" className="w-full px-6 sm:w-auto">
+            {error ? 'Try secure sign in again' : 'Continue to secure sign in'}
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Button>
+
+          <section aria-labelledby="login-next-title" className="border-t-2 border-rule-strong">
+            <h2 id="login-next-title" className="type-section-title pb-1 pt-4">
+              What happens next
+            </h2>
+            <ol>
+              {nextSteps.map((step, index) => (
+                <li
+                  key={step.title}
+                  className="flex gap-3 border-t border-rule py-3 first:border-t-0"
                 >
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-secondary" />
-                  <span className="leading-6">{item}</span>
-                </div>
+                  <span
+                    aria-hidden="true"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-input text-xs font-semibold tabular-nums text-muted-foreground"
+                  >
+                    {index + 1}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-foreground">{step.title}</span>
+                    <span className="block text-sm leading-6 text-muted-foreground">
+                      {step.detail}
+                    </span>
+                  </span>
+                </li>
               ))}
-            </div>
-          </div>
+            </ol>
+          </section>
+        </div>
+
+        <aside aria-labelledby="login-first-time-title" className="min-w-0">
+          <section className="border-t-2 border-rule-strong">
+            <h2 id="login-first-time-title" className="type-section-title pb-1 pt-4">
+              First time here?
+            </h2>
+            <p className="pb-3 text-sm leading-6 text-muted-foreground">
+              Nkwapa accounts start with an invitation. There is no sign-up form.
+            </p>
+            <dl className="text-sm leading-6">
+              <div className="border-t border-rule py-3">
+                <dt className="font-medium text-foreground">Joining a clinic team</dt>
+                <dd className="text-muted-foreground">
+                  Your clinic sends you an email. Open its link to choose a password, then accept
+                  the clinic and role.
+                </dd>
+              </div>
+              <div className="border-t border-rule py-3">
+                <dt className="font-medium text-foreground">Opening your patient record</dt>
+                <dd className="text-muted-foreground">
+                  Your clinic sends an email when you ask for portal access. Keep your clinic card
+                  nearby: you confirm its patient code once.
+                </dd>
+              </div>
+              <div className="border-t border-rule py-3">
+                <dt className="font-medium text-foreground">Link not working?</dt>
+                <dd className="text-muted-foreground">
+                  Invitation links expire after a few days. Ask whoever invited you to send a new
+                  one; the new email has a fresh link.
+                </dd>
+              </div>
+            </dl>
+          </section>
         </aside>
-
-        <section className="flex min-h-[100dvh] flex-col justify-center px-5 py-8 sm:px-8 lg:min-h-0 lg:px-12 lg:py-10">
-          <div className="mx-auto w-full max-w-md space-y-7">
-            <div className="space-y-5">
-              <div className="relative h-12 w-56 lg:hidden">
-                <Image
-                  src="/images/nkwapa_logo-2.png"
-                  alt="Nkwapa"
-                  fill
-                  priority
-                  sizes="224px"
-                  className="object-contain object-left"
-                />
-              </div>
-
-              <div className="space-y-3">
-                <p className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-eyebrow text-primary">
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  Secure sign in
-                </p>
-                <div className="space-y-2">
-                  <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-                    {error
-                      ? "We couldn't start secure sign-in"
-                      : nextPath
-                        ? 'Sign in to continue'
-                        : 'Sign in to Nkwapa'}
-                  </h1>
-                  <p className="text-sm leading-6 text-muted-foreground sm:text-base">
-                    {error
-                      ? 'The secure sign-in service did not respond. Your workspace data has not loaded, and you can retry without losing your place.'
-                      : destinationCopy}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {error ? (
-              <div
-                className="rounded-lg border border-destructive/25 bg-destructive/10 p-4"
-                role="alert"
-              >
-                <div className="flex gap-3">
-                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold text-foreground">
-                      Secure sign-in is affected
-                    </p>
-                    <p className="text-sm leading-6 text-muted-foreground">
-                      {error} The public home page is still available, but clinic records stay
-                      protected until sign-in reconnects.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
-            <div className="grid gap-3 rounded-lg border border-border bg-background p-4">
-              <div className="flex items-start gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Wifi className="h-4 w-4" />
-                </span>
-                <div>
-                  <p className="text-sm font-semibold text-foreground">What happens next</p>
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    Nkwapa sends you to secure sign-in, then returns you to the right clinic
-                    workspace after your session is verified.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Button onClick={login} className="h-12 flex-1 rounded-lg">
-                {error ? 'Try secure sign in again' : 'Continue to secure sign in'}
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-              <Button asChild variant="outline" className="h-12 rounded-lg">
-                <Link href="/">Back to home</Link>
-              </Button>
-            </div>
-          </div>
-        </section>
-      </section>
-    </main>
+      </main>
+    </div>
   );
 }
