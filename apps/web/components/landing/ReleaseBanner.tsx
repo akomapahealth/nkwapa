@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { ArrowRight, ArrowUpRight, X } from 'lucide-react';
 import {
   Dialog,
@@ -10,19 +10,22 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import type { Release } from '@/lib/release-notes';
+import type { Release, ReleaseGroup } from '@/lib/release-notes';
 import { cn } from '@/lib/utils';
 import { CONTACT_EMAIL, CONTACT_HREF } from './links';
 
 const DISMISSED_KEY = 'nkwapa.release-banner.dismissed';
 
-// Each kind of change keeps one colour, so a reader can scan for "Fixed" without reading.
-const TONES: Record<string, { mark: string; rule: string }> = {
-  New: { mark: 'bg-secondary', rule: 'border-secondary' },
-  Improved: { mark: 'bg-primary', rule: 'border-primary' },
-  Fixed: { mark: 'bg-foreground', rule: 'border-foreground/60' },
+// Each kind of change keeps one colour next to its name, so a reader can scan for "Fixed".
+const TONES: Record<string, string> = {
+  New: 'bg-secondary',
+  Improved: 'bg-primary',
+  Fixed: 'bg-foreground',
 };
 const DEFAULT_TONE = TONES.Improved;
+/** A release longer than this opens with each group cut to PREVIEW items and a "Show all" toggle. */
+const CAP_ABOVE = 8;
+const PREVIEW = 3;
 
 function formatDate(date: string) {
   return new Date(`${date}T00:00:00Z`).toLocaleDateString('en-GB', {
@@ -65,9 +68,6 @@ export function ReleaseBanner({ release }: { release: Release }) {
   const headline = release.groups[0]?.items[0]?.lead;
   const announcement = (
     <>
-      <span className="shrink-0 rounded-sm bg-secondary px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-secondary-foreground">
-        New
-      </span>
       <span className="min-w-0 truncate">
         <span data-release-version className="font-heading text-base font-semibold">
           Nkwapa {release.version}
@@ -132,110 +132,118 @@ function WhatsNew({ release, released }: { release: Release; released: string })
   const summary = release.groups
     .map((group) => `${group.items.length} ${group.heading.toLowerCase()}`)
     .join(', ');
-  let order = 0;
+  const capped = changes > CAP_ABOVE;
 
   return (
-    <DialogContent className="max-w-3xl gap-0 p-0 sm:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] sm:overflow-hidden">
-      {/* Over the teal panel on phones, over the notes beside it on wider screens. */}
-      <DialogClose
-        aria-label="Close"
-        className="absolute right-3 top-3 z-10 flex h-11 w-11 items-center justify-center rounded-md text-primary-foreground transition-[background-color,transform] duration-fast ease-out-strong hover:bg-primary-foreground/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.97] sm:text-foreground sm:hover:bg-accent"
-      >
-        <X className="h-4 w-4" aria-hidden />
-      </DialogClose>
-      <div className="relative flex flex-col justify-between gap-10 overflow-hidden bg-primary px-7 pb-8 pt-9 text-primary-foreground sm:px-9 sm:pb-10 sm:pt-11">
-        <DialogTitle className="font-heading font-semibold">
+    <DialogContent className="flex max-w-2xl flex-col gap-0 overflow-hidden p-0">
+      <header className="relative shrink-0 bg-primary px-6 pb-6 pt-7 text-primary-foreground sm:px-8">
+        <DialogTitle className="pr-12 font-heading font-semibold">
           <span className="block font-body text-sm font-semibold">What&apos;s new in Nkwapa</span>{' '}
-          <span className="mt-5 block overflow-hidden pb-2">
-            <span className="block text-[4.5rem] leading-[0.9] tracking-[-0.04em] motion-safe:animate-landing-rise sm:text-[6rem]">
-              {release.version}
-            </span>
+          <span className="mt-2 block text-5xl leading-none tracking-[-0.03em] sm:text-6xl">
+            {release.version}
           </span>
         </DialogTitle>
+        <DialogDescription className="mt-4 text-sm text-primary-foreground">
+          Released {released}
+          <span aria-hidden> · </span>
+          <span className="sr-only">, </span>
+          {changes} {changes === 1 ? 'change' : 'changes'}: {summary}
+        </DialogDescription>
+        <DialogClose
+          aria-label="Close"
+          className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-md transition-[background-color,transform] duration-fast ease-out-strong hover:bg-primary-foreground/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-foreground active:scale-[0.97]"
+        >
+          <X className="h-4 w-4" aria-hidden />
+        </DialogClose>
+      </header>
 
-        <div>
-          {/* The page's heartbeat motif: one pulse along the trace. */}
-          <svg
-            aria-hidden
-            viewBox="0 0 240 40"
-            preserveAspectRatio="none"
-            className="h-10 w-full fill-none stroke-current"
-            strokeWidth={1.5}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M0 22H104l6-14 8 28 7-24 5 10H240" className="opacity-30" />
-            <path
-              d="M0 22H104l6-14 8 28 7-24 5 10H240"
-              pathLength={100}
-              className="landing-scroll-pulse text-secondary"
-            />
-          </svg>
-          <DialogDescription className="mt-5 text-sm text-primary-foreground">
-            Released {released}
-            <span aria-hidden> · </span>
-            <span className="sr-only">, </span>
-            {changes} {changes === 1 ? 'change' : 'changes'} for clinic teams
-          </DialogDescription>
-          <p className="mt-1 text-sm text-primary-foreground">{summary}</p>
+      {/* The only part that scrolls, so the title and the way out stay put on a long release. */}
+      <div
+        tabIndex={0}
+        role="region"
+        aria-label="Changes in this release"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-8"
+      >
+        <div className="space-y-8">
+          {release.groups.map((group) => (
+            <ReleaseGroupList key={group.heading} group={group} capped={capped} />
+          ))}
         </div>
       </div>
 
-      <div className="px-7 pb-8 pt-9 sm:max-h-[calc(100dvh-2rem)] sm:overflow-y-auto sm:px-9 sm:pb-10 sm:pt-11">
-        <div className="space-y-9">
-          {release.groups.map((group) => {
-            const tone = TONES[group.heading] ?? DEFAULT_TONE;
-            return (
-              <section key={group.heading}>
-                <h3 className="flex items-center gap-3 font-heading text-xl font-semibold">
-                  <span aria-hidden className={cn('h-2.5 w-2.5 rounded-full', tone.mark)} />
-                  {group.heading}
-                  <span className="font-body text-sm font-medium text-muted-foreground">
-                    {group.items.length}
-                  </span>
-                </h3>
-                <ul className="mt-4 space-y-5">
-                  {group.items.map((item) => (
-                    <li
-                      key={item.lead}
-                      className={cn('border-l-2 pl-4 motion-safe:animate-landing-rise', tone.rule)}
-                      style={{ animationDelay: `${120 + order++ * 70}ms` }}
-                    >
-                      <p className="font-semibold leading-snug text-foreground">{item.lead}</p>
-                      {item.text && (
-                        <p className="mt-1.5 leading-relaxed text-muted-foreground">{item.text}</p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            );
-          })}
-        </div>
-
-        <p className="mt-10 border-t border-border pt-5 text-sm text-muted-foreground">
-          Questions about this release? Write to{' '}
+      <footer className="flex shrink-0 flex-col gap-x-6 gap-y-1 border-t border-border px-6 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-8">
+        <p>
+          Questions?{' '}
           <a
             href={CONTACT_HREF}
-            className="rounded-sm font-medium text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex min-h-11 items-center rounded-sm font-medium text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {CONTACT_EMAIL}
           </a>
-          .
         </p>
         {release.url && (
           <a
             href={release.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-3 inline-flex min-h-11 items-center gap-1 rounded-sm text-sm font-medium text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex min-h-11 items-center gap-1 rounded-sm font-medium text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            Technical release notes on GitHub
+            Technical notes on GitHub
             <ArrowUpRight aria-hidden className="h-3.5 w-3.5" />
             <span className="sr-only"> (opens in a new tab)</span>
           </a>
         )}
-      </div>
+      </footer>
     </DialogContent>
+  );
+}
+
+function ReleaseGroupList({ group, capped }: { group: ReleaseGroup; capped: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  const listId = useId();
+  const toggle = useRef<HTMLButtonElement>(null);
+  const hidden = capped ? group.items.length - PREVIEW : 0;
+  const items = hidden > 0 && !expanded ? group.items.slice(0, PREVIEW) : group.items;
+
+  return (
+    <section>
+      <h3 className="flex items-center gap-3 border-b-2 border-foreground pb-2 font-heading text-xl font-semibold">
+        <span
+          aria-hidden
+          className={cn('h-2.5 w-2.5 rounded-full', TONES[group.heading] ?? DEFAULT_TONE)}
+        />
+        {group.heading}
+        <span className="font-body text-sm font-medium tabular-nums text-muted-foreground">
+          {group.items.length}
+        </span>
+      </h3>
+      <ul id={listId} className="divide-y divide-border">
+        {items.map((item) => (
+          <li key={item.lead} className="py-3">
+            <p className="font-semibold leading-snug text-foreground">{item.lead}</p>
+            {item.text && <p className="mt-1 leading-relaxed text-muted-foreground">{item.text}</p>}
+          </li>
+        ))}
+      </ul>
+      {hidden > 0 && (
+        <button
+          ref={toggle}
+          type="button"
+          aria-expanded={expanded}
+          aria-controls={listId}
+          onClick={() => {
+            setExpanded(!expanded);
+            // Collapsing pulls the button up past where the reader was; keep it, and focus, in view.
+            if (expanded)
+              requestAnimationFrame(() => toggle.current?.scrollIntoView({ block: 'nearest' }));
+          }}
+          className="mt-1 inline-flex min-h-11 items-center rounded-sm text-sm font-semibold text-primary underline decoration-primary/40 underline-offset-4 transition-colors duration-fast hover:decoration-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {expanded
+            ? 'Show fewer'
+            : `Show all ${group.items.length} ${group.heading.toLowerCase()}`}
+        </button>
+      )}
+    </section>
   );
 }

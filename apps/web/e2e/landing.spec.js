@@ -40,7 +40,7 @@ test('says what Nkwapa is in a single h1', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('h1')).toHaveCount(1);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-    'Patient records and clinic workflows, in one place.',
+    'One record for every visit, even offline.',
   );
 });
 
@@ -134,9 +134,7 @@ test('status shows a neutral check, then gives up on a silent API after ten seco
   await expect(trigger).toContainText('API unreachable');
 });
 
-test('opens on a real clinic photograph, with the product beside it on wide screens', async ({
-  page,
-}) => {
+test('opens on a real clinic photograph, with nothing competing with it', async ({ page }) => {
   for (const viewport of [VIEWPORTS[2], VIEWPORTS[7]]) {
     await page.setViewportSize(viewport);
     await page.goto('/');
@@ -146,9 +144,10 @@ test('opens on a real clinic photograph, with the product beside it on wide scre
     // Eager and high priority: the LCP must not wait for a lazy-load observer or for hydration.
     await expect(photo).toHaveAttribute('fetchpriority', 'high');
   }
-  const phone = page.locator('#top img[src*="mobile.png"]');
-  await expect(phone).toBeVisible();
-  expect(await phone.evaluate((img) => img.complete && img.naturalWidth > 0)).toBe(true);
+  // #282: one picture in the hero; the product screens start in the sections below it.
+  await expect(page.locator('#top img')).toHaveCount(1);
+  // No photograph on the page carries a caption.
+  await expect(page.locator('main figcaption')).toHaveCount(0);
 });
 
 test('the about photograph ends at full width once scrolled in', async ({ page }) => {
@@ -191,14 +190,19 @@ test('the release banner names the latest version and stays dismissed', async ({
 });
 
 test("the release banner opens what's new and closes with Escape", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  await page
+  const trigger = page
     .getByRole('complementary', { name: 'Latest release' })
-    .getByRole('button', { name: /Nkwapa \d+\.\d+\.\d+ is out now/ })
-    .click();
+    .getByRole('button', { name: /Nkwapa \d+\.\d+\.\d+ is out now/ });
+  await trigger.focus();
+  await page.keyboard.press('Enter');
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('heading', { level: 2 })).toHaveText(/What's new in Nkwapa/);
   await expect(dialog.getByRole('heading', { level: 3 }).first()).toBeVisible();
+  // Only the list scrolls: the close button stays in view, and Tab reaches the change list.
+  await expect(dialog.getByRole('button', { name: 'Close' })).toBeInViewport();
+  await expect(dialog.getByRole('region', { name: 'Changes in this release' })).toBeVisible();
   // Let the entrance finish so axe measures settled colours; the heartbeat pulse loops forever.
   await dialog.evaluate((el) =>
     Promise.all(
@@ -215,6 +219,7 @@ test("the release banner opens what's new and closes with Escape", async ({ page
   expect(results.violations).toEqual([]);
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
 });
 
 test('mobile menu opens, navigates, and closes with Escape', async ({ page }) => {

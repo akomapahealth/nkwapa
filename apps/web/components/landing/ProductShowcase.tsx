@@ -16,25 +16,25 @@ import { SectionRule } from './SectionRule';
 const ANNOTATIONS = [
   {
     title: 'The clinic day, in order',
-    text: 'Today board, stations, queues, patients, appointments and registration sit together in the menu, in the order a clinic day runs.',
+    text: 'The menu runs in the order the day does.',
     left: '1.2%',
     top: '30%',
   },
   {
     title: 'Today at a glance',
-    text: "Patients, today's visits, drafts, and visits waiting for review or sign-off, for the clinic you are working in.",
+    text: "Today's visits, drafts, and what waits for review or sign-off.",
     left: '18.4%',
     top: '27.5%',
   },
   {
     title: 'Measurement coverage',
-    text: 'How many visits have vital signs, tobacco screening and counseling recorded, with averages across the clinic’s readings.',
+    text: 'Which visits have vital signs, tobacco screening and counseling recorded.',
     left: '18.4%',
     top: '46.5%',
   },
   {
     title: 'Sync status',
-    text: 'Shows whether work recorded offline has reached the server. Here, everything is synced.',
+    text: 'Whether work recorded offline has reached the server.',
     left: '89%',
     top: '6.5%',
   },
@@ -56,18 +56,17 @@ export function ProductShowcase() {
       className="dark bg-background py-20 text-foreground sm:py-28"
     >
       <div className="landing-container">
-        <SectionRule>Product</SectionRule>
+        <SectionRule />
         <div className="mt-8 grid gap-6 lg:grid-cols-12 lg:items-end" data-reveal>
           <h2
             id="product-title"
             data-split
             className="text-balance font-heading text-4xl font-semibold leading-[1.06] tracking-[-0.015em] sm:text-5xl lg:col-span-7 lg:text-6xl"
           >
-            See what a clinic day looks like in Nkwapa.
+            The clinic day, on one screen.
           </h2>
           <p className="text-lg leading-relaxed text-muted-foreground lg:col-span-5">
-            These are real screens from a clinic workspace: the dashboard a clinic director opens on
-            a laptop, and the same view on a phone.
+            Real screens from a clinic workspace, on a laptop and a phone.
           </p>
         </div>
 
@@ -105,7 +104,7 @@ export function ProductShowcase() {
             ))}
           </ol>
 
-          <figure
+          <div
             className="order-first flex flex-col items-center gap-6 lg:order-none lg:col-span-4 lg:col-start-9 lg:items-start"
             data-reveal
           >
@@ -114,10 +113,6 @@ export function ProductShowcase() {
               sizes="(min-width: 1024px) 260px, 64vw"
               className="w-[64%] max-w-[17rem]"
             />
-            <figcaption className="max-w-sm text-center text-sm leading-relaxed text-muted-foreground lg:text-left">
-              On a phone, the menu folds behind one button and the dashboard stacks into a single
-              column.
-            </figcaption>
             <Dialog>
               <DialogTrigger asChild>
                 <Button variant="outline" className="lg:hidden">
@@ -153,7 +148,7 @@ export function ProductShowcase() {
                 </div>
               </DialogContent>
             </Dialog>
-          </figure>
+          </div>
         </div>
       </div>
     </section>
