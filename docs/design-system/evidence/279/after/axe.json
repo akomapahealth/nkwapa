@@ -1,0 +1,306 @@
+[
+  {
+    "name": "privacy",
+    "width": 1440,
+    "theme": "light",
+    "height": 8104,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "footer",
+    "width": 1440,
+    "theme": "light",
+    "height": 8104,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "terms",
+    "width": 1440,
+    "theme": "light",
+    "height": 3834,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "cookies",
+    "width": 1440,
+    "theme": "light",
+    "height": 3434,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "privacy",
+    "width": 390,
+    "theme": "light",
+    "height": 13024,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "footer",
+    "width": 390,
+    "theme": "light",
+    "height": 13024,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "mobile-menu",
+    "width": 390,
+    "theme": "light",
+    "height": 13024,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "terms",
+    "width": 390,
+    "theme": "light",
+    "height": 6453,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "cookies",
+    "width": 390,
+    "theme": "light",
+    "height": 5854,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "privacy",
+    "width": 1440,
+    "theme": "dark",
+    "height": 8104,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "footer",
+    "width": 1440,
+    "theme": "dark",
+    "height": 8104,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "terms",
+    "width": 1440,
+    "theme": "dark",
+    "height": 3834,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "cookies",
+    "width": 1440,
+    "theme": "dark",
+    "height": 3434,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "privacy",
+    "width": 390,
+    "theme": "dark",
+    "height": 13024,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "footer",
+    "width": 390,
+    "theme": "dark",
+    "height": 13024,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "mobile-menu",
+    "width": 390,
+    "theme": "dark",
+    "height": 13024,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "terms",
+    "width": 390,
+    "theme": "dark",
+    "height": 6453,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "cookies",
+    "width": 390,
+    "theme": "dark",
+    "height": 5854,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "status",
+    "width": 1440,
+    "theme": "light",
+    "height": 1858,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "research",
+    "width": 1440,
+    "theme": "light",
+    "height": 2254,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "volunteers",
+    "width": 1440,
+    "theme": "light",
+    "height": 960,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "screening-days",
+    "width": 1440,
+    "theme": "light",
+    "height": 960,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "screening-day",
+    "width": 1440,
+    "theme": "light",
+    "height": 960,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "status",
+    "width": 390,
+    "theme": "light",
+    "height": 1918,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "research",
+    "width": 390,
+    "theme": "light",
+    "height": 3648,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "volunteers",
+    "width": 390,
+    "theme": "light",
+    "height": 844,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "screening-days",
+    "width": 390,
+    "theme": "light",
+    "height": 844,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "screening-day",
+    "width": 390,
+    "theme": "light",
+    "height": 928,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "status",
+    "width": 1440,
+    "theme": "dark",
+    "height": 1858,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "research",
+    "width": 1440,
+    "theme": "dark",
+    "height": 2254,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "volunteers",
+    "width": 1440,
+    "theme": "dark",
+    "height": 960,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "screening-days",
+    "width": 1440,
+    "theme": "dark",
+    "height": 960,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "screening-day",
+    "width": 1440,
+    "theme": "dark",
+    "height": 960,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "status",
+    "width": 390,
+    "theme": "dark",
+    "height": 1918,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "research",
+    "width": 390,
+    "theme": "dark",
+    "height": 3648,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "volunteers",
+    "width": 390,
+    "theme": "dark",
+    "height": 844,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "screening-days",
+    "width": 390,
+    "theme": "dark",
+    "height": 844,
+    "overflow": 0,
+    "violations": []
+  },
+  {
+    "name": "screening-day",
+    "width": 390,
+    "theme": "dark",
+    "height": 928,
+    "overflow": 0,
+    "violations": []
+  }
+]
