@@ -5,11 +5,11 @@ import { SectionRule } from './SectionRule';
 const SUPPORTING = [
   {
     title: 'Hypertension and diabetes, step by step.',
-    text: 'Guided interviews classify blood pressure against agreed thresholds, record glucose and HbA1c, and end in a care plan with counseling, medication and a follow-up date. Medication histories are reconciled visit to visit.',
+    text: 'Guided interviews end in a care plan with counseling, medication and a follow-up date.',
   },
   {
     title: 'Several clinics, one organization.',
-    text: "Each clinic's patients are kept separate, and a person can hold different roles at different clinics. Organization-wide reports and cohort analytics bring the numbers together for administrators.",
+    text: 'A person can hold different roles at different clinics, and organization reports bring the numbers together.',
   },
 ];
 
@@ -17,19 +17,19 @@ export function CapabilitiesSection() {
   return (
     <section aria-labelledby="capabilities-title" className="bg-accent py-20 sm:py-28">
       <div className="landing-container">
-        <SectionRule>Built for clinic conditions</SectionRule>
+        <SectionRule />
         <h2
           id="capabilities-title"
           data-split
           className="mt-8 max-w-3xl text-balance font-heading text-4xl font-semibold leading-[1.08] tracking-[-0.015em] sm:text-5xl"
           data-reveal
         >
-          Made for the conditions clinics actually work in.
+          Built for clinic conditions.
         </h2>
 
         <div className="mt-12 grid gap-12 lg:mt-16 lg:grid-cols-12 lg:gap-10">
           <article className="lg:col-span-7" data-reveal>
-            <figure>
+            <div>
               <div data-reveal-image className="overflow-hidden">
                 <Image
                   src="/images/Akomapa-19.jpg"
@@ -42,18 +42,13 @@ export function CapabilitiesSection() {
                   className="aspect-[16/9] w-full object-cover"
                 />
               </div>
-              <figcaption className="mt-3 text-sm text-muted-foreground">
-                A blood pressure check at a folding table during a community screening.
-              </figcaption>
-            </figure>
+            </div>
             <h3 className="mt-8 border-t-2 border-foreground pt-6 font-heading text-3xl font-semibold leading-tight sm:text-4xl">
               Keeps working when the internet doesn&apos;t.
             </h3>
             <p className="mt-4 text-lg leading-relaxed text-foreground/80">
-              Registration, visits, vital signs, consent and prescriptions are saved on the device
-              first and sent to the server when the connection returns. If two people change the
-              same record while offline, the conflict is set aside for someone to resolve instead of
-              one change silently replacing the other.
+              Registration, visits, vital signs, consent and prescriptions save on the device and
+              send when the connection returns. Conflicting edits wait for a person to resolve.
             </p>
             <p className="mt-4 text-sm text-muted-foreground">
               Assigning staff and moving patients between stations still need a connection.

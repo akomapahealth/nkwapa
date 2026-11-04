@@ -10,18 +10,17 @@ export function LandingCTA() {
       className="bg-primary py-20 text-primary-foreground sm:py-28 lg:py-36"
     >
       <div className="landing-container grid gap-10 lg:grid-cols-12 lg:items-end" data-reveal>
-        <SectionRule className="border-primary-foreground lg:col-span-12">Contact</SectionRule>
+        <SectionRule className="border-primary-foreground lg:col-span-12" />
         <h2
           id="cta-title"
           data-split
           className="text-balance font-heading text-[2.5rem] font-semibold leading-[1.02] tracking-[-0.02em] sm:text-6xl lg:col-span-8 lg:text-7xl"
         >
-          Better care starts with better-organized information.
+          See whether Nkwapa fits your clinic.
         </h2>
         <div className="lg:col-span-4">
           <p className="text-lg leading-relaxed text-primary-foreground/90">
-            If you run a clinic or a screening program and want to know whether Nkwapa fits how your
-            team works, write to us at{' '}
+            Write to us at{' '}
             <a
               href={CONTACT_HREF}
               data-cta="contact"

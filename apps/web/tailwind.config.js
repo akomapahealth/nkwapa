@@ -51,10 +51,6 @@ module.exports = {
           '0%': { opacity: '0', transform: 'translateY(14px)' },
           '100%': { opacity: '1', transform: 'none' },
         },
-        'landing-settle': {
-          '0%': { transform: 'translateY(28px) scale(0.985)' },
-          '100%': { transform: 'none' },
-        },
         // The indeterminate refresh bar. Travels rather than pulsing, so it reads as "still
         // working" rather than as something blinking for attention.
         // A page arriving. Opacity only: a rise would move content that layout checks measure,
@@ -71,7 +67,6 @@ module.exports = {
       animation: {
         // `backwards`, not `both`: once finished the animation releases transform for GSAP's scroll drift.
         'landing-rise': 'landing-rise 0.7s var(--ease-out) backwards',
-        'landing-settle': 'landing-settle 0.9s var(--ease-out) backwards',
         'refresh-sweep': 'refresh-sweep 1.1s ease-in-out infinite',
         'page-in': 'page-in var(--duration-fast) var(--ease-out) both',
       },

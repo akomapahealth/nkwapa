@@ -3,12 +3,12 @@ import { LANDING_BLUR } from '@/lib/landing-blur';
 import { ArrowUpRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AKOMAPA_HREF, CONTACT_HREF } from './links';
-import { PhoneFrame } from './ProductFrames';
 
 /**
  * A clinic photograph fills the first screen; the copy sits on a dark scrim at its foot, so the hero
  * reads the same in light and dark. The photograph is the LCP: it is preloaded, visible from the first
- * frame, and moves only by transform (LandingMotion drifts it on scroll, wide screens only).
+ * frame, and moves only by transform (LandingMotion drifts it on scroll, wide screens only). It is the
+ * hero's only picture (#282): the product screens start in the next sections.
  */
 export function HeroSection() {
   return (
@@ -40,21 +40,19 @@ export function HeroSection() {
         />
       </div>
 
-      <div className="landing-container grid gap-10 pb-10 pt-2 sm:pt-6 lg:grid-cols-12 lg:items-end lg:pb-14 lg:pt-56">
-        <div className="lg:col-span-8">
-          <p className="border-t-2 border-white pt-4 text-sm font-semibold motion-safe:animate-landing-rise">
-            Electronic medical records for hypertension and diabetes care
-          </p>
+      <div className="landing-container pb-10 pt-2 sm:pt-6 lg:pb-14 lg:pt-56">
+        <div className="max-w-4xl">
+          {/* The page's one bright accent: the logo gold, on the hero's dark ground only (#282). */}
+          <div aria-hidden className="h-0.5 w-16 bg-secondary motion-safe:animate-landing-rise" />
           <h1
             id="hero-title"
             className="mt-6 text-balance font-heading text-[2.6rem] font-semibold leading-[1.02] tracking-[-0.02em] motion-safe:animate-landing-rise [animation-delay:60ms] sm:text-6xl lg:text-[4.4rem] xl:text-[5rem]"
           >
-            Patient records and clinic workflows, in one place.
+            One record for every visit, even offline.
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-relaxed text-white/90 motion-safe:animate-landing-rise [animation-delay:120ms] sm:text-xl">
-            Nkwapa connects registration, vital signs, clinical visits, doctor review and follow-up,
-            so everyone on a care team can see what happened and what comes next, even when the
-            clinic&apos;s internet drops.
+            An electronic medical record for hypertension and diabetes care, from registration to
+            doctor review and follow-up.
           </p>
           <div className="mt-9 flex flex-col gap-3 motion-safe:animate-landing-rise [animation-delay:180ms] sm:flex-row">
             <Button
@@ -80,21 +78,11 @@ export function HeroSection() {
             </Button>
           </div>
         </div>
-
-        <figure
-          data-hero-phone
-          className="hidden motion-safe:animate-landing-settle [animation-delay:200ms] lg:col-span-3 lg:col-start-10 lg:block"
-        >
-          <PhoneFrame sizes="240px" className="border-white/25" />
-          <figcaption className="mt-3 text-sm text-white/85">
-            The clinic dashboard, on a phone.
-          </figcaption>
-        </figure>
       </div>
 
       <div className="border-t border-white/25">
         <div className="landing-container flex min-h-14 flex-wrap items-center justify-between gap-x-6 gap-y-2 py-3 text-sm text-white/85">
-          <p>Developed in support of Akomapa&apos;s community clinics in Ghana.</p>
+          <p>Built with Akomapa&apos;s community clinics in Ghana.</p>
           <a
             href="#problem"
             data-scroll-cue

@@ -8,26 +8,26 @@ import { SectionRule } from './SectionRule';
 const DECK = [
   {
     role: 'Volunteers',
-    text: "Register patients, check them in, and record measurements at the station they're working. They see the parts of a chart their role needs.",
+    text: 'Register, check in and measure at their station.',
   },
   {
     role: 'Doctors',
-    text: "Open the visits waiting for review with the patient's earlier visits and vital-sign history alongside, write the plan and prescriptions, then sign the visit off.",
+    text: "Review visits with the patient's history alongside, then sign them off.",
   },
   {
     role: 'Clinic managers',
-    text: 'Run the day: start shifts, assign volunteers and doctors to patients, set up stations and their capacity, and keep an eye on wait times.',
+    text: 'Run the day: shifts, assignments, stations and wait times.',
   },
 ];
 
 const OTHER_ROLES = [
   {
     role: 'Directors',
-    text: 'Invite staff and decide who holds which role at each clinic, review the audit trail, and set up de-identified research exports.',
+    text: 'Manage who holds which role, review the audit trail and set up research exports.',
   },
   {
     role: 'Patients',
-    text: 'Can claim their own record to log blood pressure, glucose and weight at home, follow their trends, and request or change appointments.',
+    text: 'Log readings at home, follow their trends and manage appointments.',
   },
 ];
 
@@ -44,7 +44,7 @@ export function CareTeamSection() {
       className="overflow-hidden bg-background py-20 sm:py-28 lg:py-32"
     >
       <div className="landing-container">
-        <SectionRule>Who it&apos;s for</SectionRule>
+        <SectionRule />
         <div className="mt-8 grid gap-6 lg:grid-cols-12 lg:items-end" data-reveal>
           <div className="lg:col-span-7">
             <h2
@@ -52,12 +52,11 @@ export function CareTeamSection() {
               data-split
               className="text-balance font-heading text-4xl font-semibold leading-[1.08] tracking-[-0.015em] sm:text-5xl"
             >
-              Built around the people providing care.
+              Built for the whole care team.
             </h2>
           </div>
           <p className="text-lg leading-relaxed text-muted-foreground lg:col-span-5">
-            Each person signs in to the tools their job needs, at the clinics where they hold a
-            role.
+            Each person sees the tools their role needs, at the clinics where they hold it.
           </p>
         </div>
 
@@ -97,7 +96,7 @@ export function CareTeamSection() {
         </div>
 
         <div className="mt-20 grid gap-12 lg:mt-28 lg:grid-cols-12 lg:gap-16">
-          <figure className="lg:col-span-5">
+          <div className="lg:col-span-5">
             <div data-reveal-image className="overflow-hidden">
               <Image
                 src="/images/Akomapa-34.jpg"
@@ -110,10 +109,7 @@ export function CareTeamSection() {
                 className="aspect-[5/4] w-full object-cover"
               />
             </div>
-            <figcaption className="mt-3 text-sm text-muted-foreground">
-              An eye screening station run by volunteers.
-            </figcaption>
-          </figure>
+          </div>
           <ul className="border-t-2 border-foreground lg:col-span-7 lg:self-center" data-reveal>
             {OTHER_ROLES.map((item) => (
               <li

@@ -972,6 +972,37 @@ permission, route guard, feature flag or analytics consent.
 
 [Before/after evidence, the 17-item audit and verification](evidence/280/README.md).
 
+### Phase 09 QA and landing restraint (#282)
+
+UX-22 is the route-wide QA pass, plus an owner-requested restraint pass on the landing page and
+the What's New dialog. Same section order, motion, photographs and blur placeholders as #278 and
+#280; no API, permission, guard, flag, consent or clinical change.
+
+- **No eyebrows on the landing page.** `SectionRule` is now the bare 2px ink rule with no label
+  (`aria-hidden`); the hero's kicker line and the release banner's uppercase "New" chip are gone.
+  Section names live in the navigation and the headings. `.text-eyebrow` stays a workspace utility
+  (section 6); do not bring it back to public pages.
+- **Copy rules for public pages.** A headline under ten words, one supporting sentence, short
+  section heads, and no list that repeats another section (the problem list and the "each role
+  sees what it needs" safeguard were cut for that reason). Every claim is one the product makes
+  today: no counts, quotes, logos or outcomes. The page went from 1,151 to 540 words.
+- **One picture per hero, no captions.** The phone was removed from the hero so Akomapa-17 is the
+  only image there and still the LCP; the product screens start in the next sections. No
+  photograph or screenshot on the page has a caption; alt text carries the description.
+- **The accent.** The logo gold (`--secondary`, exact brand value, section 2) as a 64 × 2px rule
+  above the hero headline. It sits only on the hero's fixed dark ground, where it measures 12.2:1
+  (light theme value) and 10.5:1 with the dark-theme gold. It is brand, not status: the
+  warning tokens are a different hue (section 3), and the gold already marks the primary CTA. Use
+  it once per screen at most; it is not a fill for text.
+- **What's New copes with a long release.** A compact title band (version, date, counts per
+  group), one scrolling region named "Changes in this release", and a fixed footer with the
+  contact and GitHub links, so the title and Close stay in view. A release of more than 8 changes
+  opens with 3 per group and a `Show all N <group>` toggle (`aria-expanded`, `aria-controls`);
+  collapsing scrolls the toggle back into view. The per-item stagger is gone (39 items took 2.8s
+  to arrive). The data still comes from `lib/release-notes.ts` unchanged.
+
+[Before/after evidence, the route audit and verification](evidence/282/README.md).
+
 ### The combobox, and when it is not the answer
 
 `Select` is still the default. `Combobox` exists for one case: a list long enough that scrolling

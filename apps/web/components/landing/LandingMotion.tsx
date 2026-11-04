@@ -286,15 +286,6 @@ export function LandingMotion({ children }: { children: React.ReactNode }) {
             scrollTrigger: { start: 0, end: 160, scrub: true },
           });
 
-          const phone = root.querySelector('[data-hero-phone]');
-          if (phone) {
-            gsap.to(phone, {
-              yPercent: -10,
-              ease: 'none',
-              scrollTrigger: { trigger: phone, start: 'top 70%', end: 'bottom top', scrub: true },
-            });
-          }
-
           const showcase = root.querySelector('[data-showcase]');
           if (showcase) {
             gsap.from(showcase.firstElementChild, {
