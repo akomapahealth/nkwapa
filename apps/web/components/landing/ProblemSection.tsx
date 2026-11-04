@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import { SectionRule } from './SectionRule';
 
 const PROBLEMS = [
   {
@@ -27,10 +28,11 @@ export function ProblemSection() {
       className="bg-background py-20 sm:py-28 lg:py-32"
     >
       <div className="landing-container grid gap-x-16 gap-y-12 lg:grid-cols-12">
+        <SectionRule className="lg:col-span-12">Before Nkwapa</SectionRule>
         <div className="lg:col-span-7" data-reveal>
           <h2
             id="problem-title"
-            data-scrub-words
+            data-split
             className="text-balance font-heading text-4xl font-semibold leading-[1.08] tracking-[-0.015em] sm:text-5xl lg:text-[3.4rem]"
           >
             A patient visit shouldn&apos;t mean searching through disconnected records.
@@ -44,7 +46,7 @@ export function ProblemSection() {
         </div>
 
         <figure className="lg:col-span-5 lg:row-span-2">
-          <div data-reveal-image className="overflow-hidden rounded-xl">
+          <div data-reveal-image className="overflow-hidden">
             <Image
               src="/images/Akomapa-14.jpg"
               alt="A volunteer in a white coat writes on a paper form while a patient leans in beside him at a screening."
@@ -59,7 +61,7 @@ export function ProblemSection() {
           </figcaption>
         </figure>
 
-        <ul className="border-t border-border lg:col-span-7" data-reveal>
+        <ul className="border-t-2 border-foreground lg:col-span-7" data-reveal>
           {PROBLEMS.map((item) => (
             <li
               key={item.lead}

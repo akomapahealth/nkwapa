@@ -1,0 +1,70 @@
+[
+  {
+    "name": "landing",
+    "width": 1440,
+    "theme": "light",
+    "height": 14901,
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 11
+      }
+    ]
+  },
+  {
+    "name": "landing",
+    "width": 390,
+    "theme": "light",
+    "height": 16585,
+    "violations": [],
+    "incomplete": []
+  },
+  {
+    "name": "landing-reduced-motion",
+    "width": 1440,
+    "theme": "light",
+    "height": 14281,
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 7
+      }
+    ]
+  },
+  {
+    "name": "landing",
+    "width": 1440,
+    "theme": "dark",
+    "height": 14899,
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 11
+      }
+    ]
+  },
+  {
+    "name": "landing",
+    "width": 390,
+    "theme": "dark",
+    "height": 16585,
+    "violations": [],
+    "incomplete": []
+  },
+  {
+    "name": "landing-reduced-motion",
+    "width": 1440,
+    "theme": "dark",
+    "height": 14281,
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 7
+      }
+    ]
+  }
+]

@@ -1,0 +1,134 @@
+[
+  {
+    "name": "landing",
+    "width": 1440,
+    "theme": "light",
+    "height": 13754,
+    "violations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "nodes": 8,
+        "targets": [
+          "#problem-title > div[aria-hidden=\"true\"]:nth-child(2)",
+          "#problem-title > div[aria-hidden=\"true\"]:nth-child(3)",
+          "div[aria-hidden=\"true\"]:nth-child(4)",
+          "div[aria-hidden=\"true\"]:nth-child(5)",
+          "div[aria-hidden=\"true\"]:nth-child(6)",
+          "div[aria-hidden=\"true\"]:nth-child(7)",
+          "div[aria-hidden=\"true\"]:nth-child(8)",
+          "div[aria-hidden=\"true\"]:nth-child(9)"
+        ]
+      }
+    ],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 4
+      }
+    ]
+  },
+  {
+    "name": "landing",
+    "width": 390,
+    "theme": "light",
+    "height": 15980,
+    "violations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "nodes": 8,
+        "targets": [
+          "#problem-title > div[aria-hidden=\"true\"]:nth-child(2)",
+          "#problem-title > div[aria-hidden=\"true\"]:nth-child(3)",
+          "#problem-title > div[aria-hidden=\"true\"]:nth-child(4)",
+          "div[aria-hidden=\"true\"]:nth-child(5)",
+          "div[aria-hidden=\"true\"]:nth-child(6)",
+          "div[aria-hidden=\"true\"]:nth-child(7)",
+          "div[aria-hidden=\"true\"]:nth-child(8)",
+          "div[aria-hidden=\"true\"]:nth-child(9)"
+        ]
+      }
+    ],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ]
+  },
+  {
+    "name": "landing-reduced-motion",
+    "width": 1440,
+    "theme": "light",
+    "height": 13135,
+    "violations": [],
+    "incomplete": []
+  },
+  {
+    "name": "landing",
+    "width": 1440,
+    "theme": "dark",
+    "height": 13753,
+    "violations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "nodes": 8,
+        "targets": [
+          "#problem-title > div[aria-hidden=\"true\"]:nth-child(2)",
+          "#problem-title > div[aria-hidden=\"true\"]:nth-child(3)",
+          "div[aria-hidden=\"true\"]:nth-child(4)",
+          "div[aria-hidden=\"true\"]:nth-child(5)",
+          "div[aria-hidden=\"true\"]:nth-child(6)",
+          "div[aria-hidden=\"true\"]:nth-child(7)",
+          "div[aria-hidden=\"true\"]:nth-child(8)",
+          "div[aria-hidden=\"true\"]:nth-child(9)"
+        ]
+      }
+    ],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 4
+      }
+    ]
+  },
+  {
+    "name": "landing",
+    "width": 390,
+    "theme": "dark",
+    "height": 15980,
+    "violations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "nodes": 8,
+        "targets": [
+          "#problem-title > div[aria-hidden=\"true\"]:nth-child(2)",
+          "#problem-title > div[aria-hidden=\"true\"]:nth-child(3)",
+          "#problem-title > div[aria-hidden=\"true\"]:nth-child(4)",
+          "div[aria-hidden=\"true\"]:nth-child(5)",
+          "div[aria-hidden=\"true\"]:nth-child(6)",
+          "div[aria-hidden=\"true\"]:nth-child(7)",
+          "div[aria-hidden=\"true\"]:nth-child(8)",
+          "div[aria-hidden=\"true\"]:nth-child(9)"
+        ]
+      }
+    ],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "nodes": 1
+      }
+    ]
+  },
+  {
+    "name": "landing-reduced-motion",
+    "width": 1440,
+    "theme": "dark",
+    "height": 13135,
+    "violations": [],
+    "incomplete": []
+  }
+]

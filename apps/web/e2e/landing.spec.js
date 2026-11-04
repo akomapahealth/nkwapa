@@ -134,15 +134,32 @@ test('status shows a neutral check, then gives up on a silent API after ten seco
   await expect(trigger).toContainText('API unreachable');
 });
 
-test('shows the real product screenshots above the fold', async ({ page }) => {
+test('opens on a real clinic photograph, with the product beside it on wide screens', async ({
+  page,
+}) => {
   for (const viewport of [VIEWPORTS[2], VIEWPORTS[7]]) {
     await page.setViewportSize(viewport);
     await page.goto('/');
-    const phone = page.locator('#top img[src*="mobile.png"]');
-    await expect(phone).toBeVisible();
-    expect(await phone.evaluate((img) => img.complete && img.naturalWidth > 0)).toBe(true);
+    const photo = page.locator('#top img[src*="Akomapa-17"]');
+    await expect(photo).toBeInViewport();
+    expect(await photo.evaluate((img) => img.complete && img.naturalWidth > 0)).toBe(true);
+    // Eager and high priority: the LCP must not wait for a lazy-load observer or for hydration.
+    await expect(photo).toHaveAttribute('fetchpriority', 'high');
   }
-  await expect(page.locator('#top img[src*="desktop.png"]')).toBeVisible();
+  const phone = page.locator('#top img[src*="mobile.png"]');
+  await expect(phone).toBeVisible();
+  expect(await phone.evaluate((img) => img.complete && img.naturalWidth > 0)).toBe(true);
+});
+
+test('the about photograph ends at full width once scrolled in', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await scrollThrough(page);
+  const photo = page.locator('[data-expand]');
+  await photo.evaluate((el) => el.scrollIntoView({ block: 'start', behavior: 'instant' }));
+  await page.waitForTimeout(1200);
+  // Every inset back to zero (or no clip at all): no digit other than 0 left in the value.
+  expect(await photo.evaluate((el) => getComputedStyle(el).clipPath)).toMatch(/^[^1-9]*$/);
 });
 
 test('every link goes somewhere real', async ({ page }) => {
@@ -259,6 +276,41 @@ test('the clinic day and role deck pin on wide screens and end on their last ste
   await expect(page.locator('[data-deck-text]').last()).toBeVisible();
 });
 
+test('smooth scrolling leaves the keyboard, find-in-page targets and dialogs native', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await expect(page.locator('html')).toHaveClass(/\blenis\b/);
+
+  // Keyboard scrolling is the browser's own, not intercepted.
+  await page.locator('body').click({ position: { x: 5, y: 300 } });
+  await page.keyboard.press('End');
+  await expect
+    .poll(() => page.evaluate(() => scrollY + innerHeight >= document.body.scrollHeight - 2))
+    .toBe(true);
+
+  // An element scrolled into view natively stays put rather than being dragged back.
+  await page.evaluate(() =>
+    document.getElementById('about').scrollIntoView({ behavior: 'instant' }),
+  );
+  await page.waitForTimeout(500);
+  await expect(page.locator('#about')).toBeInViewport();
+
+  // The wheel does not move the page behind an open dialog.
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+  await page
+    .getByRole('complementary', { name: 'Latest release' })
+    .getByRole('button', { name: /Nkwapa \d+\.\d+\.\d+ is out now/ })
+    .click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  const before = await page.evaluate(() => scrollY);
+  await page.mouse.move(40, 450);
+  await page.mouse.wheel(0, 800);
+  await page.waitForTimeout(600);
+  expect(await page.evaluate(() => scrollY)).toBe(before);
+});
+
 test.describe('with reduced motion', () => {
   test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
@@ -277,6 +329,7 @@ test.describe('with reduced motion', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
     await expect(page.locator('[data-journey-pinned]')).toHaveCount(0);
+    await expect(page.locator('html')).not.toHaveClass(/\blenis\b/);
     const steps = page.locator('[data-journey-step]');
     await expect(steps).toHaveCount(5);
     for (const step of await steps.all()) {

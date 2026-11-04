@@ -1,3 +1,5 @@
+import { SectionRule } from './SectionRule';
+
 const SAFEGUARDS = [
   {
     lead: 'Each person sees what their role needs.',
@@ -28,6 +30,7 @@ export function TrustSection() {
       className="border-t border-border bg-card py-20 sm:py-28"
     >
       <div className="landing-container grid gap-12 lg:grid-cols-12 lg:gap-10">
+        <SectionRule className="lg:col-span-12">Safeguards</SectionRule>
         <div className="lg:col-span-4" data-reveal>
           <h2
             id="safeguards-title"
