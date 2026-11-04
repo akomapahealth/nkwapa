@@ -377,7 +377,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
         {canEditSettings ? (
           <Link
             href="/settings/clinic"
-            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+            className="inline-flex min-h-11 items-center rounded-sm text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             Clinic research settings
           </Link>
@@ -439,7 +439,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
           description="Choose the date range, then submit the pack for approval or processing."
           hint="The exported format is a fixed v1 ZIP bundle of CSV tables plus manifest files."
         >
-          <div className="rounded-lg border border-border/70 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+          <div className="border-b border-rule pb-4 text-sm text-muted-foreground">
             Export format: fixed v1 ZIP pack of CSV tables plus manifest files.
           </div>
 
@@ -504,7 +504,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
               </Button>
             </div>
 
-            <div className="rounded-lg border border-border/70 bg-muted/40 p-4">
+            <div className="border-t border-rule pt-4">
               <p className="text-sm font-medium text-foreground">Destination</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 The research storage this server is configured with. Completed runs show where they
@@ -753,7 +753,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                           ) : null}
                         </div>
 
-                        <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4 text-sm">
+                        <div className="space-y-3 border-t border-rule pt-4 text-sm lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
                           <div>
                             <p className="font-medium text-foreground">Artifact</p>
                             <p className="text-muted-foreground">
@@ -778,7 +778,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                                     href={item.storageUrl}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="mt-1 inline-block text-primary underline-offset-4 hover:underline"
+                                    className="mt-1 inline-flex min-h-11 items-center rounded-sm text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                   >
                                     {item.storageProvider === 'GITHUB' ? 'Open commit' : 'Open'}
                                   </a>

@@ -19,8 +19,7 @@ const LEGAL_PAGES = [
 
 /**
  * Shared layout for /privacy and /terms: the landing chrome, an editorial title band, a numbered
- * contents list that follows the reader, and the text. Section numbers come from CSS counters
- * (globals.css), so the pages only supply plain sections.
+ * contents list that follows the reader, and unchanged legal text.
  */
 export function LegalPage({
   path,
@@ -44,37 +43,36 @@ export function LegalPage({
         Skip to content
       </a>
       <LandingHeader base="/" />
-      {/* Reading progress, driven by the scroll position in CSS; absent where unsupported. */}
-      <div aria-hidden className="legal-progress sticky top-16 z-30 h-0.5 bg-primary" />
       <main id="main">
-        <div className="border-b border-border bg-accent">
-          <div className="landing-container grid gap-10 pb-14 pt-10 sm:pb-20 sm:pt-14 lg:grid-cols-12">
-            <div className="lg:col-span-8">
-              <nav aria-label="Legal pages" className="flex flex-wrap gap-2">
+        <div className="border-b border-rule">
+          <div className="landing-container grid gap-8 pb-10 pt-6 sm:pb-12 sm:pt-8 lg:grid-cols-12">
+            <div className="lg:col-span-9">
+              <nav
+                aria-label="Legal pages"
+                className="flex flex-wrap gap-x-5 gap-y-1 border-b border-rule"
+              >
                 {LEGAL_PAGES.map((page) => (
                   <a
                     key={page.href}
                     href={page.href}
                     aria-current={page.href === path ? 'page' : undefined}
                     className={cn(
-                      'inline-flex min-h-11 items-center rounded-full border px-4 text-sm font-semibold transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                      'inline-flex min-h-11 items-center border-b-2 px-1 type-label motion-safe:transition-colors motion-safe:duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                       page.href === path
-                        ? 'border-foreground bg-foreground text-background'
-                        : 'border-foreground/25 text-foreground hover:border-foreground',
+                        ? 'border-primary text-foreground'
+                        : 'border-transparent text-muted-foreground hover:border-rule-strong hover:text-foreground',
                     )}
                   >
                     {page.label}
                   </a>
                 ))}
               </nav>
-              <h1 className="mt-10 text-balance font-heading text-5xl font-semibold leading-[1.02] tracking-[-0.02em] sm:text-6xl lg:text-7xl">
-                {title}
-              </h1>
-              <div className="mt-6 max-w-2xl text-lg leading-relaxed text-foreground/80 sm:text-xl">
+              <h1 className="mt-8 border-t-2 border-rule-strong pt-6 type-page-title">{title}</h1>
+              <div className="mt-4 max-w-[65ch] type-body leading-relaxed text-muted-foreground">
                 {lede}
               </div>
             </div>
-            <dl className="grid content-end gap-5 border-t border-foreground/15 pt-6 text-sm sm:grid-cols-3 lg:col-span-4 lg:grid-cols-1 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
+            <dl className="grid content-start gap-5 border-t border-rule pt-5 text-sm sm:grid-cols-3 lg:col-span-3 lg:grid-cols-1 lg:border-t-2 lg:border-rule-strong lg:pt-6">
               <div>
                 <dt className="text-muted-foreground">Last updated</dt>
                 <dd className="mt-1 font-semibold">{updated}</dd>
@@ -91,19 +89,31 @@ export function LegalPage({
           </div>
         </div>
 
-        <div className="landing-container grid gap-10 pb-20 pt-6 lg:grid-cols-12">
-          <nav aria-label="Contents" className="lg:col-span-4 xl:col-span-3">
-            <div className="lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:pt-8">
-              <h2 className="text-eyebrow text-muted-foreground">Contents</h2>
+        <div className="landing-container grid gap-x-12 gap-y-8 pb-16 pt-8 lg:grid-cols-12">
+          <nav aria-label="Contents" className="lg:col-span-3">
+            <div className="lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
+              <h2 className="border-t-2 border-rule-strong pt-4 type-section-title">Contents</h2>
               <LegalContents sections={sections.map(({ id, title }) => ({ id, title }))} />
             </div>
           </nav>
 
-          <div className="lg:col-span-8 xl:col-span-9">
-            <div className="legal-prose">
-              {sections.map((section) => (
-                <section key={section.id} aria-labelledby={section.id}>
-                  <h2 id={section.id}>{section.title}</h2>
+          <div className="min-w-0 lg:col-span-9">
+            <div className="max-w-[68ch] type-body leading-relaxed text-foreground [&_p]:mt-4 [&_ul]:mt-4 [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-5 [&_h3]:mt-8 [&_h3]:font-semibold [&_a]:rounded-sm [&_a]:font-medium [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-4 [&_a:focus-visible]:outline [&_a:focus-visible]:outline-2 [&_a:focus-visible]:outline-ring [&_code]:[overflow-wrap:anywhere]">
+              {sections.map((section, index) => (
+                <section
+                  key={section.id}
+                  aria-labelledby={section.id}
+                  className="mb-12 border-t-2 border-rule-strong pt-5"
+                >
+                  <h2 id={section.id} className="scroll-mt-24 type-section-title">
+                    <span
+                      aria-hidden="true"
+                      className="mr-3 text-sm tabular-nums text-muted-foreground"
+                    >
+                      {String(index + 1).padStart(2, '0')}
+                    </span>
+                    {section.title}
+                  </h2>
                   {section.body}
                 </section>
               ))}
@@ -111,9 +121,9 @@ export function LegalPage({
 
             <aside
               aria-labelledby="legal-questions"
-              className="mt-16 max-w-[68ch] rounded-xl bg-primary px-6 py-8 text-primary-foreground sm:px-10 sm:py-10"
+              className="mt-12 max-w-[68ch] border-t-2 border-rule-strong py-6"
             >
-              <h2 id="legal-questions" className="font-heading text-2xl font-semibold sm:text-3xl">
+              <h2 id="legal-questions" className="type-section-title">
                 Questions about this page?
               </h2>
               <p className="mt-3 leading-relaxed">
@@ -121,7 +131,7 @@ export function LegalPage({
               </p>
               <a
                 href={CONTACT_HREF}
-                className="mt-6 inline-flex min-h-11 items-center rounded-md bg-primary-foreground px-5 font-semibold text-primary transition-transform duration-fast ease-out-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-primary active:scale-[0.97]"
+                className="mt-4 inline-flex min-h-11 items-center rounded-sm font-semibold text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {CONTACT_EMAIL}
               </a>
