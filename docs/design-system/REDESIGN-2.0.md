@@ -57,7 +57,7 @@ and test results for each one are in its pull request on GitHub.
 | [#280](https://github.com/akomapahealth/nkwapa/issues/280) | Motion and feedback                       | [#306](https://github.com/akomapahealth/nkwapa/pull/306)                                                                                                                     |
 | [#281](https://github.com/akomapahealth/nkwapa/issues/281) | Responsive and offline refinements        | [#308](https://github.com/akomapahealth/nkwapa/pull/308)                                                                                                                     |
 | [#282](https://github.com/akomapahealth/nkwapa/issues/282) | Full regression and accessibility QA      | [#309](https://github.com/akomapahealth/nkwapa/pull/309)                                                                                                                     |
-| [#283](https://github.com/akomapahealth/nkwapa/issues/283) | Release readiness and documentation       | See the log below                                                                                                                                                            |
+| [#283](https://github.com/akomapahealth/nkwapa/issues/283) | Release readiness and documentation       | [#310](https://github.com/akomapahealth/nkwapa/pull/310)                                                                                                                     |
 
 The final route audit (#282) covered six identities and 57 routes: 224 axe scans with zero
 serious or critical findings.
@@ -80,9 +80,11 @@ serious or critical findings.
 
 ## Log
 
-| Date       | Entry                                                                                                                            |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-11-01 | Phase 00 baseline and audit; three directions reviewed; Ruled Chart approved; #261 to #283 created.                              |
-| 2026-11-02 | Foundations, shell, navigation and dashboards merged (#284 to #293).                                                             |
-| 2026-11-03 | Registry, stations, queues, appointments, administration and analytics merged (#294 to #301).                                    |
-| 2026-11-04 | Portal, sign-in, landing, public pages, motion, responsive and offline, and route QA merged (#302 to #309). #261 to #282 closed. |
+| Date       | Entry                                                                                                                                                                                                                                                                                                                |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-11-01 | Phase 00 baseline and audit; three directions reviewed; Ruled Chart approved; #261 to #283 created.                                                                                                                                                                                                                  |
+| 2026-11-02 | Foundations, shell, navigation and dashboards merged (#284 to #293).                                                                                                                                                                                                                                                 |
+| 2026-11-03 | Registry, stations, queues, appointments, administration and analytics merged (#294 to #301).                                                                                                                                                                                                                        |
+| 2026-11-04 | Portal, sign-in, landing, public pages, motion, responsive and offline, and route QA merged (#302 to #309). #261 to #282 closed.                                                                                                                                                                                     |
+| 2026-11-04 | Started #283 (UX-23) from release/dev at adf1f1a on `docs/283-release-readiness`.                                                                                                                                                                                                                                    |
+| 2026-11-04 | #283: opened [PR #310](https://github.com/akomapahealth/nkwapa/pull/310) into release/dev. Evidence and stale docs removed, docs index, getting started and operations guides, new README, MASTER.md by product area, 2.0 release and rollback notes awaiting owner approval. Pending owner review and manual merge. |
