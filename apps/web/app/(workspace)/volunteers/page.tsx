@@ -240,7 +240,8 @@ function VolunteersContent() {
       ) : null}
       <Button
         size="sm"
-        variant="ghost"
+        variant="outline"
+        className={contact.isActive ? 'border-warning text-warning-ink' : undefined}
         disabled={!writable || busyId === contact.id}
         onClick={() =>
           act(
@@ -277,7 +278,7 @@ function VolunteersContent() {
     {
       accessorKey: 'phoneE164',
       header: 'Phone',
-      cell: ({ row }) => row.original.phoneE164 ?? '—',
+      cell: ({ row }) => row.original.phoneE164 ?? 'Not provided',
       meta: { hideOnMobile: true },
     },
     {
@@ -298,7 +299,6 @@ function VolunteersContent() {
   return (
     <div className="space-y-6">
       <AppPageHeader
-        eyebrow="Oversight"
         title="Volunteers"
         description="Who volunteers at this clinic. They don't need a Nkwapa account to be scheduled and emailed."
         actions={
@@ -346,15 +346,16 @@ function VolunteersContent() {
             getRowId={(row) => row.id}
             isRefreshing={directory.isRefreshing}
             initialPageSize={25}
+            keyboardScroll
             renderMobileRow={(contact) => (
-              <div className="space-y-2">
+              <div className="space-y-2 border-t border-rule py-4">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium">{contact.displayName}</span>
                   {!contact.isActive ? <Badge variant="draft">Inactive</Badge> : null}
                 </div>
                 <p className="break-all text-sm text-muted-foreground">{contact.email}</p>
                 {accountCell(contact)}
-                {actions(contact)}
+                <div className="[&>div]:flex-wrap [&>div]:justify-start">{actions(contact)}</div>
               </div>
             )}
           />
@@ -362,14 +363,14 @@ function VolunteersContent() {
       </ResourceState>
 
       <Dialog open={editing !== null} onOpenChange={(next) => !next && setEditing(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing === 'new' ? 'Add volunteer' : 'Edit volunteer'}</DialogTitle>
             <DialogDescription>
               Roster emails go to this address, whether or not they have an account.
             </DialogDescription>
           </DialogHeader>
-          <form noValidate onSubmit={save} className="space-y-4">
+          <form noValidate onSubmit={save} className="space-y-4 border-t-2 border-rule-strong pt-5">
             <div className="space-y-1">
               <Label htmlFor="volunteer-name">Name</Label>
               <Input
@@ -402,7 +403,12 @@ function VolunteersContent() {
               />
               <FieldError id="volunteer-email" message={errors.email} reserveSpace={submitted} />
               {existingId ? (
-                <Button type="button" variant="link" className="h-auto p-0" onClick={openExisting}>
+                <Button
+                  type="button"
+                  variant="link"
+                  className="min-h-11 px-0"
+                  onClick={openExisting}
+                >
                   Open existing
                 </Button>
               ) : null}

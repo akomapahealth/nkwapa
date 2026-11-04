@@ -1214,6 +1214,43 @@ Every screen reads like a well-kept observation chart: ruled, time-ordered, numb
 - **Type.** Source Serif 4 for page titles and a patient's name; IBM Plex Sans for everything else.
 - **Motion.** Focusing or hovering a row in a dense list may dim its siblings (150 ms opacity, off under reduced motion). Owner-approved chart animation follows section 3; other motion follows section 7.
 
+### Phase 07 public navigation and supporting pages (#279)
+
+Public navigation inherits the workspace's Ruled Chart vocabulary: the real Nkwapa
+mark, Source Serif display type, `type-page-title` / `type-section-title`, 2px ink
+top rules (`border-t-2 border-rule-strong`) and decorative hairlines (`border-rule`).
+The footer groups product links, legal links and contact details separately, with
+the existing status trigger and optional release version below the hairline.
+`LandingHeader` and `LandingFooter` retain their exports, props and section-link
+behavior for #278. No shared token, primitive, Tailwind or dependency change.
+
+- Legal pages keep every word and section ID. A 68ch reading column, sticky desktop
+  contents with a current-location marker, plain legal-page tabs and static body
+  text replace the tinted title band, pills and decorative reading-progress line.
+- The Radix mobile menu retains focus trapping, Escape and focus restoration.
+  Navigation targets and the close button are at least 44px. Motion stays in short
+  interaction feedback and honors the existing reduced-motion override.
+- Cookie settings still dispatches the same consent event to the same dialog.
+  Defaults, storage keys, consent version and analytics gating are unchanged. The entry
+  button restores focus when that existing dialog closes, including Escape.
+- `/status`, `/research` and all three `/volunteers*` pages remain in `(workspace)`.
+  **All five require sign-in through `KeycloakProvider`**, including `/status`, whose
+  local signed-out message is unreachable under that wrapper. Research and volunteer
+  guards and permissions are unchanged. The footer does not expose a new sign-in CTA.
+- Status details become a ruled list without a nested main landmark. Research keeps
+  #275's sections and readiness model; residual destination/artifact boxes become
+  hairline groups and copy/link targets grow. Volunteer screens use ruled site and
+  roster sections, accessible action groups, scrollable dialogs and larger checkbox
+  targets. A screening-day title is now a working mobile link to the existing route.
+
+References studied: [Footer Design](https://www.footer.design/) for grouped footer
+wayfinding, [60fps](https://60fps.design/) for restrained interaction feedback, and
+[Heidi Health](https://www.heidihealth.com/en-us) for clinical editorial pacing. These
+are qualitative design references; no copy, layout, branding or measured values were
+imported. Impeccable and Taste review used the existing Nkwapa identity as authority.
+
+Evidence, access mapping and verification: [#279 evidence](evidence/279/README.md).
+
 ---
 
 ## 13. Still open

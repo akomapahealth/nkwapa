@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useKeycloak } from '@/app/KeycloakProvider';
 import { getKeycloak } from '@/lib/keycloak';
@@ -49,25 +50,33 @@ export default function StatusDetailsPage() {
   }, [auth?.isReady, auth?.isAuthenticated]);
 
   return (
-    <main className="mx-auto min-h-dvh max-w-3xl px-5 py-12 text-foreground">
-      <Link href="/" className="text-primary underline underline-offset-2">
-        ← Home
+    <section aria-labelledby="status-title" className="mx-auto max-w-5xl text-foreground">
+      <Link
+        href="/"
+        className="inline-flex min-h-11 items-center gap-2 rounded-sm text-sm font-medium text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+        Home
       </Link>
-      <h1 className="mt-8 font-heading text-3xl font-semibold">System status details</h1>
-      <p className="mt-2 text-muted-foreground">{message}</p>
+      <h1 id="status-title" className="mt-4 border-t-2 border-rule-strong pt-5 type-page-title">
+        System status details
+      </h1>
+      <p role="status" className="mt-3 type-body text-muted-foreground">
+        {message}
+      </p>
       {!auth?.isAuthenticated && auth?.isReady ? (
         <Link
           href="/login?next=%2Fstatus"
-          className="mt-6 inline-block text-primary underline underline-offset-2"
+          className="mt-6 inline-flex min-h-11 items-center rounded-sm text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           Sign in
         </Link>
       ) : null}
       {details ? (
-        <ul className="mt-8 space-y-4">
+        <ul className="mt-8 border-t-2 border-rule-strong">
           {details.map((item) => (
-            <li key={item.name} className="rounded-lg border border-border bg-card p-4">
-              <h2 className="font-semibold capitalize">
+            <li key={item.name} className="border-b border-rule py-5">
+              <h2 className="type-section-title capitalize">
                 {item.name}: {item.state}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -75,7 +84,7 @@ export default function StatusDetailsPage() {
               </p>
               {item.error ? <p className="mt-2 break-words text-sm">{item.error}</p> : null}
               {item.detail ? (
-                <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words text-xs">
+                <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words border-t border-rule pt-3 font-mono text-xs">
                   {JSON.stringify(item.detail, null, 2)}
                 </pre>
               ) : null}
@@ -83,6 +92,6 @@ export default function StatusDetailsPage() {
           ))}
         </ul>
       ) : null}
-    </main>
+    </section>
   );
 }

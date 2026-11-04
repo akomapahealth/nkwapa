@@ -13,7 +13,7 @@ export function ResearchRunKey({ runKey }: { runKey: string }) {
     <button
       type="button"
       onClick={() => void copy(runKey)}
-      className="inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-md border border-border/80 bg-muted/40 px-2 py-1 font-mono text-xs text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-md border border-border/80 bg-muted/40 px-2 py-1 font-mono text-xs text-foreground motion-safe:transition-colors motion-safe:duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       aria-label={`Copy run key ${runKey}`}
     >
       <span className="truncate">{runKey}</span>
