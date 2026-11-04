@@ -371,7 +371,9 @@ export function DiabetesScreeningForm({
               maxLength={2000}
               rows={4}
             />
-            <p className="text-right text-xs text-muted-foreground">{notes.length}/2000</p>
+            <p className="text-right text-xs tabular-nums text-muted-foreground">
+              {notes.length}/2000
+            </p>
           </div>
         </fieldset>
 

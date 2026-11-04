@@ -79,7 +79,13 @@ export function ResourceState<T>({
 
   if (state.isInitialLoading) {
     return (
-      <div className={className} role="status" aria-live="polite" aria-busy="true">
+      <div
+        className={className}
+        role="status"
+        aria-label="Loading"
+        aria-live="polite"
+        aria-busy="true"
+      >
         <span className="sr-only">Loading</span>
         {skeleton ?? <SectionSkeleton lines={4} />}
       </div>

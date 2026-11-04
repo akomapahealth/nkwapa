@@ -1,0 +1,30 @@
+{
+  "390": {
+    "checkbox": {
+      "visible": [16, 16],
+      "target": [16, 16]
+    },
+    "toastClose": {
+      "visible": [24, 24],
+      "target": [24, 24]
+    },
+    "loadingRegion": null,
+    "alerts": [],
+    "liveRegions": ["section polite"],
+    "tabTransition": "all"
+  },
+  "1440": {
+    "checkbox": {
+      "visible": [16, 16],
+      "target": [16, 16]
+    },
+    "toastClose": {
+      "visible": [24, 24],
+      "target": [24, 24]
+    },
+    "loadingRegion": null,
+    "alerts": [],
+    "liveRegions": ["section polite"],
+    "tabTransition": "all"
+  }
+}

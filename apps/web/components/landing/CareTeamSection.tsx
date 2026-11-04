@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import { LANDING_BLUR } from '@/lib/landing-blur';
 import { DesktopFrame } from './ProductFrames';
 import { SectionRule } from './SectionRule';
 
@@ -100,6 +101,8 @@ export function CareTeamSection() {
             <div data-reveal-image className="overflow-hidden">
               <Image
                 src="/images/Akomapa-34.jpg"
+                placeholder="blur"
+                blurDataURL={LANDING_BLUR['/images/Akomapa-34.jpg']}
                 alt="A volunteer points to letters on an eye chart while a seated patient reads them aloud."
                 width={3093}
                 height={3600}

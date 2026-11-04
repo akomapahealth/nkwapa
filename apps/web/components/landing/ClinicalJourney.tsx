@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import { LANDING_BLUR } from '@/lib/landing-blur';
 import { DesktopFrame, PhoneFrame } from './ProductFrames';
 import { SectionRule } from './SectionRule';
 
@@ -12,6 +13,8 @@ const STEPS = [
     media: (
       <Image
         src="/images/Akomapa-3.jpg"
+        placeholder="blur"
+        blurDataURL={LANDING_BLUR['/images/Akomapa-3.jpg']}
         alt="A volunteer enters a patient's details on a laptop at an intake table while the patient sits across from him."
         width={3600}
         height={2250}
@@ -27,6 +30,8 @@ const STEPS = [
     media: (
       <Image
         src="/images/Akomapa-11.jpg"
+        placeholder="blur"
+        blurDataURL={LANDING_BLUR['/images/Akomapa-11.jpg']}
         alt="Patients seated in a waiting area at an Akomapa community clinic while volunteers work at tables nearby."
         width={3600}
         height={2712}
@@ -42,6 +47,8 @@ const STEPS = [
     media: (
       <Image
         src="/images/Akomapa-18.jpg"
+        placeholder="blur"
+        blurDataURL={LANDING_BLUR['/images/Akomapa-18.jpg']}
         alt="A blood pressure cuff on a patient's arm, with digital monitors on the table beside it."
         width={3600}
         height={2400}

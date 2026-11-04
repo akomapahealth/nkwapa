@@ -804,7 +804,7 @@ export function VitalsForm({
             />
             <div id="notes-help" className="flex justify-between text-xs text-muted-foreground">
               <span>Optional clinical context. No automated diagnosis is generated.</span>
-              <span>{vitals.notes.length}/2000</span>
+              <span className="tabular-nums">{vitals.notes.length}/2000</span>
             </div>
             <FieldError id="notes-error" message={errors.notes} />
           </section>

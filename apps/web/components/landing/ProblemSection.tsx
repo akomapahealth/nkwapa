@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import { LANDING_BLUR } from '@/lib/landing-blur';
 import { SectionRule } from './SectionRule';
 
 const PROBLEMS = [
@@ -49,6 +50,8 @@ export function ProblemSection() {
           <div data-reveal-image className="overflow-hidden">
             <Image
               src="/images/Akomapa-14.jpg"
+              placeholder="blur"
+              blurDataURL={LANDING_BLUR['/images/Akomapa-14.jpg']}
               alt="A volunteer in a white coat writes on a paper form while a patient leans in beside him at a screening."
               width={3600}
               height={2218}

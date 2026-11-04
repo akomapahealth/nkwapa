@@ -4,7 +4,8 @@ const config = {
   rootDir: '.',
   testRegex: '\\.(spec|test)\\.(t|j)sx?$',
   transform: {
-    '^.+\\.(t|j)sx?$': 'ts-jest',
+    // tsconfig keeps JSX for Next; component tests need it compiled.
+    '^.+\\.(t|j)sx?$': ['ts-jest', { tsconfig: { jsx: 'react-jsx' } }],
   },
   testPathIgnorePatterns: ['/node_modules/', '/e2e/'],
   testEnvironment: 'node',

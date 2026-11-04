@@ -402,6 +402,9 @@ export function ClinicalNotePanel({
                     onClick={() => void saveDraft()}
                     disabled={busy || !dirty}
                     className="cursor-pointer"
+                    // Names the shortcut the keydown handler above already takes (#280).
+                    aria-keyshortcuts="Control+S Meta+S"
+                    title="Save draft (Ctrl+S or ⌘S)"
                   >
                     <Save className="h-4 w-4" aria-hidden="true" />
                     Save draft
