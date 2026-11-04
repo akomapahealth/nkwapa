@@ -68,36 +68,43 @@ export function ChartFrame({
         // A fixed-height chart's empty note needs no room for a chart.
         <div className={height ? undefined : 'h-[240px] sm:h-[260px]'}>{empty}</div>
       ) : showTable ? (
-        <table className="mt-2 w-full text-sm">
-          <caption className="sr-only">{title}</caption>
-          <thead>
-            <tr className="border-b border-rule text-left text-muted-foreground">
-              {columns.map((column, index) => (
-                <th
-                  key={column}
-                  scope="col"
-                  className={index ? 'py-2 pl-3 text-right font-medium' : 'py-2 font-medium'}
-                >
-                  {column}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, rowIndex) => (
-              <tr key={`${row.label}-${rowIndex}`} className="border-b border-rule">
-                <th scope="row" className="py-2 text-left font-normal text-foreground">
-                  {row.label}
-                </th>
-                {row.values.map((value, index) => (
-                  <td key={index} className="py-2 pl-3 text-right tabular-nums text-foreground">
-                    {value}
-                  </td>
+        <div
+          role="region"
+          aria-label={title}
+          tabIndex={0}
+          className="scroll-region mt-2 max-w-full overflow-x-auto"
+        >
+          <table className="w-full text-sm">
+            <caption className="sr-only">{title}</caption>
+            <thead>
+              <tr className="border-b border-rule text-left text-muted-foreground">
+                {columns.map((column, index) => (
+                  <th
+                    key={column}
+                    scope="col"
+                    className={index ? 'py-2 pl-3 text-right font-medium' : 'py-2 font-medium'}
+                  >
+                    {column}
+                  </th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((row, rowIndex) => (
+                <tr key={`${row.label}-${rowIndex}`} className="border-b border-rule">
+                  <th scope="row" className="py-2 text-left font-normal text-foreground">
+                    {row.label}
+                  </th>
+                  {row.values.map((value, index) => (
+                    <td key={index} className="py-2 pl-3 text-right tabular-nums text-foreground">
+                      {value}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <div
           className={height ? 'mt-2' : 'mt-2 h-[240px] sm:h-[260px]'}

@@ -48,10 +48,13 @@ export function PortalLayout({ children }: { children: React.ReactNode }) {
       </a>
       <NavigationProgress />
       <Header />
-      <div className="border-b border-border">
+      <section aria-labelledby="portal-context-title" className="border-b border-border">
         <div className="mx-auto max-w-5xl px-4 md:px-6">
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-4">
-            <h1 className="font-heading text-2xl font-semibold text-foreground">
+            <h1
+              id="portal-context-title"
+              className="font-heading text-2xl font-semibold text-foreground"
+            >
               {pathname === '/portal'
                 ? `Welcome back, ${displayName.split(' ')[0]}`
                 : 'Patient portal'}
@@ -86,7 +89,7 @@ export function PortalLayout({ children }: { children: React.ReactNode }) {
             })}
           </nav>
         </div>
-      </div>
+      </section>
       <main
         id="main-content"
         tabIndex={-1}

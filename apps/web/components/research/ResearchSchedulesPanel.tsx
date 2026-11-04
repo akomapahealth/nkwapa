@@ -72,6 +72,7 @@ export function ResearchSchedulesPanel({
   const base = `/clinics/${encodeURIComponent(clinicId)}/research/schedules`;
 
   const resource = useAsyncResource<ResearchScheduleList>({
+    requiresOnline: true,
     resourceKey: clinicId,
     errorMessage: 'Research schedules could not be loaded.',
     fetcher: async (token, signal) => {

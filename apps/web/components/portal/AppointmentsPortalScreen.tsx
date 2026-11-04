@@ -477,82 +477,87 @@ export function AppointmentsPortalScreen() {
             </Button>
           </PortalHero>
 
-          <PortalPanel
-            title="Next confirmed visit"
-            description={
-              nextAppointment
-                ? 'Your next active appointment on the clinic schedule.'
-                : 'No future confirmed appointment is currently scheduled.'
-            }
-          >
-            {nextAppointment ? (
-              <div className="space-y-4 border-b border-border py-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium tabular-nums text-foreground">
-                      {formatPortalDateTime(nextAppointment.startsAt)}
-                    </p>
-                    <p className="text-sm tabular-nums text-muted-foreground">
-                      Ends {formatPortalDateTime(nextAppointment.endsAt)}
-                    </p>
+          {schedule.data ? (
+            <PortalPanel
+              title="Next confirmed visit"
+              description={
+                nextAppointment
+                  ? 'Your next active appointment on the clinic schedule.'
+                  : 'No future confirmed appointment is currently scheduled.'
+              }
+            >
+              {nextAppointment ? (
+                <div className="space-y-4 border-b border-border py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium tabular-nums text-foreground">
+                        {formatPortalDateTime(nextAppointment.startsAt)}
+                      </p>
+                      <p className="text-sm tabular-nums text-muted-foreground">
+                        Ends {formatPortalDateTime(nextAppointment.endsAt)}
+                      </p>
+                    </div>
+                    <AppointmentStatusBadge
+                      status={nextAppointment.status}
+                      className="rounded-full"
+                    />
                   </div>
-                  <AppointmentStatusBadge
-                    status={nextAppointment.status}
-                    className="rounded-full"
-                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full cursor-pointer justify-between"
+                    onClick={() => openChangeDialog('reschedule', nextAppointment)}
+                    disabled={
+                      !writeGate.canWrite ||
+                      Boolean(pendingChangeRequestsByAppointment.get(nextAppointment.id))
+                    }
+                  >
+                    Request a change
+                    <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                  </Button>
+                  {writeGate.canWrite ? null : (
+                    <p className="text-xs leading-5 text-muted-foreground">{writeGate.reason}</p>
+                  )}
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full cursor-pointer justify-between"
-                  onClick={() => openChangeDialog('reschedule', nextAppointment)}
-                  disabled={
-                    !writeGate.canWrite ||
-                    Boolean(pendingChangeRequestsByAppointment.get(nextAppointment.id))
-                  }
-                >
-                  Request a change
-                  <ArrowRight aria-hidden="true" className="h-4 w-4" />
-                </Button>
-                {writeGate.canWrite ? null : (
-                  <p className="text-xs leading-5 text-muted-foreground">{writeGate.reason}</p>
-                )}
-              </div>
-            ) : (
-              <EmptyState
-                density="compact"
-                icon={CalendarDays}
-                title="No visit booked yet"
-                description="Request an appointment when you need a follow-up or check-in."
-              />
-            )}
-          </PortalPanel>
+              ) : (
+                <EmptyState
+                  density="compact"
+                  icon={CalendarDays}
+                  title="No visit booked yet"
+                  description="Request an appointment when you need a follow-up or check-in."
+                />
+              )}
+            </PortalPanel>
+          ) : null}
         </section>
 
-        <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
-          <AppMetricCard
-            icon={CalendarClock}
-            title="Upcoming confirmed"
-            value={appointments.filter((a) => isPatientAppointmentActionable(a, now)).length}
-          />
-          <AppMetricCard
-            icon={FileClock}
-            title="Requests pending"
-            value={requests.filter(isPendingRequest).length}
-          />
-          <AppMetricCard
-            icon={CheckCircle2}
-            title="Completed visits"
-            value={appointments.filter((a) => a.status === 'COMPLETED').length}
-          />
-          <AppMetricCard
-            icon={Clock3}
-            title="Cancelled or missed"
-            value={
-              appointments.filter((a) => a.status === 'CANCELLED' || a.status === 'NO_SHOW').length
-            }
-          />
-        </AppMetricGroup>
+        {schedule.data ? (
+          <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
+            <AppMetricCard
+              icon={CalendarClock}
+              title="Upcoming confirmed"
+              value={appointments.filter((a) => isPatientAppointmentActionable(a, now)).length}
+            />
+            <AppMetricCard
+              icon={FileClock}
+              title="Requests pending"
+              value={requests.filter(isPendingRequest).length}
+            />
+            <AppMetricCard
+              icon={CheckCircle2}
+              title="Completed visits"
+              value={appointments.filter((a) => a.status === 'COMPLETED').length}
+            />
+            <AppMetricCard
+              icon={Clock3}
+              title="Cancelled or missed"
+              value={
+                appointments.filter((a) => a.status === 'CANCELLED' || a.status === 'NO_SHOW')
+                  .length
+              }
+            />
+          </AppMetricGroup>
+        ) : null}
 
         {/*
           The counts above change without anything moving, so a screen-reader user gets no signal

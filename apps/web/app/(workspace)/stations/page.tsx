@@ -259,7 +259,7 @@ export default function StationsPage() {
         {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
         <OpsFeedbackNotice feedback={shiftControls.feedback} />
 
-        {!view.isInitialLoading ? (
+        {!view.isInitialLoading && view.data ? (
           <section
             aria-labelledby="station-work-needs"
             className="border-t-2 border-rule-strong pt-4"
@@ -448,7 +448,7 @@ export default function StationsPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  {!myStation ? (
+                  {!view.data ? null : !myStation ? (
                     <EmptyStateCard
                       title="No station chosen"
                       description="Choose your station to see who is waiting there."

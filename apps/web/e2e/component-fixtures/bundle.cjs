@@ -5,19 +5,24 @@ const webpack = require('webpack');
 
 // Render the actual components in a real browser without adding a public demo
 // route or another test dependency. Resolve React from the web workspace (18).
-module.exports = async function bundleFixture() {
+module.exports = async function bundleFixture({
+  entry = 'SharedComponents.tsx',
+  aliases = {},
+  sourceWeb,
+} = {}) {
   const web = path.resolve(__dirname, '../..');
   const output = fs.mkdtempSync(path.join(os.tmpdir(), 'nkwapa-components-'));
   const compiler = webpack({
     mode: 'development',
     devtool: false,
     target: 'web',
-    entry: path.join(__dirname, 'SharedComponents.tsx'),
+    entry: path.join(__dirname, entry),
     output: { path: output, filename: 'fixture.js' },
     resolve: {
       extensions: ['.tsx', '.ts', '.js'],
       alias: {
-        '@': web,
+        ...aliases,
+        '@': sourceWeb || web,
         react: path.dirname(require.resolve('react/package.json', { paths: [web] })),
         'react-dom': path.dirname(require.resolve('react-dom/package.json', { paths: [web] })),
       },

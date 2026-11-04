@@ -18,11 +18,11 @@ export function DeviceStorageDetails({ open = false }: { open?: boolean }) {
 
   return (
     <details open={open} className="rounded-md border border-border/70 px-3 py-2 text-sm">
-      <summary className="flex cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground">
+      <summary className="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground">
         <HardDrive aria-hidden="true" className="h-3.5 w-3.5" />
         Device storage
       </summary>
-      <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
+      <dl className="mt-2 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-4 gap-y-1 text-xs">
         <dt className="text-muted-foreground">Protected from clearing</dt>
         <dd className="font-medium">{protectedLabel}</dd>
         <dt className="text-muted-foreground">Used</dt>

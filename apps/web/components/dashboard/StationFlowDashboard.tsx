@@ -1,5 +1,8 @@
 'use client';
 
+import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { StaleDataNotice } from '@/components/feedback/StaleDataNotice';
+
 import { useEffect, useState } from 'react';
 import {
   Bar,
@@ -54,6 +57,7 @@ const TOOLTIP_STYLE = {
  */
 export function StationFlowDashboard({ clinicId }: { clinicId: string }) {
   const getToken = useAuth();
+  const { isOnline } = useSync();
   // Null until chosen: the server then answers for today in the clinic's own timezone.
   const [date, setDate] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<StationMetrics | null>(null);
@@ -117,6 +121,7 @@ export function StationFlowDashboard({ clinicId }: { clinicId: string }) {
         </div>
       </div>
 
+      {!isOnline ? <StaleDataNotice isOnline={false} /> : null}
       {/* Right now first: who is waiting where, before the day's aggregates. */}
       {metrics?.live && !error ? (
         <StationLineLanes stations={metrics.stations} onShiftNow={metrics.staffing.onShiftNow} />
@@ -193,7 +198,12 @@ export function StationFlowDashboard({ clinicId }: { clinicId: string }) {
 
           <section className="border-t-2 border-rule-strong pt-3">
             <h3 className="type-label pt-2.5 text-foreground">By station</h3>
-            <div className="mt-2 overflow-x-auto">
+            <div
+              role="region"
+              aria-label="Wait and service time at each station"
+              tabIndex={0}
+              className="scroll-region mt-2 overflow-x-auto"
+            >
               <table className="w-full min-w-[720px] text-sm" data-testid="station-flow-table">
                 <caption className="sr-only">Wait and service time at each station</caption>
                 <thead>

@@ -153,6 +153,8 @@ function PatientChartWorkspace() {
       isSuggestedMatch: boolean;
     }>
   >([]);
+  const [selfReportsError, setSelfReportsError] = useState<string | null>(null);
+  const [selfReportsLoaded, setSelfReportsLoaded] = useState(false);
   const [selfReports, setSelfReports] = useState<
     Array<{
       id: string;
@@ -200,7 +202,8 @@ function PatientChartWorkspace() {
   }, [loadSummary]);
 
   const fetchSelfReports = useCallback(async () => {
-    if (!getToken || !canViewSelfReports) return;
+    if (!getToken || !canViewSelfReports || !isOnline) return;
+    setSelfReportsError(null);
     try {
       const res = await apiFetch(
         `/clinics/${encodeURIComponent(clinicId)}/patients/${encodeURIComponent(patientId)}/self-reports`,
@@ -218,11 +221,14 @@ function PatientChartWorkspace() {
           createdAt: string;
         }>;
         setSelfReports(json);
+        setSelfReportsLoaded(true);
+      } else {
+        throw new Error('Patient-reported updates could not be loaded.');
       }
     } catch {
-      // ignore
+      setSelfReportsError('Patient-reported updates could not be loaded. Reconnect and try again.');
     }
-  }, [clinicId, patientId, getToken, canViewSelfReports]);
+  }, [clinicId, patientId, getToken, canViewSelfReports, isOnline]);
 
   useEffect(() => {
     if (data && canViewSelfReports) fetchSelfReports();
@@ -251,6 +257,7 @@ function PatientChartWorkspace() {
             isSuggestedMatch: boolean;
           }>;
           setAllUsers(json);
+          setPortalLinkError(null);
         } else {
           setAllUsers([]);
           setPortalLinkError(await readApiError(res));
@@ -842,7 +849,7 @@ function PatientChartWorkspace() {
                               <p className="text-xs text-muted-foreground">
                                 Searching app accounts...
                               </p>
-                            ) : allUsers.length === 0 ? (
+                            ) : allUsers.length === 0 && !portalLinkError && isOnline ? (
                               <p className="text-xs text-muted-foreground">
                                 No matching app accounts found yet.
                               </p>
@@ -926,7 +933,17 @@ function PatientChartWorkspace() {
                     </p>
                   </CardHeader>
                   <CardContent>
-                    {selfReports.length === 0 ? (
+                    {!isOnline || selfReportsError ? (
+                      <InlineNotice tone="warning">
+                        {selfReportsError ??
+                          'You are offline. Reconnect to load patient-reported updates.'}
+                      </InlineNotice>
+                    ) : null}
+                    {!selfReportsLoaded && isOnline && !selfReportsError ? (
+                      <SectionSkeleton lines={3} />
+                    ) : !selfReportsLoaded ||
+                      ((!isOnline || selfReportsError) &&
+                        selfReports.length === 0) ? null : selfReports.length === 0 ? (
                       <EmptyStateCard
                         title="No patient-reported updates yet"
                         description="Portal measurements and self-reports will appear here once the patient begins submitting them."

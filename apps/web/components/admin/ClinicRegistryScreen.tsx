@@ -139,6 +139,7 @@ export function ClinicRegistryScreen() {
   // alone, and both come from the same helper so the URL and the key cannot disagree.
   const clinicsQuery = adminClinicsQuery(zoneFilter, organizationFilter);
   const clinics = useAsyncResource<ClinicRow[]>({
+    requiresOnline: true,
     resourceKey: clinicsQuery.resourceKey,
     errorMessage: 'The clinic list could not be loaded.',
     fetcher: async (token, signal) => {
@@ -155,6 +156,7 @@ export function ClinicRegistryScreen() {
   // Read unfiltered on purpose, so choosing a zone never removes the other zones from the
   // picker and strands the reader inside their own filter.
   const zones = useAsyncResource<ZoneSummary[]>({
+    requiresOnline: true,
     resourceKey: 'admin-clinic-zones',
     errorMessage: 'The zone list could not be loaded.',
     fetcher: async (token, signal) => {
@@ -169,6 +171,7 @@ export function ClinicRegistryScreen() {
   });
 
   const organizations = useAsyncResource<OrganizationSummary[]>({
+    requiresOnline: true,
     resourceKey: 'admin-clinic-organizations',
     errorMessage: 'The organization list could not be loaded.',
     fetcher: async (token, signal) => {

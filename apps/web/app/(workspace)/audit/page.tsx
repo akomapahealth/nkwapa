@@ -1,5 +1,8 @@
 'use client';
 
+import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { StaleDataNotice } from '@/components/feedback/StaleDataNotice';
+
 import { useCallback, useEffect, useState } from 'react';
 import { ActivitySquare, FileClock, Search, Shield } from 'lucide-react';
 import { useBootstrap } from '@/lib/bootstrap-context';
@@ -40,6 +43,7 @@ interface AuditRow {
 export default function AuditPage() {
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const getToken = useAuth();
+  const { isOnline } = useSync();
   const clinicId = getBootstrapActiveClinicId(bootstrap);
   /*
     Context, not a filter. This log is `/clinics/:clinicId/audit` -- one clinic, therefore one
@@ -305,6 +309,7 @@ export default function AuditPage() {
           </RecordSectionContent>
         </RecordSection>
 
+        {!isOnline ? <StaleDataNotice isOnline={false} /> : null}
         {error ? (
           <InlineErrorState
             description={error}
@@ -331,7 +336,7 @@ export default function AuditPage() {
           <RecordSectionContent className="space-y-4">
             {loading && rows.length === 0 ? (
               <SectionSkeleton lines={4} className="border-0 bg-transparent p-0 shadow-none" />
-            ) : !loading && rows.length === 0 ? (
+            ) : error && rows.length === 0 ? null : !loading && rows.length === 0 ? (
               <EmptyStateCard
                 title="No audit events match the current filters"
                 description="Adjust your filters or widen the date range to pull more activity into view."

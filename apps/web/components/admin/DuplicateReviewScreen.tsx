@@ -141,6 +141,7 @@ export function DuplicateReviewScreen() {
   );
 
   const queue = useAsyncResource<DuplicateCandidatePage>({
+    requiresOnline: true,
     resourceKey: [basePath, query, scopeReady].join('|'),
     enabled: scopeReady,
     errorMessage: 'The duplicate review queue could not be loaded.',

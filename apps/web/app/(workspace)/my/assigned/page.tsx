@@ -481,7 +481,7 @@ export default function MyAssignedPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                {filteredAssignments.length === 0 ? (
+                {!view.data ? null : filteredAssignments.length === 0 ? (
                   <EmptyStateCard
                     title="Nothing assigned yet"
                     description="As soon as the manager pairs you to a patient, the case will appear here."

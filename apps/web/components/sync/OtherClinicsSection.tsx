@@ -71,7 +71,7 @@ export function OtherClinicsSection({
           return (
             <li key={queue.clinicId}>
               <article
-                className="rounded-lg border border-border bg-muted/30 p-4"
+                className="min-w-0 rounded-lg border border-border bg-muted/30 p-4 [overflow-wrap:anywhere]"
                 aria-labelledby={headingId}
                 data-access={queue.access}
               >
@@ -105,8 +105,14 @@ export function OtherClinicsSection({
                 {queue.own.length > 0 ? (
                   <div className="mt-3 flex flex-wrap justify-end gap-2">
                     {queue.access === 'available' ? (
-                      <Button size="sm" onClick={() => onSwitch(queue.clinicId)}>
-                        Switch to {queue.clinicName ?? 'this clinic'}
+                      <Button
+                        size="sm"
+                        className="h-auto min-h-11 max-w-full whitespace-normal break-words text-left"
+                        onClick={() => onSwitch(queue.clinicId)}
+                      >
+                        <span className="min-w-0 [overflow-wrap:anywhere]">
+                          Switch to {queue.clinicName ?? 'this clinic'}
+                        </span>
                       </Button>
                     ) : (
                       <Button
@@ -136,7 +142,7 @@ export function OtherClinicsSection({
           }
         }}
       >
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md [overflow-wrap:anywhere]">
           <DialogHeader>
             <DialogTitle>Discard changes for {discarding ? nameOf(discarding) : ''}?</DialogTitle>
             <DialogDescription>

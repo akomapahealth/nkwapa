@@ -144,7 +144,12 @@ function StaffActivityContent() {
                     to {detail.to}, clinic time ({detail.timezone})
                   </RecordSectionDescription>
                 </RecordSectionHeader>
-                <RecordSectionContent className="overflow-x-auto">
+                <RecordSectionContent
+                  role="region"
+                  aria-label="Activity by day"
+                  tabIndex={0}
+                  className="scroll-region overflow-x-auto"
+                >
                   {detail.days.length === 0 ? (
                     <p className="text-sm text-muted-foreground">Nothing recorded in this range.</p>
                   ) : (
@@ -248,7 +253,12 @@ function StaffActivityContent() {
                   records.
                 </RecordSectionDescription>
               </RecordSectionHeader>
-              <RecordSectionContent className="overflow-x-auto">
+              <RecordSectionContent
+                role="region"
+                aria-label="Work recorded by each member of staff"
+                tabIndex={0}
+                className="scroll-region overflow-x-auto"
+              >
                 {data.staff.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Nobody works at this clinic yet.</p>
                 ) : (

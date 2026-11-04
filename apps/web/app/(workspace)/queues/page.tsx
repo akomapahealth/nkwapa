@@ -1,5 +1,7 @@
 'use client';
 
+import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { InlineNotice } from '@/components/ops/OpsShared';
 import { StatusLabel } from '@/components/ui/status-label';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -19,7 +21,7 @@ import {
   RecordSectionHeader,
   RecordSectionTitle,
 } from '@/components/patients/RecordSection';
-import { EmptyState, InlineErrorState } from '@/components/feedback/AppState';
+import { EmptyState, InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 
@@ -79,6 +81,7 @@ export default function QueuesPage() {
       : defaultTab,
   );
 
+  const { isOnline } = useSync();
   const [drafts, setDrafts] = useState<QueueRow[]>([]);
   const [review, setReview] = useState<QueueRow[]>([]);
   const [finalize, setFinalize] = useState<QueueRow[]>([]);
@@ -237,6 +240,12 @@ export default function QueuesPage() {
           helpText="Each lane groups encounters by the step they are currently in so staff can jump straight to the right record without bouncing between screens."
         />
 
+        {!isOnline ? (
+          <InlineNotice tone="warning">
+            You are offline. Reconnect to load the queues. Any visits already shown are the last
+            version loaded.
+          </InlineNotice>
+        ) : null}
         {error ? (
           <InlineErrorState
             title="The queues could not be loaded"
@@ -298,6 +307,7 @@ export default function QueuesPage() {
                 <QueueContent
                   rows={rows}
                   loading={loading}
+                  unavailable={!isOnline || Boolean(error)}
                   columns={columns}
                   onRowClick={handleRowClick}
                 />
@@ -313,14 +323,24 @@ export default function QueuesPage() {
 function QueueContent({
   rows,
   loading,
+  unavailable,
   columns,
   onRowClick,
 }: {
   rows: QueueRow[];
   loading: boolean;
+  unavailable: boolean;
   columns: DataTableColumn<QueueRow>[];
   onRowClick: (row: { id: string }) => void;
 }) {
+  if (unavailable && rows.length === 0) return null;
+  if (loading && rows.length === 0) {
+    return (
+      <div role="status" aria-label="Loading queues">
+        <SectionSkeleton lines={4} />
+      </div>
+    );
+  }
   if (!loading && rows.length === 0) {
     return (
       <EmptyState

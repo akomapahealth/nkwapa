@@ -1,5 +1,8 @@
 'use client';
 
+import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { StaleDataNotice } from '@/components/feedback/StaleDataNotice';
+
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { statusLabel } from '@/lib/status-presentation';
@@ -43,6 +46,7 @@ type Closing = { request: ClinicDataRequest; status: 'COMPLETED' | 'DECLINED' } 
  */
 export function DataRequestsScreen() {
   const getToken = useAuth();
+  const { isOnline } = useSync();
   const clinicId = useBootstrap()?.activeClinicId ?? null;
   const [rows, setRows] = useState<ClinicDataRequest[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -111,6 +115,7 @@ export function DataRequestsScreen() {
         hint="Patients ask from their portal profile. Make the change on the patient's chart, then record what you did here; the patient sees your note. Medical records must be kept as the law requires, so a deletion request is usually answered by removing contact details, portal access or research use, and saying why the rest stays."
       />
 
+      {!isOnline ? <StaleDataNotice isOnline={false} /> : null}
       {error ? (
         <InlineErrorState
           title="Data requests could not be loaded"

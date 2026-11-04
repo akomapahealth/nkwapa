@@ -55,6 +55,7 @@ export function OrganizationReportScreen() {
   const [tab, setTab] = useState<'report' | 'analytics'>('report');
 
   const organizations = useAsyncResource<OrganizationSummary[]>({
+    requiresOnline: true,
     resourceKey: 'report-organizations',
     errorMessage: 'The organization list could not be loaded.',
     fetcher: async (token, signal) => {
@@ -76,6 +77,7 @@ export function OrganizationReportScreen() {
   }, [organizationId, organizations.data]);
 
   const report = useAsyncResource<OrganizationReport>({
+    requiresOnline: true,
     resourceKey: `organization-report:${organizationId ?? 'none'}`,
     errorMessage: 'The organization report could not be loaded.',
     enabled: organizationId !== null,
