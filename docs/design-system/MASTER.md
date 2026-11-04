@@ -1369,8 +1369,8 @@ Primary sources: [shadcn Sidebar](https://ui.shadcn.com/docs/components/radix/si
   records why there is only one today; #280 re-checked and found none.
 - **Idempotency keys for online writes.** The offline outbox already sends one and the API
   dedupes it (`SyncMutation`, unique per clinic). Direct online writes through `apiFetch` do not,
-  so a retry after a client timeout can apply twice. Drafted as a follow-up issue in
-  [evidence/280](evidence/280/follow-up-idempotency-issue.md); it needs an API change #280 does
+  so a retry after a client timeout can apply twice. Tracked in
+  [#307](https://github.com/akomapahealth/nkwapa/issues/307); it needs an API change #280 does
   not cover.
 
 ---
