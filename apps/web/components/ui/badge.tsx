@@ -22,9 +22,9 @@ const badgeVariants = cva(
         // Draft is intentionally neutral. A draft note is not a warning, and colouring it amber
         // put it in the same visual class as an out-of-range value.
         draft: 'border-transparent bg-muted text-muted-foreground',
-        review: 'border-transparent bg-info/12 text-info-ink',
-        finalized: 'border-transparent bg-success/12 text-success-ink',
-        warning: 'border-transparent bg-warning/12 text-warning-ink',
+        review: 'border-transparent bg-info-surface text-info-ink',
+        finalized: 'border-transparent bg-success-surface text-success-ink',
+        warning: 'border-transparent bg-warning-surface text-warning-ink',
       },
     },
     defaultVariants: {

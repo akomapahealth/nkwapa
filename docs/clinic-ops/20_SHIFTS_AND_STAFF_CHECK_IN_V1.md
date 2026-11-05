@@ -4,7 +4,7 @@
 
 Implemented in the current codebase.
 
-This document still captures the original design intent, but use `IMPLEMENTATION_STATUS.md` and `docs/FEATURE_WORKFLOWS_GUIDE.md` for the current product contract.
+This document still captures the original design intent, but use `docs/FEATURE_WORKFLOWS_GUIDE.md` for the current product contract.
 
 ---
 

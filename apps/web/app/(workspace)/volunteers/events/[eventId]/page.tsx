@@ -25,7 +25,6 @@ import { SectionSkeleton } from '@/components/feedback/AppState';
 import { InlineNotice } from '@/components/feedback/InlineNotice';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DataTable, DataTableActions, type DataTableColumn } from '@/components/ui/data-table';
 import {
@@ -234,7 +233,6 @@ function EventContent() {
       {({ event, timezone, emailConfigured, roster }) => (
         <div className="space-y-6">
           <AppPageHeader
-            eyebrow="Screening day"
             title={event.title}
             description={`${formatEventWhen(event, timezone)} · ${event.siteName}`}
             badges={<EventStatusBadge status={event.status} />}
@@ -254,6 +252,7 @@ function EventContent() {
                     <Button
                       variant="outline"
                       disabled={!writable}
+                      className="border-warning text-warning-ink"
                       onClick={() => setCancelling(true)}
                     >
                       Cancel day
@@ -286,8 +285,8 @@ function EventContent() {
             </InlineNotice>
           ) : null}
 
-          <Card>
-            <CardContent className="space-y-1 pt-6 text-sm">
+          <section className="border-t-2 border-rule-strong pt-5">
+            <div className="space-y-3 text-sm">
               <p>
                 <span className="text-muted-foreground">Where: </span>
                 {event.siteName}
@@ -299,11 +298,11 @@ function EventContent() {
                   {event.notes}
                 </p>
               ) : null}
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-lg font-semibold">Roster</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t-2 border-rule-strong pt-5">
+            <h2 className="type-section-title">Roster</h2>
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" disabled={!writable} onClick={() => setAdding(true)}>
                 <UserPlus aria-hidden="true" />
@@ -323,13 +322,14 @@ function EventContent() {
             getRowId={(row) => row.id}
             isRefreshing={detail.isRefreshing}
             initialPageSize={50}
+            keyboardScroll
             emptyState={
               <p className="py-6 text-center text-sm text-muted-foreground">
                 Nobody is scheduled. Add volunteers from the directory.
               </p>
             }
             renderMobileRow={(row) => (
-              <div className="space-y-2">
+              <div className="space-y-2 border-t border-rule py-4">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium">{row.volunteerContact.displayName}</span>
                   <DeliveryBadge row={row} />
@@ -340,7 +340,7 @@ function EventContent() {
                 {row.delivery?.status === 'FAILED' && row.delivery.failureReason ? (
                   <p className="text-xs text-muted-foreground">{row.delivery.failureReason}</p>
                 ) : null}
-                {actions(row)}
+                <div className="[&>div]:flex-wrap [&>div]:justify-start">{actions(row)}</div>
               </div>
             )}
           />
@@ -535,8 +535,12 @@ function AddVolunteersDialog({
             ) : (
               <ul className="space-y-2">
                 {candidates.map((contact) => (
-                  <li key={contact.id} className="flex items-start gap-3">
+                  <li
+                    key={contact.id}
+                    className="flex min-h-11 items-center gap-3 border-b border-rule"
+                  >
                     <Checkbox
+                      className="relative before:absolute before:-inset-3.5 before:content-['']"
                       id={`pick-${contact.id}`}
                       checked={picked.has(contact.id)}
                       onCheckedChange={(checked) =>
@@ -548,7 +552,10 @@ function AddVolunteersDialog({
                         })
                       }
                     />
-                    <Label htmlFor={`pick-${contact.id}`} className="font-normal leading-snug">
+                    <Label
+                      htmlFor={`pick-${contact.id}`}
+                      className="flex-1 cursor-pointer py-3 font-normal leading-snug"
+                    >
                       <span className="font-medium">{contact.displayName}</span>
                       <span className="block break-all text-muted-foreground">{contact.email}</span>
                     </Label>
@@ -591,14 +598,14 @@ function CancelDialog({
   const [error, setError] = useState<string | undefined>();
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Cancel this screening day?</DialogTitle>
           <DialogDescription>It can&apos;t be reopened afterwards.</DialogDescription>
         </DialogHeader>
         <form
           noValidate
-          className="space-y-4"
+          className="space-y-4 border-t-2 border-rule-strong pt-5"
           onSubmit={(event) => {
             event.preventDefault();
             if (!reason.trim()) {
@@ -623,13 +630,17 @@ function CancelDialog({
             />
             <FieldError id="cancel-reason" message={error} />
           </div>
-          <div className="flex items-start gap-2">
+          <div className="flex min-h-11 items-center gap-3">
             <Checkbox
+              className="relative before:absolute before:-inset-3.5 before:content-['']"
               id="cancel-notify"
               checked={notify}
               onCheckedChange={(checked) => setNotify(checked === true)}
             />
-            <Label htmlFor="cancel-notify" className="font-normal leading-snug">
+            <Label
+              htmlFor="cancel-notify"
+              className="flex-1 cursor-pointer py-3 font-normal leading-snug"
+            >
               Email rostered volunteers
             </Label>
           </div>
@@ -667,18 +678,22 @@ function RemoveDialog({
         }
       }}
     >
-      <DialogContent>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Remove {row?.volunteerContact.displayName} from the roster?</DialogTitle>
           <DialogDescription>You can add them back later.</DialogDescription>
         </DialogHeader>
-        <div className="flex items-start gap-2">
+        <div className="flex min-h-11 items-center gap-3">
           <Checkbox
+            className="relative before:absolute before:-inset-3.5 before:content-['']"
             id="remove-notify"
             checked={notify}
             onCheckedChange={(checked) => setNotify(checked === true)}
           />
-          <Label htmlFor="remove-notify" className="font-normal leading-snug">
+          <Label
+            htmlFor="remove-notify"
+            className="flex-1 cursor-pointer py-3 font-normal leading-snug"
+          >
             Email them that they are no longer scheduled
           </Label>
         </div>

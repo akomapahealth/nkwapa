@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
 import { db } from '@/lib/db';
 import { enqueueOutboxMutation, SYNC_OPERATION } from '@/lib/outbox';
-import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
+import { PatientFormErrors } from '@/components/patients/PatientFormErrors';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { FormSectionCard } from '@/components/app-shell/FormSectionCard';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ArrowLeft, FilePenLine, ShieldCheck, UserRoundPen } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { ResidentialLocationFields } from '@/components/patients/ResidentialLocationFields';
 import { ChangeNationalIdDialog } from '@/components/patients/ChangeNationalIdDialog';
 import { nationalIdTypeLabel } from '@/lib/patient-duplicates';
@@ -263,28 +263,7 @@ function EditPatientForm() {
         helpText="Demographics and contact details can change here, and offline saves queue a sync when the network is unavailable. The ID document changes only through its own checked, audited step."
       />
 
-      <AppMetricGroup className="md:grid-cols-3">
-        <AppMetricCard
-          title="Record"
-          value={patient.patientCode}
-          icon={UserRoundPen}
-          detail="The patient code remains constant while demographic details are updated."
-        />
-        <AppMetricCard
-          title="National ID"
-          value={idSummary(patient)}
-          icon={ShieldCheck}
-          detail="Changed only with a reason, after a check against every chart."
-        />
-        <AppMetricCard
-          title="Workflow"
-          value="Editable"
-          icon={FilePenLine}
-          detail="Changes save back to the clinic chart and sync through the offline queue when needed."
-        />
-      </AppMetricGroup>
-
-      {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
+      <PatientFormErrors message={error} />
       {savedOffline ? (
         <InlineNotice tone="success">
           Saved on this device. The change will sync when the connection returns; the sync status in
@@ -388,7 +367,7 @@ function EditPatientForm() {
           }
         />
 
-        <div className="flex flex-wrap gap-2 rounded-lg border border-border/70 bg-card p-4">
+        <div className="flex flex-wrap gap-2 border-t-2 border-rule-strong py-4">
           <Button onClick={handleSave} disabled={saving}>
             {saving ? 'Saving...' : 'Save changes'}
           </Button>

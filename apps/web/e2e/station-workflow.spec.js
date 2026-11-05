@@ -394,6 +394,13 @@ test.describe('station flow metrics on the dashboard (#24)', () => {
     });
     const table = page.getByTestId('station-flow-table');
     await expect(table.getByRole('rowheader', { name: new RegExp(intake.name) })).toBeVisible();
+
+    // #269: one lane per open station, each saying in words who is waiting and for how long.
+    const lanes = page.getByTestId('station-lane');
+    await expect(lanes).toHaveCount(body.stations.filter((station) => station.active).length);
+    await expect(lanes.filter({ hasText: intake.name })).toContainText(
+      /No one waiting|\d+ waiting, longest/,
+    );
   });
 
   for (const theme of ['light', 'dark']) {
@@ -553,9 +560,12 @@ test('a manager hands a waiting patient to a volunteer on shift', async ({ page 
   expect(again.status()).toBe(400);
 
   await page.goto('/today');
+  // The bar opens the patient's menu, which says who handed them over.
+  await page.getByRole('button', { name: new RegExp(`^${patient.name}, With staff`) }).click();
   await expect(
-    page.getByText(`Assigned by ${assigned.json().assignedBy.displayName}`),
+    page.getByRole('menu').getByText(`Assigned by ${assigned.json().assignedBy.displayName}`),
   ).toBeVisible();
+  await page.keyboard.press('Escape');
 
   const left = await apiRequestAs(
     'staff',
@@ -578,6 +588,23 @@ test("a volunteer screening on someone else's account is named on each stop (#22
   const { clinicId } = patient;
   await ensureShift('staff', clinicId);
   await ensureShift('volunteer', clinicId);
+  // An interrupted prior run may have left this test account screening under a volunteer's
+  // name. Establish the precondition this scenario asserts, through the same normal API as
+  // its cleanup below; historical completed stops are untouched.
+  const volunteerId = (await apiRequestAs('volunteer', 'get', '/auth/whoami')).json().userId;
+  const startingBoard = (
+    await apiRequestAs('volunteer', 'get', `/clinics/${clinicId}/stations/board`, { clinicId })
+  ).json();
+  const startingShift = startingBoard.onShift.find((member) => member.user.id === volunteerId);
+  expect(startingShift).toBeTruthy();
+  const startingScreener = await apiRequestAs(
+    'volunteer',
+    'patch',
+    `/clinics/${clinicId}/shifts/${startingShift.shiftId}/screener`,
+    { clinicId, data: { isAccountHolder: true } },
+  );
+  expect(startingScreener.ok(), startingScreener.text()).toBeTruthy();
+
   const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
     clinicId,
     data: { patientId: patient.patientId },
@@ -782,6 +809,11 @@ test.describe('the station screens keep separate offline copies (#197)', () => {
         .toContain('|station-board');
       await openStations(page);
       await expect(page.getByText('This page ran into a problem')).toHaveCount(0);
+      // Heading visibility precedes the board + shifts fetch. Leaving now correctly aborts
+      // that read; first wait for the saved copy whose later survival this test asserts.
+      await expect
+        .poll(async () => Object.keys(await readOpsCacheRows(page)).join(','))
+        .toContain('|station-workspace');
       await openBoard(page);
       await expect(page.getByText('This page ran into a problem')).toHaveCount(0);
 
@@ -842,6 +874,9 @@ test.describe('the station screens keep separate offline copies (#197)', () => {
     // Back online, both screens load and save their own shapes again.
     await context.unroute('**/stations/board*');
     await openStations(page);
+    await expect
+      .poll(async () => Boolean((await readOpsCacheRows(page))[`${clinicId}|station-workspace`]))
+      .toBe(true);
     await openBoard(page);
     await expect
       .poll(async () => {

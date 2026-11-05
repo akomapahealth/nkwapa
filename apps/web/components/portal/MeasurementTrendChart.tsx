@@ -11,7 +11,7 @@ import {
   YAxis,
 } from 'recharts';
 import { EmptyState } from '@/components/feedback/AppState';
-import { PortalPanel } from '@/components/portal/PortalPanels';
+import { ChartFrame } from '@/components/dashboard/ChartFrame';
 
 interface TrendLine {
   key: string;
@@ -21,17 +21,13 @@ interface TrendLine {
 
 interface MeasurementTrendChartProps {
   title: string;
-  /**
-   * Defaults to `h3`, which is right for the staff chart panel: it nests these under its own
-   * section heading. The portal's health page puts them at the top level of the page and passes
-   * `h2`.
-   */
-  headingLevel?: 'h2' | 'h3';
   description: string;
   emptyMessage: string;
   lines: TrendLine[];
   data: Array<Record<string, string | number | null>>;
   valueSuffix?: string;
+  /** Staff patient records use the Ruled Chart frame and a literal table of readings. */
+  staffRecord?: boolean;
 }
 
 // Axis labels and tooltip values are clinical numbers a patient reads down a column, so the
@@ -52,89 +48,111 @@ const dashFor = (index: number) => DASHES[index % DASHES.length];
 
 export function MeasurementTrendChart({
   title,
-  headingLevel = 'h3',
   description,
   emptyMessage,
   lines,
   data,
   valueSuffix = '',
+  staffRecord = false,
 }: MeasurementTrendChartProps) {
-  return (
-    <PortalPanel title={title} headingLevel={headingLevel} description={description}>
-      {data.length === 0 ? (
-        <EmptyState
-          density="compact"
-          icon={LineChartIcon}
-          title="No readings to chart yet"
-          description={emptyMessage}
-        />
-      ) : (
-        <div className="space-y-4">
-          <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+  const empty = (
+    <EmptyState
+      density="compact"
+      icon={LineChartIcon}
+      title="No readings to chart yet"
+      description={emptyMessage}
+    />
+  );
+  const chart = (
+    <div className={staffRecord ? 'flex h-full min-h-0 flex-col gap-3' : 'space-y-4'}>
+      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+        {lines.map((line, index) => (
+          <div key={line.key} className="flex items-center gap-2">
+            <svg aria-hidden="true" width="18" height="10" viewBox="0 0 18 10">
+              <line
+                x1="0"
+                y1="5"
+                x2="18"
+                y2="5"
+                stroke={line.color}
+                strokeWidth="2.5"
+                strokeDasharray={dashFor(index)}
+              />
+            </svg>
+            <span>{line.label}</span>
+          </div>
+        ))}
+      </div>
+      <div className={staffRecord ? 'min-h-0 flex-1' : 'h-[240px]'}>
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data}>
+            <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" />
+            <XAxis dataKey="label" tick={TABULAR_TICK} stroke="hsl(var(--muted-foreground))" />
+            <YAxis
+              tick={TABULAR_TICK}
+              stroke="hsl(var(--muted-foreground))"
+              domain={['auto', 'auto']}
+            />
+            <Tooltip
+              formatter={(value, key) => {
+                if (value == null) return ['No value', key];
+                return [`${value}${valueSuffix}`, String(key ?? '')];
+              }}
+              labelFormatter={(value) => `${value}`}
+              contentStyle={{
+                backgroundColor: 'hsl(var(--card))',
+                border: '1px solid hsl(var(--border))',
+                // The radius scale caps at 14px; this was 1rem, off-scale in both directions.
+                borderRadius: '0.625rem',
+                color: 'hsl(var(--foreground))',
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            />
             {lines.map((line, index) => (
-              <div key={line.key} className="flex items-center gap-2">
-                <svg aria-hidden="true" width="18" height="10" viewBox="0 0 18 10">
-                  <line
-                    x1="0"
-                    y1="5"
-                    x2="18"
-                    y2="5"
-                    stroke={line.color}
-                    strokeWidth="2.5"
-                    strokeDasharray={dashFor(index)}
-                  />
-                </svg>
-                <span>{line.label}</span>
-              </div>
+              <Line
+                key={line.key}
+                type="linear"
+                dataKey={line.key}
+                stroke={line.color}
+                strokeWidth={2.5}
+                strokeDasharray={dashFor(index)}
+                dot={{ r: 3 }}
+                activeDot={{ r: 5 }}
+                connectNulls
+                // Recharts' default draw-in runs 1500ms and is driven from JavaScript, so the
+                // global prefers-reduced-motion rule in globals.css cannot switch it off.
+                // Nothing in a clinical view animates longer than 200ms anyway.
+                isAnimationActive={false}
+              />
             ))}
-          </div>
-          <div className="h-[240px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={data}>
-                <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" />
-                <XAxis dataKey="label" tick={TABULAR_TICK} stroke="hsl(var(--muted-foreground))" />
-                <YAxis
-                  tick={TABULAR_TICK}
-                  stroke="hsl(var(--muted-foreground))"
-                  domain={['auto', 'auto']}
-                />
-                <Tooltip
-                  formatter={(value, key) => {
-                    if (value == null) return ['No value', key];
-                    return [`${value}${valueSuffix}`, String(key ?? '')];
-                  }}
-                  labelFormatter={(value) => `${value}`}
-                  contentStyle={{
-                    backgroundColor: 'hsl(var(--card))',
-                    border: '1px solid hsl(var(--border))',
-                    // The radius scale caps at 14px; this was 1rem, off-scale in both directions.
-                    borderRadius: '0.625rem',
-                    color: 'hsl(var(--foreground))',
-                    fontVariantNumeric: 'tabular-nums',
-                  }}
-                />
-                {lines.map((line, index) => (
-                  <Line
-                    key={line.key}
-                    type="monotone"
-                    dataKey={line.key}
-                    stroke={line.color}
-                    strokeWidth={2.5}
-                    strokeDasharray={dashFor(index)}
-                    dot={{ r: 3 }}
-                    activeDot={{ r: 5 }}
-                    connectNulls
-                    // Recharts' default draw-in runs 1500ms and is driven from JavaScript, so the
-                    // global prefers-reduced-motion rule in globals.css cannot switch it off.
-                    // Nothing in a clinical view animates longer than 200ms anyway.
-                    isAnimationActive={false}
-                  />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
-    </PortalPanel>
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+
+  return (
+    <ChartFrame
+      height={staffRecord ? 260 : 'auto'}
+      title={title}
+      hint={staffRecord ? description : undefined}
+      summary={
+        staffRecord ? undefined : (
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
+        )
+      }
+      columns={[
+        'Recorded',
+        ...lines.map((line) => `${line.label}${valueSuffix ? ` (${valueSuffix.trim()})` : ''}`),
+      ]}
+      rows={data.map((reading) => ({
+        label: String(reading.label ?? ''),
+        values: lines.map((line) => reading[line.key] ?? 'Not recorded'),
+      }))}
+      hasData={data.length > 0}
+      empty={empty}
+    >
+      {chart}
+    </ChartFrame>
   );
 }

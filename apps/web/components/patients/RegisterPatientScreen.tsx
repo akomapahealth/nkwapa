@@ -2,10 +2,10 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, FilePenLine, ShieldCheck, UserPlus } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { readApiError } from '@/lib/ops';
 import { apiFetch, type GetToken } from '@/lib/api';
-import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { FormSectionCard } from '@/components/app-shell/FormSectionCard';
 import { PhoneInput } from '@/components/PhoneInput';
@@ -28,14 +28,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { InlineNotice } from '@/components/ops/OpsShared';
 import { ResidentialLocationFields } from '@/components/patients/ResidentialLocationFields';
 import {
   emptyResidentialLocation,
   toResidentialLocationPayload,
   type ResidentialLocationValue,
 } from '@/lib/residential-location';
-import { FieldLabel, RequiredLegend } from '@/components/ui/field';
+import { FieldError, FieldLabel, RequiredLegend } from '@/components/ui/field';
+
+import { PatientFormErrors, usePatientFormErrors } from './PatientFormErrors';
 
 interface CreatePatientBody {
   firstName: string;
@@ -71,6 +72,7 @@ export function RegisterPatientScreen({
   getToken: GetToken | null | undefined;
 }) {
   const router = useRouter();
+  const validation = usePatientFormErrors();
   const registryHref = `/clinics/${clinicId}/patients`;
   const [form, setForm] = useState<CreatePatientBody>({
     firstName: '',
@@ -131,7 +133,7 @@ export function RegisterPatientScreen({
       }
 
       if (!response.ok) {
-        throw new Error(await response.text());
+        throw new Error(await readApiError(response));
       }
 
       const patient = (await response.json()) as { id: string };
@@ -159,27 +161,6 @@ export function RegisterPatientScreen({
         helpTitle="How registration works"
         helpText="Record identity, contact details, and a trusted ID in one pass. Nkwapa checks for duplicate national IDs before it creates the chart. A patient with no ID document can still be registered, and the ID added later."
       />
-
-      <AppMetricGroup className="md:grid-cols-3">
-        <AppMetricCard
-          title="Registration mode"
-          value="Clinic"
-          icon={UserPlus}
-          detail="The chart is created directly in the active clinic."
-        />
-        <AppMetricCard
-          title="Duplicate check"
-          value="Enabled"
-          icon={ShieldCheck}
-          detail="National ID matching helps prevent duplicate charts."
-        />
-        <AppMetricCard
-          title="Next step"
-          value="Open chart"
-          icon={FilePenLine}
-          detail="After save, the patient record opens immediately."
-        />
-      </AppMetricGroup>
 
       <Dialog
         open={!!conflictPatient}
@@ -223,8 +204,6 @@ export function RegisterPatientScreen({
       </Dialog>
 
       <div className="max-w-5xl space-y-4">
-        {error && !conflictPatient ? <InlineNotice tone="error">{error}</InlineNotice> : null}
-
         <ProgressiveHelp title="Before you save">
           Capture the most reliable identity details available today. If the patient has no ID
           document at all, choose &ldquo;No ID document&rdquo;: the chart is identified by its
@@ -232,7 +211,13 @@ export function RegisterPatientScreen({
           Nkwapa relies on name, date of birth and phone to spot duplicates, so fill those in.
         </ProgressiveHelp>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form
+          onSubmit={handleSubmit}
+          onInvalidCapture={validation.onInvalidCapture}
+          onChange={validation.onChange}
+          className="space-y-4"
+        >
+          <PatientFormErrors errors={validation.errors} message={conflictPatient ? null : error} />
           <RequiredLegend />
           <FormSectionCard
             title="Identity"
@@ -246,11 +231,18 @@ export function RegisterPatientScreen({
                 </FieldLabel>
                 <Input
                   id="firstName"
+                  {...validation.fieldProps('firstName')}
                   required
                   value={form.firstName}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, firstName: event.target.value }))
-                  }
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
+                    setForm((current) => ({ ...current, firstName: value }));
+                  }}
+                />
+                <FieldError
+                  reserveSpace={validation.submitted}
+                  id="firstName"
+                  message={validation.fieldMessage('firstName')}
                 />
               </div>
               <div className="space-y-2">
@@ -259,26 +251,40 @@ export function RegisterPatientScreen({
                 </FieldLabel>
                 <Input
                   id="lastName"
+                  {...validation.fieldProps('lastName')}
                   required
                   value={form.lastName}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, lastName: event.target.value }))
-                  }
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
+                    setForm((current) => ({ ...current, lastName: value }));
+                  }}
+                />
+                <FieldError
+                  reserveSpace={validation.submitted}
+                  id="lastName"
+                  message={validation.fieldMessage('lastName')}
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="dob">Date of birth</Label>
                 <Input
                   id="dob"
+                  {...validation.fieldProps('dob')}
                   type="date"
                   value={form.dob}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, dob: event.target.value }))
-                  }
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
+                    setForm((current) => ({ ...current, dob: value }));
+                  }}
+                />
+                <FieldError
+                  reserveSpace={validation.submitted}
+                  id="dob"
+                  message={validation.fieldMessage('dob')}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Sex</Label>
+                <Label htmlFor="sex">Sex</Label>
                 <Select
                   value={form.sex}
                   onValueChange={(value) =>
@@ -288,7 +294,7 @@ export function RegisterPatientScreen({
                     }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="sex">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -308,8 +314,9 @@ export function RegisterPatientScreen({
           >
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Phone (Ghana)</Label>
+                <Label htmlFor="patient-phone">Phone (Ghana)</Label>
                 <PhoneInput
+                  id="patient-phone"
                   value={form.phoneE164}
                   onChange={(value) => setForm((current) => ({ ...current, phoneE164: value }))}
                   placeholder="024 123 4567"
@@ -319,11 +326,18 @@ export function RegisterPatientScreen({
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
+                  {...validation.fieldProps('email')}
                   type="email"
                   value={form.email}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, email: event.target.value }))
-                  }
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
+                    setForm((current) => ({ ...current, email: value }));
+                  }}
+                />
+                <FieldError
+                  reserveSpace={validation.submitted}
+                  id="email"
+                  message={validation.fieldMessage('email')}
                 />
               </div>
             </div>
@@ -341,12 +355,13 @@ export function RegisterPatientScreen({
                 <Label htmlFor="nationalIdType">National ID type</Label>
                 <Select
                   value={form.nationalIdType}
-                  onValueChange={(value) =>
+                  onValueChange={(value) => {
+                    validation.clear('nationalId');
                     setForm((current) => ({
                       ...current,
                       nationalIdType: value as CreatePatientBody['nationalIdType'],
-                    }))
-                  }
+                    }));
+                  }}
                 >
                   <SelectTrigger id="nationalIdType">
                     <SelectValue />
@@ -371,18 +386,25 @@ export function RegisterPatientScreen({
                   </FieldLabel>
                   <Input
                     id="nationalId"
+                    {...validation.fieldProps('nationalId')}
                     required
                     value={form.nationalId}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, nationalId: event.target.value }))
-                    }
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      setForm((current) => ({ ...current, nationalId: value }));
+                    }}
+                  />
+                  <FieldError
+                    reserveSpace={validation.submitted}
+                    id="nationalId"
+                    message={validation.fieldMessage('nationalId')}
                   />
                 </div>
               )}
             </div>
           </FormSectionCard>
 
-          <div className="flex flex-wrap gap-2 rounded-lg border border-border/70 bg-card p-4">
+          <div className="flex flex-wrap gap-2 border-t-2 border-rule-strong py-4">
             <Button type="submit" disabled={loading}>
               {loading ? 'Creating...' : 'Create patient'}
             </Button>

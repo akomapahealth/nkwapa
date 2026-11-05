@@ -1,5 +1,9 @@
 'use client';
 
+import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { StaleDataNotice } from '@/components/feedback/StaleDataNotice';
+
+import { StatusLabel } from '@/components/ui/status-label';
 import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, Bell, CheckCheck, Clock3, SendHorizontal, Timer } from 'lucide-react';
 import { useBootstrap } from '@/lib/bootstrap-context';
@@ -14,9 +18,14 @@ import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppStat
 import { RouteGuard } from '@/components/RouteGuard';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection,
+  RecordSectionContent,
+  RecordSectionDescription,
+  RecordSectionHeader,
+  RecordSectionTitle,
+} from '@/components/patients/RecordSection';
 import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import {
   Select,
@@ -76,6 +85,7 @@ function maskAddress(value: string) {
 export default function RemindersPage() {
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const getToken = useAuth();
+  const { isOnline } = useSync();
   const clinicId = getBootstrapActiveClinicId(bootstrap);
   // Staff lifecycle notices are withheld by the server from anyone without this (#116).
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
@@ -264,7 +274,7 @@ export default function RemindersPage() {
       accessorKey: 'status',
       header: 'Status',
       cell: ({ getValue }) => (
-        <Badge variant={getStatusVariant(String(getValue()))}>{String(getValue())}</Badge>
+        <StatusLabel variant={getStatusVariant(String(getValue()))} value={String(getValue())} />
       ),
     },
     { id: 'channel', accessorKey: 'channel', header: 'Channel' },
@@ -362,8 +372,8 @@ export default function RemindersPage() {
     <RouteGuard requiredPermission="REMINDER.READ">
       <div className="space-y-6">
         <AppPageHeader
-          eyebrow="Message delivery"
-          title="Notifications"
+          eyebrow="Oversight"
+          title="Message delivery"
           description={
             seesStaffNotices
               ? 'Review every message the clinic has sent: reminders, portal invites, appointment updates, and staff access notices.'
@@ -420,12 +430,14 @@ export default function RemindersPage() {
           />
         </AppMetricGroup>
 
-        <Card>
-          <CardHeader className="space-y-3">
-            <CardTitle className="text-xl">Filters</CardTitle>
-            <CardDescription>Focus the reminder history before opening results.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <RecordSection>
+          <RecordSectionHeader className="space-y-3">
+            <RecordSectionTitle>Filters</RecordSectionTitle>
+            <RecordSectionDescription>
+              Focus the reminder history before opening results.
+            </RecordSectionDescription>
+          </RecordSectionHeader>
+          <RecordSectionContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <div className="space-y-2">
                 <Label htmlFor="status">Status</Label>
@@ -543,9 +555,10 @@ export default function RemindersPage() {
               to answer for. Failed rows name the reason and what to do about it, so start there
               when a patient says they heard nothing.
             </ProgressiveHelp>
-          </CardContent>
-        </Card>
+          </RecordSectionContent>
+        </RecordSection>
 
+        {!isOnline ? <StaleDataNotice isOnline={false} /> : null}
         {error ? (
           <InlineErrorState
             description={error}
@@ -554,35 +567,34 @@ export default function RemindersPage() {
           />
         ) : null}
 
-        <Card>
-          <CardHeader className="space-y-3">
+        <RecordSection>
+          <RecordSectionHeader className="space-y-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <CardTitle className="text-xl">Reminder history</CardTitle>
-                <CardDescription>Delivery timing, channel, and failure details.</CardDescription>
+                <RecordSectionTitle>Reminder history</RecordSectionTitle>
+                <RecordSectionDescription>
+                  Delivery timing, channel, and failure details.
+                </RecordSectionDescription>
               </div>
               <div className="rounded-lg border border-border bg-background px-4 py-3 text-sm">
                 <p className="text-muted-foreground">Loaded rows</p>
                 <p className="mt-1 text-xl font-semibold text-foreground">{rows.length}</p>
               </div>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          </RecordSectionHeader>
+          <RecordSectionContent className="space-y-4">
             {loading && rows.length === 0 ? (
               <SectionSkeleton lines={4} className="border-0 bg-transparent p-0 shadow-none" />
-            ) : !loading && rows.length === 0 ? (
+            ) : error && rows.length === 0 ? null : !loading && rows.length === 0 ? (
               <EmptyStateCard
                 title="No reminders match the current filters"
                 description="Try a wider date range or a broader status filter to review reminder activity."
               />
             ) : (
               <>
-                <div className="space-y-3 md:hidden">
+                <div className="divide-y divide-border md:hidden">
                   {rows.map((row) => (
-                    <article
-                      key={row.id}
-                      className="rounded-lg border border-border bg-background p-4"
-                    >
+                    <article key={row.id} className="py-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <h3 className="text-sm font-semibold text-foreground">
@@ -592,7 +604,7 @@ export default function RemindersPage() {
                             {new Date(row.scheduledAt).toLocaleString()}
                           </p>
                         </div>
-                        <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge>
+                        <StatusLabel variant={getStatusVariant(row.status)} value={row.status} />
                       </div>
                       <div className="mt-3 grid gap-1 text-sm text-muted-foreground">
                         <p>
@@ -619,6 +631,7 @@ export default function RemindersPage() {
 
                 <div className="hidden md:block">
                   <DataTable
+                    keyboardScroll
                     caption="Messages sent by the clinic"
                     columns={columns}
                     data={rows}
@@ -645,8 +658,8 @@ export default function RemindersPage() {
                 </Button>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </RecordSectionContent>
+        </RecordSection>
       </div>
     </RouteGuard>
   );

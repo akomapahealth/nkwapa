@@ -43,7 +43,7 @@ test('medical history supports empty, validation, active, historical, revision, 
   await expect(
     page.getByRole('heading', { name: 'Active allergies or adverse reactions' }),
   ).toBeVisible();
-  await expect(page.getByText(/Peanut.*SEVERE.*Hives/)).toBeVisible();
+  await expect(page.getByText(/Peanut.*Severe.*Hives/)).toBeVisible();
 
   await page.getByRole('button', { name: 'Revise' }).click();
   dialog = page.getByRole('dialog', { name: 'Revise history record' });

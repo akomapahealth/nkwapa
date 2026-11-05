@@ -16,6 +16,19 @@ async function clinicIdFor(role) {
   return whoami.json().activeClinicId;
 }
 
+async function expectSavedVolunteer(page, name) {
+  await page.reload();
+  const table = page.getByRole('table', { name: 'Volunteer directory' });
+  await expect(table).toBeVisible();
+  // Accumulated synthetic volunteers can put the new record beyond the first 25 rows.
+  while (!(await table.getByText(name, { exact: true }).count())) {
+    const next = page.getByRole('button', { name: 'Next page', exact: true });
+    if (!(await next.isEnabled())) break;
+    await next.click();
+  }
+  await expect(table.getByText(name, { exact: true })).toBeVisible({ timeout: 10_000 });
+}
+
 test.describe('as a director', () => {
   test.use({ storageState: storageStateFor('staff') });
 
@@ -42,10 +55,8 @@ test.describe('as a director', () => {
       await dialog.getByLabel('Email').fill(person.email);
       await dialog.getByRole('button', { name: 'Save' }).click();
       await expect(dialog).toBeHidden();
-      // Scoped to the table: the mobile cards render the same names, hidden at this width.
-      await expect(
-        page.getByRole('table', { name: 'Volunteer directory' }).getByText(person.name),
-      ).toBeVisible();
+      // Reload and find the persisted row across pages. The hidden mobile card is not enough.
+      await expectSavedVolunteer(page, person.name);
     }
 
     // The same address again is refused inline, with a way to the existing record.

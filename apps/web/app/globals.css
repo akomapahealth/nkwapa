@@ -1,13 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Serif+4:wght@200..900&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --font-heading: 'Source Serif 4';
-    --font-body: 'IBM Plex Sans';
     --background: 54 63% 97%;
     --foreground: 200 25% 15%;
     --card: 50 33% 98%;
@@ -68,6 +64,17 @@
        previously both were 45 20% 87%, so every text input, select, and textarea in the product
        had an effectively invisible boundary. At 200 15% 52% it measures 3.47:1. */
     --border: 45 20% 87%;
+    /* Ruled Chart: decorative hairlines stay soft; the 2px group rule uses ink.
+       --rule-strong measures 14.30:1 on canvas and 14.31:1 on card. */
+    --rule: var(--border);
+    --rule-strong: var(--foreground);
+    /* Opaque status surfaces, derived from a 12% fill over --card and rounded to
+       0.1 HSL units. Paired -ink contrast: success 5.20, warning 5.90, info 7.29,
+       destructive 6.02. Explicit surfaces stay predictable on any parent. */
+    --success-surface: 137.8 23.2% 90.3%;
+    --warning-surface: 33.8 72.1% 92%;
+    --info-surface: 192.4 25.7% 91%;
+    --destructive-surface: 6 63% 92.4%;
     --input: 200 15% 52%;
     --ring: 188 100% 27%;
     /* Pale sage nav rail. 88% is the shallowest tint that still reads as a separate panel
@@ -173,6 +180,16 @@
     /* Same split as light mode: --border stays a soft decorative divider, --input carries the
        3:1 control boundary and measures 4.74:1 against the dark canvas. */
     --border: 200 15% 20%;
+    /* Same rule roles in dark: strong 15.66:1 on canvas, 14.50:1 on card.
+       Hairlines are decorative (1.47:1 on canvas), never control boundaries. */
+    --rule: var(--border);
+    --rule-strong: var(--foreground);
+    /* 22% fill over --card, rounded to 0.1 HSL units. Paired -ink contrast:
+       success 6.83, warning 6.75, info 6.37, destructive 6.66. */
+    --success-surface: 161.2 37.8% 19%;
+    --warning-surface: 38.9 30.9% 21.3%;
+    --info-surface: 200 34% 21.3%;
+    --destructive-surface: 350.2 15.5% 22.5%;
     --input: 200 14% 50%;
     --ring: 188 80% 47%;
     /* Dark counterpart of the sage nav rail: 1.23:1 against the dark canvas, which reads as a
@@ -208,11 +225,47 @@
   h5,
   h6 {
     @apply font-heading;
+    /* Even lines, no one-word last line (#280). Ignored where unsupported. */
+    text-wrap: balance;
+  }
+  /* No orphaned last word in running text. Only changes where lines break, never the box. */
+  p,
+  li,
+  figcaption {
+    text-wrap: pretty;
   }
 }
 
 /* Utility classes */
 @layer utilities {
+  /* Public type roles for #265 and later page work. Keep their definitions
+     emitted before consumers migrate; the Tailwind safelist names these roles. */
+  .type-page-title {
+    @apply font-heading text-page-title font-semibold tracking-tight sm:text-page-title-lg;
+    overflow-wrap: anywhere;
+  }
+  .type-record-title {
+    @apply font-heading text-record-title font-semibold tracking-tight sm:text-record-title-lg;
+    overflow-wrap: anywhere;
+  }
+  .type-section-title {
+    @apply font-body text-section-title font-semibold;
+  }
+  .type-body {
+    @apply font-body text-body-copy font-normal;
+  }
+  .type-label {
+    @apply font-body text-field-label font-medium;
+  }
+  .type-meta {
+    @apply font-body text-metadata font-normal;
+  }
+  .type-metric {
+    @apply font-body text-metric-value font-semibold tabular-nums tracking-tight;
+  }
+  .type-data {
+    @apply font-body text-data-value font-normal tabular-nums;
+  }
   /*
     Installed-app safe areas (#206). viewport-fit=cover lets the app draw under notches, rounded
     corners and the home indicator; these keep chrome clear of them. env() is 0 in a browser tab,
@@ -229,6 +282,18 @@
   .safe-edges-y {
     border-top: env(safe-area-inset-top) solid transparent;
     border-bottom: env(safe-area-inset-bottom) solid transparent;
+  }
+
+  .safe-edges-x {
+    border-left-width: env(safe-area-inset-left);
+    border-right-width: env(safe-area-inset-right);
+    border-left-color: transparent;
+    border-right-color: transparent;
+  }
+
+  .scroll-region:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: -2px;
   }
 
   .touch-target {

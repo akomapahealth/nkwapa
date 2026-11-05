@@ -1,19 +1,26 @@
 'use client';
 
+import { statusLabel } from '@/lib/status-presentation';
 import Link from 'next/link';
 import {
   Activity,
   AlertTriangle,
   ArrowUpRight,
   CircleCheck,
+  ClipboardList,
   HeartPulse,
   Pill,
   ShieldCheck,
   Gauge,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import {
+  RecordSection as Card,
+  RecordSectionContent as CardContent,
+  RecordSectionHeader as CardHeader,
+} from '@/components/patients/RecordSection';
 import { Button } from '@/components/ui/button';
+import { AppActionRow } from '@/components/app-shell/AppActionRow';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { EmptyStateCard } from '@/components/ops/OpsShared';
 import { formatOpsDateTime } from '@/lib/ops';
@@ -43,8 +50,8 @@ function SummaryCard({
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
-            <h3 className="text-sm font-semibold">{title}</h3>
+            <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            <h3 className="type-label font-body font-semibold">{title}</h3>
           </div>
           {action}
         </div>
@@ -82,7 +89,7 @@ function SectionLink({
           onNavigate(section);
         }
       }}
-      className="inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 transition-colors duration-150 hover:underline"
+      className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-primary underline-offset-4 transition-colors duration-150 hover:underline"
     >
       {children}
       <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
@@ -102,33 +109,39 @@ function PendingActionRow({
   onNavigate?: (section: PatientChartSectionId) => void;
 }) {
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-border bg-background p-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0">
-        <p className="text-sm font-medium">
-          {action.label}
-          {action.count > 1 ? ` (${action.count})` : ''}
-        </p>
-        <p className="mt-0.5 text-xs text-muted-foreground">{action.description}</p>
-      </div>
-      {action.encounterId ? (
-        <Link
-          href={buildEncounterHref(clinicId, action.encounterId)}
-          className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary underline-offset-4 transition-colors duration-150 hover:underline"
-        >
-          Open visit
-          <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-        </Link>
-      ) : (
-        <SectionLink
-          clinicId={clinicId}
-          patientId={patientId}
-          section={action.section}
-          onNavigate={onNavigate}
-        >
-          Resolve
-        </SectionLink>
-      )}
-    </li>
+    <AppActionRow
+      title={`${action.label}${action.count > 1 ? ` (${action.count})` : ''}`}
+      detail={action.description}
+      icon={
+        action.kind === 'AWAITING_REVIEW' || action.kind === 'NOTE_PENDING_COSIGN'
+          ? AlertTriangle
+          : ClipboardList
+      }
+      tone={
+        action.kind === 'AWAITING_REVIEW' || action.kind === 'NOTE_PENDING_COSIGN'
+          ? 'info'
+          : 'neutral'
+      }
+      action={
+        action.encounterId ? (
+          <Button asChild variant="outline" className="min-h-11">
+            <Link href={buildEncounterHref(clinicId, action.encounterId)}>
+              Open visit
+              <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          </Button>
+        ) : (
+          <SectionLink
+            clinicId={clinicId}
+            patientId={patientId}
+            section={action.section}
+            onNavigate={onNavigate}
+          >
+            Resolve
+          </SectionLink>
+        )
+      }
+    />
   );
 }
 
@@ -190,21 +203,21 @@ export function PatientChartOverview({
 
       <Card>
         <CardHeader>
-          <h2 className="text-lg font-semibold">Pending clinical actions</h2>
+          <h2 className="type-section-title">Needs you now</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             What still needs attention on this chart.
           </p>
         </CardHeader>
         <CardContent>
           {pendingActions.length === 0 ? (
-            <div className="flex items-center gap-3 rounded-lg border border-border bg-background p-4">
-              <CircleCheck className="h-5 w-5 text-primary" aria-hidden="true" />
+            <div className="flex items-center gap-3 border-b border-rule py-4">
+              <CircleCheck className="h-5 w-5 text-success-ink" aria-hidden="true" />
               <p className="text-sm text-muted-foreground">
                 Nothing is outstanding for your role on this chart.
               </p>
             </div>
           ) : (
-            <ul className="space-y-2">
+            <ul className="divide-y divide-rule">
               {pendingActions.map((action) => (
                 <PendingActionRow
                   key={`${action.kind}-${action.encounterId ?? 'none'}`}
@@ -237,7 +250,7 @@ export function PatientChartOverview({
           >
             {latestVitals ? (
               <div className="space-y-1">
-                <p className="text-2xl font-semibold">
+                <p className="type-metric">
                   {latestVitals.systolicBp !== null && latestVitals.diastolicBp !== null
                     ? `${latestVitals.systolicBp}/${latestVitals.diastolicBp}`
                     : '—'}
@@ -275,7 +288,7 @@ export function PatientChartOverview({
           >
             {latestDiabetes ? (
               <div className="space-y-1">
-                <p className="text-sm">
+                <p className="type-data">
                   {latestDiabetes.glucoseMgDl !== null
                     ? `Glucose ${latestDiabetes.glucoseMgDl} mg/dL`
                     : 'Glucose not recorded'}
@@ -311,7 +324,7 @@ export function PatientChartOverview({
           >
             {latestHypertension ? (
               <div className="space-y-1">
-                <p className="text-sm">
+                <p className="type-data">
                   {HYPERTENSION_LABELS[
                     (latestHypertension.classification ?? 'UNKNOWN') as HypertensionClassification
                   ] ?? 'Not classified'}
@@ -356,7 +369,10 @@ export function PatientChartOverview({
                   <li key={allergy.recordId} className="text-sm">
                     <span className="font-medium">{allergy.substance ?? 'Unnamed substance'}</span>
                     {allergy.severity ? (
-                      <span className="text-muted-foreground"> · {allergy.severity}</span>
+                      <span className="text-muted-foreground">
+                        {' '}
+                        · {statusLabel(allergy.severity)}
+                      </span>
                     ) : null}
                   </li>
                 ))}
@@ -388,7 +404,7 @@ export function PatientChartOverview({
           >
             {medications.currentCount > 0 ? (
               <p>
-                <span className="text-2xl font-semibold">{medications.currentCount}</span>{' '}
+                <span className="type-metric">{medications.currentCount}</span>{' '}
                 <span className="text-muted-foreground">
                   {medications.currentCount === 1 ? 'active medication' : 'active medications'}
                 </span>
@@ -422,7 +438,7 @@ export function PatientChartOverview({
             }
           >
             <p>
-              <span className="text-2xl font-semibold">{summary.visits.total}</span>{' '}
+              <span className="type-metric">{summary.visits.total}</span>{' '}
               <span className="text-muted-foreground">
                 {summary.visits.total === 1 ? 'recorded visit' : 'recorded visits'}
               </span>

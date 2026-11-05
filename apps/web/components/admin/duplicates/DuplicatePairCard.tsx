@@ -31,10 +31,7 @@ export function DuplicatePairCard({
   const precision = describeMatchPrecision(candidate.reasons);
 
   return (
-    <article
-      data-testid="duplicate-pair-card"
-      className="rounded-lg border border-border/80 bg-background/80 p-4 shadow-sm"
-    >
+    <article data-testid="duplicate-pair-card" className="border-b border-border py-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <Badge variant={confidenceBadgeVariant(candidate.confidence)}>
           {DUPLICATE_CONFIDENCE_LABELS[candidate.confidence]}

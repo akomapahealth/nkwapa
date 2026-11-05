@@ -40,7 +40,7 @@ test('says what Nkwapa is in a single h1', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('h1')).toHaveCount(1);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-    'Patient records and clinic workflows, in one place.',
+    'One record for every visit, even offline.',
   );
 });
 
@@ -134,15 +134,31 @@ test('status shows a neutral check, then gives up on a silent API after ten seco
   await expect(trigger).toContainText('API unreachable');
 });
 
-test('shows the real product screenshots above the fold', async ({ page }) => {
+test('opens on a real clinic photograph, with nothing competing with it', async ({ page }) => {
   for (const viewport of [VIEWPORTS[2], VIEWPORTS[7]]) {
     await page.setViewportSize(viewport);
     await page.goto('/');
-    const phone = page.locator('#top img[src*="mobile.png"]');
-    await expect(phone).toBeVisible();
-    expect(await phone.evaluate((img) => img.complete && img.naturalWidth > 0)).toBe(true);
+    const photo = page.locator('#top img[src*="Akomapa-17"]');
+    await expect(photo).toBeInViewport();
+    expect(await photo.evaluate((img) => img.complete && img.naturalWidth > 0)).toBe(true);
+    // Eager and high priority: the LCP must not wait for a lazy-load observer or for hydration.
+    await expect(photo).toHaveAttribute('fetchpriority', 'high');
   }
-  await expect(page.locator('#top img[src*="desktop.png"]')).toBeVisible();
+  // #282: one picture in the hero; the product screens start in the sections below it.
+  await expect(page.locator('#top img')).toHaveCount(1);
+  // No photograph on the page carries a caption.
+  await expect(page.locator('main figcaption')).toHaveCount(0);
+});
+
+test('the about photograph ends at full width once scrolled in', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await scrollThrough(page);
+  const photo = page.locator('[data-expand]');
+  await photo.evaluate((el) => el.scrollIntoView({ block: 'start', behavior: 'instant' }));
+  await page.waitForTimeout(1200);
+  // Every inset back to zero (or no clip at all): no digit other than 0 left in the value.
+  expect(await photo.evaluate((el) => getComputedStyle(el).clipPath)).toMatch(/^[^1-9]*$/);
 });
 
 test('every link goes somewhere real', async ({ page }) => {
@@ -174,14 +190,19 @@ test('the release banner names the latest version and stays dismissed', async ({
 });
 
 test("the release banner opens what's new and closes with Escape", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  await page
+  const trigger = page
     .getByRole('complementary', { name: 'Latest release' })
-    .getByRole('button', { name: /Nkwapa \d+\.\d+\.\d+ is out now/ })
-    .click();
+    .getByRole('button', { name: /Nkwapa \d+\.\d+\.\d+ is out now/ });
+  await trigger.focus();
+  await page.keyboard.press('Enter');
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('heading', { level: 2 })).toHaveText(/What's new in Nkwapa/);
   await expect(dialog.getByRole('heading', { level: 3 }).first()).toBeVisible();
+  // Only the list scrolls: the close button stays in view, and Tab reaches the change list.
+  await expect(dialog.getByRole('button', { name: 'Close' })).toBeInViewport();
+  await expect(dialog.getByRole('region', { name: 'Changes in this release' })).toBeVisible();
   // Let the entrance finish so axe measures settled colours; the heartbeat pulse loops forever.
   await dialog.evaluate((el) =>
     Promise.all(
@@ -198,6 +219,7 @@ test("the release banner opens what's new and closes with Escape", async ({ page
   expect(results.violations).toEqual([]);
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
 });
 
 test('mobile menu opens, navigates, and closes with Escape', async ({ page }) => {
@@ -259,6 +281,41 @@ test('the clinic day and role deck pin on wide screens and end on their last ste
   await expect(page.locator('[data-deck-text]').last()).toBeVisible();
 });
 
+test('smooth scrolling leaves the keyboard, find-in-page targets and dialogs native', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await expect(page.locator('html')).toHaveClass(/\blenis\b/);
+
+  // Keyboard scrolling is the browser's own, not intercepted.
+  await page.locator('body').click({ position: { x: 5, y: 300 } });
+  await page.keyboard.press('End');
+  await expect
+    .poll(() => page.evaluate(() => scrollY + innerHeight >= document.body.scrollHeight - 2))
+    .toBe(true);
+
+  // An element scrolled into view natively stays put rather than being dragged back.
+  await page.evaluate(() =>
+    document.getElementById('about').scrollIntoView({ behavior: 'instant' }),
+  );
+  await page.waitForTimeout(500);
+  await expect(page.locator('#about')).toBeInViewport();
+
+  // The wheel does not move the page behind an open dialog.
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+  await page
+    .getByRole('complementary', { name: 'Latest release' })
+    .getByRole('button', { name: /Nkwapa \d+\.\d+\.\d+ is out now/ })
+    .click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  const before = await page.evaluate(() => scrollY);
+  await page.mouse.move(40, 450);
+  await page.mouse.wheel(0, 800);
+  await page.waitForTimeout(600);
+  expect(await page.evaluate(() => scrollY)).toBe(before);
+});
+
 test.describe('with reduced motion', () => {
   test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
@@ -277,6 +334,7 @@ test.describe('with reduced motion', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
     await expect(page.locator('[data-journey-pinned]')).toHaveCount(0);
+    await expect(page.locator('html')).not.toHaveClass(/\blenis\b/);
     const steps = page.locator('[data-journey-step]');
     await expect(steps).toHaveCount(5);
     for (const step of await steps.all()) {

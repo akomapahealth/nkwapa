@@ -200,7 +200,17 @@ test.describe('creating a clinic', () => {
     await submit(dialog);
 
     await expect(dialog).toBeHidden({ timeout: 15_000 });
-    await expect(page.getByRole('table').getByText(locationCode)).toBeVisible({ timeout: 15_000 });
+    // Read the saved row back, not an optimistic insertion. Older runs leave enough
+    // clinics that this uniquely named record can be on a later page.
+    await page.reload();
+    const table = page.getByRole('table');
+    await expect(table).toBeVisible({ timeout: 15_000 });
+    while (!(await table.getByText(locationCode, { exact: true }).count())) {
+      const next = page.getByRole('button', { name: 'Next page', exact: true });
+      if (!(await next.isEnabled())) break;
+      await next.click();
+    }
+    await expect(table.getByText(locationCode, { exact: true })).toBeVisible({ timeout: 15_000 });
   });
 });
 

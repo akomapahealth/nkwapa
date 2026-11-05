@@ -63,15 +63,15 @@ export function ResourceState<T>({
     return (
       <div
         className={cn(
-          'flex items-start gap-3 rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm',
+          'flex items-start gap-3 border-y border-rule bg-warning-surface px-4 py-3 text-warning-ink',
           className,
         )}
         role="status"
       >
-        <WifiOff aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+        <WifiOff aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" />
         <div>
-          <p className="font-medium text-foreground">You are offline</p>
-          <p className="mt-1 leading-6 text-muted-foreground">{offlineDescription}</p>
+          <p className="type-label">You are offline</p>
+          <p className="type-body mt-1">{offlineDescription}</p>
         </div>
       </div>
     );
@@ -79,7 +79,13 @@ export function ResourceState<T>({
 
   if (state.isInitialLoading) {
     return (
-      <div className={className} role="status" aria-live="polite" aria-busy="true">
+      <div
+        className={className}
+        role="status"
+        aria-label="Loading"
+        aria-live="polite"
+        aria-busy="true"
+      >
         <span className="sr-only">Loading</span>
         {skeleton ?? <SectionSkeleton lines={4} />}
       </div>

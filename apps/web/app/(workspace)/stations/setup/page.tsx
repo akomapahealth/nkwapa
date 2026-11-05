@@ -23,7 +23,12 @@ import { InlineNotice } from '@/components/ops/OpsShared';
 import { SectionSkeleton } from '@/components/feedback/AppState';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection as Card,
+  RecordSectionContent as CardContent,
+  RecordSectionHeader as CardHeader,
+  RecordSectionTitle as CardTitle,
+} from '@/components/patients/RecordSection';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -108,7 +113,6 @@ function StationSetupContent() {
   return (
     <div className="space-y-6">
       <AppPageHeader
-        eyebrow="Clinic ops"
         title="Station setup"
         description="The order patients move through, and how many each station can see at once."
         helpTitle="What capacity means"
@@ -143,7 +147,7 @@ function StationSetupContent() {
               return (
                 <li
                   key={station.id}
-                  className="grid gap-3 py-3 sm:grid-cols-[auto_1fr_8rem_auto_auto] sm:items-end"
+                  className="grid gap-3 py-3 lg:grid-cols-[auto_minmax(0,1fr)_8rem_auto_auto] sm:items-end"
                   data-testid="station-setup-row"
                 >
                   <div className="flex items-center gap-1">

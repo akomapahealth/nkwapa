@@ -173,8 +173,11 @@ for (const theme of ['light', 'dark']) {
 
       // Keyboard: the discard control is reachable and opens its confirmation.
       const discard = section.getByRole('button', { name: /^Discard / });
-      await discard.focus();
-      await page.keyboard.press('Enter');
+      // Sync temporarily disables destructive actions. Focusing a disabled button leaves focus
+      // on the sheet trigger, where Enter closes the sheet instead of opening confirmation.
+      await expect(discard).toBeEnabled({ timeout: 30_000 });
+      await discard.press('Enter');
+      await expect(page.getByRole('dialog', { name: /Discard changes for/ })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Keep them' })).toBeVisible();
     });
   }

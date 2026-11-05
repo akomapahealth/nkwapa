@@ -101,7 +101,7 @@ export function EventForm({
   };
 
   return (
-    <form noValidate onSubmit={submit} className="space-y-4">
+    <form noValidate onSubmit={submit} className="space-y-4 border-t-2 border-rule-strong pt-5">
       <div className="space-y-1">
         <Label htmlFor="event-title">Title</Label>
         <Input
@@ -170,18 +170,22 @@ export function EventForm({
         </p>
       </div>
       {initial && hasNotifiedVolunteers ? (
-        <div className="flex items-start gap-2">
+        <div className="flex min-h-11 items-center gap-3">
           <Checkbox
+            className="relative before:absolute before:-inset-3.5 before:content-['']"
             id="event-notify-change"
             checked={notifyChange}
             onCheckedChange={(checked) => setNotifyChange(checked === true)}
           />
-          <Label htmlFor="event-notify-change" className="font-normal leading-snug">
+          <Label
+            htmlFor="event-notify-change"
+            className="flex-1 cursor-pointer py-3 font-normal leading-snug"
+          >
             Notify rostered volunteers if the date, time or site changes
           </Label>
         </div>
       ) : null}
-      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+      <div className="flex flex-col-reverse gap-2 border-t border-rule pt-4 sm:flex-row sm:justify-end">
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>

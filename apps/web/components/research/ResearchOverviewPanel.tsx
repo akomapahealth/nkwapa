@@ -6,7 +6,13 @@ import { CalendarClock, ClipboardCheck, Database, Microscope, Users } from 'luci
 import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { InlineNotice } from '@/components/feedback/InlineNotice';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection,
+  RecordSectionContent,
+  RecordSectionDescription,
+  RecordSectionHeader,
+  RecordSectionTitle,
+} from '@/components/patients/RecordSection';
 import {
   DESTINATION_LABELS,
   EXPORT_STATUS_LABELS,
@@ -121,29 +127,29 @@ export function ResearchOverviewPanel({
         </InlineNotice>
       ) : null}
 
-      <Card className="rounded-lg border-border/80 bg-card" data-testid="research-decisions">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <ClipboardCheck aria-hidden="true" className="h-5 w-5 text-primary" />
+      <RecordSection data-testid="research-decisions">
+        <RecordSectionHeader>
+          <RecordSectionTitle className="flex items-center gap-2">
+            <ClipboardCheck aria-hidden="true" className="h-5 w-5 text-muted-foreground" />
             Needs a decision
             {decisions > 0 ? <Badge variant="outline">{decisions}</Badge> : null}
-          </CardTitle>
-          <CardDescription>
+          </RecordSectionTitle>
+          <RecordSectionDescription>
             {canApprove
               ? 'Runs waiting for approval, and failed or skipped runs from the last 30 days that have not been run again.'
               : 'What is waiting on a director. You can follow it here; a director makes the call.'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+          </RecordSectionDescription>
+        </RecordSectionHeader>
+        <RecordSectionContent>
           {decisions === 0 ? (
             <p className="text-sm text-muted-foreground">Nothing is waiting on a decision.</p>
           ) : (
-            <ul className="space-y-3">
+            <ul className="divide-y divide-rule border-t border-rule">
               {attention.runs.map((run) => (
                 <li
                   key={run.id}
                   data-testid="research-decision"
-                  className="flex flex-col gap-3 rounded-lg border border-border/70 bg-background/60 p-4 lg:flex-row lg:items-center lg:justify-between"
+                  className="flex flex-col gap-3 py-3 lg:flex-row lg:items-center lg:justify-between"
                 >
                   <div className="min-w-0 space-y-1.5">
                     <div className="flex flex-wrap items-center gap-2">
@@ -163,7 +169,7 @@ export function ResearchOverviewPanel({
                 <li
                   key={schedule.id}
                   data-testid="research-decision"
-                  className="flex flex-col gap-3 rounded-lg border border-border/70 bg-background/60 p-4 lg:flex-row lg:items-center lg:justify-between"
+                  className="flex flex-col gap-3 py-3 lg:flex-row lg:items-center lg:justify-between"
                 >
                   <div className="min-w-0 space-y-1.5">
                     <Badge
@@ -187,8 +193,8 @@ export function ResearchOverviewPanel({
               ))}
             </ul>
           )}
-        </CardContent>
-      </Card>
+        </RecordSectionContent>
+      </RecordSection>
     </section>
   );
 }

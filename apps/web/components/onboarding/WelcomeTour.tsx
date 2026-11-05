@@ -6,6 +6,7 @@ import {
   Building2,
   CalendarDays,
   CircleHelp,
+  ClipboardList,
   CloudOff,
   HeartPulse,
   PanelLeft,
@@ -36,6 +37,7 @@ const stepIcons: Record<Exclude<WelcomeTourIcon, 'welcome'>, LucideIcon> = {
   help: CircleHelp,
   health: HeartPulse,
   appointments: CalendarDays,
+  work: ClipboardList,
 };
 
 /*
@@ -54,7 +56,10 @@ let dismissedThisSession = false;
  *
  * Motion is a short slide-and-fade between steps, direction-aware so Back reads as going back.
  * This is a once-in-a-lifetime screen, so it may take a little more motion than a clinical view;
- * under reduced motion the steps only cross-fade.
+ * under reduced motion (read in JavaScript, through framer-motion) the steps only cross-fade.
+ *
+ * #277 layout: the step count is written out, not left to the dots, and each step can carry a
+ * short ruled list of things to try and where they are, chosen by role in lib/welcome-tour.ts.
  */
 export function WelcomeTour() {
   const bootstrapContext = useBootstrap();
@@ -145,12 +150,37 @@ export function WelcomeTour() {
             }
           }}
           className={cn(
-            'fixed left-1/2 top-1/2 z-[111] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-xl outline-none',
+            'fixed left-1/2 top-1/2 z-[111] flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-xl outline-none',
             'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:duration-200',
             'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:duration-150',
           )}
         >
-          <div className="relative min-h-[236px] px-6 pb-2 pt-7 sm:px-7">
+          <div className="space-y-2.5 px-6 pt-5 sm:px-7">
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <span className="text-eyebrow text-muted-foreground">Welcome tour</span>
+              {/* Read out by the progress bar below; written here so nobody counts dots. */}
+              <span aria-hidden="true" className="font-medium tabular-nums text-muted-foreground">
+                Step {index + 1} of {steps.length}
+              </span>
+            </div>
+            <div
+              className="flex gap-1"
+              role="img"
+              aria-label={`Step ${index + 1} of ${steps.length}`}
+            >
+              {steps.map((item, barIndex) => (
+                <span
+                  key={item.id}
+                  className={cn(
+                    'h-1 flex-1 rounded-full transition-colors duration-base ease-out-strong',
+                    barIndex <= index ? 'bg-primary' : 'bg-border',
+                  )}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="relative min-h-[300px] overflow-y-auto px-6 pb-2 pt-6 sm:px-7">
             <AnimatePresence initial={false} mode="popLayout" custom={direction}>
               <motion.div
                 key={step.id}
@@ -160,56 +190,57 @@ export function WelcomeTour() {
                 exit={{ opacity: 0, x: direction * -offset }}
                 transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
               >
-                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  {Icon ? (
-                    <Icon aria-hidden="true" className="h-7 w-7" />
-                  ) : (
-                    <div className="relative h-10 w-10">
-                      <Image
-                        src="/images/nkwapa-mark.png"
-                        alt=""
-                        fill
-                        sizes="40px"
-                        className="object-contain"
-                      />
-                    </div>
-                  )}
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    {Icon ? (
+                      <Icon aria-hidden="true" className="h-6 w-6" />
+                    ) : (
+                      <div className="relative h-8 w-8">
+                        <Image
+                          src="/images/nkwapa-mark.png"
+                          alt=""
+                          fill
+                          sizes="32px"
+                          className="object-contain"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <DialogPrimitive.Title className="font-heading text-2xl font-semibold tracking-tight text-foreground">
+                      {step.title}
+                    </DialogPrimitive.Title>
+                    <p
+                      id="welcome-tour-body"
+                      className="mt-1.5 text-sm leading-6 text-muted-foreground sm:text-base"
+                    >
+                      {step.body}
+                    </p>
+                  </div>
                 </div>
-                <DialogPrimitive.Title className="mt-5 font-heading text-2xl font-semibold tracking-tight text-foreground">
-                  {step.title}
-                </DialogPrimitive.Title>
-                <p
-                  id="welcome-tour-body"
-                  className="mt-2 text-sm leading-6 text-muted-foreground sm:text-base"
-                >
-                  {step.body}
-                </p>
+                {step.points?.length ? (
+                  <ul className="mt-5 border-t-2 border-rule-strong">
+                    {step.points.map((point) => (
+                      <li key={point.label} className="border-b border-rule py-2.5">
+                        <p className="text-sm font-medium text-foreground">{point.label}</p>
+                        <p className="text-sm leading-6 text-muted-foreground">{point.where}</p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </motion.div>
             </AnimatePresence>
           </div>
 
-          <div className="flex items-center justify-between gap-3 px-6 pb-6 pt-4 sm:px-7">
-            <div
-              className="flex items-center gap-1.5"
-              role="img"
-              aria-label={`Step ${index + 1} of ${steps.length}`}
-            >
-              {steps.map((item, dotIndex) => (
-                <span
-                  key={item.id}
-                  className={cn(
-                    'h-1.5 rounded-full transition-[width,background-color] duration-base ease-out-strong',
-                    dotIndex === index ? 'w-5 bg-primary' : 'w-1.5 bg-border',
-                  )}
-                />
-              ))}
-            </div>
+          <div className="flex items-center justify-between gap-2 border-t border-rule px-6 py-4 sm:px-7">
+            {isLast ? (
+              <span />
+            ) : (
+              <Button type="button" variant="ghost" onClick={finish}>
+                Skip
+              </Button>
+            )}
             <div className="flex items-center gap-2">
-              {isLast ? null : (
-                <Button type="button" variant="ghost" onClick={finish}>
-                  Skip
-                </Button>
-              )}
               {index > 0 ? (
                 <Button type="button" variant="outline" onClick={() => go(-1)}>
                   Back

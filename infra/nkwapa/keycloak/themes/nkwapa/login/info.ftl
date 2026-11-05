@@ -1,5 +1,5 @@
 <#import "template.ftl" as layout>
-<@layout.registrationLayout displayMessage=false; section>
+<@layout.registrationLayout displayMessage=false journey="setup" step=(requiredActions??)?then(2, 3) eyebrow="Account setup"; section>
     <#if section = "header">
         <#-- messageHeader is a message KEY, not a sentence. Printing it directly put the
              literal text "accountUpdatedTitle" in front of every patient who finished

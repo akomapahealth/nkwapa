@@ -16,13 +16,15 @@ import { DirectorDashboard } from '@/components/dashboard/DirectorDashboard';
 import { VolunteerDashboard } from '@/components/dashboard/VolunteerDashboard';
 import { SystemAdminDashboard } from '@/components/dashboard/SystemAdminDashboard';
 import { StationFlowDashboard } from '@/components/dashboard/StationFlowDashboard';
+import { NeedsYouNow } from '@/components/dashboard/NeedsYouNow';
+import { getOpsDestination } from '@/lib/ops';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 import {
   ClinicalMeasurementsDashboard,
   type ClinicalMeasurementMetrics,
 } from '@/components/dashboard/ClinicalMeasurementsDashboard';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { EmptyStateCard } from '@/components/ops/OpsShared';
 import { RefreshCw } from 'lucide-react';
@@ -193,6 +195,47 @@ export default function DashboardPage() {
 
   const isInitialLoading = loading && !data;
 
+  // Oversight first (director, then network), then a person's own queues (MASTER.md section 12).
+  const roleSections = data
+    ? [
+        data.director && {
+          id: 'clinic',
+          label: 'Clinic trends',
+          node: <DirectorDashboard {...data.director} />,
+        },
+        data.systemAdmin && {
+          id: 'network',
+          label: 'Network overview',
+          node: (
+            <SystemAdminDashboard
+              {...data.systemAdmin}
+              zoneFilter={zoneFilter}
+              onZoneFilterChange={setZoneFilter}
+              isRefreshing={loading}
+            />
+          ),
+        },
+        // A doctor's review queue is part of the same job, so the two stay one view.
+        (data.doctor || data.review) && {
+          id: 'doctor',
+          label: data.doctor ? 'Doctor queue' : 'Review queue',
+          node: (
+            <div className="space-y-8">
+              {data.doctor && <DoctorDashboard {...data.doctor} />}
+              {data.review && <ReviewDashboard {...data.review} />}
+            </div>
+          ),
+        },
+        data.volunteer && {
+          id: 'volunteer',
+          label: 'Your work today',
+          node: <VolunteerDashboard {...data.volunteer} />,
+        },
+      ].filter((section): section is { id: string; label: string; node: JSX.Element } =>
+        Boolean(section),
+      )
+    : [];
+
   return (
     <RouteGuard requiredPermission="DASHBOARD.READ">
       <div className="space-y-6">
@@ -205,13 +248,8 @@ export default function DashboardPage() {
           // a bubble; the disclosure was costing a block of vertical space above the metrics on
           // every visit, to every user, forever.
           hint="The dashboard always reflects the clinic selected in the header. Start with the clinic snapshot, then use the role sections below to clear intake work, reviews, finalizations, and oversight tasks."
-          badges={
-            activeClinic ? (
-              <Badge variant="secondary" className="rounded-full px-3 py-1">
-                {activeClinic.clinicName}
-              </Badge>
-            ) : null
-          }
+          // No clinic-name badge: the title and the header's switcher already say which clinic,
+          // and on a phone the chip pushed the volunteer's own work below the first screen.
           actions={
             clinicId ? (
               <Button
@@ -260,6 +298,22 @@ export default function DashboardPage() {
 
         {data && clinicId && (
           <>
+            {/* Work first (MASTER.md section 12), then today's counts, then trends. */}
+            <NeedsYouNow
+              volunteer={data.volunteer}
+              doctor={data.doctor}
+              review={data.review}
+              clinic={
+                data.director || data.systemAdmin
+                  ? {
+                      ...data.summary,
+                      pendingClinicalNoteCosigns: data.director?.pendingClinicalNoteCosigns,
+                    }
+                  : undefined
+              }
+              worklistHref={getOpsDestination(perms, isWebFeatureEnabled('stationWorkflow'))}
+            />
+
             <DashboardSectionHeader
               title="Today at a glance"
               hint="These totals help you see what is active now before you move into the role-specific sections below."
@@ -273,6 +327,36 @@ export default function DashboardPage() {
             />
 
             <div className="space-y-8 border-t border-border/70 pt-6">
+              {/* What is happening right now on the line, before any role's trends. */}
+              {showStationFlow && clinicId ? <StationFlowDashboard clinicId={clinicId} /> : null}
+
+              {roleSections.length > 1 ? (
+                /*
+                  One role's section at a time for someone who holds several. Stacked, an account
+                  with every role ran past 8,000px at 1440; each section is still one press away,
+                  and its numbers are unchanged.
+                */
+                <Tabs defaultValue={roleSections[0].id} className="space-y-6">
+                  <TabsList
+                    aria-label="Dashboard view"
+                    className="flex h-auto w-full flex-wrap justify-start gap-1 bg-transparent p-0"
+                  >
+                    {roleSections.map((section) => (
+                      <TabsTrigger key={section.id} value={section.id}>
+                        {section.label}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                  {roleSections.map((section) => (
+                    <TabsContent key={section.id} value={section.id} className="mt-0">
+                      {section.node}
+                    </TabsContent>
+                  ))}
+                </Tabs>
+              ) : (
+                roleSections[0]?.node
+              )}
+
               {(data.director?.clinicalMeasurements ??
                 data.doctor?.clinicalMeasurements ??
                 data.volunteer?.clinicalMeasurements) && (
@@ -282,25 +366,6 @@ export default function DashboardPage() {
                     data.doctor?.clinicalMeasurements ??
                     data.volunteer!.clinicalMeasurements
                   }
-                />
-              )}
-
-              {showStationFlow && clinicId ? <StationFlowDashboard clinicId={clinicId} /> : null}
-
-              {data.doctor && <DoctorDashboard {...data.doctor} />}
-
-              {data.review && <ReviewDashboard {...data.review} />}
-
-              {data.director && <DirectorDashboard {...data.director} />}
-
-              {data.volunteer && <VolunteerDashboard {...data.volunteer} />}
-
-              {data.systemAdmin && (
-                <SystemAdminDashboard
-                  {...data.systemAdmin}
-                  zoneFilter={zoneFilter}
-                  onZoneFilterChange={setZoneFilter}
-                  isRefreshing={loading}
                 />
               )}
             </div>

@@ -1,6 +1,19 @@
 import { HttpException, type ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
+// These unit cases own their limits. The E2E job's high-volume RATE_LIMIT overrides
+// are deliberately irrelevant to the decorator defaults and fallback being asserted here.
+const originalEnv = process.env;
+beforeEach(() => {
+  process.env = { ...originalEnv };
+  for (const key of Object.keys(process.env)) {
+    if (key.startsWith('RATE_LIMIT_')) delete process.env[key];
+  }
+});
+afterEach(() => {
+  process.env = originalEnv;
+});
+
 const mockIncr = jest.fn();
 let redisReady = true;
 const redisService = {

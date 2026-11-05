@@ -43,7 +43,7 @@ test('patient chart exposes every section with stable deep links', async ({ page
   }
 
   // Overview leads with pending clinical actions before any chronological history.
-  await expect(page.getByRole('heading', { name: 'Pending clinical actions' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Needs you now' })).toBeVisible();
 
   // Selecting a tab writes it to the URL so the section can be linked and bookmarked.
   await page.getByRole('tab', { name: 'Visits', exact: true }).click();
@@ -104,7 +104,7 @@ test('an inactive tab does not fetch its longitudinal data until it is opened', 
   });
 
   await page.goto(`/clinics/${clinicId}/patients/${patientId}?tab=overview`);
-  await expect(page.getByRole('heading', { name: 'Pending clinical actions' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Needs you now' })).toBeVisible();
 
   // Overview needs the summary, but must not pull the vitals or visits histories.
   expect(chartRequests.some((p) => p.endsWith('/chart/summary'))).toBeTruthy();
@@ -188,3 +188,71 @@ test('chart navigation works by keyboard and at every supported width', async ({
     ).toBeFalsy();
   }
 });
+
+// #270: synthetic responses exercise the readable alternative without changing seed data.
+for (const reducedMotion of ['reduce', 'no-preference']) {
+  test(`staff trends retain exact values in chart and table (${reducedMotion})`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion });
+    const { clinicId, patientId } = await createPatient(page);
+    await page.route(`**/patients/${patientId}/trends?*`, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          bp: [
+            { t: '2026-10-01T12:00:00Z', sys: 120, dia: 80, source: 'ENCOUNTER' },
+            { t: '2026-10-01T13:00:00Z', sys: 150, dia: 90, source: 'ENCOUNTER' },
+            { t: '2026-10-03T12:00:00Z', sys: 130, dia: 85, source: 'ENCOUNTER' },
+          ],
+          glucose: [
+            { t: '2026-10-01T12:00:00Z', value: 105, type: 'FASTING', source: 'ENCOUNTER' },
+          ],
+          measurements: [{ t: '2026-10-01T12:00:00Z', spo2Percent: 98, source: 'ENCOUNTER' }],
+          followUp: { requested: 0, confirmed: 0, completed: 0, noShow: 0, closed: 0 },
+        }),
+      }),
+    );
+    await page.goto(`/clinics/${clinicId}/patients/${patientId}?tab=vitals`);
+    const bp = page
+      .getByRole('heading', { name: 'Blood pressure trend', exact: true })
+      .locator('xpath=ancestor::section[1]');
+    const curves = bp.locator('path.recharts-line-curve');
+    await expect(curves).toHaveCount(2);
+    // Three actual readings form straight line segments, with no spline control points.
+    for (const curve of await curves.all()) {
+      await expect(curve).toHaveAttribute('d', /L/);
+      await expect(curve).not.toHaveAttribute('d', /[CQ]/);
+    }
+    for (const [title, expectedColumns, values] of [
+      [
+        'Blood pressure trend',
+        ['Systolic (mmHg)', 'Diastolic (mmHg)'],
+        ['120', '80', '150', '90', '130', '85'],
+      ],
+      ['Glucose trend', ['Glucose (mg/dL)'], ['105']],
+      ['SpO₂ trend', ['SpO₂ (%)'], ['98']],
+    ]) {
+      const section = page
+        .getByRole('heading', { name: title, exact: true })
+        .locator('xpath=ancestor::section[1]');
+      await section.getByRole('button', { name: 'Show table', exact: true }).click();
+      const table = page.getByRole('table', { name: title, exact: true });
+      await expect(table).toBeVisible();
+      if (title === 'Blood pressure trend') {
+        // Two readings on one day must both survive in the literal table.
+        await expect(table.getByRole('row')).toHaveCount(4);
+        await expect(table.getByRole('rowheader', { name: '10/1', exact: true })).toHaveCount(2);
+      }
+      for (const column of expectedColumns) {
+        await expect(table.getByRole('columnheader', { name: column, exact: true })).toBeVisible();
+      }
+      for (const value of values) {
+        await expect(table.getByRole('cell', { name: value, exact: true })).toBeVisible();
+      }
+      await section.getByRole('button', { name: 'Show chart', exact: true }).click();
+      await expect(table).toHaveCount(0);
+    }
+  });
+}

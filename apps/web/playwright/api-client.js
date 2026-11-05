@@ -38,6 +38,12 @@ async function accessTokenFor(role) {
     throw new Error(`Unknown e2e role: ${role}. Known roles: ${Object.keys(ROLES).join(', ')}`);
   }
 
+  if (!credentials.username || !credentials.password) {
+    throw new Error(
+      `The ${role} identity is created by its spec and has no shared API credentials.`,
+    );
+  }
+
   const cached = tokens.get(role);
   if (cached && cached.expiresAt - EXPIRY_MARGIN_MS > Date.now()) return cached.token;
 

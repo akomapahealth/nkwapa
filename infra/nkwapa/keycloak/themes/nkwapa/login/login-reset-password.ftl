@@ -1,7 +1,7 @@
 <#import "template.ftl" as layout>
-<@layout.registrationLayout displayInfo=true displayMessage=!messagesPerField.existsError('username'); section>
+<@layout.registrationLayout displayInfo=true displayMessage=!messagesPerField.existsError('username') journey="reset" step=1 eyebrow="Password help"; section>
     <#if section = "header">
-        reset your password
+        Reset your password
     <#elseif section = "form">
         <form id="kc-reset-password-form" action="${url.loginAction}" method="post">
             <div class="nkwapa-form-group">

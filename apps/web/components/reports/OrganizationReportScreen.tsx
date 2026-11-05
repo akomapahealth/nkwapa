@@ -21,7 +21,13 @@ import { DashboardKpiCard } from '@/components/dashboard/DashboardKpiCard';
 import { TrendChart } from '@/components/dashboard/TrendChart';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection,
+  RecordSectionContent,
+  RecordSectionDescription,
+  RecordSectionHeader,
+  RecordSectionTitle,
+} from '@/components/patients/RecordSection';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { OrganizationAnalyticsPanel } from './OrganizationAnalyticsPanel';
@@ -49,6 +55,7 @@ export function OrganizationReportScreen() {
   const [tab, setTab] = useState<'report' | 'analytics'>('report');
 
   const organizations = useAsyncResource<OrganizationSummary[]>({
+    requiresOnline: true,
     resourceKey: 'report-organizations',
     errorMessage: 'The organization list could not be loaded.',
     fetcher: async (token, signal) => {
@@ -70,6 +77,7 @@ export function OrganizationReportScreen() {
   }, [organizationId, organizations.data]);
 
   const report = useAsyncResource<OrganizationReport>({
+    requiresOnline: true,
     resourceKey: `organization-report:${organizationId ?? 'none'}`,
     errorMessage: 'The organization report could not be loaded.',
     enabled: organizationId !== null,
@@ -237,21 +245,21 @@ export function OrganizationReportScreen() {
                     />
                   </AppMetricGroup>
 
-                  <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr),minmax(0,1fr)]">
+                  <div className="grid gap-x-6 gap-y-4 xl:grid-cols-[minmax(0,2fr),minmax(0,1fr)]">
                     <TrendChart
                       title="Encounters per day"
                       hint={`All ${data.organization.name} clinics, last ${data.windowDays} days`}
                       data={data.encounterTrend}
                     />
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-lg">Care quality</CardTitle>
-                        <CardDescription>
+                    <RecordSection>
+                      <RecordSectionHeader>
+                        <RecordSectionTitle>Care quality</RecordSectionTitle>
+                        <RecordSectionDescription>
                           Across every clinic, from combined counts.
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <dl className="space-y-3 text-sm">
+                        </RecordSectionDescription>
+                      </RecordSectionHeader>
+                      <RecordSectionContent>
+                        <dl className="divide-y divide-rule text-sm">
                           {[
                             ['Blood pressure screened', data.totals.hypertensionScreeningRate],
                             ['Diabetes screened', data.totals.diabetesScreeningRate],
@@ -259,33 +267,33 @@ export function OrganizationReportScreen() {
                           ].map(([label, value]) => (
                             <div
                               key={label as string}
-                              className="flex flex-wrap justify-between gap-2"
+                              className="flex flex-wrap justify-between gap-2 py-2"
                             >
                               <dt className="text-muted-foreground">{label as string}</dt>
-                              <dd className="font-medium text-foreground">
+                              <dd className="font-medium tabular-nums text-foreground">
                                 {formatRate(value as OrganizationReport['totals']['followUpRate'])}
                               </dd>
                             </div>
                           ))}
-                          <div className="flex flex-wrap justify-between gap-2">
+                          <div className="flex flex-wrap justify-between gap-2 py-2">
                             <dt className="text-muted-foreground">Active staff</dt>
-                            <dd className="font-medium text-foreground">
+                            <dd className="font-medium tabular-nums text-foreground">
                               {data.totals.activeStaff}
                             </dd>
                           </div>
                         </dl>
-                      </CardContent>
-                    </Card>
+                      </RecordSectionContent>
+                    </RecordSection>
                   </div>
 
-                  <Card className="min-w-0">
-                    <CardHeader>
-                      <CardTitle className="text-lg">By clinic</CardTitle>
-                      <CardDescription>
+                  <RecordSection>
+                    <RecordSectionHeader>
+                      <RecordSectionTitle>By clinic</RecordSectionTitle>
+                      <RecordSectionDescription>
                         Open any clinic&apos;s own dashboard to see its detail.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
+                      </RecordSectionDescription>
+                    </RecordSectionHeader>
+                    <RecordSectionContent>
                       <div>
                         <DataTable
                           caption="Clinics in this organization"
@@ -296,8 +304,8 @@ export function OrganizationReportScreen() {
                           initialPageSize={25}
                         />
                       </div>
-                    </CardContent>
-                  </Card>
+                    </RecordSectionContent>
+                  </RecordSection>
                 </div>
               )}
             </ResourceState>

@@ -1,6 +1,6 @@
 'use client';
 
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { StatusLabel } from '@/components/ui/status-label';
 import { DistributionChart } from './DistributionChart';
 import { HYPERTENSION_ORDER, HYPERTENSION_TONES, toLabelledDistribution } from '@/lib/hypertension';
 import { ClipboardList, Stethoscope } from 'lucide-react';
@@ -31,7 +31,12 @@ interface DoctorDashboardProps {
 const columns: DataTableColumn<DoctorDashboardProps['recentEncounters'][number]>[] = [
   { id: 'patientCode', accessorKey: 'patientCode', header: 'Patient Code' },
   { id: 'patientName', accessorKey: 'patientName', header: 'Patient Name' },
-  { id: 'status', accessorKey: 'status', header: 'Status' },
+  {
+    id: 'status',
+    accessorKey: 'status',
+    header: 'Status',
+    cell: ({ getValue }) => <StatusLabel value={String(getValue())} />,
+  },
   {
     id: 'createdAt',
     accessorKey: 'createdAt',
@@ -44,14 +49,12 @@ const columns: DataTableColumn<DoctorDashboardProps['recentEncounters'][number]>
 ];
 
 export function DoctorDashboard({
-  awaitingFinalization,
   patientsSeen,
   followUpComplianceRate,
   hypertensionDistribution,
   diabetesStats,
   finalizationsTrend,
   recentEncounters,
-  pendingClinicalNoteCosigns,
 }: DoctorDashboardProps) {
   return (
     <section className="space-y-6">
@@ -60,20 +63,8 @@ export function DoctorDashboard({
         hint="Use this section to spot visits that still need a doctor's final decision."
       />
 
-      <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-5">
-        {pendingClinicalNoteCosigns !== undefined ? (
-          <DashboardKpiCard
-            title="HAP notes to cosign"
-            value={pendingClinicalNoteCosigns}
-            icon={ClipboardList}
-            hint="Volunteer-authored notes assigned to you and waiting for review."
-          />
-        ) : null}
-        <DashboardKpiCard
-          title="Waiting for sign-off"
-          value={awaitingFinalization}
-          hint="Visits already reviewed but not yet finalized by a doctor."
-        />
+      {/* Sign-off and cosign counts lead the page as "Needs you now" rows; these are done work. */}
+      <AppMetricGroup className="sm:grid-cols-3">
         <DashboardKpiCard
           title="Finalized today"
           value={patientsSeen.today}
@@ -121,28 +112,24 @@ export function DoctorDashboard({
         />
       </div>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Recently finalized visits</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <DashboardActionRow
-            actions={[
-              { href: '/my/assigned', label: 'My tasks', icon: Stethoscope },
-              { href: '/queues', label: 'Open queues', icon: ClipboardList },
-            ]}
+      <section className="space-y-4 border-t-2 border-rule-strong pt-3">
+        <h3 className="type-label pt-2.5 text-foreground">Recently finalized visits</h3>
+        <DashboardActionRow
+          actions={[
+            { href: '/my/assigned', label: 'My tasks', icon: Stethoscope },
+            { href: '/queues', label: 'Open queues', icon: ClipboardList },
+          ]}
+        />
+        <div className="overflow-y-hidden">
+          <DataTable
+            caption="Recent encounters"
+            columns={columns}
+            data={recentEncounters}
+            pageSizeOptions={[10]}
+            initialPageSize={10}
           />
-          <div className="overflow-y-hidden">
-            <DataTable
-              caption="Recent encounters"
-              columns={columns}
-              data={recentEncounters}
-              pageSizeOptions={[10]}
-              initialPageSize={10}
-            />
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
     </section>
   );
 }

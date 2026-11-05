@@ -26,7 +26,13 @@ import { SectionSkeleton } from '@/components/feedback/AppState';
 import { InlineNotice } from '@/components/feedback/InlineNotice';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection,
+  RecordSectionContent,
+  RecordSectionDescription,
+  RecordSectionHeader,
+  RecordSectionTitle,
+} from '@/components/patients/RecordSection';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ProgressiveHelp } from '@/components/ui/progressive-help';
@@ -103,6 +109,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
   const [limit, setLimit] = useState(PAGE_SIZE);
 
   const overviewResource = useAsyncResource<ResearchOverview>({
+    requiresOnline: true,
     resourceKey: clinicId,
     errorMessage: 'The research overview could not be loaded.',
     fetcher: async (token, signal) => {
@@ -123,6 +130,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
   }, [limit, statusFilter, triggerFilter]);
 
   const exportsResource = useAsyncResource<{ items: ResearchExportItem[]; hasMore: boolean }>({
+    requiresOnline: true,
     resourceKey: `${clinicId}?${exportsQuery}`,
     errorMessage: 'The research export queue could not be loaded.',
     fetcher: async (token, signal) => {
@@ -371,7 +379,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
         {canEditSettings ? (
           <Link
             href="/settings/clinic"
-            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+            className="inline-flex min-h-11 items-center rounded-sm text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             Clinic research settings
           </Link>
@@ -428,11 +436,12 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
         <FormSectionCard
+          className="border-t-2 border-rule-strong"
           title="Request export pack"
           description="Choose the date range, then submit the pack for approval or processing."
           hint="The exported format is a fixed v1 ZIP bundle of CSV tables plus manifest files."
         >
-          <div className="rounded-lg border border-border/70 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+          <div className="border-b border-rule pb-4 text-sm text-muted-foreground">
             Export format: fixed v1 ZIP pack of CSV tables plus manifest files.
           </div>
 
@@ -497,7 +506,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
               </Button>
             </div>
 
-            <div className="rounded-lg border border-border/70 bg-muted/40 p-4">
+            <div className="border-t border-rule pt-4">
               <p className="text-sm font-medium text-foreground">Destination</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 The research storage this server is configured with. Completed runs show where they
@@ -531,17 +540,17 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
           </div>
         </FormSectionCard>
 
-        <Card className="rounded-lg border-border/80 bg-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <GitBranch aria-hidden="true" className="h-5 w-5 text-primary" />
+        <RecordSection>
+          <RecordSectionHeader>
+            <RecordSectionTitle className="flex items-center gap-2">
+              <GitBranch aria-hidden="true" className="h-5 w-5 text-muted-foreground" />
               Pack contents
-            </CardTitle>
-            <CardDescription>
+            </RecordSectionTitle>
+            <RecordSectionDescription>
               Every completed export produces the same de-identified bundle.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="text-sm">
+            </RecordSectionDescription>
+          </RecordSectionHeader>
+          <RecordSectionContent className="text-sm">
             {/* These are filenames, so they are marked up as filenames. They were wrapped in
                 markdown backticks, which rendered as literal backtick characters. */}
             <ul className="space-y-2">
@@ -558,8 +567,8 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                 </li>
               ))}
             </ul>
-          </CardContent>
-        </Card>
+          </RecordSectionContent>
+        </RecordSection>
       </div>
 
       <ResearchSchedulesPanel
@@ -569,17 +578,17 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
         onRunCreated={refreshExports}
       />
 
-      <Card className="rounded-lg border-border/80 bg-card">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <CheckCircle2 aria-hidden="true" className="h-5 w-5 text-primary" />
+      <RecordSection>
+        <RecordSectionHeader>
+          <RecordSectionTitle className="flex items-center gap-2">
+            <CheckCircle2 aria-hidden="true" className="h-5 w-5 text-muted-foreground" />
             Export activity
-          </CardTitle>
-          <CardDescription>
+          </RecordSectionTitle>
+          <RecordSectionDescription>
             Manual and scheduled runs, approval, processing, publishing and downloads.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          </RecordSectionDescription>
+        </RecordSectionHeader>
+        <RecordSectionContent className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:max-w-xl">
             <div className="space-y-2">
               <Label htmlFor="researchStatusFilter">Status</Label>
@@ -657,7 +666,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                     <div
                       key={item.id}
                       data-testid="research-run"
-                      className="space-y-4 rounded-lg border border-border/70 bg-background/60 p-4 sm:p-5"
+                      className="space-y-4 border-t border-rule pt-4"
                     >
                       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div className="space-y-2">
@@ -746,7 +755,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                           ) : null}
                         </div>
 
-                        <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4 text-sm">
+                        <div className="space-y-3 border-t border-rule pt-4 text-sm lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
                           <div>
                             <p className="font-medium text-foreground">Artifact</p>
                             <p className="text-muted-foreground">
@@ -771,7 +780,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                                     href={item.storageUrl}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="mt-1 inline-block text-primary underline-offset-4 hover:underline"
+                                    className="mt-1 inline-flex min-h-11 items-center rounded-sm text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                   >
                                     {item.storageProvider === 'GITHUB' ? 'Open commit' : 'Open'}
                                   </a>
@@ -848,8 +857,8 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
               </div>
             )}
           </ResourceState>
-        </CardContent>
-      </Card>
+        </RecordSectionContent>
+      </RecordSection>
 
       <ResearchReasonDialog prompt={reasonPrompt} onClose={() => setReasonPrompt(null)} />
     </div>

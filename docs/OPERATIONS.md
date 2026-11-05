@@ -1,4 +1,100 @@
-# Rolling out the patient identity service account
+# Operations and deploy
+
+How Nkwapa is hosted, how a merge becomes a deploy, how the live status gate works, and the one
+manual Keycloak step each environment needs. Environment variable templates for every service are
+in [`deploy/env/`](../deploy/env/); local setup is in [GETTING_STARTED.md](GETTING_STARTED.md).
+
+## Environments
+
+| Service                   | Production                                | Staging                         | Deployed by                       |
+| ------------------------- | ----------------------------------------- | ------------------------------- | --------------------------------- |
+| Web (Next.js)             | Vercel, `nkwapa.app`                      | Vercel, `staging.nkwapa.app`    | `deploy.yml`, Vercel CLI or Git   |
+| API (NestJS + workers)    | Render, `api.nkwapa.app`                  | Render, `nkwapa-api-staging`    | `deploy.yml`, Render deploy hook  |
+| Auth (Keycloak)           | Render, `auth.nkwapa.app` (paid instance) | Render, `nkwapa-auth-staging`   | `deploy.yml`, Render deploy hook  |
+| Database                  | Neon Postgres                             | Neon Postgres                   | Prisma migrations in `deploy.yml` |
+| Redis (rate limits, jobs) | Upstash                                   | Render Key Value (internal URL) | n/a                               |
+
+Branches map to environments: a push to `release/dev` deploys staging, a push to `main` deploys
+production. The production API runs on a Render free instance; `keep-warm.yml` pings it during
+Ghana clinic hours (Monday to Saturday) so the first sign-in of the day does not wait for a cold
+boot. The workflow file explains the free-hours budget behind that schedule.
+
+## How a deploy runs
+
+`.github/workflows/deploy.yml`, on every push to `main` or `release/dev`:
+
+1. **Migrate.** `npm run db:migrate:deploy` against that environment's `DATABASE_URL`. Prisma runs
+   each migration on its own, not as one transaction, so a failed deploy can leave earlier DDL
+   committed.
+2. **Deploy web, API and auth** in parallel once migrations pass.
+3. **Verify** the live deployment (`npm run deploy:verify`, below).
+4. **Tag the release** (production only), after verification passes. A pull request into `main`
+   needs exactly one `release:major`, `release:minor` or `release:patch` label
+   (`release-label.yml`); the tag job reads it to pick the next version.
+
+**Rollback** is a revert on the branch, which redeploys. Migrations are forward-only: a revert does
+not undo a schema change, so a release that changes the schema needs its own rollback note.
+
+## Live status and post-deploy gate
+
+The landing footer reads `GET /status` once on load, again when its status dialog opens, and on
+Refresh, never on a timer: each check runs a database query, and a tab polling every minute kept the free API and Neon
+awake around the clock (#172). It gives up after 10 seconds and shows "API unreachable". The API
+coalesces concurrent checks and caches one result for 30 seconds. It reports database, Redis,
+background queues, email, Keycloak discovery, and the web version endpoint. The public body contains
+fixed component names, states, latency, check time, safe reason codes, and the API/web commit SHAs.
+The footer does not display SHAs. `GET /status/details` returns dependency errors and queue names
+only to a signed-in global System Admin.
+
+An outage means database or auth failed. A noncritical failure, slow check, queue job waiting more
+than five minutes (`STALE_JOBS`), a job that failed in the last five minutes (`RECENT_FAILURES`; older
+failures are kept by BullMQ and ignored), failed latest email send, the fake email provider under
+`NODE_ENV=production` (`FAKE_PROVIDER`), or web/API commit mismatch means degraded. Email with no
+send since process start reports `NO_RESULT` and remains operational. Status is a current snapshot,
+not an uptime history.
+
+### Deployment configuration
+
+Set these **GitHub Environment variables** separately in `production` and `staging`:
+
+| Variable             | Production example                      | Staging example               |
+| -------------------- | --------------------------------------- | ----------------------------- |
+| `VERIFY_WEB_URL`     | `https://nkwapa.app`                    | `https://staging.nkwapa.app`  |
+| `VERIFY_API_URL`     | `https://api.nkwapa.app`                | The staging Render API origin |
+| `VERIFY_AUTH_ISSUER` | `https://auth.nkwapa.app/realms/nkwapa` | The staging Keycloak issuer   |
+
+The API's first `CORS_ALLOWED_ORIGINS` entry must be the corresponding web origin. Render must expose
+the deployed commit in `RENDER_GIT_COMMIT` (or set `GITHUB_SHA` on the service to that commit). Vercel
+must expose `VERCEL_GIT_COMMIT_SHA` (or `GITHUB_SHA` at build time). The web route `/api/version` and
+the API status response must both contain the pushed GitHub SHA. A missing SHA fails verification.
+
+Set the `production` GitHub Environment **secret** `VERIFY_READONLY_DATABASE_URL` to a dedicated
+Postgres login. The verifier rejects elevated roles or write privileges on any public table,
+opens a read-only transaction, and counts only fixture markers shared with
+`packages/db/src/seed-plan.ts`. Fixture users count only while active, because
+`npm run db:purge-seed-fixtures -- --apply` deactivates them rather than deleting them. Create the login with a unique password and grant the minimum
+table access, using an administrative database connection:
+
+```sql
+CREATE ROLE nkwapa_deploy_verify LOGIN PASSWORD '<unique generated password>';
+GRANT CONNECT ON DATABASE your_database TO nkwapa_deploy_verify;
+GRANT USAGE ON SCHEMA public, app TO nkwapa_deploy_verify;
+GRANT SELECT ON TABLE "User", "Patient" TO nkwapa_deploy_verify;
+```
+
+Use a connection string for this role as the secret. The verifier sets the existing system-admin
+RLS context locally within its read-only transaction so it can see all clinic fixture markers.
+Keep the credential only in the GitHub production Environment, not in Render or Vercel. Check that
+the two SELECT counts are visible across clinics when provisioning the role. If the role lacks
+access, the gate fails rather than treating hidden fixtures as absent.
+
+`verify-deploy` runs after the web, API, and auth deploy jobs. It retries for at most ten minutes
+while Render and Vercel converge, then writes all failures to the GitHub job summary. A release tag
+is created only after this job passes. The verifier requires all six components operational, both
+SHAs equal to `GITHUB_SHA`, a matching OIDC issuer, a successful web response, and an allowed CORS
+preflight. Missing targets or the production fixture credential fail the gate.
+
+## Keycloak service account for patient identity
 
 Patients are now given a Keycloak account when their portal invitation is sent, rather than
 having one created for them by hand. That needs a confidential client, `nkwapa-api`, which
@@ -12,7 +108,7 @@ Until it is, nothing breaks: invitations are still created and still emailed, an
 chart reports that no account stands behind them. That is the designed degradation, not a
 sign the rollout worked.
 
-## 1. Generate a secret per environment
+### 1. Generate a secret per environment
 
 One value, used in two places. Never commit it; `scripts/check-secrets.mjs` fails the build
 if you do.
@@ -21,7 +117,7 @@ if you do.
 openssl rand -base64 32
 ```
 
-## 2. Apply the client
+### 2. Apply the client
 
 One command, idempotent, and it verifies itself. Run it from a machine that can reach the
 target Keycloak, with the credentials for that environment:
@@ -58,7 +154,7 @@ script.
 The script also warns if `registrationAllowed` has been turned on. It must stay off: open
 self-registration would let anyone create an account against a clinic.
 
-## 3. Set the environment variables
+### 3. Set the environment variables
 
 On the API service (see `deploy/env/*.api.env.example`):
 
@@ -79,7 +175,7 @@ KEYCLOAK_ADMIN_CLIENT_SECRET=<the same value>
 `APP_PUBLIC_URL` must also be set on the API. Without it there is no honest address to send
 the patient back to, and provisioning is skipped rather than guessed at.
 
-## 4. Restart the API, and confirm
+### 4. Restart the API, and confirm
 
 The API resolves this configuration once at startup, so it needs a restart to pick the values
 up. Then invite a patient from a chart you control and check the chart says **Account created**
@@ -89,7 +185,7 @@ If it still says the account could not be created, the reason is on the card. Th
 are a secret that does not match, a missing `APP_PUBLIC_URL`, or the API pointing at a
 different Keycloak than the one the client was applied to.
 
-## 5. Check both mail paths, and that both are authenticated
+### 5. Check both mail paths, and that both are authenticated
 
 Keycloak sends the account-setup link through `KC_SMTP_*`; Nkwapa sends the invitation through
 its own `SMTP_*`. They are configured independently, and the patient needs both messages: one
@@ -127,7 +223,7 @@ emails arrive. Then open the setup email's raw source (in Gmail, "Show original"
 SPF, DKIM and DMARC all report `PASS`. Two emails arriving is necessary and not sufficient;
 authentication is what decides whether they keep arriving once volume picks up.
 
-## 6. Keycloak's SMTP settings come from the environment on every boot
+### 6. Keycloak's SMTP settings come from the environment on every boot
 
 The realm export substitutes `KC_SMTP_*` into the realm's `smtpServer`, but, like the client
 above, only on the first import. Before this was handled, changing `KC_SMTP_PORT` on the
@@ -152,7 +248,7 @@ reconcile then leaves the realm alone instead of blanking it.
 The same pass warns if the `nkwapa-api` client is missing from the realm. That is the other
 way the setup link never goes out, and it's fixed by step 2 above.
 
-## Rollback
+### Rollback
 
 Delete the client. Invitations keep working, the chart goes back to reporting that no account
 stands behind them, and staff can create identities by hand as before.

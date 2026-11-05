@@ -9,7 +9,13 @@ import { apiFetch } from '@/lib/api';
 import { readApiError } from '@/lib/ops';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection as Card,
+  RecordSectionContent as CardContent,
+  RecordSectionDescription as CardDescription,
+  RecordSectionHeader as CardHeader,
+  RecordSectionTitle as CardTitle,
+} from '@/components/patients/RecordSection';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -113,7 +119,7 @@ export function ScheduleFollowUpReminderCard({
     <Card data-testid="schedule-follow-up-reminder">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
-          <BellPlus className="h-5 w-5 text-primary" aria-hidden="true" />
+          <BellPlus className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
           Follow-up reminder
         </CardTitle>
         <CardDescription>
@@ -164,7 +170,7 @@ export function ScheduleFollowUpReminderCard({
         <p className="text-xs text-muted-foreground">
           Scheduled reminders appear in{' '}
           <Link href="/notifications" className="underline">
-            Notifications
+            Message delivery
           </Link>
           .
         </p>

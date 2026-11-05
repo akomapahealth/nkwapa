@@ -38,7 +38,13 @@ import { DashboardKpiCard } from '@/components/dashboard/DashboardKpiCard';
 import { DistributionChart } from '@/components/dashboard/DistributionChart';
 import { TrendChart } from '@/components/dashboard/TrendChart';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection,
+  RecordSectionContent,
+  RecordSectionDescription,
+  RecordSectionHeader,
+  RecordSectionTitle,
+} from '@/components/patients/RecordSection';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -80,6 +86,7 @@ export function OrganizationAnalyticsPanel({
   const query = organizationAnalyticsQuery(organizationId, filters);
 
   const analytics = useAsyncResource<OrganizationAnalytics>({
+    requiresOnline: true,
     resourceKey: query.resourceKey,
     errorMessage: 'The cohort analytics could not be loaded.',
     // An impossible range is said beside the dates; there is no point asking the API.
@@ -170,18 +177,18 @@ export function OrganizationAnalyticsPanel({
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-lg">
+      <RecordSection>
+        <RecordSectionHeader>
+          <RecordSectionTitle className="flex items-center gap-2">
             <Filter className="h-4 w-4" aria-hidden />
             Cohort
-          </CardTitle>
-          <CardDescription>
+          </RecordSectionTitle>
+          <RecordSectionDescription>
             Dates are days on the organization&apos;s calendar, both ends included. Leave them blank
             for the last 30 days.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
+          </RecordSectionDescription>
+        </RecordSectionHeader>
+        <RecordSectionContent className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-2">
               <Label htmlFor="cohort-from">From</Label>
@@ -293,8 +300,8 @@ export function OrganizationAnalyticsPanel({
               {problem}
             </p>
           ) : null}
-        </CardContent>
-      </Card>
+        </RecordSectionContent>
+      </RecordSection>
 
       {problem ? null : (
         <ResourceState
@@ -354,7 +361,7 @@ export function OrganizationAnalyticsPanel({
                 emptyMessage="No encounters in this cohort."
               />
 
-              <div className="grid gap-4 lg:grid-cols-3">
+              <div className="grid gap-x-6 gap-y-4 lg:grid-cols-3">
                 <DistributionChart
                   title="Encounter status"
                   data={labelled(data.totals.encountersByStatus, ENCOUNTER_STATUS_LABELS)}
@@ -379,15 +386,15 @@ export function OrganizationAnalyticsPanel({
                 />
               </div>
 
-              <Card className="min-w-0">
-                <CardHeader>
-                  <CardTitle className="text-lg">By clinic</CardTitle>
-                  <CardDescription>
+              <RecordSection>
+                <RecordSectionHeader>
+                  <RecordSectionTitle>By clinic</RecordSectionTitle>
+                  <RecordSectionDescription>
                     Narrow the cohort to one clinic, or open its own dashboard. A patient seen at
                     two clinics counts once in the total above.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
+                  </RecordSectionDescription>
+                </RecordSectionHeader>
+                <RecordSectionContent>
                   <div>
                     <DataTable
                       caption="Cohort by clinic"
@@ -398,8 +405,8 @@ export function OrganizationAnalyticsPanel({
                       initialPageSize={25}
                     />
                   </div>
-                </CardContent>
-              </Card>
+                </RecordSectionContent>
+              </RecordSection>
             </div>
           )}
         </ResourceState>

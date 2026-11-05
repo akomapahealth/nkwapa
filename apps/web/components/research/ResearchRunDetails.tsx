@@ -15,6 +15,7 @@ function signed(n: number): string {
 /** The run's own audit trail. Mounted only when the details are opened, so it loads lazily. */
 function RunEvents({ clinicId, exportId }: { clinicId: string; exportId: string }) {
   const events = useAsyncResource<ResearchRunEvent[]>({
+    requiresOnline: true,
     resourceKey: exportId,
     errorMessage: 'This run’s steps could not be loaded.',
     fetcher: async (token, signal) => {

@@ -10,15 +10,31 @@ test('login route hands authenticated users back to the workspace', async ({ pag
   await expect(page.getByText('Today at a glance')).toBeVisible();
 });
 
+// #269: an account with several roles sees one role's section at a time, behind tabs.
 test('multi-role dashboard renders the shared sections', async ({ page }) => {
   await page.goto('/dashboard');
 
   await expect(page.getByText('Today at a glance')).toBeVisible();
-  await expect(page.getByText('Doctor queue')).toBeVisible();
-  await expect(page.getByText('Review queue')).toBeVisible();
-  await expect(page.getByText('Clinic trends')).toBeVisible();
-  await expect(page.getByText('Your work today')).toBeVisible();
-  await expect(page.getByText('Network overview')).toBeVisible();
+  const views = page.getByRole('tablist', { name: 'Dashboard view' });
+  await expect(views.getByRole('tab')).toHaveText([
+    'Clinic trends',
+    'Network overview',
+    'Doctor queue',
+    'Your work today',
+  ]);
+  for (const [tab, headings] of [
+    ['Clinic trends', ['Clinic trends']],
+    ['Network overview', ['Network overview']],
+    ['Doctor queue', ['Doctor queue', 'Review queue']],
+    ['Your work today', ['Your work today']],
+  ]) {
+    await views.getByRole('tab', { name: tab }).click();
+    for (const heading of headings) {
+      await expect(
+        page.getByRole('tabpanel').getByRole('heading', { name: heading, exact: true }),
+      ).toBeVisible();
+    }
+  }
 });
 
 const viewports = [

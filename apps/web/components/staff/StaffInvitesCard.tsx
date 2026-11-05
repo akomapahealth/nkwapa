@@ -1,5 +1,8 @@
 'use client';
 
+import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { StaleDataNotice } from '@/components/feedback/StaleDataNotice';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
@@ -43,7 +46,13 @@ import {
 import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection,
+  RecordSectionContent,
+  RecordSectionDescription,
+  RecordSectionHeader,
+  RecordSectionTitle,
+} from '@/components/patients/RecordSection';
 import {
   Dialog,
   DialogContent,
@@ -117,6 +126,7 @@ export function StaffInvitesCard({
   getToken,
   onChanged,
 }: StaffInvitesCardProps) {
+  const { isOnline } = useSync();
   const [invites, setInvites] = useState<StaffInvite[]>([]);
   const [invitableRoles, setInvitableRoles] = useState<StaffInviteRole[]>([]);
   const [loading, setLoading] = useState(true);
@@ -296,25 +306,26 @@ export function StaffInvitesCard({
   };
 
   return (
-    <Card className="min-w-0">
-      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+    <RecordSection className="min-w-0">
+      <RecordSectionHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
-          <CardTitle className="flex items-center gap-2 text-xl">
+          <RecordSectionTitle className="flex items-center gap-2 text-xl">
             <MailPlus className="h-5 w-5 text-primary" aria-hidden="true" />
             Staff invitations
-          </CardTitle>
-          <CardDescription>
+          </RecordSectionTitle>
+          <RecordSectionDescription>
             Invite a colleague to {clinicName ?? 'this clinic'} by email. They set their own
             password and get the role only once they accept.
-          </CardDescription>
+          </RecordSectionDescription>
         </div>
         <Button onClick={openDialog} disabled={!getToken || invitableRoles.length === 0}>
           <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
           Invite a colleague
         </Button>
-      </CardHeader>
+      </RecordSectionHeader>
 
-      <CardContent className="space-y-4">
+      <RecordSectionContent className="space-y-4">
+        {!isOnline ? <StaleDataNotice isOnline={false} /> : null}
         {notice ? <InlineNotice tone="success">{notice}</InlineNotice> : null}
         {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
 
@@ -403,7 +414,7 @@ export function StaffInvitesCard({
             ) : null}
           </div>
         )}
-      </CardContent>
+      </RecordSectionContent>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
@@ -518,7 +529,7 @@ export function StaffInvitesCard({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+    </RecordSection>
   );
 }
 

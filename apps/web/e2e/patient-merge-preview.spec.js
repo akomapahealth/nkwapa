@@ -42,7 +42,7 @@ async function createDuplicatePair(page) {
     charts.push({ clinicId, patientId, code });
   }
 
-  return { run, canonical: charts[0], duplicate: charts[1] };
+  return { canonical: charts[0], duplicate: charts[1] };
 }
 
 /** Opens the merge dialog on a chart and returns it. */
@@ -59,8 +59,10 @@ async function openMergeDialog(page, chart) {
 }
 
 /** Walks step one, landing on the preview. */
-async function selectDuplicate(dialog, run, duplicateCode) {
-  await dialog.getByLabel(/Search this clinic/).fill(`Merge E2E-${run}`);
+async function selectDuplicate(dialog, duplicateCode) {
+  // Registry search matches one field at a time. The exact chart code stays unique as the
+  // synthetic database grows; a combined first/last name does not match either field.
+  await dialog.getByLabel(/Search this clinic/).fill(duplicateCode);
   await expect(dialog.getByRole('button', { name: new RegExp(duplicateCode) })).toBeVisible({
     timeout: 20_000,
   });
@@ -72,13 +74,13 @@ test.describe('a system admin merging two charts', () => {
   test.use({ storageState: storageStateFor('staff') });
 
   test('shows what the merge would do before anything changes', async ({ page }) => {
-    const { run, canonical, duplicate } = await createDuplicatePair(page);
+    const { canonical, duplicate } = await createDuplicatePair(page);
     const dialog = await openMergeDialog(page, canonical);
 
     // Step one says which chart survives, before a duplicate has even been picked.
     await expect(dialog.getByText(`${canonical.code} is the chart that survives`)).toBeVisible();
 
-    await selectDuplicate(dialog, run, duplicate.code);
+    await selectDuplicate(dialog, duplicate.code);
 
     await expect(
       dialog.getByRole('heading', { name: 'Check what the merge would do' }),
@@ -109,9 +111,9 @@ test.describe('a system admin merging two charts', () => {
   });
 
   test('will not commit until the retiring chart code is typed back', async ({ page }) => {
-    const { run, canonical, duplicate } = await createDuplicatePair(page);
+    const { canonical, duplicate } = await createDuplicatePair(page);
     const dialog = await openMergeDialog(page, canonical);
-    await selectDuplicate(dialog, run, duplicate.code);
+    await selectDuplicate(dialog, duplicate.code);
 
     await dialog.getByRole('button', { name: 'Continue' }).click({ timeout: 20_000 });
     await expect(dialog.getByRole('heading', { name: 'Confirm the merge' })).toBeVisible();
@@ -134,9 +136,9 @@ test.describe('a system admin merging two charts', () => {
   test('retires the duplicate and leaves its code finding the surviving chart', async ({
     page,
   }) => {
-    const { run, canonical, duplicate } = await createDuplicatePair(page);
+    const { canonical, duplicate } = await createDuplicatePair(page);
     const dialog = await openMergeDialog(page, canonical);
-    await selectDuplicate(dialog, run, duplicate.code);
+    await selectDuplicate(dialog, duplicate.code);
 
     await dialog.getByRole('button', { name: 'Continue' }).click({ timeout: 20_000 });
     await dialog.getByLabel(new RegExp(`Type ${duplicate.code}`)).fill(duplicate.code);
@@ -176,9 +178,9 @@ test.describe('a system admin merging two charts', () => {
   });
 
   test('closing the panel changes nothing', async ({ page }) => {
-    const { run, canonical, duplicate } = await createDuplicatePair(page);
+    const { canonical, duplicate } = await createDuplicatePair(page);
     const dialog = await openMergeDialog(page, canonical);
-    await selectDuplicate(dialog, run, duplicate.code);
+    await selectDuplicate(dialog, duplicate.code);
     await expect(
       dialog.getByRole('heading', { name: 'Check what the merge would do' }),
     ).toBeVisible({ timeout: 20_000 });
@@ -191,7 +193,7 @@ test.describe('a system admin merging two charts', () => {
   });
 
   test('reads and operates at every width, and by keyboard', async ({ page }) => {
-    const { run, canonical, duplicate } = await createDuplicatePair(page);
+    const { canonical, duplicate } = await createDuplicatePair(page);
 
     /*
       The preview is a dialog rather than a route, so the shared responsive and dark-mode sweeps
@@ -202,7 +204,7 @@ test.describe('a system admin merging two charts', () => {
     for (const width of [375, 768, 1024, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       const dialog = await openMergeDialog(page, canonical);
-      await selectDuplicate(dialog, run, duplicate.code);
+      await selectDuplicate(dialog, duplicate.code);
       await expect(
         dialog.getByRole('heading', { name: 'Check what the merge would do' }),
       ).toBeVisible({ timeout: 20_000 });

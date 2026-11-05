@@ -2,6 +2,9 @@
 module.exports = {
   darkMode: ['class'],
   content: ['./app/**/*.{js,ts,jsx,tsx,mdx}', './components/**/*.{js,ts,jsx,tsx,mdx}'],
+  // No source uses these yet; e2e/design-foundations.spec.js injects them at runtime. Drop each
+  // entry once a component uses it.
+  safelist: ['type-record-title', 'type-meta'],
   theme: {
     extend: {
       // The whole radius scale, per docs/design-system/MASTER.md section 5. `xl` is added here
@@ -17,6 +20,18 @@ module.exports = {
       fontFamily: {
         heading: ['var(--font-heading)', 'Georgia', 'serif'],
         body: ['var(--font-body)', 'system-ui', 'sans-serif'],
+      },
+      fontSize: {
+        'page-title': ['1.875rem', '2.25rem'],
+        'page-title-lg': ['2.25rem', '2.5rem'],
+        'record-title': ['1.5rem', '2rem'],
+        'record-title-lg': ['1.875rem', '2.25rem'],
+        'section-title': ['1.125rem', '1.75rem'],
+        'body-copy': ['1rem', '1.5rem'],
+        'field-label': ['0.875rem', '1.25rem'],
+        metadata: ['0.75rem', '1rem'],
+        'metric-value': ['2rem', '2.25rem'],
+        'data-value': ['0.875rem', '1.25rem'],
       },
       // Named rather than overriding Tailwind's own `ease-out`, so existing call sites keep the
       // curve they were tuned with and new motion opts in. Values live in globals.css.
@@ -36,10 +51,6 @@ module.exports = {
           '0%': { opacity: '0', transform: 'translateY(14px)' },
           '100%': { opacity: '1', transform: 'none' },
         },
-        'landing-settle': {
-          '0%': { transform: 'translateY(28px) scale(0.985)' },
-          '100%': { transform: 'none' },
-        },
         // The indeterminate refresh bar. Travels rather than pulsing, so it reads as "still
         // working" rather than as something blinking for attention.
         // A page arriving. Opacity only: a rise would move content that layout checks measure,
@@ -56,12 +67,15 @@ module.exports = {
       animation: {
         // `backwards`, not `both`: once finished the animation releases transform for GSAP's scroll drift.
         'landing-rise': 'landing-rise 0.7s var(--ease-out) backwards',
-        'landing-settle': 'landing-settle 0.9s var(--ease-out) backwards',
         'refresh-sweep': 'refresh-sweep 1.1s ease-in-out infinite',
         'page-in': 'page-in var(--duration-fast) var(--ease-out) both',
       },
       colors: {
         border: 'hsl(var(--border))',
+        rule: {
+          DEFAULT: 'hsl(var(--rule))',
+          strong: 'hsl(var(--rule-strong))',
+        },
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
         background: 'hsl(var(--background))',
@@ -78,6 +92,7 @@ module.exports = {
           DEFAULT: 'hsl(var(--destructive))',
           foreground: 'hsl(var(--destructive-foreground))',
           ink: 'hsl(var(--destructive-ink))',
+          surface: 'hsl(var(--destructive-surface))',
         },
         muted: {
           DEFAULT: 'hsl(var(--muted))',
@@ -87,16 +102,19 @@ module.exports = {
           DEFAULT: 'hsl(var(--success))',
           foreground: 'hsl(var(--success-foreground))',
           ink: 'hsl(var(--success-ink))',
+          surface: 'hsl(var(--success-surface))',
         },
         warning: {
           DEFAULT: 'hsl(var(--warning))',
           foreground: 'hsl(var(--warning-foreground))',
           ink: 'hsl(var(--warning-ink))',
+          surface: 'hsl(var(--warning-surface))',
         },
         info: {
           DEFAULT: 'hsl(var(--info))',
           foreground: 'hsl(var(--info-foreground))',
           ink: 'hsl(var(--info-ink))',
+          surface: 'hsl(var(--info-surface))',
         },
         sidebar: {
           DEFAULT: 'hsl(var(--sidebar))',

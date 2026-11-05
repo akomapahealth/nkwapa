@@ -1,6 +1,6 @@
 'use client';
 
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { StatusLabel } from '@/components/ui/status-label';
 import { ClipboardList } from 'lucide-react';
 import { DashboardSectionHeader } from './DashboardSectionHeader';
 import { DashboardKpiCard } from './DashboardKpiCard';
@@ -27,7 +27,12 @@ interface ReviewDashboardProps {
 const columns: DataTableColumn<ReviewDashboardProps['recentReviews'][number]>[] = [
   { id: 'patientCode', accessorKey: 'patientCode', header: 'Patient Code' },
   { id: 'patientName', accessorKey: 'patientName', header: 'Patient Name' },
-  { id: 'status', accessorKey: 'status', header: 'Status' },
+  {
+    id: 'status',
+    accessorKey: 'status',
+    header: 'Status',
+    cell: ({ getValue }) => <StatusLabel value={String(getValue())} />,
+  },
   {
     id: 'createdAt',
     accessorKey: 'createdAt',
@@ -40,7 +45,6 @@ const columns: DataTableColumn<ReviewDashboardProps['recentReviews'][number]>[] 
 ];
 
 export function ReviewDashboard({
-  awaitingReview,
   reviewsCompleted,
   reviewsTrend,
   bpDistribution,
@@ -53,12 +57,8 @@ export function ReviewDashboard({
         hint="Use this section to clear visits that still need clinical review."
       />
 
-      <AppMetricGroup className="sm:grid-cols-3">
-        <DashboardKpiCard
-          title="Waiting for review"
-          value={awaitingReview}
-          hint="Visits in review that have not yet been reviewed."
-        />
+      {/* What is waiting leads the page as a "Needs you now" row; these are done work. */}
+      <AppMetricGroup className="sm:grid-cols-2">
         <DashboardKpiCard
           title="Reviewed today"
           value={reviewsCompleted.today}
@@ -85,25 +85,21 @@ export function ReviewDashboard({
         />
       </div>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Recent reviews</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <DashboardActionRow
-            actions={[{ href: '/queues', label: 'Open queues', icon: ClipboardList }]}
+      <section className="space-y-4 border-t-2 border-rule-strong pt-3">
+        <h3 className="type-label pt-2.5 text-foreground">Recent reviews</h3>
+        <DashboardActionRow
+          actions={[{ href: '/queues', label: 'Open queues', icon: ClipboardList }]}
+        />
+        <div className="overflow-y-hidden">
+          <DataTable
+            caption="Recent reviews"
+            columns={columns}
+            data={recentReviews}
+            pageSizeOptions={[10]}
+            initialPageSize={10}
           />
-          <div className="overflow-y-hidden">
-            <DataTable
-              caption="Recent reviews"
-              columns={columns}
-              data={recentReviews}
-              pageSizeOptions={[10]}
-              initialPageSize={10}
-            />
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
     </section>
   );
 }

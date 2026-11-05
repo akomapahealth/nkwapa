@@ -1,5 +1,6 @@
 'use client';
 
+import { statusLabel } from '@/lib/status-presentation';
 import Link from 'next/link';
 import {
   BellRing,
@@ -109,17 +110,12 @@ export function OverviewPortalScreen() {
       <div className="space-y-6">
         <section className={PORTAL_HERO_GRID}>
           <PortalHero
-            eyebrow="Personal overview"
             clinicName={clinicName}
             title="Your care snapshot"
-            description="See the latest guidance from your care team, recent measurements, and appointment progress without leaving your dashboard."
+            description="See your recent readings, advice from your care team, and appointments."
           />
 
-          <PortalPanel
-            title="Quick actions"
-            description="Move quickly between the most common portal tasks."
-            contentClassName="space-y-3"
-          >
+          <PortalPanel title="Quick actions" contentClassName="space-y-3">
             <Button asChild className="w-full justify-between">
               <Link href="/portal/self-reports/new?type=bp">
                 Log a reading
@@ -228,13 +224,13 @@ export function OverviewPortalScreen() {
                     description={
                       nextAppointment
                         ? `Your next confirmed appointment is ${formatPortalDateTime(nextAppointment.startsAt)}.`
-                        : 'Request a visit and your clinic will confirm the exact time.'
+                        : 'Request an appointment and your clinic will confirm the exact time.'
                     }
                     action={<CalendarDays aria-hidden="true" className="h-5 w-5 text-primary" />}
                     contentClassName="space-y-4"
                   >
                     {nextAppointment ? (
-                      <div className="rounded-lg border border-border bg-background p-4">
+                      <div className="border-b border-border py-3">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div>
                             <p className="font-medium tabular-nums text-foreground">
@@ -265,9 +261,6 @@ export function OverviewPortalScreen() {
                     )}
 
                     <div className="flex flex-wrap gap-3">
-                      <Button asChild>
-                        <Link href="/portal/appointments/request">Request a visit</Link>
-                      </Button>
                       <Button asChild variant="outline">
                         <Link href="/portal/appointments">View all requests</Link>
                       </Button>
@@ -284,13 +277,15 @@ export function OverviewPortalScreen() {
                         {me.reminders.slice(0, 4).map((reminder) => (
                           <div
                             key={reminder.id}
-                            className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background p-4"
+                            className="flex items-center justify-between gap-3 border-b border-border py-3"
                           >
                             <div>
                               <p className="text-sm font-medium tabular-nums text-foreground">
                                 {formatPortalDateTime(reminder.scheduledAt)}
                               </p>
-                              <p className="text-xs text-muted-foreground">{reminder.status}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {statusLabel(reminder.status)}
+                              </p>
                             </div>
                             <Badge variant="outline" className="rounded-full border-border">
                               {reminder.channel}
@@ -311,7 +306,7 @@ export function OverviewPortalScreen() {
 
                 <PortalPanel
                   title="Recent recommendations"
-                  description="Notes and actions captured during your latest finalized visit."
+                  description="Advice from your most recent visit."
                   action={<ClipboardList aria-hidden="true" className="h-5 w-5 text-primary" />}
                   contentClassName="grid gap-4 md:grid-cols-2"
                 >

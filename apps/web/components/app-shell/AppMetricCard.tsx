@@ -39,12 +39,12 @@ export function AppMetricCard({
         'min-w-0 p-4 sm:p-5',
         grouped
           ? // Hairlines on the right and bottom; the group crops the outer ones.
-            'border-b border-r border-border/70 bg-card'
-          : 'rounded-lg border border-border/80 bg-card',
+            'border-b border-r border-rule'
+          : 'border-t-2 border-rule-strong',
         className,
       )}
     >
-      <p className="flex items-start gap-2 text-sm font-medium text-muted-foreground">
+      <p className="type-label flex items-start gap-2 text-muted-foreground">
         {Icon ? <Icon aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" /> : null}
         {/* Inline, so the help follows the label's last line when a narrow cell wraps it. */}
         <span className="min-w-0">
@@ -53,15 +53,17 @@ export function AppMetricCard({
       </p>
       <p
         className={cn(
-          'mt-2 font-semibold tabular-nums tracking-tight text-foreground',
+          'mt-2 text-foreground',
           // A figure gets the full size; a phrase standing in for one ("No reading yet") does not,
           // or the empty state would be the loudest thing on the page.
-          String(value).length > 10 ? 'text-xl' : 'text-3xl',
+          String(value).length > 10 ? 'type-section-title' : 'type-metric',
         )}
       >
         {value}
       </p>
-      {detail ? <p className="mt-1.5 text-sm leading-5 text-muted-foreground">{detail}</p> : null}
+      {detail ? (
+        <p className="type-label mt-1.5 font-normal text-muted-foreground">{detail}</p>
+      ) : null}
     </div>
   );
 }
@@ -84,10 +86,7 @@ export function AppMetricGroup({
   label?: string;
 }) {
   return (
-    <section
-      aria-label={label}
-      className="overflow-hidden rounded-lg border border-border/80 bg-card"
-    >
+    <section aria-label={label} className="overflow-hidden border-t-2 border-rule-strong">
       <div className={cn('-mb-px -mr-px grid grid-cols-1', className)}>
         <InMetricGroup.Provider value={true}>{children}</InMetricGroup.Provider>
       </div>

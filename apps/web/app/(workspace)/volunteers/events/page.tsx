@@ -82,7 +82,6 @@ function EventsContent() {
   return (
     <div className="space-y-6">
       <AppPageHeader
-        eyebrow="Oversight"
         title="Screening days"
         description={`Plan screening days and who volunteers at each. Times are in clinic time (${timezone}).`}
         actions={
@@ -125,10 +124,16 @@ function EventsContent() {
             getRowId={(row) => row.id}
             isRefreshing={events.isRefreshing}
             onRowClick={open}
+            keyboardScroll
             renderMobileRow={(event) => (
-              <div className="space-y-1">
+              <div className="space-y-2 border-t border-rule py-4">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium">{event.title}</span>
+                  <Link
+                    href={`/volunteers/events/${event.id}`}
+                    className="inline-flex min-h-11 items-center font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {event.title}
+                  </Link>
                   <EventStatusBadge status={event.status} />
                 </div>
                 <p className="text-sm">{formatEventWhen(event, timezone)}</p>

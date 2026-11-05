@@ -2,84 +2,77 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ClipboardList, FileText, Stethoscope } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { RouteGuard } from '@/components/RouteGuard';
-import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection,
+  RecordSectionDescription,
+  RecordSectionHeader,
+  RecordSectionTitle,
+} from '@/components/patients/RecordSection';
 
 export default function ClinicEncountersListPage() {
   const params = useParams();
   const clinicId = params.clinicId as string;
 
   /*
-    This page holds no patient data -- it is a hub of links with three static labels standing in
-    for counts. It is guarded anyway, because every route that names a clinic should refuse before
-    it renders rather than because it happens to have nothing to leak today. The API remains the
-    real boundary; this is the one that stops a wrong link looking like a working one.
+    This page holds no patient data -- it is a hub of links. It is guarded anyway, because every
+    route that names a clinic should refuse before it renders rather than because it happens to
+    have nothing to leak today. The API remains the real boundary; this is the one that stops a
+    wrong link looking like a working one.
   */
+  const links = [
+    {
+      href: '/queues',
+      label: 'Encounter queues',
+      detail: 'Drafts, visits waiting for review and visits ready for sign-off.',
+    },
+    {
+      href: `/clinics/${clinicId}/patients`,
+      label: 'Clinic patients',
+      detail: 'Find a patient to read their history or start a visit.',
+    },
+    {
+      href: '/today',
+      label: 'Today board',
+      detail: 'Check-ins and assignments on the live clinic board.',
+    },
+  ];
+
   return (
     <RouteGuard requiredPermission="ENCOUNTER.READ">
       <div className="space-y-6">
         <AppPageHeader
           eyebrow="Clinic encounters"
-          title="Encounter Queue"
-          description="This clinic-scoped queue is ready for the richer shared shell and will expand into a full encounter management surface. For now, start an encounter from a patient record or OPS handoff."
-          actions={
-            <Button asChild>
-              <Link href={`/clinics/${clinicId}/patients`}>
-                <FileText className="h-4 w-4" />
-                Go to Patients
-              </Link>
-            </Button>
-          }
+          title="Encounters"
+          description="Encounters start from a patient record or the clinic board, and wait in the queues until they are signed off."
         />
 
-        <AppMetricGroup className="md:grid-cols-3">
-          <AppMetricCard
-            title="Queue state"
-            value="Preparing"
-            icon={ClipboardList}
-            detail="Encounter work currently begins from patient records and assignments."
-          />
-          <AppMetricCard
-            title="Best entry point"
-            value="Patients"
-            icon={FileText}
-            detail="Search a patient to review history, open trends, or start intake."
-          />
-          <AppMetricCard
-            title="Clinic flow"
-            value="OPS ready"
-            icon={Stethoscope}
-            detail="Check-ins and assignments continue through the live clinic board."
-          />
-        </AppMetricGroup>
-
-        <Card className="max-w-3xl ">
-          <CardHeader>
-            <CardTitle className="text-xl">Encounter queue rollout</CardTitle>
-            <CardDescription>
-              A dedicated clinic encounter queue will land here next. Until then, the patient
-              registry remains the fastest path into active care.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            <Button asChild className="rounded-lg">
-              <Link href={`/clinics/${clinicId}/patients`}>
-                <FileText className="h-4 w-4" />
-                Open clinic patients
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="rounded-lg">
-              <Link href="/today">
-                <Stethoscope className="h-4 w-4" />
-                Open OPS board
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
+        <RecordSection aria-labelledby="clinic-encounters-start" className="max-w-3xl">
+          <RecordSectionHeader>
+            <RecordSectionTitle id="clinic-encounters-start">Where to go</RecordSectionTitle>
+            <RecordSectionDescription>
+              This clinic has no separate encounter list; these pages hold the work.
+            </RecordSectionDescription>
+          </RecordSectionHeader>
+          <ul className="border-t border-rule">
+            {links.map((link) => (
+              <li key={link.href} className="border-b border-rule">
+                <Link
+                  href={link.href}
+                  className="flex min-h-11 items-center justify-between gap-4 py-3 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span>
+                    <span className="block font-medium text-primary">{link.label}</span>
+                    <span className="block text-sm text-muted-foreground">{link.detail}</span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </RecordSection>
       </div>
     </RouteGuard>
   );

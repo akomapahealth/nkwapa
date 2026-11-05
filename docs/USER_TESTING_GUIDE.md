@@ -29,13 +29,13 @@ Keycloak without matching rows in the database.
 
 Seed inputs worth setting:
 
-| Variable                                                              | Why                                                                                                                                                                    |
-| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SEED_SAMPLE_PATIENT=true`                                            | a demo patient with two encounters                                                                                                                                     |
-| `SEED_SAMPLE_APPOINTMENTS=true`                                       | one appointment in each state, plus two requests awaiting triage                                                                                                       |
-| `SEED_E2E_PATIENT_SUB`                                                | links the portal identity to a patient record, and stages one unclaimed patient with a pending invite. **Without it no portal or `/claim-record` check is reachable.** |
-| `SEED_E2E_STAFF_SUB`, `SEED_E2E_DOCTOR_SUB`, `SEED_E2E_VOLUNTEER_SUB` | the single-role accounts the no-access checks need                                                                                                                     |
-| `SEED_SYSTEM_ADMIN_SUB`                                               | your own account, for the system-admin matrix                                                                                                                          |
+| Variable                                                                                                               | Why                                                                                                                                                                    |
+| ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SEED_SAMPLE_PATIENT=true`                                                                                             | a demo patient with two encounters                                                                                                                                     |
+| `SEED_SAMPLE_APPOINTMENTS=true`                                                                                        | one appointment in each state, plus two requests awaiting triage                                                                                                       |
+| `SEED_E2E_PATIENT_SUB`                                                                                                 | links the portal identity to a patient record, and stages one unclaimed patient with a pending invite. **Without it no portal or `/claim-record` check is reachable.** |
+| `SEED_E2E_STAFF_SUB`, `SEED_E2E_DOCTOR_SUB`, `SEED_E2E_VOLUNTEER_SUB`, `SEED_E2E_MANAGER_SUB`, `SEED_E2E_DIRECTOR_SUB` | the single-role accounts the no-access checks need                                                                                                                     |
+| `SEED_SYSTEM_ADMIN_SUB`                                                                                                | your own account, for the system-admin matrix                                                                                                                          |
 
 ### Two things that will waste your afternoon
 
@@ -61,7 +61,7 @@ through quickly, either pause or set `RATE_LIMIT_AUTH_WHOAMI_LIMIT` for your loc
 
 ## 2. Accounts
 
-`npm run e2e:keycloak-user` creates five deterministic identities. Their passwords are the
+`npm run e2e:keycloak-user` creates eight deterministic identities. Their passwords are the
 `E2E_*_PASSWORD` defaults unless you overrode them.
 
 | Username        | Holds                                 | Use it for                                                                                     |
@@ -69,12 +69,13 @@ through quickly, either pause or set `RATE_LIMIT_AUTH_WHOAMI_LIMIT` for your loc
 | `e2e.staff`     | `SYSTEM_ADMIN` plus every clinic role | walking the product quickly. **Never** for proving what a role is refused — it sees everything |
 | `e2e.doctor`    | one `DOCTOR` seat                     | the review and finalization matrices, and doctor-side no-access checks                         |
 | `e2e.volunteer` | one `VOLUNTEER` seat                  | the volunteer matrix, and what a volunteer is refused                                          |
+| `e2e.manager`   | one `MANAGER` seat                    | section 8, the manager dashboard and nav set                                                   |
+| `e2e.director`  | one `DIRECTOR` seat                   | section 7, the director dashboard and nav set                                                  |
 | `e2e.patient`   | `PATIENT`, linked to a patient record | every portal check                                                                             |
 | `e2e.reset`     | password-reset flows                  | the forgot-password path                                                                       |
 
 Create by hand as needed:
 
-- a `DIRECTOR` and a `MANAGER`, for sections 7 and 8
 - a second clinic, and a staff account holding a seat at both, for tenant-isolation and
   clinic-switching checks
 - a patient with a pending invite but no linked record, if you did not seed one, for `/claim-record`

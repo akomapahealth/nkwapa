@@ -18,6 +18,7 @@
     "keycloak:validate-realm": "node scripts/validate-keycloak-realm.mjs",
     "keycloak:apply-service-account": "node scripts/apply-keycloak-service-account.mjs",
     "design:check-charts": "node scripts/check-chart-palette.mjs",
+    "design:check-tokens": "node scripts/check-design-tokens.mjs",
     "security:audit": "npm audit --omit=dev --workspaces --audit-level=moderate && npm audit --workspaces --audit-level=critical",
     "security:scan": "node scripts/check-secrets.mjs",
     "security:scan:staged": "node scripts/check-secrets.mjs --staged",

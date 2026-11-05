@@ -1,3 +1,5 @@
+import { statusLabel } from '@/lib/status-presentation';
+
 export type ClinicalNoteStatus = 'DRAFT' | 'PENDING_COSIGN' | 'COSIGNED' | 'AMENDED';
 
 export interface ClinicalNotePerson {
@@ -58,14 +60,5 @@ export interface ClinicalNoteSummary {
 }
 
 export function clinicalNoteStatusLabel(status: ClinicalNoteStatus) {
-  switch (status) {
-    case 'DRAFT':
-      return 'Draft';
-    case 'PENDING_COSIGN':
-      return 'Pending cosign';
-    case 'COSIGNED':
-      return 'Cosigned';
-    case 'AMENDED':
-      return 'Amended';
-  }
+  return statusLabel(status);
 }

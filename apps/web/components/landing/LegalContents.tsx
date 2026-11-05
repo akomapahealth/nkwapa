@@ -24,20 +24,20 @@ export function LegalContents({ sections }: { sections: { id: string; title: str
   }, [sections]);
 
   return (
-    <ol className="mt-4 border-l border-border">
+    <ol className="mt-3 border-b border-rule">
       {sections.map((section, index) => (
         <li key={section.id}>
           <a
             href={`#${section.id}`}
             aria-current={active === section.id ? 'location' : undefined}
             className={cn(
-              '-ml-px flex min-h-11 items-baseline gap-3 border-l-2 py-2 pl-4 text-sm leading-snug transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'flex min-h-11 items-baseline gap-3 border-t border-rule px-1 py-3 text-sm leading-snug motion-safe:transition-colors motion-safe:duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               active === section.id
-                ? 'border-primary font-medium text-foreground'
-                : 'border-transparent text-foreground/75 hover:border-foreground/30 hover:text-foreground',
+                ? 'bg-muted font-semibold text-foreground'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
             )}
           >
-            <span className="font-heading text-xs font-semibold tabular-nums text-primary">
+            <span className="text-xs font-medium tabular-nums text-muted-foreground">
               {String(index + 1).padStart(2, '0')}
             </span>
             {section.title}

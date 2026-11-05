@@ -62,6 +62,9 @@ test('keyboard opens the bubble, Escape closes it and returns focus to the trigg
   await trigger.focus();
   await page.keyboard.press('Enter');
   await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  const tooltipId = await page.getByRole('tooltip').getAttribute('id');
+  await expect(trigger).toHaveAttribute('aria-describedby', tooltipId);
+  await expect(trigger).toHaveAttribute('aria-controls', tooltipId);
   await expect(page.getByRole('tooltip')).toBeVisible();
 
   await page.keyboard.press('Escape');

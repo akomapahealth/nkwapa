@@ -1,8 +1,8 @@
 # Nkwapa Design System
 
-**Status:** approved 2026-08-26 · **Issue:** [#61](https://github.com/akomapahealth/nkwapa/issues/69) · **Implements:** the token and component contract half of #61
+**Status:** approved 2026-08-26, updated 2026-11-04 for the Nkwapa 2.0 redesign (epic [#229](https://github.com/akomapahealth/nkwapa/issues/229)) · **Issue:** [#61](https://github.com/akomapahealth/nkwapa/issues/61) · **Implements:** the token and component contract half of #61
 
-This is the source of truth for Nkwapa's visual tokens and component contracts. It is the file [#66](https://github.com/akomapahealth/nkwapa/issues/66), [#65](https://github.com/akomapahealth/nkwapa/issues/65), [#22](https://github.com/akomapahealth/nkwapa/issues/22), and [#26](https://github.com/akomapahealth/nkwapa/issues/26) build against. Where this document and an issue body disagree, this document wins, and the issue should be amended.
+This is the source of truth for Nkwapa's visual tokens and component contracts, and the one design reference for the product as shipped. Each area's section names the pull request that built it; the before and after screenshots, axe results and verification for that work are in the pull request on GitHub. It is the file [#66](https://github.com/akomapahealth/nkwapa/issues/66), [#65](https://github.com/akomapahealth/nkwapa/issues/65), [#22](https://github.com/akomapahealth/nkwapa/issues/22), and [#26](https://github.com/akomapahealth/nkwapa/issues/26) build against. Where this document and an issue body disagree, this document wins, and the issue should be amended.
 
 Every contrast figure here is measured with the WCAG 2.1 relative luminance formula. Perceptual distances are CIEDE2000. Do not change a token value without re-measuring the pairings it appears in.
 
@@ -57,8 +57,8 @@ Two things worth carrying forward from that work:
 
 - The theme **self-hosts** IBM Plex Sans and Source Serif 4 as `latin`-subset variable woff2
   (~91 KB together, with their OFL licences). It previously blocked first paint on two serialized
-  `@import`s to `fonts.googleapis.com` and `fonts.cdnfonts.com`. The application still loads its
-  own fonts the old way; see section 6.
+  `@import`s to `fonts.googleapis.com` and `fonts.cdnfonts.com`. The application now self-hosts
+  its fonts through `next/font` as well; see section 6.
 - The theme is **deliberately light-only**. The app's theme choice lives in `localStorage` on the
   web origin, which Keycloak cannot read, so honouring `prefers-color-scheme` there would give a
   dark-OS user a dark login followed by a light workspace -- worse drift than staying light.
@@ -174,6 +174,51 @@ a clinician reads before prescribing.
 
 Do not "fix" `--border` or `--sidebar-border` to reach 3:1. They are correctly exempt, and hardening them would add visual noise for no accessibility benefit.
 
+### Ruled Chart rules and status surfaces (#264)
+
+These are additive foundation tokens. Existing action, text, input-boundary and
+chart-series values stay unchanged. `--rule` aliases `--border` for decorative
+1px dividers; `--rule-strong` aliases `--foreground` for the direction's 2px group
+rule. Neither replaces `--input` on form controls.
+
+Opaque status surfaces have explicit light and dark values, so their measured
+contrast does not depend on which parent surface happens to sit behind them.
+They were derived from a 12% status fill over the light card and a 22% fill over
+the dark card, then rounded to 0.1 HSL units and measured again. Future consumers
+use `bg-success-surface text-success-ink` (and the corresponding other tones),
+with a plain-language label and an icon where helpful. Existing alpha-tint
+consumers remain unchanged in this foundation PR; #265 applies shared contracts.
+
+| Surface token           | Light HSL           | Dark HSL            | Paired ink          | Light contrast | Dark contrast |
+| ----------------------- | ------------------- | ------------------- | ------------------- | -------------: | ------------: |
+| `--success-surface`     | `137.8 23.2% 90.3%` | `161.2 37.8% 19.0%` | `--success-ink`     |         5.20:1 |        6.83:1 |
+| `--warning-surface`     | `33.8 72.1% 92.0%`  | `38.9 30.9% 21.3%`  | `--warning-ink`     |         5.90:1 |        6.75:1 |
+| `--info-surface`        | `192.4 25.7% 91.0%` | `200.0 34.0% 21.3%` | `--info-ink`        |         7.29:1 |        6.37:1 |
+| `--destructive-surface` | `6.0 63.0% 92.4%`   | `350.2 15.5% 22.5%` | `--destructive-ink` |         6.02:1 |        6.66:1 |
+
+All four text pairings exceed the 4.5:1 normal-text floor in both modes. Draft
+continues to use `--muted` / `--muted-foreground`; this issue does not reclassify
+workflow or clinical states.
+
+| Rule token      | Background     | Light contrast | Dark contrast | Requirement        |
+| --------------- | -------------- | -------------: | ------------: | ------------------ |
+| `--rule-strong` | `--background` |        14.30:1 |       15.66:1 | >= 3:1 non-text    |
+| `--rule-strong` | `--card`       |        14.31:1 |       14.50:1 | >= 3:1 non-text    |
+| `--rule`        | `--background` |         1.26:1 |        1.47:1 | Decorative, exempt |
+| `--rule`        | `--card`       |         1.26:1 |        1.36:1 | Decorative, exempt |
+
+`npm run design:check-tokens` measures these and the neutral primary/supporting
+text pairings at full precision, resolving aliases and requiring every new token
+in both theme blocks. CI runs it alongside the existing chart palette check.
+Only the report is rounded; thresholds never use rounded ratios. Regression
+checks deliberately break a dark ink and remove a dark surface, and verify that
+both failures are caught. All 24 pair measurements and the rendered specimen are
+in [PR #288](https://github.com/akomapahealth/nkwapa/pull/288).
+
+The five chart series are confirmed unchanged by `scripts/check-chart-palette.mjs`.
+Section 3's existing chart-2 contrast exception and redundant-label requirements
+still apply. The owner's chart-animation decision is unchanged by these tokens.
+
 ### Charts
 
 Series identity. Verified in CI by `scripts/check-chart-palette.mjs`; **do not hand-edit these
@@ -220,10 +265,16 @@ colours with `COLORS[i % COLORS.length]`, so `NORMAL` and `UNKNOWN` were the sam
 horizontal bar chart ordered by clinical severity now. Bars put the category on an axis, so colour
 never has to carry identity.
 
-**Charts do not animate.** Recharts' 1500ms draw-in is driven from JavaScript and the global
-`prefers-reduced-motion` rule cannot switch it off, so every chart passes
-`isAnimationActive={false}`. Axis ticks set `fontVariantNumeric: 'tabular-nums'` inline, because
-Recharts renders them as SVG text where the utility class cannot reach.
+**Chart animation is permitted by owner decision (2026-11-01).** Use short,
+purposeful reveals or transitions when they improve reading the chart. Honour
+`prefers-reduced-motion` in the JavaScript animation settings too; a CSS override
+does not disable Recharts' draw-in. Keep final values, labels and the table
+alternative available without waiting for animation. Do not replay animation on
+routine background refresh or morph readings into invented intermediate data.
+The existing charts still use `isAnimationActive={false}`; enabling motion belongs
+to their implementation phase, with reduced-motion and data-fidelity checks.
+Straight segments between real readings remain required. Axis ticks keep
+`fontVariantNumeric: 'tabular-nums'` inline because they render as SVG text.
 
 **The landing page has no tokens of its own.** It is built from the tokens above: `--accent` and
 `--primary` bands, plus a section scoped with `.dark` for the product screenshots. `--landing-accent`
@@ -362,9 +413,56 @@ The serif heading is deliberate. It separates headings from data at a glance, wh
 
 **`tabular-nums` on every numeric column and every clinical value.** It was applied nowhere, so vitals columns did not align. It now ships from `DataTable` for every table cell and from `AppMetricCard` for every metric; individual clinical values in panels take the utility directly.
 
-**Known performance issue.** Fonts load via `@import` at the top of `globals.css`, which is render-blocking and serialized. On clinic wifi this delays first paint of any text. Migrating to `next/font` would self-host and remove the blocking request. Its own issue, not #61.
+**Self-hosted through `next/font` (#263).** `app/layout.tsx` loads the variable
+IBM Plex Sans (100 to 700) and Source Serif 4 (200 to 900) faces with
+`next/font/google`, `display: 'swap'`, and the existing `--font-body` /
+`--font-heading` variables. The loader downloads fonts at build time and emits
+first-party WOFF2 assets. There is no runtime Google Fonts stylesheet import or
+font-host request. Builds need access to Google Fonts; deployed pages do not.
+Latin is preloaded for the English interface; the other supplied subsets remain
+available for names without falling back merely because the UI is English.
+The measured build emits 12 subset files (318,328 bytes total), of which the two
+Latin files total 91,192 bytes and are preloaded. Runtime tests block external
+font hosts and verify both applied, loaded faces and first-party preload URLs.
+The four registration screenshot pairs are pixel-identical. No colour tokens or
+type scale values changed. Shipped in [PR #287](https://github.com/akomapahealth/nkwapa/pull/287).
 
 ---
+
+### Semantic type roles (#264)
+
+These opt-in utilities are the shared type contract for #265 and later page
+work. They introduce no new font family and do not globally replace the current
+page/component classes. Existing routes retain their layout while consumers
+migrate one issue at a time. #265 consumes most roles and colour utilities directly; only
+`type-record-title` and `type-meta` stay safelisted, because the foundations
+specimen injects them before any component uses them.
+
+| Utility              | Family         | Size / line height, below 640px | Size / line height, from 640px | Weight | Figures      |
+| -------------------- | -------------- | ------------------------------- | ------------------------------ | ------ | ------------ |
+| `type-page-title`    | Source Serif 4 | 30 / 36px                       | 36 / 40px                      | 600    | Proportional |
+| `type-record-title`  | Source Serif 4 | 24 / 32px                       | 30 / 36px                      | 600    | Proportional |
+| `type-section-title` | IBM Plex Sans  | 18 / 28px                       | 18 / 28px                      | 600    | Proportional |
+| `type-body`          | IBM Plex Sans  | 16 / 24px                       | 16 / 24px                      | 400    | Proportional |
+| `type-label`         | IBM Plex Sans  | 14 / 20px                       | 14 / 20px                      | 500    | Proportional |
+| `type-meta`          | IBM Plex Sans  | 12 / 16px                       | 12 / 16px                      | 400    | Proportional |
+| `type-metric`        | IBM Plex Sans  | 32 / 36px                       | 32 / 36px                      | 600    | Tabular      |
+| `type-data`          | IBM Plex Sans  | 14 / 20px                       | 14 / 20px                      | 400    | Tabular      |
+
+Sizes and line heights are stored in rem in `tailwind.config.js`; the table
+assumes the browser's default 16px root. Browser text scaling remains enabled.
+Page and record titles wrap long words when needed; prose containers should
+remain roughly 45 to 75 characters wide (the specimen uses 65ch). Use the serif
+roles for page titles and patient names; use Plex roles for operational section
+headings, body, labels and measurements. Units must accompany clinical values.
+Choose one role rather than layering conflicting font/size utilities on it.
+
+The existing `font-heading` / `font-body` family utilities, `text-eyebrow`, and
+tabular figures in DataTable and AppMetricCard remain supported. A test-only
+synthetic specimen verifies the shipped role styles, equal-width digits,
+opaque status backgrounds, contrast, both themes, 1440/390px and 200% root text
+scaling. It is not a new public route or a claim that every legacy page has
+already migrated to these roles. Shipped in [PR #288](https://github.com/akomapahealth/nkwapa/pull/288).
 
 ## 7. Motion
 
@@ -376,7 +474,7 @@ The serif heading is deliberate. It separates headings from data at a glance, wh
 - **Curves and durations are tokens.** `--ease-out`, `--ease-in-out`, `--ease-drawer`, `--duration-fast` (150ms) and `--duration-base` (200ms) in `globals.css`, exposed as `ease-out-strong`, `ease-in-out-strong`, `ease-drawer`, `duration-fast` and `duration-base`. Enter with `ease-out-strong`; never `ease-in`, which delays the moment the user is watching.
 - **Press feedback is allowed.** `Button` scales to 0.97 on `:active`. That answers a press, not a hover, and scale does not change the box, so nothing moves.
 - **Busy buttons keep their width.** `Button loading` hides the label under a spinner rather than swapping text (section 11).
-- **Toasts are Sonner**, through `useToast()` in `components/ui/toast.tsx`. Pass the id a loading toast returned to settle it in place as success or error, or use `toastPromise`.
+- **Toasts are Sonner**, through `useToast()` in `components/ui/toast.tsx`. Pass the id a loading toast returned to settle it in place as success or error, or use `toastPromise`. Error toasts are announced assertively through a visually hidden `role="alert"` copy; every other tone stays in Sonner's polite region (#280, section 13).
 
 ---
 
@@ -426,9 +524,484 @@ Shared primitives live in `apps/web/components/app-shell/` and `apps/web/compone
 
 ### Metrics and page headers
 
-Related metrics share one `AppMetricGroup` panel divided by hairlines; a metric is a quiet label with a 16px icon, then the figure. A grid of separately bordered cards, each with a 48px tinted icon tile, made the tiles the loudest thing on a dashboard and every page read as a template. A phrase standing in for a figure ("No reading yet") drops to `text-xl` so an empty state is not the largest text on screen.
+Related metrics share one `AppMetricGroup` panel divided by hairlines; a metric is a quiet label with a 16px icon, then the figure. A grid of separately bordered cards, each with a 48px tinted icon tile, made the tiles the loudest thing on a dashboard and every page read as a template. A phrase standing in for a figure ("No reading yet") uses `type-section-title` so an empty state is not the largest text on screen.
 
 `AppPageHeader` sits on the canvas with a hairline under it, not inside a card: the title is the page's heading, not one more panel among the panels below it. Workspace pages fade in over 150ms (`app/(workspace)/template.tsx`, opacity only), and a 2px bar crosses the top while an in-app link loads (`NavigationProgress`).
+
+### Shared foundations (#265)
+
+`AppPageHeader` uses `type-page-title` and `type-body`, with an optional `breadcrumbs`
+slot above the title. `AppMetricGroup` is an unfilled ledger with a strong top rule,
+hairlines between cells, `type-label` labels and tabular `type-metric` figures.
+`FormSectionCard` keeps its existing API while drawing a ruled section on the canvas;
+its default heading is `h2`, with `titleAs="h3"` for nested sections.
+`DashboardSectionHeader` uses the Plex section role.
+
+`DataTable` retains its sorting, pagination, filtering, server/client modes and
+mobile renderer. Its optional `toolbar` slot holds caller-owned filters; it does
+not fetch or change filter state. The table has a strong top rule, tabular data,
+a quiet header and 44px sorting controls.
+
+`StatusLabel` is the shared badge for system states. `statusLabel` in
+`lib/status-presentation.ts` owns plain-language labels, reuses the hypertension
+vocabulary and preserves already-written copy. Examples: `IN_REVIEW` → In review,
+`DRAFT` → Draft, `FINALIZED` → Finalized, `STAGE2` → Stage 2, `UNKNOWN` → Unknown.
+The clinical hypertension helper retains its contextual "Not classified" label.
+Unknown future codes receive a readable fallback. Use the helper only at the
+render boundary: API payloads, stored values, transitions, filters, sort accessors
+and permissions retain their original codes. Existing domain-specific tone mappings
+remain supported through the `variant` prop. Review, finalized and warning badges
+use the measured opaque status surfaces from #264.
+
+The `--rule` hairline (1.26:1 in light) is a decorative separator only: #265 uses
+`border-rule` between sections, rows and states, never as the only visible edge of
+an input, select, button or other control. Controls keep `--input`.
+
+`AppActionRow` supplies one ruled list item with a title, optional detail, icon and
+one caller-provided action. Render it inside a `ul`. `DashboardActionRow` can render
+these under "Needs you now" with `presentation="rows"`; its existing button mode
+is unchanged. Dashboard prioritization and counts belong to #268/#269.
+
+Breadcrumb and Skeleton source was retrieved with shadcn CLI 4.23.0 (`view
+breadcrumb skeleton`) and adapted to the existing Tailwind 3/React 18 stack.
+Breadcrumb navigation is named, current-page semantics are retained, and links
+have 44px targets and visible focus. Skeletons are neutral, decorative, and stop
+pulsing with reduced motion. `ResourceState` supplies the named loading live
+region. No new dependency is needed; the existing Radix Slot and Lucide suffice.
+Separator adoption remains deferred: the new rules use ordinary CSS borders.
+
+`ResourceState` keeps the existing five-state order and stale-data branch logic.
+Offline and error messages use measured warning/destructive surfaces, empty states
+use quiet rules, and `SectionSkeleton` uses the shared Skeleton. A failed refresh
+still leaves loaded records visible. `InfoHint` retains its single-open registry,
+keyboard dismissal and focus return, and now explicitly connects its open trigger
+to the tooltip through `aria-describedby` and `aria-controls`.
+
+The browser-only fixture in `e2e/component-fixtures/SharedComponents.tsx` renders
+these actual primitives with synthetic data, including all five states, stale data,
+saved copies and refreshing. It is bundled with the installed webpack/TypeScript
+for Playwright and creates no public route or production dependency.
+
+### Staff shell (#266)
+
+The rail is 232px on the canvas (`--background`, a `--border` hairline edge) and
+collapses to 64px of icons. Group names come from `app-nav.ts`; collapsed, a
+`border-rule` hairline separates the groups. Rows are 44px in both widths. The
+selected row takes a `bg-primary/10` tint, a semibold label and a primary icon,
+with `aria-current="page"`; nothing else is teal. Item descriptions no longer show
+in the rail. The aside stretches with the page and only its contents are sticky,
+so its edge runs the full height of a long page. `[` toggles the rail from `md` up,
+except while typing or with a modifier held; the header button keeps
+`aria-expanded` / `aria-controls`. Below 1280px the rail still starts collapsed.
+
+Collapsed icons are named by the shadcn `tooltip` (`components/ui/tooltip.tsx`,
+`@radix-ui/react-tooltip` ^1.4.1, the #263 "adopt selectively" decision). It opens
+on hover and on keyboard focus; each link also keeps its label as `sr-only` text.
+`InfoHint` remains the only help bubble.
+
+The header is 56px: the rail toggle, one clinic switcher, the sync control and the
+account menu. The switcher shows the clinic name with the active clinic's roles
+after it as plain muted text (no badges); with one clinic it is text, with several
+a borderless `Select` whose accessible name carries both. On phones the role text
+is `sr-only` and also shown at the top of the menu sheet, and the sheet no longer
+repeats the picker. The sync control's "Sync now" is the shell's only refresh.
+The `--sidebar` tokens are kept but have no consumer in the staff shell now.
+
+### Navigation utilities (#267)
+
+`app-nav.ts` items carry `placement: 'sidebar' | 'header' | 'profile'`
+(default `'sidebar'`), and `getAccessibleNavSections(bootstrap, placement)` keeps
+one filter for all three, so a permission or flag gates an item the same way
+wherever it is drawn. Two items left the rail:
+
+- **Message delivery** (`/notifications`, `REMINDER.READ`, formerly
+  "Notifications") is a 44px ghost icon button in the header from `md`, lucide
+  `Send`, named by its `aria-label` and the shared tooltip. No badge: the ledger is
+  outbound delivery, so nothing is unread. It takes the selected tint and
+  `aria-current="page"` on its own page. The page heading is unchanged.
+- **Clinic settings** (`/settings/clinic`, `RESEARCH.SETTINGS.UPDATE`) is an
+  account menu item after "Your settings".
+
+On phones the header has no room for the icon, so both appear at the end of the
+menu sheet in an "Account" list (its own `nav` landmark), drawn by `AppNavList`.
+Without a clinic selected each shows disabled, as the rail does.
+
+### Volunteer and doctor dashboards (#268)
+
+The dashboard leads with **Needs you now** (`components/dashboard/NeedsYouNow.tsx`)
+for anyone with a volunteer or doctor section, then "Today at a glance", then the
+role sections, then clinic-wide measurement coverage. Rows are `AppActionRow`s with
+one 44px action each, built only from `DashboardData` counts; no patient is named,
+because the contract carries none.
+
+- **Volunteer:** a sentence with their own counts today, a row to their worklist
+  (`getOpsDestination`: Stations in the station line, otherwise My Assigned), and
+  a draft-visits row when they have drafts. This is the first phone screen.
+- **Doctor:** rows for visits waiting for review, waiting for sign-off and HAP
+  notes to cosign, each opening its `/queues?tab=` tab. With nothing waiting, one
+  line says so.
+
+Counts that became rows left the role sections' figure groups, so nothing is
+counted twice there. The page header's clinic-name badge is gone; the title and
+the header switcher name the clinic.
+
+Every dashboard chart (`TrendChart`, `DistributionChart`) now sits in
+`ChartFrame`: a 2px ruled top, a small heading, and a 44px "Show table" toggle
+(`aria-pressed`) that swaps the SVG for a two-column table of the same values.
+Lines are `type="linear"`. Manager, director and admin charts get the frame too;
+their order and content are #269.
+
+### Manager, director and admin dashboards (#269)
+
+**Needs you now** also leads for a manager, director or system administrator. Their
+rows are the clinic's held-up queues, from `DashboardData.summary`: visits nobody
+has reviewed, reviewed visits no doctor has finalized, and (director data only) HAP
+notes waiting for a cosign. A clinic row is left out when the person's own doctor
+or review rows already say it. The cosign row has no action, because a manager has
+no page of their own for it; `AppActionRow`'s `action` is optional for that case
+only.
+
+- **Station line now** (`StationLineLanes.tsx`, station workflow only): one lane
+  per open station. The bar is the longest current wait, minutes since that
+  patient's `queuedAt`, on a labelled minute scale with a dashed 20-minute marker.
+  Past 20 minutes the bar takes `bg-warning` and the lane says "Over 20 minutes";
+  a station with no one on it says "No one staffing". Words carry both readings,
+  so neither depends on colour. These are aggregates; the dashboard has no
+  per-patient queue data.
+- Both station charts (median wait, hourly flow) are in `ChartFrame`, and the
+  "By station" table, staff activity and clinic comparison lose their cards for
+  the same 2px ruled section heading.
+- **One role section at a time.** An account with more than one of the clinic,
+  network, doctor and volunteer sections sees them as a "Dashboard view" tab set,
+  oversight first (Clinic trends, Network overview, then the person's own queues).
+  A single-role account sees no tabs. Doctor and review stay one view.
+
+### Patient registry and records (#270)
+
+The registry starts with search and the existing location and completed-screening
+filters (#224), followed by one result count and the shared sortable, paginated
+DataTable. Patient identities use the serif record role on phones; row actions
+have 44px targets. URL state, clinic scope, masking and check-in behavior stay as
+implemented before this phase.
+
+Patient records use local `RecordSection` groups on the canvas, with plain
+label/value rows for demographics and longitudinal readings. Overview starts with
+**Needs you now** using the existing pending actions and destinations. Chart tabs
+remain role-filtered, lazy and addressable through `?tab=`; their targets are 44px.
+Staff measurement trends opt into the existing `ChartFrame` table alternative and
+straight line segments. Portal chart defaults are unchanged.
+
+Registration and Change ID surface browser constraint failures in a linked error
+summary and the shared `FieldError`, with `aria-invalid` / `aria-describedby`.
+Native required, email, date and length constraints still decide submission.
+Error messages revalidate from the form's bubbling change event, after the
+control's own handler; values are captured before functional state updates so
+correcting an invalid field cannot restore an older value. Registry results
+reserve bottom clearance for pagination beside the fixed chat launcher.
+Inline error space is reserved after the first failed submit; changing the ID type
+removes only the obsolete ID error. Request errors use the existing `readApiError`
+formatter so recovery instructions are readable rather than raw JSON. Edit retains its existing
+button save and offline outbox behavior, with an announced save-error summary;
+it gains no new client constraints. Consent retains its exact text, attestation
+requirement and disabled submit behavior, with an outlined warning action to
+separate consent recording from routine saves. Ghana phone input styling now uses
+tokens and 44px controls; parsing and its accessible name are unchanged.
+
+Shipped in [PR #294](https://github.com/akomapahealth/nkwapa/pull/294); before and after screenshots and verification are in the pull request.
+
+### Stations and screenings (#271)
+
+The station-enabled Today board leads with ruled **Needs you now** rows for waits
+over 20 minutes, open stations with no staff, and patients queued at the review
+station. These use the existing `StationBoard` response; review counts refer to
+patients queued at that station. Long-wait detail names the three oldest waits and counts any
+remainder. The **On shift** roster retains screener attribution.
+
+Each patient has a separate station-line bar. Its width is minutes since
+`queuedAt`, including for a claimed visit, on a shared scale rounded up to ten
+minutes (minimum 30). Gridlines are every ten minutes; long scales thin only the
+numeric labels. Numeric axes remain visible on mobile, alongside the scale and
+20-minute guide description. The 20-minute guide, warning text, three-state legend,
+exact name/time labels and table alternative keep the reading available without colour.
+With-staff bars use primary/primary-foreground; waiting uses neutral tokens;
+queued waits strictly over 20 minutes use warning-surface/warning-ink. Narrow
+bars can clip their decorative label; the full patient name, state and exact
+minutes remain beside every bar. Staffing is shown as Staffed N of capacity,
+separately from places in use. Manager controls retain their permission, day,
+connection and reason gates.
+
+Station setup, the station workbench, visit history/hand-off and My Assigned use
+`RecordSection` rules. Shared history, eye, counselling, results and shift panels
+opt into that treatment only on these routes; VitalsForm uses its existing
+station `sections` boundary. Existing clinical fields, units, validation,
+defaults, correction history, offline outbox, held states and save payloads stay
+unchanged. Station BP/anthropometry saves add a linked summary from the existing
+validation errors. The screener Change link now uses the measured info ink on its
+info surface, fixing the two light-mode before axe findings without token changes.
+My Assigned's follow-through summary excludes completed and cancelled check-ins;
+its assignment table retains the full list and existing filters.
+
+Shipped in [PR #295](https://github.com/akomapahealth/nkwapa/pull/295); before and after screenshots and verification are in the pull request.
+
+### Queues and encounters (#272)
+
+`/queues` shows each lane's count once, on its tab; the metric row and the
+"Active lane" box that repeated it are gone. Each lane opens with one sentence
+saying what it holds, then a ruled list: patient first, chart code, created
+time, BP classification in plain words and a "High glucose" label where the
+existing fasting 126 / random 200 mg/dL flag applies. Phones get ruled rows
+with the same "Open encounter" action. Fetching, permissions and lane choice
+are unchanged.
+
+The encounter workspace drops the three metric cards and the second patient
+heading. A ruled progress line names the stage in words (Draft, Pending review,
+Awaiting sign-off, Finalized) with `aria-current="step"`, derived from the
+existing status and preceptor review. Submit for Review and Mark Reviewed stay
+routine header actions. Sign-off actions (encounter Finalize, HAP Sign note and
+Cosign note) use the consent precedent: outlined warning ink with `ShieldCheck`.
+Finalize sits in its own "Ready for your sign-off" row saying it locks every
+tab. A finalized care plan reads back as a ruled `<dl>`.
+
+The Station session route uses `RecordSection` rows. A cancelled stop's station
+name is struck through beside "Cancelled by", the name, the time and the reason;
+skipped and completed stops keep who and when without the strike. Performer
+corrections still show the corrected name only: the prior name is in the audit
+trail, not the timeline response, so showing it struck through needs an API
+change (out of scope). The new-encounter wizard names its five steps instead of
+unlabelled bars. The clinic encounters hub replaces placeholder metric values
+with three ruled links, including the real queues.
+
+Shipped in [PR #298](https://github.com/akomapahealth/nkwapa/pull/298); before and after screenshots and verification are in the pull request.
+
+### Appointments (#273)
+
+`/appointments` leads with patient requests: a ruled section whose title
+carries the awaiting count, one hairline row per request with its type and
+status as text, the patient's reason set off by a rule, and the same Confirm
+request and Decline actions. The schedule follows as one ruled section: the
+range itself is the title, with "Times in Africa/Accra" (the zone the API
+returns) beneath it, previous, Today, next and Day/Week beside it. Week view
+adds a seven-day strip with each day's count; choosing a day opens it in Day
+view (`aria-current="date"` marks today). Filters, the ledger counts and the
+day lists sit under the same rule. Completed's detail line now also states the
+range's cancelled and no-show counts from the existing summary.
+
+Day lists are hairline rows on phones and a ruled table from 1280px. A
+cancelled visit's time is struck through beside its "Cancelled" label; the
+schedule response carries no who or when for a cancellation, so those are not
+shown (API change, deferred). Statuses still come from
+`lib/appointment-status.ts`.
+
+Reschedule and Confirm request put the error summary first (`role="alert"`,
+fields `aria-invalid` and `aria-describedby` it), show the booked visit or the
+request as ruled context, and group fields under "New time" / "Visit time" and
+"Care team" legends. `datetime-local` reads the device clock, so the time
+fields say which zone they use: the clinic zone, or the device zone beside the
+clinic zone when they differ. Converting typed times to the clinic zone would
+change saved instants, so it is left for the deferred API and data work.
+Validation, lifecycle and triage calls, permissions and reminders are
+unchanged.
+
+Shipped in [PR #299](https://github.com/akomapahealth/nkwapa/pull/299); before and after screenshots and verification are in the pull request.
+
+### Administration and oversight (#274)
+
+Staff and access, clinics, duplicate review, data requests, audit, message
+delivery and clinic settings group filters, records and policy with
+`RecordSection`. Audit and delivery use hairline rows on phones. The
+administration tables opt into a named, focusable scroll area so a keyboard
+user can reach and scroll the results before moving into their controls.
+
+Actions that deactivate access, remove a role, take a clinic offline, close a
+deletion request or relax a research safeguard use the outlined warning
+treatment from consent: warning ink and `ShieldCheck`. Confirming a duplicate
+uses the same treatment when it queues the pair for merge. The review decision
+does not merge charts; the patient chart retains the existing merge flow.
+Data request status words are rendered through `lib/status-presentation.ts`.
+
+Shipped in [PR #301](https://github.com/akomapahealth/nkwapa/pull/301); before and after screenshots and verification are in the pull request.
+
+### Analytics and reporting (#275)
+
+`/metrics`, `/staff-activity`, `/reports/organization` (Report and Cohort
+analytics) and `/clinics/[clinicId]/research/exports` drop their cards for the
+ruled sections of section 12: a 2px top rule, a `type-section-title` heading,
+a quiet description and hairline rows. The patient chart's `RecordSection`
+primitives are reused rather than adding a second set. Tables keep their
+captions, names and test ids; status badges and actions are unchanged.
+
+- **Every chart is a `ChartFrame`.** The trend and distribution charts already
+  were. The three metrics conversions now are too, so each gains "Show table"
+  with Step, Count and Share of first step. `ChartFrame` takes
+  `height="auto"` for HTML bars and an optional `summary` line, which carries
+  the conversion figure and description above the bars. Conversion bars use
+  `--chart-1`, not the teal reserved for what can be pressed, and lose their
+  rounded ends and width transition.
+- **No shadcn `chart` and no new dependency.** The existing Recharts 3.10.1
+  charts in `ChartFrame` already meet the section 13 adaptations (straight
+  segments, a table on every chart, the HSL palette, tabular ticks), so
+  wrapping them again would add code without changing what a reader sees.
+- **No chart animation.** The owner allows it, and the issue asks for none;
+  the charts keep `isAnimationActive={false}`, so readings never pass through
+  invented intermediate values. No reduced-motion code was needed.
+- Staff activity: the date range is the section title with the clinic zone
+  beneath it; names and the Open links are 44px targets; the clinic total sits
+  under a strong rule.
+- Research exports: Needs a decision, export runs and schedules are hairline
+  rows instead of boxes inside a card. "Request export pack" takes the strong
+  rule; the icons beside section titles are muted, not teal.
+
+Shipped in [PR #300](https://github.com/akomapahealth/nkwapa/pull/300); before and after screenshots and verification are in the pull request.
+
+### Patient portal (#276)
+
+Overview, My Health and Appointments share a three-column navigation strip on
+phones. Each destination has an icon, a text label and a 44px minimum target.
+The strip indicates the current section when a patient opens a form. Request
+an appointment is available from Overview and Appointments. Patients reach
+past readings through My Health.
+
+The six portal routes use the existing `RecordSection` top rule, serif
+headings and hairlines between records. The reading and request forms keep
+their fields, defaults, validation and save behavior. The portal keeps the
+same saved-copy notices and connection requirements.
+
+Shipped in [PR #302](https://github.com/akomapahealth/nkwapa/pull/302); before and after screenshots and verification are in the pull request.
+
+### Authentication and onboarding (#277)
+
+Account setup crosses two systems: the password is chosen on Keycloak's pages,
+everything else happens in the app. Each side now shows the whole path in the
+same words, so leaving Nkwapa for sign-in and coming back reads as one journey.
+The flows, redirects, required actions, API calls and validation are unchanged.
+
+- **One frame for every account step.** `/accept-invite`, `/claim-record` and
+  the required `/account/name` step render in `OnboardingFrame`
+  (`components/onboarding/`): a hairline header with the mark, who is signed in
+  and Sign out, a "Step n of m" line, the serif title, ruled sections on the
+  canvas, and the journey beside them (below on phones). Journeys and their
+  steps live in `lib/onboarding-journey.ts`: staff (choose a password, accept,
+  add your name when needed, start work) and patient (choose a password,
+  confirm your details, open your record). Each step says in words whether it
+  is done, current or still to do; the marker colour only repeats it.
+- **No invitation is three causes, each with its fix.** `InvitationNotFound`
+  replaces the single paragraph: email not confirmed, invitation expired,
+  already used or withdrawn.
+- **`/login`** drops the teal card for the same canvas frame: the action first,
+  then "What happens next" as three numbered hairline rows, and "First time
+  here?" explaining that accounts start with an invitation.
+- **Keycloak theme.** `template.ftl` takes `journey`, `step`, `eyebrow` and
+  `description`, and renders the matching step list (signing in, setting up
+  your account, resetting your password) or, on `error.ftl` and
+  `login-page-expired.ftl`, "When a link stops working". The form sits under
+  the 2px ink rule; the clinic photo stays on desktop only, lazy loaded.
+  Lower-case page titles are sentence case. Expired, used and invalid link
+  messages are rewritten in `messages_en.properties` to say what happened and
+  what to do; the failed sign-in message is unchanged, so it still does not
+  reveal whether an account exists. The theme stays light only (see its header
+  comment) and fonts stay self-hosted.
+- **Welcome tour, by role.** Same dialog, completion and storage
+  (`CompleteWelcomeTourDto`, version 1). The step count is written out above a
+  segmented bar; the welcome names the role and clinic; staff get "What you
+  can do as {role}" with up to four places chosen by permission, then "Finding
+  your way" and offline work, each as a short ruled list of what and where.
+  The version was not bumped, so nobody is shown the tour again uninvited.
+  Motion is unchanged: framer-motion reads reduced motion in JavaScript and
+  falls back to a cross-fade.
+
+Shipped in [PR #303](https://github.com/akomapahealth/nkwapa/pull/303); before and after screenshots and verification are in the pull request.
+
+### Public landing page (#278)
+
+The landing page leads with the clinic, then the product. Copy is unchanged
+apart from section names, photo captions and the scroll link, so every claim is
+still one the product makes; there are no counts, quotes, logos or outcomes.
+
+- **Photograph first.** Akomapa-17 fills the hero on wide screens with the copy
+  on a dark scrim at its foot, so the hero reads the same in both themes; on
+  phones the photograph sits above the copy, framed on the volunteer. It is the
+  LCP: eager, high fetch priority, visible from the first frame, and moved only
+  by transform once the reader scrolls. Each of the eight Akomapa photographs
+  appears once. `nkwapa_animate.mp4` is not used (watermark, letterbox, audio,
+  morphing artefacts).
+- **Ruled sections.** `SectionRule` (`components/landing/`) is the 2px ink rule
+  with the section's name, replacing the three tracked eyebrows. Photographs
+  are square; the offline block is no longer a card.
+- **Motion.** Everything stays in `LandingMotion`, behind GSAP `matchMedia`
+  with no reduced-motion preference. Text fades by opacity, never visibility,
+  so headings stay in the accessibility tree before they scroll in. The word
+  scrub on the problem heading is gone (it left words at 18% opacity). New:
+  the hero photograph drifts as it leaves, and the about photograph opens from
+  the content width to the window edges (clip-path, wide screens).
+- **Lenis 1.3.27** (MIT, 5.4 KB gzip) smooths wheel and trackpad scrolling on
+  wide screens with a fine pointer, driven by GSAP's ticker so the pinned
+  scenes scrub without stepping. It writes the native scroll position, so
+  keyboard, scrollbar, anchor links and find-in-page stay native; its own
+  anchor handling is off so a followed link still moves focus. It ignores
+  wheel events inside a dialog and while Radix has locked the page.
+- **Not adopted.** React Bits, Kokonut and Bklit were reviewed for this page.
+  Their scroll-text and stack components duplicate what GSAP already does here;
+  marquees need a pause control for a gain the photographs already give; a
+  Bklit chart would need invented readings. None earned a copied component.
+
+Shipped in [PR #304](https://github.com/akomapahealth/nkwapa/pull/304); before and after screenshots and verification are in the pull request.
+
+### Motion and feedback (#280)
+
+Polish on the contracts above, not a new motion language. Every change respects the global
+reduced-motion rule and the section 7 tokens, and none touches a clinical save, validation,
+permission, route guard, feature flag or analytics consent.
+
+- **Toasts stay on Sonner.** Errors now reach a screen reader assertively: the visible words of
+  an error toast are hidden from assistive technology and a visually hidden `role="alert"` copy
+  speaks them for as long as the toast is shown, which is how Base UI handles a high-priority
+  toast. `toastPromise` settles through `showToast`, so its failures get the same treatment. The
+  dismiss button keeps its 24px glyph with a centred 44px target. Comparison in section 13.
+- **Loading in the final shape.** `DashboardLoadingState` is drawn as the ruled "Needs you now"
+  rows and the five-figure metric group that replace it, inside one named status region; the old
+  carded version also failed colour contrast on its loading badge. `PageSkeleton` and
+  `ResourceState`'s loading region are named status regions too.
+- **Shortcut hints where shortcuts already exist.** The header's rail toggle shows `[` in its
+  tooltip and carries `aria-keyshortcuts`; "Save draft" names Ctrl+S / ⌘S. No new shortcuts.
+- **Landing photographs** get a 16px blurred WebP as their `next/image` placeholder, generated by
+  `apps/web/scripts/generate-landing-blur.mjs` with the `sharp` Next already ships. No new dependency.
+- **Type.** Headings balance their lines and paragraphs, list items and captions use
+  `text-wrap: pretty`, both globally in `globals.css`. Live character counters and the unread
+  badge use tabular figures.
+- **No `transition: all`.** Tab triggers transition colour, background and shadow only.
+
+Shipped in [PR #306](https://github.com/akomapahealth/nkwapa/pull/306); before and after screenshots and verification are in the pull request.
+
+### Route QA and landing restraint (#282)
+
+UX-22 is the route-wide QA pass, plus an owner-requested restraint pass on the landing page and
+the What's New dialog. Same section order, motion, photographs and blur placeholders as #278 and
+#280; no API, permission, guard, flag, consent or clinical change.
+
+- **No eyebrows on the landing page.** `SectionRule` is now the bare 2px ink rule with no label
+  (`aria-hidden`); the hero's kicker line and the release banner's uppercase "New" chip are gone.
+  Section names live in the navigation and the headings. `.text-eyebrow` stays a workspace utility
+  (section 6); do not bring it back to public pages.
+- **Copy rules for public pages.** A headline under ten words, one supporting sentence, short
+  section heads, and no list that repeats another section (the problem list and the "each role
+  sees what it needs" safeguard were cut for that reason). Every claim is one the product makes
+  today: no counts, quotes, logos or outcomes. The page went from 1,151 to 540 words.
+- **One picture per hero, no captions.** The phone was removed from the hero so Akomapa-17 is the
+  only image there and still the LCP; the product screens start in the next sections. No
+  photograph or screenshot on the page has a caption; alt text carries the description.
+- **The accent.** The logo gold (`--secondary`, exact brand value, section 2) as a 64 × 2px rule
+  above the hero headline. It sits only on the hero's fixed dark ground, where it measures 12.2:1
+  (light theme value) and 10.5:1 with the dark-theme gold. It is brand, not status: the
+  warning tokens are a different hue (section 3), and the gold already marks the primary CTA. Use
+  it once per screen at most; it is not a fill for text.
+- **What's New copes with a long release.** A compact title band (version, date, counts per
+  group), one scrolling region named "Changes in this release", and a fixed footer with the
+  contact and GitHub links, so the title and Close stay in view. A release of more than 8 changes
+  opens with 3 per group and a `Show all N <group>` toggle (`aria-expanded`, `aria-controls`);
+  collapsing scrolls the toggle back into view. The per-item stagger is gone (39 items took 2.8s
+  to arrive). The data still comes from `lib/release-notes.ts` unchanged.
+
+Shipped in [PR #309](https://github.com/akomapahealth/nkwapa/pull/309); before and after screenshots and verification are in the pull request.
 
 ### The combobox, and when it is not the answer
 
@@ -489,6 +1062,14 @@ An empty state's title is an `<h3>`. An empty region is still a region, and a sc
 | Ghost       | Transparent, no border, `--foreground` text     | Tertiary, in-table actions           |
 | Destructive | `--destructive` fill, white text                | Delete, merge, anything irreversible |
 
+Primary-button hover uses `bg-primary/95` (#270). The previous 90% fill
+measured 4.39:1 under the hovered registration submit button in a light-theme
+error-state axe scan. At 95%, opaque foreground contrast measures 4.78:1 on the
+light canvas/card and 7.10:1 / 7.13:1 on the dark canvas/card. Muted, accent and
+secondary grounds also pass (minimum 4.81:1 light, 7.20:1 dark). Values are
+computed by compositing the existing HSL tokens in sRGB, then applying WCAG
+relative luminance. Tokens and non-primary variants are unchanged.
+
 One primary per view. Destructive actions require a confirmation step naming what will change.
 
 ### Removing things: confirm, or undo
@@ -503,6 +1084,47 @@ Removals split by what a mistake costs.
 `window.confirm` is not used: it cannot mark the dangerous button, reads as the browser rather than the product, and blocks the tab. A pending undoable removal is committed, not dropped, when the page is left.
 
 ---
+
+### Responsive and offline (#281)
+
+The route regression derives its inventory from all workspace App Router pages and
+starts at 390px before checking 768, 1024, 1280 and 1440. It measures both the document
+and `#main-content`, because the shell can conceal page overflow inside its own scroll
+area. Dynamic patient and encounter routes use fresh synthetic records. Redirects and
+flag-disabled routes are recorded explicitly in PR #308's route findings.
+
+Button enforces a 44px minimum height and width even when a call site asks for a smaller
+visible size. Tables scroll inside named, keyboard-focusable regions, including DataTable by default,
+chart alternatives, staff activity, appointments, station flow, visual acuity, comparisons
+and metrics. Sheet close controls have 44px targets. Sheets retain vertical safe-area
+borders and gain horizontal protection; dialogs subtract top/bottom safe insets from the
+available height. Sheet entrances/exits use the 200ms token and `--ease-out`; the existing
+global reduced-motion override applies. No clinical fields or interaction payloads change.
+
+Missing network data never becomes an empty clinical list. Queues, audit, delivery,
+clinical notes, prescriptions, self-reports, staff-role lists, patient-link searches, portal appointment summaries and chat
+now distinguish failed/unavailable
+reads from genuinely empty results. Mounted offline manual lists show a stale notice.
+Today, My Assigned and Stations suppress empty lists without a saved copy while keeping
+shift controls and pending-write overlays available. Loaded records remain visible.
+
+The sync center names the local account/clinic scope, waits for the device queue to load
+and withholds its success empty state while offline or failed. Held-account and
+other-clinic changes remain visible; the header pill says “Review saved changes” rather
+than “All synced” when those rows exist. Long record/account/clinic names wrap, including
+clinic-switch actions, without removing actions. Storage details keep a 44px disclosure
+and flexible columns. Discard/claim confirmations and all outbox ownership rules are
+unchanged.
+
+Destructive button hover uses 95% of its token rather than 90%: the latter failed the
+white-text contrast threshold. Chat creation controls retain 44px targets. The portal
+context is a named section landmark. The browser-only responsive fixture
+renders real components against synthetic rows, without a public demo route or real
+outbox writes. Main-list regressions cover both a mounted connection drop and an
+interrupted first read. #207 still owns cold-start offline authentication; no Keycloak,
+grant, token, route-guard, cache-ownership or outbox-ownership change is included here.
+
+Shipped in [PR #308](https://github.com/akomapahealth/nkwapa/pull/308); before and after screenshots and verification are in the pull request.
 
 ## 10. Clinical form contract
 
@@ -672,24 +1294,166 @@ toggles.
 
 ---
 
-## 12. Still open
+## 12. Nkwapa 2.0 direction: Ruled Chart
 
-- **Wireframes as artwork.** #61 offers "approved wireframes **or** annotated patterns"; sections
-  9 and 10 are the annotated patterns, and drawn wireframes were not attempted.
-- **The application's own fonts** still load through a render-blocking `@import` in `globals.css`
-  plus a second CDN link in `layout.tsx`. The Keycloak theme self-hosts (section 2); the app does
-  not. Moving it to `next/font` is its own issue.
-- **More optimistic updates**, if a surface ever gains a status a mutation toggles. Section 11
-  records why there is only one today.
+**Approved 2026-11-01** for epic [#229](https://github.com/akomapahealth/nkwapa/issues/229) ([#262](https://github.com/akomapahealth/nkwapa/issues/262)). It was chosen over two other directions (a station "folder" metaphor and a margin-review layout) because it puts what needs each role first using data the API already returns, suits laptop stations and dense ruled tables, extends the existing component contract rather than replacing it, and works as well on admin and analytics screens as on clinical ones. These rules sit on top of sections 1 to 11; token values do not change because of them.
+
+Every screen reads like a well-kept observation chart: ruled, time-ordered, numbers first. Chrome drops to hairlines so readings, waits and decisions carry the hierarchy.
+
+- **Surfaces.** Group with a 2px ink top rule and 1px `--border` hairlines between rows, on the canvas. Cards only for things that float: dialogs, sheets, popovers, toasts. No cards inside cards.
+- **Order.** Each staff page leads with "Needs you now": ruled action rows, each with a status icon, a plain sentence, a detail line and one action. Trends come after.
+- **Figures.** The number is set first and large (tabular figures), its label second and quiet. Units always shown.
+- **Accent.** Teal only on what can be pressed or what is selected. Status keeps its own tokens (success, warning, destructive, info) and always carries a text label, never colour alone.
+- **Time as length.** Waits and durations on the station line are bars whose length is minutes since `queuedAt`, on a labelled scale. Past 20 minutes a bar takes the warning tokens and the row says it in words.
+- **Corrections stay visible.** A corrected or cancelled value is struck through next to its replacement, with who and when. Nothing silently disappears.
+- **Charts.** Straight segments between real readings (no monotone or spline smoothing), direct labels instead of legends where possible, a table toggle on every chart. Section 3's palette check still applies.
+- **Labels.** System values (`IN_REVIEW`, `DRAFT`, `UNKNOWN`) never reach the UI; map them to plain language in one shared place.
+- **Shell.** A labelled 232px sidebar on the canvas, collapsing to 64px icons with tooltips. The header holds the clinic switcher with the active role as text, sync state with the only refresh, the Message delivery icon and the account menu.
+- **Type.** Source Serif 4 for page titles and a patient's name; IBM Plex Sans for everything else.
+- **Motion.** Focusing or hovering a row in a dense list may dim its siblings (150 ms opacity, off under reduced motion). Owner-approved chart animation follows section 3; other motion follows section 7.
+
+### Public navigation and supporting pages (#279)
+
+Public navigation inherits the workspace's Ruled Chart vocabulary: the real Nkwapa
+mark, Source Serif display type, `type-page-title` / `type-section-title`, 2px ink
+top rules (`border-t-2 border-rule-strong`) and decorative hairlines (`border-rule`).
+The footer groups product links, legal links and contact details separately, with
+the existing status trigger and optional release version below the hairline.
+`LandingHeader` and `LandingFooter` retain their exports, props and section-link
+behavior for #278. No shared token, primitive, Tailwind or dependency change.
+
+- Legal pages keep every word and section ID. A 68ch reading column, sticky desktop
+  contents with a current-location marker, plain legal-page tabs and static body
+  text replace the tinted title band, pills and decorative reading-progress line.
+- The Radix mobile menu retains focus trapping, Escape and focus restoration.
+  Navigation targets and the close button are at least 44px. Motion stays in short
+  interaction feedback and honors the existing reduced-motion override.
+- Cookie settings still dispatches the same consent event to the same dialog.
+  Defaults, storage keys, consent version and analytics gating are unchanged. The entry
+  button restores focus when that existing dialog closes, including Escape.
+- `/status`, `/research` and all three `/volunteers*` pages remain in `(workspace)`.
+  **All five require sign-in through `KeycloakProvider`**, including `/status`, whose
+  local signed-out message is unreachable under that wrapper. Research and volunteer
+  guards and permissions are unchanged. The footer does not expose a new sign-in CTA.
+- Status details become a ruled list without a nested main landmark. Research keeps
+  #275's sections and readiness model; residual destination/artifact boxes become
+  hairline groups and copy/link targets grow. Volunteer screens use ruled site and
+  roster sections, accessible action groups, scrollable dialogs and larger checkbox
+  targets. A screening-day title is now a working mobile link to the existing route.
+
+References studied: [Footer Design](https://www.footer.design/) for grouped footer
+wayfinding, [60fps](https://60fps.design/) for restrained interaction feedback, and
+[Heidi Health](https://www.heidihealth.com/en-us) for clinical editorial pacing. These
+are qualitative design references; no copy, layout, branding or measured values were
+imported. Impeccable and Taste review used the existing Nkwapa identity as authority.
+
+Shipped in [PR #305](https://github.com/akomapahealth/nkwapa/pull/305), which holds the access mapping and verification.
 
 ---
 
-## 13. Verification
+## 13. Library decisions and open items
+
+### #263 library decisions, 2026-11-01
+
+**Owner decision updated 2026-11-01:** chart animation and selective use of
+shadcn, Bklit and Kokonut components are allowed where they enhance the product.
+Animation alone is not a reason to reject a library. Sileo rejection is approved;
+retain Sonner. This supersedes the initial blanket Bklit/Kokonut rejection and
+no-chart-animation policy. Each selected component still needs the recorded
+compatibility, token, contrast, target-size, data-fidelity and reduced-motion
+adaptations before shipping. No wholesale import or framework upgrade is approved.
+The #263 PR adds no production dependency or UI library component; actual
+adoption belongs to the issue that uses it.
+
+Confirmed production stack: Next 16.3.0-canary.104, **workspace-local React and
+React DOM 18.3.1**, Tailwind 3.4.19, Recharts 3.10.1. The root-hoisted React is a
+different version; resolving from the web workspace is essential. Experiments
+ran in a disposable branch from `release/dev`, using npm 10.9.9.
+
+| Library and version evidence                                                                   | Recommendation                                    | Compatibility, bundle and accessibility evidence                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| shadcn CLI **4.23.0**, existing `new-york` / Radix registry                                    | **Adopt selectively**, with the adaptations below | CLI installation succeeds on React 18 / Tailwind 3 after forcing npm instead of stale pnpm workspace detection. The legacy chart registry requests **Recharts 2.15.4**; keep 3.10.1 and adapt its content types. The combined adapted fixture passes WCAG axe in both themes at 1440/390. Standalone gzip examples: skeleton 8,722 B, tooltip 28,599 B, sidebar 48,573 B, chart 88,095 B; shared dependencies make these non-additive, not production route deltas.                 |
+| Bklit `line-chart` registry snapshot, 2026-11-01, SHA-256 in PR #287                           | **Adopt selectively, with adaptations**           | Owner welcomes animated charts. All four adapted axe scans pass. Keep the existing HSL palette rather than the installer's OKLCH replacements, adapt the React 18 ref declaration, use straight clinical segments and JavaScript reduced-motion controls. The 92-file install and D3/Motion overlap are costs to assess for each selected chart, not blanket rejection reasons. Standalone bundle: 82,205 B gzip.                                                                   |
+| Kokonut `metric-card` **2.0.0** (source header, 2026-10-17), registry snapshot hash in PR #287 | **Adopt selectively; tested card needs repairs**  | React 18-compatible hooks, no extra package for this candidate. Adapt Tailwind 4 fragments to 3.4 and raw zinc / `dark:` colours to the approved tokens; repair the measured serious contrast failures and targets below 44px. Animation is permitted, but clinical lines must represent actual readings without smoothing/resampling. Extend the shared metric contract rather than adding a parallel system. Standalone bundle: 13,926 B gzip. The raw card is not ready to ship. |
+| Sileo **0.1.6**, npm manifest: React / React DOM `>=18`, dependency `motion ^12.34.0`          | **Reject adoption; keep Sonner (owner approved)** | React 18-compatible; four error-toast axe scans pass. Public API lacks `id`-based updates and rendered errors use `aria-live="polite"` instead of the wrapper's assertive-error contract. Standalone bundle: 48,810 B gzip. Rejection is approved; #280 keeps Sonner and focuses on feedback/motion polish unless the owner reopens this decision.                                                                                                                                  |
+
+The bundle experiment used esbuild 0.28.2, browser ESM, production minification,
+all exports of each candidate module, React/React DOM external and other
+dependencies included. These are measured standalone comparison costs, not an
+incremental production-size claim. No experimental package or registry change
+is carried into the application's package files.
+
+#### #280 toast library review, 2026-11-04
+
+The owner asked for a fresh look at whether any toast component beats Sonner. Sileo stays
+rejected and was not reopened. Bundle figures are esbuild 0.28.2, browser ESM, minified, gzip -9,
+React external, each library's public toast surface only; they are standalone costs, not a
+production delta. Versions are the npm latest on 2026-11-04.
+
+| Library                    | gzip                  | id update / dismiss  | promise | action              | Errors assertive                                                         | Hotkey to toasts | Swipe | Pause hover / focus / hidden tab | Reduced motion           | Licence, upkeep                             |
+| -------------------------- | --------------------- | -------------------- | ------- | ------------------- | ------------------------------------------------------------------------ | ---------------- | ----- | -------------------------------- | ------------------------ | ------------------------------------------- |
+| **Sonner 2.0.8** (current) | 9,678 B (CSS in JS)   | yes                  | yes     | action + cancel     | no: one polite region                                                    | Alt+T            | yes   | yes / yes / yes                  | built in                 | MIT, released Aug 2026                      |
+| Base UI Toast 1.9.0        | 26,297 B              | yes (`toastManager`) | yes     | yes                 | yes: `priority: 'high'` hides the toast and speaks a `role="alert"` copy | F6               | yes   | yes / yes / yes                  | ours to write (headless) | MIT, released Oct 2026                      |
+| Radix Toast 1.3.1 (shadcn) | 12,611 B              | by state only        | no      | yes, with `altText` | yes: `type="foreground"`                                                 | F8               | yes   | yes / yes / no                   | ours to write            | MIT, Oct 2026; shadcn now recommends Sonner |
+| react-hot-toast 2.6.1      | 4,761 B               | yes                  | yes     | custom JSX only     | no: `role="status"`, polite                                              | none             | no    | hover only                       | built in                 | MIT, Sep 2026                               |
+| react-toastify 11.2.0      | 9,809 B + 2,722 B CSS | yes (`toast.update`) | yes     | custom JSX only     | role per toast, no tone split                                            | none             | drag  | yes / yes / yes                  | partial                  | MIT, Oct 2026                               |
+| Ark UI Toast 5.40.0        | 16,266 B              | yes (`toaster`)      | yes     | yes                 | polite region                                                            | Alt+T            | yes   | yes / yes / yes                  | ours to write            | MIT, Oct 2026                               |
+
+**Decision: keep Sonner.** Only Base UI and Radix split errors into an assertive announcement,
+and that was the one real gap. Base UI's method is a few lines that sit on top of Sonner, so it
+was copied into `components/ui/toast.tsx` rather than swapping libraries: switching would cost
+2.7x the bytes, a hand-built stack, enter and exit motion and swipe styling, and a migration of
+every call site for no other gain. Radix has no promise toast and shadcn itself now points to
+Sonner. react-hot-toast is smaller but has no action button, no swipe and no focus pause.
+
+#### shadcn component decisions
+
+| Candidate                             | Decision and named workflow                                                                   | Required before production adoption                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sidebar`                             | Adopt selectively for #266's collapsible shell                                                | Preserve `app-nav.ts`, role visibility and existing Sheet/Button/Input; map sidebar colours to current HSL tokens, use 232/64px widths, 44px targets and visible focus. Do not accept the CLI's sidebar token replacements.                                                                                                                                |
+| `chart`                               | Adopt selectively for #275's existing Recharts analytics                                      | Preserve Recharts 3.10.1; use its `TooltipContentProps` / `LegendPayload` types, handle function-valued `dataKey` safely in React keys, restore visible SVG focus, and require straight lines, labels and a table, with optional owner-approved animation that honours reduced motion. The raw legacy output has ten TypeScript errors against Recharts 3. |
+| `breadcrumb`, `skeleton`, `separator` | Adopt selectively for #265's shared foundations where an existing equivalent does not suffice | Breadcrumbs need labelled navigation and 44px link targets. Wrap skeletons in a named status region, rather than putting an ARIA label on a generic div. Separators are structural and should remain decorative unless interactive.                                                                                                                        |
+| `tooltip`                             | Adopt selectively for collapsed navigation icons in #266                                      | Keep InfoHint for the help contract it already owns; tooltips name their trigger and work on keyboard focus, with 44px targets.                                                                                                                                                                                                                            |
+| `command`                             | Reject adoption for now                                                                       | No approved command-palette workflow requires adding `cmdk`. The embedded command fixture works; that does not establish that its dialog variant meets the app's dialog contract. Existing Combobox remains in use.                                                                                                                                        |
+| `toggle-group`                        | Reject adoption for now                                                                       | Existing SegmentedControl covers current needs. The generated default uses smaller targets; a future multi-select workflow needs a named use case and 44px variants.                                                                                                                                                                                       |
+| `calendar`                            | Reject this generated variant for now                                                         | CLI resolves react-day-picker 10.0.2 and date-fns 4.4.0. Generated source includes v4-style `shadow-xs`, `has-focus:` and `rtl:**` fragments despite v3 detection, plus 32px cells. Any future picker needs those converted, 44px cells and its own keyboard/form tests. Existing date fields and #224's filter stay intact.                               |
+
+The throwaway fixture's React 18 typecheck and production build pass after the
+recorded type adaptations. That proves feasibility, not product adoption. The
+fixture also exercises candidates requiring repairs so that their axe results are not
+inferred from documentation. Full commands, source hashes, measurements,
+screenshots and the distinction between harness corrections and library findings
+are in [PR #287](https://github.com/akomapahealth/nkwapa/pull/287).
+
+Primary sources: [shadcn Sidebar](https://ui.shadcn.com/docs/components/radix/sidebar),
+[shadcn Chart](https://ui.shadcn.com/docs/components/radix/chart),
+[Bklit registry](https://ui.bklit.com/r/line-chart.json),
+[Kokonut installation](https://kokonutui.com/docs),
+[Kokonut metric registry](https://kokonutui.com/r/metric-card.json),
+[Sileo docs](https://sileo.aaryan.design/docs),
+[Sileo package manifest](https://registry.npmjs.org/sileo/0.1.6).
+
+### Other open items
+
+- **Wireframes as artwork.** #61 offers "approved wireframes **or** annotated patterns"; sections
+  9 and 10 are the annotated patterns, and drawn wireframes were not attempted.
+- **More optimistic updates**, if a surface ever gains a status a mutation toggles. Section 11
+  records why there is only one today; #280 re-checked and found none.
+- **Idempotency keys for online writes.** The offline outbox already sends one and the API
+  dedupes it (`SyncMutation`, unique per clinic). Direct online writes through `apiFetch` do not,
+  so a retry after a client timeout can apply twice. Tracked in
+  [#307](https://github.com/akomapahealth/nkwapa/issues/307); it needs an API change #280 does
+  not cover.
+
+---
+
+## 14. Verification
 
 Run after any change to this file or to `globals.css`:
 
 ```bash
 npm run design:check-charts      # from the repo root
+npm run design:check-tokens      # semantic pair contrast, both themes
 npm run keycloak:validate-realm  # if the login theme moved
 
 cd apps/web

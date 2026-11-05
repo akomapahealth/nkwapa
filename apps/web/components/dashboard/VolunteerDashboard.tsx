@@ -1,6 +1,5 @@
 'use client';
 
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { UserPlus, ClipboardList, Stethoscope } from 'lucide-react';
 import { DashboardSectionHeader } from './DashboardSectionHeader';
 import { DashboardKpiCard } from './DashboardKpiCard';
@@ -24,7 +23,6 @@ interface VolunteerDashboardProps {
 export function VolunteerDashboard({
   patientsRegisteredToday,
   encountersCreatedToday,
-  pendingSubmissions,
   patientsRegisteredTrend,
   encountersCreatedTrend,
   statusBreakdown,
@@ -39,7 +37,8 @@ export function VolunteerDashboard({
         hint="Use this section to track your intake work and move patients to the next step."
       />
 
-      <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
+      {/* Draft visits lead the page as a "Needs you now" row when there are any. */}
+      <AppMetricGroup className="sm:grid-cols-3">
         {clinicalNotes ? (
           <DashboardKpiCard
             title="Your HAP notes"
@@ -58,11 +57,6 @@ export function VolunteerDashboard({
           value={encountersCreatedToday}
           icon={ClipboardList}
           hint="Visits you created today."
-        />
-        <DashboardKpiCard
-          title="Draft visits"
-          value={pendingSubmissions}
-          hint="Visits you started but have not submitted yet."
         />
       </AppMetricGroup>
 
@@ -102,20 +96,16 @@ export function VolunteerDashboard({
         />
       </div>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Quick actions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <DashboardActionRow
-            actions={[
-              { href: '/patients/new', label: 'Add patient', icon: UserPlus },
-              { href: '/my/assigned', label: 'My tasks', icon: Stethoscope },
-              { href: '/queues', label: 'Open queues', icon: ClipboardList },
-            ]}
-          />
-        </CardContent>
-      </Card>
+      <section className="space-y-3 border-t-2 border-rule-strong pt-3">
+        <h3 className="type-label pt-2.5 text-foreground">Quick actions</h3>
+        <DashboardActionRow
+          actions={[
+            { href: '/patients/new', label: 'Add patient', icon: UserPlus },
+            { href: '/my/assigned', label: 'My tasks', icon: Stethoscope },
+            { href: '/queues', label: 'Open queues', icon: ClipboardList },
+          ]}
+        />
+      </section>
     </section>
   );
 }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Search, Stethoscope, UserPlus, Users, X } from 'lucide-react';
+import { Search, UserPlus, Users, X } from 'lucide-react';
 import { apiFetch, readApiError as readApiErrorDetail } from '@/lib/api';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import {
@@ -23,7 +23,6 @@ import { GHANA_REGION_LABELS, PATIENT_LOCATION_STATUS_LABELS } from '@/lib/resid
 import { useAsyncResource } from '@/lib/use-async-resource';
 import { usePatientCheckIn } from '@/lib/use-patient-check-in';
 import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
-import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { FormSectionCard } from '@/components/app-shell/FormSectionCard';
 import { SectionSkeleton } from '@/components/feedback/AppState';
@@ -35,7 +34,6 @@ import {
 } from '@/components/patients/ResidentialLocationFilters';
 import { ScreenedDateFilter, ScreenedDates } from '@/components/patients/ScreenedDateFilter';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DataTable, DataTableActions, type DataTableColumn } from '@/components/ui/data-table';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -154,6 +152,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
   }, [urlQuery]);
 
   const registry = useAsyncResource<PatientRegistryResponse>({
+    requiresOnline: true,
     resourceKey: `${clinicId}|${apiQuery}`,
     errorMessage: 'The patient registry could not be loaded.',
     fetcher: async (token, signal) => {
@@ -195,9 +194,6 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
 
   const patientHref = (patientId: string) => `/clinics/${clinicId}/patients/${patientId}`;
 
-  const items = registry.data?.items ?? [];
-  const total = registry.data?.total ?? 0;
-
   const columns: DataTableColumn<PatientSummary>[] = [
     {
       id: 'patientCode',
@@ -209,6 +205,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
       id: 'name',
       accessorFn: (row) => `${row.firstName} ${row.lastName}`.trim(),
       header: 'Name',
+      meta: { className: 'font-heading text-base' },
     },
     ...(screenedActive
       ? [
@@ -260,13 +257,13 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
       */
       cell: ({ row }) => (
         <DataTableActions>
-          <Button asChild variant="outline" size="sm" className="h-9 w-20">
+          <Button asChild variant="outline" size="sm" className="min-h-11 w-20">
             <Link href={patientHref(row.original.id)}>View</Link>
           </Button>
           {canCreateOpsCheckIn ? (
             <Button
               size="sm"
-              className="h-9 w-24"
+              className="min-h-11 w-24"
               loading={checkIn.busyPatientId === row.original.id}
               disabled={checkIn.isBusy || !checkIn.canSubmit}
               onClick={() => void checkIn.checkIn(row.original)}
@@ -344,35 +341,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
         }
       />
 
-      <AppMetricGroup className="md:grid-cols-3">
-        <AppMetricCard
-          title="Visible results"
-          value={items.length}
-          icon={Users}
-          detail="Patients currently shown for the active search."
-        />
-        <AppMetricCard
-          title="Search mode"
-          value={otherFiltersActive || screenedActive ? 'Filtered' : 'Browsing'}
-          icon={Search}
-          detail={
-            otherFiltersActive || screenedActive
-              ? 'Results are narrowed by the active search and filters.'
-              : 'Enter a patient name, code, phone, or ID.'
-          }
-        />
-        <AppMetricCard
-          title="OPS handoff"
-          value={canCreateOpsCheckIn ? 'Enabled' : 'Read only'}
-          icon={Stethoscope}
-          detail="Check-in shortcuts appear when your role can add patients to the clinic board."
-        />
-      </AppMetricGroup>
-
-      <FormSectionCard
-        title="Search patients"
-        description="Results update as you type and stay scoped to this clinic."
-      >
+      <FormSectionCard title="Search patients" className="border-t-2 border-rule-strong">
         <div className="space-y-2 md:max-w-xl">
           <Label htmlFor="patient-search">Name, patient code, phone or ID last 4</Label>
           <div className="relative">
@@ -485,12 +454,16 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
 
       <OpsFeedbackNotice feedback={checkIn.feedback} />
 
-      <Card>
-        <CardHeader className="space-y-3">
+      <section aria-labelledby="patient-results-title" className="border-t-2 border-rule-strong">
+        <header className="space-y-3 py-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-1.5">
-              <CardTitle className="text-xl">Patient results</CardTitle>
-              <CardDescription>Open a chart or hand the patient into OPS.</CardDescription>
+              <h2 id="patient-results-title" className="type-section-title">
+                Patient results
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Open a chart or hand the patient into OPS.
+              </p>
               {/* The empty state already says when nothing matched. */}
               {screenedActive &&
               registry.data &&
@@ -501,15 +474,10 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
                 </p>
               ) : null}
             </div>
-            <div className="rounded-lg border border-border/70 bg-background/75 px-4 py-3 text-sm">
-              <p className="text-muted-foreground">Showing</p>
-              <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
-                {items.length} of {total}
-              </p>
-            </div>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        </header>
+        {/* Keep the final pagination controls above the fixed chat launcher at the page end. */}
+        <div className="space-y-4 pb-20">
           <ResourceState
             state={registry}
             errorTitle="We couldn't load the patient registry"
@@ -538,10 +506,10 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
                   }))
                 }
                 renderMobileRow={(row) => (
-                  <article className="rounded-lg border border-border/80 bg-card p-4">
+                  <article className="border-b border-border py-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <h3 className="text-base font-semibold text-foreground">
+                        <h3 className="type-record-title text-foreground">
                           {row.firstName} {row.lastName}
                         </h3>
                         <p className="mt-1 text-sm text-muted-foreground">{row.patientCode}</p>
@@ -583,8 +551,8 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
               />
             )}
           </ResourceState>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
     </div>
   );
 }

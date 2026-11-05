@@ -1,16 +1,19 @@
 import Image from 'next/image';
+import { LANDING_BLUR } from '@/lib/landing-blur';
 import { DesktopFrame, PhoneFrame } from './ProductFrames';
+import { SectionRule } from './SectionRule';
 
 const PHOTO_CLASS = 'h-full w-full object-cover';
 
 const STEPS = [
   {
     title: 'Register',
-    text: 'Find the patient or create a new record. Likely duplicates are flagged for review before a second chart is made.',
-    caption: 'Intake on a laptop at an Akomapa clinic.',
+    text: 'Find the patient or start a record. Likely duplicates are flagged first.',
     media: (
       <Image
         src="/images/Akomapa-3.jpg"
+        placeholder="blur"
+        blurDataURL={LANDING_BLUR['/images/Akomapa-3.jpg']}
         alt="A volunteer enters a patient's details on a laptop at an intake table while the patient sits across from him."
         width={3600}
         height={2250}
@@ -21,11 +24,12 @@ const STEPS = [
   },
   {
     title: 'Check in',
-    text: "Add the patient to today's queue. A clinic manager assigns a volunteer and a doctor, or the patient moves from station to station.",
-    caption: 'The waiting area at an Akomapa community clinic.',
+    text: "Add the patient to today's queue, with an assigned team or station by station.",
     media: (
       <Image
         src="/images/Akomapa-11.jpg"
+        placeholder="blur"
+        blurDataURL={LANDING_BLUR['/images/Akomapa-11.jpg']}
         alt="Patients seated in a waiting area at an Akomapa community clinic while volunteers work at tables nearby."
         width={3600}
         height={2712}
@@ -36,11 +40,12 @@ const STEPS = [
   },
   {
     title: 'Measure',
-    text: 'Record blood pressure, glucose, weight, eye screening and other vital signs, with blood pressure classified against agreed thresholds.',
-    caption: 'A blood pressure reading at an Akomapa screening.',
+    text: 'Blood pressure, glucose, weight and eye screening, with blood pressure classified against agreed thresholds.',
     media: (
       <Image
         src="/images/Akomapa-18.jpg"
+        placeholder="blur"
+        blurDataURL={LANDING_BLUR['/images/Akomapa-18.jpg']}
         alt="A blood pressure cuff on a patient's arm, with digital monitors on the table beside it."
         width={3600}
         height={2400}
@@ -51,8 +56,7 @@ const STEPS = [
   },
   {
     title: 'Review',
-    text: 'The visit is documented as a draft. A doctor reviews it, adds the plan and prescriptions, and finalizes it.',
-    caption: 'The clinic dashboard counts the visits waiting for review and sign-off.',
+    text: 'A doctor reviews the draft, adds the plan and prescriptions, and finalizes it.',
     media: (
       <div className="flex h-full items-center justify-center bg-primary p-4 sm:p-8">
         <DesktopFrame priority sizes="(min-width: 1024px) 50vw, 92vw" className="w-full" />
@@ -61,8 +65,7 @@ const STEPS = [
   },
   {
     title: 'Follow up',
-    text: 'Finalizing the visit schedules a follow-up reminder by SMS or email, and appointments are confirmed on the clinic calendar.',
-    caption: 'The same clinic workspace on a phone.',
+    text: 'Finalizing a visit schedules an SMS or email reminder.',
     media: (
       <div className="flex h-full items-center justify-center bg-secondary py-6">
         <PhoneFrame
@@ -88,20 +91,20 @@ export function ClinicalJourney() {
       className="border-y border-border bg-card py-20 sm:py-28"
     >
       <div className="landing-container">
-        <div className="grid gap-6 lg:grid-cols-12 lg:items-end" data-reveal>
+        <SectionRule />
+        <div className="mt-8 grid gap-6 lg:grid-cols-12 lg:items-end" data-reveal>
           <div className="lg:col-span-7">
-            <p className="text-eyebrow text-primary">A clinic day</p>
             <h2
               id="journey-title"
               data-split
-              className="mt-3 text-balance font-heading text-4xl font-semibold leading-[1.1] tracking-[-0.015em] sm:text-5xl"
+              className="text-balance font-heading text-4xl font-semibold leading-[1.1] tracking-[-0.015em] sm:text-5xl"
             >
-              One visit, from the front door to the follow-up.
+              From the front door to follow-up.
             </h2>
           </div>
           <p className="text-lg leading-relaxed text-muted-foreground lg:col-span-5">
-            Every step writes to the same patient record, so the person at the next step starts with
-            what the last one learned.
+            Every step writes to the same record, so the next person starts with what the last one
+            learned.
           </p>
         </div>
 
@@ -131,14 +134,11 @@ export function ClinicalJourney() {
                     {step.text}
                   </p>
                 </div>
-                <figure data-step-media className="bg-card lg:col-span-7">
-                  <div className="aspect-[4/3] overflow-hidden rounded-xl lg:aspect-auto lg:h-[min(62vh,32rem)]">
+                <div data-step-media className="bg-card lg:col-span-7">
+                  <div className="aspect-[4/3] overflow-hidden lg:aspect-auto lg:h-[min(62vh,32rem)]">
                     {step.media}
                   </div>
-                  <figcaption className="mt-3 text-sm text-muted-foreground">
-                    {step.caption}
-                  </figcaption>
-                </figure>
+                </div>
               </li>
             ))}
           </ol>

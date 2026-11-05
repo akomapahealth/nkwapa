@@ -35,8 +35,8 @@ nkwapa/
 │   └── db/                 Prisma schema, migrations, seed scripts, helpers
 ├── infra/
 │   └── nkwapa/             Docker Compose, Keycloak realm export, login theme
-├── docs/                   Architecture, workflows, setup guides, audit notes
-└── memory/                 Agent-maintained codebase memory
+├── docs/                   Architecture, workflows, setup guides, design system
+└── scripts/                CI checks, deploy verification, Keycloak helpers
 ```
 
 ---

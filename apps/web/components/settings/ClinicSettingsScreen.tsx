@@ -14,7 +14,13 @@ import { ResourceState } from '@/components/feedback/ResourceState';
 import { SectionSkeleton } from '@/components/feedback/AppState';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection,
+  RecordSectionContent,
+  RecordSectionDescription,
+  RecordSectionHeader,
+  RecordSectionTitle,
+} from '@/components/patients/RecordSection';
 import { Checkbox } from '@/components/ui/checkbox';
 import { InlineNotice } from '@/components/ops/OpsShared';
 
@@ -46,6 +52,7 @@ export function ClinicSettingsScreen({ clinicId }: { clinicId: string }) {
   );
 
   const settings = useAsyncResource<ResearchSettings>({
+    requiresOnline: true,
     resourceKey: clinicId,
     errorMessage: 'The research settings for this clinic could not be loaded.',
     fetcher: async (token, signal) => {
@@ -88,6 +95,12 @@ export function ClinicSettingsScreen({ clinicId }: { clinicId: string }) {
     setDraft(toDraft(loaded));
   }, [loaded]);
 
+  const changesSafetyPolicy = Boolean(
+    draft &&
+    loaded &&
+    ((loaded.researchEnabled && !draft.researchEnabled) ||
+      (loaded.requiresDirectorApprovalEachExport && !draft.requiresDirectorApprovalEachExport)),
+  );
   const isDirty =
     draft !== null &&
     loaded !== null &&
@@ -187,15 +200,15 @@ export function ClinicSettingsScreen({ clinicId }: { clinicId: string }) {
               />
             </AppMetricGroup>
 
-            <Card className="max-w-3xl">
-              <CardHeader>
-                <CardTitle className="text-xl">Research settings</CardTitle>
-                <CardDescription>
+            <RecordSection className="max-w-3xl">
+              <RecordSectionHeader>
+                <RecordSectionTitle>Research settings</RecordSectionTitle>
+                <RecordSectionDescription>
                   Configure whether the active clinic participates in research workflows and how
                   approvals are enforced.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
+                </RecordSectionDescription>
+              </RecordSectionHeader>
+              <RecordSectionContent className="space-y-6">
                 <div className="rounded-lg border border-border bg-background p-4">
                   <div className="flex items-center gap-3">
                     <Checkbox
@@ -242,7 +255,15 @@ export function ClinicSettingsScreen({ clinicId }: { clinicId: string }) {
                 ) : null}
 
                 <div className="flex flex-wrap items-center gap-3">
-                  <Button onClick={() => void handleSave()} disabled={saving || !isDirty}>
+                  <Button
+                    variant={changesSafetyPolicy ? 'outline' : 'default'}
+                    className={changesSafetyPolicy ? 'border-warning text-warning-ink' : undefined}
+                    onClick={() => void handleSave()}
+                    disabled={saving || !isDirty}
+                  >
+                    {changesSafetyPolicy ? (
+                      <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                    ) : null}
                     {saving ? 'Saving…' : 'Save settings'}
                   </Button>
                   {/*
@@ -253,8 +274,8 @@ export function ClinicSettingsScreen({ clinicId }: { clinicId: string }) {
                     {isDirty ? 'You have unsaved changes.' : ' '}
                   </p>
                 </div>
-              </CardContent>
-            </Card>
+              </RecordSectionContent>
+            </RecordSection>
 
             {canSeeExports ? (
               <Link

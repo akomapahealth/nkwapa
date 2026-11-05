@@ -5,16 +5,16 @@ const path = require('path');
  *
  * `staff` holds SYSTEM_ADMIN plus every clinic role at once, which is what most specs want: it can
  * walk the whole product without arranging permissions first. It is exactly the wrong identity for
- * proving that a role sees only what it should, because it sees everything. `doctor` and
- * `volunteer` each hold a single clinic seat, so a spec can assert both what a role reaches and
- * what it is refused.
+ * proving that a role sees only what it should, because it sees everything. `doctor`,
+ * `volunteer`, `manager` and `director` each hold a single clinic seat, so a spec can assert both
+ * what a role reaches and what it is refused.
  *
  * `patient` is the portal identity, and it is the reason the portal now has coverage at all. Every
  * spec used to run as staff, so roughly 2,900 lines of migrated portal screens were never once
  * loaded by the suite. The seed links it to a real patient record through `Patient.portalUserId`,
  * which is what makes the portal show a chart rather than "ask your clinic to link this account".
  *
- * `claimant` is that same patient one step earlier: invited, not yet linked. The two cannot be one
+ * `claimant` storage is created by a fresh invitation in the specs that need it. The two cannot be one
  * identity, because the link is what decides where the account is allowed to be -- a claimed
  * account is redirected off /claim-record, so the claim page had no identity that could reach it.
  */
@@ -36,6 +36,16 @@ const ROLES = {
     username: process.env.E2E_VOLUNTEER_USERNAME || 'e2e.volunteer',
     password: process.env.E2E_VOLUNTEER_PASSWORD || 'NkwapaVolunteer!23',
   },
+  manager: {
+    storageState: path.join(AUTH_DIR, 'manager.json'),
+    username: process.env.E2E_MANAGER_USERNAME || 'e2e.manager',
+    password: process.env.E2E_MANAGER_PASSWORD || 'NkwapaManager!23',
+  },
+  director: {
+    storageState: path.join(AUTH_DIR, 'director.json'),
+    username: process.env.E2E_DIRECTOR_USERNAME || 'e2e.director',
+    password: process.env.E2E_DIRECTOR_PASSWORD || 'NkwapaDirector!23',
+  },
   patient: {
     storageState: path.join(AUTH_DIR, 'patient.json'),
     username: process.env.E2E_PATIENT_USERNAME || 'e2e.patient',
@@ -44,14 +54,7 @@ const ROLES = {
     landingUrl: '/portal',
   },
   claimant: {
-    storageState: path.join(AUTH_DIR, 'claimant.json'),
-    username: process.env.E2E_CLAIMANT_USERNAME || 'e2e.claimant',
-    password: process.env.E2E_CLAIMANT_PASSWORD || 'NkwapaClaimant!23',
-    /*
-      Holds an invitation and nothing else -- no record link, no roles. `SyncWithAuth` sends any
-      account in that state to /claim-record and holds it there, so this identity cannot land
-      anywhere else, and `patient` cannot land here: a claimed record is redirected away.
-    */
+    fixture: 'invited-patient',
     landingUrl: '/claim-record',
   },
 };
@@ -60,6 +63,7 @@ const ROLES = {
 function storageStateFor(role) {
   const entry = ROLES[role];
   if (!entry) throw new Error(`Unknown e2e role: ${role}`);
+  if (!entry.storageState) throw new Error(`${role} needs its own invitation fixture.`);
   return entry.storageState;
 }
 

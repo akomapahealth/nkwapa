@@ -11,6 +11,8 @@ const LOCAL_DOTENV = {
   E2E_STAFF_SUB: 'local-staff-sub',
   E2E_DOCTOR_SUB: 'local-doctor-sub',
   E2E_VOLUNTEER_SUB: 'local-volunteer-sub',
+  E2E_MANAGER_SUB: 'local-manager-sub',
+  E2E_DIRECTOR_SUB: 'local-director-sub',
   E2E_PATIENT_SUB: 'local-patient-sub',
   E2E_CLAIMANT_SUB: 'local-claimant-sub',
   E2E_CLAIMANT_EMAIL: 'e2e.claimant@nkwapa.local',
@@ -57,6 +59,8 @@ describe('planSeed', () => {
       'SEED_SAMPLE_PATIENT',
       'SEED_SAMPLE_APPOINTMENTS',
       'E2E_STAFF_SUB',
+      'E2E_MANAGER_SUB',
+      'E2E_DIRECTOR_SUB',
       'E2E_CLAIMANT_SUB',
     ]) {
       expect(errors).toContain(name);
@@ -76,6 +80,8 @@ describe('planSeed', () => {
     expect(plan.e2e.staff).toBeNull();
     expect(plan.e2e.doctor).toBeNull();
     expect(plan.e2e.volunteer).toBeNull();
+    expect(plan.e2e.manager).toBeNull();
+    expect(plan.e2e.director).toBeNull();
     expect(plan.e2e.patient).toBeNull();
     expect(plan.e2e.claimant.sub).toBeUndefined();
   });
@@ -129,6 +135,8 @@ describe('planSeed', () => {
       E2E_STAFF_SUB: 'ci-staff',
       E2E_DOCTOR_SUB: 'ci-doctor',
       E2E_VOLUNTEER_SUB: 'ci-volunteer',
+      E2E_MANAGER_SUB: 'ci-manager',
+      E2E_DIRECTOR_SUB: 'ci-director',
       E2E_PATIENT_SUB: 'ci-patient',
       E2E_CLAIMANT_SUB: 'ci-claimant',
       SEED_E2E_STAFF_NAME: 'E2E Staff',
@@ -144,6 +152,16 @@ describe('planSeed', () => {
       sub: 'ci-staff',
       name: 'E2E Staff',
       email: 'e2e.staff@nkwapa.local',
+    });
+    expect(plan.e2e.manager).toEqual({
+      sub: 'ci-manager',
+      name: 'E2E Manager',
+      email: 'e2e.manager@nkwapa.local',
+    });
+    expect(plan.e2e.director).toEqual({
+      sub: 'ci-director',
+      name: 'E2E Director',
+      email: 'e2e.director@nkwapa.local',
     });
     expect(plan.e2e.claimant.sub).toBe('ci-claimant');
     expect(plan.drugCatalog).toBe(true);

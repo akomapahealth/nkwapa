@@ -1,4 +1,3 @@
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
 import { failureRate, formatRatio, type MetricsEventTotal } from '@/lib/metrics';
 import { cn } from '@/lib/utils';
@@ -18,17 +17,20 @@ export function MetricsEventTable({
 }) {
   const headingId = `metrics-${title.toLowerCase().replace(/\s+/g, '-')}`;
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <h3 id={headingId} className="text-sm font-semibold">
-          {title}
-        </h3>
-        <p className="text-xs text-muted-foreground">{description}</p>
-      </CardHeader>
-      <CardContent className="overflow-x-auto">
+    <section className="min-w-0 border-t-2 border-rule-strong pt-3">
+      <h3 id={headingId} className="type-label pt-2.5 text-foreground">
+        {title}
+      </h3>
+      <p className="text-xs text-muted-foreground">{description}</p>
+      <div
+        role="region"
+        aria-labelledby={headingId}
+        tabIndex={0}
+        className="scroll-region mt-2 overflow-x-auto"
+      >
         <table aria-labelledby={headingId} className="w-full min-w-[20rem] text-sm">
           <thead>
-            <tr className="border-b border-border text-left text-xs text-muted-foreground">
+            <tr className="border-b border-rule text-left text-xs text-muted-foreground">
               <th scope="col" className="py-2 pr-3 font-medium">
                 Activity
               </th>
@@ -47,7 +49,7 @@ export function MetricsEventTable({
             {rows.map((row) => {
               const rate = failureRate(row);
               return (
-                <tr key={row.event} className="border-b border-border/60 last:border-0">
+                <tr key={row.event} className="border-b border-rule last:border-0">
                   <th scope="row" className="py-2 pr-3 text-left font-normal">
                     <span className="inline-flex items-center gap-1">
                       {row.label}
@@ -71,7 +73,7 @@ export function MetricsEventTable({
             })}
           </tbody>
         </table>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

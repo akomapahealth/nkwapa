@@ -175,7 +175,7 @@ function AppointmentRow({
   const hintId = `appointment-${appointment.id}-hint`;
 
   return (
-    <article className="rounded-lg border border-border bg-background p-4 transition-colors hover:bg-accent">
+    <article className="border-b border-border py-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -247,7 +247,7 @@ function RequestRow({ request }: { request: AppointmentRequestRecord }) {
   const typeLabel = getAppointmentRequestTypeLabel(request.requestType);
 
   return (
-    <article className="rounded-lg border border-border bg-background p-4 transition-colors hover:bg-accent">
+    <article className="border-b border-border py-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -257,7 +257,7 @@ function RequestRow({ request }: { request: AppointmentRequestRecord }) {
             <AppointmentRequestStatusBadge status={request.status} className="rounded-full" />
           </div>
           <h3 className="font-medium tabular-nums text-foreground">
-            Preferred window: {getRequestWindow(request)}
+            Dates you requested: {getRequestWindow(request)}
           </h3>
           <p className="text-sm tabular-nums text-muted-foreground">
             Submitted {formatPortalDate(request.createdAt)}
@@ -298,7 +298,7 @@ function RequestRow({ request }: { request: AppointmentRequestRecord }) {
 
           {request.rejectionReason ? (
             <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4">
-              <h4 className="text-eyebrow text-destructive">Clinic note</h4>
+              <h4 className="text-eyebrow text-destructive-ink">Clinic note</h4>
               <p className="mt-2 text-sm leading-6 text-foreground">{request.rejectionReason}</p>
             </div>
           ) : null}
@@ -447,16 +447,15 @@ export function AppointmentsPortalScreen() {
       <div className="space-y-6">
         <section className={PORTAL_HERO_GRID}>
           <PortalHero
-            eyebrow="Appointment center"
             clinicName={clinicName}
             title="Appointments and requests"
-            description="Review scheduled visits, previous outcomes, and requests your clinic is triaging."
+            description="See your upcoming visits, past visits, and requests you sent to your clinic."
             contentClassName="flex flex-wrap gap-3"
           >
             <Button asChild className="cursor-pointer">
               <Link href="/portal/appointments/request">
                 <Plus aria-hidden="true" className="h-4 w-4" />
-                Request a visit
+                Request an appointment
               </Link>
             </Button>
             <Button
@@ -478,82 +477,87 @@ export function AppointmentsPortalScreen() {
             </Button>
           </PortalHero>
 
-          <PortalPanel
-            title="Next confirmed visit"
-            description={
-              nextAppointment
-                ? 'Your next active appointment on the clinic schedule.'
-                : 'No future confirmed appointment is currently scheduled.'
-            }
-          >
-            {nextAppointment ? (
-              <div className="space-y-4 rounded-lg border border-border bg-background p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium tabular-nums text-foreground">
-                      {formatPortalDateTime(nextAppointment.startsAt)}
-                    </p>
-                    <p className="text-sm tabular-nums text-muted-foreground">
-                      Ends {formatPortalDateTime(nextAppointment.endsAt)}
-                    </p>
+          {schedule.data ? (
+            <PortalPanel
+              title="Next confirmed visit"
+              description={
+                nextAppointment
+                  ? 'Your next active appointment on the clinic schedule.'
+                  : 'No future confirmed appointment is currently scheduled.'
+              }
+            >
+              {nextAppointment ? (
+                <div className="space-y-4 border-b border-border py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium tabular-nums text-foreground">
+                        {formatPortalDateTime(nextAppointment.startsAt)}
+                      </p>
+                      <p className="text-sm tabular-nums text-muted-foreground">
+                        Ends {formatPortalDateTime(nextAppointment.endsAt)}
+                      </p>
+                    </div>
+                    <AppointmentStatusBadge
+                      status={nextAppointment.status}
+                      className="rounded-full"
+                    />
                   </div>
-                  <AppointmentStatusBadge
-                    status={nextAppointment.status}
-                    className="rounded-full"
-                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full cursor-pointer justify-between"
+                    onClick={() => openChangeDialog('reschedule', nextAppointment)}
+                    disabled={
+                      !writeGate.canWrite ||
+                      Boolean(pendingChangeRequestsByAppointment.get(nextAppointment.id))
+                    }
+                  >
+                    Request a change
+                    <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                  </Button>
+                  {writeGate.canWrite ? null : (
+                    <p className="text-xs leading-5 text-muted-foreground">{writeGate.reason}</p>
+                  )}
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full cursor-pointer justify-between"
-                  onClick={() => openChangeDialog('reschedule', nextAppointment)}
-                  disabled={
-                    !writeGate.canWrite ||
-                    Boolean(pendingChangeRequestsByAppointment.get(nextAppointment.id))
-                  }
-                >
-                  Request a change
-                  <ArrowRight aria-hidden="true" className="h-4 w-4" />
-                </Button>
-                {writeGate.canWrite ? null : (
-                  <p className="text-xs leading-5 text-muted-foreground">{writeGate.reason}</p>
-                )}
-              </div>
-            ) : (
-              <EmptyState
-                density="compact"
-                icon={CalendarDays}
-                title="No visit booked yet"
-                description="Request a visit when you need a follow-up or check-in."
-              />
-            )}
-          </PortalPanel>
+              ) : (
+                <EmptyState
+                  density="compact"
+                  icon={CalendarDays}
+                  title="No visit booked yet"
+                  description="Request an appointment when you need a follow-up or check-in."
+                />
+              )}
+            </PortalPanel>
+          ) : null}
         </section>
 
-        <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
-          <AppMetricCard
-            icon={CalendarClock}
-            title="Upcoming confirmed"
-            value={appointments.filter((a) => isPatientAppointmentActionable(a, now)).length}
-          />
-          <AppMetricCard
-            icon={FileClock}
-            title="Requests pending"
-            value={requests.filter(isPendingRequest).length}
-          />
-          <AppMetricCard
-            icon={CheckCircle2}
-            title="Completed visits"
-            value={appointments.filter((a) => a.status === 'COMPLETED').length}
-          />
-          <AppMetricCard
-            icon={Clock3}
-            title="Cancelled or missed"
-            value={
-              appointments.filter((a) => a.status === 'CANCELLED' || a.status === 'NO_SHOW').length
-            }
-          />
-        </AppMetricGroup>
+        {schedule.data ? (
+          <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
+            <AppMetricCard
+              icon={CalendarClock}
+              title="Upcoming confirmed"
+              value={appointments.filter((a) => isPatientAppointmentActionable(a, now)).length}
+            />
+            <AppMetricCard
+              icon={FileClock}
+              title="Requests pending"
+              value={requests.filter(isPendingRequest).length}
+            />
+            <AppMetricCard
+              icon={CheckCircle2}
+              title="Completed visits"
+              value={appointments.filter((a) => a.status === 'COMPLETED').length}
+            />
+            <AppMetricCard
+              icon={Clock3}
+              title="Cancelled or missed"
+              value={
+                appointments.filter((a) => a.status === 'CANCELLED' || a.status === 'NO_SHOW')
+                  .length
+              }
+            />
+          </AppMetricGroup>
+        ) : null}
 
         {/*
           The counts above change without anything moving, so a screen-reader user gets no signal
@@ -632,7 +636,7 @@ export function AppointmentsPortalScreen() {
 
                 <PortalPanel
                   title="Request history"
-                  description="New visit, cancellation, and reschedule requests your clinic can triage."
+                  description="See requests to book, cancel, or move an appointment."
                   contentClassName="space-y-4"
                 >
                   <SegmentedControl
@@ -674,7 +678,7 @@ export function AppointmentsPortalScreen() {
           if (!open) closeChangeDialog();
         }}
       >
-        <DialogContent className="max-w-xl rounded-xl">
+        <DialogContent className="max-w-xl rounded-xl [&_button]:min-h-11 [&_button]:min-w-11 [&_input]:min-h-11">
           <DialogHeader>
             <DialogTitle className="text-2xl">
               {changeDialog?.action === 'cancel' ? 'Request cancellation' : 'Request reschedule'}

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import Image from 'next/image';
-import { Menu, Moon, Sun } from 'lucide-react';
+import { ArrowUpRight, Menu, Moon, Sun } from 'lucide-react';
 import { useTheme } from '@/lib/theme-context';
 import { Button } from '@/components/ui/button';
 import {
@@ -24,16 +24,17 @@ export function LandingHeader({ base = '' }: { base?: '' | '/' }) {
   const nextTheme = theme === 'dark' ? 'light' : 'dark';
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background">
+    <header className="sticky top-0 z-40 border-b border-rule bg-background">
       <div className="landing-container flex h-16 items-center justify-between gap-6">
         <a
           href={`${base}#top`}
-          className="relative block h-8 w-[118px] shrink-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="relative flex min-h-11 w-[118px] items-center shrink-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           <Image
             src="/images/nkwapa-logo.png"
             alt="Nkwapa home"
-            fill
+            width={118}
+            height={32}
             sizes="118px"
             className="object-contain object-left"
           />
@@ -45,7 +46,7 @@ export function LandingHeader({ base = '' }: { base?: '' | '/' }) {
               <li key={link.href}>
                 <a
                   href={base + link.href}
-                  className="inline-flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-foreground/75 transition-colors duration-fast hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="inline-flex min-h-11 items-center rounded-sm px-3 type-label text-muted-foreground motion-safe:transition-colors motion-safe:duration-150 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   {link.label}
                 </a>
@@ -58,6 +59,7 @@ export function LandingHeader({ base = '' }: { base?: '' | '/' }) {
           <Button
             variant="ghost"
             size="icon"
+            className="min-h-11 min-w-11"
             aria-label={`Switch to ${nextTheme} mode`}
             onClick={() => setPreference(nextTheme)}
           >
@@ -70,18 +72,24 @@ export function LandingHeader({ base = '' }: { base?: '' | '/' }) {
           <Button asChild className="hidden sm:inline-flex">
             <a href={CONTACT_HREF} data-cta="contact">
               Contact the team
+              <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
             </a>
           </Button>
 
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Open menu">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="min-h-11 min-w-11 lg:hidden"
+                aria-label="Open menu"
+              >
                 <Menu className="h-5 w-5" aria-hidden />
               </Button>
             </SheetTrigger>
             <SheetContent
               side="right"
-              className="w-[min(20rem,85vw)]"
+              className="w-[min(22rem,90vw)] overflow-y-auto border-l border-rule px-6 pb-8 pt-6 data-[state=open]:duration-200 data-[state=closed]:duration-150 [&>button]:flex [&>button]:min-h-11 [&>button]:min-w-11 [&>button]:items-center [&>button]:justify-center"
               aria-describedby={undefined}
               onCloseAutoFocus={(event) => {
                 if (!pendingHash.current) return;
@@ -91,9 +99,11 @@ export function LandingHeader({ base = '' }: { base?: '' | '/' }) {
               }}
             >
               <SheetHeader>
-                <SheetTitle className="text-left font-heading text-xl">Menu</SheetTitle>
+                <SheetTitle className="border-t-2 border-rule-strong pb-5 pt-6 text-left type-page-title">
+                  Menu
+                </SheetTitle>
               </SheetHeader>
-              <nav aria-label="Mobile" className="mt-6">
+              <nav aria-label="Mobile" className="mt-4">
                 <ul className="flex flex-col">
                   {SECTION_LINKS.map((link) => (
                     <li key={link.href}>
@@ -105,7 +115,7 @@ export function LandingHeader({ base = '' }: { base?: '' | '/' }) {
                             pendingHash.current = base + link.href;
                             setMenuOpen(false);
                           }}
-                          className="flex min-h-12 items-center border-b border-border text-base font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          className="flex min-h-12 items-center border-b border-rule text-base font-medium text-foreground motion-safe:transition-colors motion-safe:duration-150 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
                           {link.label}
                         </a>

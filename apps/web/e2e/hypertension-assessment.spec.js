@@ -273,7 +273,7 @@ test.describe('as a volunteer', () => {
 
     // Offline, the section falls back to what this device synced, and says so.
     await page.goto(chartUrl);
-    await expect(page.getByRole('heading', { name: 'Pending clinical actions' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Needs you now' })).toBeVisible();
     await context.setOffline(true);
     await page.getByRole('tab', { name: 'Hypertension', exact: true }).click();
     await expect(page.getByText('Showing records saved on this device')).toBeVisible();

@@ -5,6 +5,7 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { SplitText } from 'gsap/SplitText';
 import { useGSAP } from '@gsap/react';
+import Lenis from 'lenis';
 
 gsap.registerPlugin(useGSAP, ScrollTrigger, SplitText);
 
@@ -12,6 +13,10 @@ gsap.registerPlugin(useGSAP, ScrollTrigger, SplitText);
  * Scroll motion for the landing page. Content is fully visible in the server HTML; everything here
  * is an enhancement that only runs without a reduced-motion preference, and useGSAP reverts it all
  * on unmount (including Strict Mode's double mount).
+ *
+ * Lenis smooths wheel and trackpad scrolling on wide screens with a fine pointer, so the pinned and
+ * scrubbed scenes move without stepping. It writes the native scroll position, so keyboard
+ * scrolling, anchor links, find-in-page and the scrollbar stay native; touch is never smoothed.
  */
 export function LandingMotion({ children }: { children: React.ReactNode }) {
   const scope = useRef<HTMLDivElement>(null);
@@ -23,10 +28,31 @@ export function LandingMotion({ children }: { children: React.ReactNode }) {
       const mm = gsap.matchMedia();
 
       mm.add(
-        { motion: '(prefers-reduced-motion: no-preference)', wide: '(min-width: 1024px)' },
+        {
+          motion: '(prefers-reduced-motion: no-preference)',
+          wide: '(min-width: 1024px)',
+          fine: '(pointer: fine)',
+        },
         (context) => {
-          const { motion, wide } = context.conditions ?? {};
+          const { motion, wide, fine } = context.conditions ?? {};
           if (!motion) return;
+
+          let lenis: Lenis | undefined;
+          const raf = (time: number) => lenis?.raf(time * 1000);
+          if (wide && fine) {
+            lenis = new Lenis({
+              autoRaf: false,
+              // The status and release dialogs scroll themselves, and a Radix dialog locks the page.
+              prevent: (node) => node.closest('[role="dialog"]') !== null,
+              virtualScroll: () => !document.body.hasAttribute('data-scroll-locked'),
+            });
+            lenis.on('scroll', ScrollTrigger.update);
+            gsap.ticker.add(raf);
+            gsap.ticker.lagSmoothing(0);
+          }
+
+          // Text fades by opacity only, never visibility, so screen readers and heading navigation reach
+          // every section before it has scrolled into view. Only the scroll cue, a link, is hidden.
 
           // The pin goes first so every trigger below it measures the page with the pin spacer in place.
           const journey = wide ? root.querySelector<HTMLElement>('[data-journey]') : null;
@@ -35,7 +61,7 @@ export function LandingMotion({ children }: { children: React.ReactNode }) {
             const texts = gsap.utils.toArray<HTMLElement>('[data-step-text]', journey);
             const media = gsap.utils.toArray<HTMLElement>('[data-step-media]', journey);
             const n = texts.length;
-            gsap.set(texts.slice(1), { autoAlpha: 0, y: 32 });
+            gsap.set(texts.slice(1), { opacity: 0, y: 32 });
             gsap.set(media.slice(1), { clipPath: 'inset(100% 0% 0% 0%)' });
 
             const timeline = gsap.timeline({
@@ -58,10 +84,10 @@ export function LandingMotion({ children }: { children: React.ReactNode }) {
             for (let i = 1; i < n; i++) {
               const at = i - 1;
               timeline
-                .to(texts[i - 1], { autoAlpha: 0, y: -32, duration: 0.35 }, at + 0.1)
+                .to(texts[i - 1], { opacity: 0, y: -32, duration: 0.35 }, at + 0.1)
                 .to(media[i], { clipPath: 'inset(0% 0% 0% 0%)', duration: 0.8 }, at + 0.1)
                 .from(media[i].querySelector('img'), { scale: 1.12, duration: 0.8 }, at + 0.1)
-                .to(texts[i], { autoAlpha: 1, y: 0, duration: 0.35 }, at + 0.55);
+                .to(texts[i], { opacity: 1, y: 0, duration: 0.35 }, at + 0.55);
             }
           }
 
@@ -81,7 +107,7 @@ export function LandingMotion({ children }: { children: React.ReactNode }) {
             cards.forEach((card, k) =>
               gsap.set(card, { ...slot(k), zIndex: n - k, transformOrigin: '50% 100%' }),
             );
-            gsap.set(texts.slice(1), { autoAlpha: 0, y: 32 });
+            gsap.set(texts.slice(1), { opacity: 0, y: 32 });
 
             const timeline = gsap.timeline({
               scrollTrigger: {
@@ -113,7 +139,7 @@ export function LandingMotion({ children }: { children: React.ReactNode }) {
                   },
                   at,
                 )
-                .to(texts[i], { autoAlpha: 0, y: -32, duration: 0.3, ease: 'power2.in' }, at);
+                .to(texts[i], { opacity: 0, y: -32, duration: 0.3, ease: 'power2.in' }, at);
               order.forEach((card, k) => timeline.set(cards[card], { zIndex: n - k }, at + 0.45));
               timeline.to(
                 cards[top],
@@ -131,7 +157,7 @@ export function LandingMotion({ children }: { children: React.ReactNode }) {
                 );
               timeline.to(
                 texts[i + 1],
-                { autoAlpha: 1, y: 0, duration: 0.35, ease: 'power2.out' },
+                { opacity: 1, y: 0, duration: 0.35, ease: 'power2.out' },
                 at + 0.55,
               );
               timeline.addLabel(`role${i + 1}`, at + 1);
@@ -151,7 +177,7 @@ export function LandingMotion({ children }: { children: React.ReactNode }) {
 
           root.querySelectorAll<HTMLElement>('[data-reveal]').forEach((el) => {
             gsap.from(el, {
-              autoAlpha: 0,
+              opacity: 0,
               y: 32,
               duration: 0.8,
               ease: 'power3.out',
@@ -176,21 +202,6 @@ export function LandingMotion({ children }: { children: React.ReactNode }) {
             });
           });
 
-          // A statement that reads itself in as it scrolls past.
-          root.querySelectorAll<HTMLElement>('[data-scrub-words]').forEach((el) => {
-            const { words } = SplitText.create(el, { type: 'words' });
-            gsap.fromTo(
-              words,
-              { opacity: 0.18 },
-              {
-                opacity: 1,
-                stagger: 0.1,
-                ease: 'none',
-                scrollTrigger: { trigger: el, start: 'top 82%', end: 'bottom 45%', scrub: true },
-              },
-            );
-          });
-
           // Photographs wipe up into place.
           root.querySelectorAll<HTMLElement>('[data-reveal-image]').forEach((el) => {
             const scrollTrigger = { trigger: el, start: 'top 85%', once: true };
@@ -211,7 +222,7 @@ export function LandingMotion({ children }: { children: React.ReactNode }) {
           root.querySelectorAll<HTMLElement>('[data-marker]').forEach((el, index) => {
             gsap.from(el, {
               scale: 0.6,
-              autoAlpha: 0,
+              opacity: 0,
               duration: 0.5,
               delay: index * 0.12,
               ease: 'back.out(2.2)',
@@ -219,7 +230,41 @@ export function LandingMotion({ children }: { children: React.ReactNode }) {
             });
           });
 
-          if (!wide) return;
+          const cleanup = () => {
+            journey?.removeAttribute('data-journey-pinned');
+            deck?.removeAttribute('data-deck-pinned');
+            gsap.ticker.remove(raf);
+            gsap.ticker.lagSmoothing(500, 33);
+            lenis?.destroy();
+          };
+          if (!wide) return cleanup;
+
+          // The hero photograph drifts and grows as the page leaves it. `to`, not `fromTo`, so the
+          // LCP image keeps its first-paint transform until the reader scrolls.
+          const hero = root.querySelector<HTMLElement>('[data-hero-photo]');
+          if (hero) {
+            gsap.to(hero.querySelector('img'), {
+              scale: 1.1,
+              yPercent: 4,
+              ease: 'none',
+              scrollTrigger: { trigger: hero, start: 'top top', end: 'bottom top', scrub: true },
+            });
+          }
+
+          // Full-width photographs open from the content width to the window edges.
+          root.querySelectorAll<HTMLElement>('[data-expand]').forEach((el) => {
+            const scrollTrigger = { trigger: el, start: 'top bottom', end: 'top 20%', scrub: 0.6 };
+            gsap.fromTo(
+              el,
+              { clipPath: 'inset(0% 7% 0% 7%)' },
+              { clipPath: 'inset(0% 0% 0% 0%)', ease: 'none', scrollTrigger },
+            );
+            gsap.fromTo(
+              el.querySelector('img'),
+              { scale: 1.12 },
+              { scale: 1, ease: 'none', scrollTrigger },
+            );
+          });
 
           root.querySelectorAll<HTMLElement>('[data-parallax]').forEach((el) => {
             gsap.fromTo(
@@ -241,15 +286,6 @@ export function LandingMotion({ children }: { children: React.ReactNode }) {
             scrollTrigger: { start: 0, end: 160, scrub: true },
           });
 
-          const phone = root.querySelector('[data-hero-phone]');
-          if (phone) {
-            gsap.to(phone, {
-              yPercent: -10,
-              ease: 'none',
-              scrollTrigger: { trigger: phone, start: 'top 70%', end: 'bottom top', scrub: true },
-            });
-          }
-
           const showcase = root.querySelector('[data-showcase]');
           if (showcase) {
             gsap.from(showcase.firstElementChild, {
@@ -260,10 +296,7 @@ export function LandingMotion({ children }: { children: React.ReactNode }) {
             });
           }
 
-          return () => {
-            journey?.removeAttribute('data-journey-pinned');
-            deck?.removeAttribute('data-deck-pinned');
-          };
+          return cleanup;
         },
       );
     },

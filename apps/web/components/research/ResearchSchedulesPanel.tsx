@@ -1,5 +1,6 @@
 'use client';
 
+import { statusLabel } from '@/lib/status-presentation';
 import { useCallback, useState } from 'react';
 import { CalendarClock, Loader2, Pause, Pencil, Play, Plus, Zap } from 'lucide-react';
 import { apiFetch, getErrorMessage, readApiError } from '@/lib/api';
@@ -19,7 +20,13 @@ import { SectionSkeleton } from '@/components/feedback/AppState';
 import { InlineNotice } from '@/components/feedback/InlineNotice';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection,
+  RecordSectionContent,
+  RecordSectionDescription,
+  RecordSectionHeader,
+  RecordSectionTitle,
+} from '@/components/patients/RecordSection';
 import { confirmAction } from '@/components/ui/confirm-dialog';
 import { showToast } from '@/components/ui/toast';
 import { ResearchReasonDialog, type ReasonPrompt } from './ResearchReasonDialog';
@@ -65,6 +72,7 @@ export function ResearchSchedulesPanel({
   const base = `/clinics/${encodeURIComponent(clinicId)}/research/schedules`;
 
   const resource = useAsyncResource<ResearchScheduleList>({
+    requiresOnline: true,
     resourceKey: clinicId,
     errorMessage: 'Research schedules could not be loaded.',
     fetcher: async (token, signal) => {
@@ -181,16 +189,16 @@ export function ResearchSchedulesPanel({
     });
 
   return (
-    <Card className="rounded-lg border-border/80 bg-card">
-      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
+    <RecordSection>
+      <RecordSectionHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1.5">
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <CalendarClock aria-hidden="true" className="h-5 w-5 text-primary" />
+          <RecordSectionTitle className="flex items-center gap-2">
+            <CalendarClock aria-hidden="true" className="h-5 w-5 text-muted-foreground" />
             Scheduled exports
-          </CardTitle>
-          <CardDescription>
+          </RecordSectionTitle>
+          <RecordSectionDescription>
             A director approves a schedule once; each run is checked again when it starts.
-          </CardDescription>
+          </RecordSectionDescription>
         </div>
         {canRequest && resource.data?.researchEnabled ? (
           <Button onClick={() => setEditing('new')} className="gap-2 self-start">
@@ -198,8 +206,8 @@ export function ResearchSchedulesPanel({
             New schedule
           </Button>
         ) : null}
-      </CardHeader>
-      <CardContent>
+      </RecordSectionHeader>
+      <RecordSectionContent>
         <ResourceState
           state={resource}
           errorTitle="We couldn't load the schedules"
@@ -217,7 +225,7 @@ export function ResearchSchedulesPanel({
               ) : null}
 
               {context.items.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-border/80 px-4 py-8 text-center">
+                <div className="border-t border-rule px-4 py-8 text-center">
                   <p className="font-medium text-foreground">No schedules yet</p>
                   <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
                     A schedule publishes a fresh de-identified dataset every week or month, so
@@ -225,7 +233,7 @@ export function ResearchSchedulesPanel({
                   </p>
                 </div>
               ) : (
-                <ul className="grid gap-4 lg:grid-cols-2">
+                <ul className="grid gap-x-6 lg:grid-cols-2">
                   {context.items.map((schedule) => (
                     <ScheduleCard
                       key={schedule.id}
@@ -256,9 +264,9 @@ export function ResearchSchedulesPanel({
             </div>
           )}
         </ResourceState>
-      </CardContent>
+      </RecordSectionContent>
       <ResearchReasonDialog prompt={reasonPrompt} onClose={() => setReasonPrompt(null)} />
-    </Card>
+    </RecordSection>
   );
 }
 
@@ -311,7 +319,7 @@ function ScheduleCard({
     <li
       // The decision queue links here, so the card clears the sticky header when it scrolls in.
       id={`schedule-${schedule.id}`}
-      className="flex scroll-mt-24 flex-col gap-4 rounded-lg border border-border/70 bg-background/60 p-4 target:ring-2 target:ring-primary/40 sm:p-5"
+      className="flex scroll-mt-24 flex-col gap-4 border-t border-rule py-4 target:ring-2 target:ring-primary/40"
       data-testid="research-schedule"
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -418,7 +426,7 @@ function LastRun({ run }: { run: ResearchExportItem }) {
       <span className="text-muted-foreground">Last run</span>
       <ResearchRunKey runKey={run.runKey} />
       <Badge variant="outline" className={EXPORT_STATUS_STYLES[run.status]}>
-        {run.status.replaceAll('_', ' ')}
+        {statusLabel(run.status)}
       </Badge>
     </div>
   );

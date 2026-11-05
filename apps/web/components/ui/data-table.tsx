@@ -93,6 +93,7 @@ export type DataTableColumn<TData extends RowData> = ColumnDef<DataTableFeatures
  */
 export function DataTable<TData extends RowData>({
   columns,
+  toolbar,
   data,
   getRowId,
   caption,
@@ -109,9 +110,13 @@ export function DataTable<TData extends RowData>({
   renderMobileRow,
   onRowClick,
   maxHeight = 560,
+  keyboardScroll = true,
+  paginationClassName,
   className,
 }: {
   columns: DataTableColumn<TData>[];
+  /** Optional presentation slot; the caller owns filter state and data fetching. */
+  toolbar?: React.ReactNode;
   data: TData[];
   getRowId?: (row: TData) => string;
   /** Read to screen readers before the table: what these rows are. */
@@ -137,6 +142,9 @@ export function DataTable<TData extends RowData>({
   onRowClick?: (row: TData) => void;
   /** Height the body may grow to before it scrolls under the sticky header. */
   maxHeight?: number;
+  /** Make this view’s scroll area reachable even when its rows are read-only. */
+  keyboardScroll?: boolean;
+  paginationClassName?: string;
   className?: string;
 }) {
   const serverMode = rowCount !== undefined;
@@ -182,7 +190,10 @@ export function DataTable<TData extends RowData>({
   const last = Math.min(total, (pagination.pageIndex + 1) * pagination.pageSize);
 
   return (
-    <div className={cn('space-y-3', className)}>
+    <div className={cn('min-w-0 max-w-full space-y-3', className)}>
+      {toolbar ? (
+        <div className="flex flex-wrap items-end justify-between gap-3">{toolbar}</div>
+      ) : null}
       {renderMobileRow ? (
         <div className="space-y-3 md:hidden">
           {rows.length === 0
@@ -193,7 +204,7 @@ export function DataTable<TData extends RowData>({
 
       <div
         className={cn(
-          'relative overflow-hidden rounded-lg border border-border bg-card',
+          'relative min-w-0 max-w-full overflow-hidden border-t-2 border-rule-strong',
           renderMobileRow && 'hidden md:block',
         )}
       >
@@ -207,12 +218,22 @@ export function DataTable<TData extends RowData>({
         >
           <div className="h-full w-1/4 animate-refresh-sweep bg-primary" />
         </div>
-        <div className="overflow-auto" style={{ maxHeight }}>
-          <table className="w-full caption-bottom border-collapse text-sm tabular-nums">
+        <div
+          className={cn(
+            'overflow-auto',
+            keyboardScroll &&
+              'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
+          )}
+          style={{ maxHeight }}
+          tabIndex={keyboardScroll ? 0 : undefined}
+          role="region"
+          aria-label={caption}
+        >
+          <table className="type-data w-full caption-bottom border-collapse">
             <caption className="sr-only">{caption}</caption>
             <thead className="sticky top-0 z-10 bg-muted">
               {table.getHeaderGroups().map((group) => (
-                <tr key={group.id} className="border-b border-border">
+                <tr key={group.id} className="border-b border-rule">
                   {group.headers.map((header) => {
                     const meta = header.column.columnDef.meta;
                     const sorted = header.column.getIsSorted();
@@ -230,7 +251,7 @@ export function DataTable<TData extends RowData>({
                                 : undefined
                         }
                         className={cn(
-                          'h-11 whitespace-nowrap px-3 text-left align-middle text-xs font-semibold text-foreground',
+                          'type-label h-11 whitespace-nowrap px-3 text-left align-middle text-foreground',
                           meta?.align === 'right' && 'text-right',
                           meta?.hideOnMobile && 'hidden md:table-cell',
                           meta?.className,
@@ -274,7 +295,7 @@ export function DataTable<TData extends RowData>({
                         : undefined
                     }
                     className={cn(
-                      'border-b border-border/70 transition-colors duration-fast last:border-b-0 hover:bg-muted/50',
+                      'border-b border-rule transition-colors duration-fast last:border-b-0 hover:bg-muted/50',
                       onRowClick &&
                         'cursor-pointer focus-visible:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
                     )}
@@ -307,7 +328,12 @@ export function DataTable<TData extends RowData>({
       </div>
 
       {total > 0 ? (
-        <div className="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+        <div
+          className={cn(
+            'flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between',
+            paginationClassName,
+          )}
+        >
           <p className="tabular-nums text-muted-foreground" aria-live="polite">
             {first}–{last} of {total}
           </p>
@@ -374,7 +400,7 @@ function SortButton<TData extends RowData>({
       onClick={column.getToggleSortingHandler()}
       className={cn(
         // The header cell is the target; the visible control stays compact.
-        '-mx-2 inline-flex h-9 items-center gap-1.5 rounded-md px-2 text-xs font-semibold transition-colors duration-fast hover:bg-background/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        '-mx-2 inline-flex h-11 min-w-11 items-center gap-1.5 rounded-md px-2 text-sm font-medium transition-colors duration-fast hover:bg-background/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         align === 'right' && 'flex-row-reverse',
         sorted ? 'text-primary' : 'text-foreground',
       )}

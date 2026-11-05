@@ -8,7 +8,7 @@ import {
   Plus,
   Save,
   Sparkles,
-  Stethoscope,
+  ShieldCheck,
 } from 'lucide-react';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { useAuth } from '@/lib/auth-context';
@@ -282,6 +282,10 @@ export function ClinicalNotePanel({
   // heard nothing at all while the note was fetching.
   if (loading) return <ChartSectionLoading label="clinical note" lines={4} />;
 
+  if (!note && error) {
+    return <InlineNotice tone="error">{error}</InlineNotice>;
+  }
+
   if (!note) {
     return (
       <div className="space-y-4">
@@ -402,6 +406,9 @@ export function ClinicalNotePanel({
                     onClick={() => void saveDraft()}
                     disabled={busy || !dirty}
                     className="cursor-pointer"
+                    // Names the shortcut the keydown handler above already takes (#280).
+                    aria-keyshortcuts="Control+S Meta+S"
+                    title="Save draft (Ctrl+S or ⌘S)"
                   >
                     <Save className="h-4 w-4" aria-hidden="true" />
                     Save draft
@@ -418,9 +425,10 @@ export function ClinicalNotePanel({
                   </Button>
                   <Button
                     type="button"
+                    variant="outline"
                     onClick={() => setConfirmAction('submit')}
                     disabled={busy}
-                    className="cursor-pointer"
+                    className="cursor-pointer border-warning text-warning-ink"
                   >
                     <FileCheck2 className="h-4 w-4" aria-hidden="true" />
                     {note.authorRole === 'DOCTOR' ? 'Sign note' : 'Submit for cosign'}
@@ -430,11 +438,12 @@ export function ClinicalNotePanel({
               {canCosign ? (
                 <Button
                   type="button"
+                  variant="outline"
                   onClick={() => setConfirmAction('cosign')}
                   disabled={busy}
-                  className="cursor-pointer"
+                  className="cursor-pointer border-warning text-warning-ink"
                 >
-                  <Stethoscope className="h-4 w-4" aria-hidden="true" />
+                  <ShieldCheck className="h-4 w-4" aria-hidden="true" />
                   Cosign note
                 </Button>
               ) : null}

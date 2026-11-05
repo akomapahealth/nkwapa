@@ -122,11 +122,13 @@ function toDateInput(date: string | null | undefined) {
 }
 
 export function MedicalHistoryPanel({
+  ruled = false,
   clinicId,
   patientId,
   userId,
   canWrite,
 }: {
+  ruled?: boolean;
   clinicId: string;
   patientId: string;
   userId: string;
@@ -398,8 +400,14 @@ export function MedicalHistoryPanel({
   return (
     <div className="space-y-4">
       <AllergySummaryBanner summary={allergySummary} />
-      <Card>
-        <CardHeader className="gap-4">
+      <Card
+        className={
+          ruled
+            ? 'rounded-none border-0 border-t-2 border-rule-strong bg-transparent shadow-none'
+            : undefined
+        }
+      >
+        <CardHeader className={ruled ? 'gap-4 px-0 pb-3 pt-4' : 'gap-4'}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold">Longitudinal medical history</h2>
@@ -449,7 +457,7 @@ export function MedicalHistoryPanel({
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className={ruled ? 'space-y-3 px-0 pb-5' : 'space-y-3'}>
           {offline ? (
             <ChartSectionOffline description="Showing history saved on this device. Pending changes sync automatically once you reconnect." />
           ) : null}

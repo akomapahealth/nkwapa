@@ -76,6 +76,8 @@ export interface SeedPlan {
     staff: SeedIdentity | null;
     doctor: SeedIdentity | null;
     volunteer: SeedIdentity | null;
+    manager: SeedIdentity | null;
+    director: SeedIdentity | null;
     patient: SeedIdentity | null;
     /** The claimant user is only created when `sub` is set; the email is used regardless. */
     claimant: { sub?: string; name: string; email: string };
@@ -93,7 +95,7 @@ function isSeedEnvironment(value: string | undefined): value is SeedEnvironment 
 
 function identity(
   env: Env,
-  role: 'STAFF' | 'DOCTOR' | 'VOLUNTEER' | 'PATIENT',
+  role: 'STAFF' | 'DOCTOR' | 'VOLUNTEER' | 'MANAGER' | 'DIRECTOR' | 'PATIENT',
   defaultName: string,
 ): SeedIdentity | null {
   const sub = (env[`SEED_E2E_${role}_SUB`] ?? env[`E2E_${role}_SUB`])?.trim();
@@ -207,6 +209,8 @@ export function planSeed(env: Env): SeedPlanResult {
         staff: identity(env, 'STAFF', 'E2E Staff'),
         doctor: identity(env, 'DOCTOR', 'E2E Doctor'),
         volunteer: identity(env, 'VOLUNTEER', 'E2E Volunteer'),
+        manager: identity(env, 'MANAGER', 'E2E Manager'),
+        director: identity(env, 'DIRECTOR', 'E2E Director'),
         patient: identity(env, 'PATIENT', 'E2E Patient'),
         claimant: {
           sub: (env.SEED_E2E_CLAIMANT_SUB ?? env.E2E_CLAIMANT_SUB)?.trim() || undefined,
@@ -227,9 +231,9 @@ export function describeSeedPlan(plan: SeedPlan): string[] {
   const sample = Object.entries(plan.sample)
     .filter(([, on]) => on)
     .map(([name]) => name);
-  const e2e: string[] = (['staff', 'doctor', 'volunteer', 'patient'] as const).filter(
-    (role) => plan.e2e[role] !== null,
-  );
+  const e2e: string[] = (
+    ['staff', 'doctor', 'volunteer', 'manager', 'director', 'patient'] as const
+  ).filter((role) => plan.e2e[role] !== null);
   if (plan.e2e.claimant.sub) e2e.push('claimant');
   return [
     `Seed environment: ${plan.environment}`,

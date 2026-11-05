@@ -9,10 +9,10 @@ import {
   Lock,
   RefreshCw,
   ShieldCheck,
-  Stethoscope,
 } from 'lucide-react';
 import { isValidElement } from 'react';
 import type { LucideIcon } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -29,7 +29,12 @@ export function PageSkeleton({
   className?: string;
 }) {
   return (
-    <div className={cn('min-h-[60vh] bg-clinical-grid px-4 py-8 md:px-6', className)}>
+    <div
+      role="status"
+      aria-label={title}
+      aria-busy="true"
+      className={cn('min-h-[60vh] bg-clinical-grid px-4 py-8 md:px-6', className)}
+    >
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
         <div className="overflow-hidden rounded-xl border border-border/70 bg-card/95">
           <div className="h-1.5 w-full overflow-hidden bg-muted/50">
@@ -84,55 +89,63 @@ export function PageSkeleton({
   );
 }
 
+/**
+ * The dashboard's first load, drawn in the shape of what replaces it (#280): the ruled "Needs you
+ * now" rows, then the five-figure metric group, so nothing jumps when the data lands. One named
+ * status region carries the message; the shapes are hidden from assistive technology.
+ */
 export function DashboardLoadingState({ clinicName }: { clinicName?: string | null }) {
+  const label = clinicName ? `Loading ${clinicName}` : 'Loading clinic dashboard';
   return (
-    <div className="space-y-5">
-      <div className="rounded-lg border border-border/70 bg-card/90 p-5 shadow-sm">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-2">
-            <div className="h-4 w-36 animate-pulse rounded-full bg-primary/20" />
-            <div className="h-7 w-64 max-w-full animate-pulse rounded-full bg-muted/60" />
-            <div className="h-4 w-80 max-w-full animate-pulse rounded-full bg-muted/40" />
-          </div>
-          <div className="inline-flex items-center gap-3 rounded-md border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-medium text-primary">
-            <Stethoscope className="h-4 w-4 animate-pulse" />
-            {clinicName ? `Loading ${clinicName}` : 'Loading clinic dashboard'}
-          </div>
+    <div role="status" aria-label={label} aria-busy="true" className="space-y-8">
+      <p className="type-meta text-muted-foreground">{label}</p>
+      <div aria-hidden="true" className="border-t-2 border-rule-strong pt-4">
+        <Skeleton className="h-5 w-40" />
+        <ul className="mt-1">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <li
+              key={index}
+              className="flex items-center justify-between gap-3 border-b border-rule py-4"
+            >
+              <div className="flex min-w-0 flex-1 items-start gap-3">
+                <Skeleton className="h-5 w-5 shrink-0 rounded-full" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-4 w-64 max-w-full" />
+                  <Skeleton className="h-4 w-48 max-w-full" />
+                </div>
+              </div>
+              <Skeleton className="hidden h-11 w-28 shrink-0 rounded-md sm:block" />
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div aria-hidden="true" className="overflow-hidden border-t-2 border-rule-strong">
+        <div className="-mb-px -mr-px grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <div key={index} className="border-b border-r border-rule p-4 sm:p-5">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="mt-3 h-8 w-16" />
+            </div>
+          ))}
         </div>
       </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        {Array.from({ length: 5 }).map((_, index) => (
-          <div
-            key={index}
-            className="h-32 animate-pulse rounded-md border border-border/70 bg-card/80"
-          />
-        ))}
-      </div>
-
-      <SectionSkeleton lines={4} className="rounded-lg p-6" />
     </div>
   );
 }
 
 export function SectionSkeleton({ lines = 4, className }: { lines?: number; className?: string }) {
   return (
-    <Card className={cn('border-border/70 bg-card/90', className)}>
-      <CardContent className="space-y-4 p-0">
-        <div className="space-y-3">
-          <div className="h-5 w-40 animate-pulse rounded-full bg-muted/50" />
-          <div className="h-4 w-72 animate-pulse rounded-full bg-muted/40" />
-        </div>
-        <div className="grid gap-3">
-          {Array.from({ length: lines }).map((_, index) => (
-            <div
-              key={index}
-              className="h-20 animate-pulse rounded-md border border-border/60 bg-muted/35"
-            />
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+    <div aria-hidden="true" className={cn('space-y-4 border-t border-rule py-5', className)}>
+      <div className="space-y-3">
+        <Skeleton className="h-5 w-40 max-w-full" />
+        <Skeleton className="h-4 w-72 max-w-full" />
+      </div>
+      <div className="grid gap-3">
+        {Array.from({ length: lines }).map((_, index) => (
+          <Skeleton key={index} className="h-20 w-full" />
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -169,16 +182,16 @@ export function InlineErrorState({
   return (
     <div
       className={cn(
-        'rounded-lg border border-destructive/20 bg-destructive/5 p-5 text-sm shadow-sm',
+        'border-y border-rule bg-destructive-surface p-5 text-destructive-ink',
         className,
       )}
     >
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="flex gap-3">
-          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+          <AlertTriangle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" />
           <div className="space-y-1">
-            <p className="font-medium text-foreground">{title}</p>
-            <p className="leading-6 text-muted-foreground">{description}</p>
+            <p className="type-label">{title}</p>
+            <p className="type-body">{description}</p>
           </div>
         </div>
         {onRetry ? <RetryAction onRetry={onRetry} label={retryLabel} /> : null}
@@ -328,17 +341,12 @@ export function EmptyState({
 
   if (density === 'compact') {
     return (
-      <div
-        className={cn(
-          'rounded-lg border border-dashed border-border bg-muted/30 p-5 text-sm text-muted-foreground',
-          className,
-        )}
-      >
+      <div className={cn('border-y border-rule py-5 text-muted-foreground', className)}>
         <div className="flex items-start gap-3">
           <span className="mt-0.5 shrink-0 text-muted-foreground">{glyph}</span>
           <div>
-            <h3 className="font-medium text-foreground">{title}</h3>
-            <p className="mt-1 leading-6">{description}</p>
+            <h3 className="type-section-title text-foreground">{title}</h3>
+            <p className="type-body mt-1">{description}</p>
             {action ? <div className="pt-3">{action}</div> : null}
           </div>
         </div>
@@ -349,7 +357,7 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        'flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-muted/30 px-6 py-12 text-center',
+        'flex flex-col items-center justify-center gap-3 border-y border-rule px-6 py-12 text-center',
         className,
       )}
     >
@@ -357,8 +365,8 @@ export function EmptyState({
         {glyph}
       </span>
       <div className="space-y-1">
-        <h3 className="font-medium text-foreground">{title}</h3>
-        <p className="mx-auto max-w-prose text-sm leading-6 text-muted-foreground">{description}</p>
+        <h3 className="type-section-title text-foreground">{title}</h3>
+        <p className="type-body mx-auto max-w-prose text-muted-foreground">{description}</p>
       </div>
       {action ? <div className="pt-1">{action}</div> : null}
     </div>

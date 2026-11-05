@@ -39,6 +39,9 @@ jobs:
       - name: Validate chart series palette
         run: npm run design:check-charts
 
+      - name: Validate semantic token contrast
+        run: npm run design:check-tokens
+
       - name: Test repo scripts
         run: npm run test:scripts
 
@@ -310,6 +313,16 @@ jobs:
       E2E_VOLUNTEER_PASSWORD: NkwapaVolunteer!23
       E2E_VOLUNTEER_NAME: E2E Volunteer
       E2E_VOLUNTEER_EMAIL: e2e.volunteer@nkwapa.local
+      E2E_MANAGER_SUB: 00000000-0000-4000-8000-000000000048
+      E2E_MANAGER_USERNAME: e2e.manager
+      E2E_MANAGER_PASSWORD: NkwapaManager!23
+      E2E_MANAGER_NAME: E2E Manager
+      E2E_MANAGER_EMAIL: e2e.manager@nkwapa.local
+      E2E_DIRECTOR_SUB: 00000000-0000-4000-8000-000000000049
+      E2E_DIRECTOR_USERNAME: e2e.director
+      E2E_DIRECTOR_PASSWORD: NkwapaDirector!23
+      E2E_DIRECTOR_NAME: E2E Director
+      E2E_DIRECTOR_EMAIL: e2e.director@nkwapa.local
       # The portal identity. Without it every spec runs as staff and the patient portal has no
       # coverage at all.
       E2E_PATIENT_SUB: 00000000-0000-4000-8000-000000000046
@@ -317,8 +330,8 @@ jobs:
       E2E_PATIENT_PASSWORD: NkwapaPatient!23
       E2E_PATIENT_NAME: E2E Patient
       E2E_PATIENT_EMAIL: e2e.patient@nkwapa.local
-      # The same patient one step earlier: invited, not yet linked. A claimed account is
-      # redirected off /claim-record, so the claim page had no identity that could reach it.
+      # Legacy seeded claimant identity retained for seed compatibility. Claim and PWA specs now
+      # create fresh invitations and accounts per run because a successful claim is irreversible.
       E2E_CLAIMANT_SUB: 00000000-0000-4000-8000-000000000047
       E2E_CLAIMANT_USERNAME: e2e.claimant
       E2E_CLAIMANT_PASSWORD: NkwapaClaimant!23
@@ -403,7 +416,7 @@ jobs:
           SEED_SAMPLE_IDENTITY: ${{ env.SEED_SAMPLE_IDENTITY }}
           # No SEED_E2E_CLAIMANT_SUB on purpose. Keycloak does not always honour the requested
           # user id, so the provisioning step writes the real one back over E2E_CLAIMANT_SUB
-          # through GITHUB_ENV, and the seed falls back to it -- the same path the other four
+          # through GITHUB_ENV, and the seed falls back to it -- the same path the other six
           # identities take. Passing the requested id here would pin the stale value.
           SEED_E2E_CLAIMANT_EMAIL: ${{ env.E2E_CLAIMANT_EMAIL }}
           SEED_E2E_CLAIMANT_NAME: ${{ env.E2E_CLAIMANT_NAME }}
@@ -413,6 +426,10 @@ jobs:
           SEED_E2E_DOCTOR_EMAIL: ${{ env.E2E_DOCTOR_EMAIL }}
           SEED_E2E_VOLUNTEER_NAME: ${{ env.E2E_VOLUNTEER_NAME }}
           SEED_E2E_VOLUNTEER_EMAIL: ${{ env.E2E_VOLUNTEER_EMAIL }}
+          SEED_E2E_MANAGER_NAME: ${{ env.E2E_MANAGER_NAME }}
+          SEED_E2E_MANAGER_EMAIL: ${{ env.E2E_MANAGER_EMAIL }}
+          SEED_E2E_DIRECTOR_NAME: ${{ env.E2E_DIRECTOR_NAME }}
+          SEED_E2E_DIRECTOR_EMAIL: ${{ env.E2E_DIRECTOR_EMAIL }}
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
@@ -431,7 +448,7 @@ jobs:
 
       # The screened registry filter (#224) seeds a completed Review visit, so it needs this build.
       - name: Run the station workflow spec
-        run: npm run e2e --workspace=@nkwapa/web -- e2e/station-workflow.spec.js e2e/patient-registry-screened.spec.js
+        run: npm run e2e --workspace=@nkwapa/web -- e2e/station-workflow.spec.js e2e/patient-registry-screened.spec.js e2e/station-redesign.spec.js
         env:
           FEATURE_STATION_WORKFLOW_ENABLED: true
           NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED: true

@@ -40,7 +40,13 @@ import { ResourceState } from '@/components/feedback/ResourceState';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection,
+  RecordSectionContent,
+  RecordSectionDescription,
+  RecordSectionHeader,
+  RecordSectionTitle,
+} from '@/components/patients/RecordSection';
 import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import { DuplicateComparisonSheet } from './duplicates/DuplicateComparisonSheet';
 import { DuplicateFilterFields } from './duplicates/DuplicateFilterFields';
@@ -89,6 +95,7 @@ export function CrossClinicInvestigationScreen() {
   );
 
   const investigation = useAsyncResource<CrossClinicInvestigation>({
+    requiresOnline: true,
     resourceKey: `${ENDPOINT}?${query}`,
     errorMessage: 'The cross-clinic investigation could not be loaded.',
     fetcher: async (token, signal) => {
@@ -344,14 +351,14 @@ export function CrossClinicInvestigationScreen() {
 
             {/* min-w-0 on both tracks, so a wide grid scrolls inside its card at 768 and 1024. */}
             <section className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
-              <Card className="min-w-0">
-                <CardHeader>
-                  <CardTitle className="text-lg">Filters</CardTitle>
-                  <CardDescription>
+              <RecordSection className="min-w-0">
+                <RecordSectionHeader>
+                  <RecordSectionTitle>Filters</RecordSectionTitle>
+                  <RecordSectionDescription>
                     Narrow the pairs. The counts above always cover every pair.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
+                  </RecordSectionDescription>
+                </RecordSectionHeader>
+                <RecordSectionContent className="space-y-4">
                   <DuplicateFilterFields
                     idPrefix="cross-clinic"
                     filters={filters}
@@ -377,19 +384,19 @@ export function CrossClinicInvestigationScreen() {
                       from any single pair.
                     </p>
                   </ProgressiveHelp>
-                </CardContent>
-              </Card>
+                </RecordSectionContent>
+              </RecordSection>
 
-              <Card className="min-w-0">
-                <CardHeader className="space-y-3">
+              <RecordSection className="min-w-0">
+                <RecordSectionHeader className="space-y-3">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="space-y-1.5">
-                      <CardTitle className="text-xl">Pairs</CardTitle>
-                      <CardDescription>
+                      <RecordSectionTitle>Pairs</RecordSectionTitle>
+                      <RecordSectionDescription>
                         {selectedPair
                           ? `Only pairs between ${clinicPairLabel(selectedPair)}.`
                           : 'Open a pair to compare the two charts side by side.'}
-                      </CardDescription>
+                      </RecordSectionDescription>
                     </div>
                     <div className="flex items-center gap-2">
                       {selectedPair ? (
@@ -406,8 +413,8 @@ export function CrossClinicInvestigationScreen() {
                       </div>
                     </div>
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
+                </RecordSectionHeader>
+                <RecordSectionContent className="space-y-4">
                   {data.items.length === 0 ? (
                     <EmptyState
                       title="No pairs match these filters"
@@ -434,6 +441,7 @@ export function CrossClinicInvestigationScreen() {
 
                       <div className="hidden lg:block">
                         <DataTable
+                          keyboardScroll
                           caption="Possible duplicates across clinics"
                           columns={columns}
                           data={data.items}
@@ -476,8 +484,8 @@ export function CrossClinicInvestigationScreen() {
                       </div>
                     </>
                   )}
-                </CardContent>
-              </Card>
+                </RecordSectionContent>
+              </RecordSection>
             </section>
           </div>
         )}
@@ -558,18 +566,18 @@ function BurdenByClinicPair({
   onFocus: (key: string | null) => void;
 }) {
   return (
-    <Card className="min-w-0">
-      <CardHeader className="space-y-3">
+    <RecordSection className="min-w-0">
+      <RecordSectionHeader className="space-y-3">
         <div className="space-y-1.5">
-          <CardTitle className="text-xl">Where the duplicates are</CardTitle>
-          <CardDescription>
+          <RecordSectionTitle>Where the duplicates are</RecordSectionTitle>
+          <RecordSectionDescription>
             Each pair of clinics, with how many likely duplicates they share. Choose one to see its
             pairs.
-          </CardDescription>
+          </RecordSectionDescription>
         </div>
         <ConfidenceLegend />
-      </CardHeader>
-      <CardContent>
+      </RecordSectionHeader>
+      <RecordSectionContent>
         <ul className="space-y-2" aria-label="Likely duplicates by clinic pair">
           {burden.clinicPairs.map((row) => {
             const active = row.key === activeKey;
@@ -619,22 +627,22 @@ function BurdenByClinicPair({
             );
           })}
         </ul>
-      </CardContent>
-    </Card>
+      </RecordSectionContent>
+    </RecordSection>
   );
 }
 
 /** Which rules found these pairs, strongest rule first, as a share of every pair. */
 function ReasonBreakdown({ burden }: { burden: CrossClinicBurden }) {
   return (
-    <Card className="min-w-0">
-      <CardHeader>
-        <CardTitle className="text-lg">Why they matched</CardTitle>
-        <CardDescription>
+    <RecordSection className="min-w-0">
+      <RecordSectionHeader>
+        <RecordSectionTitle>Why they matched</RecordSectionTitle>
+        <RecordSectionDescription>
           A pair can match on more than one rule, so these add up to more than the total.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+        </RecordSectionDescription>
+      </RecordSectionHeader>
+      <RecordSectionContent>
         <ul className="space-y-3">
           {burden.reasons.map(({ reason, count }) => {
             const share = burden.totalPairs > 0 ? Math.round((count / burden.totalPairs) * 100) : 0;
@@ -656,7 +664,7 @@ function ReasonBreakdown({ burden }: { burden: CrossClinicBurden }) {
             );
           })}
         </ul>
-      </CardContent>
-    </Card>
+      </RecordSectionContent>
+    </RecordSection>
   );
 }

@@ -9,7 +9,13 @@ import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
 import { ResourceState } from '@/components/feedback/ResourceState';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection,
+  RecordSectionContent,
+  RecordSectionDescription,
+  RecordSectionHeader,
+  RecordSectionTitle,
+} from '@/components/patients/RecordSection';
 import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import { Label } from '@/components/ui/label';
 import {
@@ -133,6 +139,7 @@ export function ClinicRegistryScreen() {
   // alone, and both come from the same helper so the URL and the key cannot disagree.
   const clinicsQuery = adminClinicsQuery(zoneFilter, organizationFilter);
   const clinics = useAsyncResource<ClinicRow[]>({
+    requiresOnline: true,
     resourceKey: clinicsQuery.resourceKey,
     errorMessage: 'The clinic list could not be loaded.',
     fetcher: async (token, signal) => {
@@ -149,6 +156,7 @@ export function ClinicRegistryScreen() {
   // Read unfiltered on purpose, so choosing a zone never removes the other zones from the
   // picker and strands the reader inside their own filter.
   const zones = useAsyncResource<ZoneSummary[]>({
+    requiresOnline: true,
     resourceKey: 'admin-clinic-zones',
     errorMessage: 'The zone list could not be loaded.',
     fetcher: async (token, signal) => {
@@ -163,6 +171,7 @@ export function ClinicRegistryScreen() {
   });
 
   const organizations = useAsyncResource<OrganizationSummary[]>({
+    requiresOnline: true,
     resourceKey: 'admin-clinic-organizations',
     errorMessage: 'The organization list could not be loaded.',
     fetcher: async (token, signal) => {
@@ -371,14 +380,14 @@ export function ClinicRegistryScreen() {
         />
       </AppMetricGroup>
 
-      <Card className="min-w-0">
-        <CardHeader className="space-y-3">
+      <RecordSection className="min-w-0">
+        <RecordSectionHeader className="space-y-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <CardTitle className="text-xl">Clinic registry</CardTitle>
-              <CardDescription>
+              <RecordSectionTitle>Clinic registry</RecordSectionTitle>
+              <RecordSectionDescription>
                 Review names, location codes, time zones, and activation status.
-              </CardDescription>
+              </RecordSectionDescription>
             </div>
             <div className="rounded-lg border border-border bg-background px-4 py-3 text-sm">
               <p className="text-muted-foreground">Showing</p>
@@ -387,8 +396,8 @@ export function ClinicRegistryScreen() {
               </p>
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        </RecordSectionHeader>
+        <RecordSectionContent className="space-y-4">
           <ProgressiveHelp title="How clinic metadata is used">
             A clinic&apos;s time zone decides how appointment times, reminders, and daily reporting
             are read. Its location code identifies it in organization reporting and must be unique
@@ -569,6 +578,8 @@ export function ClinicRegistryScreen() {
 
                   <div className="hidden md:block">
                     <DataTable
+                      keyboardScroll
+                      paginationClassName="pr-20"
                       caption="Clinics"
                       columns={columns}
                       data={visibleRows}
@@ -580,8 +591,8 @@ export function ClinicRegistryScreen() {
               )
             }
           </ResourceState>
-        </CardContent>
-      </Card>
+        </RecordSectionContent>
+      </RecordSection>
 
       <ClinicMetadataDialog
         open={dialogOpen}

@@ -1,7 +1,6 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
 import { cn } from '@/lib/utils';
 
@@ -18,7 +17,7 @@ interface FormSectionCardProps {
 
 export function FormSectionCard({
   title,
-  titleAs = 'h3',
+  titleAs: Heading = 'h2',
   description,
   hint,
   children,
@@ -26,17 +25,17 @@ export function FormSectionCard({
   contentClassName,
 }: FormSectionCardProps) {
   return (
-    <Card className={className}>
-      <CardHeader className="space-y-2 pb-4">
+    <section className={cn('min-w-0 border-t border-rule py-5', className)}>
+      <header className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
-          <CardTitle as={titleAs} className="text-lg">
-            {title}
-          </CardTitle>
+          <Heading className="type-section-title">{title}</Heading>
           {hint ? <InfoHint label={hint} size="sm" /> : null}
         </div>
-        {description ? <CardDescription>{description}</CardDescription> : null}
-      </CardHeader>
-      <CardContent className={cn('space-y-4', contentClassName)}>{children}</CardContent>
-    </Card>
+        {description ? (
+          <p className="type-label font-normal text-muted-foreground">{description}</p>
+        ) : null}
+      </header>
+      <div className={cn('mt-4 space-y-4', contentClassName)}>{children}</div>
+    </section>
   );
 }

@@ -1,39 +1,130 @@
-# Nkwapa EMR
+<p align="center">
+  <img src="apps/web/public/images/nkwapa-logo.png" alt="Nkwapa" width="320">
+</p>
 
-[![Akomapa website](https://img.shields.io/badge/Akomapa-akomapa.org-2e7d32?style=for-the-badge)](https://akomapa.org)
-[![CI](https://github.com/akomapahealth/nkwapa/actions/workflows/ci.yml/badge.svg)](https://github.com/akomapahealth/nkwapa/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
+# Nkwapa
 
-**Nkwapa** is a multi-clinic electronic medical record (EMR) platform focused on **hypertension** and **diabetes** care pathways. It is built for community health programs that need dependable clinical documentation, operational visibility, and responsible handling of sensitive patient data.
+Nkwapa is the electronic medical record and clinic workflow system for
+[Akomapa Health](https://akomapa.org)'s community clinics and screening days in Ghana. It focuses
+on hypertension, diabetes and non-communicable disease screening. Registration, station
+measurements, clinical encounters, doctor review and follow-up all land in one patient record, so
+the doctor sees what every station recorded and the next visit starts from the patient's history.
 
-The system is developed in support of [**Akomapa**](https://akomapa.org)—the nonprofit behind community-driven screening, education, and longitudinal care for non-communicable diseases.
+It is built for the screening day as it really runs: patients walk between stations on shared
+clinic laptops, and the clinic Wi-Fi drops. Work recorded offline waits in an outbox and syncs
+when the connection returns.
 
----
+## Who uses it
 
-## What the platform does
+| Role                  | What they do in Nkwapa                                                                                  |
+| --------------------- | ------------------------------------------------------------------------------------------------------- |
+| Volunteers and nurses | Register patients and record vitals, glucose, body measurements, eye checks and counselling at stations |
+| Doctors               | Review encounters, finalize visits, sign and cosign hypertension action plan notes, set follow-up       |
+| Managers              | Run the day: the station line, check-in, assignments, queues, shifts and volunteer rosters              |
+| Directors             | Oversee a clinic: activity, screening coverage, follow-up, audit, research exports                      |
+| System administrators | Work across clinics: clinics, staff and roles, duplicate patients, organization reporting               |
+| Patients              | Use the portal on their phones: appointments, their own readings and self-reports                       |
 
-Nkwapa ties together **frontline intake**, **structured encounters**, **vitals and screening workflows**, **care planning**, **prescribing**, **patient engagement** (including reminders), and **research-grade export**—all under **role-based access** and **clinic-level isolation**. The goal is a single source of truth for clinic operations while staying practical for low-connectivity and high-throughput field settings.
+One person can hold several roles at one clinic and different roles at different clinics. Every
+action is scoped to the clinic in use and checked against the person's permissions.
 
----
+## What it does
 
-## Capabilities
+- **Station-based screening.** A visit moves through registration, blood pressure, glucose, body
+  measurements, eye and counselling stations, with a live board of who is waiting and for how long.
+- **Clinical records.** Encounters, guided hypertension and diabetes interviews, medical history,
+  medication reconciliation and adherence, prescriptions, and clinical notes with cosign and
+  addenda.
+- **Patient registry.** Search, registration with or without an ID document, duplicate review and
+  merging, and invite-and-claim onboarding to the portal.
+- **Appointments and reminders.** Patient requests, staff triage, the full appointment lifecycle,
+  and SMS and email reminders through one recorded delivery ledger.
+- **Oversight and analytics.** Role-aware dashboards, metrics, staff activity, audit, cohort
+  analytics and organization reports.
+- **Research exports.** Consent-gated, de-identified datasets with an approval step.
+- **Staff messaging.** Direct and group chat within a clinic.
+- **Works offline.** An installable web app with an outbox, a sync center and held changes per
+  clinic and per account.
 
-- **Clinic operations** — Shifts, check-ins, queue-style boards, and assignments so teams can coordinate who is working, who is waiting, and who is responsible for each step of care.
-- **Clinical documentation** — Encounters with screening modules (e.g. vitals, diabetes, hypertension), care plans, and prescriptions tied to a shared patient record and drug catalog.
-- **Identity-aware access** — Staff permissions are modeled explicitly; actions are scoped to the clinic context so users only work within what they are authorized to see and change.
-- **Audit and accountability** — Important writes are recorded for traceability, supporting quality improvement and governance expectations.
-- **Offline-first web experience** — The patient-facing and field workflows are designed around resilient sync: capture data locally when connectivity is poor, then reconcile when the network is available.
-- **Research and reporting** — Controlled export pipelines support de-identified datasets and approval workflows, so program data can support evidence and partnerships without sacrificing patient trust.
-- **Patient touchpoints** — Appointment requests, portal-style self-service where appropriate, and reminder channels help close the loop between visits.
+## Architecture at a glance
 
----
+A TypeScript monorepo on npm workspaces.
 
-## Architecture (overview)
+| Part          | What it is                                                                                                                                        |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/web`    | Next.js 16 (App Router), React 18, Tailwind 3 and shadcn/ui. Staff workspace, patient portal and public pages; offline store in IndexedDB (Dexie) |
+| `apps/api`    | NestJS 11 HTTP API, BullMQ background jobs (reminders, research exports) and a Socket.IO gateway for chat                                         |
+| `packages/db` | Prisma 7 schema, migrations, seed and shared domain helpers                                                                                       |
+| PostgreSQL    | System of record. Row-level security isolates each clinic's data                                                                                  |
+| Redis         | Rate limiting, job queues and chat fan-out                                                                                                        |
+| Keycloak      | Sign-in, passwords and sessions, with a Nkwapa login theme. Nkwapa owns roles and permissions                                                     |
 
-Nkwapa is maintained as a **TypeScript monorepo**: a **NestJS** API for business rules and integrations, a **Next.js** progressive web application for staff and patients, and a **PostgreSQL** data layer with a versioned schema. Authentication integrates with **Keycloak** (OpenID Connect / JWT), aligning enterprise identity practices with nonprofit deployment realities.
+Access is enforced in three layers: Keycloak identity, NestJS guards, and Postgres row-level
+security. More in the [architecture overview](docs/specs/01_ARCHITECTURE_OVERVIEW.md).
 
----
+## Getting started
 
-## License and organization
+You need Node.js 22 or later with npm 10, and Docker.
 
-This project is licensed under the **GNU General Public License v3.0**—see [`LICENSE`](LICENSE). For more about Akomapa’s mission, programs, and how to engage with the organization, visit **[akomapa.org](https://akomapa.org)**.
+```bash
+npm install
+cd infra/nkwapa && docker compose up -d && cd ../..
+npm run db:migrate:dev
+npm run e2e:keycloak-user
+npm run db:seed:local
+npm run dev --workspace=@nkwapa/api
+npm run dev --workspace=@nkwapa/web
+```
+
+Copy the `.env.example` files first, and set the test account subjects before seeding.
+[docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) walks through every step. The web app runs on
+`http://localhost:3000`, the API on `:4000` and Keycloak on `:8080`.
+
+## Environments and deploy
+
+| Environment | Branch        | Web                  | API and Keycloak |
+| ----------- | ------------- | -------------------- | ---------------- |
+| Staging     | `release/dev` | `staging.nkwapa.app` | Render           |
+| Production  | `main`        | `nkwapa.app`         | Render           |
+
+A push to either branch runs migrations, deploys web (Vercel), API and auth (Render), verifies the
+live deployment, and on `main` tags a release. Work branches from `release/dev`; `release/dev` is
+merged into `main` to release. See [docs/OPERATIONS.md](docs/OPERATIONS.md).
+
+## Testing
+
+| Command                                              | What it runs                                        |
+| ---------------------------------------------------- | --------------------------------------------------- |
+| `npm run lint` / `npm run typecheck`                 | ESLint and TypeScript in every workspace            |
+| `npm run test`                                       | Jest unit and integration tests in every workspace  |
+| `npm run e2e`                                        | Playwright end-to-end tests against a running stack |
+| `npm run design:check-tokens`, `design:check-charts` | Colour contrast for tokens and the chart palette    |
+| `npm run security:scan`                              | Secrets and sensitive files                         |
+
+CI runs all of these on every pull request. Manual acceptance checks are in the
+[user testing guide](docs/USER_TESTING_GUIDE.md).
+
+## Repository layout
+
+```text
+apps/
+  api/          NestJS API, workers and chat gateway
+  web/          Next.js web app and its Playwright tests
+packages/
+  db/           Prisma schema, migrations, seed, shared helpers
+infra/
+  nkwapa/       Docker Compose for local services, Keycloak realm and login theme
+  keycloak/     Keycloak image for deployment
+deploy/env/     Environment templates for staging and production
+scripts/        CI checks, deploy verification, Keycloak and database helpers
+docs/           Guides, specs, design system and release notes
+```
+
+## Documentation
+
+Start at [docs/README.md](docs/README.md). The design system is
+[docs/design-system/MASTER.md](docs/design-system/MASTER.md).
+
+## License
+
+GNU General Public License v3.0. See [LICENSE](LICENSE).

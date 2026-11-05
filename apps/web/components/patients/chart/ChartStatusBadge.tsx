@@ -1,6 +1,7 @@
 'use client';
 
-import { Badge } from '@/components/ui/badge';
+import { StatusLabel } from '@/components/ui/status-label';
+import { statusLabel } from '@/lib/status-presentation';
 import { cn } from '@/lib/utils';
 
 /**
@@ -20,29 +21,25 @@ export type ChartState =
 
 type BadgeVariant = 'default' | 'secondary' | 'outline' | 'draft' | 'review' | 'finalized';
 
-const STATE_PRESENTATION: Record<ChartState, { label: string; variant: BadgeVariant }> = {
-  DRAFT: { label: 'Draft', variant: 'draft' },
-  IN_REVIEW: { label: 'In review', variant: 'review' },
-  FINALIZED: { label: 'Finalized', variant: 'finalized' },
-  PENDING_COSIGN: { label: 'Pending cosign', variant: 'review' },
-  COSIGNED: { label: 'Cosigned', variant: 'finalized' },
-  AMENDED: { label: 'Amended', variant: 'secondary' },
-  CURRENT: { label: 'Current', variant: 'default' },
-  HISTORICAL: { label: 'Historical', variant: 'outline' },
-  LOCKED: { label: 'Locked', variant: 'outline' },
+const STATE_PRESENTATION: Record<ChartState, { variant: BadgeVariant }> = {
+  DRAFT: { variant: 'draft' },
+  IN_REVIEW: { variant: 'review' },
+  FINALIZED: { variant: 'finalized' },
+  PENDING_COSIGN: { variant: 'review' },
+  COSIGNED: { variant: 'finalized' },
+  AMENDED: { variant: 'secondary' },
+  CURRENT: { variant: 'default' },
+  HISTORICAL: { variant: 'outline' },
+  LOCKED: { variant: 'outline' },
 };
 
 export function chartStateLabel(state: ChartState): string {
-  return STATE_PRESENTATION[state].label;
+  return statusLabel(state);
 }
 
 export function ChartStatusBadge({ state, className }: { state: ChartState; className?: string }) {
   const presentation = STATE_PRESENTATION[state];
-  return (
-    <Badge variant={presentation.variant} className={className}>
-      {presentation.label}
-    </Badge>
-  );
+  return <StatusLabel value={state} variant={presentation.variant} className={className} />;
 }
 
 /**

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Building2, RotateCcw } from 'lucide-react';
+import { Building2, RotateCcw, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
@@ -93,6 +93,7 @@ export function ClinicMetadataDialog({
   onOpenChange,
 }: ClinicMetadataDialogProps) {
   const [values, setValues] = useState<ClinicFormValues>(initialValues);
+  const deactivating = mode === 'edit' && initialValues.isActive && !values.isActive;
   const [errors, setErrors] = useState<ClinicFormErrors>({});
   const [submitted, setSubmitted] = useState(false);
   /*
@@ -452,7 +453,13 @@ export function ClinicMetadataDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={saving}>
+            <Button
+              type="submit"
+              variant={deactivating ? 'outline' : 'default'}
+              className={deactivating ? 'border-warning text-warning-ink' : undefined}
+              disabled={saving}
+            >
+              {deactivating ? <ShieldCheck className="h-4 w-4" aria-hidden="true" /> : null}
               {saving
                 ? mode === 'create'
                   ? 'Creating…'
