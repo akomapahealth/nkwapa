@@ -1,4 +1,9 @@
-import { apiFetch, ApiError, resetPendingIdempotencyKeys } from './api';
+import {
+  apiFetch,
+  ApiError,
+  forgetPendingIdempotencyKeysInMemory,
+  resetPendingIdempotencyKeys,
+} from './api';
 
 describe('apiFetch idempotency keys (#307)', () => {
   const fetchMock = jest.fn();
@@ -66,5 +71,46 @@ describe('apiFetch idempotency keys (#307)', () => {
     await apiFetch('/x', { method: 'PUT', body: '{}', idempotencyKey: 'screening-save-123' });
 
     expect(sentKeys()).toEqual(['screening-save-123']);
+  });
+
+  describe('across a reload', () => {
+    const store = new Map<string, string>();
+    beforeAll(() => {
+      Object.defineProperty(globalThis, 'sessionStorage', {
+        configurable: true,
+        value: {
+          getItem: (k: string) => store.get(k) ?? null,
+          setItem: (k: string, v: string) => void store.set(k, v),
+          removeItem: (k: string) => void store.delete(k),
+        },
+      });
+    });
+    afterAll(() => {
+      delete (globalThis as { sessionStorage?: unknown }).sessionStorage;
+    });
+
+    it('reuses the key after a reload and stores no request body', async () => {
+      fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+      fetchMock.mockResolvedValueOnce(new Response('{}', { status: 201 }));
+
+      await expect(save()).rejects.toBeInstanceOf(ApiError);
+      forgetPendingIdempotencyKeysInMemory();
+      await save();
+
+      const [first, afterReload] = sentKeys();
+      expect(afterReload).toBe(first);
+      const stored = [...store.values()].join('');
+      expect(stored).not.toContain('p1');
+      expect(stored).not.toContain('checkins');
+    });
+
+    it('clears the stored key once the server gives a definitive answer', async () => {
+      fetchMock.mockResolvedValue(new Response('{}', { status: 201 }));
+      await save();
+      forgetPendingIdempotencyKeysInMemory();
+      await save();
+      const [first, next] = sentKeys();
+      expect(next).not.toBe(first);
+    });
   });
 });
