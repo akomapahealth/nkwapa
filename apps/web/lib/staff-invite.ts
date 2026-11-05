@@ -171,13 +171,26 @@ function describeIdentityFailure(reason: string | null): string {
   }
 }
 
-export type StaffInviteFilter = 'ALL' | 'OPEN' | 'ACCEPTED' | 'CLOSED';
+export type StaffInviteFilter = 'ALL' | 'OPEN' | 'EXPIRED' | 'ACCEPTED' | 'CANCELLED';
 
-/** Which filter tab an invitation sits under: cancelled and expired are both "closed". */
+/** Which filter tab an invitation sits under. */
 export function staffInviteBucket(status: StaffInviteStatus): Exclude<StaffInviteFilter, 'ALL'> {
   if (status === 'PENDING') return 'OPEN';
-  if (status === 'ACCEPTED') return 'ACCEPTED';
-  return 'CLOSED';
+  if (status === 'ACCEPTED' || status === 'EXPIRED' || status === 'CANCELLED') return status;
+  return 'CANCELLED';
+}
+
+export type StaffInviteAction = 'resend' | 'cancel' | 'remove';
+
+/**
+ * What a director can do to an invitation. Mirrors the API: an open one can be resent or
+ * cancelled; an expired or cancelled one can only be removed from the list; an accepted one is
+ * the record of how someone got their role, so it stays.
+ */
+export function staffInviteActions(status: StaffInviteStatus): StaffInviteAction[] {
+  if (status === 'PENDING') return ['resend', 'cancel'];
+  if (status === 'EXPIRED' || status === 'CANCELLED') return ['remove'];
+  return [];
 }
 
 /** The invitations under a filter tab that match a name or email search, order kept. */
@@ -262,6 +275,20 @@ export function cancelStaffInvite(
   return send(
     clinicInvitesPath(clinicId, `/${encodeURIComponent(inviteId)}`),
     { method: 'DELETE' },
+    getToken,
+    clinicId,
+  );
+}
+
+/** Take an expired or cancelled invitation out of the list. The record stays for the audit trail. */
+export function removeStaffInvite(
+  clinicId: string,
+  inviteId: string,
+  getToken: GetToken,
+): Promise<{ id: string; removedAt: string }> {
+  return send(
+    clinicInvitesPath(clinicId, `/${encodeURIComponent(inviteId)}/remove`),
+    { method: 'POST' },
     getToken,
     clinicId,
   );

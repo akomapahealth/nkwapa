@@ -101,7 +101,7 @@ describe('InviteRenewalService', () => {
     );
     expect(prisma.staffInvite.update).toHaveBeenCalledWith({
       where: { id: 'sinv-1' },
-      data: { renewalRequestedAt: NOW },
+      data: { renewalRequestedAt: NOW, removedAt: null },
     });
   });
 

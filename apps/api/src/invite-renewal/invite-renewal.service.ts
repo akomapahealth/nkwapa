@@ -80,7 +80,8 @@ export class InviteRenewalService {
     if (staffInvite && shouldFlagRenewal(staffInvite, now)) {
       await this.prisma.staffInvite.update({
         where: { id: staffInvite.id },
-        data: { renewalRequestedAt: now },
+        // A fresh ask brings a removed invitation back into the list, so it is not lost.
+        data: { renewalRequestedAt: now, removedAt: null },
       });
       await this.audit(userId, staffInvite, 'STAFF.INVITE.RENEWAL_REQUEST', requestId);
     }
