@@ -2119,6 +2119,8 @@ model StaffInvite {
   expiresAt          DateTime
   /// When the invitee last asked, signed in, for a new invitation (#307). Staff resend.
   renewalRequestedAt DateTime?
+  /// When a director took this closed invitation out of the admin list. The audit row says who.
+  removedAt          DateTime?
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
 

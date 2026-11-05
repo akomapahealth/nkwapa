@@ -6,12 +6,12 @@ import { StaleDataNotice } from '@/components/feedback/StaleDataNotice';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
-  ChevronDown,
   CircleCheck,
   Mail,
   MailPlus,
   RotateCw,
   Search,
+  Trash2,
   UserPlus,
   X,
 } from 'lucide-react';
@@ -41,15 +41,19 @@ import {
   filterStaffInvites,
   formatStaffRole,
   listStaffInvites,
+  removeStaffInvite,
   resendStaffInvite,
+  staffInviteActions,
   staffInviteBucket,
   type StaffInvite,
+  type StaffInviteAction,
   type StaffInviteFilter,
   type StaffInviteRole,
 } from '@/lib/staff-invite';
 import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { DataTable, DataTableActions, type DataTableColumn } from '@/components/ui/data-table';
 import {
   RecordSection,
   RecordSectionContent,
@@ -86,17 +90,17 @@ export interface StaffInvitesCardProps {
   onChanged?: () => void;
 }
 
-type Busy = { inviteId: string; action: 'resend' | 'cancel' } | null;
+type Busy = { inviteId: string; action: StaffInviteAction } | null;
 
-/** Rows shown before "Show more", and the list size at which a search box earns its place. */
-const PAGE_SIZE = 8;
+/** The list size at which a search box earns its place. */
 const SEARCH_THRESHOLD = 6;
 
 const FILTERS: Array<{ value: StaffInviteFilter; label: string; description?: string }> = [
   { value: 'ALL', label: 'All' },
   { value: 'OPEN', label: 'Open', description: 'Waiting to be accepted' },
+  { value: 'EXPIRED', label: 'Expired', description: 'Lapsed before anyone accepted' },
   { value: 'ACCEPTED', label: 'Accepted' },
-  { value: 'CLOSED', label: 'Closed', description: 'Cancelled or expired' },
+  { value: 'CANCELLED', label: 'Cancelled' },
 ];
 
 const STATUS_DOT: Record<string, string> = {
@@ -119,10 +123,11 @@ function describeFailure(error: unknown, fallback: string): string {
 }
 
 /**
- * Staff invitations for one clinic: send, resend, cancel, and the history.
+ * Staff invitations for one clinic: send, resend, cancel, remove, and the history.
  *
- * Every invitation stays in the list, cancelled and expired ones included, as on the patient chart.
- * Hiding them would make a lapsed invitation indistinguishable from one that was never sent.
+ * Cancelled and expired invitations stay in the list until a director removes them, so a lapsed
+ * invitation is never mistaken for one that was never sent. Removing only hides it here: the
+ * record and its audit trail stay, and the invitee asking again brings it back.
  */
 export function StaffInvitesCard({
   clinicId,
@@ -140,7 +145,6 @@ export function StaffInvitesCard({
   const [busy, setBusy] = useState<Busy>(null);
   const [filter, setFilter] = useState<StaffInviteFilter>('ALL');
   const [query, setQuery] = useState('');
-  const [showAll, setShowAll] = useState(false);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [email, setEmail] = useState('');
@@ -176,8 +180,9 @@ export function StaffInvitesCard({
     const tally: Record<StaffInviteFilter, number> = {
       ALL: invites.length,
       OPEN: 0,
+      EXPIRED: 0,
       ACCEPTED: 0,
-      CLOSED: 0,
+      CANCELLED: 0,
     };
     for (const invite of invites) tally[staffInviteBucket(invite.status)] += 1;
     return tally;
@@ -186,8 +191,6 @@ export function StaffInvitesCard({
     () => filterStaffInvites(invites, { filter, query }),
     [invites, filter, query],
   );
-  const shown = showAll ? visible : visible.slice(0, PAGE_SIZE);
-  const hiddenCount = visible.length - shown.length;
 
   const openDialog = () => {
     setEmail('');
@@ -278,31 +281,45 @@ export function StaffInvitesCard({
     });
   };
 
-  const act = async (invite: StaffInvite, action: 'resend' | 'cancel') => {
+  /* The same pattern: gone from the list at once, sent after the Undo window. */
+  const removeWithUndoFor = (invite: StaffInvite) => {
+    if (!getToken) return;
+    setActionError(null);
+    setNotice(null);
+    removeWithUndo({
+      message: `Invitation to ${invite.email} removed from the list`,
+      hide: () => setInvites((current) => current.filter((item) => item.id !== invite.id)),
+      restore: () =>
+        setInvites((current) =>
+          current.some((item) => item.id === invite.id) ? current : [...current, invite],
+        ),
+      commit: async () => {
+        await removeStaffInvite(clinicId, invite.id, getToken);
+        await load();
+      },
+      failureMessage: `The invitation to ${invite.email} could not be removed, so it is back in the list.`,
+    });
+  };
+
+  const act = async (invite: StaffInvite, action: StaffInviteAction) => {
     if (!getToken) return;
     if (action === 'cancel') {
       cancelWithUndo(invite);
       return;
     }
+    if (action === 'remove') {
+      removeWithUndoFor(invite);
+      return;
+    }
     setBusy({ inviteId: invite.id, action });
     setActionError(null);
     try {
-      if (action === 'resend') {
-        await resendStaffInvite(clinicId, invite.id, getToken);
-        setNotice(`Invitation to ${invite.email} sent again.`);
-      } else {
-        await cancelStaffInvite(clinicId, invite.id, getToken);
-        setNotice(`Invitation to ${invite.email} cancelled. The link no longer grants access.`);
-      }
+      await resendStaffInvite(clinicId, invite.id, getToken);
+      setNotice(`Invitation to ${invite.email} sent again.`);
       await load();
       onChanged?.();
     } catch (error) {
-      setActionError(
-        describeFailure(
-          error,
-          `The invitation could not be ${action === 'resend' ? 'resent' : 'cancelled'}.`,
-        ),
-      );
+      setActionError(describeFailure(error, 'The invitation could not be resent.'));
       await load();
     } finally {
       setBusy(null);
@@ -346,77 +363,54 @@ export function StaffInvitesCard({
             No invitations have been sent for this clinic yet.
           </p>
         ) : (
-          <div className="space-y-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <SegmentedControl
-                label="Show invitations"
-                value={filter}
-                options={FILTERS.map((option) => ({
-                  value: option.value,
-                  label: `${option.label} ${counts[option.value]}`,
-                  description: option.description,
-                }))}
-                onChange={(next) => {
-                  setFilter(next);
-                  setShowAll(false);
-                }}
-                className="sm:flex-1"
-              />
-              {invites.length > SEARCH_THRESHOLD ? (
-                <div className="relative sm:w-64">
-                  <Search
-                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-                    aria-hidden="true"
-                  />
-                  <Input
-                    type="search"
-                    aria-label="Search invitations by name or email"
-                    placeholder="Search name or email"
-                    value={query}
-                    onChange={(event) => {
-                      setQuery(event.target.value);
-                      setShowAll(false);
-                    }}
-                    className="pl-9"
-                  />
-                </div>
-              ) : null}
-            </div>
-
-            {visible.length === 0 ? (
+          <DataTable
+            caption="Staff invitations"
+            columns={inviteColumns(busy, (invite, action) => void act(invite, action))}
+            data={visible}
+            getRowId={(invite) => invite.id}
+            initialPageSize={10}
+            toolbar={
+              <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center">
+                <SegmentedControl
+                  label="Show invitations"
+                  value={filter}
+                  options={FILTERS.map((option) => ({
+                    value: option.value,
+                    label: `${option.label} ${counts[option.value]}`,
+                    description: option.description,
+                  }))}
+                  onChange={setFilter}
+                  className="sm:flex-1"
+                />
+                {invites.length > SEARCH_THRESHOLD ? (
+                  <div className="relative sm:w-64">
+                    <Search
+                      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                    <Input
+                      type="search"
+                      aria-label="Search invitations by name or email"
+                      placeholder="Search name or email"
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                ) : null}
+              </div>
+            }
+            emptyState={
               <p className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
                 {query.trim()
                   ? `No invitations match \u201c${query.trim()}\u201d.`
                   : 'No invitations here.'}
               </p>
-            ) : (
-              <ul
-                className="divide-y divide-border overflow-hidden rounded-lg border border-border"
-                aria-label="Staff invitations"
-              >
-                {shown.map((invite) => (
-                  <InviteRow
-                    key={invite.id}
-                    invite={invite}
-                    busy={busy}
-                    onAct={(action) => void act(invite, action)}
-                  />
-                ))}
-              </ul>
+            }
+            renderMobileRow={(invite) => (
+              <InviteRow invite={invite} busy={busy} onAct={(action) => void act(invite, action)} />
             )}
-
-            {hiddenCount > 0 ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full text-muted-foreground"
-                onClick={() => setShowAll(true)}
-              >
-                <ChevronDown className="mr-2 h-4 w-4" aria-hidden="true" />
-                Show {hiddenCount} more
-              </Button>
-            ) : null}
-          </div>
+          />
         )}
       </RecordSectionContent>
 
@@ -537,36 +531,13 @@ export function StaffInvitesCard({
   );
 }
 
-/**
- * One invitation as a dense row: who, what role, where it stands, and what you can do.
- *
- * The account and email facts used to be two more pills and a paragraph on every open invite,
- * which is what made the list a wall. They are now one quiet line, and the explanation is only
- * spelled out when something needs the inviter's attention.
- */
-function InviteRow({
-  invite,
-  busy,
-  onAct,
-}: {
-  invite: StaffInvite;
-  busy: Busy;
-  onAct: (action: 'resend' | 'cancel') => void;
-}) {
-  const status = describeStaffInviteStatus(invite.status);
-  const isOpen = invite.status === 'PENDING';
-  const identity = isOpen ? describeStaffInviteIdentity(invite.identity) : null;
-  const needsAttention =
-    identity?.variant === 'warning' ||
-    identity?.variant === 'destructive' ||
-    invite.emailDelivery?.status === 'FAILED';
-  const expiry = describeInviteExpiry(invite.expiresAt);
-  const isBusy = (action: 'resend' | 'cancel') =>
-    busy?.inviteId === invite.id && busy.action === action;
+type OnAct = (invite: StaffInvite, action: StaffInviteAction) => void;
 
-  const history = [
+function inviteHistory(invite: StaffInvite) {
+  const isOpen = invite.status === 'PENDING';
+  return [
     `Sent ${formatInviteDate(invite.createdAt)}${invite.invitedBy ? ` by ${invite.invitedBy}` : ''}`,
-    isOpen ? expiry.label : null,
+    isOpen ? describeInviteExpiry(invite.expiresAt).label : null,
     invite.acceptedAt
       ? `Accepted ${formatInviteDate(invite.acceptedAt)}${invite.acceptedBy ? ` by ${invite.acceptedBy}` : ''}`
       : null,
@@ -574,12 +545,182 @@ function InviteRow({
       ? `Cancelled ${formatInviteDate(invite.cancelledAt)}${invite.cancelledBy ? ` by ${invite.cancelledBy}` : ''}`
       : null,
     describeRenewalRequest(invite.renewalRequestedAt),
-  ].filter(Boolean);
+  ].filter((entry): entry is string => Boolean(entry));
+}
 
+/** Account and email facts for an open invitation; spelled out only when they need attention. */
+function InviteSetup({ invite }: { invite: StaffInvite }) {
+  if (invite.status !== 'PENDING') return null;
+  const identity = describeStaffInviteIdentity(invite.identity);
+  const needsAttention =
+    identity?.variant === 'warning' ||
+    identity?.variant === 'destructive' ||
+    invite.emailDelivery?.status === 'FAILED';
   return (
-    <li
+    <>
+      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-xs text-muted-foreground">
+        {identity ? (
+          <span className="inline-flex items-center gap-1" title={identity.detail}>
+            {needsAttention ? (
+              <AlertTriangle className="h-3.5 w-3.5 text-warning" aria-hidden="true" />
+            ) : (
+              <CircleCheck className="h-3.5 w-3.5 text-success" aria-hidden="true" />
+            )}
+            {identity.label}
+          </span>
+        ) : null}
+        <span className="inline-flex items-center gap-1">
+          <Mail className="h-3.5 w-3.5" aria-hidden="true" />
+          {invite.emailDelivery
+            ? `Invite email ${invite.emailDelivery.status.toLowerCase()}`
+            : 'Invite email not sent'}
+        </span>
+      </p>
+      {needsAttention && identity ? (
+        <p className="whitespace-normal text-xs leading-5 text-warning-ink">{identity.detail}</p>
+      ) : null}
+    </>
+  );
+}
+
+function InviteStatus({ invite }: { invite: StaffInvite }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+      <span
+        aria-hidden="true"
+        className={cn(
+          'h-1.5 w-1.5 rounded-full',
+          STATUS_DOT[invite.status] ?? 'bg-muted-foreground',
+        )}
+      />
+      {describeStaffInviteStatus(invite.status).label}
+    </span>
+  );
+}
+
+/** The actions an invitation allows, as the API allows them. */
+function InviteActions({ invite, busy, onAct }: { invite: StaffInvite; busy: Busy; onAct: OnAct }) {
+  const actions = staffInviteActions(invite.status);
+  if (actions.length === 0) return null;
+  const isBusy = (action: StaffInviteAction) =>
+    busy?.inviteId === invite.id && busy.action === action;
+  return (
+    <div className="flex gap-1">
+      {actions.includes('resend') ? (
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => onAct(invite, 'resend')}
+          disabled={busy !== null}
+        >
+          <RotateCw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+          {isBusy('resend') ? 'Resending…' : 'Resend'}
+        </Button>
+      ) : null}
+      {actions.includes('cancel') ? (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="text-muted-foreground hover:text-destructive"
+          onClick={() => onAct(invite, 'cancel')}
+          disabled={busy !== null}
+          aria-label={`Cancel invitation to ${invite.email}`}
+        >
+          <X className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+          Cancel
+        </Button>
+      ) : null}
+      {actions.includes('remove') ? (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="text-muted-foreground hover:text-destructive"
+          onClick={() => onAct(invite, 'remove')}
+          disabled={busy !== null}
+          aria-label={`Remove invitation to ${invite.email} from the list`}
+        >
+          <Trash2 className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+          Remove
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function inviteColumns(busy: Busy, onAct: OnAct): DataTableColumn<StaffInvite>[] {
+  return [
+    {
+      id: 'invitee',
+      header: 'Invitee',
+      accessorFn: (invite) => invite.inviteeName ?? invite.email,
+      cell: ({ row }) => {
+        const invite = row.original;
+        return (
+          <div className="flex min-w-0 flex-col py-1">
+            <span className="truncate font-medium text-foreground">
+              {invite.inviteeName ?? invite.email}
+            </span>
+            {invite.inviteeName ? (
+              <span className="truncate text-xs text-muted-foreground">{invite.email}</span>
+            ) : null}
+            <InviteSetup invite={invite} />
+          </div>
+        );
+      },
+    },
+    {
+      id: 'role',
+      header: 'Role',
+      accessorFn: (invite) => formatStaffRole(invite.role),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      accessorFn: (invite) => describeStaffInviteStatus(invite.status).label,
+      cell: ({ row }) => <InviteStatus invite={row.original} />,
+    },
+    {
+      id: 'history',
+      header: 'History',
+      enableSorting: false,
+      cell: ({ row }) => (
+        <ul className="space-y-0.5 py-1 text-xs text-muted-foreground">
+          {inviteHistory(row.original).map((entry) => (
+            <li key={entry}>{entry}</li>
+          ))}
+        </ul>
+      ),
+    },
+    {
+      id: 'actions',
+      header: () => <span className="sr-only">Actions</span>,
+      enableSorting: false,
+      meta: { align: 'right' },
+      cell: ({ row }) => (
+        <DataTableActions>
+          <InviteActions invite={row.original} busy={busy} onAct={onAct} />
+        </DataTableActions>
+      ),
+    },
+  ];
+}
+
+/** One invitation as a phone card: who, what role, where it stands, and what you can do. */
+function InviteRow({
+  invite,
+  busy,
+  onAct,
+}: {
+  invite: StaffInvite;
+  busy: Busy;
+  onAct: (action: StaffInviteAction) => void;
+}) {
+  const isOpen = invite.status === 'PENDING';
+  return (
+    <article
+      aria-label={invite.inviteeName ?? invite.email}
       className={cn(
-        'grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 bg-background px-4 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center',
+        'grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 rounded-lg border border-border bg-background px-4 py-3',
         !isOpen && 'bg-muted/20',
       )}
     >
@@ -609,69 +750,17 @@ function InviteRow({
           <p className="truncate text-sm text-muted-foreground">{invite.email}</p>
         ) : null}
         <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
-            <span
-              aria-hidden="true"
-              className={cn(
-                'h-1.5 w-1.5 rounded-full',
-                STATUS_DOT[invite.status] ?? 'bg-muted-foreground',
-              )}
-            />
-            {status.label}
-          </span>
-          {history.map((entry) => (
+          <InviteStatus invite={invite} />
+          {inviteHistory(invite).map((entry) => (
             <span key={entry}>· {entry}</span>
           ))}
         </p>
-        {isOpen ? (
-          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-xs text-muted-foreground">
-            {identity ? (
-              <span className="inline-flex items-center gap-1" title={identity.detail}>
-                {needsAttention ? (
-                  <AlertTriangle className="h-3.5 w-3.5 text-warning" aria-hidden="true" />
-                ) : (
-                  <CircleCheck className="h-3.5 w-3.5 text-success" aria-hidden="true" />
-                )}
-                {identity.label}
-              </span>
-            ) : null}
-            <span className="inline-flex items-center gap-1">
-              <Mail className="h-3.5 w-3.5" aria-hidden="true" />
-              {invite.emailDelivery
-                ? `Invite email ${invite.emailDelivery.status.toLowerCase()}`
-                : 'Invite email not sent'}
-            </span>
-          </p>
-        ) : null}
-        {needsAttention && identity ? (
-          <p className="text-xs leading-5 text-warning-ink">{identity.detail}</p>
-        ) : null}
+        <InviteSetup invite={invite} />
       </div>
 
-      {isOpen ? (
-        <div className="col-start-2 flex gap-1 sm:col-start-3">
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => onAct('resend')}
-            disabled={busy !== null}
-          >
-            <RotateCw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-            {isBusy('resend') ? 'Resending…' : 'Resend'}
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-muted-foreground hover:text-destructive"
-            onClick={() => onAct('cancel')}
-            disabled={busy !== null}
-            aria-label={`Cancel invitation to ${invite.email}`}
-          >
-            <X className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-            {isBusy('cancel') ? 'Cancelling…' : 'Cancel'}
-          </Button>
-        </div>
-      ) : null}
-    </li>
+      <div className="col-start-2">
+        <InviteActions invite={invite} busy={busy} onAct={(_invite, action) => onAct(action)} />
+      </div>
+    </article>
   );
 }

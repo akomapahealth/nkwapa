@@ -79,6 +79,18 @@ export class ClinicStaffInvitesController {
     );
   }
 
+  @Post(':inviteId/remove')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.CLINIC_STAFF_INVITE)
+  async remove(@Param() params: ClinicStaffInviteParamsDto, @Request() req: InviteRequest) {
+    return this.staffInviteService.remove(
+      this.actor(req),
+      params.clinicId,
+      params.inviteId,
+      req.headers?.['x-request-id'] ?? randomUUID(),
+    );
+  }
+
   private actor(req: InviteRequest) {
     return { userId: req.user.user.id, roles: req.user.roles };
   }
