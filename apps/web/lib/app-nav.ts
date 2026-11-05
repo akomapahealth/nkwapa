@@ -12,9 +12,9 @@ import {
   LayoutDashboard,
   Network,
   Send,
-  Settings,
   Shield,
   ShieldCheck,
+  SlidersHorizontal,
   Stethoscope,
   UserCog,
   Users,
@@ -193,10 +193,11 @@ const NAV_SECTIONS: AppNavSection[] = [
       },
       {
         href: '/settings/clinic',
-        // "Clinic", because /settings is now each person's own settings.
+        // "Clinic", because /settings is now each person's own settings. Its own icon, because
+        // the gear is "Your settings" in the same menu (#318).
         label: 'Clinic settings',
         description: 'Clinic controls.',
-        icon: Settings,
+        icon: SlidersHorizontal,
         permission: 'RESEARCH.SETTINGS.UPDATE',
         requiresClinic: true,
         placement: 'profile',

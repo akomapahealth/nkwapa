@@ -4,6 +4,9 @@
 
 @layer base {
   :root {
+    /* app/layout.tsx loads each family as two faces; latin-ext only covers its unicode-range. */
+    --font-body: var(--font-body-ext), var(--font-body-latin);
+    --font-heading: var(--font-heading-ext), var(--font-heading-latin);
     --background: 54 63% 97%;
     --foreground: 200 25% 15%;
     --card: 50 33% 98%;

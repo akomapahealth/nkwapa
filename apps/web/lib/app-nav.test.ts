@@ -114,3 +114,14 @@ describe('placement (#267)', () => {
     expect(hrefs(settingsOnly, 'profile')).toEqual(['/settings/clinic']);
   });
 });
+
+describe('the account menu icons (#318)', () => {
+  it('gives Clinic settings an icon other than the gear "Your settings" uses', () => {
+    const { Settings } = jest.requireActual<typeof import('lucide-react')>('lucide-react');
+    const clinicSettings = getAccessibleNavItems(bootstrapAs(['DIRECTOR'], ['*']), 'profile').find(
+      (item) => item.href === '/settings/clinic',
+    );
+    expect(clinicSettings).toBeDefined();
+    expect(clinicSettings?.icon).not.toBe(Settings);
+  });
+});

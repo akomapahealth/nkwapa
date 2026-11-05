@@ -210,9 +210,13 @@ export default function StationVisitPage() {
   if (!enabled) {
     return (
       <RouteGuard requiredPermission="OPS.STATION.READ" requiresClinic>
-        <InlineNotice tone="info" live={false}>
-          Stations are not turned on for this clinic.
-        </InlineNotice>
+        {/* The page keeps its heading with the flag off (#313). */}
+        <div className="space-y-6">
+          <AppPageHeader title="Station visit" />
+          <InlineNotice tone="info" live={false}>
+            Stations are not turned on for this clinic.
+          </InlineNotice>
+        </div>
       </RouteGuard>
     );
   }

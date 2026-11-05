@@ -125,4 +125,19 @@ test.describe('an account holding every role', () => {
     // The #229 baseline was 7,342px, and stacking every role section made it 8,178px.
     expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThan(5_000);
   });
+
+  test('opens on the role section chosen last time (#315)', async ({ page }) => {
+    await page.goto('/dashboard');
+    const views = page.getByRole('tablist', { name: 'Dashboard view' });
+    const network = views.getByRole('tab', { name: 'Network overview' });
+    await network.click();
+    await expect(network).toHaveAttribute('aria-selected', 'true');
+
+    await page.reload();
+    await expect(network).toHaveAttribute('aria-selected', 'true');
+    await expect(views.getByRole('tab', { name: 'Clinic trends' })).toHaveAttribute(
+      'aria-selected',
+      'false',
+    );
+  });
 });

@@ -25,6 +25,7 @@ import {
 } from '@/components/dashboard/ClinicalMeasurementsDashboard';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { pickDashboardTab, readDashboardTab, writeDashboardTab } from '@/lib/dashboard-tab-storage';
 import { useToast } from '@/components/ui/toast';
 import { EmptyStateCard } from '@/components/ops/OpsShared';
 import { RefreshCw } from 'lucide-react';
@@ -135,6 +136,12 @@ export default function DashboardPage() {
     (perms.includes('*') || perms.includes('OPS.STATION.MANAGE'));
 
   const [zoneFilter, setZoneFilter] = useState<ZoneFilter>(null);
+  const userId = bootstrap?.userId ?? null;
+  // Read after mount, not during render, so the server and first client render agree (#315).
+  const [storedTab, setStoredTab] = useState<string | null>(null);
+  useEffect(() => {
+    setStoredTab(userId && clinicId ? readDashboardTab(userId, clinicId) : null);
+  }, [userId, clinicId]);
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -339,7 +346,17 @@ export default function DashboardPage() {
                   with every role ran past 8,000px at 1440; each section is still one press away,
                   and its numbers are unchanged.
                 */
-                <Tabs defaultValue={roleSections[0].id} className="space-y-6">
+                <Tabs
+                  value={pickDashboardTab(
+                    storedTab,
+                    roleSections.map((section) => section.id),
+                  )}
+                  onValueChange={(tab) => {
+                    setStoredTab(tab);
+                    if (userId && clinicId) writeDashboardTab(userId, clinicId, tab);
+                  }}
+                  className="space-y-6"
+                >
                   <TabsList
                     aria-label="Dashboard view"
                     className="flex h-auto w-full flex-wrap justify-start gap-1 bg-transparent p-0"
