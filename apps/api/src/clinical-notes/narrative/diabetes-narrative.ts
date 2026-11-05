@@ -1,4 +1,8 @@
 import {
+  STORED_UNITS,
+  formatGlucose,
+  formatHba1c,
+  glucoseFromMgDl,
   DIABETES_CLINICIAN_PLAN_ITEM_LABELS,
   DIABETES_CONCERN_LABELS,
   DIABETES_DISTRESS_RESPONSE_LABELS,
@@ -45,6 +49,18 @@ const SUSPICION_SENTENCES: Record<string, string> = {
  */
 export function renderDiabetesNarrative(input: NarrativeInput): HapSections {
   const a = input.assessment;
+  const units = input.units ?? STORED_UNITS;
+  // Stored mg/dL in the clinic's unit; anything that is not a number is shown as recorded.
+  const glucose = (raw: unknown) => {
+    const mgDl = num(raw);
+    return mgDl == null
+      ? value(str(raw))
+      : (formatGlucose(mgDl, units.glucoseUnit) ?? NOT_RECORDED);
+  };
+  const glucoseNumber = (raw: unknown) => {
+    const mgDl = num(raw);
+    return mgDl == null ? value(str(raw)) : String(glucoseFromMgDl(mgDl, units.glucoseUnit));
+  };
   const nutrition = parseDiabetesNutrition(a.nutrition ?? null).payload;
 
   const diagnosedIn = bool(a.yearDiagnosedUnknown)
@@ -61,7 +77,7 @@ export function renderDiabetesNarrative(input: NarrativeInput): HapSections {
 
   const hba1c =
     a.hba1cStatus === 'VALUE_KNOWN'
-      ? `${value(num(a.hba1cPercent) ?? str(a.hba1cPercent))}% on ${isoDay(a.hba1cMeasuredOn)}`
+      ? `${num(a.hba1cPercent) == null ? `${value(str(a.hba1cPercent))}%` : formatHba1c(num(a.hba1cPercent), units.hba1cUnit)} on ${isoDay(a.hba1cMeasuredOn)}`
       : lower(
           { UNKNOWN: 'unknown', NEVER_CHECKED: 'never checked', NOT_ASSESSED: NOT_RECORDED },
           a.hba1cStatus,
@@ -69,10 +85,10 @@ export function renderDiabetesNarrative(input: NarrativeInput): HapSections {
 
   const control = paragraph(
     'Diabetes control',
-    `Today's capillary blood glucose was ${value(num(a.glucoseMgDl) ?? str(a.glucoseMgDl))} mg/dL, measured ` +
+    `Today's capillary blood glucose was ${glucose(a.glucoseMgDl)}, measured ` +
       `${lower(DIABETES_GLUCOSE_CONTEXT_LABELS, a.glucoseType)}. The most recent HbA1c was ${hba1c}. ` +
       (a.homeGlucoseMonitoring === 'YES'
-        ? `The patient monitors blood glucose at home; reported readings range from ${value(num(a.homeGlucoseLowMgDl) ?? str(a.homeGlucoseLowMgDl))} to ${value(num(a.homeGlucoseHighMgDl) ?? str(a.homeGlucoseHighMgDl))} mg/dL.`
+        ? `The patient monitors blood glucose at home; reported readings range from ${glucoseNumber(a.homeGlucoseLowMgDl)} to ${glucose(a.homeGlucoseHighMgDl)}.`
         : 'The patient does not monitor blood glucose at home.'),
   );
 
@@ -136,7 +152,7 @@ export function renderDiabetesNarrative(input: NarrativeInput): HapSections {
 
   const assessmentParagraph = paragraph(
     'Glucose assessment',
-    `Today's reading of ${value(num(a.glucoseMgDl) ?? str(a.glucoseMgDl))} mg/dL, measured ` +
+    `Today's reading of ${glucose(a.glucoseMgDl)}, measured ` +
       `${lower(DIABETES_GLUCOSE_CONTEXT_LABELS, a.glucoseType)}, ` +
       `${SUSPICION_SENTENCES[str(a.derivedSuspicion) ?? ''] ?? SUSPICION_SENTENCES.NOT_ASSESSED}.`,
   );

@@ -6,6 +6,13 @@ import {
   type TemperatureUnit,
   type VitalsSection,
 } from '@nkwapa/db/clinical-measurements';
+import type { BodyMeasureUnit } from '@nkwapa/db/measurement-units';
+import {
+  heightEntryError,
+  heightEntryToCm,
+  weightEntryError,
+  weightTextToKg,
+} from './measurement-entry';
 import { db, type TobaccoScreeningRecord, type VitalsRecord } from './db';
 import { buildOutboxMutation, SYNC_OPERATION } from './outbox';
 
@@ -54,10 +61,33 @@ export type VitalsFormValues = {
   temperatureSourceOther: string;
   respiratoryRate: string;
   spo2Percent: string;
-  weightKg: string;
-  heightCm: string;
+  /** As typed, in `bodyUnit`: kg or lb. */
+  weight: string;
+  /** Centimetres, for a metric clinic. */
+  height: string;
+  /** Feet and inches, for a US-units clinic. */
+  heightFeet: string;
+  heightInches: string;
+  bodyUnit: BodyMeasureUnit;
+  /** What the record held, so a value shown rounded in lb or ft and in is saved unchanged. */
+  stored?: { weightKg: number | null; heightCm: number | null };
   notes: string;
 };
+
+/** Weight in stored kg; null when empty, NaN when not a number. */
+export function vitalsWeightKg(vitals: VitalsFormValues): number | null {
+  if (!vitals.weight.trim()) return null;
+  return weightTextToKg(vitals.weight, vitals.bodyUnit, vitals.stored?.weightKg) ?? Number.NaN;
+}
+
+/** Height in stored cm; null when empty, NaN when not a height. */
+export function vitalsHeightCm(vitals: VitalsFormValues): number | null {
+  return heightEntryToCm(
+    { cm: vitals.height, feet: vitals.heightFeet, inches: vitals.heightInches },
+    vitals.bodyUnit,
+    vitals.stored?.heightCm,
+  );
+}
 
 export type TobaccoFormValues = {
   smokingStatus: string;
@@ -148,8 +178,13 @@ export function validateClinicalMeasurements(
     'Respiratory rate',
   );
   validateRange(errors, 'spo2Percent', optionalNumber(vitals.spo2Percent), 1, 100, 'SpO₂');
-  validateRange(errors, 'weightKg', optionalNumber(vitals.weightKg), 0.1, 700, 'Weight');
-  validateRange(errors, 'heightCm', optionalNumber(vitals.heightCm), 20, 300, 'Height');
+  const weightError = weightEntryError(vitals.weight, vitals.bodyUnit);
+  if (weightError) errors.weight = weightError;
+  const heightError = heightEntryError(
+    { cm: vitals.height, feet: vitals.heightFeet, inches: vitals.heightInches },
+    vitals.bodyUnit,
+  );
+  if (heightError) errors.height = heightError;
 
   const temperatureValue = optionalNumber(vitals.temperatureValue);
   if (temperatureValue != null) {
@@ -174,8 +209,12 @@ export function validateClinicalMeasurements(
   return errors;
 }
 
-export function derivedBmi(vitals: Pick<VitalsFormValues, 'weightKg' | 'heightCm'>): number | null {
-  return computeBmi(optionalNumber(vitals.weightKg), optionalNumber(vitals.heightCm));
+export function derivedBmi(vitals: VitalsFormValues): number | null {
+  const weightKg = vitalsWeightKg(vitals);
+  const heightCm = vitalsHeightCm(vitals);
+  return Number.isFinite(weightKg) && Number.isFinite(heightCm)
+    ? computeBmi(weightKg, heightCm)
+    : null;
 }
 
 export async function saveClinicalMeasurementsOffline(params: {
@@ -232,8 +271,8 @@ export async function saveClinicalMeasurementsOffline(params: {
     temperatureSourceOther: params.vitals.temperatureSourceOther.trim() || undefined,
     respiratoryRate: optionalNumber(params.vitals.respiratoryRate) ?? undefined,
     spo2Percent: optionalNumber(params.vitals.spo2Percent) ?? undefined,
-    weightKg: optionalNumber(params.vitals.weightKg) ?? undefined,
-    heightCm: optionalNumber(params.vitals.heightCm) ?? undefined,
+    weightKg: vitalsWeightKg(params.vitals) ?? undefined,
+    heightCm: vitalsHeightCm(params.vitals) ?? undefined,
     bmi: derivedBmi(params.vitals) ?? undefined,
     notes: params.vitals.notes.trim() || undefined,
     createdAt: params.existingVitals?.createdAt ?? now,
@@ -276,8 +315,9 @@ export async function saveClinicalMeasurementsOffline(params: {
     temperatureSourceOther: params.vitals.temperatureSourceOther.trim() || null,
     respiratoryRate: optionalNumber(params.vitals.respiratoryRate),
     spo2Percent: optionalNumber(params.vitals.spo2Percent),
-    weightKg: optionalNumber(params.vitals.weightKg),
-    heightCm: optionalNumber(params.vitals.heightCm),
+    // Stored units only: lb and ft/in never reach the outbox.
+    weightKg: vitalsWeightKg(params.vitals),
+    heightCm: vitalsHeightCm(params.vitals),
     notes: params.vitals.notes.trim() || null,
   };
   const vitalsRecord = sections
@@ -328,7 +368,11 @@ function pickSectionErrors(
   sections: VitalsSection[],
 ): ClinicalFieldErrors {
   const allowed = new Set<string>(
-    sections.flatMap((section) => VITALS_SECTION_INPUT_FIELDS[section]),
+    sections.flatMap((section) => [
+      ...VITALS_SECTION_INPUT_FIELDS[section],
+      // The form's own names for what it sends as weightKg and heightCm.
+      ...(section === 'anthropometry' ? ['weight', 'height'] : []),
+    ]),
   );
   return Object.fromEntries(Object.entries(errors).filter(([field]) => allowed.has(field)));
 }

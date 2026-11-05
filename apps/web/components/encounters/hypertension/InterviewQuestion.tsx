@@ -202,17 +202,20 @@ export function NumberQuestion({
   value,
   onChange,
   placeholder,
+  decimal,
   ...shell
 }: QuestionProps & {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  /** Offer the decimal keypad, for a value such as mmol/L glucose that is not a whole number. */
+  decimal?: boolean;
 }) {
   return (
     <QuestionShell {...shell}>
       <Input
         id={shell.id}
-        inputMode="numeric"
+        inputMode={decimal ? 'decimal' : 'numeric'}
         autoComplete="off"
         value={value}
         placeholder={placeholder}

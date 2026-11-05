@@ -2,6 +2,16 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Building2, RotateCcw, ShieldCheck } from 'lucide-react';
+import { isCountryCode } from '@nkwapa/db/clinic-metadata';
+import {
+  BODY_MEASURE_UNIT_LABELS,
+  BODY_MEASURE_UNITS,
+  GLUCOSE_UNIT_LABELS,
+  GLUCOSE_UNITS,
+  HBA1C_UNIT_LABELS,
+  HBA1C_UNITS,
+  defaultUnitsForCountry,
+} from '@nkwapa/db/measurement-units';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
@@ -80,6 +90,17 @@ interface ClinicMetadataDialogProps {
  * Server `fieldErrors` are merged into the same map, so a duplicate location code is reported
  * on the location code field rather than as a banner somewhere above the dialog.
  */
+const UNIT_FIELDS = [
+  { key: 'glucoseUnit', label: 'Glucose', options: GLUCOSE_UNITS, labels: GLUCOSE_UNIT_LABELS },
+  {
+    key: 'bodyUnit',
+    label: 'Weight and height',
+    options: BODY_MEASURE_UNITS,
+    labels: BODY_MEASURE_UNIT_LABELS,
+  },
+  { key: 'hba1cUnit', label: 'HbA1c', options: HBA1C_UNITS, labels: HBA1C_UNIT_LABELS },
+] as const;
+
 export function ClinicMetadataDialog({
   open,
   mode,
@@ -417,7 +438,16 @@ export function ClinicMetadataDialog({
                   required
                   value={values.countryCode}
                   maxLength={2}
-                  onChange={(event) => update({ countryCode: event.target.value.toUpperCase() })}
+                  onChange={(event) => {
+                    const countryCode = event.target.value.toUpperCase();
+                    // A new clinic starts in its country's units; an existing one keeps what its
+                    // staff chose, whatever its country code becomes.
+                    update(
+                      mode === 'create' && isCountryCode(countryCode)
+                        ? { countryCode, ...defaultUnitsForCountry(countryCode) }
+                        : { countryCode },
+                    );
+                  }}
                   placeholder="GH"
                   className="uppercase"
                   {...fieldErrorProps('clinic-countryCode', shownErrors.countryCode)}
@@ -429,6 +459,36 @@ export function ClinicMetadataDialog({
                 )}
               </div>
             </div>
+
+            <fieldset className="space-y-3 rounded-md border border-border p-4">
+              <legend className="px-1 text-sm font-medium">Measurement units</legend>
+              <p className="text-sm text-muted-foreground">
+                The units staff type and read screening values in. Saved values do not change, so
+                switching is safe at any time.
+              </p>
+              <div className="grid gap-4 sm:grid-cols-3">
+                {UNIT_FIELDS.map(({ key, label, options, labels }) => (
+                  <div key={key} className="space-y-2">
+                    <Label htmlFor={`clinic-${key}`}>{label}</Label>
+                    <Select
+                      value={values[key]}
+                      onValueChange={(next) => update({ [key]: next } as Partial<ClinicFormValues>)}
+                    >
+                      <SelectTrigger id={`clinic-${key}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {options.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {labels[option as keyof typeof labels]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
+              </div>
+            </fieldset>
 
             {mode === 'edit' ? (
               <div className="flex items-start gap-2 pt-1">

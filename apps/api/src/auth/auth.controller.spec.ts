@@ -1,6 +1,9 @@
+import { STORED_UNITS } from '@nkwapa/db';
 import { UserRole } from '@prisma/client';
 import { DisabledUserException } from './disabled-user.exception';
 import { AuthController, type ReqUser } from './auth.controller';
+
+const GH_UNITS = { glucoseUnit: 'MMOL_L', bodyUnit: 'METRIC', hba1cUnit: 'PERCENT' } as const;
 
 describe('AuthController', () => {
   const clinicService = {
@@ -47,12 +50,24 @@ describe('AuthController', () => {
     // One clinic zoned and one not, so the contract is exercised on both branches rather than
     // on a value that happens to be present everywhere.
     clinicService.findByIds.mockResolvedValue([
-      { id: 'clinic-1', name: 'Test Clinic', region: 'Greater Accra', zoneCode: 'coastal' },
+      {
+        id: 'clinic-1',
+        name: 'Test Clinic',
+        region: 'Greater Accra',
+        zoneCode: 'coastal',
+        ...GH_UNITS,
+      },
       { id: 'clinic-2', name: 'Second Clinic', region: 'Ashanti', zoneCode: null },
     ]);
     clinicService.listActiveSwitchableClinics.mockResolvedValue([
       { id: 'clinic-2', name: 'Second Clinic', region: 'Ashanti', zoneCode: null },
-      { id: 'clinic-1', name: 'Test Clinic', region: 'Greater Accra', zoneCode: 'coastal' },
+      {
+        id: 'clinic-1',
+        name: 'Test Clinic',
+        region: 'Greater Accra',
+        zoneCode: 'coastal',
+        ...GH_UNITS,
+      },
     ]);
     prisma.user.findUnique.mockResolvedValue({
       email: 'test@example.com',
@@ -89,12 +104,15 @@ describe('AuthController', () => {
         clinicId: 'clinic-1',
         clinicName: 'Test Clinic',
         zoneCode: 'coastal',
+        units: GH_UNITS,
         roles: ['MANAGER'],
       },
       {
         clinicId: 'clinic-2',
         clinicName: 'Second Clinic',
         zoneCode: null,
+        // Sent without units: a row that predates them reads as the stored units.
+        units: STORED_UNITS,
         roles: ['VOLUNTEER'],
       },
     ]);
@@ -103,11 +121,14 @@ describe('AuthController', () => {
         clinicId: 'clinic-2',
         clinicName: 'Second Clinic',
         zoneCode: null,
+        // Sent without units: a row that predates them reads as the stored units.
+        units: STORED_UNITS,
       },
       {
         clinicId: 'clinic-1',
         clinicName: 'Test Clinic',
         zoneCode: 'coastal',
+        units: GH_UNITS,
       },
     ]);
     expect(response.effectiveRolesForActiveClinic).toEqual([
@@ -120,7 +141,13 @@ describe('AuthController', () => {
   it('lets global system admins with no clinic roles switch to any active clinic', async () => {
     clinicService.listActiveSwitchableClinics.mockResolvedValue([
       { id: 'clinic-2', name: 'Second Clinic', region: 'Ashanti', zoneCode: null },
-      { id: 'clinic-1', name: 'Test Clinic', region: 'Greater Accra', zoneCode: 'coastal' },
+      {
+        id: 'clinic-1',
+        name: 'Test Clinic',
+        region: 'Greater Accra',
+        zoneCode: 'coastal',
+        ...GH_UNITS,
+      },
     ]);
 
     const response = await controller.whoami({
@@ -144,11 +171,14 @@ describe('AuthController', () => {
         clinicId: 'clinic-2',
         clinicName: 'Second Clinic',
         zoneCode: null,
+        // Sent without units: a row that predates them reads as the stored units.
+        units: STORED_UNITS,
       },
       {
         clinicId: 'clinic-1',
         clinicName: 'Test Clinic',
         zoneCode: 'coastal',
+        units: GH_UNITS,
       },
     ]);
     expect(response.activeClinicId).toBe('clinic-1');
@@ -159,7 +189,13 @@ describe('AuthController', () => {
   it('falls back when a system admin requests a clinic that is not active', async () => {
     clinicService.listActiveSwitchableClinics.mockResolvedValue([
       { id: 'clinic-2', name: 'Second Clinic', region: 'Ashanti', zoneCode: null },
-      { id: 'clinic-1', name: 'Test Clinic', region: 'Greater Accra', zoneCode: 'coastal' },
+      {
+        id: 'clinic-1',
+        name: 'Test Clinic',
+        region: 'Greater Accra',
+        zoneCode: 'coastal',
+        ...GH_UNITS,
+      },
     ]);
 
     const response = await controller.whoami({
@@ -180,10 +216,22 @@ describe('AuthController', () => {
 
   it('only exposes active assigned clinics for non-system-admin users', async () => {
     clinicService.findByIds.mockResolvedValue([
-      { id: 'clinic-1', name: 'Test Clinic', region: 'Greater Accra', zoneCode: 'coastal' },
+      {
+        id: 'clinic-1',
+        name: 'Test Clinic',
+        region: 'Greater Accra',
+        zoneCode: 'coastal',
+        ...GH_UNITS,
+      },
     ]);
     clinicService.listActiveSwitchableClinics.mockResolvedValue([
-      { id: 'clinic-1', name: 'Test Clinic', region: 'Greater Accra', zoneCode: 'coastal' },
+      {
+        id: 'clinic-1',
+        name: 'Test Clinic',
+        region: 'Greater Accra',
+        zoneCode: 'coastal',
+        ...GH_UNITS,
+      },
     ]);
 
     const response = await controller.whoami({
@@ -212,6 +260,7 @@ describe('AuthController', () => {
         clinicId: 'clinic-1',
         clinicName: 'Test Clinic',
         zoneCode: 'coastal',
+        units: GH_UNITS,
         roles: ['MANAGER'],
       },
     ]);
@@ -220,6 +269,7 @@ describe('AuthController', () => {
         clinicId: 'clinic-1',
         clinicName: 'Test Clinic',
         zoneCode: 'coastal',
+        units: GH_UNITS,
       },
     ]);
     expect(response.activeClinicId).toBe('clinic-1');

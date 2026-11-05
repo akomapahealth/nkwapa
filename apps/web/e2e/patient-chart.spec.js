@@ -231,7 +231,8 @@ for (const reducedMotion of ['reduce', 'no-preference']) {
         ['Systolic (mmHg)', 'Diastolic (mmHg)'],
         ['120', '80', '150', '90', '130', '85'],
       ],
-      ['Glucose trend', ['Glucose (mg/dL)'], ['105']],
+      // Stored as 105 mg/dL; the seeded clinic is in Ghana, so it reads in mmol/L.
+      ['Glucose trend', ['Glucose (mmol/L)'], ['5.8']],
       ['SpO₂ trend', ['SpO₂ (%)'], ['98']],
     ]) {
       const section = page

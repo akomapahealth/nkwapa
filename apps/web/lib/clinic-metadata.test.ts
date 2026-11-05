@@ -31,6 +31,9 @@ const validForm: ClinicFormValues = {
   zoneCode: 'greater-accra',
   countryCode: 'GH',
   isActive: true,
+  glucoseUnit: 'MMOL_L',
+  bodyUnit: 'METRIC',
+  hba1cUnit: 'PERCENT',
 };
 
 function clinic(overrides: Partial<ClinicRow> = {}): ClinicRow {
@@ -141,6 +144,9 @@ describe('clinicFormToPayload', () => {
       locationCode: 'ridge-clinic',
       zoneCode: 'greater-accra',
       countryCode: 'GH',
+      glucoseUnit: 'MMOL_L',
+      bodyUnit: 'METRIC',
+      hba1cUnit: 'PERCENT',
       organizationId: 'org-1',
     });
   });
@@ -312,5 +318,25 @@ describe('matchesTimeZoneQuery', () => {
 
   it('matches everything on an empty query', () => {
     expect(matchesTimeZoneQuery('Africa/Accra', '   ')).toBe(true);
+  });
+});
+
+describe('clinic measurement units', () => {
+  it('starts a new clinic in Ghana units', () => {
+    expect(emptyClinicForm(null)).toMatchObject({
+      glucoseUnit: 'MMOL_L',
+      bodyUnit: 'METRIC',
+      hba1cUnit: 'PERCENT',
+    });
+  });
+
+  it('reads a clinic row from an older API as the stored units', () => {
+    expect(clinicFormFromRow(clinic())).toMatchObject({ glucoseUnit: 'MG_DL', bodyUnit: 'METRIC' });
+  });
+
+  it('sends the chosen units', () => {
+    expect(
+      clinicFormToPayload({ ...validForm, glucoseUnit: 'MG_DL', hba1cUnit: 'MMOL_MOL' }),
+    ).toMatchObject({ glucoseUnit: 'MG_DL', bodyUnit: 'METRIC', hba1cUnit: 'MMOL_MOL' });
   });
 });

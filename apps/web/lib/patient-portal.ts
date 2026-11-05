@@ -1,5 +1,11 @@
 import type { GetToken } from '@/lib/api';
 import { apiFetch } from '@/lib/api';
+import {
+  STORED_UNITS,
+  formatGlucose,
+  formatWeight,
+  type ClinicUnits,
+} from '@nkwapa/db/measurement-units';
 import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import type { WhoAmIResponse } from '@/lib/bootstrap-context';
 import { readTrendNumber } from '@/lib/patient-trends';
@@ -721,7 +727,11 @@ export function formatMeasurementLabel(type: MeasurementRecord['type'] | string)
   }
 }
 
-export function formatMeasurementValue(record: MeasurementRecord | LegacySelfReport) {
+/** One reading for display, in the clinic's units. Stored values are mg/dL and kg. */
+export function formatMeasurementValue(
+  record: MeasurementRecord | LegacySelfReport,
+  units: Pick<ClinicUnits, 'glucoseUnit' | 'bodyUnit'> = STORED_UNITS,
+) {
   if ('payload' in record) {
     if (record.type === 'BP') {
       const systolic = readTrendNumber(record.payload.systolic);
@@ -736,11 +746,13 @@ export function formatMeasurementValue(record: MeasurementRecord | LegacySelfRep
         typeof record.payload.glucoseType === 'string'
           ? record.payload.glucoseType.toLowerCase()
           : null;
-      return value != null ? `${value} mg/dL${glucoseType ? ` • ${glucoseType}` : ''}` : 'Glucose';
+      return value != null
+        ? `${formatGlucose(value, units.glucoseUnit)}${glucoseType ? ` • ${glucoseType}` : ''}`
+        : 'Glucose';
     }
     if (record.type === 'WEIGHT') {
       const kg = readTrendNumber(record.payload.kg);
-      return kg != null ? `${kg} kg` : 'Weight';
+      return formatWeight(kg, units.bodyUnit) ?? 'Weight';
     }
   }
 
@@ -753,11 +765,11 @@ export function formatMeasurementValue(record: MeasurementRecord | LegacySelfRep
   }
   if (legacyRecord.type === 'HOME_GLUCOSE') {
     return legacyRecord.glucoseMgDl != null
-      ? `${legacyRecord.glucoseMgDl} mg/dL${legacyRecord.glucoseType ? ` • ${legacyRecord.glucoseType.toLowerCase()}` : ''}`
+      ? `${formatGlucose(legacyRecord.glucoseMgDl, units.glucoseUnit)}${legacyRecord.glucoseType ? ` • ${legacyRecord.glucoseType.toLowerCase()}` : ''}`
       : 'Glucose';
   }
   if (legacyRecord.type === 'WEIGHT') {
-    return legacyRecord.weightKg != null ? `${legacyRecord.weightKg} kg` : 'Weight';
+    return formatWeight(legacyRecord.weightKg, units.bodyUnit) ?? 'Weight';
   }
   return legacyRecord.notes?.trim() || 'Patient submission';
 }
