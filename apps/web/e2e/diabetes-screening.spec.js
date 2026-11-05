@@ -81,6 +81,9 @@ test('diabetes screening round-trips longitudinally, offline, read-only, and res
 
   await expect(page.getByRole('button', { name: 'Save screening' })).toBeEnabled();
   await page.getByLabel("Today's glucose (mmol/L)").focus();
+  // The reading's own unit switch comes next, then the sample timing.
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('combobox', { name: 'Glucose unit' })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(page.getByLabel('When was the sample taken?')).toBeFocused();
 
