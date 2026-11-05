@@ -206,10 +206,13 @@ export default function StationsPage() {
   if (!enabled) {
     return (
       <RouteGuard requiredPermission="OPS.STATION.READ" requiresClinic>
-        <EmptyStateCard
-          title="Stations are not turned on"
-          description="This clinic assigns patients from the Today board."
-        />
+        {/* The page keeps its heading with the flag off (#313). */}
+        <div className="space-y-6">
+          <AppPageHeader title="Stations" />
+          <InlineNotice tone="info" live={false}>
+            Stations are not turned on. This clinic assigns patients from the Today board.
+          </InlineNotice>
+        </div>
       </RouteGuard>
     );
   }

@@ -301,6 +301,7 @@ export function EmptyState({
   icon = Inbox,
   action,
   density = 'comfortable',
+  titleAs: Title = 'h3',
   className,
 }: {
   title: string;
@@ -321,6 +322,8 @@ export function EmptyState({
    * because an empty queue column and an empty page are not the same message.
    */
   density?: 'comfortable' | 'compact';
+  /** `h2` where the empty state sits straight under the page's h1, so no level is skipped (#313). */
+  titleAs?: 'h2' | 'h3';
   className?: string;
 }) {
   /*
@@ -345,7 +348,7 @@ export function EmptyState({
         <div className="flex items-start gap-3">
           <span className="mt-0.5 shrink-0 text-muted-foreground">{glyph}</span>
           <div>
-            <h3 className="type-section-title text-foreground">{title}</h3>
+            <Title className="type-section-title text-foreground">{title}</Title>
             <p className="type-body mt-1">{description}</p>
             {action ? <div className="pt-3">{action}</div> : null}
           </div>
@@ -365,7 +368,7 @@ export function EmptyState({
         {glyph}
       </span>
       <div className="space-y-1">
-        <h3 className="type-section-title text-foreground">{title}</h3>
+        <Title className="type-section-title text-foreground">{title}</Title>
         <p className="type-body mx-auto max-w-prose text-muted-foreground">{description}</p>
       </div>
       {action ? <div className="pt-1">{action}</div> : null}
@@ -406,7 +409,8 @@ export function NoAccessState({
         <div className="flex gap-3">
           <Lock aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
           <div className="space-y-1">
-            <p className="font-medium text-foreground">{title}</p>
+            {/* The page heading: every caller renders this state in place of the page (#313). */}
+            <h1 className="font-body text-sm font-medium text-foreground">{title}</h1>
             <p className="max-w-prose leading-6 text-muted-foreground">{description}</p>
           </div>
         </div>

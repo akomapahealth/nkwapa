@@ -427,6 +427,16 @@ font hosts and verify both applied, loaded faces and first-party preload URLs.
 The four registration screenshot pairs are pixel-identical. No colour tokens or
 type scale values changed. Shipped in [PR #287](https://github.com/akomapahealth/nkwapa/pull/287).
 
+**Committed font files (#316).** The build no longer downloads fonts. The
+latin and latin-ext WOFF2 subsets of both families live in `apps/web/app/fonts/`
+(byte-identical to what `next/font/google` emitted) and load through
+`next/font/local`. Each family is two faces: latin is preloaded and carries the
+fallback metrics; latin-ext declares the Google Fonts `unicode-range`, so it is
+fetched only when a page shows a character such as Ɛ, Ɔ or Ŋ. `globals.css`
+composes `--font-body` and `--font-heading` with the latin-ext face first. The
+cyrillic, greek and vietnamese subsets were dropped (about 105 KB of files no
+clinic name has needed) and fall back to the system font.
+
 ---
 
 ### Semantic type roles (#264)

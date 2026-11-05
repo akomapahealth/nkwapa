@@ -1,6 +1,6 @@
 import './globals.css';
 import type { Metadata, Viewport } from 'next';
-import { IBM_Plex_Sans, Source_Serif_4 } from 'next/font/google';
+import localFont from 'next/font/local';
 import { APP_DESCRIPTION, APP_NAME, APP_SHORT_NAME, themeColorFor } from '@/lib/app-identity';
 import { PwaBoot } from '@/components/pwa/PwaBoot';
 import { ServiceWorkerRegistration } from '@/components/pwa/ServiceWorkerRegistration';
@@ -9,21 +9,54 @@ import { CookieConsent } from '@/components/CookieConsent';
 import { ThemeProvider } from '@/lib/theme-context';
 import { themeStorageKey } from '@/lib/theme-storage';
 
-// Download at build time and serve locally. Preload Latin for the English UI;
-// other subsets remain available for patient names without third-party requests.
-const bodyFont = IBM_Plex_Sans({
-  subsets: ['latin'],
-  weight: 'variable',
+// Self-hosted copies of the Google Fonts latin and latin-ext subsets, so the build needs no
+// network (#316). latin is preloaded; latin-ext (Ghanaian letters such as Ɛ, Ɔ, Ŋ in patient
+// names) loads only when a page uses one, through Google's unicode-range, repeated per call
+// because font loader options must be literals. globals.css puts latin-ext first in each stack.
+// shortcut: cyrillic, greek and vietnamese fall back to the system font; add those subset files the same way if names need them.
+const ibmPlexSans = localFont({
+  src: './fonts/ibm-plex-sans-latin.woff2',
+  weight: '100 700',
   display: 'swap',
-  variable: '--font-body',
+  variable: '--font-body-latin',
   fallback: ['system-ui', 'sans-serif'],
 });
-const headingFont = Source_Serif_4({
-  subsets: ['latin'],
-  weight: 'variable',
+const ibmPlexSansExt = localFont({
+  src: './fonts/ibm-plex-sans-latin-ext.woff2',
+  weight: '100 700',
   display: 'swap',
-  variable: '--font-heading',
+  variable: '--font-body-ext',
+  preload: false,
+  adjustFontFallback: false,
+  declarations: [
+    {
+      prop: 'unicode-range',
+      value:
+        'U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF',
+    },
+  ],
+});
+const sourceSerif4 = localFont({
+  src: './fonts/source-serif-4-latin.woff2',
+  weight: '200 900',
+  display: 'swap',
+  variable: '--font-heading-latin',
   fallback: ['Georgia', 'serif'],
+});
+const sourceSerif4Ext = localFont({
+  src: './fonts/source-serif-4-latin-ext.woff2',
+  weight: '200 900',
+  display: 'swap',
+  variable: '--font-heading-ext',
+  preload: false,
+  adjustFontFallback: false,
+  declarations: [
+    {
+      prop: 'unicode-range',
+      value:
+        'U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF',
+    },
+  ],
 });
 
 /**
@@ -117,7 +150,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // suppressHydrationWarning: themeBootScript mutates <html> before React hydrates.
     <html
       lang="en"
-      className={`${bodyFont.variable} ${headingFont.variable}`}
+      className={`${ibmPlexSans.variable} ${ibmPlexSansExt.variable} ${sourceSerif4.variable} ${sourceSerif4Ext.variable}`}
       suppressHydrationWarning
     >
       <head>

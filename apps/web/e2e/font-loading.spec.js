@@ -22,24 +22,32 @@ for (const theme of ['light', 'dark']) {
       const body = getComputedStyle(document.body);
       const heading = getComputedStyle(document.querySelector('h1'));
       const primaryFamily = (value) => value.split(',')[0].trim().replaceAll(/["']/g, '');
-      const bodyFamily = primaryFamily(body.getPropertyValue('--font-body'));
-      const headingFamily = primaryFamily(heading.getPropertyValue('--font-heading'));
+      // --font-body is "<latin-ext face>, <latin face>, <fallbacks>" (#316); the latin face renders English.
+      const familyAt = (value, index) => value.split(',')[index].trim().replaceAll(/["']/g, '');
+      const bodyStack = body.getPropertyValue('--font-body');
+      const headingStack = heading.getPropertyValue('--font-heading');
+      const bodyFamily = familyAt(bodyStack, 1);
+      const headingFamily = familyAt(headingStack, 1);
       const loaded = [...document.fonts]
         .filter((font) => font.status === 'loaded')
         .map((font) => primaryFamily(font.family));
       return {
         bodyFamily,
         headingFamily,
-        bodyApplied: primaryFamily(body.fontFamily) === bodyFamily,
-        headingApplied: primaryFamily(heading.fontFamily) === headingFamily,
+        bodyExtFamily: familyAt(bodyStack, 0),
+        headingExtFamily: familyAt(headingStack, 0),
+        bodyApplied: familyAt(body.fontFamily, 1) === bodyFamily,
+        headingApplied: familyAt(heading.fontFamily, 1) === headingFamily,
         loaded,
         preloads: [...document.querySelectorAll('link[rel="preload"][as="font"]')].map(
           (link) => link.href,
         ),
       };
     });
-    expect(fonts.bodyFamily).toMatch(/IBM.Plex.Sans/i);
-    expect(fonts.headingFamily).toMatch(/Source.Serif.4/i);
+    expect(fonts.bodyFamily).toMatch(/IBM.?Plex.?Sans/i);
+    expect(fonts.headingFamily).toMatch(/Source.?Serif.?4/i);
+    expect(fonts.bodyExtFamily).toMatch(/IBM.?Plex.?Sans.?Ext/i);
+    expect(fonts.headingExtFamily).toMatch(/Source.?Serif.?4.?Ext/i);
     expect(fonts.bodyApplied).toBe(true);
     expect(fonts.headingApplied).toBe(true);
     expect(fonts.loaded).toEqual(expect.arrayContaining([fonts.bodyFamily, fonts.headingFamily]));
@@ -50,6 +58,17 @@ for (const theme of ['light', 'dark']) {
       expect(fontUrl.origin).toBe(new URL(page.url()).origin);
       expect(fontUrl.pathname).toMatch(/^\/_next\/static\/media\/.*\.woff2$/);
     }
+    // Ghanaian letters come from the latin-ext face, loaded on demand from the same origin.
+    const extFacesLoaded = await page.evaluate(
+      async (families) =>
+        Promise.all(
+          families.map(
+            async (family) => (await document.fonts.load(`16px "${family}"`, 'ƐƆŊ')).length,
+          ),
+        ),
+      [fonts.bodyExtFamily, fonts.headingExtFamily],
+    );
+    expect(extFacesLoaded).toEqual([1, 1]);
     expect(externalFonts).toEqual([]);
   });
 }

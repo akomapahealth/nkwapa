@@ -138,6 +138,14 @@ person, and they are the ones worth an afternoon:
       inspected by anything but an eye.
 - [ ] **A real screen reader.** VoiceOver or NVDA through one encounter, start to finish. Announced
       order, whether a save is reported, whether an error is reachable from where focus lands.
+- [ ] **The 2.0 redesign on real devices and VoiceOver (#314).** Nothing from #286 to #309 has
+      had this yet. File each finding as its own issue.
+  - macOS VoiceOver (Safari): sign in, the dashboard and its role tabs, the Today board, the
+    station line, one encounter from intake to a finalized note, and the account menu.
+  - iOS VoiceOver (Safari, and the installed app): every patient portal tab, an appointment
+    request and a self-report, with the rotor's heading list checked on each page.
+  - One low-end Android phone and one tablet a clinic actually uses: the same staff flows, the
+    side menu at the tablet's height, and the offline banner on the clinic's own wifi.
 - [ ] **Clinical language.** Whether a volunteer who has never used the product can tell what a
       field wants without asking. No rule measures this.
 - [ ] **The offline path on a genuinely bad connection**, not a throttled one — clinic wifi that

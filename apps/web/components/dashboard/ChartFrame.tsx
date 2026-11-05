@@ -25,6 +25,7 @@ export function ChartFrame({
   empty,
   height,
   summary,
+  titleAs: Title = 'h3',
   children,
 }: {
   title: string;
@@ -38,6 +39,8 @@ export function ChartFrame({
   height?: number | 'auto';
   /** Always-visible lead under the title: a headline figure or a one-line description. */
   summary?: ReactNode;
+  /** `h2` where the chart sits straight under the page's h1, so no level is skipped (#313). */
+  titleAs?: 'h2' | 'h3';
   children: ReactNode;
 }) {
   const [showTable, setShowTable] = useState(false);
@@ -46,7 +49,7 @@ export function ChartFrame({
     <section className="min-w-0 border-t-2 border-rule-strong pt-3">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-2 pt-2.5">
-          <h3 className="type-label leading-snug text-foreground">{title}</h3>
+          <Title className="type-label leading-snug text-foreground">{title}</Title>
           {hint ? <InfoHint label={hint} size="sm" /> : null}
         </div>
         {hasData ? (
