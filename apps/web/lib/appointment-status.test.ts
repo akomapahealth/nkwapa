@@ -6,7 +6,11 @@ import {
   isPatientAppointmentActionable,
   getAppointmentActionLabel,
   getAppointmentStatusFilterLabel,
+  describeCancellation,
+  nextConfirmedAppointment,
   describeTimeEntryZone,
+  fromClinicDateTimeLocal,
+  toClinicDateTimeLocal,
 } from '@/lib/appointment-status';
 import type { AppointmentSummary } from '@/lib/patient-portal';
 
@@ -160,13 +164,66 @@ describe('one vocabulary across staff and portal', () => {
 });
 
 describe('describeTimeEntryZone', () => {
-  it('names the clinic zone when the device uses it', () => {
-    expect(describeTimeEntryZone('Africa/Accra', 'Africa/Accra')).toBe('Times in Africa/Accra.');
+  it('names the clinic zone, since entry no longer follows the device', () => {
+    expect(describeTimeEntryZone('Africa/Accra')).toBe(
+      "Times are in the clinic's time zone, Africa/Accra.",
+    );
+  });
+});
+
+// #307: a manager on a laptop in Chicago types 09:00 and means 09:00 at the clinic.
+describe('clinic-time entry', () => {
+  it('reads a typed time in the clinic zone, not the device zone', () => {
+    expect(fromClinicDateTimeLocal('2026-11-07T09:00', 'Africa/Lagos')).toBe(
+      '2026-11-07T08:00:00.000Z',
+    );
+    expect(fromClinicDateTimeLocal('', 'Africa/Lagos')).toBeNull();
+    expect(fromClinicDateTimeLocal('not a time', 'Africa/Lagos')).toBeNull();
   });
 
-  it('names both zones when the device differs from the clinic', () => {
-    expect(describeTimeEntryZone('Africa/Accra', 'America/Chicago')).toBe(
-      "Times here use this device's time zone, America/Chicago. The schedule shows Africa/Accra.",
+  it('prefills the form with the clinic wall-clock time and round-trips', () => {
+    const at = '2026-11-07T08:00:00.000Z';
+    expect(toClinicDateTimeLocal(at, 'Africa/Lagos')).toBe('2026-11-07T09:00');
+    expect(
+      fromClinicDateTimeLocal(toClinicDateTimeLocal(at, 'America/Chicago'), 'America/Chicago'),
+    ).toBe(at);
+  });
+});
+
+describe('describeCancellation', () => {
+  const at = '2026-11-05T10:30:00.000Z';
+
+  it('says who cancelled, when in clinic time, and why', () => {
+    expect(
+      describeCancellation(
+        { at, reason: 'Patient travelled', by: { id: 'u1', displayName: 'Ama Mensah' } },
+        'Africa/Accra',
+      ),
+    ).toBe('Cancelled by Ama Mensah, Nov 5, 10:30 AM. Reason: Patient travelled');
+  });
+
+  it('still says when when the reason and account are gone', () => {
+    expect(describeCancellation({ at, reason: null, by: null }, 'Africa/Accra')).toBe(
+      'Cancelled by an unknown user, Nov 5, 10:30 AM.',
     );
+  });
+});
+
+describe('nextConfirmedAppointment', () => {
+  const now = Date.parse('2026-11-05T12:00:00.000Z');
+  const at = (id: string, startsAt: string, status = 'CONFIRMED') => ({ id, startsAt, status });
+
+  it('skips a confirmed visit that already started earlier today', () => {
+    const items = [
+      at('morning', '2026-11-05T09:00:00.000Z'),
+      at('cancelled', '2026-11-05T13:00:00.000Z', 'CANCELLED'),
+      at('later', '2026-11-05T16:00:00.000Z'),
+      at('soon', '2026-11-05T14:00:00.000Z'),
+    ];
+    expect(nextConfirmedAppointment(items, now)?.id).toBe('soon');
+  });
+
+  it('is null when nothing confirmed is still to come', () => {
+    expect(nextConfirmedAppointment([at('morning', '2026-11-05T09:00:00.000Z')], now)).toBeNull();
   });
 });

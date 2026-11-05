@@ -23,6 +23,7 @@ import {
   ClinicAndEncounterParamsDto,
   ClinicAndEncounterPrescriptionParamsDto,
 } from '../common/request-dto';
+import { Idempotent } from '../idempotency/idempotent.decorator';
 
 type PrescriptionRequest = { user: { user: { id: string }; roles: ScopedRole[] } };
 
@@ -32,6 +33,7 @@ export class PrescriptionsController {
   constructor(private readonly prescriptionService: PrescriptionService) {}
 
   @Post()
+  @Idempotent()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.PRESCRIPTION_WRITE)
   async create(

@@ -1,5 +1,7 @@
 /** The volunteer directory and screening-day roster (#226). */
 
+import { instantToWallClock, wallClockToInstant } from '@nkwapa/db/clinic-day';
+
 export interface VolunteerContact {
   id: string;
   displayName: string;
@@ -54,50 +56,14 @@ export const eventsPath = (clinicId: string) => `/clinics/${clinicId}/screening-
 /** Delivery states that will still change on their own, so the roster keeps refetching. */
 export const PENDING_DELIVERY = new Set(['QUEUED', 'SENDING']);
 
-function zoneOffsetMs(at: Date, timeZone: string): number {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      hourCycle: 'h23',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    })
-      .formatToParts(at)
-      .map((part) => [part.type, part.value]),
-  );
-  const asUtc = Date.UTC(
-    Number(parts.year),
-    Number(parts.month) - 1,
-    Number(parts.day),
-    Number(parts.hour),
-    Number(parts.minute),
-    Number(parts.second),
-  );
-  return asUtc - at.getTime();
-}
-
-/**
- * A `datetime-local` value typed in clinic time, as an instant.
- *
- * shortcut: one offset lookup, so a wall time inside a DST jump can land an hour off. Ghana has
- * no DST; use a two-pass lookup if a DST clinic appears.
- */
+/** A `datetime-local` value typed in clinic time, as an instant. */
 export function clinicLocalToIso(local: string, timeZone: string): string | null {
-  if (!local) return null;
-  const guess = new Date(`${local}:00Z`);
-  if (Number.isNaN(guess.getTime())) return null;
-  return new Date(guess.getTime() - zoneOffsetMs(guess, timeZone)).toISOString();
+  return local ? (wallClockToInstant(local, timeZone)?.toISOString() ?? null) : null;
 }
 
 /** An instant as the `datetime-local` value a manager would type in clinic time. */
 export function isoToClinicLocal(iso: string, timeZone: string): string {
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return '';
-  return new Date(at.getTime() + zoneOffsetMs(at, timeZone)).toISOString().slice(0, 16);
+  return instantToWallClock(iso, timeZone);
 }
 
 /** "Sat, 7 Nov 2026, 08:00–13:00 GMT", in clinic time. */

@@ -61,6 +61,8 @@ export interface StationVisit {
   handoffNote: string | null;
   endReason: string | null;
   releaseCount: number;
+  /** The latest change to who did this stop, from the audit trail (#307). */
+  performerCorrection?: PerformerCorrection | null;
   previous: {
     station: StationVisit['station'];
     completedBy: StaffSummary | null;
@@ -68,6 +70,14 @@ export interface StationVisit {
     performedByName?: string | null;
     handoffNote: string | null;
   } | null;
+}
+
+export interface PerformerCorrection {
+  /** Who the stop named before the correction; null when that is not known. */
+  previousPerformer: string | null;
+  correctedAt: string;
+  correctedBy: { id: string; displayName: string };
+  reason: string | null;
 }
 
 export interface StationBoard {
@@ -383,6 +393,21 @@ export function describeRouteStop(
     struck: stop.status === 'CANCELLED',
     summary: `${verb[stop.status]}${who}${when}`,
     reason: stop.status !== 'COMPLETED' && stop.endReason ? `Reason: ${stop.endReason}` : null,
+  };
+}
+
+/**
+ * A corrected performer stays visible: the earlier name, struck through by the caller, then who
+ * corrected it, when and why (MASTER.md, "Corrections stay visible"; #307).
+ */
+export function describePerformerCorrection(
+  correction: PerformerCorrection,
+  formatTime: (iso: string) => string,
+) {
+  return {
+    previous: correction.previousPerformer,
+    summary: `Corrected by ${correction.correctedBy.displayName}, ${formatTime(correction.correctedAt)}`,
+    reason: correction.reason ? `Reason: ${correction.reason}` : null,
   };
 }
 

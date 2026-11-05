@@ -25,7 +25,11 @@ import {
 } from '@/lib/account-name';
 import { focusFirstInvalid } from '@/components/ui/field';
 import { StaffNameFields } from '@/components/account/StaffNameForm';
-import { describeInviteExpiry, formatInviteDate } from '@/lib/portal-invite';
+import {
+  describeInviteExpiry,
+  describeRenewalRequest,
+  formatInviteDate,
+} from '@/lib/portal-invite';
 import {
   ADDRESS_IN_USE_CODE,
   DEFAULT_STAFF_INVITE_TTL_HOURS,
@@ -569,6 +573,7 @@ function InviteRow({
     invite.cancelledAt
       ? `Cancelled ${formatInviteDate(invite.cancelledAt)}${invite.cancelledBy ? ` by ${invite.cancelledBy}` : ''}`
       : null,
+    describeRenewalRequest(invite.renewalRequestedAt),
   ].filter(Boolean);
 
   return (

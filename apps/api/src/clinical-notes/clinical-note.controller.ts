@@ -198,6 +198,15 @@ export class ClinicalNoteController {
     return this.notes.pendingForDoctor(clinicId, this.actor(request));
   }
 
+  @Get('clinical-notes/my-drafts')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.CLINICAL_NOTE_WRITE)
+  @Header('Cache-Control', 'private, no-store, max-age=0')
+  myDrafts(@Param('clinicId') clinicId: string, @Request() request: ClinicalNoteRequest) {
+    this.assertEnabled();
+    return this.notes.draftsForAuthor(clinicId, this.actor(request));
+  }
+
   private actor(request: ClinicalNoteRequest) {
     return { userId: request.user.user.id, roles: request.user.roles };
   }

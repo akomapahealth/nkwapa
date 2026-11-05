@@ -28,6 +28,7 @@ import {
   UpsertDiabetesClinicianPlanDto,
   UpsertDiabetesScreeningDto,
 } from './dto/diabetes-screening.dto';
+import { Idempotent } from '../idempotency/idempotent.decorator';
 
 type DiabetesRequest = {
   user: { user: { id: string }; roles: ScopedRole[] };
@@ -57,6 +58,7 @@ export class DiabetesScreeningController {
   }
 
   @Put('encounters/:encounterId/diabetes-screening')
+  @Idempotent()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.SCREENING_WRITE)
   upsert(
@@ -79,6 +81,7 @@ export class DiabetesScreeningController {
 
   /** Today's reading alone, without touching the rest of the interview. */
   @Put('encounters/:encounterId/diabetes-screening/glucose')
+  @Idempotent()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.SCREENING_WRITE)
   recordGlucoseReading(
@@ -106,6 +109,7 @@ export class DiabetesScreeningController {
    * keys are stripped in a branch somebody can later delete.
    */
   @Put('encounters/:encounterId/diabetes-screening/clinician-plan')
+  @Idempotent()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.CAREPLAN_CLINICIAN_PLAN)
   upsertClinicianPlan(

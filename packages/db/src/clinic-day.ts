@@ -87,15 +87,58 @@ export function localHourInTimeZone(
   hour: number,
   timeZone: string | null | undefined,
 ): Date {
-  const zone = usableTimeZone(timeZone);
   if (!Number.isInteger(hour) || hour < 0 || hour > 23) {
     throw new RangeError(`localHourInTimeZone: ${hour} is not an hour from 0 to 23.`);
   }
-  const wallClock = Date.parse(`${date}T${String(hour).padStart(2, '0')}:00:00.000Z`);
-  if (Number.isNaN(wallClock)) {
+  const instant = wallClockToInstant(`${date}T${String(hour).padStart(2, '0')}:00`, timeZone);
+  if (!instant) {
     throw new RangeError(`localHourInTimeZone: "${date}" is not a YYYY-MM-DD date.`);
   }
+  return instant;
+}
 
+const WALL_CLOCK_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,3})?)?$/;
+const UTC_OFFSET_RE = /(?:Z|[+-]\d{2}(?::?\d{2})?)$/i;
+
+/** True when a date-time string names its own offset (`Z`, `+00:00`), so it is already an instant. */
+export function hasUtcOffset(value: string): boolean {
+  return UTC_OFFSET_RE.test(value.trim());
+}
+
+/**
+ * The instant a wall-clock time (`YYYY-MM-DDTHH:mm`, as a `datetime-local` field gives it) names
+ * in `timeZone` (#307). Null when the string is not a wall-clock time.
+ *
+ * Two offset lookups, as `localHourInTimeZone` explains, and a wall time inside a spring-forward
+ * gap moves to the end of the gap. A wall time that happens twice (the hour a zone falls back)
+ * resolves to the earlier one.
+ */
+export function wallClockToInstant(
+  local: string,
+  timeZone: string | null | undefined,
+): Date | null {
+  const match = WALL_CLOCK_RE.exec(local.trim());
+  if (!match) return null;
+  const [, y, mo, d, h, mi, sec] = match;
+  const wallClock = Date.UTC(
+    Number(y),
+    Number(mo) - 1,
+    Number(d),
+    Number(h),
+    Number(mi),
+    Number(sec ?? 0),
+  );
+  const roundTrip = new Date(wallClock);
+  if (
+    Number.isNaN(wallClock) ||
+    roundTrip.getUTCDate() !== Number(d) ||
+    roundTrip.getUTCHours() !== Number(h) ||
+    roundTrip.getUTCMinutes() !== Number(mi)
+  ) {
+    return null;
+  }
+
+  const zone = usableTimeZone(timeZone);
   const firstGuess = wallClock - timeZoneOffsetMs(zone, new Date(wallClock));
   let start = new Date(wallClock - timeZoneOffsetMs(zone, new Date(firstGuess)));
 
@@ -110,6 +153,14 @@ export function localHourInTimeZone(
   }
 
   return start;
+}
+
+/** An instant as the `YYYY-MM-DDTHH:mm` wall-clock time it reads as in `timeZone` (#307). */
+export function instantToWallClock(at: Date | string, timeZone: string | null | undefined): string {
+  const instant = typeof at === 'string' ? new Date(at) : at;
+  if (Number.isNaN(instant.getTime())) return '';
+  const zone = usableTimeZone(timeZone);
+  return new Date(instant.getTime() + timeZoneOffsetMs(zone, instant)).toISOString().slice(0, 16);
 }
 
 /** The instant a local calendar day begins in `timeZone`. */

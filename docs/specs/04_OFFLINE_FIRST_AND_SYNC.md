@@ -163,6 +163,23 @@ Rules:
   clinic day with queued changes drawn on top, labelled _Pending sync_, _Retrying sync_ or _Needs
   attention_ (which opens the sync center).
 
+### Online writes (#307)
+
+Online writes that can create a row or move a lifecycle carry an `Idempotency-Key` header, so a
+retry after a timeout, network failure or 5xx replays the first result instead of writing twice.
+
+- `apiFetch` sends a key on every `POST`, `PUT`, `PATCH` and `DELETE` with a string body. The same
+  method, path and body reuse the key until the server gives a definitive answer (any status but
+  408, 409, 429 or 5xx). Keys live in memory, so a reload starts a fresh one.
+- The API honours the key only on handlers marked `@Idempotent()`. `IdempotencyInterceptor` runs
+  inside the request's RLS transaction, so the key row, the write and its audit event commit or roll
+  back together. A failed write leaves no key behind.
+- Keys are per user. The same key with a different method, path or body is refused with 422
+  `IDEMPOTENCY_KEY_REUSED`; a duplicate that arrives while the first is still running gets a
+  retryable 409 `IDEMPOTENCY_REQUEST_IN_PROGRESS`. A replay carries `Idempotent-Replayed: true`.
+- `IdempotencyRecord` rows are owner-scoped by RLS and purged hourly after 24 hours.
+- The offline outbox keeps its own keys through `/sync/push` and is unchanged.
+
 ---
 
 ## Patient Portal Read Cache (#18)

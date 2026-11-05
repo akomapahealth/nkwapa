@@ -73,6 +73,40 @@ export interface ApiFetchOptions extends RequestInit {
   requestId?: string;
   /** When true, do not send X-Clinic-Id header (e.g. for admin endpoints) */
   skipClinicHeader?: boolean;
+  /**
+   * The Idempotency-Key for this write. Left out, a write gets one derived from what it sends,
+   * reused until the server gives a definitive answer (#307).
+   */
+  idempotencyKey?: string;
+}
+
+const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+// shortcut: in-memory only, so a reload starts a fresh key; upgrade if retries must survive a reload.
+const PENDING_KEY_TTL_MS = 30 * 60 * 1000;
+const pendingIdempotencyKeys = new Map<string, { key: string; at: number }>();
+
+/**
+ * One key per action: the same method, path and body sent again after a timeout, network
+ * failure or 5xx reuses the key, so the API replays the first result instead of writing twice.
+ */
+function idempotencyKeyFor(fingerprint: string, now: number): string {
+  for (const [id, entry] of pendingIdempotencyKeys) {
+    if (now - entry.at > PENDING_KEY_TTL_MS) pendingIdempotencyKeys.delete(id);
+  }
+  const existing = pendingIdempotencyKeys.get(fingerprint);
+  if (existing) return existing.key;
+  const key = createRequestId().replace(/[^A-Za-z0-9_-]/g, '');
+  pendingIdempotencyKeys.set(fingerprint, { key, at: now });
+  return key;
+}
+
+/** A retry could still be the same action: the server never answered, failed, or is mid-write. */
+function keepsIdempotencyKey(status: number) {
+  return status >= 500 || status === 429 || status === 409 || status === 408;
+}
+
+export function resetPendingIdempotencyKeys(): void {
+  pendingIdempotencyKeys.clear();
 }
 
 type ApiErrorPayload = {
@@ -189,6 +223,7 @@ export async function apiFetch(path: string, options: ApiFetchOptions = {}): Pro
     skipClinicHeader,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     requestId,
+    idempotencyKey,
     ...init
   } = options;
   const headers = new Headers(init.headers);
@@ -217,6 +252,19 @@ export async function apiFetch(path: string, options: ApiFetchOptions = {}): Pro
   if (!headers.has('X-Request-Id')) {
     headers.set('X-Request-Id', requestId ?? createRequestId());
   }
+  const method = (init.method ?? 'GET').toUpperCase();
+  // Only a string body can be fingerprinted; FormData uploads keep their old behaviour.
+  const fingerprint =
+    WRITE_METHODS.has(method) && !idempotencyKey && !headers.has('Idempotency-Key')
+      ? init.body == null || typeof init.body === 'string'
+        ? `${method} ${path} ${init.body ?? ''}`
+        : null
+      : null;
+  if (idempotencyKey) {
+    headers.set('Idempotency-Key', idempotencyKey);
+  } else if (fingerprint) {
+    headers.set('Idempotency-Key', idempotencyKeyFor(fingerprint, Date.now()));
+  }
 
   const timeoutController = new AbortController();
   const timeoutId = globalThis.setTimeout(() => {
@@ -224,11 +272,15 @@ export async function apiFetch(path: string, options: ApiFetchOptions = {}): Pro
   }, timeoutMs);
 
   try {
-    return await fetch(`${API_BASE}${path}`, {
+    const response = await fetch(`${API_BASE}${path}`, {
       ...init,
       headers,
       signal: combineAbortSignals(init.signal ?? null, timeoutController.signal),
     });
+    if (fingerprint && !keepsIdempotencyKey(response.status)) {
+      pendingIdempotencyKeys.delete(fingerprint);
+    }
+    return response;
   } catch (error) {
     if (timeoutController.signal.aborted) {
       throw new ApiError('The request took too long to complete.', {

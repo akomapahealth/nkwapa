@@ -160,6 +160,13 @@ jobs:
           RUN_STAFF_INVITE_MIGRATION_TESTS: '1'
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
+      # Who cancelled an appointment (#307): the backfill from the audit trail.
+      - name: Verify appointment cancellation backfill
+        run: npm run test --workspace=@nkwapa/db -- --runInBand src/appointment-cancellation-migration.integration.spec.ts
+        env:
+          RUN_APPOINTMENT_CANCELLATION_MIGRATION_TESTS: '1'
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
       # The station line's guarantees (#167): one open station per patient, one winner per claim,
       # one review station per clinic, and row-level security on the new tables.
       - name: Verify station workflow safeguards
@@ -170,10 +177,10 @@ jobs:
 
       # The same guarantee one layer up: real requests through the RLS interceptor and the real
       # services, as the unprivileged role, across two organizations and a straddling zone (#16),
-      # plus the registry's completed-screening filter (#224), who actually screened (#227), and the
-      # volunteer directory and roster (#226) on that same footing.
+      # plus the registry's completed-screening filter (#224), who actually screened (#227), the
+      # volunteer directory and roster (#226), and idempotency keys (#307) on that same footing.
       - name: Verify organization and zone isolation end to end
-        run: npm run test --workspace=@nkwapa/api -- --runInBand src/tenancy/org-zone-isolation.integration.spec.ts src/patients/patient-registry-screened.integration.spec.ts src/ops/station-performer.integration.spec.ts src/volunteers/volunteer-roster.integration.spec.ts
+        run: npm run test --workspace=@nkwapa/api -- --runInBand src/tenancy/org-zone-isolation.integration.spec.ts src/patients/patient-registry-screened.integration.spec.ts src/ops/station-performer.integration.spec.ts src/volunteers/volunteer-roster.integration.spec.ts src/idempotency/idempotency.integration.spec.ts
         env:
           RUN_ORG_ZONE_ISOLATION_TESTS: '1'
           DATABASE_URL: ${{ env.DATABASE_URL }}

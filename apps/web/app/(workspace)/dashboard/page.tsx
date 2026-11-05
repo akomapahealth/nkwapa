@@ -29,6 +29,7 @@ import { useToast } from '@/components/ui/toast';
 import { EmptyStateCard } from '@/components/ops/OpsShared';
 import { RefreshCw } from 'lucide-react';
 import { zoneQueryString, type ZoneFilter, type ZoneSummary } from '@/lib/clinic-zones';
+import type { DashboardWorkItem } from '@/lib/dashboard-work-items';
 
 interface DashboardData {
   summary: {
@@ -41,6 +42,7 @@ interface DashboardData {
   doctor?: {
     clinicalMeasurements: ClinicalMeasurementMetrics;
     awaitingFinalization: number;
+    awaitingFinalizationItems?: DashboardWorkItem[];
     patientsSeen: { today: number; week: number; month: number };
     followUpComplianceRate: number;
     hypertensionDistribution: Record<string, number>;
@@ -91,6 +93,7 @@ interface DashboardData {
     patientsRegisteredToday: number;
     encountersCreatedToday: number;
     pendingSubmissions: number;
+    pendingSubmissionItems?: DashboardWorkItem[];
     patientsRegisteredTrend: { date: string; count: number }[];
     encountersCreatedTrend: { date: string; count: number }[];
     statusBreakdown: Record<string, number>;
@@ -229,7 +232,7 @@ export default function DashboardPage() {
         data.volunteer && {
           id: 'volunteer',
           label: 'Your work today',
-          node: <VolunteerDashboard {...data.volunteer} />,
+          node: <VolunteerDashboard {...data.volunteer} clinicId={clinicId ?? undefined} />,
         },
       ].filter((section): section is { id: string; label: string; node: JSX.Element } =>
         Boolean(section),

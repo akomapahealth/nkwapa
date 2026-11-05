@@ -22,6 +22,7 @@ import { PERMISSIONS } from '../auth/constants/permissions';
 import type { QueueStage } from './encounter.repository';
 import { ClinicAndEncounterParamsDto, ClinicIdParamDto } from '../common/request-dto';
 import { ToOptionalNumber } from '../common/validation';
+import { Idempotent } from '../idempotency/idempotent.decorator';
 
 class CreateEncounterBodyDto {
   @IsUUID()
@@ -43,6 +44,14 @@ class EncounterListQueryDto {
   @Min(1)
   @Max(100)
   take?: number;
+
+  /** Rows to skip, so a queue lane can page past its first 50 (#307). */
+  @IsOptional()
+  @ToOptionalNumber()
+  @IsInt()
+  @Min(0)
+  @Max(100000)
+  skip?: number;
 }
 
 @Controller('clinics/:clinicId/encounters')
@@ -59,17 +68,28 @@ export class EncountersController {
         status: 'IN_REVIEW',
         stage: query.stage,
         take: query.take ?? 50,
+        skip: query.skip,
       });
     }
     if (query.status) {
       return this.encounterService.listByClinic(params.clinicId, {
         status: query.status,
         take: query.take ?? 50,
+        skip: query.skip,
       });
     }
     return this.encounterService.listByClinic(params.clinicId, {
       take: query.take ?? 50,
+      skip: query.skip,
     });
+  }
+
+  /** How many encounters each queue lane holds, uncapped, so a tab never stops at 50 (#307). */
+  @Get('counts')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.ENCOUNTER_READ)
+  async counts(@Param() params: ClinicIdParamDto) {
+    return this.encounterService.countQueueLanes(params.clinicId);
   }
 
   @Get(':encounterId')
@@ -169,6 +189,7 @@ export class EncountersController {
   }
 
   @Post()
+  @Idempotent()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.ENCOUNTER_CREATE)
   async create(

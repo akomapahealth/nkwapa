@@ -14,6 +14,7 @@ import { PrismaRlsContext, PrismaService } from './prisma.service';
 import { claimableInviteForIdentityWhere } from '../common/portal-invite-lifecycle';
 import { acceptableStaffInviteWhere } from '../common/staff-invite-lifecycle';
 import { STAFF_INVITE_SCOPE_KEY } from '../staff-invites/staff-invite-scope.decorator';
+import { LAPSED_INVITE_SCOPE_KEY } from '../invite-renewal/lapsed-invite-scope.decorator';
 
 /**
  * The tenant fields the chat handshake attaches to a socket.
@@ -59,8 +60,13 @@ export class PrismaRlsInterceptor implements NestInterceptor {
         context.getHandler(),
         context.getClass(),
       ]) === true;
+    const includeLapsedInvites =
+      this.reflector.getAllAndOverride<boolean>(LAPSED_INVITE_SCOPE_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]) === true;
     return defer(() =>
-      from(this.buildRlsContext(request, includeStaffInvites)).pipe(
+      from(this.buildRlsContext(request, includeStaffInvites, includeLapsedInvites)).pipe(
         mergeMap((rlsContext) =>
           from(this.prisma.withRlsContext(rlsContext, () => lastValueFrom(next.handle() as never))),
         ),
@@ -129,6 +135,7 @@ export class PrismaRlsInterceptor implements NestInterceptor {
   private async buildRlsContext(
     request: RequestWithAuth,
     includeStaffInvites = false,
+    includeLapsedInvites = false,
   ): Promise<PrismaRlsContext> {
     const roles = request.user?.roles ?? [];
     const userId = request.user?.user?.id ?? null;
@@ -148,6 +155,7 @@ export class PrismaRlsInterceptor implements NestInterceptor {
       userId,
       getRequestId(request as never),
       includeStaffInvites,
+      includeLapsedInvites,
     );
     const effectiveClinicIds = [...new Set([...allowedClinicIds, ...supplementalClinicIds])];
     const activeClinicId =
@@ -212,6 +220,7 @@ export class PrismaRlsInterceptor implements NestInterceptor {
     userId: string | null,
     requestId?: string,
     includeStaffInvites = false,
+    includeLapsedInvites = false,
   ) {
     if (!userId) {
       return [];
@@ -226,7 +235,8 @@ export class PrismaRlsInterceptor implements NestInterceptor {
         userId,
         systemReason: 'Resolve portal clinic access for an inbound request',
       },
-      async (tx) => this.collectSupplementalClinicIds(tx, userId, includeStaffInvites),
+      async (tx) =>
+        this.collectSupplementalClinicIds(tx, userId, includeStaffInvites, includeLapsedInvites),
     );
   }
 
@@ -234,6 +244,7 @@ export class PrismaRlsInterceptor implements NestInterceptor {
     tx: Prisma.TransactionClient,
     userId: string,
     includeStaffInvites: boolean,
+    includeLapsedInvites = false,
   ) {
     const user = await tx.user.findUnique({
       where: { id: userId },
@@ -290,6 +301,29 @@ export class PrismaRlsInterceptor implements NestInterceptor {
       for (const invite of staffInvites) {
         clinicIds.add(invite.clinicId);
       }
+    }
+
+    /*
+      The clinics of the caller's latest patient and staff invitation, by verified email, so the
+      renewal request (#307) can mark a lapsed one. Only on handlers marked
+      @IncludeLapsedInviteScope, for the reason given on that decorator.
+    */
+    const lapsedEmail = includeLapsedInvites ? user?.email?.trim().toLowerCase() : null;
+    if (lapsedEmail) {
+      const [portalInvite, staffInvite] = await Promise.all([
+        tx.patientPortalInvite.findFirst({
+          where: { email: { equals: lapsedEmail, mode: 'insensitive' } },
+          orderBy: { createdAt: 'desc' },
+          select: { clinicId: true },
+        }),
+        tx.staffInvite.findFirst({
+          where: { email: lapsedEmail },
+          orderBy: { createdAt: 'desc' },
+          select: { clinicId: true },
+        }),
+      ]);
+      if (portalInvite) clinicIds.add(portalInvite.clinicId);
+      if (staffInvite) clinicIds.add(staffInvite.clinicId);
     }
 
     return [...clinicIds];
