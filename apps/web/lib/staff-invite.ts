@@ -33,6 +33,8 @@ export interface StaffInvite {
   cancelledBy: string | null;
   identity: PortalInviteIdentity;
   emailDelivery: PortalInviteDelivery | null;
+  /** When the invitee asked for a new invitation after this one lapsed (#307). */
+  renewalRequestedAt?: string | null;
 }
 
 export interface StaffInviteList {

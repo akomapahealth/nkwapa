@@ -70,8 +70,9 @@ async function bootstrap() {
       'X-Clinic-Id',
       'X-Request-Id',
       'X-Correlation-Id',
+      'Idempotency-Key',
     ],
-    exposedHeaders: ['X-Request-Id', 'X-Correlation-Id'],
+    exposedHeaders: ['X-Request-Id', 'X-Correlation-Id', 'Idempotent-Replayed'],
   });
 
   if (process.env.NODE_ENV === 'production' && !process.env.CLIENT_IP_HEADER) {

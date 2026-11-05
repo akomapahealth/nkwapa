@@ -167,6 +167,8 @@ export const RESEARCH_OUT_OF_SCOPE_MODELS: Record<string, string> = {
   PatientCodeSequence:
     'A per-clinic counter behind patient code allocation, with no clinical content.',
   SyncMutation: 'Offline replay bookkeeping with no clinical content.',
+  IdempotencyRecord:
+    'Online retry bookkeeping (#307): a stored response replayed to the same user for 24 hours.',
   ResearchExport: "The export pipeline's own record of its runs.",
   ClinicResearchSettings: 'Per-clinic configuration for this pipeline.',
   ResearchExportSchedule: "A director's standing approval and cadence for this pipeline's runs.",

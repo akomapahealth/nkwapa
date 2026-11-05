@@ -31,7 +31,12 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/toast';
-import { describeTimeEntryZone, getAppointmentRequestTypeLabel } from '@/lib/appointment-status';
+import {
+  describeTimeEntryZone,
+  fromClinicDateTimeLocal,
+  getAppointmentRequestTypeLabel,
+  toClinicDateTimeLocal,
+} from '@/lib/appointment-status';
 import type { GetToken } from '@/lib/api';
 import { formatOpsDate, formatOpsDateTime } from '@/lib/ops';
 import {
@@ -61,29 +66,17 @@ interface TriageDialogState {
 
 const UNASSIGNED = 'UNASSIGNED';
 
-/** `datetime-local` wants a local wall-clock string; the API wants an instant. */
-function toDateTimeLocalValue(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
-}
-
-function fromDateTimeLocalValue(value: string) {
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
-}
-
 /** Open the confirm dialog on the patient's preferred window rather than on an empty form. */
-function defaultSlotFor(request: AppointmentRequestRecord) {
-  const preferred = new Date(request.preferredStartDate);
-  if (Number.isNaN(preferred.getTime())) return { startsAt: '', endsAt: '' };
-  const start = new Date(preferred);
-  start.setHours(9, 0, 0, 0);
-  const end = new Date(start.getTime() + 30 * 60_000);
+function defaultSlotFor(request: AppointmentRequestRecord, timezone: string) {
+  const day = toClinicDateTimeLocal(request.preferredStartDate, timezone).slice(0, 10);
+  const start = day ? fromClinicDateTimeLocal(`${day}T09:00`, timezone) : null;
+  if (!start) return { startsAt: '', endsAt: '' };
   return {
-    startsAt: toDateTimeLocalValue(start.toISOString()),
-    endsAt: toDateTimeLocalValue(end.toISOString()),
+    startsAt: `${day}T09:00`,
+    endsAt: toClinicDateTimeLocal(
+      new Date(Date.parse(start) + 30 * 60_000).toISOString(),
+      timezone,
+    ),
   };
 }
 
@@ -158,7 +151,7 @@ export function AppointmentRequestsPanel({
   );
 
   function openDialog(action: TriageAction, request: AppointmentRequestRecord) {
-    const slot = defaultSlotFor(request);
+    const slot = defaultSlotFor(request, timezone);
     setDialog({ action, request });
     setStartsAt(slot.startsAt);
     setEndsAt(slot.endsAt);
@@ -183,8 +176,8 @@ export function AppointmentRequestsPanel({
     try {
       setSubmitting(true);
       if (action === 'confirm') {
-        const start = fromDateTimeLocalValue(startsAt);
-        const end = fromDateTimeLocalValue(endsAt);
+        const start = fromClinicDateTimeLocal(startsAt, timezone);
+        const end = fromClinicDateTimeLocal(endsAt, timezone);
         if (!start || !end) {
           setDialogError('Choose valid start and end times.');
           return;

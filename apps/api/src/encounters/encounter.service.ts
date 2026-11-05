@@ -75,6 +75,19 @@ export class EncounterService {
     return this.encounterRepository.findManyByClinic(clinicId, filters);
   }
 
+  /** Uncapped totals for the queue lanes, with the same filters the lane lists use (#307). */
+  async countQueueLanes(clinicId: string) {
+    const [drafts, review, finalize] = await Promise.all([
+      this.encounterRepository.countByClinic(clinicId, { status: 'DRAFT' }),
+      this.encounterRepository.countByClinic(clinicId, { status: 'IN_REVIEW', stage: 'REVIEW' }),
+      this.encounterRepository.countByClinic(clinicId, {
+        status: 'IN_REVIEW',
+        stage: 'DOCTOR_READY',
+      }),
+    ]);
+    return { drafts, review, finalize };
+  }
+
   async listByPatient(patientId: string, filters?: EncounterFindManyFilters): Promise<Encounter[]> {
     return this.encounterRepository.findManyByPatient(patientId, filters);
   }

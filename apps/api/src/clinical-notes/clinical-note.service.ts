@@ -66,6 +66,12 @@ export class ClinicalNoteService {
     return this.repository.findPendingForDoctor(clinicId, actor.userId);
   }
 
+  /** The caller's own HAP drafts. Doctors and volunteers only, like writing one (#307, B6). */
+  async draftsForAuthor(clinicId: string, actor: ClinicalActor) {
+    this.requireClinicalRole(actor, clinicId);
+    return this.repository.findDraftsForAuthor(clinicId, actor.userId);
+  }
+
   async createDraft(
     clinicId: string,
     encounterId: string,

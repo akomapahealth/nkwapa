@@ -73,6 +73,97 @@ export interface ApiFetchOptions extends RequestInit {
   requestId?: string;
   /** When true, do not send X-Clinic-Id header (e.g. for admin endpoints) */
   skipClinicHeader?: boolean;
+  /**
+   * The Idempotency-Key for this write. Left out, a write gets one derived from what it sends,
+   * reused until the server gives a definitive answer (#307).
+   */
+  idempotencyKey?: string;
+}
+
+const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const PENDING_KEY_TTL_MS = 30 * 60 * 1000;
+// Per tab, so a retry after a reload keeps its key; only hashes are stored, never a request body.
+const PENDING_KEYS_STORAGE = 'nkwapa:pending-idempotency-keys';
+let pendingIdempotencyKeys: Map<string, { key: string; at: number }> | null = null;
+
+function pendingKeys() {
+  if (!pendingIdempotencyKeys) {
+    pendingIdempotencyKeys = new Map();
+    try {
+      const stored = JSON.parse(globalThis.sessionStorage?.getItem(PENDING_KEYS_STORAGE) ?? '{}');
+      for (const [id, entry] of Object.entries(stored as Record<string, unknown>)) {
+        const { key, at } = (entry ?? {}) as { key?: unknown; at?: unknown };
+        if (typeof key === 'string' && typeof at === 'number') {
+          pendingIdempotencyKeys.set(id, { key, at });
+        }
+      }
+    } catch {
+      // Storage blocked or corrupt: keys then last only as long as this page.
+    }
+  }
+  return pendingIdempotencyKeys;
+}
+
+function savePendingKeys() {
+  try {
+    globalThis.sessionStorage?.setItem(
+      PENDING_KEYS_STORAGE,
+      JSON.stringify(Object.fromEntries(pendingKeys())),
+    );
+  } catch {
+    // As above: the in-memory copy still covers retries without a reload.
+  }
+}
+
+/** A SHA-256 of the method, path and body, so storage never holds patient data. */
+async function fingerprintId(fingerprint: string): Promise<string> {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) return fingerprint;
+  const digest = await subtle.digest('SHA-256', new TextEncoder().encode(fingerprint));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * One key per action: the same method, path and body sent again after a timeout, network
+ * failure or 5xx reuses the key, even after a reload, so the API replays the first result
+ * instead of writing twice.
+ */
+function idempotencyKeyFor(id: string, now: number): string {
+  const keys = pendingKeys();
+  for (const [stored, entry] of keys) {
+    if (now - entry.at > PENDING_KEY_TTL_MS) keys.delete(stored);
+  }
+  const existing = keys.get(id);
+  if (existing) return existing.key;
+  const key = createRequestId().replace(/[^A-Za-z0-9_-]/g, '');
+  keys.set(id, { key, at: now });
+  // Only a hashed id is persisted; the raw fallback (no WebCrypto) stays in memory.
+  if (/^[0-9a-f]{64}$/.test(id)) savePendingKeys();
+  return key;
+}
+
+function settlePendingKey(id: string) {
+  if (pendingKeys().delete(id)) savePendingKeys();
+}
+
+/** A retry could still be the same action: the server never answered, failed, or is mid-write. */
+function keepsIdempotencyKey(status: number) {
+  return status >= 500 || status === 429 || status === 409 || status === 408;
+}
+
+/** Forget every pending key, in memory and in this tab's storage. */
+export function resetPendingIdempotencyKeys(): void {
+  pendingIdempotencyKeys = new Map();
+  try {
+    globalThis.sessionStorage?.removeItem(PENDING_KEYS_STORAGE);
+  } catch {
+    // Nothing stored to clear.
+  }
+}
+
+/** Test hook: drop the in-memory copy, as a reload does, so keys come back from storage. */
+export function forgetPendingIdempotencyKeysInMemory(): void {
+  pendingIdempotencyKeys = null;
 }
 
 type ApiErrorPayload = {
@@ -189,6 +280,7 @@ export async function apiFetch(path: string, options: ApiFetchOptions = {}): Pro
     skipClinicHeader,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     requestId,
+    idempotencyKey,
     ...init
   } = options;
   const headers = new Headers(init.headers);
@@ -217,6 +309,21 @@ export async function apiFetch(path: string, options: ApiFetchOptions = {}): Pro
   if (!headers.has('X-Request-Id')) {
     headers.set('X-Request-Id', requestId ?? createRequestId());
   }
+  const method = (init.method ?? 'GET').toUpperCase();
+  // Only a string body can be fingerprinted; FormData uploads keep their old behaviour.
+  const fingerprintText =
+    WRITE_METHODS.has(method) && !idempotencyKey && !headers.has('Idempotency-Key')
+      ? init.body == null || typeof init.body === 'string'
+        ? `${method} ${path} ${init.body ?? ''}`
+        : null
+      : null;
+  if (idempotencyKey) {
+    headers.set('Idempotency-Key', idempotencyKey);
+  }
+  const fingerprint = fingerprintText ? await fingerprintId(fingerprintText) : null;
+  if (!idempotencyKey && fingerprint) {
+    headers.set('Idempotency-Key', idempotencyKeyFor(fingerprint, Date.now()));
+  }
 
   const timeoutController = new AbortController();
   const timeoutId = globalThis.setTimeout(() => {
@@ -224,11 +331,15 @@ export async function apiFetch(path: string, options: ApiFetchOptions = {}): Pro
   }, timeoutMs);
 
   try {
-    return await fetch(`${API_BASE}${path}`, {
+    const response = await fetch(`${API_BASE}${path}`, {
       ...init,
       headers,
       signal: combineAbortSignals(init.signal ?? null, timeoutController.signal),
     });
+    if (fingerprint && !keepsIdempotencyKey(response.status)) {
+      settlePendingKey(fingerprint);
+    }
+    return response;
   } catch (error) {
     if (timeoutController.signal.aborted) {
       throw new ApiError('The request took too long to complete.', {

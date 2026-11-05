@@ -127,6 +127,9 @@ therefore the only state any action can be applied from, and `CANCELLED`, `COMPL
 
 - Cancelling requires a reason. Completing and marking a no-show are refused until the start time
   has passed.
+- A cancellation stores who cancelled, when and why on the row (`cancelledAt`,
+  `cancelledByUserId`, `cancelReason`; #307), and the schedule shows them under the struck-through
+  slot. Rows cancelled before #307 were backfilled from the latest `APPT.CANCEL` audit event.
 - The write is a status-guarded `updateMany` inside a transaction, so a concurrent transition loses
   the race and surfaces as an invalid transition rather than a silent overwrite.
 - A refusal writes nothing, audits nothing, and moves no reminder. The suite asserts that on every
@@ -217,11 +220,9 @@ route, and reverting it restores the previous, narrower access.
 
 ## Residual risks
 
-- **Times are read and entered in three different zones.** The schedule formats with the clinic
-  timezone the API returns, computes its date ranges in UTC, and converts the reschedule and
-  confirm dialogs through the browser's offset. A staff member outside `Africa/Accra` sees Accra
-  time in the table and their own time in the dialog beside it, with nothing on screen naming
-  either. This gate does not fix it.
+- **Times are entered in the clinic's zone (#307).** The reschedule and confirm dialogs convert
+  through the clinic timezone the API returns, and the API reads any time sent without an offset
+  in the clinic's zone. Date ranges are still computed in UTC.
 - **`TRIAGED` and a request status of `CANCELLED` are unreachable.** Both are accepted as source
   states and neither is ever written, so a request cannot be parked mid-triage and a patient cannot
   withdraw one. The matrix records this rather than implying the states work.

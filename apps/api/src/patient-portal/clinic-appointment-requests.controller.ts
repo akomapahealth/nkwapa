@@ -14,6 +14,7 @@ import {
 } from './dto/appointment-requests.dto';
 import { Track } from '../telemetry/track.decorator';
 import { appointmentRequestKind } from '../telemetry/track-descriptors';
+import { Idempotent } from '../idempotency/idempotent.decorator';
 
 @Controller('clinics/:clinicId/appointment-requests')
 @UseGuards(JwtAuthGuard, ClinicScopeGuard, RbacGuard)
@@ -38,6 +39,7 @@ export class ClinicAppointmentRequestsController {
   }
 
   @Post(':requestId/confirm')
+  @Idempotent()
   @Track('appointment.request.confirm', { describe: appointmentRequestKind })
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.APPOINTMENT_WRITE)

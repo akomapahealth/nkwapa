@@ -1,10 +1,13 @@
 'use client';
 
 import Image from 'next/image';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Check, LogOut } from 'lucide-react';
 import { useKeycloak } from '@/app/KeycloakProvider';
 import { useBootstrap } from '@/lib/bootstrap-context';
+import { getErrorMessage } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
+import { requestInvitationRenewal } from '@/lib/invite-renewal';
 import {
   JOURNEY_TITLES,
   journeyProgress,
@@ -118,6 +121,25 @@ export function InvitationNotFound({
   checking?: boolean;
 }) {
   const asker = journey === 'staff' ? 'the person who invited you' : 'your clinic';
+  const getToken = useAuth();
+  const [renewal, setRenewal] = useState<{
+    sending: boolean;
+    message: string | null;
+    error: string | null;
+  }>({ sending: false, message: null, error: null });
+  const askForRenewal = async () => {
+    if (!getToken) return;
+    setRenewal({ sending: true, message: null, error: null });
+    try {
+      setRenewal({
+        sending: false,
+        message: await requestInvitationRenewal(getToken),
+        error: null,
+      });
+    } catch (error) {
+      setRenewal({ sending: false, message: null, error: getErrorMessage(error) });
+    }
+  };
   const causes = [
     {
       title: 'Your email address is not confirmed yet',
@@ -125,7 +147,7 @@ export function InvitationNotFound({
     },
     {
       title: 'The invitation has expired',
-      fix: `Invitations last a few days. Ask ${asker} to send a new one; the new email has a fresh link.`,
+      fix: `Invitations last a few days. Ask for a new one below, or ask ${asker}; the new email has a fresh link.`,
     },
     {
       title:
@@ -154,11 +176,24 @@ export function InvitationNotFound({
           </li>
         ))}
       </ul>
-      <div className="border-t border-rule pt-4">
+      <div className="flex flex-wrap gap-3 border-t border-rule pt-4">
         <Button variant="outline" onClick={onCheckAgain} loading={checking}>
           Check again
         </Button>
+        <Button
+          variant="outline"
+          onClick={() => void askForRenewal()}
+          loading={renewal.sending}
+          disabled={!getToken || Boolean(renewal.message)}
+        >
+          {renewal.message ? 'Asked for a new invitation' : 'Ask for a new invitation'}
+        </Button>
       </div>
+      {renewal.message || renewal.error ? (
+        <p role="status" className="pt-3 text-sm leading-6 text-muted-foreground">
+          {renewal.message ?? renewal.error}
+        </p>
+      ) : null}
     </section>
   );
 }

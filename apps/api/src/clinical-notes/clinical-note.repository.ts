@@ -68,4 +68,22 @@ export class ClinicalNoteRepository {
       orderBy: { submittedAt: 'asc' },
     });
   }
+
+  /** The author's own HAP drafts, oldest first, for the dashboard (#307, B6). */
+  findDraftsForAuthor(clinicId: string, authorUserId: string) {
+    return this.prisma.clinicalNote.findMany({
+      where: { clinicId, authorUserId, status: ClinicalNoteStatus.DRAFT },
+      select: {
+        id: true,
+        encounterId: true,
+        patientId: true,
+        updatedAt: true,
+        patient: {
+          select: { patientCode: true, firstName: true, lastName: true },
+        },
+      },
+      orderBy: { updatedAt: 'asc' },
+      take: 50,
+    });
+  }
 }

@@ -14,9 +14,15 @@ import type {
   StaffActivityRow,
   ClinicComparisonRow,
   ClinicalMeasurementMetrics,
+  DashboardWorkItem,
 } from './dto/dashboard-response.dto';
+import { hasPermission, PERMISSIONS } from '../auth/constants/permissions';
+import type { UserRole } from '@prisma/client';
 import { isApiFeatureEnabled } from '../common/feature-flags';
 import { parseZoneFilter, summarizeZones, zoneFilterMatches, type ZoneFilter } from '@nkwapa/db';
+
+/** How many named rows a "Needs you now" line carries; the count says the rest. */
+export const DASHBOARD_WORK_ITEM_LIMIT = 5;
 
 export const FLAGGED_DIABETES_WHERE = {
   OR: [
@@ -43,6 +49,11 @@ export class DashboardService {
     const isDoctor = roles.includes('DOCTOR');
     const isDirector = roles.includes('DIRECTOR') || roles.includes('MANAGER');
     const isVolunteer = roles.includes('VOLUNTEER');
+    // Patient names follow the patient list's rule: only for a role that may read it here.
+    const canReadPatients = hasPermission(
+      roles.map((role) => ({ role: role as UserRole })),
+      PERMISSIONS.PATIENT_READ,
+    );
     const clinicalMeasurements =
       isDoctor || isDirector || isVolunteer
         ? await this.getClinicalMeasurementMetrics(clinicId)
@@ -66,6 +77,15 @@ export class DashboardService {
         ...(await this.getDoctorMetrics(clinicId, userId)),
         clinicalMeasurements: clinicalMeasurements!,
         ...(pendingClinicalNoteCosigns === undefined ? {} : { pendingClinicalNoteCosigns }),
+        ...(canReadPatients
+          ? {
+              awaitingFinalizationItems: await this.workItems(clinicId, {
+                status: 'IN_REVIEW',
+                preceptorReviewedById: { not: null },
+                doctorFinalizedById: null,
+              }),
+            }
+          : {}),
       };
       response.review = {
         ...(await this.getReviewMetrics(clinicId, userId)),
@@ -97,10 +117,55 @@ export class DashboardService {
         ...(await this.getVolunteerMetrics(clinicId, userId)),
         clinicalMeasurements: clinicalMeasurements!,
         ...(clinicalNotes ? { clinicalNotes } : {}),
+        ...(canReadPatients
+          ? {
+              pendingSubmissionItems: await this.workItems(clinicId, {
+                createdByUserId: userId,
+                status: 'DRAFT',
+              }),
+            }
+          : {}),
       };
     }
 
     return response;
+  }
+
+  /**
+   * The first encounters matching `where`, oldest first, with the patient and the station they
+   * are at now (#307, B5). Same filter as the count beside it, limited to a few rows.
+   */
+  private async workItems(
+    clinicId: string,
+    where: Prisma.EncounterWhereInput,
+  ): Promise<DashboardWorkItem[]> {
+    const encounters = await this.prisma.encounter.findMany({
+      where: { ...where, clinicId },
+      orderBy: { updatedAt: 'asc' },
+      take: DASHBOARD_WORK_ITEM_LIMIT,
+      select: {
+        id: true,
+        patient: { select: { patientCode: true, firstName: true, lastName: true } },
+      },
+    });
+    if (encounters.length === 0) return [];
+    const openVisits = await this.prisma.patientStationVisit.findMany({
+      where: {
+        clinicId,
+        encounterId: { in: encounters.map((encounter) => encounter.id) },
+        status: { in: ['QUEUED', 'IN_PROGRESS'] },
+      },
+      select: { encounterId: true, station: { select: { name: true } } },
+    });
+    const stationByEncounter = new Map(
+      openVisits.map((visit) => [visit.encounterId, visit.station.name]),
+    );
+    return encounters.map((encounter) => ({
+      encounterId: encounter.id,
+      patientCode: encounter.patient.patientCode,
+      patientName: `${encounter.patient.firstName} ${encounter.patient.lastName}`.trim(),
+      station: stationByEncounter.get(encounter.id) ?? null,
+    }));
   }
 
   private async getPendingClinicalNoteCount(clinicId: string): Promise<number> {

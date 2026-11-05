@@ -41,6 +41,7 @@ import {
   describeInviteExpiry,
   describeInviteStatus,
   describePortalAccessStatus,
+  describeRenewalRequest,
   formatInviteDate,
   resendPortalInvite,
   type PortalAccess,
@@ -273,6 +274,14 @@ export function PortalAccessCard({
                     {expiry.label}
                   </dd>
                 </div>
+                {currentInvite.renewalRequestedAt ? (
+                  <div className="flex flex-wrap items-baseline gap-2">
+                    <dt className="sr-only">Renewal request</dt>
+                    <dd className="text-sm font-semibold text-warning-ink">
+                      {describeRenewalRequest(currentInvite.renewalRequestedAt)}
+                    </dd>
+                  </div>
+                ) : null}
 
                 <div className="flex flex-wrap gap-x-4 gap-y-1">
                   <div className="min-w-0">
@@ -486,6 +495,11 @@ export function PortalAccessCard({
                         {invite.createdByName ? (
                           <p className="mt-1 text-xs text-muted-foreground">
                             Issued by {invite.createdByName}
+                          </p>
+                        ) : null}
+                        {invite.renewalRequestedAt ? (
+                          <p className="mt-1 text-xs font-medium text-warning-ink">
+                            {describeRenewalRequest(invite.renewalRequestedAt)}
                           </p>
                         ) : null}
                       </li>

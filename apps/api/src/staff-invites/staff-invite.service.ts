@@ -688,6 +688,7 @@ export class StaffInviteService {
       identityStatus: PortalInviteIdentityStatus;
       identityProvisionedAt: Date | null;
       identityFailureReason: string | null;
+      renewalRequestedAt?: Date | null;
     },
     delivery: Delivery,
     now: Date,
@@ -717,6 +718,8 @@ export class StaffInviteService {
       createdAt: invite.createdAt.toISOString(),
       acceptedAt: invite.acceptedAt?.toISOString() ?? null,
       cancelledAt: invite.cancelledAt?.toISOString() ?? null,
+      // The invitee asked, signed in, for a new invitation after this one lapsed (#307).
+      renewalRequestedAt: invite.renewalRequestedAt?.toISOString() ?? null,
       invitedBy: people.invitedBy ?? null,
       acceptedBy: people.acceptedBy ?? null,
       cancelledBy: people.cancelledBy ?? null,

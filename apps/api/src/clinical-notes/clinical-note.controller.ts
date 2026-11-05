@@ -18,6 +18,7 @@ import { RequirePermission } from '../auth/decorators/require-permission.decorat
 import { PERMISSIONS } from '../auth/constants/permissions';
 import { ClinicScopeGuard } from '../auth/guards/clinic-scope.guard';
 import { RbacGuard } from '../auth/guards/rbac.guard';
+import { Idempotent } from '../idempotency/idempotent.decorator';
 import { isApiFeatureEnabled } from '../common/feature-flags';
 import { ClinicalNoteService } from './clinical-note.service';
 import {
@@ -70,6 +71,7 @@ export class ClinicalNoteController {
   }
 
   @Post('encounters/:encounterId/clinical-note')
+  @Idempotent()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.CLINICAL_NOTE_WRITE)
   @Header('Cache-Control', 'private, no-store, max-age=0')
@@ -89,6 +91,7 @@ export class ClinicalNoteController {
   }
 
   @Put('encounters/:encounterId/clinical-note')
+  @Idempotent()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.CLINICAL_NOTE_WRITE)
   @Header('Cache-Control', 'private, no-store, max-age=0')
@@ -115,6 +118,7 @@ export class ClinicalNoteController {
    * DRAFT-only rule and the optimistic version check all still decide whether it lands.
    */
   @Post('encounters/:encounterId/clinical-note/seed')
+  @Idempotent()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.CLINICAL_NOTE_WRITE)
   @Header('Cache-Control', 'private, no-store, max-age=0')
@@ -134,6 +138,7 @@ export class ClinicalNoteController {
   }
 
   @Post('encounters/:encounterId/clinical-note/submit')
+  @Idempotent()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.CLINICAL_NOTE_WRITE)
   @Header('Cache-Control', 'private, no-store, max-age=0')
@@ -148,6 +153,7 @@ export class ClinicalNoteController {
   }
 
   @Post('encounters/:encounterId/clinical-note/cosign')
+  @Idempotent()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.CLINICAL_NOTE_COSIGN)
   @Header('Cache-Control', 'private, no-store, max-age=0')
@@ -162,6 +168,7 @@ export class ClinicalNoteController {
   }
 
   @Post('encounters/:encounterId/clinical-note/addenda')
+  @Idempotent()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.CLINICAL_NOTE_ADDENDUM)
   @Header('Cache-Control', 'private, no-store, max-age=0')
@@ -196,6 +203,15 @@ export class ClinicalNoteController {
   pending(@Param('clinicId') clinicId: string, @Request() request: ClinicalNoteRequest) {
     this.assertEnabled();
     return this.notes.pendingForDoctor(clinicId, this.actor(request));
+  }
+
+  @Get('clinical-notes/my-drafts')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.CLINICAL_NOTE_WRITE)
+  @Header('Cache-Control', 'private, no-store, max-age=0')
+  myDrafts(@Param('clinicId') clinicId: string, @Request() request: ClinicalNoteRequest) {
+    this.assertEnabled();
+    return this.notes.draftsForAuthor(clinicId, this.actor(request));
   }
 
   private actor(request: ClinicalNoteRequest) {

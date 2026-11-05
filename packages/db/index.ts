@@ -126,9 +126,12 @@ export {
 } from './src/clinic-metadata';
 export {
   clinicDayWindow,
+  hasUtcOffset,
+  instantToWallClock,
   localHourInTimeZone,
   startOfDayInTimeZone,
   todayInTimeZone,
+  wallClockToInstant,
   type ClinicDayWindow,
 } from './src/clinic-day';
 export {

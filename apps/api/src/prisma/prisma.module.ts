@@ -4,6 +4,7 @@ import { PrismaService } from './prisma.service';
 import { PrismaRlsInterceptor } from './prisma-rls.interceptor';
 import { JobTenantContextRunner } from './job-tenant-context.runner';
 import { RequestContextInterceptor } from '../common/request-context.interceptor';
+import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
 
 @Global()
 @Module({
@@ -21,6 +22,12 @@ import { RequestContextInterceptor } from '../common/request-context.interceptor
     {
       provide: APP_INTERCEPTOR,
       useExisting: PrismaRlsInterceptor,
+    },
+    // After the RLS interceptor, so a key is claimed and its response stored inside the request's
+    // own transaction (#307).
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: IdempotencyInterceptor,
     },
   ],
   exports: [PrismaService, JobTenantContextRunner],

@@ -60,6 +60,18 @@ export interface ClinicalMeasurementMetrics {
   tobaccoStatusDistribution: Record<string, number>;
 }
 
+/**
+ * One encounter waiting on this person, named for the "Needs you now" rows (#307, B5). Only sent
+ * to a role that may read the clinic's patient list, the same rule as that list.
+ */
+export interface DashboardWorkItem {
+  encounterId: string;
+  patientCode: string;
+  patientName: string;
+  /** The station the patient is waiting at or being seen in now, if any. */
+  station: string | null;
+}
+
 export interface DoctorMetrics {
   clinicalMeasurements: ClinicalMeasurementMetrics;
   awaitingFinalization: number;
@@ -70,6 +82,8 @@ export interface DoctorMetrics {
   recentEncounters: EncounterSummary[];
   finalizationsTrend: TrendPoint[];
   pendingClinicalNoteCosigns?: number;
+  /** The first visits waiting for sign-off, oldest first. Absent without PATIENT.READ. */
+  awaitingFinalizationItems?: DashboardWorkItem[];
 }
 
 export interface ReviewMetrics {
@@ -104,6 +118,8 @@ export interface VolunteerMetrics {
   bpDistribution: Record<string, number>;
   diabetesStats: { flagged: number; total: number };
   clinicalNotes?: { drafts: number; pendingCosign: number };
+  /** This volunteer's first draft visits, oldest first. Absent without PATIENT.READ. */
+  pendingSubmissionItems?: DashboardWorkItem[];
 }
 
 export interface SystemAdminMetrics {

@@ -101,8 +101,16 @@ export interface StaffAppointmentRecord {
   assignedVolunteer: { id: string; displayName: string | null } | null;
   notes: string | null;
   reminderSummary: AppointmentReminderSummary;
+  /** Who cancelled, when and why; null unless the visit is cancelled (#307). */
+  cancellation?: AppointmentCancellation | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AppointmentCancellation {
+  at: string;
+  reason: string | null;
+  by: { id: string; displayName: string | null } | null;
 }
 
 export interface StaffAppointmentsResponse {

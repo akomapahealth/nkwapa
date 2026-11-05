@@ -24,6 +24,12 @@ import {
 import { EmptyState, InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
+import {
+  encounterQueueQuery,
+  laneTotal,
+  type EncounterQueueCounts,
+  type EncounterQueueStage,
+} from '@/lib/encounter-queues';
 
 interface QueueRow {
   id: string;
@@ -86,13 +92,15 @@ export default function QueuesPage() {
   const [review, setReview] = useState<QueueRow[]>([]);
   const [finalize, setFinalize] = useState<QueueRow[]>([]);
   const [cosign, setCosign] = useState<QueueRow[]>([]);
+  const [counts, setCounts] = useState<EncounterQueueCounts | null>(null);
+  const [loadingMore, setLoadingMore] = useState<Lane | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchQueue = useCallback(
-    async (stage: 'DRAFT' | 'REVIEW' | 'DOCTOR_READY') => {
+    async (stage: EncounterQueueStage, skip = 0) => {
       if (!clinicId || !getToken) return [];
-      const params = stage === 'DRAFT' ? 'status=DRAFT' : `status=IN_REVIEW&stage=${stage}`;
+      const params = encounterQueueQuery(stage, skip);
       const res = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}/encounters?${params}`, {
         getToken,
       });
@@ -143,6 +151,12 @@ export default function QueuesPage() {
     setLoading(true);
     setError(null);
     try {
+      const countsRequest = getToken
+        ? apiFetch(`/clinics/${encodeURIComponent(clinicId)}/encounters/counts`, { getToken })
+            .then(async (res) => (res.ok ? ((await res.json()) as EncounterQueueCounts) : null))
+            // The lanes still load without the totals; the tabs then count loaded rows.
+            .catch(() => null)
+        : Promise.resolve(null);
       const [d, r, f, c] = await Promise.all([
         canDrafts ? fetchQueue('DRAFT') : [],
         canReview ? fetchQueue('REVIEW') : [],
@@ -174,6 +188,7 @@ export default function QueuesPage() {
       setReview(r);
       setFinalize(f);
       setCosign(c);
+      setCounts(await countsRequest);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -184,6 +199,29 @@ export default function QueuesPage() {
   useEffect(() => {
     loadAll();
   }, [loadAll]);
+
+  const pagedLanes = {
+    drafts: { stage: 'DRAFT', rows: drafts, set: setDrafts },
+    review: { stage: 'REVIEW', rows: review, set: setReview },
+    finalize: { stage: 'DOCTOR_READY', rows: finalize, set: setFinalize },
+  } as const;
+
+  const loadMore = async (lane: keyof typeof pagedLanes) => {
+    const { stage, rows, set } = pagedLanes[lane];
+    setLoadingMore(lane);
+    setError(null);
+    try {
+      const next = await fetchQueue(stage, rows.length);
+      set((current) => [
+        ...current,
+        ...next.filter((row) => !current.some((c) => c.id === row.id)),
+      ]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoadingMore(null);
+    }
+  };
 
   const columns: DataTableColumn<QueueRow>[] = [
     {
@@ -272,19 +310,22 @@ export default function QueuesPage() {
               {canDrafts && (
                 <TabsTrigger value="drafts">
                   Drafts
-                  <LaneCount loading={loading} count={drafts.length} />
+                  <LaneCount loading={loading} count={laneTotal(counts, 'drafts', drafts.length)} />
                 </TabsTrigger>
               )}
               {canReview && (
                 <TabsTrigger value="review">
                   Needs Review
-                  <LaneCount loading={loading} count={review.length} />
+                  <LaneCount loading={loading} count={laneTotal(counts, 'review', review.length)} />
                 </TabsTrigger>
               )}
               {canFinalize && (
                 <TabsTrigger value="finalize">
                   Ready to Finalize
-                  <LaneCount loading={loading} count={finalize.length} />
+                  <LaneCount
+                    loading={loading}
+                    count={laneTotal(counts, 'finalize', finalize.length)}
+                  />
                 </TabsTrigger>
               )}
               {canCosignClinicalNotes ? (
@@ -311,6 +352,21 @@ export default function QueuesPage() {
                   columns={columns}
                   onRowClick={handleRowClick}
                 />
+                {lane !== 'cosign' && laneTotal(counts, lane, rows.length) > rows.length ? (
+                  <div className="flex items-center justify-between gap-3 border-t border-rule py-3">
+                    <p className="text-sm tabular-nums text-muted-foreground">
+                      Showing {rows.length} of {laneTotal(counts, lane, rows.length)}
+                    </p>
+                    <Button
+                      variant="outline"
+                      className="min-h-11"
+                      disabled={loadingMore !== null || !isOnline}
+                      onClick={() => void loadMore(lane)}
+                    >
+                      {loadingMore === lane ? 'Loading…' : 'Show more'}
+                    </Button>
+                  </div>
+                ) : null}
               </TabsContent>
             ))}
           </Tabs>

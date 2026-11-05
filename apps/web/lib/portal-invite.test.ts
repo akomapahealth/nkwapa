@@ -1,4 +1,5 @@
 import {
+  describeRenewalRequest,
   buildManualInviteInstructions,
   describeInviteContact,
   describeInviteDeliveryGap,
@@ -365,5 +366,18 @@ describe('buildManualInviteInstructions account setup wording', () => {
     expect(buildManualInviteInstructions({ ...base, identityStatus: 'PROVISIONED' })).toContain(
       'NKP-2026-000001',
     );
+  });
+});
+
+describe('describeRenewalRequest (#307)', () => {
+  it('says when the invitee asked for a new invitation', () => {
+    expect(describeRenewalRequest('2026-11-05T09:00:00.000Z')).toMatch(
+      /^Asked for a new invitation on .*2026$/,
+    );
+  });
+
+  it('says nothing when they have not asked', () => {
+    expect(describeRenewalRequest(null)).toBeNull();
+    expect(describeRenewalRequest(undefined)).toBeNull();
   });
 });

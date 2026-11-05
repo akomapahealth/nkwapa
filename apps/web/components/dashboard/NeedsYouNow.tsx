@@ -4,14 +4,20 @@ import Link from 'next/link';
 import { CheckCircle, ClipboardList, Eye, FileEdit, ListOrdered } from 'lucide-react';
 import { AppActionRow, type AppActionRowProps } from '@/components/app-shell/AppActionRow';
 import { Button } from '@/components/ui/button';
+import { describeWorkItems, type DashboardWorkItem } from '@/lib/dashboard-work-items';
 
 interface NeedsYouNowProps {
   volunteer?: {
     patientsRegisteredToday: number;
     encountersCreatedToday: number;
     pendingSubmissions: number;
+    pendingSubmissionItems?: DashboardWorkItem[];
   };
-  doctor?: { awaitingFinalization: number; pendingClinicalNoteCosigns?: number };
+  doctor?: {
+    awaitingFinalization: number;
+    awaitingFinalizationItems?: DashboardWorkItem[];
+    pendingClinicalNoteCosigns?: number;
+  };
   review?: { awaitingReview: number };
   /**
    * For managers, directors and system administrators: the active clinic's queue counts
@@ -47,9 +53,9 @@ type Row = Omit<AppActionRowProps, 'action'> & { href?: string; label?: string }
 /**
  * The first thing on every staff dashboard: the work waiting on this person, one ruled row per
  * kind with one action (MASTER.md section 12). Volunteers and doctors see their own queues;
- * managers, directors and administrators see where the clinic's queues are held up. Built only
- * from `DashboardData` counts; it never names a patient, because the dashboard contract carries
- * none.
+ * managers, directors and administrators see where the clinic's queues are held up. A person's
+ * own drafts and sign-offs name the oldest few patients and their station (#307), for someone
+ * who can read patient records; clinic-wide rows stay counts.
  */
 export function NeedsYouNow({ volunteer, doctor, review, clinic, worklistHref }: NeedsYouNowProps) {
   if (!volunteer && !doctor && !review && !clinic) return null;
@@ -68,7 +74,9 @@ export function NeedsYouNow({ volunteer, doctor, review, clinic, worklistHref }:
   if (volunteer && volunteer.pendingSubmissions > 0) {
     rows.push({
       title: `${plural(volunteer.pendingSubmissions, 'draft visit', 'draft visits')} to submit`,
-      detail: 'Visits you started and have not sent for review yet.',
+      detail:
+        describeWorkItems(volunteer.pendingSubmissionItems, volunteer.pendingSubmissions) ??
+        'Visits you started and have not sent for review yet.',
       icon: FileEdit,
       tone: 'warning',
       href: '/queues?tab=drafts',
@@ -88,7 +96,9 @@ export function NeedsYouNow({ volunteer, doctor, review, clinic, worklistHref }:
   if (doctor && doctor.awaitingFinalization > 0) {
     rows.push({
       title: `${plural(doctor.awaitingFinalization, 'visit', 'visits')} waiting for sign-off`,
-      detail: 'Reviewed visits ready for a doctor to finalize.',
+      detail:
+        describeWorkItems(doctor.awaitingFinalizationItems, doctor.awaitingFinalization) ??
+        'Reviewed visits ready for a doctor to finalize.',
       icon: CheckCircle,
       tone: 'info',
       href: '/queues?tab=finalize',
