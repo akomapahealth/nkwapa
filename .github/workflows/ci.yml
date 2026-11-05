@@ -167,6 +167,13 @@ jobs:
           RUN_APPOINTMENT_CANCELLATION_MIGRATION_TESTS: '1'
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
+      # Clinic measurement units: existing clinics get their country's defaults.
+      - name: Verify clinic measurement units backfill
+        run: npm run test --workspace=@nkwapa/db -- --runInBand src/measurement-units-migration.integration.spec.ts
+        env:
+          RUN_MEASUREMENT_UNITS_MIGRATION_TESTS: '1'
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
       # The station line's guarantees (#167): one open station per patient, one winner per claim,
       # one review station per clinic, and row-level security on the new tables.
       - name: Verify station workflow safeguards

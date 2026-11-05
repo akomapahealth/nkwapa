@@ -1,5 +1,8 @@
 'use client';
 
+import { useClinicUnits } from '@/lib/bootstrap-context';
+import { formatHeight, formatWeight } from '@nkwapa/db/measurement-units';
+
 import { useCallback } from 'react';
 import Link from 'next/link';
 import { ArrowUpRight, HeartPulse } from 'lucide-react';
@@ -25,6 +28,7 @@ function formatBloodPressure(record: ChartVitalsRecord): string | null {
 }
 
 function VitalsRecordCard({ record, clinicId }: { record: ChartVitalsRecord; clinicId: string }) {
+  const { bodyUnit } = useClinicUnits(clinicId);
   const bloodPressure = formatBloodPressure(record);
   return (
     <ChartRecordCard
@@ -57,8 +61,8 @@ function VitalsRecordCard({ record, clinicId }: { record: ChartVitalsRecord; cli
         <ChartMeasurement label="Temperature" value={record.temperatureCelsius} suffix=" °C" />
         <ChartMeasurement label="Respiratory rate" value={record.respiratoryRate} suffix="/min" />
         <ChartMeasurement label="SpO₂" value={record.spo2Percent} suffix="%" />
-        <ChartMeasurement label="Weight" value={record.weightKg} suffix=" kg" />
-        <ChartMeasurement label="Height" value={record.heightCm} suffix=" cm" />
+        <ChartMeasurement label="Weight" value={formatWeight(record.weightKg, bodyUnit)} />
+        <ChartMeasurement label="Height" value={formatHeight(record.heightCm, bodyUnit)} />
         <ChartMeasurement label="BMI" value={record.bmi} />
       </dl>
       {record.notes ? (

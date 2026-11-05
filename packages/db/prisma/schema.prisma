@@ -861,6 +861,24 @@ enum HypertensionEscalationReason {
   HYPOTENSION
 }
 
+/// Glucose entry and display unit. Stored glucose is always whole mg/dL.
+enum GlucoseUnit {
+  MG_DL
+  MMOL_L
+}
+
+/// Weight and height entry and display units: kg and cm, or lb and feet and inches.
+enum BodyMeasureUnit {
+  METRIC
+  US
+}
+
+/// HbA1c entry and display unit: NGSP % (stored) or IFCC mmol/mol.
+enum Hba1cUnit {
+  PERCENT
+  MMOL_MOL
+}
+
 model Organization {
   id       String @id @default(uuid()) @db.Uuid
   name     String
@@ -880,6 +898,11 @@ model Clinic {
   region         String?
   countryCode    String  @default("GH") @db.VarChar(2) // ISO-3166 alpha-2, v1 default GH
   timezone       String  @default("Africa/Accra") @db.VarChar(64)
+  /// Units staff type and read screening values in. Storage is always mg/dL, kg, cm and %;
+  /// see packages/db/src/measurement-units.ts. Defaults follow countryCode when a clinic is made.
+  glucoseUnit    GlucoseUnit     @default(MMOL_L)
+  bodyUnit       BodyMeasureUnit @default(METRIC)
+  hba1cUnit      Hba1cUnit       @default(PERCENT)
   locationCode   String  @db.VarChar(64)
   zoneCode       String? @db.VarChar(64)
   isActive       Boolean @default(true)

@@ -108,6 +108,9 @@ export class ClinicsAdminController {
       timezone: dto.timezone,
       locationCode: dto.locationCode,
       zoneCode: dto.zoneCode,
+      glucoseUnit: dto.glucoseUnit,
+      bodyUnit: dto.bodyUnit,
+      hba1cUnit: dto.hba1cUnit,
     });
     if (isDirector && !isSystemAdmin) {
       await this.prisma.userClinicRole.create({
@@ -148,6 +151,9 @@ export class ClinicsAdminController {
       locationCode: dto.locationCode,
       zoneCode: dto.zoneCode,
       isActive: dto.isActive,
+      glucoseUnit: dto.glucoseUnit,
+      bodyUnit: dto.bodyUnit,
+      hba1cUnit: dto.hba1cUnit,
     });
   }
 

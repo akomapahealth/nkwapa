@@ -147,6 +147,7 @@ export class ClinicalNoteService {
       select: {
         patient: { select: { firstName: true, lastName: true } },
         vitals: { select: { systolicBp: true, diastolicBp: true, pulseBpm: true } },
+        clinic: { select: { glucoseUnit: true, bodyUnit: true, hba1cUnit: true } },
         hypertensionAssessment: true,
         diabetesScreening: true,
         /*
@@ -244,6 +245,7 @@ export class ClinicalNoteService {
           assessment: record as unknown as Record<string, unknown>,
           vitals: encounter.vitals,
           medications: medicationsFor('DIABETES'),
+          units: encounter.clinic,
           clinicianPlan: maySeePlan
             ? {
                 items: record.clinicianPlanItems,

@@ -212,6 +212,19 @@ function diabetesInput(overrides: Partial<NarrativeInput> = {}): NarrativeInput 
 }
 
 describe('renderDiabetesNarrative', () => {
+  it("writes glucose and HbA1c in the clinic's units", () => {
+    const { history, assessment } = renderDiabetesNarrative(
+      diabetesInput({
+        units: { glucoseUnit: 'MMOL_L', bodyUnit: 'METRIC', hba1cUnit: 'MMOL_MOL' },
+      }),
+    );
+    expect(history).toContain(
+      "Today's capillary blood glucose was 9.3 mmol/L, measured before meal.",
+    );
+    expect(history).toContain('57 mmol/mol on 2026-05-14');
+    expect(assessment).toContain("Today's reading of 9.3 mmol/L");
+  });
+
   it('renders the same text twice', () => {
     expect(renderDiabetesNarrative(diabetesInput())).toEqual(
       renderDiabetesNarrative(diabetesInput()),

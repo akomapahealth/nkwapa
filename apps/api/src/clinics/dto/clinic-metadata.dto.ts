@@ -1,6 +1,16 @@
-import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { TIMEZONE_MAX_LENGTH, normalizeCountryCode, normalizeZoneCode } from '@nkwapa/db';
+import {
+  BODY_MEASURE_UNITS,
+  GLUCOSE_UNITS,
+  HBA1C_UNITS,
+  TIMEZONE_MAX_LENGTH,
+  normalizeCountryCode,
+  normalizeZoneCode,
+  type BodyMeasureUnit,
+  type GlucoseUnit,
+  type Hba1cUnit,
+} from '@nkwapa/db';
 import { ToSanitizedString } from '../../common/validation';
 import { IsCountryCode, IsIanaTimeZone, IsZoneCode } from '../../common/clinic-metadata.validator';
 
@@ -49,4 +59,17 @@ export class ClinicMetadataDto {
   @IsString()
   @MaxLength(100)
   region?: string;
+
+  /** Entry and display units. Omitted on create, they follow `countryCode`. */
+  @IsOptional()
+  @IsIn(GLUCOSE_UNITS)
+  glucoseUnit?: GlucoseUnit;
+
+  @IsOptional()
+  @IsIn(BODY_MEASURE_UNITS)
+  bodyUnit?: BodyMeasureUnit;
+
+  @IsOptional()
+  @IsIn(HBA1C_UNITS)
+  hba1cUnit?: Hba1cUnit;
 }

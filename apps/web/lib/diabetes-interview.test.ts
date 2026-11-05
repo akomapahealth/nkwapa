@@ -4,6 +4,7 @@ import {
   fromDiabetesRecord,
   toDiabetesPayload,
   validateDiabetesInterview,
+  withGlucoseUnit,
   type DiabetesInterviewValues,
 } from './diabetes-interview';
 
@@ -27,12 +28,12 @@ describe('validateDiabetesInterview', () => {
       in the room beats storing something uninterpretable.
     */
     it('requires a timing once a value is entered', () => {
-      expect(
-        validateDiabetesInterview(values({ glucoseMgDl: '126' }))['dm-glucose-timing'],
-      ).toMatch(/cannot be interpreted/i);
-      expect(
-        validateDiabetesInterview(values({ glucoseMgDl: '126', glucoseType: 'FASTING' })),
-      ).toEqual({});
+      expect(validateDiabetesInterview(values({ glucose: '126' }))['dm-glucose-timing']).toMatch(
+        /cannot be interpreted/i,
+      );
+      expect(validateDiabetesInterview(values({ glucose: '126', glucoseType: 'FASTING' }))).toEqual(
+        {},
+      );
     });
 
     it('does not demand a timing when no glucose was taken', () => {
@@ -41,10 +42,8 @@ describe('validateDiabetesInterview', () => {
 
     it('bounds the value', () => {
       expect(
-        validateDiabetesInterview(values({ glucoseMgDl: '9000', glucoseType: 'RANDOM' }))[
-          'dm-glucose'
-        ],
-      ).toMatch(/between 0 and 600/);
+        validateDiabetesInterview(values({ glucose: '9000', glucoseType: 'RANDOM' }))['dm-glucose'],
+      ).toMatch(/from 0 to 600 mg\/dL/);
     });
   });
 
@@ -52,7 +51,7 @@ describe('validateDiabetesInterview', () => {
     /* A value and "never checked" cannot both be true, and the record has room for both. */
     it('refuses a value alongside "never checked"', () => {
       expect(
-        validateDiabetesInterview(values({ hba1cPercent: '7.2', hba1cStatus: 'NEVER_CHECKED' }))[
+        validateDiabetesInterview(values({ hba1c: '7.2', hba1cStatus: 'NEVER_CHECKED' }))[
           'dm-hba1c-status'
         ],
       ).toMatch(/Only one of the two/);
@@ -60,29 +59,29 @@ describe('validateDiabetesInterview', () => {
 
     it('accepts a value with a known status', () => {
       expect(
-        validateDiabetesInterview(values({ hba1cPercent: '7.2', hba1cStatus: 'VALUE_KNOWN' })),
+        validateDiabetesInterview(values({ hba1c: '7.2', hba1cStatus: 'VALUE_KNOWN' })),
       ).toEqual({});
     });
 
     it('accepts a decimal', () => {
       expect(
-        validateDiabetesInterview(values({ hba1cPercent: '6.45', hba1cStatus: 'VALUE_KNOWN' })),
+        validateDiabetesInterview(values({ hba1c: '6.45', hba1cStatus: 'VALUE_KNOWN' })),
       ).toEqual({});
     });
 
     it('rejects something that is not a number', () => {
       expect(
-        validateDiabetesInterview(values({ hba1cPercent: '7.2%', hba1cStatus: 'VALUE_KNOWN' }))[
+        validateDiabetesInterview(values({ hba1c: '7.2%', hba1cStatus: 'VALUE_KNOWN' }))[
           'dm-hba1c'
         ],
-      ).toMatch(/must be a number/i);
+      ).toMatch(/Enter a value from 0 to 100%/);
     });
   });
 
   describe('home readings', () => {
     it('refuses a lowest above the highest', () => {
       const errors = validateDiabetesInterview(
-        values({ homeGlucoseLowMgDl: '300', homeGlucoseHighMgDl: '100' }),
+        values({ homeGlucoseLow: '300', homeGlucoseHigh: '100' }),
       );
       expect(errors['dm-home-low']).toMatch(/cannot be higher/i);
       expect(errors['dm-home-high']).toMatch(/cannot be higher/i);
@@ -90,12 +89,10 @@ describe('validateDiabetesInterview', () => {
 
     it('accepts a sensible range, including one where both are equal', () => {
       expect(
-        validateDiabetesInterview(values({ homeGlucoseLowMgDl: '90', homeGlucoseHighMgDl: '180' })),
+        validateDiabetesInterview(values({ homeGlucoseLow: '90', homeGlucoseHigh: '180' })),
       ).toEqual({});
       expect(
-        validateDiabetesInterview(
-          values({ homeGlucoseLowMgDl: '120', homeGlucoseHighMgDl: '120' }),
-        ),
+        validateDiabetesInterview(values({ homeGlucoseLow: '120', homeGlucoseHigh: '120' })),
       ).toEqual({});
     });
   });
@@ -132,12 +129,12 @@ describe('DIABETES_FIELD_ORDER', () => {
     const emitted = new Set<string>();
     const nextYear = String(new Date().getUTCFullYear() + 1);
     const cases: Partial<DiabetesInterviewValues>[] = [
-      { glucoseMgDl: '9000', glucoseType: 'RANDOM' },
-      { glucoseMgDl: '126' },
-      { hba1cPercent: '7.2%', hba1cStatus: 'VALUE_KNOWN' },
-      { hba1cPercent: '7.2', hba1cStatus: 'NEVER_CHECKED' },
-      { homeGlucoseLowMgDl: '300', homeGlucoseHighMgDl: '100' },
-      { homeGlucoseLowMgDl: '9000' },
+      { glucose: '9000', glucoseType: 'RANDOM' },
+      { glucose: '126' },
+      { hba1c: '7.2%', hba1cStatus: 'VALUE_KNOWN' },
+      { hba1c: '7.2', hba1cStatus: 'NEVER_CHECKED' },
+      { homeGlucoseLow: '300', homeGlucoseHigh: '100' },
+      { homeGlucoseLow: '9000' },
       { yearDiagnosed: nextYear },
       { mainConcern: 'OTHER' },
       { reviewReasons: ['OTHER'] },
@@ -172,7 +169,7 @@ describe('toDiabetesPayload', () => {
 
   it('parses entered numbers once', () => {
     const payload = toDiabetesPayload(
-      values({ glucoseMgDl: '126', hba1cPercent: '6.4', hba1cStatus: 'VALUE_KNOWN' }),
+      values({ glucose: '126', hba1c: '6.4', hba1cStatus: 'VALUE_KNOWN' }),
       COLLECTED_AT,
     );
     expect(payload).toMatchObject({ glucoseMgDl: 126, hba1cPercent: 6.4 });
@@ -181,7 +178,7 @@ describe('toDiabetesPayload', () => {
   /* A stale value behind a changed answer is a second, contradicting record. */
   it('drops an HbA1c the status no longer justifies', () => {
     const payload = toDiabetesPayload(
-      values({ hba1cPercent: '6.4', hba1cStatus: 'UNKNOWN' }),
+      values({ hba1c: '6.4', hba1cStatus: 'UNKNOWN' }),
       COLLECTED_AT,
     );
     expect(payload.hba1cPercent).toBeNull();
@@ -192,8 +189,8 @@ describe('toDiabetesPayload', () => {
     const payload = toDiabetesPayload(
       values({
         homeGlucoseMonitoring: 'NO',
-        homeGlucoseLowMgDl: '90',
-        homeGlucoseHighMgDl: '180',
+        homeGlucoseLow: '90',
+        homeGlucoseHigh: '180',
       }),
       COLLECTED_AT,
     );
@@ -205,8 +202,8 @@ describe('toDiabetesPayload', () => {
     const payload = toDiabetesPayload(
       values({
         homeGlucoseMonitoring: 'YES',
-        homeGlucoseLowMgDl: '90',
-        homeGlucoseHighMgDl: '180',
+        homeGlucoseLow: '90',
+        homeGlucoseHigh: '180',
       }),
       COLLECTED_AT,
     );
@@ -250,10 +247,10 @@ describe('fromDiabetesRecord', () => {
     const original = values({
       diabetesStatus: 'KNOWN_DIABETES',
       diabetesType: 'TYPE_2',
-      glucoseMgDl: '148',
+      glucose: '148',
       glucoseType: 'BEFORE_MEAL',
       hba1cStatus: 'VALUE_KNOWN',
-      hba1cPercent: '7.1',
+      hba1c: '7.1',
       symptoms: ['FATIGUE'],
       urgentSymptoms: ['NONE'],
       phq2Interest: 'SEVERAL_DAYS',
@@ -264,9 +261,9 @@ describe('fromDiabetesRecord', () => {
     expect(restored).toMatchObject({
       diabetesStatus: 'KNOWN_DIABETES',
       diabetesType: 'TYPE_2',
-      glucoseMgDl: '148',
+      glucose: '148',
       glucoseType: 'BEFORE_MEAL',
-      hba1cPercent: '7.1',
+      hba1c: '7.1',
       symptoms: ['FATIGUE'],
       urgentSymptoms: ['NONE'],
       phq2Interest: 'SEVERAL_DAYS',
@@ -286,12 +283,82 @@ describe('fromDiabetesRecord', () => {
     expect(restored.diabetesStatus).toBe('SOMETHING_NEWER');
     expect(restored.symptoms).toEqual(['FATIGUE']);
     expect(restored.nutrition.mealsPerDay).toBe('NOT_ASSESSED');
-    expect(restored.glucoseMgDl).toBe('');
+    expect(restored.glucose).toBe('');
   });
 
   it('reads an HbA1c date back as a date input value', () => {
     expect(
       fromDiabetesRecord({ hba1cMeasuredOn: '2026-05-14T00:00:00.000Z' }).hba1cMeasuredOn,
     ).toBe('2026-05-14');
+  });
+
+  describe('in a clinic that works in mmol/L and mmol/mol', () => {
+    const units = { glucoseUnit: 'MMOL_L', hba1cUnit: 'MMOL_MOL' } as const;
+
+    it('shows stored values in the clinic units', () => {
+      expect(
+        fromDiabetesRecord({ glucoseMgDl: 126, hba1cPercent: 6.5, homeGlucoseLowMgDl: 90 }, units),
+      ).toMatchObject({ glucose: '7', hba1c: '48', homeGlucoseLow: '5', glucoseUnit: 'MMOL_L' });
+    });
+
+    it('saves typed values in stored units', () => {
+      const typed = {
+        ...emptyDiabetesInterview(units),
+        glucose: '11.1',
+        glucoseType: 'RANDOM',
+        hba1cStatus: 'VALUE_KNOWN',
+        hba1c: '48',
+        homeGlucoseMonitoring: 'YES',
+        homeGlucoseLow: '4.4',
+        homeGlucoseHigh: '10',
+      };
+      expect(validateDiabetesInterview(typed)).toEqual({});
+      expect(toDiabetesPayload(typed, COLLECTED_AT)).toMatchObject({
+        glucoseMgDl: 200,
+        hba1cPercent: 6.54,
+        homeGlucoseLowMgDl: 79,
+        homeGlucoseHighMgDl: 180,
+      });
+    });
+
+    it('saves an unedited record exactly as it was stored', () => {
+      const record = {
+        glucoseMgDl: 127,
+        glucoseType: 'FASTING',
+        hba1cStatus: 'VALUE_KNOWN',
+        hba1cPercent: 6.5,
+        homeGlucoseMonitoring: 'YES',
+        homeGlucoseLowMgDl: 91,
+        homeGlucoseHighMgDl: 199,
+      };
+      expect(toDiabetesPayload(fromDiabetesRecord(record, units), COLLECTED_AT)).toMatchObject({
+        glucoseMgDl: 127,
+        hba1cPercent: 6.5,
+        homeGlucoseLowMgDl: 91,
+        homeGlucoseHighMgDl: 199,
+      });
+    });
+
+    it('rejects a mg/dL number typed into an mmol/L field', () => {
+      expect(
+        validateDiabetesInterview({
+          ...emptyDiabetesInterview(units),
+          glucose: '126',
+          glucoseType: 'FASTING',
+        })['dm-glucose'],
+      ).toMatch(/mmol\/L/);
+    });
+
+    it('switches every glucose answer to the other unit together', () => {
+      const switched = withGlucoseUnit(
+        { ...emptyDiabetesInterview(units), glucose: '7.0', homeGlucoseLow: '4.4' },
+        'MG_DL',
+      );
+      expect(switched).toMatchObject({
+        glucoseUnit: 'MG_DL',
+        glucose: '126',
+        homeGlucoseLow: '79',
+      });
+    });
   });
 });

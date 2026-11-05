@@ -1,5 +1,8 @@
 'use client';
 
+import { useClinicUnits } from '@/lib/bootstrap-context';
+import { formatGlucose, formatHba1c } from '@nkwapa/db/measurement-units';
+
 import { statusLabel } from '@/lib/status-presentation';
 import Link from 'next/link';
 import {
@@ -165,6 +168,7 @@ export function PatientChartOverview({
   /** Chart-level detail cards (patient details, portal, admin actions). */
   children?: ReactNode;
 }) {
+  const units = useClinicUnits(clinicId);
   if (error && !summary) {
     return (
       <InlineErrorState
@@ -290,10 +294,10 @@ export function PatientChartOverview({
               <div className="space-y-1">
                 <p className="type-data">
                   {latestDiabetes.glucoseMgDl !== null
-                    ? `Glucose ${latestDiabetes.glucoseMgDl} mg/dL`
+                    ? `Glucose ${formatGlucose(latestDiabetes.glucoseMgDl, units.glucoseUnit)}`
                     : 'Glucose not recorded'}
                   {latestDiabetes.hba1cPercent !== null
-                    ? ` · HbA1c ${latestDiabetes.hba1cPercent}%`
+                    ? ` · HbA1c ${formatHba1c(latestDiabetes.hba1cPercent, units.hba1cUnit)}`
                     : ''}
                 </p>
                 <p className="text-xs text-muted-foreground">

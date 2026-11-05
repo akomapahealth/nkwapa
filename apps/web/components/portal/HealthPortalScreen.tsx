@@ -1,9 +1,17 @@
 'use client';
 
+import { glucoseUnitLabel, weightUnitLabel } from '@/lib/measurement-entry';
+import {
+  formatGlucose,
+  formatWeight,
+  weightFromKg,
+  type BodyMeasureUnit,
+} from '@nkwapa/db/measurement-units';
+
 import Link from 'next/link';
 import { useState } from 'react';
 import { Activity, ArrowRight, HeartPulse, Scale, Syringe } from 'lucide-react';
-import { useBootstrap } from '@/lib/bootstrap-context';
+import { useBootstrap, useClinicUnits } from '@/lib/bootstrap-context';
 import {
   fetchLegacySelfReports,
   fetchMeasurements,
@@ -61,7 +69,7 @@ function getLatestMeasurement(measurements: MeasurementRecord[], type: Measureme
   return measurements.find((measurement) => measurement.type === type) ?? null;
 }
 
-function buildWeightTrendData(measurements: MeasurementRecord[]) {
+function buildWeightTrendData(measurements: MeasurementRecord[], bodyUnit: BodyMeasureUnit) {
   return measurements
     .filter((measurement) => measurement.type === 'WEIGHT')
     .slice()
@@ -71,7 +79,10 @@ function buildWeightTrendData(measurements: MeasurementRecord[]) {
         month: 'numeric',
         day: 'numeric',
       }),
-      weight: readTrendNumber(measurement.payload.kg),
+      weight: (() => {
+        const kg = readTrendNumber(measurement.payload.kg);
+        return kg == null ? null : weightFromKg(kg, bodyUnit);
+      })(),
     }));
 }
 
@@ -109,6 +120,7 @@ export function HealthPortalScreen() {
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const clinicId = getPortalClinicId(bootstrap);
   const clinicName = getPortalClinicName(bootstrap, clinicId);
+  const units = useClinicUnits(clinicId);
 
   const [rangeDays, setRangeDays] = useState<TrendRangeDays>(90);
 
@@ -201,8 +213,8 @@ export function HealthPortalScreen() {
             const latestGlucose = getLatestGlucoseTrend(trends.glucose ?? []);
             const latestWeight = getLatestMeasurement(measurements, 'WEIGHT');
             const bpTrend = buildBloodPressureTrendData(trends.bp ?? []);
-            const glucoseTrend = buildGlucoseTrendData(trends.glucose ?? []);
-            const weightTrend = buildWeightTrendData(measurements);
+            const glucoseTrend = buildGlucoseTrendData(trends.glucose ?? [], units.glucoseUnit);
+            const weightTrend = buildWeightTrendData(measurements, units.bodyUnit);
             const followUp = trends.followUp;
 
             return (
@@ -217,7 +229,9 @@ export function HealthPortalScreen() {
                   <AppMetricCard
                     icon={Syringe}
                     title="Glucose"
-                    value={latestGlucose ? `${latestGlucose.value} mg/dL` : 'No reading yet'}
+                    value={
+                      formatGlucose(latestGlucose?.value, units.glucoseUnit) ?? 'No reading yet'
+                    }
                     detail={latestGlucoseLabel(latestGlucose)}
                   />
                   <AppMetricCard
@@ -225,7 +239,8 @@ export function HealthPortalScreen() {
                     title="Weight"
                     value={
                       latestWeight
-                        ? `${readTrendNumber(latestWeight.payload.kg) ?? '—'} kg`
+                        ? (formatWeight(readTrendNumber(latestWeight.payload.kg), units.bodyUnit) ??
+                          '—')
                         : 'No reading yet'
                     }
                     detail={latestWeightLabel(latestWeight)}
@@ -309,7 +324,7 @@ export function HealthPortalScreen() {
                     title="Glucose trend"
                     description="Blood sugar readings from your clinic and from home."
                     emptyMessage="Log a glucose reading to see your trend."
-                    valueSuffix=" mg/dL"
+                    valueSuffix={` ${glucoseUnitLabel(units.glucoseUnit)}`}
                     lines={[{ key: 'glucose', label: 'Glucose', color: 'hsl(var(--chart-2))' }]}
                     data={glucoseTrend}
                   />
@@ -317,7 +332,7 @@ export function HealthPortalScreen() {
                     title="Weight trend"
                     description="Track steady changes in weight over time."
                     emptyMessage="Log your weight to start a trend."
-                    valueSuffix=" kg"
+                    valueSuffix={` ${weightUnitLabel(units.bodyUnit)}`}
                     lines={[{ key: 'weight', label: 'Weight', color: 'hsl(var(--chart-3))' }]}
                     data={weightTrend}
                   />
@@ -356,7 +371,7 @@ export function HealthPortalScreen() {
                                 {formatMeasurementLabel(entry.type)}
                               </Badge>
                               <span className="text-sm font-medium tabular-nums text-foreground">
-                                {formatMeasurementValue(entry)}
+                                {formatMeasurementValue(entry, units)}
                               </span>
                             </div>
                             <p className="text-sm leading-6 text-muted-foreground">

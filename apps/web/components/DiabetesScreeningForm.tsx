@@ -2,10 +2,6 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
-  DIABETES_GLUCOSE_MAX_MG_DL,
-  DIABETES_GLUCOSE_MIN_MG_DL,
-  DIABETES_HBA1C_MAX_PERCENT,
-  DIABETES_HBA1C_MIN_PERCENT,
   DIABETES_SYMPTOMS,
   DIABETES_SYMPTOM_LABELS,
   parseLegacyDiabetesSymptoms,
@@ -28,6 +24,20 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import type { GlucoseUnit } from '@nkwapa/db/measurement-units';
+import { useClinicUnits } from '@/lib/bootstrap-context';
+import {
+  convertGlucoseText,
+  glucoseEntryError,
+  glucoseTextToMgDl,
+  glucoseUnitLabel,
+  hba1cEntryError,
+  hba1cTextToPercent,
+  hba1cUnitLabel,
+  mgDlToGlucoseText,
+  percentToHba1cText,
+} from '@/lib/measurement-entry';
+import { GlucoseUnitSelect } from '@/components/GlucoseUnitSelect';
 import { isFullySynced } from '@/lib/sync';
 import { db, type DiabetesScreeningRecord } from '@/lib/db';
 import { enqueueOutboxMutation, SYNC_OPERATION } from '@/lib/outbox';
@@ -80,11 +90,21 @@ export function DiabetesScreeningForm({
   const { isOnline, syncNow } = useSync();
   const idPrefix = useId();
   const screeningId = useRef(initialData?.id ?? generateId());
-  const [glucoseMgDl, setGlucoseMgDl] = useState(String(initialData?.glucoseMgDl ?? ''));
+  const units = useClinicUnits(clinicId);
+  const hba1cUnit = units.hba1cUnit;
+  const [glucoseUnit, setGlucoseUnit] = useState<GlucoseUnit>(units.glucoseUnit);
+  // What the record held, so a value nobody edited is saved exactly as it was stored.
+  const storedGlucoseMgDl = initialData?.glucoseMgDl ?? null;
+  const storedHba1cPercent = initialData?.hba1cPercent ?? null;
+  const [glucoseText, setGlucoseText] = useState(() =>
+    mgDlToGlucoseText(storedGlucoseMgDl, units.glucoseUnit),
+  );
   const [glucoseType, setGlucoseType] = useState<DiabetesGlucoseType>(
     (initialData?.glucoseType as DiabetesGlucoseType) ?? 'UNKNOWN',
   );
-  const [hba1cPercent, setHba1cPercent] = useState(String(initialData?.hba1cPercent ?? ''));
+  const [hba1cText, setHba1cText] = useState(() =>
+    percentToHba1cText(storedHba1cPercent, hba1cUnit),
+  );
   const [symptoms, setSymptoms] = useState<Set<DiabetesSymptom>>(
     () => new Set(initialSymptoms(initialData)),
   );
@@ -99,38 +119,28 @@ export function DiabetesScreeningForm({
   useEffect(() => {
     if (!initialData) return;
     screeningId.current = initialData.id;
-    setGlucoseMgDl(String(initialData.glucoseMgDl ?? ''));
+    setGlucoseText(mgDlToGlucoseText(initialData.glucoseMgDl, glucoseUnit));
     setGlucoseType((initialData.glucoseType as DiabetesGlucoseType) ?? 'UNKNOWN');
-    setHba1cPercent(String(initialData.hba1cPercent ?? ''));
+    setHba1cText(percentToHba1cText(initialData.hba1cPercent, hba1cUnit));
     setSymptoms(new Set(initialSymptoms(initialData)));
     setNotes(initialData.notes ?? '');
     setCollectedAt(toLocalDateTime(initialData.collectedAt));
+    // Re-seeded only when the record changes; the units it is shown in are read, not watched.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialData]);
 
   const validateForm = useCallback((): string | null => {
-    const glucose = glucoseMgDl === '' ? null : Number(glucoseMgDl);
-    const hba1c = hba1cPercent === '' ? null : Number(hba1cPercent);
-    if (
-      glucose != null &&
-      (!Number.isInteger(glucose) ||
-        glucose < DIABETES_GLUCOSE_MIN_MG_DL ||
-        glucose > DIABETES_GLUCOSE_MAX_MG_DL)
-    ) {
-      return `Glucose must be a whole number from ${DIABETES_GLUCOSE_MIN_MG_DL} to ${DIABETES_GLUCOSE_MAX_MG_DL} mg/dL.`;
-    }
-    if (
-      hba1c != null &&
-      (hba1c < DIABETES_HBA1C_MIN_PERCENT || hba1c > DIABETES_HBA1C_MAX_PERCENT)
-    ) {
-      return `HbA1c must be from ${DIABETES_HBA1C_MIN_PERCENT} to ${DIABETES_HBA1C_MAX_PERCENT}%.`;
-    }
+    const glucoseError = glucoseEntryError(glucoseText, glucoseUnit);
+    if (glucoseError) return `Glucose: ${glucoseError}`;
+    const hba1cError = hba1cEntryError(hba1cText, hba1cUnit);
+    if (hba1cError) return `HbA1c: ${hba1cError}`;
     const timestamp = new Date(collectedAt);
     if (!Number.isFinite(timestamp.getTime())) return 'Enter a valid collection date and time.';
     if (timestamp.getTime() > Date.now() + 5 * 60 * 1000) {
       return 'Collection time cannot be more than five minutes in the future.';
     }
     return null;
-  }, [collectedAt, glucoseMgDl, hba1cPercent]);
+  }, [collectedAt, glucoseText, glucoseUnit, hba1cText, hba1cUnit]);
 
   const toggleSymptom = useCallback((symptom: DiabetesSymptom) => {
     setSymptoms((current) => {
@@ -154,9 +164,10 @@ export function DiabetesScreeningForm({
     const now = new Date().toISOString();
     const payload = {
       encounterId,
-      glucoseMgDl: glucoseMgDl === '' ? null : Number(glucoseMgDl),
+      // Stored units only: the unit on screen never reaches the outbox.
+      glucoseMgDl: glucoseTextToMgDl(glucoseText, glucoseUnit, storedGlucoseMgDl),
       glucoseType,
-      hba1cPercent: hba1cPercent === '' ? null : Number(hba1cPercent),
+      hba1cPercent: hba1cTextToPercent(hba1cText, hba1cUnit, storedHba1cPercent),
       symptoms: Array.from(symptoms),
       notes: notes.trim() || null,
       collectedAt: new Date(collectedAt).toISOString(),
@@ -208,10 +219,14 @@ export function DiabetesScreeningForm({
     clinicId,
     collectedAt,
     encounterId,
-    glucoseMgDl,
+    glucoseText,
     glucoseType,
-    hba1cPercent,
+    glucoseUnit,
+    hba1cText,
+    hba1cUnit,
     initialData?.createdAt,
+    storedGlucoseMgDl,
+    storedHba1cPercent,
     isOnline,
     notes,
     onSaved,
@@ -270,18 +285,31 @@ export function DiabetesScreeningForm({
           <legend className="sr-only">Diabetes screening measurements</legend>
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-glucose`}>Glucose (mg/dL)</Label>
-              <Input
-                id={`${idPrefix}-glucose`}
-                type="number"
-                inputMode="numeric"
-                min={DIABETES_GLUCOSE_MIN_MG_DL}
-                max={DIABETES_GLUCOSE_MAX_MG_DL}
-                step="1"
-                value={glucoseMgDl}
-                onChange={(event) => setGlucoseMgDl(event.target.value)}
-                placeholder="100"
-              />
+              <Label htmlFor={`${idPrefix}-glucose`}>
+                Glucose ({glucoseUnitLabel(glucoseUnit)})
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  id={`${idPrefix}-glucose`}
+                  type="number"
+                  inputMode={glucoseUnit === 'MMOL_L' ? 'decimal' : 'numeric'}
+                  step={glucoseUnit === 'MMOL_L' ? '0.1' : '1'}
+                  value={glucoseText}
+                  onChange={(event) => setGlucoseText(event.target.value)}
+                  placeholder={glucoseUnit === 'MMOL_L' ? '5.6' : '100'}
+                  className="min-w-0"
+                />
+                <GlucoseUnitSelect
+                  value={glucoseUnit}
+                  onChange={(next) => {
+                    setGlucoseText((current) =>
+                      convertGlucoseText(current, glucoseUnit, next, storedGlucoseMgDl),
+                    );
+                    setGlucoseUnit(next);
+                  }}
+                  disabled={!canEdit || saving}
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor={`${idPrefix}-context`}>Glucose context</Label>
@@ -304,17 +332,15 @@ export function DiabetesScreeningForm({
               <p className="text-xs leading-5 text-muted-foreground">{contextHelp}</p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-hba1c`}>HbA1c (%)</Label>
+              <Label htmlFor={`${idPrefix}-hba1c`}>HbA1c ({hba1cUnitLabel(hba1cUnit)})</Label>
               <Input
                 id={`${idPrefix}-hba1c`}
                 type="number"
-                inputMode="decimal"
-                min={DIABETES_HBA1C_MIN_PERCENT}
-                max={DIABETES_HBA1C_MAX_PERCENT}
-                step="0.1"
-                value={hba1cPercent}
-                onChange={(event) => setHba1cPercent(event.target.value)}
-                placeholder="5.7"
+                inputMode={hba1cUnit === 'MMOL_MOL' ? 'numeric' : 'decimal'}
+                step={hba1cUnit === 'MMOL_MOL' ? '1' : '0.1'}
+                value={hba1cText}
+                onChange={(event) => setHba1cText(event.target.value)}
+                placeholder={hba1cUnit === 'MMOL_MOL' ? '39' : '5.7'}
               />
             </div>
             <div className="space-y-2 md:col-span-2 xl:col-span-3">

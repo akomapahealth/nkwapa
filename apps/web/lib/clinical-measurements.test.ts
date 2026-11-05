@@ -39,8 +39,11 @@ const vitals: VitalsFormValues = {
   temperatureSourceOther: '',
   respiratoryRate: '16',
   spo2Percent: '98',
-  weightKg: '70',
-  heightCm: '170',
+  weight: '70',
+  height: '170',
+  heightFeet: '',
+  heightInches: '',
+  bodyUnit: 'METRIC',
   notes: '',
 };
 
@@ -153,8 +156,11 @@ describe('clinical measurement offline helpers', () => {
         temperatureSourceOther: '',
         respiratoryRate: '',
         spo2Percent: '',
-        weightKg: '',
-        heightCm: '',
+        weight: '',
+        height: '',
+        heightFeet: '',
+        heightInches: '',
+        bodyUnit: 'METRIC',
         notes: '',
       };
 
@@ -178,6 +184,55 @@ describe('clinical measurement offline helpers', () => {
     });
   });
   // A station records only its own group into the shared Vitals row (#167).
+  describe('in a clinic that records lb and feet and inches', () => {
+    const us: VitalsFormValues = {
+      ...vitals,
+      bodyUnit: 'US',
+      weight: '154.3',
+      height: '',
+      heightFeet: '5',
+      heightInches: '7',
+    };
+
+    it('queues weight and height in kg and cm, and derives BMI from them', async () => {
+      const result = await saveClinicalMeasurementsOffline({
+        clinicId: 'clinic-1',
+        encounterId: 'encounter-1',
+        vitalsId: 'vitals-1',
+        tobaccoScreeningId: 'tobacco-1',
+        vitals: us,
+        tobacco,
+        sections: ['anthropometry'],
+      });
+
+      const payload = JSON.parse(String(result.outbox?.payloadJson)) as {
+        vitals: Record<string, unknown>;
+      };
+      expect(payload.vitals).toMatchObject({ weightKg: 69.99, heightCm: 170.18 });
+      expect(derivedBmi(us)).toBe(24.2);
+    });
+
+    it('keeps an unedited stored weight and height exactly', () => {
+      const shown = { ...us, weight: '154.3', heightFeet: '5', heightInches: '6.9' };
+      expect(derivedBmi({ ...shown, stored: { weightKg: 70, heightCm: 170 } })).toBe(
+        derivedBmi({ ...vitals }),
+      );
+    });
+
+    it('reports a bad height on the anthropometry station', async () => {
+      const result = await saveClinicalMeasurementsOffline({
+        clinicId: 'clinic-1',
+        encounterId: 'encounter-1',
+        vitalsId: 'vitals-1',
+        tobaccoScreeningId: 'tobacco-1',
+        vitals: { ...us, heightInches: '13' },
+        tobacco,
+        sections: ['anthropometry'],
+      });
+      expect(result.errors).toHaveProperty('height');
+    });
+  });
+
   describe('sectioned saves', () => {
     it('queues a schemaVersion 2 bundle carrying only the blood pressure fields', async () => {
       const result = await saveClinicalMeasurementsOffline({

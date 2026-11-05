@@ -11,11 +11,14 @@ import {
   Wind,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { useClinicUnits } from '@/lib/bootstrap-context';
+import { glucoseUnitLabel, weightUnitLabel } from '@/lib/measurement-entry';
 import { fetchStaffPatientTrends, type PatientTrendsResponse } from '@/lib/patient-portal';
 import {
   TREND_RANGE_OPTIONS,
   buildBloodPressureTrendData,
   buildExpandedVitalsTrendData,
+  expandedVitalInUnits,
   buildGlucoseTrendData,
   formatTrendRangeFrom,
   getLatestExpandedVital,
@@ -56,7 +59,8 @@ const EXPANDED_MEASUREMENTS: Array<{
   { key: 'temperatureCelsius', label: 'Temperature', suffix: ' °C', icon: Thermometer },
   { key: 'respiratoryRate', label: 'Respiratory rate', suffix: '/min', icon: Wind },
   { key: 'spo2Percent', label: 'SpO₂', suffix: '%', icon: Activity },
-  { key: 'weightKg', label: 'Weight', suffix: ' kg', icon: Scale },
+  // The suffix is the clinic's weight unit, filled in where the units are known.
+  { key: 'weightKg', label: 'Weight', suffix: '', icon: Scale },
   { key: 'bmi', label: 'BMI', suffix: '', icon: HeartPulse },
 ];
 
@@ -67,6 +71,9 @@ interface PatientTrendsPanelProps {
 
 export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelProps) {
   const getToken = useAuth();
+  const units = useClinicUnits(clinicId);
+  const suffixFor = (key: string, suffix: string) =>
+    key === 'weightKg' ? ` ${weightUnitLabel(units.bodyUnit)}` : suffix;
   const [rangeDays, setRangeDays] = useState<TrendRangeDays>(90);
   const [trends, setTrends] = useState<PatientTrendsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -111,12 +118,16 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
   }, [clinicId, getToken, patientId, rangeDays, reloadNonce]);
 
   const bpTrend = buildBloodPressureTrendData(trends?.bp ?? []);
-  const glucoseTrend = buildGlucoseTrendData(trends?.glucose ?? []);
+  const glucoseTrend = buildGlucoseTrendData(trends?.glucose ?? [], units.glucoseUnit);
   const expandedMeasurements = trends?.measurements ?? [];
   const selectedConfig =
     EXPANDED_MEASUREMENTS.find((item) => item.key === selectedMeasurement) ??
     EXPANDED_MEASUREMENTS[0];
-  const selectedTrend = buildExpandedVitalsTrendData(expandedMeasurements, selectedMeasurement);
+  const selectedTrend = buildExpandedVitalsTrendData(
+    expandedMeasurements,
+    selectedMeasurement,
+    units,
+  );
   const followUp = trends?.followUp ?? {
     requested: 0,
     confirmed: 0,
@@ -221,7 +232,11 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
           <section className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               {EXPANDED_MEASUREMENTS.map(({ key, label, suffix, icon: Icon }) => {
-                const latest = getLatestExpandedVital(expandedMeasurements, key);
+                const latest = expandedVitalInUnits(
+                  key,
+                  getLatestExpandedVital(expandedMeasurements, key) as number | null,
+                  units,
+                );
                 return (
                   <button
                     key={key}
@@ -239,7 +254,7 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
                       <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                     </div>
                     <p className="mt-3 type-metric">
-                      {latest == null ? 'No data' : `${latest}${suffix}`}
+                      {latest == null ? 'No data' : `${latest}${suffixFor(key, suffix)}`}
                     </p>
                   </button>
                 );
@@ -250,7 +265,7 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
               title={`${selectedConfig.label} trend`}
               description="Encounter measurements recorded by clinic staff across the selected range."
               emptyMessage={`No ${selectedConfig.label.toLowerCase()} readings were recorded in this timeframe.`}
-              valueSuffix={selectedConfig.suffix}
+              valueSuffix={suffixFor(selectedConfig.key, selectedConfig.suffix)}
               lines={[{ key: 'value', label: selectedConfig.label, color: 'hsl(var(--chart-3))' }]}
               data={selectedTrend}
             />
@@ -276,7 +291,7 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
               title="Glucose trend"
               description="Encounter and patient-entered glucose values across the selected range."
               emptyMessage="No glucose readings were recorded in this timeframe."
-              valueSuffix=" mg/dL"
+              valueSuffix={` ${glucoseUnitLabel(units.glucoseUnit)}`}
               lines={[{ key: 'glucose', label: 'Glucose', color: 'hsl(var(--chart-2))' }]}
               data={glucoseTrend}
             />

@@ -1,5 +1,8 @@
 'use client';
 
+import { useClinicUnits } from '@/lib/bootstrap-context';
+import { formatGlucose, formatHba1c } from '@nkwapa/db/measurement-units';
+
 import { AlertTriangle, Droplets } from 'lucide-react';
 import { DIABETES_SYMPTOM_LABELS, type DiabetesSymptom } from '@nkwapa/db';
 import { db, type DiabetesScreeningRecord } from '@/lib/db';
@@ -87,6 +90,7 @@ export function DiabetesHistoryPanel({
   /** See `useScreeningHistory`. */
   refreshKey?: string | number | null;
 }) {
+  const units = useClinicUnits(clinicId);
   const history = useScreeningHistory<DiabetesHistoryItem, DiabetesScreeningRecord>({
     clinicId,
     patientId,
@@ -114,10 +118,12 @@ export function DiabetesHistoryPanel({
         >
           <div className="flex flex-wrap gap-x-6 gap-y-2">
             <p className="text-lg font-semibold">
-              {item.glucoseMgDl == null ? 'No glucose value' : `${item.glucoseMgDl} mg/dL`}
+              {formatGlucose(item.glucoseMgDl, units.glucoseUnit) ?? 'No glucose value'}
             </p>
             <p className="text-lg font-semibold">
-              {item.hba1cPercent == null ? 'No HbA1c value' : `HbA1c ${item.hba1cPercent}%`}
+              {item.hba1cPercent == null
+                ? 'No HbA1c value'
+                : `HbA1c ${formatHba1c(item.hba1cPercent, units.hba1cUnit)}`}
             </p>
           </div>
           {item.symptoms.length ? (

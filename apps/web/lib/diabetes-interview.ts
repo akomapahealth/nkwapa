@@ -10,15 +10,26 @@
  */
 
 import {
-  DIABETES_GLUCOSE_MAX_MG_DL,
-  DIABETES_GLUCOSE_MIN_MG_DL,
-  DIABETES_HBA1C_MAX_PERCENT,
-  DIABETES_HBA1C_MIN_PERCENT,
   emptyDiabetesNutrition,
   parseDiabetesNutrition,
   serializeDiabetesNutrition,
   type DiabetesNutritionPayload,
 } from '@nkwapa/db';
+import {
+  STORED_UNITS,
+  type ClinicUnits,
+  type GlucoseUnit,
+  type Hba1cUnit,
+} from '@nkwapa/db/measurement-units';
+import {
+  convertGlucoseText,
+  glucoseEntryError,
+  glucoseTextToMgDl,
+  hba1cEntryError,
+  hba1cTextToPercent,
+  mgDlToGlucoseText,
+  percentToHba1cText,
+} from './measurement-entry';
 
 export type ClinicalFieldErrors = Record<string, string>;
 
@@ -30,14 +41,28 @@ export interface DiabetesInterviewValues {
   mainConcern: string;
   mainConcernOther: string;
 
-  glucoseMgDl: string;
+  /** Today's reading and the home range, as typed, in `glucoseUnit`. */
+  glucose: string;
+  glucoseUnit: GlucoseUnit;
   glucoseType: string;
   hba1cStatus: string;
-  hba1cPercent: string;
+  /** As typed, in `hba1cUnit`. */
+  hba1c: string;
+  hba1cUnit: Hba1cUnit;
   hba1cMeasuredOn: string;
   homeGlucoseMonitoring: string;
-  homeGlucoseLowMgDl: string;
-  homeGlucoseHighMgDl: string;
+  homeGlucoseLow: string;
+  homeGlucoseHigh: string;
+  /**
+   * What the record held when the form was seeded, in stored units, so a value shown rounded in
+   * another unit and left alone is saved exactly as it was.
+   */
+  stored: {
+    glucoseMgDl: number | null;
+    hba1cPercent: number | null;
+    homeGlucoseLowMgDl: number | null;
+    homeGlucoseHighMgDl: number | null;
+  };
 
   /** The past month. */
   symptoms: string[];
@@ -69,7 +94,11 @@ export interface DiabetesInterviewValues {
   notes: string;
 }
 
-export function emptyDiabetesInterview(): DiabetesInterviewValues {
+type InterviewUnits = Pick<ClinicUnits, 'glucoseUnit' | 'hba1cUnit'>;
+
+export function emptyDiabetesInterview(
+  units: InterviewUnits = STORED_UNITS,
+): DiabetesInterviewValues {
   return {
     diabetesStatus: 'NOT_ASSESSED',
     diabetesType: 'NOT_ASSESSED',
@@ -77,14 +106,22 @@ export function emptyDiabetesInterview(): DiabetesInterviewValues {
     yearDiagnosedUnknown: false,
     mainConcern: 'NOT_ASSESSED',
     mainConcernOther: '',
-    glucoseMgDl: '',
+    glucose: '',
+    glucoseUnit: units.glucoseUnit,
     glucoseType: 'UNKNOWN',
     hba1cStatus: 'NOT_ASSESSED',
-    hba1cPercent: '',
+    hba1c: '',
+    hba1cUnit: units.hba1cUnit,
     hba1cMeasuredOn: '',
     homeGlucoseMonitoring: 'NOT_ASSESSED',
-    homeGlucoseLowMgDl: '',
-    homeGlucoseHighMgDl: '',
+    homeGlucoseLow: '',
+    homeGlucoseHigh: '',
+    stored: {
+      glucoseMgDl: null,
+      hba1cPercent: null,
+      homeGlucoseLowMgDl: null,
+      homeGlucoseHighMgDl: null,
+    },
     symptoms: [],
     urgentSymptoms: [],
     nutrition: emptyDiabetesNutrition(),
@@ -172,25 +209,12 @@ function parseOptionalInt(value: string): number | null {
   return Number.parseInt(trimmed, 10);
 }
 
-function parseOptionalFloat(value: string): number | null {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  if (!/^-?\d+(\.\d+)?$/.test(trimmed)) return Number.NaN;
-  return Number.parseFloat(trimmed);
-}
-
 export function validateDiabetesInterview(values: DiabetesInterviewValues): ClinicalFieldErrors {
   const errors: ClinicalFieldErrors = {};
 
-  const glucose = parseOptionalInt(values.glucoseMgDl);
-  if (glucose !== null) {
-    if (Number.isNaN(glucose)) {
-      errors['dm-glucose'] = 'Glucose must be a whole number.';
-    } else if (glucose < DIABETES_GLUCOSE_MIN_MG_DL || glucose > DIABETES_GLUCOSE_MAX_MG_DL) {
-      errors['dm-glucose'] =
-        `Glucose must be between ${DIABETES_GLUCOSE_MIN_MG_DL} and ${DIABETES_GLUCOSE_MAX_MG_DL} mg/dL.`;
-    }
-  }
+  const glucoseError = glucoseEntryError(values.glucose, values.glucoseUnit);
+  if (glucoseError) errors['dm-glucose'] = glucoseError;
+  const glucose = interviewGlucoseMgDl(values);
 
   /*
     A reading without its timing cannot be interpreted.
@@ -199,46 +223,33 @@ export function validateDiabetesInterview(values: DiabetesInterviewValues): Clin
     so a glucose recorded without one is a number nobody can act on. Better to ask now, while the
     patient is in front of the volunteer, than to store an uninterpretable value.
   */
-  if (glucose !== null && !Number.isNaN(glucose) && values.glucoseType === 'UNKNOWN') {
+  if (glucose !== null && values.glucoseType === 'UNKNOWN') {
     errors['dm-glucose-timing'] =
       'Record when the sample was taken. A glucose with no timing cannot be interpreted.';
   }
 
-  const hba1c = parseOptionalFloat(values.hba1cPercent);
-  if (hba1c !== null) {
-    if (Number.isNaN(hba1c)) {
-      errors['dm-hba1c'] = 'HbA1c must be a number.';
-    } else if (hba1c < DIABETES_HBA1C_MIN_PERCENT || hba1c > DIABETES_HBA1C_MAX_PERCENT) {
-      errors['dm-hba1c'] =
-        `HbA1c must be between ${DIABETES_HBA1C_MIN_PERCENT} and ${DIABETES_HBA1C_MAX_PERCENT}%.`;
-    }
-  }
+  const hba1cError = hba1cEntryError(values.hba1c, values.hba1cUnit);
+  if (hba1cError) errors['dm-hba1c'] = hba1cError;
+  const hba1c = hba1cTextToPercent(values.hba1c, values.hba1cUnit, values.stored.hba1cPercent);
 
   /* A value and "never checked" cannot both be true, and the record has room to store both. */
   if (
     hba1c !== null &&
-    !Number.isNaN(hba1c) &&
     (values.hba1cStatus === 'NEVER_CHECKED' || values.hba1cStatus === 'UNKNOWN')
   ) {
     errors['dm-hba1c-status'] =
       'Clear the HbA1c value, or change this answer. Only one of the two can be recorded.';
   }
 
-  const low = parseOptionalInt(values.homeGlucoseLowMgDl);
-  const high = parseOptionalInt(values.homeGlucoseHighMgDl);
-  for (const [raw, key] of [
-    [low, 'dm-home-low'],
-    [high, 'dm-home-high'],
+  for (const [text, key] of [
+    [values.homeGlucoseLow, 'dm-home-low'],
+    [values.homeGlucoseHigh, 'dm-home-high'],
   ] as const) {
-    if (raw === null) continue;
-    if (Number.isNaN(raw)) {
-      errors[key] = 'Enter a whole number.';
-    } else if (raw < DIABETES_GLUCOSE_MIN_MG_DL || raw > DIABETES_GLUCOSE_MAX_MG_DL) {
-      errors[key] =
-        `Enter a value between ${DIABETES_GLUCOSE_MIN_MG_DL} and ${DIABETES_GLUCOSE_MAX_MG_DL} mg/dL.`;
-    }
+    const error = glucoseEntryError(text, values.glucoseUnit);
+    if (error) errors[key] = error;
   }
-  if (low !== null && high !== null && !Number.isNaN(low) && !Number.isNaN(high) && low > high) {
+  const { low, high } = homeGlucoseMgDl(values);
+  if (low !== null && high !== null && low > high) {
     const message = 'The lowest reading cannot be higher than the highest.';
     errors['dm-home-low'] = message;
     errors['dm-home-high'] = message;
@@ -295,17 +306,18 @@ export function toDiabetesPayload(
     const parsed = parseOptionalInt(raw);
     return parsed === null || Number.isNaN(parsed) ? null : parsed;
   };
-  const float = (raw: string): number | null => {
-    const parsed = parseOptionalFloat(raw);
-    return parsed === null || Number.isNaN(parsed) ? null : parsed;
-  };
   const text = (raw: string): string | null => raw.trim() || null;
   const monitors = values.homeGlucoseMonitoring === 'YES';
+  const home = homeGlucoseMgDl(values);
 
+  // Stored units only: the units on screen never reach the outbox or the server.
   return {
-    glucoseMgDl: int(values.glucoseMgDl),
+    glucoseMgDl: interviewGlucoseMgDl(values),
     glucoseType: values.glucoseType,
-    hba1cPercent: values.hba1cStatus === 'VALUE_KNOWN' ? float(values.hba1cPercent) : null,
+    hba1cPercent:
+      values.hba1cStatus === 'VALUE_KNOWN'
+        ? hba1cTextToPercent(values.hba1c, values.hba1cUnit, values.stored.hba1cPercent)
+        : null,
     symptoms: values.symptoms,
     notes: text(values.notes),
     collectedAt,
@@ -322,8 +334,8 @@ export function toDiabetesPayload(
         : null,
     homeGlucoseMonitoring: values.homeGlucoseMonitoring,
     /* Readings only mean something if the patient actually monitors. */
-    homeGlucoseLowMgDl: monitors ? int(values.homeGlucoseLowMgDl) : null,
-    homeGlucoseHighMgDl: monitors ? int(values.homeGlucoseHighMgDl) : null,
+    homeGlucoseLowMgDl: monitors ? home.low : null,
+    homeGlucoseHighMgDl: monitors ? home.high : null,
     urgentSymptoms: values.urgentSymptoms,
     nutrition: serializeDiabetesNutrition(values.nutrition),
     phq2Interest: values.phq2Interest,
@@ -349,8 +361,9 @@ export function toDiabetesPayload(
 
 export function fromDiabetesRecord(
   record: Record<string, unknown> | null | undefined,
+  units: InterviewUnits = STORED_UNITS,
 ): DiabetesInterviewValues {
-  const base = emptyDiabetesInterview();
+  const base = emptyDiabetesInterview(units);
   if (!record) return base;
 
   const dateOnly = (value: unknown): string | null =>
@@ -360,6 +373,12 @@ export function fromDiabetesRecord(
   const num = (value: unknown): string =>
     typeof value === 'number' && Number.isFinite(value) ? String(value) : '';
   const bool = (value: unknown): boolean => value === true;
+  const stored = (value: unknown): number | null =>
+    typeof value === 'number' && Number.isFinite(value) ? value : null;
+  const glucoseMgDl = stored(record.glucoseMgDl);
+  const hba1cPercent = stored(record.hba1cPercent);
+  const homeGlucoseLowMgDl = stored(record.homeGlucoseLowMgDl);
+  const homeGlucoseHighMgDl = stored(record.homeGlucoseHighMgDl);
   const list = (value: unknown): string[] =>
     Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
 
@@ -371,15 +390,16 @@ export function fromDiabetesRecord(
     yearDiagnosedUnknown: bool(record.yearDiagnosedUnknown),
     mainConcern: str(record.mainConcern, base.mainConcern),
     mainConcernOther: str(record.mainConcernOther, ''),
-    glucoseMgDl: num(record.glucoseMgDl),
+    glucose: mgDlToGlucoseText(glucoseMgDl, base.glucoseUnit),
     glucoseType: str(record.glucoseType, base.glucoseType),
     hba1cStatus: str(record.hba1cStatus, base.hba1cStatus),
-    hba1cPercent: num(record.hba1cPercent),
+    hba1c: percentToHba1cText(hba1cPercent, base.hba1cUnit),
     hba1cMeasuredOn:
       typeof record.hba1cMeasuredOn === 'string' ? record.hba1cMeasuredOn.slice(0, 10) : '',
     homeGlucoseMonitoring: str(record.homeGlucoseMonitoring, base.homeGlucoseMonitoring),
-    homeGlucoseLowMgDl: num(record.homeGlucoseLowMgDl),
-    homeGlucoseHighMgDl: num(record.homeGlucoseHighMgDl),
+    homeGlucoseLow: mgDlToGlucoseText(homeGlucoseLowMgDl, base.glucoseUnit),
+    homeGlucoseHigh: mgDlToGlucoseText(homeGlucoseHighMgDl, base.glucoseUnit),
+    stored: { glucoseMgDl, hba1cPercent, homeGlucoseLowMgDl, homeGlucoseHighMgDl },
     symptoms: list(record.symptoms),
     urgentSymptoms: list(record.urgentSymptoms),
     nutrition: parseDiabetesNutrition(record.nutrition ?? null).payload,
@@ -403,5 +423,54 @@ export function fromDiabetesRecord(
     reviewReasons: list(record.reviewReasons),
     reviewReasonOther: str(record.reviewReasonOther, ''),
     notes: str(record.notes, ''),
+  };
+}
+
+/** Today's reading in whole mg/dL, or null when the field is empty or not yet valid. */
+export function interviewGlucoseMgDl(values: DiabetesInterviewValues): number | null {
+  return glucoseTextToMgDl(values.glucose, values.glucoseUnit, values.stored.glucoseMgDl);
+}
+
+function homeGlucoseMgDl(values: DiabetesInterviewValues) {
+  return {
+    low: glucoseTextToMgDl(
+      values.homeGlucoseLow,
+      values.glucoseUnit,
+      values.stored.homeGlucoseLowMgDl,
+    ),
+    high: glucoseTextToMgDl(
+      values.homeGlucoseHigh,
+      values.glucoseUnit,
+      values.stored.homeGlucoseHighMgDl,
+    ),
+  };
+}
+
+/**
+ * The same answers shown in another glucose unit. Today's reading and the home range share one
+ * unit: a patient reading a home meter aloud uses the same unit as the station's meter far more
+ * often than not, and one switch is less to get wrong than three.
+ */
+export function withGlucoseUnit(
+  values: DiabetesInterviewValues,
+  next: GlucoseUnit,
+): DiabetesInterviewValues {
+  const from = values.glucoseUnit;
+  return {
+    ...values,
+    glucoseUnit: next,
+    glucose: convertGlucoseText(values.glucose, from, next, values.stored.glucoseMgDl),
+    homeGlucoseLow: convertGlucoseText(
+      values.homeGlucoseLow,
+      from,
+      next,
+      values.stored.homeGlucoseLowMgDl,
+    ),
+    homeGlucoseHigh: convertGlucoseText(
+      values.homeGlucoseHigh,
+      from,
+      next,
+      values.stored.homeGlucoseHighMgDl,
+    ),
   };
 }

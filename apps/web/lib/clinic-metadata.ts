@@ -20,6 +20,11 @@ import {
   type ClinicMetadataSeverity,
 } from '@nkwapa/db/clinic-metadata';
 import { zoneFilterMatches, type ZoneFilter } from '@nkwapa/db/clinic-zones';
+import {
+  defaultUnitsForCountry,
+  resolveClinicUnits,
+  type ClinicUnits,
+} from '@nkwapa/db/measurement-units';
 
 export {
   CLINIC_DEFAULT_COUNTRY_CODE,
@@ -71,10 +76,14 @@ export interface ClinicRow {
   isActive: boolean;
   organization: OrganizationSummary | null;
   metadataIssues: ClinicMetadataIssue[];
+  /** Optional: an older API build does not send them. */
+  glucoseUnit?: ClinicUnits['glucoseUnit'];
+  bodyUnit?: ClinicUnits['bodyUnit'];
+  hba1cUnit?: ClinicUnits['hba1cUnit'];
 }
 
 /** Editable clinic metadata, as the dialog holds it. Strings throughout: this is form state. */
-export interface ClinicFormValues {
+export interface ClinicFormValues extends ClinicUnits {
   name: string;
   region: string;
   organizationId: string;
@@ -113,6 +122,7 @@ export function emptyClinicForm(organization?: OrganizationSummary | null): Clin
     zoneCode: '',
     countryCode: CLINIC_DEFAULT_COUNTRY_CODE,
     isActive: true,
+    ...defaultUnitsForCountry(CLINIC_DEFAULT_COUNTRY_CODE),
   };
 }
 
@@ -126,6 +136,7 @@ export function clinicFormFromRow(clinic: ClinicRow): ClinicFormValues {
     zoneCode: clinic.zoneCode ?? '',
     countryCode: clinic.countryCode,
     isActive: clinic.isActive,
+    ...resolveClinicUnits(clinic),
   };
 }
 
@@ -181,6 +192,9 @@ export function clinicFormToPayload(values: ClinicFormValues) {
     locationCode: normalizeLocationCode(values.locationCode),
     zoneCode: normalizeZoneCode(values.zoneCode),
     countryCode: normalizeCountryCode(values.countryCode),
+    glucoseUnit: values.glucoseUnit,
+    bodyUnit: values.bodyUnit,
+    hba1cUnit: values.hba1cUnit,
     ...(values.organizationId ? { organizationId: values.organizationId } : {}),
   };
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   DIABETES_CLINICIAN_PLAN_ITEMS,
   DIABETES_CLINICIAN_PLAN_ITEM_LABELS,
@@ -59,12 +59,17 @@ import { db, type DiabetesScreeningRecord } from '@/lib/db';
 import { SYNC_OPERATION, enqueueOutboxMutation } from '@/lib/outbox';
 import { claimEncounterRecord } from '@/lib/encounter-record';
 import { useSeededFormValues } from '@/lib/use-seeded-form-values';
+import { useClinicUnits } from '@/lib/bootstrap-context';
+import { glucoseUnitLabel, hba1cUnitLabel } from '@/lib/measurement-entry';
+import { GlucoseUnitSelect } from '@/components/GlucoseUnitSelect';
 import { generateClinicalId } from '@/lib/clinical-measurements';
 import {
   DIABETES_FIELD_ORDER,
   fromDiabetesRecord,
+  interviewGlucoseMgDl,
   toDiabetesPayload,
   validateDiabetesInterview,
+  withGlucoseUnit,
   type ClinicalFieldErrors,
   type DiabetesInterviewValues,
 } from '@/lib/diabetes-interview';
@@ -109,11 +114,29 @@ export function DiabetesInterviewForm({
   onSaved,
   saveRef,
 }: DiabetesInterviewFormProps) {
+  const units = useClinicUnits(clinicId);
+  /*
+    A record that arrives after someone switched the glucose unit is seeded in the unit on screen.
+    The seed merge keeps edited fields and refills untouched ones, so a reading refilled in the
+    clinic's unit under a switched label would be read, and saved, as the other unit.
+  */
+  const glucoseUnitOnScreen = useRef(units.glucoseUnit);
+  const fromRecord = useCallback(
+    (record: typeof initialData) =>
+      fromDiabetesRecord(record, {
+        glucoseUnit: glucoseUnitOnScreen.current,
+        hba1cUnit: units.hba1cUnit,
+      }),
+    [units.hba1cUnit],
+  );
   const [values, setValues] = useSeededFormValues(
     initialData?.id as string | undefined,
     initialData,
-    fromDiabetesRecord,
+    fromRecord,
   );
+  useEffect(() => {
+    glucoseUnitOnScreen.current = values.glucoseUnit;
+  }, [values.glucoseUnit]);
   const [errors, setErrors] = useState<ClinicalFieldErrors>({});
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -129,8 +152,8 @@ export function DiabetesInterviewForm({
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const { isOnline, syncNow } = useSync();
 
-  const glucose = Number.parseInt(values.glucoseMgDl, 10);
-  const glucoseValue = Number.isFinite(glucose) ? glucose : null;
+  // Whole mg/dL whatever the unit on screen, so the thresholds below read one unit.
+  const glucoseValue = interviewGlucoseMgDl(values);
 
   /*
     Derived live from the same functions the server recomputes on write.
@@ -355,12 +378,30 @@ export function DiabetesInterviewForm({
 
       <FormSectionCard title="2. Diabetes control" titleAs="h2">
         <div className="grid gap-4 sm:grid-cols-2">
-          <NumberQuestion
-            {...q('dm-glucose')}
-            label="Today's glucose (mg/dL)"
-            value={values.glucoseMgDl}
-            onChange={(value) => update('glucoseMgDl', value)}
-          />
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <NumberQuestion
+                {...q('dm-glucose')}
+                label={`Today's glucose (${glucoseUnitLabel(values.glucoseUnit)})`}
+                value={values.glucose}
+                onChange={(value) => update('glucose', value)}
+                decimal={values.glucoseUnit === 'MMOL_L'}
+              />
+            </div>
+            <div className="pt-7">
+              <GlucoseUnitSelect
+                value={values.glucoseUnit}
+                onChange={(unit) =>
+                  setValues((current) => {
+                    const next = withGlucoseUnit(current, unit);
+                    if (hasSubmitted) setErrors(validateDiabetesInterview(next));
+                    return next;
+                  })
+                }
+                disabled={shared.disabled}
+              />
+            </div>
+          </div>
           <ChoiceQuestion
             {...q('dm-glucose-timing')}
             label="When was the sample taken?"
@@ -389,9 +430,10 @@ export function DiabetesInterviewForm({
             <>
               <NumberQuestion
                 {...q('dm-hba1c')}
-                label="HbA1c (%)"
-                value={values.hba1cPercent}
-                onChange={(value) => update('hba1cPercent', value)}
+                label={`HbA1c (${hba1cUnitLabel(values.hba1cUnit)})`}
+                value={values.hba1c}
+                onChange={(value) => update('hba1c', value)}
+                decimal={values.hba1cUnit === 'PERCENT'}
               />
               <div className="space-y-2">
                 <FieldLabel htmlFor="dm-hba1c-date">Date taken</FieldLabel>
@@ -419,15 +461,17 @@ export function DiabetesInterviewForm({
           <div className="grid gap-4 sm:grid-cols-2">
             <NumberQuestion
               {...q('dm-home-low')}
-              label="Usual lowest reading (mg/dL)"
-              value={values.homeGlucoseLowMgDl}
-              onChange={(value) => update('homeGlucoseLowMgDl', value)}
+              label={`Usual lowest reading (${glucoseUnitLabel(values.glucoseUnit)})`}
+              value={values.homeGlucoseLow}
+              onChange={(value) => update('homeGlucoseLow', value)}
+              decimal={values.glucoseUnit === 'MMOL_L'}
             />
             <NumberQuestion
               {...q('dm-home-high')}
-              label="Usual highest reading (mg/dL)"
-              value={values.homeGlucoseHighMgDl}
-              onChange={(value) => update('homeGlucoseHighMgDl', value)}
+              label={`Usual highest reading (${glucoseUnitLabel(values.glucoseUnit)})`}
+              value={values.homeGlucoseHigh}
+              onChange={(value) => update('homeGlucoseHigh', value)}
+              decimal={values.glucoseUnit === 'MMOL_L'}
             />
           </div>
         ) : null}
