@@ -17,6 +17,7 @@ import { CONTACT_EMAIL, CONTACT_HREF } from './links';
 const DISMISSED_KEY = 'nkwapa.release-banner.dismissed';
 
 // Each kind of change keeps one colour next to its name, so a reader can scan for "Fixed".
+// Keyed on the heading's first word, so "Fixed in 2.0" keeps Fixed's colour.
 const TONES: Record<string, string> = {
   New: 'bg-secondary',
   Improved: 'bg-primary',
@@ -210,7 +211,10 @@ function ReleaseGroupList({ group, capped }: { group: ReleaseGroup; capped: bool
       <h3 className="flex items-center gap-3 border-b-2 border-foreground pb-2 font-heading text-xl font-semibold">
         <span
           aria-hidden
-          className={cn('h-2.5 w-2.5 rounded-full', TONES[group.heading] ?? DEFAULT_TONE)}
+          className={cn(
+            'h-2.5 w-2.5 rounded-full',
+            TONES[group.heading.split(' ')[0]] ?? DEFAULT_TONE,
+          )}
         />
         {group.heading}
         <span className="font-body text-sm font-medium tabular-nums text-muted-foreground">

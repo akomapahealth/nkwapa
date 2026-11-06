@@ -39,11 +39,70 @@ const RELEASES_URL = 'https://api.github.com/repos/akomapahealth/nkwapa/releases
 
 /** Used when GitHub cannot be reached at build or revalidation time. Keep it on the latest release. */
 export const FALLBACK_RELEASE: Release = {
-  version: '2.0.0',
-  date: '2026-11-05',
+  version: '2.0.1',
+  date: '2026-11-06',
   groups: [
     {
-      heading: 'New',
+      heading: 'New in 2.0.1',
+      items: [
+        {
+          lead: 'Notifications while Nkwapa is closed.',
+          text: 'Turn on notifications in Profile on each device. Staff hear about new messages, patients assigned to them and notes waiting for their cosign, and patients hear when the clinic answers an appointment request. A notification never shows patient details. Signing out turns them off on that device, so the next person chooses for themselves. If you had notifications on before this release, sign in again so the device is set up.',
+        },
+        {
+          lead: 'Log in from the home page.',
+          text: 'The home page has a Log in button for invited accounts. The sign-in page asks whether you are a patient or clinic staff, and shows the help that fits you.',
+        },
+        {
+          lead: "Measurements in your clinic's units.",
+          text: "Glucose, weight, height and HbA1c are now entered and shown in your clinic's units. Ghana clinics see glucose in mmol/L (7.0 mmol/L is the same as 126 mg/dL). If a meter reads mg/dL, use the unit switch beside the glucose box. A director can change the clinic's units in clinic settings.",
+        },
+      ],
+    },
+    {
+      heading: 'Improved in 2.0.1',
+      items: [
+        {
+          lead: 'Cancelled appointments say who, when and why.',
+          text: 'A cancelled visit on the schedule is still crossed out. Underneath, it now says who cancelled it, when, and the reason they gave.',
+        },
+        {
+          lead: 'Queue tabs show the real count.',
+          text: 'A lane holding more than 50 visits shows its full number, and "Show more" loads the rest.',
+        },
+        {
+          lead: 'Appointment times are in clinic time.',
+          text: "Reschedule and confirm forms read and fill times in the clinic's time zone, whatever time zone your device is set to.",
+        },
+        {
+          lead: 'Ask for a new invitation.',
+          text: 'If your invitation link has expired, the "No invitation found" page has an "Ask for a new invitation" button. The clinic sees your request on the invitation and can send you a new one.',
+        },
+        {
+          lead: 'Tidy up the staff invitations list.',
+          text: 'Expired and cancelled invitations now have a Remove button. It takes them off the list without deleting the record, and you have a few seconds to undo. You can also filter the list by Open, Expired, Accepted or Cancelled.',
+        },
+        {
+          lead: 'The dashboard remembers your tab.',
+          text: 'It opens on the tab you used last, for each clinic.',
+        },
+        {
+          lead: 'Clinic settings has its own icon.',
+          text: 'It shows sliders in the account menu, so it no longer looks like Your settings.',
+        },
+      ],
+    },
+    {
+      heading: 'Fixed in 2.0.1',
+      items: [
+        {
+          lead: 'Clearer pages for screen readers.',
+          text: 'Headings and lists on Stations, Settings, the organization report, Data requests, Volunteers and the patient record are now in the right order, so screen readers announce them properly.',
+        },
+      ],
+    },
+    {
+      heading: 'New in 2.0',
       items: [
         {
           lead: 'A new look across Nkwapa.',
@@ -72,7 +131,7 @@ export const FALLBACK_RELEASE: Release = {
       ],
     },
     {
-      heading: 'Improved',
+      heading: 'Improved in 2.0',
       items: [
         {
           lead: 'Message delivery and Clinic settings have moved.',
@@ -117,7 +176,7 @@ export const FALLBACK_RELEASE: Release = {
       ],
     },
     {
-      heading: 'Fixed',
+      heading: 'Fixed in 2.0',
       items: [
         {
           lead: 'The Sex field at patient registration',
