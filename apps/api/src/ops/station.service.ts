@@ -4,7 +4,9 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { PushService } from '../push/push.service';
 import { Prisma, StationKind, StationVisitStatus } from '@prisma/client';
 import {
   CLINIC_DEFAULT_TIMEZONE,
@@ -119,6 +121,7 @@ export class StationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    @Optional() private readonly push?: PushService,
   ) {}
 
   // ── Stations ────────────────────────────────────────────────────────────────────────────
@@ -695,6 +698,15 @@ export class StationService {
         assignedByUserId: actor.userId,
       }),
     );
+    // Who assigned, never which patient (#250).
+    if (assigneeUserId !== actor.userId) {
+      this.push?.notify([assigneeUserId], {
+        title: 'A patient was assigned to you',
+        body: visit.assignedBy ? `Assigned by ${visit.assignedBy.displayName}.` : undefined,
+        url: '/stations',
+        tag: 'assigned',
+      });
+    }
     return this.toVisit(visit);
   }
 

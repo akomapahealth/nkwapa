@@ -12,6 +12,7 @@ import { TelemetryModule } from './telemetry/telemetry.module';
 import { IdempotencyModule } from './idempotency/idempotency.module';
 import { InviteRenewalModule } from './invite-renewal/invite-renewal.module';
 import { NotificationModule } from './notifications/notification.module';
+import { PushModule } from './push/push.module';
 import { PatientModule } from './patients/patient.module';
 import { EncounterModule } from './encounters/encounter.module';
 import { ClinicModule } from './clinics/clinic.module';
@@ -63,6 +64,7 @@ import { StaffActivityModule } from './staff-activity/staff-activity.module';
     IdempotencyModule,
     InviteRenewalModule,
     NotificationModule,
+    PushModule,
     UserModule,
     PatientModule,
     EncounterModule,

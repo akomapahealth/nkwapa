@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { getNotificationState, syncPushSubscription } from '@/lib/browser-notifications';
 import {
   ACCOUNT_NAME_PATH,
   STAFF_INVITE_ACCEPT_PATH,
@@ -41,6 +42,15 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
       router.replace(buildLoginHref(currentPath));
     }
   }, [currentPath, isAuthenticated, isLoginRoute, router]);
+
+  // Background pushes follow whoever is signed in on this browser (#250), and pick up a
+  // subscription the browser rotated since the last visit.
+  const userId = bootstrap?.userId;
+  useEffect(() => {
+    if (isAuthenticated && userId && getToken && getNotificationState() === 'on') {
+      void syncPushSubscription(getToken);
+    }
+  }, [getToken, isAuthenticated, userId]);
 
   const onboardingPath = getOnboardingPath(bootstrap);
   const hasStaffInvites = (bootstrap?.pendingStaffInvites?.length ?? 0) > 0;

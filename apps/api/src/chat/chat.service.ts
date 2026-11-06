@@ -4,10 +4,12 @@ import {
   NotFoundException,
   BadRequestException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { encryptChatContent, readChatContent } from './chat-crypto';
 import { AuditService } from '../audit/audit.service';
+import { PushService } from '../push/push.service';
 import { ConversationType, Prisma, UserRole } from '@prisma/client';
 import { PERMISSIONS, rolesWithPermission } from '../auth/constants/permissions';
 
@@ -31,6 +33,7 @@ export class ChatService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    @Optional() private readonly push?: PushService,
   ) {}
 
   /**
@@ -453,6 +456,24 @@ export class ChatService {
       });
       return msg;
     });
+
+    if (this.push?.enabled) {
+      const others = await this.prisma.conversationParticipant.findMany({
+        where: { conversationId, isActive: true, userId: { not: senderUserId } },
+        select: { userId: true },
+      });
+      // Who wrote, never what (#250). The tag matches the in-page notification, so one replaces
+      // the other instead of stacking when the app is open in the background too.
+      this.push.notify(
+        others.map((participant) => participant.userId),
+        {
+          title: `New message from ${message.sender.displayName}`,
+          body: 'Open Nkwapa to read it.',
+          url: `/dashboard?chat=${conversationId}`,
+          tag: `chat-${conversationId}`,
+        },
+      );
+    }
 
     // Members are sent the text they wrote; only the stored row is sealed.
     return { ...message, content };

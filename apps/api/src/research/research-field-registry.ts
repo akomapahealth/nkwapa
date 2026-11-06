@@ -169,6 +169,8 @@ export const RESEARCH_OUT_OF_SCOPE_MODELS: Record<string, string> = {
   SyncMutation: 'Offline replay bookkeeping with no clinical content.',
   IdempotencyRecord:
     'Online retry bookkeeping (#307): a stored response replayed to the same user for 24 hours.',
+  PushSubscription:
+    "A browser's Web Push endpoint and keys (#250): delivery plumbing for staff and portal logins.",
   ResearchExport: "The export pipeline's own record of its runs.",
   ClinicResearchSettings: 'Per-clinic configuration for this pipeline.',
   ResearchExportSchedule: "A director's standing approval and cadence for this pipeline's runs.",

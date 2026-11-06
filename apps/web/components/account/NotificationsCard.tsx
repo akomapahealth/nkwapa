@@ -5,25 +5,39 @@ import { Bell, BellOff } from 'lucide-react';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuth } from '@/lib/auth-context';
 import {
   getNotificationState,
   setNotificationsEnabled,
   showAppNotification,
+  webPushSupported,
   type NotificationState,
 } from '@/lib/browser-notifications';
 
+/** What reaches a device once notifications are on, per kind of account (#250). */
+const WHAT_NOTIFIES = {
+  staff:
+    'A notification on this device when a colleague messages you, a patient is assigned to you or a note is waiting for your cosign.',
+  patient: 'A notification on this device when the clinic answers your appointment request.',
+};
+
 /** The per-device opt-in for browser notifications, with what each state means. */
-export function NotificationsCard() {
+export function NotificationsCard({ audience }: { audience: 'staff' | 'patient' }) {
+  const getToken = useAuth();
   // Read after mount: the server render has no browser to ask.
   const [state, setState] = useState<NotificationState | null>(null);
   const [working, setWorking] = useState(false);
+  const [background, setBackground] = useState(false);
 
-  useEffect(() => setState(getNotificationState()), []);
+  useEffect(() => {
+    setState(getNotificationState());
+    setBackground(webPushSupported());
+  }, []);
 
   const toggle = async (enabled: boolean) => {
     setWorking(true);
     try {
-      setState(await setNotificationsEnabled(enabled));
+      setState(await setNotificationsEnabled(enabled, getToken));
     } finally {
       setWorking(false);
     }
@@ -37,8 +51,11 @@ export function NotificationsCard() {
           Notifications
         </CardTitle>
         <CardDescription>
-          A notification on this device when a colleague messages you while Nkwapa is open in
-          another tab or in the background. It names who wrote, never what they wrote.
+          {WHAT_NOTIFIES[audience]}{' '}
+          {background
+            ? 'It arrives even when Nkwapa is closed.'
+            : 'It arrives while Nkwapa is open in another tab or in the background.'}{' '}
+          It says who or what kind, never any patient details.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3" aria-live="polite">
@@ -64,7 +81,7 @@ export function NotificationsCard() {
               onClick={() =>
                 void showAppNotification({
                   title: 'Notifications are on',
-                  body: 'This is how a new message will look.',
+                  body: 'This is how a notification will look.',
                   url: '/account',
                   tag: 'test',
                 })

@@ -11,7 +11,9 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { PushService } from '../push/push.service';
 import {
   AppointmentRequestStatus,
   AppointmentRequestType,
@@ -232,6 +234,7 @@ export class PatientPortalService {
     private readonly reminderService: ReminderService,
     private readonly emailDeliverabilityService: EmailDeliverabilityService,
     private readonly keycloakAdminService: KeycloakAdminService,
+    @Optional() private readonly push?: PushService,
   ) {}
 
   async getMe(clinicId: string, userId: string) {
@@ -922,6 +925,7 @@ export class PatientPortalService {
       {},
       requestId,
     );
+    await this.notifyRequestAnswered(existing.patientId);
 
     return {
       request: this.serializeAppointmentRequest(updatedRequest, true),
@@ -968,8 +972,27 @@ export class PatientPortalService {
       afterJson: JSON.stringify(updated),
       requestId,
     });
+    await this.notifyRequestAnswered(existing.patientId);
 
     return this.serializeAppointmentRequest(updated, true);
+  }
+
+  /**
+   * Tell the patient their appointment request was answered (#250), on a device where they turned
+   * notifications on. It says only that there is an answer; the portal says what it is.
+   */
+  private async notifyRequestAnswered(patientId: string) {
+    if (!this.push?.enabled) return;
+    const patient = await this.prisma.patient.findUnique({
+      where: { id: patientId },
+      select: { portalUserId: true },
+    });
+    this.push.notify([patient?.portalUserId], {
+      title: 'Your appointment request was answered',
+      body: 'Open Nkwapa to see the reply.',
+      url: '/portal/appointments',
+      tag: 'appointment-request',
+    });
   }
 
   async listSelfReports(clinicId: string, userId: string) {
