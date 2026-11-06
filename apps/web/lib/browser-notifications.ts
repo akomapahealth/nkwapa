@@ -1,9 +1,12 @@
+import { apiFetch, readApiError, type GetToken } from './api';
+
 /**
  * Browser notifications, opt-in per device.
  *
- * Shown while Nkwapa is open in a tab or an installed window, including in the background: they
- * are raised from the live chat connection, not from a push server, so a fully closed app gets
- * none. The opt-in is kept on the device because the browser's permission is per device too.
+ * While Nkwapa is open in a tab or an installed window, including in the background, they are
+ * raised from the live chat connection. With Web Push configured (#250), turning them on also
+ * subscribes this browser, so the API can reach it while Nkwapa is closed; the service worker
+ * shows those. The opt-in is kept on the device because the browser's permission is per device too.
  *
  * A notification says who, never what. Chat can carry patient details, and a notification lands
  * on a lock screen anyone can read.
@@ -46,8 +49,14 @@ export function getNotificationState(): NotificationState {
   return Notification.permission === 'granted' && readOptIn() ? 'on' : 'off';
 }
 
-/** Turning on asks the browser once; turning off only forgets the opt-in (a page cannot revoke). */
-export async function setNotificationsEnabled(enabled: boolean): Promise<NotificationState> {
+/**
+ * Turning on asks the browser once; turning off forgets the opt-in (a page cannot revoke the
+ * permission). Either way the background push subscription follows, when there is one to follow.
+ */
+export async function setNotificationsEnabled(
+  enabled: boolean,
+  getToken?: GetToken,
+): Promise<NotificationState> {
   if (!notificationsSupported()) return 'unsupported';
   if (enabled && Notification.permission === 'default') {
     await Notification.requestPermission();
@@ -60,7 +69,101 @@ export async function setNotificationsEnabled(enabled: boolean): Promise<Notific
   } catch {
     // Storage blocked: the state below reads as off, which is the honest answer.
   }
-  return getNotificationState();
+  const state = getNotificationState();
+  if (getToken) {
+    await (state === 'on' ? syncPushSubscription(getToken) : removePushSubscription(getToken));
+  }
+  return state;
+}
+
+/** The public half of the API's VAPID key pair, baked into the build. Empty: no background push. */
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY ?? '';
+
+/** Whether this build and browser can receive pushes while Nkwapa is closed (#250). */
+export function webPushSupported(): boolean {
+  return (
+    VAPID_PUBLIC_KEY !== '' &&
+    typeof window !== 'undefined' &&
+    'serviceWorker' in navigator &&
+    'PushManager' in window
+  );
+}
+
+/** base64url, as VAPID keys are written, to the bytes pushManager.subscribe wants. */
+export function vapidKeyBytes(base64url: string): Uint8Array<ArrayBuffer> {
+  const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64 + '='.repeat((4 - (base64.length % 4)) % 4));
+  return Uint8Array.from(raw, (char) => char.charCodeAt(0));
+}
+
+async function pushManager(): Promise<PushManager | null> {
+  if (!webPushSupported()) return null;
+  // No registration in `next dev` unless asked for: then there is nothing to push to.
+  const registration = await navigator.serviceWorker.getRegistration();
+  return registration?.pushManager ?? null;
+}
+
+/**
+ * Subscribe this browser for the signed-in person and tell the API. Also run on each sign-in while
+ * the opt-in is on: the browser may have rotated the subscription, or someone else may have signed
+ * in on this device since. Best effort: notifications in an open app work without it.
+ */
+export async function syncPushSubscription(getToken: GetToken): Promise<boolean> {
+  try {
+    const manager = await pushManager();
+    if (!manager) return false;
+    const subscription =
+      (await manager.getSubscription()) ??
+      (await manager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: vapidKeyBytes(VAPID_PUBLIC_KEY),
+      }));
+    const { endpoint, keys } = subscription.toJSON();
+    if (!endpoint || !keys?.p256dh || !keys.auth) return false;
+    const response = await apiFetch('/me/push-subscriptions', {
+      method: 'PUT',
+      body: JSON.stringify({ endpoint, p256dh: keys.p256dh, auth: keys.auth }),
+      getToken,
+      skipClinicHeader: true,
+    });
+    if (!response.ok) throw await readApiError(response);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Stop background pushes to this browser: the API forgets it and the browser drops the
+ * subscription. Run on turning notifications off and on signing out, because clinic devices are
+ * shared and the next person must not receive the last one's notifications.
+ */
+export async function removePushSubscription(getToken?: GetToken): Promise<void> {
+  try {
+    const subscription = await (await pushManager())?.getSubscription();
+    if (!subscription) return;
+    if (getToken) {
+      await apiFetch('/me/push-subscriptions/remove', {
+        method: 'POST',
+        body: JSON.stringify({ endpoint: subscription.endpoint }),
+        getToken,
+        skipClinicHeader: true,
+      });
+    }
+    await subscription.unsubscribe();
+  } catch {
+    // Best effort. A subscription left behind is dropped by the API the first time it bounces.
+  }
+}
+
+/** On sign-out: no background pushes here, and the next person to sign in chooses for themselves. */
+export async function forgetNotificationsOnDevice(getToken?: GetToken): Promise<void> {
+  await removePushSubscription(getToken);
+  try {
+    window.localStorage.removeItem(NOTIFICATION_OPT_IN_KEY);
+  } catch {
+    // Storage blocked: the opt-in already reads as off.
+  }
 }
 
 /**

@@ -1048,6 +1048,7 @@ model User {
   volunteerAppointments           Appointment[]                   @relation("AppointmentAssignedVolunteer")
   cancelledAppointments           Appointment[]                   @relation("AppointmentCancelledBy")
   idempotencyRecords              IdempotencyRecord[]
+  pushSubscriptions               PushSubscription[]
   createdPatientPortalInvites     PatientPortalInvite[]           @relation("PatientPortalInviteCreatedBy")
   claimedPatientPortalInvites     PatientPortalInvite[]           @relation("PatientPortalInviteClaimedBy")
   createdStaffInvites             StaffInvite[]                   @relation("StaffInviteCreatedBy")
@@ -2830,6 +2831,25 @@ model IdempotencyRecord {
 
   @@unique([userId, key])
   @@index([expiresAt])
+}
+
+/// A browser's Web Push subscription (#250), so a notification reaches a device while Nkwapa is
+/// closed. Owned by one user and no clinic: the endpoint is per browser profile, whichever clinic
+/// is active. The endpoint is the push service URL the browser handed out, unique across users.
+model PushSubscription {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  endpoint   String    @unique @db.VarChar(1024)
+  /// The browser's P-256 public key and auth secret, base64url, as PushSubscription.toJSON() gives.
+  p256dh     String    @db.VarChar(256)
+  auth       String    @db.VarChar(64)
+  userAgent  String?   @db.VarChar(512)
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Conversation {

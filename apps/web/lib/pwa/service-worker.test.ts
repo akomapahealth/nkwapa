@@ -6,6 +6,8 @@ const sw = require('./service-worker.js') as {
   cacheKeyFor: (request: Request) => Request;
   trimCache: (cache: Pick<Cache, 'keys' | 'delete'>, max: number) => Promise<void>;
   openFromNotification: (clients: unknown, origin: string, url: unknown) => Promise<void>;
+  pushNotificationFor: (raw: string) => { title: string; options: NotificationOptions };
+  showPush: (registration: unknown, clients: unknown, raw: string) => Promise<void>;
 };
 
 const ORIGIN = 'https://nkwapa.app';
@@ -155,5 +157,48 @@ describe('notification clicks', () => {
     const { clients } = clientsWith([]);
     await sw.openFromNotification(clients, ORIGIN, 'https://evil.example/phish');
     expect(clients.openWindow).toHaveBeenCalledWith('/dashboard');
+  });
+});
+
+describe('background push (#250)', () => {
+  function setup(windows: Array<{ focused: boolean; visibilityState: string }>) {
+    return {
+      registration: { showNotification: jest.fn() },
+      clients: { matchAll: jest.fn(async () => windows) },
+    };
+  }
+
+  it('shows the title, body, tag and click URL the API sent', async () => {
+    const { registration, clients } = setup([{ focused: false, visibilityState: 'hidden' }]);
+    await sw.showPush(
+      registration,
+      clients,
+      JSON.stringify({
+        title: 'New message from Ama',
+        body: 'Open Nkwapa to read it.',
+        url: '/dashboard?chat=c1',
+        tag: 'chat-c1',
+      }),
+    );
+    expect(registration.showNotification).toHaveBeenCalledWith(
+      'New message from Ama',
+      expect.objectContaining({
+        body: 'Open Nkwapa to read it.',
+        tag: 'chat-c1',
+        data: { url: '/dashboard?chat=c1' },
+      }),
+    );
+  });
+
+  it('stays quiet while a Nkwapa window is in front, which notifies on its own', async () => {
+    const { registration, clients } = setup([{ focused: true, visibilityState: 'visible' }]);
+    await sw.showPush(registration, clients, JSON.stringify({ title: 't', url: '/' }));
+    expect(registration.showNotification).not.toHaveBeenCalled();
+  });
+
+  it('still shows something for a payload it cannot read', () => {
+    const { title, options } = sw.pushNotificationFor('not json');
+    expect(title).toBe('Nkwapa');
+    expect(options.data).toEqual({ url: '/dashboard' });
   });
 });
