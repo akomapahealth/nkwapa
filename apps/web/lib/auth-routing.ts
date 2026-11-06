@@ -22,6 +22,16 @@ export function buildLoginHref(next: string | null | undefined): string {
   return `/login?${params.toString()}`;
 }
 
+/** Who the sign-in page is guiding. Tailors its help only: the account's roles still pick where sign-in lands. */
+export type SignInAudience = 'patient' | 'staff';
+
+/** The `?as=` query parameter on /login, so a clinic email or link can open the right guidance. */
+export const SIGN_IN_AUDIENCE_PARAM = 'as';
+
+export function parseSignInAudience(value: string | null | undefined): SignInAudience | null {
+  return value === 'patient' || value === 'staff' ? value : null;
+}
+
 /** Where a staff invitee accepts. Mirrors STAFF_INVITE_ACCEPT_PATH on the API. */
 export const STAFF_INVITE_ACCEPT_PATH = '/accept-invite';
 

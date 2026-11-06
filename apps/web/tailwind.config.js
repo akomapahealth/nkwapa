@@ -55,6 +55,20 @@ module.exports = {
         // working" rather than as something blinking for attention.
         // A page arriving. Opacity only: a rise would move content that layout checks measure,
         // and MASTER.md section 7 keeps position changes out of anything this frequent.
+        // The sign-in page settling in: a short rise within the section 7 position budget.
+        'rise-in': {
+          '0%': { opacity: '0', transform: 'translateY(8px)' },
+          '100%': { opacity: '1', transform: 'none' },
+        },
+        // The sign-in photograph opens out from a smaller frame while the picture settles back.
+        'photo-reveal': {
+          '0%': { opacity: '0', 'clip-path': 'inset(12% 12% 12% 12% round 0.5rem)' },
+          '100%': { opacity: '1', 'clip-path': 'inset(0 0 0 0 round 0.5rem)' },
+        },
+        'photo-settle': {
+          '0%': { transform: 'scale(1.1)' },
+          '100%': { transform: 'none' },
+        },
         'page-in': {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' },
@@ -69,6 +83,9 @@ module.exports = {
         'landing-rise': 'landing-rise 0.7s var(--ease-out) backwards',
         'refresh-sweep': 'refresh-sweep 1.1s ease-in-out infinite',
         'page-in': 'page-in var(--duration-fast) var(--ease-out) both',
+        'rise-in': 'rise-in var(--duration-base) var(--ease-out) backwards',
+        'photo-reveal': 'photo-reveal 0.7s var(--ease-out) 0.2s backwards',
+        'photo-settle': 'photo-settle 1.4s var(--ease-out) 0.2s backwards',
       },
       colors: {
         border: 'hsl(var(--border))',
