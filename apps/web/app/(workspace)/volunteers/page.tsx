@@ -330,6 +330,7 @@ function VolunteersContent() {
         isEmpty={(data) => data.items.length === 0}
         empty={{
           title: 'No volunteers yet',
+          titleAs: 'h2',
           description: "Add their name and email; they don't need a Nkwapa account.",
           action: (
             <Button onClick={() => open('new')} disabled={!writable}>

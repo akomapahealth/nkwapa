@@ -12,6 +12,8 @@ export interface ResourceEmptyCopy {
   description: string;
   icon?: LucideIcon;
   action?: React.ReactNode;
+  /** h2 when the empty state sits straight under the page h1 (#313). */
+  titleAs?: 'h2' | 'h3';
 }
 
 /**
@@ -155,6 +157,7 @@ export function ResourceState<T>({
           description={empty.description}
           icon={empty.icon}
           action={empty.action}
+          titleAs={empty.titleAs}
         />
       ) : (
         children(state.data)
