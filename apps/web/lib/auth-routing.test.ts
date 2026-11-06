@@ -6,6 +6,7 @@ import {
   getPostAuthPath,
   getSafeNextPath,
   shouldAutoContinue,
+  parseSignInAudience,
 } from './auth-routing';
 import type { WhoAmIResponse } from './bootstrap-context';
 
@@ -172,5 +173,18 @@ describe('the name step (#225)', () => {
   it('never points next at itself or off-site', () => {
     expect(buildAccountNameHref('/account/name?next=%2Fdashboard')).toBe('/account/name');
     expect(buildAccountNameHref('//evil.example')).toBe('/account/name');
+  });
+});
+
+describe('parseSignInAudience', () => {
+  it('accepts the two audiences', () => {
+    expect(parseSignInAudience('patient')).toBe('patient');
+    expect(parseSignInAudience('staff')).toBe('staff');
+  });
+
+  it('rejects anything else, so a crafted link cannot inject a value', () => {
+    for (const value of [null, undefined, '', 'Patient', 'admin', 'staff ']) {
+      expect(parseSignInAudience(value)).toBeNull();
+    }
   });
 });

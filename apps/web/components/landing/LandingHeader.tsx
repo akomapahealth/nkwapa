@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { ArrowUpRight, Menu, Moon, Sun } from 'lucide-react';
 import { useTheme } from '@/lib/theme-context';
 import { Button } from '@/components/ui/button';
@@ -69,6 +70,16 @@ export function LandingHeader({ base = '' }: { base?: '' | '/' }) {
               <Moon className="h-5 w-5" aria-hidden />
             )}
           </Button>
+          {/* Accounts are invitation-only (no sign-up anywhere), so the entry says so. Below 360px
+              it does not fit beside the logo; the menu carries it there. */}
+          <Button asChild variant="outline" className="hidden min-[360px]:inline-flex">
+            <Link href="/login" data-cta="login">
+              Log in
+              <span className="sr-only md:not-sr-only md:rounded-sm md:bg-muted md:px-1.5 md:py-0.5 md:text-[0.6875rem] md:font-medium md:leading-4 md:text-muted-foreground">
+                Invite only
+              </span>
+            </Link>
+          </Button>
           <Button asChild className="hidden sm:inline-flex">
             <a href={CONTACT_HREF} data-cta="contact">
               Contact the team
@@ -123,7 +134,15 @@ export function LandingHeader({ base = '' }: { base?: '' | '/' }) {
                     </li>
                   ))}
                 </ul>
-                <Button asChild size="lg" className="mt-8 w-full">
+                <Button asChild size="lg" variant="outline" className="mt-8 w-full">
+                  <Link href="/login" data-cta="login" aria-describedby="mobile-login-note">
+                    Log in
+                  </Link>
+                </Button>
+                <p id="mobile-login-note" className="mt-2 text-sm leading-6 text-muted-foreground">
+                  For people invited by their clinic. There is no sign-up.
+                </p>
+                <Button asChild size="lg" className="mt-6 w-full">
                   <a href={CONTACT_HREF} data-cta="contact">
                     Contact the team
                   </a>

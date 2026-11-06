@@ -55,6 +55,11 @@ module.exports = {
         // working" rather than as something blinking for attention.
         // A page arriving. Opacity only: a rise would move content that layout checks measure,
         // and MASTER.md section 7 keeps position changes out of anything this frequent.
+        // The sign-in page settling in: a short rise within the section 7 position budget.
+        'rise-in': {
+          '0%': { opacity: '0', transform: 'translateY(8px)' },
+          '100%': { opacity: '1', transform: 'none' },
+        },
         'page-in': {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' },
@@ -69,6 +74,7 @@ module.exports = {
         'landing-rise': 'landing-rise 0.7s var(--ease-out) backwards',
         'refresh-sweep': 'refresh-sweep 1.1s ease-in-out infinite',
         'page-in': 'page-in var(--duration-fast) var(--ease-out) both',
+        'rise-in': 'rise-in var(--duration-base) var(--ease-out) backwards',
       },
       colors: {
         border: 'hsl(var(--border))',

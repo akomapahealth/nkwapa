@@ -25,6 +25,7 @@ const CTA_HREFS = [
   '/terms',
   '/cookies',
   '/login?next=%2Fstatus',
+  '/login',
 ];
 
 async function scrollThrough(page) {
