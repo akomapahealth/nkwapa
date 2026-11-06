@@ -1374,6 +1374,12 @@ Shipped in [PR #305](https://github.com/akomapahealth/nkwapa/pull/305), which ho
   the device remembers the last choice; otherwise Patient.
 - **Entrance:** blocks rise 8 px and fade in (`animate-rise-in`, 200 ms) 40 ms apart; changed
   guidance cross-fades with `animate-page-in`. The global reduced-motion rule flattens both.
+- **Photograph:** Akomapa-19 (a volunteer taking a patient's blood pressure, no faces) heads the
+  help column, after the steps on phones so sign-in stays first. It opens from a smaller rounded
+  frame (`animate-photo-reveal`, clip-path, 700 ms) while the picture settles from 1.1 scale
+  (`animate-photo-settle`, 1.4 s). Plain CSS, so it plays on first paint with no script; it is
+  the one entrance on this page longer than section 7's 200 ms, allowed because it is a
+  public page, not a clinical view, and nothing waits on it.
 
 ## 13. Library decisions and open items
 

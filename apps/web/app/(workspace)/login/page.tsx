@@ -17,6 +17,7 @@ import { useKeycloak } from '@/app/KeycloakProvider';
 import { PageSkeleton } from '@/components/feedback/AppState';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { LANDING_BLUR } from '@/lib/landing-blur';
 import { AlertTriangle, ArrowRight, HeartPulse, Lock, Stethoscope } from 'lucide-react';
 
 const AUDIENCE_STORAGE_KEY = 'nkwapa.signInAudience';
@@ -360,6 +361,22 @@ export default function LoginPage() {
           className={cn(RISE, 'min-w-0')}
           style={riseDelay(4)}
         >
+          <figure className="mb-8">
+            <div className="relative aspect-[16/9] overflow-hidden rounded-lg bg-muted motion-safe:animate-photo-reveal lg:aspect-[4/3]">
+              <Image
+                src="/images/Akomapa-19.jpg"
+                alt="A volunteer takes a woman's blood pressure at a folding table during an Akomapa screening."
+                fill
+                sizes="(min-width: 1024px) 20rem, 100vw"
+                placeholder="blur"
+                blurDataURL={LANDING_BLUR['/images/Akomapa-19.jpg']}
+                className="object-cover object-[45%_center] motion-safe:animate-photo-settle"
+              />
+            </div>
+            <figcaption className="pt-2 text-xs leading-5 text-muted-foreground">
+              Patients and volunteers at an Akomapa community screening.
+            </figcaption>
+          </figure>
           <section className="border-t-2 border-rule-strong">
             <h2 id="login-first-time-title" className="type-section-title pb-1 pt-4">
               First time here?
