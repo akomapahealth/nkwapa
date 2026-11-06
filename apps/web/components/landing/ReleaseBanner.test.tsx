@@ -86,3 +86,12 @@ test('a short release shows every item with no toggle', () => {
   expect(dialog.querySelectorAll('button[aria-expanded]')).toHaveLength(0);
   cleanup();
 });
+
+test('a group headed by kind and version keeps the colour of its kind', () => {
+  const { dialog, cleanup } = open(release([group('Fixed in 2.0.1', 1), group('Fixed', 1)]));
+  const dots = [...dialog.querySelectorAll('h3 span[aria-hidden]')].map((dot) => dot.className);
+  expect(dots).toHaveLength(2);
+  expect(dots[0]).toBe(dots[1]);
+  expect(dots[0]).toContain('bg-foreground');
+  cleanup();
+});

@@ -20,6 +20,7 @@ interface TrendChartProps {
   data: TrendDatum[];
   color?: string;
   emptyMessage?: string;
+  titleAs?: 'h2' | 'h3';
 }
 
 /*
@@ -38,12 +39,14 @@ export function TrendChart({
   data,
   color = 'hsl(var(--chart-1))',
   emptyMessage = 'No activity has been recorded for this period yet.',
+  titleAs,
 }: TrendChartProps) {
   const hasData = hasRenderableTrendData(data);
 
   return (
     <ChartFrame
       title={title}
+      titleAs={titleAs}
       hint={hint}
       columns={['Day', 'Count']}
       rows={data.map((point) => ({

@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { AssignmentStatus, CheckInStatus, Prisma, ShiftRole, UserRole } from '@prisma/client';
 import {
@@ -23,6 +24,7 @@ import {
 import { resolveReplayTime } from './ops-replay';
 import { createDraftEncounter } from './draft-encounter';
 import { StationService } from './station.service';
+import { PushService } from '../push/push.service';
 import { isApiFeatureEnabled } from '../common/feature-flags';
 import {
   CreateAssignmentDto,
@@ -97,6 +99,7 @@ export class OpsService {
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
     private readonly stationService: StationService,
+    @Optional() private readonly push?: PushService,
   ) {}
 
   /**
@@ -463,6 +466,7 @@ export class OpsService {
       afterJson: JSON.stringify(created),
       requestId,
     });
+    this.notifyAssigned(created, actorUserId);
 
     return this.toAssignmentSummary(created);
   }
@@ -538,6 +542,7 @@ export class OpsService {
       afterJson: JSON.stringify(updated.next),
       requestId,
     });
+    this.notifyAssigned(updated.next, actorUserId);
 
     return this.toAssignmentSummary(updated.next);
   }
@@ -715,6 +720,28 @@ export class OpsService {
       },
       checkIn: this.toCheckInSummary(checkIn),
     };
+  }
+
+  /** Tell the assigned volunteer and doctor (#250): who assigned, never which patient. */
+  private notifyAssigned(
+    assignment: {
+      assignedVolunteerId: string;
+      assignedDoctorId: string;
+      assignedBy: { displayName: string };
+    },
+    actorUserId: string,
+  ) {
+    this.push?.notify(
+      [assignment.assignedVolunteerId, assignment.assignedDoctorId].filter(
+        (id) => id !== actorUserId,
+      ),
+      {
+        title: 'A patient was assigned to you',
+        body: `Assigned by ${assignment.assignedBy.displayName}.`,
+        url: '/my/assigned',
+        tag: 'assigned',
+      },
+    );
   }
 
   private readonly assignmentInclude = {

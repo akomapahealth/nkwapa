@@ -21,9 +21,11 @@ import {
 import { getBootstrapRetryDelay } from './route-access';
 import {
   getBootstrapActiveClinicId,
+  getClinicUnits,
   isStoredClinicIdValid,
   type BootstrapClinic,
 } from './bootstrap-clinics';
+import type { ClinicUnits } from '@nkwapa/db/measurement-units';
 import { getStoredActiveClinicId, setStoredActiveClinicId } from './bootstrap-storage';
 import type { PendingStaffInvite } from './staff-invite';
 
@@ -33,6 +35,7 @@ export interface WhoAmIMembership {
   clinicId: string;
   clinicName: string;
   roles: string[];
+  units?: Partial<ClinicUnits> | null;
 }
 
 export type WhoAmIAvailableClinic = BootstrapClinic;
@@ -336,4 +339,10 @@ export function BootstrapProvider({
 export function useBootstrap() {
   const ctx = useContext(BootstrapContext);
   return ctx;
+}
+
+/** The units of `clinicId`, or of the active clinic, as whoami last reported them. */
+export function useClinicUnits(clinicId?: string | null): ClinicUnits {
+  const ctx = useContext(BootstrapContext);
+  return getClinicUnits(ctx?.bootstrap, clinicId ?? ctx?.activeClinicId);
 }

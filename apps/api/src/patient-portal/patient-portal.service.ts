@@ -1,11 +1,19 @@
-import { claimRefusal, expiredInviteRefusal, normalizePhoneToE164 } from '@nkwapa/db';
+import {
+  claimRefusal,
+  expiredInviteRefusal,
+  hasUtcOffset,
+  normalizePhoneToE164,
+  wallClockToInstant,
+} from '@nkwapa/db';
 import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { PushService } from '../push/push.service';
 import {
   AppointmentRequestStatus,
   AppointmentRequestType,
@@ -104,6 +112,7 @@ const appointmentScheduleInclude = {
   },
   assignedDoctor: { select: { id: true, displayName: true } },
   assignedVolunteer: { select: { id: true, displayName: true } },
+  cancelledBy: { select: { id: true, displayName: true } },
   reminders: {
     select: {
       id: true,
@@ -126,6 +135,8 @@ type AppointmentRequestWithRelations = Prisma.AppointmentRequestGetPayload<{
 type AppointmentScheduleWithRelations = Prisma.AppointmentGetPayload<{
   include: typeof appointmentScheduleInclude;
 }>;
+
+const CLINIC_TIMEZONE_FALLBACK = 'Africa/Accra';
 
 type AppointmentLifecycleAction = 'reschedule' | 'cancel' | 'complete' | 'no-show';
 
@@ -223,6 +234,7 @@ export class PatientPortalService {
     private readonly reminderService: ReminderService,
     private readonly emailDeliverabilityService: EmailDeliverabilityService,
     private readonly keycloakAdminService: KeycloakAdminService,
+    @Optional() private readonly push?: PushService,
   ) {}
 
   async getMe(clinicId: string, userId: string) {
@@ -430,7 +442,8 @@ export class PatientPortalService {
         from: range?.from ?? null,
         to: range?.to ?? null,
       },
-      timezone: 'Africa/Accra',
+      // The clinic's own zone (#307); this said Accra whatever the clinic.
+      timezone: await this.clinicTimeZone(clinicId),
       summary: this.summarizeAppointments(items),
       items: items.map((item) => this.serializeAppointment(item)),
     };
@@ -562,7 +575,8 @@ export class PatientPortalService {
         from: range.from,
         to: range.to,
       },
-      timezone: 'Africa/Accra',
+      // The clinic's own zone (#307); this said Accra whatever the clinic.
+      timezone: await this.clinicTimeZone(clinicId),
       summary: this.summarizeAppointments(items),
       items: items.map((item) => this.serializeScheduledAppointment(item)),
     };
@@ -610,8 +624,9 @@ export class PatientPortalService {
     dto: RescheduleAppointmentDto,
     requestId?: string,
   ) {
-    const startsAt = this.parseDateTime(dto.startsAt, 'startsAt');
-    const endsAt = this.parseDateTime(dto.endsAt, 'endsAt');
+    const timeZone = await this.clinicTimeZone(clinicId);
+    const startsAt = this.parseClinicDateTime(dto.startsAt, 'startsAt', timeZone);
+    const endsAt = this.parseClinicDateTime(dto.endsAt, 'endsAt', timeZone);
     if (endsAt <= startsAt) {
       throw new BadRequestException('endsAt must be after startsAt');
     }
@@ -696,7 +711,12 @@ export class PatientPortalService {
       clinicId,
       appointmentId,
       action: 'cancel',
-      data: { status: 'CANCELLED' },
+      data: {
+        status: 'CANCELLED',
+        cancelledAt: new Date(),
+        cancelledByUserId: actorUserId,
+        cancelReason: reason,
+      },
     });
 
     await this.auditAppointmentLifecycle({
@@ -826,8 +846,9 @@ export class PatientPortalService {
       throw new ConflictException('Appointment request is already linked to an appointment');
     }
 
-    const startsAt = this.parseDateTime(dto.startsAt, 'startsAt');
-    const endsAt = this.parseDateTime(dto.endsAt, 'endsAt');
+    const timeZone = await this.clinicTimeZone(clinicId);
+    const startsAt = this.parseClinicDateTime(dto.startsAt, 'startsAt', timeZone);
+    const endsAt = this.parseClinicDateTime(dto.endsAt, 'endsAt', timeZone);
     if (endsAt <= startsAt) {
       throw new BadRequestException('endsAt must be after startsAt');
     }
@@ -904,6 +925,7 @@ export class PatientPortalService {
       {},
       requestId,
     );
+    await this.notifyRequestAnswered(existing.patientId);
 
     return {
       request: this.serializeAppointmentRequest(updatedRequest, true),
@@ -950,8 +972,27 @@ export class PatientPortalService {
       afterJson: JSON.stringify(updated),
       requestId,
     });
+    await this.notifyRequestAnswered(existing.patientId);
 
     return this.serializeAppointmentRequest(updated, true);
+  }
+
+  /**
+   * Tell the patient their appointment request was answered (#250), on a device where they turned
+   * notifications on. It says only that there is an answer; the portal says what it is.
+   */
+  private async notifyRequestAnswered(patientId: string) {
+    if (!this.push?.enabled) return;
+    const patient = await this.prisma.patient.findUnique({
+      where: { id: patientId },
+      select: { portalUserId: true },
+    });
+    this.push.notify([patient?.portalUserId], {
+      title: 'Your appointment request was answered',
+      body: 'Open Nkwapa to see the reply.',
+      url: '/portal/appointments',
+      tag: 'appointment-request',
+    });
   }
 
   async listSelfReports(clinicId: string, userId: string) {
@@ -3060,6 +3101,21 @@ export class PatientPortalService {
           ? { id: appointment.assignedVolunteerId, displayName: null }
           : null,
       notes: appointment.notes,
+      // Who, when and why, for the schedule's strike-through (#307). Null for a visit cancelled
+      // before the columns existed with no audit event to backfill from.
+      cancellation:
+        appointment.status === 'CANCELLED' && appointment.cancelledAt
+          ? {
+              at: appointment.cancelledAt.toISOString(),
+              reason: appointment.cancelReason,
+              by: appointment.cancelledBy
+                ? {
+                    id: appointment.cancelledBy.id,
+                    displayName: appointment.cancelledBy.displayName,
+                  }
+                : null,
+            }
+          : null,
       reminderSummary: this.summarizeAppointmentReminders(appointment.reminders ?? []),
       createdAt: appointment.createdAt.toISOString(),
       updatedAt: appointment.updatedAt.toISOString(),
@@ -3262,6 +3318,28 @@ export class PatientPortalService {
 
   private toDateOnly(value: Date) {
     return new Date(`${value.toISOString().slice(0, 10)}T00:00:00.000Z`);
+  }
+
+  /**
+   * An appointment time from staff (#307). A value with an offset is already an instant. One
+   * without, as a `datetime-local` field gives it, is a wall-clock time in the clinic's zone. It
+   * used to go to `new Date()`, which read it in the server's zone instead.
+   */
+  private parseClinicDateTime(value: string, fieldName: string, timeZone: string) {
+    if (hasUtcOffset(value)) return this.parseDateTime(value, fieldName);
+    const instant = wallClockToInstant(value, timeZone);
+    if (!instant) {
+      throw new BadRequestException(`${fieldName} must be a valid date`);
+    }
+    return instant;
+  }
+
+  private async clinicTimeZone(clinicId: string) {
+    const clinic = await this.prisma.clinic.findUnique({
+      where: { id: clinicId },
+      select: { timezone: true },
+    });
+    return clinic?.timezone ?? CLINIC_TIMEZONE_FALLBACK;
   }
 
   private parseDateTime(value: string, fieldName: string) {

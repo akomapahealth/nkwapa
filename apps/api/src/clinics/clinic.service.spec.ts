@@ -86,6 +86,26 @@ describe('ClinicService.create', () => {
     });
   });
 
+  it("starts a new clinic in its country's measurement units", async () => {
+    const { prisma, service } = buildService();
+    prisma.organization.findFirst.mockResolvedValue({ id: ORGANIZATION_ID });
+    prisma.clinic.create.mockResolvedValue({ id: 'clinic-1' });
+
+    await service.create({ name: 'Ridge Clinic', countryCode: 'us' });
+    await service.create({ name: 'Kumasi Clinic', countryCode: 'GH', hba1cUnit: 'MMOL_MOL' });
+
+    expect(prisma.clinic.create).toHaveBeenNthCalledWith(1, {
+      data: expect.objectContaining({ glucoseUnit: 'MG_DL', bodyUnit: 'US', hba1cUnit: 'PERCENT' }),
+    });
+    expect(prisma.clinic.create).toHaveBeenNthCalledWith(2, {
+      data: expect.objectContaining({
+        glucoseUnit: 'MMOL_L',
+        bodyUnit: 'METRIC',
+        hba1cUnit: 'MMOL_MOL',
+      }),
+    });
+  });
+
   it('derives a location code from the name when none was given', async () => {
     const { prisma, service } = buildService();
     prisma.organization.findFirst.mockResolvedValue({ id: ORGANIZATION_ID });

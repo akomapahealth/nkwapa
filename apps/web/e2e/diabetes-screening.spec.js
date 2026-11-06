@@ -53,11 +53,22 @@ test('diabetes screening round-trips longitudinally, offline, read-only, and res
   const patientId = await createPatient(page);
   const firstEncounterId = await createEncounter(page, patientId);
 
-  await page.getByLabel("Today's glucose (mg/dL)").fill('601');
+  // The seeded clinic is in Ghana, so glucose is typed in mmol/L. A mg/dL number is refused.
+  await page.getByLabel("Today's glucose (mmol/L)").fill('126');
   await page.getByRole('button', { name: 'Save screening' }).click();
-  await expect(page.getByText('Glucose must be between 0 and 600 mg/dL.')).toBeVisible();
+  await expect(
+    page.getByText('Enter a reading from 0 to 33.3 mmol/L, to one decimal place.'),
+  ).toBeVisible();
 
-  await page.getByLabel("Today's glucose (mg/dL)").fill('126');
+  // A meter reading mg/dL can switch this entry; the reading converts rather than changing
+  // meaning, and switching back restores it.
+  await page.getByLabel("Today's glucose (mmol/L)").fill('7.0');
+  await page.getByRole('combobox', { name: 'Glucose unit' }).click();
+  await page.getByRole('option', { name: 'mg/dL', exact: true }).click();
+  await expect(page.getByLabel("Today's glucose (mg/dL)")).toHaveValue('126');
+  await page.getByRole('combobox', { name: 'Glucose unit' }).click();
+  await page.getByRole('option', { name: 'mmol/L', exact: true }).click();
+  await expect(page.getByLabel("Today's glucose (mmol/L)")).toHaveValue('7');
   await chooseContext(page, 'Fasting');
   // The value only appears once the status says one is known, which is what stops a record
   // holding both a number and "never checked".
@@ -69,7 +80,10 @@ test('diabetes screening round-trips longitudinally, offline, read-only, and res
   await saveAndSync(page);
 
   await expect(page.getByRole('button', { name: 'Save screening' })).toBeEnabled();
-  await page.getByLabel("Today's glucose (mg/dL)").focus();
+  await page.getByLabel("Today's glucose (mmol/L)").focus();
+  // The reading's own unit switch comes next, then the sample timing.
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('combobox', { name: 'Glucose unit' })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(page.getByLabel('When was the sample taken?')).toBeFocused();
 
@@ -82,7 +96,7 @@ test('diabetes screening round-trips longitudinally, offline, read-only, and res
 
   const secondEncounterId = await createEncounter(page, patientId);
   expect(secondEncounterId).not.toBe(firstEncounterId);
-  await page.getByLabel("Today's glucose (mg/dL)").fill('170');
+  await page.getByLabel("Today's glucose (mmol/L)").fill('9.4');
   // The interview refuses a reading with no timing: an unknown-context glucose is never
   // classified, so storing one would record a number nobody can act on.
   await chooseContext(page, 'Random');
@@ -151,7 +165,7 @@ test('a refetch landing mid-edit does not discard what was typed', async ({ page
   const patientId = await createPatient(page);
   const encounterId = await createEncounter(page, patientId);
 
-  await page.getByLabel("Today's glucose (mg/dL)").fill('150');
+  await page.getByLabel("Today's glucose (mmol/L)").fill('8.3');
   await chooseContext(page, 'Random');
   await page.getByLabel('Notes').fill('Saved answer');
   await saveAndSync(page);
@@ -168,12 +182,12 @@ test('a refetch landing mid-edit does not discard what was typed', async ({ page
   // Save again so a refetch is in flight, then answer while it is.
   await page.getByRole('button', { name: 'Save screening' }).click();
   await page.getByLabel('Notes').fill('Typed while the refetch was in flight');
-  await page.getByLabel("Today's glucose (mg/dL)").fill('155');
+  await page.getByLabel("Today's glucose (mmol/L)").fill('8.6');
 
   release();
 
   await expect(page.getByLabel('Notes')).toHaveValue('Typed while the refetch was in flight');
-  await expect(page.getByLabel("Today's glucose (mg/dL)")).toHaveValue('155');
+  await expect(page.getByLabel("Today's glucose (mmol/L)")).toHaveValue('8.6');
 
   // And the answers that survived on screen are the ones that reach the server.
   await saveAndSync(page);

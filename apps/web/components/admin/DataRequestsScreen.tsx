@@ -8,8 +8,8 @@ import Link from 'next/link';
 import { statusLabel } from '@/lib/status-presentation';
 import { ShieldCheck } from 'lucide-react';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
-import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
-import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
+import { EmptyState, InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
+import { InlineNotice } from '@/components/ops/OpsShared';
 import { Button } from '@/components/ui/button';
 import { RecordSection, RecordSectionContent } from '@/components/patients/RecordSection';
 import {
@@ -125,7 +125,9 @@ export function DataRequestsScreen() {
       ) : rows === null ? (
         <SectionSkeleton lines={4} />
       ) : rows.length === 0 ? (
-        <EmptyStateCard
+        <EmptyState
+          density="compact"
+          titleAs="h2"
           title="No data requests"
           description="When a patient asks for a copy, a correction or a deletion, it appears here."
         />

@@ -6,6 +6,7 @@ import { setStoredActiveClinicId } from '@/lib/bootstrap-storage';
 import { PageSkeleton } from '@/components/feedback/AppState';
 import { OfflineLaunchScreen } from '@/components/pwa/OfflineLaunchScreen';
 import { db } from '@/lib/db';
+import { forgetNotificationsOnDevice } from '@/lib/browser-notifications';
 import { canReachKeycloak, getKeycloak, initKeycloak, resetKeycloak } from '@/lib/keycloak';
 import { isKeycloakCallback } from '@/lib/keycloak-callback';
 import { clearPortalCache } from '@/lib/portal-cache';
@@ -54,17 +55,18 @@ export function KeycloakProvider({ children }: { children: React.ReactNode }) {
       // Drop per-session client state before leaving, so the next user to sign in on this
       // device is not bootstrapped with the previous user's clinic selection, and does not
       // inherit their saved portal history. A slow IndexedDB must not hold sign-out hostage:
-      // whatever it fails to clear here is purged when the next account resolves.
+      // whatever it fails to clear here is purged when the next account resolves. Background
+      // pushes stop here too (#250); one that outlives the budget is dropped when it bounces.
       setStoredActiveClinicId(null);
       await Promise.race([
-        clearPortalCache(db),
+        Promise.all([clearPortalCache(db), forgetNotificationsOnDevice(getToken)]),
         new Promise((resolve) => setTimeout(resolve, SIGN_OUT_CLEANUP_BUDGET_MS)),
       ]);
       resetBootstrapResolved();
       resetKeycloak();
       kc.logout();
     }
-  }, []);
+  }, [getToken]);
 
   const login = useCallback(() => {
     const kc = getKeycloak();

@@ -1,3 +1,5 @@
+import { resolveClinicUnits, type ClinicUnits } from '@nkwapa/db/measurement-units';
+
 export interface BootstrapClinic {
   clinicId: string;
   clinicName: string;
@@ -9,6 +11,12 @@ export interface BootstrapClinic {
    * reporting dimension and never decides what anyone may open.
    */
   zoneCode?: string | null;
+  /**
+   * The units the clinic types and reads screening values in. Optional for the same reason as
+   * `zoneCode`: an older API build or an older cached bootstrap has none, and then values show in
+   * the stored units, labelled as such, rather than in a guessed unit.
+   */
+  units?: Partial<ClinicUnits> | null;
 }
 
 export interface BootstrapMembership extends BootstrapClinic {
@@ -49,6 +57,7 @@ export function getSwitchableClinics(
       clinicId: membership.clinicId,
       clinicName: membership.clinicName,
       zoneCode: membership.zoneCode ?? null,
+      ...(membership.units ? { units: membership.units } : {}),
     })),
   );
 }
@@ -81,4 +90,15 @@ export function isStoredClinicIdValid(
   }
 
   return getSwitchableClinics(bootstrap).some((clinic) => clinic.clinicId === clinicId);
+}
+
+/** The units to enter and show values in at this clinic; the stored units when unknown. */
+export function getClinicUnits(
+  bootstrap: BootstrapClinicSource | null | undefined,
+  clinicId: string | null | undefined,
+): ClinicUnits {
+  const clinic = clinicId
+    ? getSwitchableClinics(bootstrap).find((candidate) => candidate.clinicId === clinicId)
+    : null;
+  return resolveClinicUnits(clinic?.units);
 }

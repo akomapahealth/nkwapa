@@ -7,6 +7,7 @@ import { DashboardActionRow } from './DashboardActionRow';
 import { TrendChart } from './TrendChart';
 import { DistributionChart } from './DistributionChart';
 import { AppMetricGroup } from '@/components/app-shell/AppMetricCard';
+import { HapDraftsList } from './HapDraftsList';
 
 interface VolunteerDashboardProps {
   patientsRegisteredToday: number;
@@ -18,6 +19,8 @@ interface VolunteerDashboardProps {
   bpDistribution: Record<string, number>;
   diabetesStats: { flagged: number; total: number };
   clinicalNotes?: { drafts: number; pendingCosign: number };
+  /** Lists the author's HAP drafts by patient when there are any (#307). */
+  clinicId?: string;
 }
 
 export function VolunteerDashboard({
@@ -29,6 +32,7 @@ export function VolunteerDashboard({
   bpDistribution,
   diabetesStats,
   clinicalNotes,
+  clinicId,
 }: VolunteerDashboardProps) {
   return (
     <section className="space-y-6">
@@ -59,6 +63,10 @@ export function VolunteerDashboard({
           hint="Visits you created today."
         />
       </AppMetricGroup>
+
+      {clinicId && clinicalNotes && clinicalNotes.drafts > 0 ? (
+        <HapDraftsList clinicId={clinicId} />
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">
         <TrendChart

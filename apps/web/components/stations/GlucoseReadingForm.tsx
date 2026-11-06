@@ -2,12 +2,17 @@
 
 import { useMemo, useState } from 'react';
 import { Droplet } from 'lucide-react';
+import { evaluateGlucoseSuspicion, isHypoglycemic } from '@nkwapa/db';
+import type { GlucoseUnit } from '@nkwapa/db/measurement-units';
+import { useClinicUnits } from '@/lib/bootstrap-context';
 import {
-  DIABETES_GLUCOSE_MAX_MG_DL,
-  DIABETES_GLUCOSE_MIN_MG_DL,
-  evaluateGlucoseSuspicion,
-  isHypoglycemic,
-} from '@nkwapa/db';
+  convertGlucoseText,
+  glucoseEntryError,
+  glucoseTextToMgDl,
+  glucoseUnitLabel,
+  mgDlToGlucoseText,
+} from '@/lib/measurement-entry';
+import { GlucoseUnitSelect } from '@/components/GlucoseUnitSelect';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { isFullySynced } from '@/lib/sync';
 import {
@@ -64,21 +69,25 @@ export function GlucoseReadingForm({
   onSaved?: () => void;
 }) {
   const { isOnline, syncNow } = useSync();
-  const [value, setValue] = useState(
-    initialData?.glucoseMgDl != null ? String(initialData.glucoseMgDl) : '',
-  );
+  const clinicUnit = useClinicUnits(clinicId).glucoseUnit;
+  const storedMgDl = initialData?.glucoseMgDl ?? null;
+  const [unit, setUnit] = useState<GlucoseUnit>(clinicUnit);
+  const [value, setValue] = useState(() => mgDlToGlucoseText(storedMgDl, clinicUnit));
   const [type, setType] = useState<GlucoseReadingType>(
     (initialData?.glucoseType as GlucoseReadingType | undefined) ?? 'RANDOM',
   );
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
 
-  const reading = value.trim() ? Number(value) : null;
-  const invalid =
-    reading !== null &&
-    (!Number.isInteger(reading) ||
-      reading < DIABETES_GLUCOSE_MIN_MG_DL ||
-      reading > DIABETES_GLUCOSE_MAX_MG_DL);
+  const error = glucoseEntryError(value, unit);
+  const invalid = error !== null;
+  // Always whole mg/dL: the unit on screen never reaches the outbox.
+  const reading = glucoseTextToMgDl(value, unit, storedMgDl);
+
+  function changeUnit(next: GlucoseUnit) {
+    setValue((current) => convertGlucoseText(current, unit, next, storedMgDl));
+    setUnit(next);
+  }
   const suspicion = useMemo(
     () => (reading !== null && !invalid ? evaluateGlucoseSuspicion(reading, type) : null),
     [reading, invalid, type],
@@ -119,28 +128,29 @@ export function GlucoseReadingForm({
           <Droplet className="h-5 w-5 text-primary" aria-hidden="true" />
           Blood glucose
         </CardTitle>
-        <CardDescription>
-          Record the reading in mg/dL and when the patient last ate.
-        </CardDescription>
+        <CardDescription>Record the reading and when the patient last ate.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="glucoseMgDl">Glucose (mg/dL)</Label>
-            <Input
-              id="glucoseMgDl"
-              type="number"
-              inputMode="numeric"
-              value={value}
-              onChange={(event) => setValue(event.target.value)}
-              aria-invalid={invalid}
-              aria-describedby={invalid ? 'glucoseMgDl-error' : undefined}
-              className="h-11"
-            />
-            {invalid ? (
+            <Label htmlFor="glucoseMgDl">Glucose ({glucoseUnitLabel(unit)})</Label>
+            <div className="flex gap-2">
+              <Input
+                id="glucoseMgDl"
+                type="number"
+                inputMode={unit === 'MMOL_L' ? 'decimal' : 'numeric'}
+                step={unit === 'MMOL_L' ? '0.1' : '1'}
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+                aria-invalid={invalid}
+                aria-describedby={invalid ? 'glucoseMgDl-error' : undefined}
+                className="h-11 min-w-0"
+              />
+              <GlucoseUnitSelect value={unit} onChange={changeUnit} />
+            </div>
+            {error ? (
               <p id="glucoseMgDl-error" className="text-sm text-destructive-ink">
-                Enter a whole number between {DIABETES_GLUCOSE_MIN_MG_DL} and{' '}
-                {DIABETES_GLUCOSE_MAX_MG_DL}.
+                {error}
               </p>
             ) : null}
           </div>

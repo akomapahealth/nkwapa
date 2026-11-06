@@ -11,6 +11,32 @@ export interface EncounterFindManyFilters {
   stage?: QueueStage;
 }
 
+function clinicEncounterWhere(
+  clinicId: string,
+  filters: Pick<EncounterFindManyFilters, 'status' | 'stage'>,
+): Prisma.EncounterWhereInput {
+  const where: Prisma.EncounterWhereInput = { clinicId };
+  if (filters.status) where.status = filters.status;
+  if (filters.stage) {
+    switch (filters.stage) {
+      case 'DRAFT':
+        where.status = 'DRAFT';
+        break;
+      case 'REVIEW':
+      case 'PRECEPTOR':
+        where.status = 'IN_REVIEW';
+        where.preceptorReviewedById = null;
+        break;
+      case 'DOCTOR_READY':
+        where.status = 'IN_REVIEW';
+        where.preceptorReviewedById = { not: null };
+        where.doctorFinalizedById = null;
+        break;
+    }
+  }
+  return where;
+}
+
 @Injectable()
 export class EncounterRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -30,36 +56,22 @@ export class EncounterRepository {
     clinicId: string,
     filters: EncounterFindManyFilters = {},
   ): Promise<Encounter[]> {
-    const where: Prisma.EncounterWhereInput = { clinicId };
-    if (filters.status) where.status = filters.status;
-    if (filters.stage) {
-      switch (filters.stage) {
-        case 'DRAFT':
-          where.status = 'DRAFT';
-          break;
-        case 'REVIEW':
-        case 'PRECEPTOR':
-          where.status = 'IN_REVIEW';
-          where.preceptorReviewedById = null;
-          break;
-        case 'DOCTOR_READY':
-          where.status = 'IN_REVIEW';
-          where.preceptorReviewedById = { not: null };
-          where.doctorFinalizedById = null;
-          break;
-      }
-    }
     const include =
       filters.stage || filters.status
         ? { patient: true, vitals: true, hypertensionAssessment: true, diabetesScreening: true }
         : undefined;
     return this.prisma.encounter.findMany({
-      where,
+      where: clinicEncounterWhere(clinicId, filters),
       include,
       skip: filters.skip,
       take: filters.take ?? 50,
       orderBy: { updatedAt: 'desc' },
     });
+  }
+
+  /** The same filter as findManyByClinic, counted without its page limit (#307). */
+  async countByClinic(clinicId: string, filters: EncounterFindManyFilters = {}): Promise<number> {
+    return this.prisma.encounter.count({ where: clinicEncounterWhere(clinicId, filters) });
   }
 
   async findManyByPatient(

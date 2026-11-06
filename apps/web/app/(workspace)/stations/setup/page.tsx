@@ -344,9 +344,13 @@ function StationSetupContent() {
 export default function StationSetupPage() {
   if (!isWebFeatureEnabled('stationWorkflow')) {
     return (
-      <InlineNotice tone="info" live={false}>
-        The station line is not turned on for this deployment.
-      </InlineNotice>
+      <div className="space-y-6">
+        {/* The page keeps its heading with the flag off (#313). */}
+        <AppPageHeader title="Station setup" />
+        <InlineNotice tone="info" live={false}>
+          The station line is not turned on for this deployment.
+        </InlineNotice>
+      </div>
     );
   }
   return (

@@ -22,7 +22,9 @@ import {
   fetchStationVisit,
   fetchStations,
   patientName,
+  describePerformerCorrection,
   performerLabel,
+  type PerformerCorrection as PerformerCorrectionRecord,
   releaseStationVisit,
   screenerFromName,
   stationsPassedOver,
@@ -208,9 +210,13 @@ export default function StationVisitPage() {
   if (!enabled) {
     return (
       <RouteGuard requiredPermission="OPS.STATION.READ" requiresClinic>
-        <InlineNotice tone="info" live={false}>
-          Stations are not turned on for this clinic.
-        </InlineNotice>
+        {/* The page keeps its heading with the flag off (#313). */}
+        <div className="space-y-6">
+          <AppPageHeader title="Station visit" />
+          <InlineNotice tone="info" live={false}>
+            Stations are not turned on for this clinic.
+          </InlineNotice>
+        </div>
       </RouteGuard>
     );
   }
@@ -457,6 +463,12 @@ function Timeline({
                   : ''}
                 {stop.completedAt ? ` · ${formatOpsDateTime(stop.completedAt, timezone)}` : ''}
               </p>
+              {stop.performerCorrection ? (
+                <PerformerCorrectionNote
+                  correction={stop.performerCorrection}
+                  timezone={timezone}
+                />
+              ) : null}
               {stop.handoffNote ? <p className="mt-1">{stop.handoffNote}</p> : null}
               {stop.endReason && stop.status !== 'COMPLETED' ? (
                 <p className="mt-1 text-muted-foreground">Reason: {stop.endReason}</p>
@@ -790,5 +802,29 @@ function ReasonAction({
         <ReasonButton label={label} prompt="Reason" disabled={disabled} onSubmit={onSubmit} />
       </CardContent>
     </Card>
+  );
+}
+
+/** The earlier performer, struck through, with who corrected it and when (#307). */
+function PerformerCorrectionNote({
+  correction,
+  timezone,
+}: {
+  correction: PerformerCorrectionRecord;
+  timezone: string;
+}) {
+  const { previous, summary, reason } = describePerformerCorrection(correction, (iso) =>
+    formatOpsDateTime(iso, timezone),
+  );
+  return (
+    <p className="mt-1 text-muted-foreground">
+      {previous ? (
+        <>
+          <span className="sr-only">Previously recorded as </span>
+          <del className="line-through">{previous}</del>{' '}
+        </>
+      ) : null}
+      {summary}.{reason ? ` ${reason}` : null}
+    </p>
   );
 }

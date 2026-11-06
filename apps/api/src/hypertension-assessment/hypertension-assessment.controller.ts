@@ -27,6 +27,7 @@ import {
   UpsertHypertensionAssessmentDto,
   UpsertHypertensionClinicianPlanDto,
 } from './dto/hypertension-assessment.dto';
+import { Idempotent } from '../idempotency/idempotent.decorator';
 
 type HypertensionRequest = {
   user: { user: { id: string }; roles: ScopedRole[] };
@@ -68,6 +69,7 @@ export class HypertensionAssessmentController {
   }
 
   @Put('encounters/:encounterId/hypertension-assessment')
+  @Idempotent()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.SCREENING_WRITE)
   upsert(
@@ -93,6 +95,7 @@ export class HypertensionAssessmentController {
    * stripped in a branch somebody can later delete.
    */
   @Put('encounters/:encounterId/hypertension-assessment/clinician-plan')
+  @Idempotent()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.CAREPLAN_CLINICIAN_PLAN)
   upsertClinicianPlan(

@@ -134,7 +134,7 @@ export function OrganizationReportScreen() {
       {
         id: 'drilldown',
         accessorKey: 'drilldown',
-        header: '',
+        header: () => <span className="sr-only">Actions</span>,
         enableSorting: false,
         cell: ({ row: params }) => (
           <Button
@@ -248,6 +248,7 @@ export function OrganizationReportScreen() {
                   <div className="grid gap-x-6 gap-y-4 xl:grid-cols-[minmax(0,2fr),minmax(0,1fr)]">
                     <TrendChart
                       title="Encounters per day"
+                      titleAs="h2"
                       hint={`All ${data.organization.name} clinics, last ${data.windowDays} days`}
                       data={data.encounterTrend}
                     />

@@ -131,6 +131,38 @@ async function openFromNotification(clients, origin, rawUrl) {
   await clients.openWindow(url);
 }
 
+/*
+  A background push from the API (#250). The payload names who or what kind, never patient details;
+  the worker only shows it. Skipped while a Nkwapa window is focused and visible: the page already
+  raises its own notification from the live connection, under the same tag, so a push would repeat
+  it. A payload that does not parse still shows something, because a push must be visible.
+*/
+function pushNotificationFor(rawText) {
+  let message = {};
+  try {
+    message = JSON.parse(rawText || '{}') || {};
+  } catch {
+    message = {};
+  }
+  return {
+    title: typeof message.title === 'string' && message.title ? message.title : 'Nkwapa',
+    options: {
+      body: typeof message.body === 'string' ? message.body : 'Open Nkwapa to see what is new.',
+      tag: typeof message.tag === 'string' ? message.tag : undefined,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      data: { url: typeof message.url === 'string' ? message.url : '/dashboard' },
+    },
+  };
+}
+
+async function showPush(registration, clients, rawText) {
+  const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+  if (windows.some((client) => client.focused && client.visibilityState === 'visible')) return;
+  const { title, options } = pushNotificationFor(rawText);
+  await registration.showNotification(title, options);
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     VERSION,
@@ -142,8 +174,14 @@ if (typeof module !== 'undefined' && module.exports) {
     cacheKeyFor,
     trimCache,
     openFromNotification,
+    pushNotificationFor,
+    showPush,
   };
 } else {
+  self.addEventListener('push', (event) => {
+    event.waitUntil(showPush(self.registration, self.clients, event.data ? event.data.text() : ''));
+  });
+
   self.addEventListener('notificationclick', (event) => {
     event.notification.close();
     const url = event.notification.data && event.notification.data.url;

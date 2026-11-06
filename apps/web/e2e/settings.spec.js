@@ -68,5 +68,7 @@ test.describe('patient settings', () => {
     await expect(page.getByRole('heading', { name: 'Your access' })).toBeVisible();
     await expect(page.getByLabel('Last name')).toHaveCount(0);
     await expect(page.getByLabel('Phone number')).toHaveCount(0);
+    // Patients can turn on notifications for appointment replies (#250).
+    await expect(page.getByText(/when the clinic answers your appointment request/)).toBeVisible();
   });
 });

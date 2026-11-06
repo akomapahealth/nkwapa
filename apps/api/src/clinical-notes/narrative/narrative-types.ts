@@ -1,5 +1,7 @@
 /** What a narrative generator is given, and what it returns. */
 
+import type { ClinicUnits } from '@nkwapa/db';
+
 export interface NarrativeVitals {
   systolicBp: number | null;
   diastolicBp: number | null;
@@ -31,6 +33,8 @@ export interface NarrativeInput {
    * containing an empty "Supervising clinician plan" heading that tells them one exists.
    */
   clinicianPlan?: NarrativeClinicianPlan | null;
+  /** The clinic's units, so the note reads as its staff record. Stored units when omitted. */
+  units?: ClinicUnits;
 }
 
 /** The three columns `ClinicalNote` stores. */

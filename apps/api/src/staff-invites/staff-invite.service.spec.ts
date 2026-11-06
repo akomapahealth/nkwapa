@@ -488,6 +488,88 @@ describe('StaffInviteService', () => {
     });
   });
 
+  describe('removing from the list', () => {
+    const expired = () => inviteRow({ expiresAt: new Date(Date.now() - 1000) });
+
+    it.each([
+      ['an expired', expired],
+      ['a cancelled', () => inviteRow({ status: 'CANCELLED' })],
+    ])('hides %s invitation, keeps the row, and audits who removed it', async (_label, row) => {
+      const invite = row();
+      prisma.staffInvite.findFirst.mockResolvedValue(invite);
+
+      const result = await service.remove(directorOfA, CLINIC_A, INVITE_ID, 'req-1');
+
+      expect(prisma.staffInvite.findFirst).toHaveBeenCalledWith({
+        where: { id: INVITE_ID, clinicId: CLINIC_A },
+      });
+      expect(prisma.staffInvite.updateMany).toHaveBeenCalledWith({
+        where: { id: INVITE_ID, status: invite.status, removedAt: null },
+        data: { removedAt: expect.any(Date) },
+      });
+      expect(result.removedAt).toEqual(expect.any(String));
+      expect(audit.logWrite).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'STAFF.INVITE.REMOVE',
+          actorUserId: directorOfA.userId,
+          entityId: INVITE_ID,
+          requestId: 'req-1',
+        }),
+      );
+    });
+
+    it.each([
+      ['an open', () => inviteRow()],
+      ['an accepted', () => inviteRow({ status: 'ACCEPTED' })],
+    ])('refuses %s invitation and writes nothing', async (_label, row) => {
+      prisma.staffInvite.findFirst.mockResolvedValue(row());
+
+      await expect(service.remove(directorOfA, CLINIC_A, INVITE_ID)).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'STAFF_INVITE_NOT_REMOVABLE' }),
+      });
+      expect(prisma.staffInvite.updateMany).not.toHaveBeenCalled();
+      expect(audit.logWrite).not.toHaveBeenCalled();
+    });
+
+    it("treats another clinic's invitation as not found", async () => {
+      // Looked up by clinic as well as id, so an id from clinic B finds nothing under clinic A.
+      prisma.staffInvite.findFirst.mockResolvedValue(null);
+
+      await expect(service.remove(directorOfA, CLINIC_A, INVITE_ID)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(prisma.staffInvite.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('refuses a director acting on a clinic they do not direct', async () => {
+      prisma.staffInvite.findFirst.mockResolvedValue({ ...expired(), clinicId: CLINIC_B });
+
+      await expect(service.remove(directorOfA, CLINIC_B, INVITE_ID)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(prisma.staffInvite.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('is a no-op for an invitation already removed', async () => {
+      prisma.staffInvite.findFirst.mockResolvedValue({ ...expired(), removedAt: new Date() });
+
+      await service.remove(directorOfA, CLINIC_A, INVITE_ID);
+
+      expect(prisma.staffInvite.updateMany).not.toHaveBeenCalled();
+      expect(audit.logWrite).not.toHaveBeenCalled();
+    });
+
+    it('reports a race rather than claiming success', async () => {
+      prisma.staffInvite.findFirst.mockResolvedValue(expired());
+      prisma.staffInvite.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.remove(directorOfA, CLINIC_A, INVITE_ID)).rejects.toThrow(
+        ConflictException,
+      );
+      expect(audit.logWrite).not.toHaveBeenCalled();
+    });
+  });
+
   describe('accepting', () => {
     const invitee = {
       id: 'invitee-1',
@@ -656,7 +738,10 @@ describe('StaffInviteService', () => {
 
       const result = await service.listForClinic(directorOfA, CLINIC_A);
 
-      expect(prisma.staffInvite.findMany.mock.calls[0][0].where).toEqual({ clinicId: CLINIC_A });
+      expect(prisma.staffInvite.findMany.mock.calls[0][0].where).toEqual({
+        clinicId: CLINIC_A,
+        removedAt: null,
+      });
       expect(result.items.map((item) => item.status)).toEqual(['CANCELLED', 'EXPIRED']);
       expect(result.items[1].invitedBy).toBe('Dr Director');
       expect(result.invitableRoles).toEqual([

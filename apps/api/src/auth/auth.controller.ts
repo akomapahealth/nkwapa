@@ -13,6 +13,10 @@ import {
   findAcceptableStaffInvites,
   type AcceptableStaffInvite,
 } from '../staff-invites/staff-invite.queries';
+import { resolveClinicUnits, type ClinicUnits } from '@nkwapa/db';
+
+/** Picks the unit fields off a clinic row, falling back to stored units for a partial mock. */
+const clinicUnits = (clinic: Partial<ClinicUnits>): ClinicUnits => resolveClinicUnits(clinic);
 
 export interface ReqUser {
   user: { id: string; keycloakSub: string; displayName: string; email: string | null };
@@ -25,6 +29,8 @@ export interface Membership {
   /** The clinic's reporting zone, or `null`. Context for the UI, never a permission. */
   zoneCode: string | null;
   roles: string[];
+  /** The units this clinic types and reads screening values in. */
+  units: ClinicUnits;
 }
 
 export interface AvailableClinic {
@@ -32,6 +38,7 @@ export interface AvailableClinic {
   clinicName: string;
   /** The clinic's reporting zone, or `null`. Context for the UI, never a permission. */
   zoneCode: string | null;
+  units: ClinicUnits;
 }
 
 export interface WhoAmIResponse {
@@ -137,6 +144,7 @@ export class AuthController {
       clinicId: clinic.id,
       clinicName: clinic.name,
       zoneCode: clinic.zoneCode ?? null,
+      units: clinicUnits(clinic),
     }));
     const availableClinicIds = new Set(availableClinics.map((clinic) => clinic.clinicId));
 
@@ -153,6 +161,7 @@ export class AuthController {
         clinicName: clinic.name,
         zoneCode: clinic.zoneCode ?? null,
         roles: roleNames,
+        units: clinicUnits(clinic),
       });
     }
 

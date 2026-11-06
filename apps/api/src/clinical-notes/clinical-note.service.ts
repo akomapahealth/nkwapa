@@ -4,10 +4,12 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { ClinicalNoteStatus, Prisma, StationKind, UserRole } from '@prisma/client';
 import { createHash, randomUUID } from 'node:crypto';
 import { AuditService } from '../audit/audit.service';
+import { PushService } from '../push/push.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   AddClinicalNoteAddendumDto,
@@ -46,6 +48,7 @@ export class ClinicalNoteService {
     private readonly prisma: PrismaService,
     private readonly repository: ClinicalNoteRepository,
     private readonly audit: AuditService,
+    @Optional() private readonly push?: PushService,
   ) {}
 
   async getEncounterNote(clinicId: string, encounterId: string, actor: ClinicalActor) {
@@ -64,6 +67,12 @@ export class ClinicalNoteService {
   async pendingForDoctor(clinicId: string, actor: ClinicalActor) {
     this.requireRole(actor, clinicId, UserRole.DOCTOR);
     return this.repository.findPendingForDoctor(clinicId, actor.userId);
+  }
+
+  /** The caller's own HAP drafts. Doctors and volunteers only, like writing one (#307, B6). */
+  async draftsForAuthor(clinicId: string, actor: ClinicalActor) {
+    this.requireClinicalRole(actor, clinicId);
+    return this.repository.findDraftsForAuthor(clinicId, actor.userId);
   }
 
   async createDraft(
@@ -141,6 +150,7 @@ export class ClinicalNoteService {
       select: {
         patient: { select: { firstName: true, lastName: true } },
         vitals: { select: { systolicBp: true, diastolicBp: true, pulseBpm: true } },
+        clinic: { select: { glucoseUnit: true, bodyUnit: true, hba1cUnit: true } },
         hypertensionAssessment: true,
         diabetesScreening: true,
         /*
@@ -238,6 +248,7 @@ export class ClinicalNoteService {
           assessment: record as unknown as Record<string, unknown>,
           vitals: encounter.vitals,
           medications: medicationsFor('DIABETES'),
+          units: encounter.clinic,
           clinicianPlan: maySeePlan
             ? {
                 items: record.clinicianPlanItems,
@@ -335,7 +346,8 @@ export class ClinicalNoteService {
     metadata: RequestMetadata = {},
   ) {
     const actorRole = this.requireClinicalRole(actor, clinicId);
-    return this.prisma.$transaction(async (tx) => {
+    let submittedNow = false;
+    const note = await this.prisma.$transaction(async (tx) => {
       const current = await tx.clinicalNote.findFirst({
         where: { clinicId, encounterId },
         include: CLINICAL_NOTE_INCLUDE,
@@ -349,6 +361,7 @@ export class ClinicalNoteService {
         throw this.conflict('CLINICAL_NOTE_ALREADY_SUBMITTED', 'This note is already submitted.');
       }
       this.requireComplete(current);
+      submittedNow = true;
 
       const now = new Date();
       if (isApiFeatureEnabled('stationWorkflow')) {
@@ -421,6 +434,43 @@ export class ClinicalNoteService {
       );
       return note;
     });
+    if (submittedNow && note.status === ClinicalNoteStatus.PENDING_COSIGN) {
+      await this.notifyCosignRequested(clinicId, note.assignedDoctorId, actor.userId);
+    }
+    return note;
+  }
+
+  /**
+   * Ask for a cosign (#250): the assigned doctor, or in the station line, where any doctor may
+   * cosign, every doctor on shift. Names the kind of request, never the patient.
+   */
+  private async notifyCosignRequested(
+    clinicId: string,
+    assignedDoctorId: string | null,
+    actorUserId: string,
+  ) {
+    if (!this.push?.enabled) return;
+    try {
+      const doctors = assignedDoctorId
+        ? [assignedDoctorId]
+        : (
+            await this.prisma.staffShift.findMany({
+              where: { clinicId, status: 'ACTIVE', roleAtShift: 'DOCTOR' },
+              select: { userId: true },
+            })
+          ).map((shift) => shift.userId);
+      this.push.notify(
+        doctors.filter((id) => id !== actorUserId),
+        {
+          title: 'A note is waiting for your cosign',
+          body: 'Open Nkwapa to review it.',
+          url: '/queues',
+          tag: 'cosign',
+        },
+      );
+    } catch {
+      // A notification is a courtesy; the submit already succeeded.
+    }
   }
 
   async cosign(

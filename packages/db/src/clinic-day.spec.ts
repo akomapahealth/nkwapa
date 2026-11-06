@@ -1,6 +1,9 @@
 import {
   clinicDayWindow,
+  hasUtcOffset,
+  instantToWallClock,
   localHourInTimeZone,
+  wallClockToInstant,
   startOfDayInTimeZone,
   todayInTimeZone,
 } from './clinic-day';
@@ -182,5 +185,66 @@ describe('clinicDayWindow', () => {
       const second = clinicDayWindow('2026-03-22', zone);
       expect(second.start.getTime()).toBe(first.end.getTime() + 1);
     }
+  });
+});
+
+describe('wallClockToInstant and instantToWallClock (#307)', () => {
+  it('reads a wall-clock time in Accra as the same UTC time', () => {
+    expect(wallClockToInstant('2026-11-05T09:30', 'Africa/Accra')?.toISOString()).toBe(
+      '2026-11-05T09:30:00.000Z',
+    );
+  });
+
+  it('reads it in the clinic zone, not the device or server zone', () => {
+    expect(wallClockToInstant('2026-11-05T09:30', 'Africa/Lagos')?.toISOString()).toBe(
+      '2026-11-05T08:30:00.000Z',
+    );
+    expect(wallClockToInstant('2026-11-05T09:30', 'America/New_York')?.toISOString()).toBe(
+      '2026-11-05T14:30:00.000Z',
+    );
+  });
+
+  it('keeps the local date across midnight UTC', () => {
+    // 00:30 in Lagos on the 6th is still the 5th in UTC.
+    expect(wallClockToInstant('2026-11-06T00:30', 'Africa/Lagos')?.toISOString()).toBe(
+      '2026-11-05T23:30:00.000Z',
+    );
+    expect(instantToWallClock('2026-11-05T23:30:00.000Z', 'Africa/Lagos')).toBe('2026-11-06T00:30');
+  });
+
+  it('is right on both sides of a daylight-saving change', () => {
+    // New York falls back at 02:00 on 2026-11-01.
+    expect(wallClockToInstant('2026-10-31T09:00', 'America/New_York')?.toISOString()).toBe(
+      '2026-10-31T13:00:00.000Z',
+    );
+    expect(wallClockToInstant('2026-11-02T09:00', 'America/New_York')?.toISOString()).toBe(
+      '2026-11-02T14:00:00.000Z',
+    );
+  });
+
+  it('moves a time inside a spring-forward gap to the end of the gap', () => {
+    // 02:30 does not exist in New York on 2026-03-08; clocks jump from 02:00 to 03:00.
+    const instant = wallClockToInstant('2026-03-08T02:30', 'America/New_York');
+    expect(instant && localReading(instant, 'America/New_York')).toBe('2026-03-08, 03:00:00');
+  });
+
+  it('round-trips through instantToWallClock', () => {
+    for (const zone of ['Africa/Accra', 'Europe/London', 'Asia/Kolkata']) {
+      const instant = wallClockToInstant('2026-07-15T16:45', zone);
+      expect(instant && instantToWallClock(instant, zone)).toBe('2026-07-15T16:45');
+    }
+  });
+
+  it('refuses what is not a wall-clock time', () => {
+    expect(wallClockToInstant('', 'Africa/Accra')).toBeNull();
+    expect(wallClockToInstant('2026-02-30T10:00', 'Africa/Accra')).toBeNull();
+    expect(wallClockToInstant('2026-11-05T09:30Z', 'Africa/Accra')).toBeNull();
+    expect(instantToWallClock('not a date', 'Africa/Accra')).toBe('');
+  });
+
+  it('tells an instant from a wall-clock time', () => {
+    expect(hasUtcOffset('2026-11-05T09:30:00.000Z')).toBe(true);
+    expect(hasUtcOffset('2026-11-05T09:30+01:00')).toBe(true);
+    expect(hasUtcOffset('2026-11-05T09:30')).toBe(false);
   });
 });

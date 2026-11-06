@@ -4,7 +4,9 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { PushService } from '../push/push.service';
 import { Prisma, StationKind, StationVisitStatus } from '@prisma/client';
 import {
   CLINIC_DEFAULT_TIMEZONE,
@@ -66,6 +68,25 @@ const VISIT_INCLUDE = {
 
 type VisitWithContext = Prisma.PatientStationVisitGetPayload<{ include: typeof VISIT_INCLUDE }>;
 
+/** Who did a stop before its latest correction, and who corrected it when (#307). */
+export type PerformerCorrection = {
+  previousPerformer: string | null;
+  correctedAt: string;
+  correctedBy: { id: string; displayName: string };
+  reason: string | null;
+};
+
+/** An audit row's JSON column, or an empty object if it is missing or not an object. */
+function parseAuditJson(raw: string | null): Record<string, unknown> {
+  if (!raw) return {};
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
 export interface StationActor {
   userId: string;
   /** Holds OPS.STATION.MANAGE at this clinic. Decided by the controller from the guard's roles. */
@@ -100,6 +121,7 @@ export class StationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    @Optional() private readonly push?: PushService,
   ) {}
 
   // ── Stations ────────────────────────────────────────────────────────────────────────────
@@ -557,7 +579,11 @@ export class StationService {
     });
     if (!visit || visit.clinicId !== clinicId) throw this.visitNotFound();
     const timeline = await this.getTimeline(clinicId, visit.patientCheckInId);
-    return { ...this.toVisit(visit), timeline: timeline.items };
+    const corrections = await this.performerCorrections(clinicId, [visit]);
+    return {
+      ...this.toVisit(visit, undefined, corrections.get(visit.id)),
+      timeline: timeline.items,
+    };
   }
 
   async getTimeline(clinicId: string, checkInId: string) {
@@ -573,7 +599,10 @@ export class StationService {
       include: VISIT_INCLUDE,
       orderBy: [{ queuedAt: 'asc' }, { createdAt: 'asc' }],
     });
-    return { items: visits.map((visit) => this.toVisit(visit)) };
+    const corrections = await this.performerCorrections(clinicId, visits);
+    return {
+      items: visits.map((visit) => this.toVisit(visit, undefined, corrections.get(visit.id))),
+    };
   }
 
   /** The station visit (if any) an encounter's patient is open at, with the encounter's line. */
@@ -583,7 +612,10 @@ export class StationService {
       include: VISIT_INCLUDE,
       orderBy: [{ queuedAt: 'asc' }, { createdAt: 'asc' }],
     });
-    return { items: visits.map((visit) => this.toVisit(visit)) };
+    const corrections = await this.performerCorrections(clinicId, visits);
+    return {
+      items: visits.map((visit) => this.toVisit(visit, undefined, corrections.get(visit.id))),
+    };
   }
 
   // ── The line ────────────────────────────────────────────────────────────────────────────
@@ -666,6 +698,15 @@ export class StationService {
         assignedByUserId: actor.userId,
       }),
     );
+    // Who assigned, never which patient (#250).
+    if (assigneeUserId !== actor.userId) {
+      this.push?.notify([assigneeUserId], {
+        title: 'A patient was assigned to you',
+        body: visit.assignedBy ? `Assigned by ${visit.assignedBy.displayName}.` : undefined,
+        url: '/stations',
+        tag: 'assigned',
+      });
+    }
     return this.toVisit(visit);
   }
 
@@ -1432,7 +1473,57 @@ export class StationService {
     };
   }
 
-  private toVisit(visit: VisitWithContext, previous?: VisitWithContext) {
+  /**
+   * The latest performer correction of each visit, from the audit trail (#307, B2).
+   *
+   * Read rather than stored: STATION.PERFORMER.CORRECT already holds the state before, who
+   * corrected it and when, so every past correction is covered and there is no second copy to
+   * drift. Audit rows are scoped to the clinic by row level security, like the visits.
+   */
+  private async performerCorrections(clinicId: string, visits: VisitWithContext[]) {
+    const corrections = new Map<string, PerformerCorrection>();
+    if (visits.length === 0) return corrections;
+    const byId = new Map(visits.map((visit) => [visit.id, visit]));
+    const events = await this.prisma.auditEvent.findMany({
+      where: {
+        clinicId,
+        action: 'STATION.PERFORMER.CORRECT',
+        entityType: 'PatientStationVisit',
+        entityId: { in: [...byId.keys()] },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        entityId: true,
+        createdAt: true,
+        beforeJson: true,
+        afterJson: true,
+        actor: { select: { id: true, displayName: true } },
+      },
+    });
+    for (const event of events) {
+      if (corrections.has(event.entityId)) continue;
+      const visit = byId.get(event.entityId);
+      const before = parseAuditJson(event.beforeJson);
+      const after = parseAuditJson(event.afterJson);
+      const previousPerformer =
+        before.performedByIsAccountHolder === false && typeof before.performedByName === 'string'
+          ? before.performedByName
+          : (visit?.completedBy?.displayName ?? null);
+      corrections.set(event.entityId, {
+        previousPerformer,
+        correctedAt: event.createdAt.toISOString(),
+        correctedBy: event.actor,
+        reason: typeof after.reason === 'string' ? after.reason : null,
+      });
+    }
+    return corrections;
+  }
+
+  private toVisit(
+    visit: VisitWithContext,
+    previous?: VisitWithContext,
+    performerCorrection?: PerformerCorrection,
+  ) {
     const patient = visit.patientCheckIn.patient;
     return {
       id: visit.id,
@@ -1456,6 +1547,8 @@ export class StationService {
       completedBy: visit.completedBy,
       completedAt: visit.completedAt?.toISOString() ?? null,
       performedByName: this.performedByNameOf(visit),
+      // Struck through beside the current performer, with who and when (MASTER.md section 12).
+      performerCorrection: performerCorrection ?? null,
       handoffNote: visit.handoffNote,
       endReason: visit.endReason,
       releaseCount: visit.releaseCount,

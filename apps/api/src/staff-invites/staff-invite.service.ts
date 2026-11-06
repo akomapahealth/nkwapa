@@ -89,7 +89,7 @@ export class StaffInviteService {
     this.assertCanInviteInto(actor, clinicId);
 
     const invites = await this.prisma.staffInvite.findMany({
-      where: { clinicId },
+      where: { clinicId, removedAt: null },
       include: {
         createdBy: { select: { displayName: true } },
         acceptedBy: { select: { displayName: true } },
@@ -288,6 +288,56 @@ export class StaffInviteService {
     });
 
     return this.serialize({ ...invite, status: 'CANCELLED', cancelledAt: now }, null, now);
+  }
+
+  /**
+   * Take a closed invitation out of the admin list. Only expired or cancelled ones: an open
+   * invitation is cancelled first, and an accepted one is the record of how someone got a role.
+   * The row stays for the audit trail; only the list skips it.
+   */
+  async remove(actor: StaffInviteActor, clinicId: string, inviteId: string, requestId?: string) {
+    await this.assertActiveClinic(clinicId);
+    const invite = await this.findClinicInvite(clinicId, inviteId);
+    this.assertCanGrant(actor, clinicId, invite.role);
+    const now = new Date();
+    const status = effectiveStaffInviteStatus(invite, now);
+    if (status !== 'EXPIRED' && status !== 'CANCELLED') {
+      throw new BadRequestException({
+        code: 'STAFF_INVITE_NOT_REMOVABLE',
+        message: `This invitation is ${status.toLowerCase()}, so it stays in the list.`,
+        recoveryAction:
+          status === 'PENDING'
+            ? 'Cancel it first if it should no longer be accepted.'
+            : 'Accepted invitations are kept as the record of how someone got their role.',
+      });
+    }
+    if (invite.removedAt) return { id: invite.id, removedAt: invite.removedAt.toISOString() };
+
+    // Guarded on the state just checked, so an invitation re-opened in between is left alone.
+    const settled = await this.prisma.staffInvite.updateMany({
+      where: { id: invite.id, status: invite.status, removedAt: null },
+      data: { removedAt: now },
+    });
+    if (settled.count === 0) {
+      throw new ConflictException({
+        code: 'STAFF_INVITE_CHANGED',
+        message: 'This invitation changed a moment ago.',
+        recoveryAction: 'Refresh the list to see where it stands.',
+      });
+    }
+
+    await this.auditService.logWrite({
+      clinicId,
+      actorUserId: actor.userId,
+      action: 'STAFF.INVITE.REMOVE',
+      entityType: 'StaffInvite',
+      entityId: invite.id,
+      beforeJson: JSON.stringify({ status, email: invite.email, role: invite.role }),
+      afterJson: JSON.stringify({ removedAt: now }),
+      requestId,
+    });
+
+    return { id: invite.id, removedAt: now.toISOString() };
   }
 
   /** The invitations the signed-in user can accept. */
@@ -688,6 +738,7 @@ export class StaffInviteService {
       identityStatus: PortalInviteIdentityStatus;
       identityProvisionedAt: Date | null;
       identityFailureReason: string | null;
+      renewalRequestedAt?: Date | null;
     },
     delivery: Delivery,
     now: Date,
@@ -717,6 +768,8 @@ export class StaffInviteService {
       createdAt: invite.createdAt.toISOString(),
       acceptedAt: invite.acceptedAt?.toISOString() ?? null,
       cancelledAt: invite.cancelledAt?.toISOString() ?? null,
+      // The invitee asked, signed in, for a new invitation after this one lapsed (#307).
+      renewalRequestedAt: invite.renewalRequestedAt?.toISOString() ?? null,
       invitedBy: people.invitedBy ?? null,
       acceptedBy: people.acceptedBy ?? null,
       cancelledBy: people.cancelledBy ?? null,

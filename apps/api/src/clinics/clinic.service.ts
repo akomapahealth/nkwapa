@@ -12,6 +12,7 @@ import {
   CLINIC_DEFAULT_ORGANIZATION_SLUG,
   CLINIC_DEFAULT_TIMEZONE,
   DEFAULT_CLINIC_STATIONS,
+  defaultUnitsForCountry,
   evaluateClinicMetadata,
   normalizeCountryCode,
   normalizeLocationCode,
@@ -21,6 +22,7 @@ import {
   toLocationCode,
   zoneFilterWhere,
   type ClinicMetadataIssue,
+  type ClinicUnits,
   type ZoneSummary,
 } from '@nkwapa/db';
 import { PrismaService } from '../prisma/prisma.service';
@@ -38,6 +40,9 @@ export interface CreateClinicDto {
   timezone?: string;
   locationCode?: string;
   zoneCode?: string | null;
+  glucoseUnit?: ClinicUnits['glucoseUnit'];
+  bodyUnit?: ClinicUnits['bodyUnit'];
+  hba1cUnit?: ClinicUnits['hba1cUnit'];
 }
 
 export interface UpdateClinicDto {
@@ -48,7 +53,28 @@ export interface UpdateClinicDto {
   locationCode?: string;
   zoneCode?: string | null;
   isActive?: boolean;
+  glucoseUnit?: ClinicUnits['glucoseUnit'];
+  bodyUnit?: ClinicUnits['bodyUnit'];
+  hba1cUnit?: ClinicUnits['hba1cUnit'];
 }
+
+/** A clinic as whoami lists it: enough to label it and to show its measurements. */
+export interface SwitchableClinic extends ClinicUnits {
+  id: string;
+  name: string;
+  region: string | null;
+  zoneCode: string | null;
+}
+
+const SWITCHABLE_CLINIC_SELECT = {
+  id: true,
+  name: true,
+  region: true,
+  zoneCode: true,
+  glucoseUnit: true,
+  bodyUnit: true,
+  hba1cUnit: true,
+} as const;
 
 /** A clinic as the admin surface sees it: the row, its organization, and what is wrong with it. */
 export interface AdminClinicView extends Clinic {
@@ -98,19 +124,15 @@ export class ClinicService {
     });
   }
 
-  async findByIds(
-    ids: string[],
-  ): Promise<{ id: string; name: string; region: string | null; zoneCode: string | null }[]> {
+  async findByIds(ids: string[]): Promise<SwitchableClinic[]> {
     if (ids.length === 0) return [];
     return this.prisma.clinic.findMany({
       where: { id: { in: ids }, isActive: true },
-      select: { id: true, name: true, region: true, zoneCode: true },
+      select: SWITCHABLE_CLINIC_SELECT,
     });
   }
 
-  async listActiveSwitchableClinics(
-    ids?: string[],
-  ): Promise<{ id: string; name: string; region: string | null; zoneCode: string | null }[]> {
+  async listActiveSwitchableClinics(ids?: string[]): Promise<SwitchableClinic[]> {
     if (ids && ids.length === 0) return [];
     return this.prisma.clinic.findMany({
       where: {
@@ -119,7 +141,8 @@ export class ClinicService {
       },
       // `zoneCode` rides along so a single-clinic view can say which zone it is showing without
       // a second round trip. It names the clinic the caller already has; it grants nothing.
-      select: { id: true, name: true, region: true, zoneCode: true },
+      // The units ride along for the same reason, and so a device offline still has them.
+      select: SWITCHABLE_CLINIC_SELECT,
       orderBy: { name: 'asc' },
     });
   }
@@ -269,6 +292,8 @@ export class ClinicService {
     const locationCode = normalizeLocationCode(dto.locationCode) || toLocationCode(dto.name);
 
     await this.assertLocationCodeIsFree(organizationId, locationCode);
+    const countryCode = normalizeCountryCode(dto.countryCode) || CLINIC_DEFAULT_COUNTRY_CODE;
+    const defaults = defaultUnitsForCountry(countryCode);
 
     return this.writeMappingConflicts(locationCode, () =>
       this.prisma.$transaction(async (tx) => {
@@ -277,8 +302,11 @@ export class ClinicService {
             organizationId,
             name: dto.name,
             region: dto.region ?? null,
-            countryCode: normalizeCountryCode(dto.countryCode) || CLINIC_DEFAULT_COUNTRY_CODE,
+            countryCode,
             timezone: dto.timezone ?? CLINIC_DEFAULT_TIMEZONE,
+            glucoseUnit: dto.glucoseUnit ?? defaults.glucoseUnit,
+            bodyUnit: dto.bodyUnit ?? defaults.bodyUnit,
+            hba1cUnit: dto.hba1cUnit ?? defaults.hba1cUnit,
             locationCode,
             zoneCode: normalizeZoneCode(dto.zoneCode),
           },
@@ -338,6 +366,10 @@ export class ClinicService {
           ...(locationCode !== undefined && { locationCode }),
           ...(dto.zoneCode !== undefined && { zoneCode: normalizeZoneCode(dto.zoneCode) }),
           ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+          // Never re-derived from a country change: a clinic's units are what its staff chose.
+          ...(dto.glucoseUnit != null && { glucoseUnit: dto.glucoseUnit }),
+          ...(dto.bodyUnit != null && { bodyUnit: dto.bodyUnit }),
+          ...(dto.hba1cUnit != null && { hba1cUnit: dto.hba1cUnit }),
         },
       }),
     );

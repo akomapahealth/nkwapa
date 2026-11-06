@@ -41,6 +41,7 @@ import {
   describeInviteExpiry,
   describeInviteStatus,
   describePortalAccessStatus,
+  describeRenewalRequest,
   formatInviteDate,
   resendPortalInvite,
   type PortalAccess,
@@ -251,8 +252,9 @@ export function PortalAccessCard({
             ) : null}
 
             {currentInvite ? (
-              <dl className="mt-4 space-y-3 border-t border-border pt-4 text-sm">
-                {/*
+              <div className="mt-4 space-y-3 border-t border-border pt-4 text-sm">
+                <dl className="space-y-3">
+                  {/*
                   No status badge here. The live invite is pending by construction — it is
                   the one the API picked as current — so a badge reading "Waiting to be
                   claimed" under a status already reading "Invitation waiting" is the same
@@ -260,21 +262,30 @@ export function PortalAccessCard({
                   staff are actually checking: a date would make them work out today's
                   first.
                 */}
-                <div className="flex flex-wrap items-baseline gap-2">
-                  <dt className="type-label font-normal text-muted-foreground">Expiry</dt>
-                  <dd
-                    className={
-                      expiry.tone === 'neutral'
-                        ? 'text-sm text-foreground'
-                        : 'text-sm font-semibold text-warning-ink'
-                    }
-                    title={formatInviteDate(currentInvite.expiresAt)}
-                  >
-                    {expiry.label}
-                  </dd>
-                </div>
-
-                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                  <div className="flex flex-wrap items-baseline gap-2">
+                    <dt className="type-label font-normal text-muted-foreground">Expiry</dt>
+                    <dd
+                      className={
+                        expiry.tone === 'neutral'
+                          ? 'text-sm text-foreground'
+                          : 'text-sm font-semibold text-warning-ink'
+                      }
+                      title={formatInviteDate(currentInvite.expiresAt)}
+                    >
+                      {expiry.label}
+                    </dd>
+                  </div>
+                  {currentInvite.renewalRequestedAt ? (
+                    <div className="flex flex-wrap items-baseline gap-2">
+                      <dt className="sr-only">Renewal request</dt>
+                      <dd className="text-sm font-semibold text-warning-ink">
+                        {describeRenewalRequest(currentInvite.renewalRequestedAt)}
+                      </dd>
+                    </div>
+                  ) : null}
+                </dl>
+                {/* Its own list: a dl may wrap each pair in one div, not two (#313). */}
+                <dl className="flex flex-wrap gap-x-4 gap-y-1">
                   <div className="min-w-0">
                     <dt className="type-label font-normal text-muted-foreground">Sent to</dt>
                     <dd className="break-words text-foreground">
@@ -287,48 +298,51 @@ export function PortalAccessCard({
                       <dd className="break-words text-foreground">{currentInvite.createdByName}</dd>
                     </div>
                   ) : null}
-                </div>
-
-                {currentInvite.email ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <dt className="sr-only">Invitation email</dt>
-                    <dd>
-                      <Badge
-                        variant={getStatusVariant(currentInvite.emailDelivery?.status ?? 'QUEUED')}
-                        className="rounded-full"
-                      >
-                        {currentInvite.emailDelivery
-                          ? `Invite email ${currentInvite.emailDelivery.status.toLowerCase()}`
-                          : 'Invite email not sent'}
-                      </Badge>
-                    </dd>
-                    {currentInvite.emailDelivery?.failureReason ? (
-                      <dd className="text-xs text-destructive-ink">
-                        {explainFailure(currentInvite.emailDelivery.failureReason)?.detail ?? ''}
+                </dl>
+                <dl className="space-y-3">
+                  {currentInvite.email ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <dt className="sr-only">Invitation email</dt>
+                      <dd>
+                        <Badge
+                          variant={getStatusVariant(
+                            currentInvite.emailDelivery?.status ?? 'QUEUED',
+                          )}
+                          className="rounded-full"
+                        >
+                          {currentInvite.emailDelivery
+                            ? `Invite email ${currentInvite.emailDelivery.status.toLowerCase()}`
+                            : 'Invite email not sent'}
+                        </Badge>
                       </dd>
-                    ) : null}
-                  </div>
-                ) : null}
+                      {currentInvite.emailDelivery?.failureReason ? (
+                        <dd className="text-xs text-destructive-ink">
+                          {explainFailure(currentInvite.emailDelivery.failureReason)?.detail ?? ''}
+                        </dd>
+                      ) : null}
+                    </div>
+                  ) : null}
 
-                {/*
+                  {/*
                   Deliberately its own row rather than a second badge on the line above.
                   Delivery and identity fail independently, and putting them side by side
                   reads as one fact with two labels.
                 */}
-                {identity ? (
-                  <div className="space-y-1">
-                    <dt className="sr-only">Patient account</dt>
-                    <dd>
-                      <Badge variant={identity.variant} className="rounded-full">
-                        {identity.label}
-                      </Badge>
-                    </dd>
-                    <dd className="text-xs leading-relaxed text-muted-foreground">
-                      {identity.detail}
-                    </dd>
-                  </div>
-                ) : null}
-              </dl>
+                  {identity ? (
+                    <div className="space-y-1">
+                      <dt className="sr-only">Patient account</dt>
+                      <dd>
+                        <Badge variant={identity.variant} className="rounded-full">
+                          {identity.label}
+                        </Badge>
+                      </dd>
+                      <dd className="text-xs leading-relaxed text-muted-foreground">
+                        {identity.detail}
+                      </dd>
+                    </div>
+                  ) : null}
+                </dl>
+              </div>
             ) : null}
           </div>
 
@@ -486,6 +500,11 @@ export function PortalAccessCard({
                         {invite.createdByName ? (
                           <p className="mt-1 text-xs text-muted-foreground">
                             Issued by {invite.createdByName}
+                          </p>
+                        ) : null}
+                        {invite.renewalRequestedAt ? (
+                          <p className="mt-1 text-xs font-medium text-warning-ink">
+                            {describeRenewalRequest(invite.renewalRequestedAt)}
                           </p>
                         ) : null}
                       </li>

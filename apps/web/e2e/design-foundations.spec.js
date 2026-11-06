@@ -97,9 +97,9 @@ for (const theme of ['light', 'dark']) {
         };
       });
       for (const role of ['page-title', 'record-title'])
-        expect(styles.roles[role].font).toContain('Source Serif 4');
+        expect(styles.roles[role].font).toMatch(/Source.?Serif.?4/i);
       for (const role of ['section-title', 'body', 'label', 'meta', 'metric', 'data'])
-        expect(styles.roles[role].font).toContain('IBM Plex Sans');
+        expect(styles.roles[role].font).toMatch(/IBM.?Plex.?Sans/i);
       expect(styles.roles['page-title'].size).toBe(width === 390 ? '30px' : '36px');
       expect(styles.roles['record-title'].size).toBe(width === 390 ? '24px' : '30px');
       for (const [role, size, lineHeight, weight] of [

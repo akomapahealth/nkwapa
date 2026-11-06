@@ -1,5 +1,8 @@
 'use client';
 
+import { useClinicUnits } from '@/lib/bootstrap-context';
+import { formatGlucose, formatHeight, formatWeight } from '@nkwapa/db/measurement-units';
+
 import { classifyBloodPressure, isHypoglycemic } from '@nkwapa/db';
 import type { DiabetesScreeningRecord, VitalsRecord } from '@/lib/db';
 import { summarizeEyeScreening, type EyeScreeningRecord } from '@/lib/eye-screening';
@@ -36,6 +39,7 @@ export function StationResultsSummary({
   eye?: EyeScreeningRecord | null;
   timezone: string;
 }) {
+  const units = useClinicUnits();
   const recordedAt = (kind: StationKind) => {
     const stop = [...timeline]
       .reverse()
@@ -78,7 +82,7 @@ export function StationResultsSummary({
     },
     {
       label: 'Blood glucose',
-      value: glucose != null ? `${glucose} mg/dL` : 'Not recorded',
+      value: formatGlucose(glucose, units.glucoseUnit) ?? 'Not recorded',
       detail:
         glucose != null
           ? [
@@ -99,7 +103,7 @@ export function StationResultsSummary({
       label: 'Weight and height',
       value:
         vitals?.weightKg != null || vitals?.heightCm != null
-          ? `${vitals?.weightKg ?? '–'} kg · ${vitals?.heightCm ?? '–'} cm`
+          ? `${formatWeight(vitals?.weightKg, units.bodyUnit) ?? '–'} · ${formatHeight(vitals?.heightCm, units.bodyUnit) ?? '–'}`
           : 'Not recorded',
       detail: bmi != null ? `BMI ${bmi}` : undefined,
       flag: bmiFlag,

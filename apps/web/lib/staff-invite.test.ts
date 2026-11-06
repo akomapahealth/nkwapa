@@ -1,3 +1,6 @@
+jest.mock('./api', () => ({ ...jest.requireActual('./api'), apiFetch: jest.fn() }));
+
+import { apiFetch } from './api';
 import {
   STAFF_INVITE_TTL_CHOICES,
   DEFAULT_STAFF_INVITE_TTL_HOURS,
@@ -5,8 +8,13 @@ import {
   describeStaffInviteStatus,
   filterStaffInvites,
   formatStaffRole,
+  removeStaffInvite,
+  staffInviteActions,
   type StaffInvite,
 } from './staff-invite';
+
+const mockedApiFetch = apiFetch as jest.MockedFunction<typeof apiFetch>;
+const getToken = async () => 'token';
 
 describe('staff invitation wording', () => {
   it('offers the lifetimes the API accepts, with 3 days as the default', () => {
@@ -66,10 +74,11 @@ describe('filterStaffInvites', () => {
   ];
   const ids = (list: StaffInvite[]) => list.map((item) => item.id);
 
-  it('groups cancelled and expired as closed', () => {
+  it('filters by each status', () => {
     expect(ids(filterStaffInvites(invites, { filter: 'OPEN', query: '' }))).toEqual(['a']);
     expect(ids(filterStaffInvites(invites, { filter: 'ACCEPTED', query: '' }))).toEqual(['b']);
-    expect(ids(filterStaffInvites(invites, { filter: 'CLOSED', query: '' }))).toEqual(['c', 'd']);
+    expect(ids(filterStaffInvites(invites, { filter: 'CANCELLED', query: '' }))).toEqual(['c']);
+    expect(ids(filterStaffInvites(invites, { filter: 'EXPIRED', query: '' }))).toEqual(['d']);
     expect(ids(filterStaffInvites(invites, { filter: 'ALL', query: '' }))).toHaveLength(4);
   });
 
@@ -77,5 +86,27 @@ describe('filterStaffInvites', () => {
     expect(ids(filterStaffInvites(invites, { filter: 'ALL', query: ' MENSAH ' }))).toEqual(['a']);
     expect(ids(filterStaffInvites(invites, { filter: 'ALL', query: 'kofi@' }))).toEqual(['b']);
     expect(filterStaffInvites(invites, { filter: 'OPEN', query: 'kofi' })).toEqual([]);
+  });
+});
+
+describe('staffInviteActions', () => {
+  it('offers removal only on expired and cancelled invitations', () => {
+    expect(staffInviteActions('PENDING')).toEqual(['resend', 'cancel']);
+    expect(staffInviteActions('EXPIRED')).toEqual(['remove']);
+    expect(staffInviteActions('CANCELLED')).toEqual(['remove']);
+    expect(staffInviteActions('ACCEPTED')).toEqual([]);
+  });
+});
+
+describe('removeStaffInvite', () => {
+  it('posts to the remove route in the invitation clinic', async () => {
+    mockedApiFetch.mockResolvedValue(
+      new Response(JSON.stringify({ id: 'i/1', removedAt: 'now' }), { status: 200 }),
+    );
+    await removeStaffInvite('c-1', 'i/1', getToken);
+    expect(mockedApiFetch).toHaveBeenCalledWith(
+      '/clinics/c-1/staff-invites/i%2F1/remove',
+      expect.objectContaining({ method: 'POST', activeClinicId: 'c-1' }),
+    );
   });
 });

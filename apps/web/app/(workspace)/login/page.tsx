@@ -2,14 +2,77 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useBootstrap } from '@/lib/bootstrap-context';
-import { getPostAuthPath, getSafeNextPath, shouldAutoContinue } from '@/lib/auth-routing';
+import {
+  getPostAuthPath,
+  getSafeNextPath,
+  parseSignInAudience,
+  shouldAutoContinue,
+  SIGN_IN_AUDIENCE_PARAM,
+  type SignInAudience,
+} from '@/lib/auth-routing';
 import { useKeycloak } from '@/app/KeycloakProvider';
 import { PageSkeleton } from '@/components/feedback/AppState';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, ArrowRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { LANDING_BLUR } from '@/lib/landing-blur';
+import { AlertTriangle, ArrowRight, HeartPulse, Lock, Stethoscope } from 'lucide-react';
+
+const AUDIENCE_STORAGE_KEY = 'nkwapa.signInAudience';
+
+const AUDIENCE_OPTIONS = [
+  { value: 'patient', label: 'Patient', icon: HeartPulse },
+  { value: 'staff', label: 'Clinic staff', icon: Stethoscope },
+] as const;
+
+// Each block rises in a beat after the one above it; the global reduced-motion rule flattens it.
+const RISE = 'motion-safe:animate-rise-in';
+const riseDelay = (step: number) => ({ animationDelay: `${step * 40}ms` });
+
+const GUIDANCE: Record<
+  SignInAudience,
+  { destination: string; landing: string; help: { title: string; detail: string }[] }
+> = {
+  patient: {
+    destination: 'Open your patient record after secure sign-in.',
+    landing:
+      'Your own record opens. The first time, you confirm the patient code on your clinic card.',
+    help: [
+      {
+        title: 'Getting access',
+        detail:
+          'Ask your clinic for portal access. They send an email with a link to choose your password.',
+      },
+      {
+        title: 'Keep your clinic card nearby',
+        detail: 'You confirm its patient code once, the first time you sign in.',
+      },
+      {
+        title: 'Link not working?',
+        detail:
+          'Invitation links expire after a few days. Ask the clinic front desk to send a new one.',
+      },
+    ],
+  },
+  staff: {
+    destination: 'Open your clinic workspace after secure sign-in.',
+    landing: 'Your clinic workspace opens. If you work at more than one clinic, you choose which.',
+    help: [
+      {
+        title: 'Joining a clinic team',
+        detail:
+          'Your clinic administrator invites you from the staff page. Open the email link to choose a password, then accept the clinic and role.',
+      },
+      {
+        title: 'Link not working?',
+        detail:
+          'Invitation links expire after a few days. Ask your clinic administrator to send a new one.',
+      },
+    ],
+  },
+};
 
 export default function LoginPage() {
   const searchParams = useSearchParams();
@@ -24,6 +87,36 @@ export default function LoginPage() {
   };
 
   const nextPath = getSafeNextPath(searchParams.get('next'));
+
+  /*
+    Patient or clinic staff. It tailors the guidance on this page only: where sign-in lands is
+    decided by the account's roles, so a staff member who picks "Patient" still reaches their
+    workspace. A `?as=` link wins, then the choice remembered on this device, then patient.
+  */
+  const linkedAudience = parseSignInAudience(searchParams.get(SIGN_IN_AUDIENCE_PARAM));
+  const [audience, setAudience] = useState<SignInAudience>(linkedAudience ?? 'patient');
+
+  useEffect(() => {
+    if (linkedAudience) return;
+    try {
+      const stored = parseSignInAudience(localStorage.getItem(AUDIENCE_STORAGE_KEY));
+      if (stored) setAudience(stored);
+    } catch {
+      // Storage blocked (private mode): the default stands.
+    }
+  }, [linkedAudience]);
+
+  const chooseAudience = (next: SignInAudience) => {
+    setAudience(next);
+    try {
+      localStorage.setItem(AUDIENCE_STORAGE_KEY, next);
+    } catch {
+      // Not remembered this time; the choice still applies.
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.set(SIGN_IN_AUDIENCE_PARAM, next);
+    window.history.replaceState(null, '', url);
+  };
 
   /*
     A patient returning from Keycloak, having just chosen their password, arrives here
@@ -90,9 +183,10 @@ export default function LoginPage() {
     );
   }
 
+  const guidance = GUIDANCE[audience];
   const destinationCopy = nextPath
     ? 'Continue where you left off after secure sign-in.'
-    : 'Open your Nkwapa clinic workspace or your patient record after secure sign-in.';
+    : guidance.destination;
 
   const nextSteps = [
     {
@@ -106,9 +200,7 @@ export default function LoginPage() {
     },
     {
       title: nextPath ? 'You return to where you were' : 'Your work opens',
-      detail: nextPath
-        ? 'Nkwapa brings you back to the page you were on.'
-        : 'Staff land in their clinic workspace. Patients land on their own record.',
+      detail: nextPath ? 'Nkwapa brings you back to the page you were on.' : guidance.landing,
     },
   ];
 
@@ -142,21 +234,58 @@ export default function LoginPage() {
         className="mx-auto grid w-full max-w-5xl flex-1 content-start gap-10 px-4 pb-12 pt-8 md:px-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-14 lg:pt-16"
       >
         <div className="min-w-0 max-w-xl space-y-6">
-          <div className="space-y-2">
-            <p className="text-eyebrow text-muted-foreground">Secure sign in</p>
-            <h1 className="type-page-title text-foreground">
-              {error
-                ? "We couldn't start secure sign-in"
-                : nextPath
-                  ? 'Sign in to continue'
-                  : 'Sign in to Nkwapa'}
-            </h1>
-            <p className="text-sm leading-6 text-muted-foreground md:text-base">
-              {error
-                ? 'The secure sign-in service did not respond. Your workspace data has not loaded, and you can retry without losing your place.'
-                : destinationCopy}
-            </p>
+          <div className={RISE} style={riseDelay(0)}>
+            <div className="space-y-2">
+              <p className="text-eyebrow text-muted-foreground">Secure sign in</p>
+              <h1 className="type-page-title text-foreground">
+                {error
+                  ? "We couldn't start secure sign-in"
+                  : nextPath
+                    ? 'Sign in to continue'
+                    : 'Sign in to Nkwapa'}
+              </h1>
+              <p className="text-sm leading-6 text-muted-foreground md:text-base">
+                {error
+                  ? 'The secure sign-in service did not respond. Your workspace data has not loaded, and you can retry without losing your place.'
+                  : destinationCopy}
+              </p>
+            </div>
           </div>
+
+          <fieldset className={RISE} style={riseDelay(1)}>
+            <legend className="type-label text-foreground">I am signing in as</legend>
+            <div className="relative mt-2 grid grid-cols-2 rounded-lg border border-input bg-background p-1">
+              <span
+                aria-hidden="true"
+                className={cn(
+                  'absolute inset-y-1 left-1 w-[calc(50%-0.25rem)] rounded-md bg-primary shadow-sm transition-transform duration-base ease-out-strong',
+                  audience === 'staff' && 'translate-x-full',
+                )}
+              />
+              {AUDIENCE_OPTIONS.map(({ value, label, icon: Icon }) => (
+                <label
+                  key={value}
+                  className={cn(
+                    'relative flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors duration-fast ease-out-strong has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2',
+                    audience === value
+                      ? 'text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="sign-in-audience"
+                    value={value}
+                    checked={audience === value}
+                    onChange={() => chooseAudience(value)}
+                    className="sr-only"
+                  />
+                  <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
 
           {error ? (
             <div
@@ -177,12 +306,25 @@ export default function LoginPage() {
             </div>
           ) : null}
 
-          <Button onClick={login} size="lg" className="w-full px-6 sm:w-auto">
-            {error ? 'Try secure sign in again' : 'Continue to secure sign in'}
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </Button>
+          <div className={cn(RISE, 'space-y-3')} style={riseDelay(2)}>
+            <Button onClick={login} size="lg" className="w-full px-6 sm:w-auto">
+              {error ? 'Try secure sign in again' : 'Continue to secure sign in'}
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+            <p className="flex items-start gap-2 text-sm leading-6 text-muted-foreground">
+              <Lock className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>
+                <span className="font-medium text-foreground">Invitation only.</span> There is no
+                sign-up: every account starts with an email from a clinic.
+              </span>
+            </p>
+          </div>
 
-          <section aria-labelledby="login-next-title" className="border-t-2 border-rule-strong">
+          <section
+            aria-labelledby="login-next-title"
+            className={cn(RISE, 'border-t-2 border-rule-strong')}
+            style={riseDelay(3)}
+          >
             <h2 id="login-next-title" className="type-section-title pb-1 pt-4">
               What happens next
             </h2>
@@ -200,7 +342,11 @@ export default function LoginPage() {
                   </span>
                   <span className="min-w-0">
                     <span className="block text-sm font-medium text-foreground">{step.title}</span>
-                    <span className="block text-sm leading-6 text-muted-foreground">
+                    {/* Keyed by audience so a changed choice cross-fades in rather than snapping. */}
+                    <span
+                      key={index === 2 ? audience : undefined}
+                      className="block text-sm leading-6 text-muted-foreground motion-safe:animate-page-in"
+                    >
                       {step.detail}
                     </span>
                   </span>
@@ -210,36 +356,38 @@ export default function LoginPage() {
           </section>
         </div>
 
-        <aside aria-labelledby="login-first-time-title" className="min-w-0">
+        <aside
+          aria-labelledby="login-first-time-title"
+          className={cn(RISE, 'min-w-0')}
+          style={riseDelay(4)}
+        >
+          <figure className="mb-8">
+            <div className="relative aspect-[16/9] overflow-hidden rounded-lg bg-muted motion-safe:animate-photo-reveal lg:aspect-[4/3]">
+              <Image
+                src="/images/Akomapa-19.jpg"
+                alt="A volunteer takes a woman's blood pressure at a folding table during an Akomapa screening."
+                fill
+                sizes="(min-width: 1024px) 20rem, 100vw"
+                placeholder="blur"
+                blurDataURL={LANDING_BLUR['/images/Akomapa-19.jpg']}
+                className="object-cover object-[45%_center] motion-safe:animate-photo-settle"
+              />
+            </div>
+            <figcaption className="pt-2 text-xs leading-5 text-muted-foreground">
+              Patients and volunteers at an Akomapa community screening.
+            </figcaption>
+          </figure>
           <section className="border-t-2 border-rule-strong">
             <h2 id="login-first-time-title" className="type-section-title pb-1 pt-4">
               First time here?
             </h2>
-            <p className="pb-3 text-sm leading-6 text-muted-foreground">
-              Nkwapa accounts start with an invitation. There is no sign-up form.
-            </p>
-            <dl className="text-sm leading-6">
-              <div className="border-t border-rule py-3">
-                <dt className="font-medium text-foreground">Joining a clinic team</dt>
-                <dd className="text-muted-foreground">
-                  Your clinic sends you an email. Open its link to choose a password, then accept
-                  the clinic and role.
-                </dd>
-              </div>
-              <div className="border-t border-rule py-3">
-                <dt className="font-medium text-foreground">Opening your patient record</dt>
-                <dd className="text-muted-foreground">
-                  Your clinic sends an email when you ask for portal access. Keep your clinic card
-                  nearby: you confirm its patient code once.
-                </dd>
-              </div>
-              <div className="border-t border-rule py-3">
-                <dt className="font-medium text-foreground">Link not working?</dt>
-                <dd className="text-muted-foreground">
-                  Invitation links expire after a few days. Ask whoever invited you to send a new
-                  one; the new email has a fresh link.
-                </dd>
-              </div>
+            <dl key={audience} className="text-sm leading-6 motion-safe:animate-page-in">
+              {guidance.help.map((item) => (
+                <div key={item.title} className="border-t border-rule py-3">
+                  <dt className="font-medium text-foreground">{item.title}</dt>
+                  <dd className="text-muted-foreground">{item.detail}</dd>
+                </div>
+              ))}
             </dl>
           </section>
         </aside>

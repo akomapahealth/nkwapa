@@ -68,7 +68,11 @@ import { cn } from '@/lib/utils';
 import { AppointmentRequestsPanel } from '@/components/appointments/AppointmentRequestsPanel';
 import { AppointmentStatusBadge } from '@/components/appointments/AppointmentStatusBadge';
 import {
+  describeCancellation,
   describeTimeEntryZone,
+  fromClinicDateTimeLocal,
+  nextConfirmedAppointment,
+  toClinicDateTimeLocal,
   getAppointmentActionLabel as getActionLabel,
   getAppointmentStatusFilterLabel as getStatusLabel,
 } from '@/lib/appointment-status';
@@ -158,23 +162,6 @@ function getRangeForView(selectedDate: string, viewMode: ViewMode) {
     from,
     to: addDays(from, 6),
   };
-}
-
-function toDateTimeLocalValue(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return '';
-  }
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 16);
-}
-
-function fromDateTimeLocalValue(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-  return date.toISOString();
 }
 
 function staffName(staff: StaffAppointmentRecord['assignedDoctor']) {
@@ -352,6 +339,21 @@ function AppointmentTime({
   );
 }
 
+function AppointmentCancellationNote({
+  appointment,
+  timezone,
+}: {
+  appointment: StaffAppointmentRecord;
+  timezone: string;
+}) {
+  if (appointment.status !== 'CANCELLED' || !appointment.cancellation) return null;
+  return (
+    <p className="mt-1 text-sm text-muted-foreground">
+      {describeCancellation(appointment.cancellation, timezone)}
+    </p>
+  );
+}
+
 function AppointmentRow({
   appointment,
   timezone,
@@ -379,6 +381,7 @@ function AppointmentRow({
         </div>
         <AppointmentStatusBadge status={appointment.status} />
       </div>
+      <AppointmentCancellationNote appointment={appointment} timezone={timezone} />
       <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
         <dt className="text-muted-foreground">Doctor</dt>
         <dd className="text-foreground">{staffName(appointment.assignedDoctor)}</dd>
@@ -560,7 +563,7 @@ export default function StaffAppointmentsPage() {
     () => groupAppointmentsByDay(items, range, timezone),
     [items, range, timezone],
   );
-  const nextAppointment = items.find((appointment) => appointment.status === 'CONFIRMED') ?? null;
+  const nextAppointment = nextConfirmedAppointment(items);
   const canManageAppointments = hasPermission(
     bootstrap?.effectivePermissionsForActiveClinic ?? [],
     'APPOINTMENT.WRITE',
@@ -576,8 +579,8 @@ export default function StaffAppointmentsPage() {
 
   function openLifecycleDialog(action: LifecycleAction, appointment: StaffAppointmentRecord) {
     setLifecycleDialog({ action, appointment });
-    setRescheduleStartsAt(toDateTimeLocalValue(appointment.startsAt));
-    setRescheduleEndsAt(toDateTimeLocalValue(appointment.endsAt));
+    setRescheduleStartsAt(toClinicDateTimeLocal(appointment.startsAt, timezone));
+    setRescheduleEndsAt(toClinicDateTimeLocal(appointment.endsAt, timezone));
     setLifecycleReason('');
     setLifecycleNotes(appointment.notes ?? '');
     setLifecycleError(null);
@@ -602,8 +605,8 @@ export default function StaffAppointmentsPage() {
     try {
       setLifecycleSubmitting(true);
       if (action === 'reschedule') {
-        const startsAt = fromDateTimeLocalValue(rescheduleStartsAt);
-        const endsAt = fromDateTimeLocalValue(rescheduleEndsAt);
+        const startsAt = fromClinicDateTimeLocal(rescheduleStartsAt, timezone);
+        const endsAt = fromClinicDateTimeLocal(rescheduleEndsAt, timezone);
         if (!startsAt || !endsAt) {
           setLifecycleError('Choose valid start and end times.');
           return;
@@ -1014,6 +1017,10 @@ export default function StaffAppointmentsPage() {
                               </td>
                               <td className="px-3 py-2">
                                 <AppointmentStatusBadge status={appointment.status} />
+                                <AppointmentCancellationNote
+                                  appointment={appointment}
+                                  timezone={timezone}
+                                />
                               </td>
                               <td className="px-3 py-2">
                                 <AppointmentReminderStatus

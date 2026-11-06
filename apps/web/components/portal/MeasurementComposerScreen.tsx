@@ -5,7 +5,18 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { Activity, ArrowLeft, HeartPulse, Scale, Syringe } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
-import { useBootstrap } from '@/lib/bootstrap-context';
+import { useBootstrap, useClinicUnits } from '@/lib/bootstrap-context';
+import type { GlucoseUnit } from '@nkwapa/db/measurement-units';
+import {
+  convertGlucoseText,
+  glucoseEntryError,
+  glucoseTextToMgDl,
+  glucoseUnitLabel,
+  weightEntryError,
+  weightTextToKg,
+  weightUnitLabel,
+} from '@/lib/measurement-entry';
+import { GlucoseUnitSelect } from '@/components/GlucoseUnitSelect';
 import {
   createMeasurement,
   fetchMeasurements,
@@ -88,9 +99,11 @@ export function MeasurementComposerScreen() {
   const [systolic, setSystolic] = useState('');
   const [diastolic, setDiastolic] = useState('');
   const [pulse, setPulse] = useState('');
+  const units = useClinicUnits(clinicId);
+  const [glucoseUnit, setGlucoseUnit] = useState<GlucoseUnit>(units.glucoseUnit);
   const [glucoseValue, setGlucoseValue] = useState('');
   const [glucoseType, setGlucoseType] = useState<'FASTING' | 'RANDOM'>('FASTING');
-  const [weightKg, setWeightKg] = useState('');
+  const [weight, setWeight] = useState('');
   const [submitting, setSubmitting] = useState(false);
   /*
     Only the form's own problems live here now.
@@ -161,18 +174,25 @@ export function MeasurementComposerScreen() {
         setError('Please enter your glucose value.');
         return;
       }
+      const glucoseError = glucoseEntryError(glucoseValue, glucoseUnit);
+      const mgDl = glucoseTextToMgDl(glucoseValue, glucoseUnit);
+      if (glucoseError || mgDl === null) {
+        setError(glucoseError ?? 'Please enter your glucose value.');
+        return;
+      }
+      // Always mg/dL: the portal API stores one unit whatever the patient's meter reads.
       payload = {
-        value: Number(glucoseValue),
+        value: mgDl,
         glucoseType,
       };
     } else {
-      if (!weightKg) {
-        setError('Please enter your weight in kilograms.');
+      const kg = weightTextToKg(weight, units.bodyUnit);
+      const weightError = weightEntryError(weight, units.bodyUnit);
+      if (weightError || kg === null) {
+        setError(weightError ?? 'Please enter your weight.');
         return;
       }
-      payload = {
-        kg: Number(weightKg),
-      };
+      payload = { kg };
     }
 
     setSubmitting(true);
@@ -323,17 +343,28 @@ export function MeasurementComposerScreen() {
               {type === 'GLUCOSE' && (
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="glucoseValue">Glucose (mg/dL)</Label>
-                    <Input
-                      id="glucoseValue"
-                      type="number"
-                      className="tabular-nums"
-                      min={20}
-                      max={600}
-                      value={glucoseValue}
-                      onChange={(event) => setGlucoseValue(event.target.value)}
-                      required
-                    />
+                    <Label htmlFor="glucoseValue">Glucose ({glucoseUnitLabel(glucoseUnit)})</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="glucoseValue"
+                        type="number"
+                        inputMode={glucoseUnit === 'MMOL_L' ? 'decimal' : 'numeric'}
+                        step={glucoseUnit === 'MMOL_L' ? '0.1' : '1'}
+                        className="min-w-0 tabular-nums"
+                        value={glucoseValue}
+                        onChange={(event) => setGlucoseValue(event.target.value)}
+                        required
+                      />
+                      <GlucoseUnitSelect
+                        value={glucoseUnit}
+                        onChange={(next) => {
+                          setGlucoseValue((current) =>
+                            convertGlucoseText(current, glucoseUnit, next),
+                          );
+                          setGlucoseUnit(next);
+                        }}
+                      />
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="glucoseType">Reading type</Label>
@@ -356,16 +387,15 @@ export function MeasurementComposerScreen() {
               {type === 'WEIGHT' && (
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="weightKg">Weight (kg)</Label>
+                    <Label htmlFor="weightKg">Weight ({weightUnitLabel(units.bodyUnit)})</Label>
                     <Input
                       id="weightKg"
                       type="number"
+                      inputMode="decimal"
                       className="tabular-nums"
-                      min={1}
-                      max={500}
                       step="0.1"
-                      value={weightKg}
-                      onChange={(event) => setWeightKg(event.target.value)}
+                      value={weight}
+                      onChange={(event) => setWeight(event.target.value)}
                       required
                     />
                   </div>
@@ -447,7 +477,7 @@ export function MeasurementComposerScreen() {
                 ) : (
                   <div className="border-b border-border py-3">
                     <p className="font-medium tabular-nums text-foreground">
-                      {formatMeasurementValue(measurements[0])}
+                      {formatMeasurementValue(measurements[0], units)}
                     </p>
                     <p className="mt-2 text-sm tabular-nums text-muted-foreground">
                       Recorded {formatPortalDateTime(measurements[0].recordedAt)}

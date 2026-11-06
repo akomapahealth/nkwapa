@@ -67,6 +67,7 @@ const INTERNAL_PRISMA_KEYS = new Set([
   'assertCompatibleContext',
   'assertCompatibleClinicContext',
   'constructor',
+  'detachFromRlsContext',
   'getActiveClient',
   'getCurrentRlsContext',
   'logger',
@@ -245,6 +246,15 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       },
       options,
     );
+  }
+
+  /**
+   * Run `callback` outside any request's tenant context, so it can open its own (#250). For work
+   * that must not join the caller's transaction: it neither sees the caller's uncommitted rows nor
+   * is rolled back with them, and a failure in it cannot fail the caller.
+   */
+  detachFromRlsContext<T>(callback: () => T): T {
+    return this.rlsStorage.exit(callback);
   }
 
   async withSystemContext<T>(

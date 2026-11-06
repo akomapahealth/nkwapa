@@ -3,6 +3,7 @@ import type { CallHandler, ExecutionContext } from '@nestjs/common';
 import { PrismaRlsInterceptor } from './prisma-rls.interceptor';
 import type { PrismaService } from './prisma.service';
 import { IncludeStaffInviteScope } from '../staff-invites/staff-invite-scope.decorator';
+import { IncludeLapsedInviteScope } from '../invite-renewal/lapsed-invite-scope.decorator';
 
 /**
  * The tenant boundary this interceptor draws is partly decided by portal invites: an
@@ -17,6 +18,10 @@ describe('PrismaRlsInterceptor supplemental clinic access', () => {
   }
   class InviteController {
     @IncludeStaffInviteScope()
+    handle() {}
+  }
+  class RenewalController {
+    @IncludeLapsedInviteScope()
     handle() {}
   }
 
@@ -41,12 +46,14 @@ describe('PrismaRlsInterceptor supplemental clinic access', () => {
   function buildPrisma(user: { email: string | null; phoneE164: string | null } | null) {
     const findMany = jest.fn().mockResolvedValue([{ clinicId: 'clinic-9' }]);
     const staffInviteFindMany = jest.fn().mockResolvedValue([{ clinicId: 'clinic-staff' }]);
+    const portalInviteFindFirst = jest.fn().mockResolvedValue({ clinicId: 'clinic-lapsed-portal' });
+    const staffInviteFindFirst = jest.fn().mockResolvedValue({ clinicId: 'clinic-lapsed-staff' });
     const tx = {
       user: {
         findUnique: jest.fn().mockResolvedValue(user && { ...user, portalPatient: null }),
       },
-      patientPortalInvite: { findMany },
-      staffInvite: { findMany: staffInviteFindMany },
+      patientPortalInvite: { findMany, findFirst: portalInviteFindFirst },
+      staffInvite: { findMany: staffInviteFindMany, findFirst: staffInviteFindFirst },
       // A second bootstrap read runs once a supplemental clinic has been resolved, to
       // find the organization the request will be scoped to.
       clinic: { findMany: jest.fn().mockResolvedValue([]) },
@@ -57,7 +64,7 @@ describe('PrismaRlsInterceptor supplemental clinic access', () => {
       ),
       withRlsContext: jest.fn(async (_ctx: unknown, run: () => Promise<unknown>) => run()),
     } as unknown as PrismaService;
-    return { prisma, findMany, staffInviteFindMany };
+    return { prisma, findMany, staffInviteFindMany, portalInviteFindFirst, staffInviteFindFirst };
   }
 
   function scopedClinicIds(prisma: PrismaService): string[] {
@@ -138,6 +145,57 @@ describe('PrismaRlsInterceptor supplemental clinic access', () => {
       select: { clinicId: true },
     });
     expect(scopedClinicIds(prisma)).toEqual(expect.arrayContaining(['clinic-a', 'clinic-staff']));
+  });
+
+  // A lapsed invitation hands out its clinic only to the renewal request (#307), never elsewhere.
+  it('never widens to a lapsed invitation on an ordinary route', async () => {
+    const { prisma, portalInviteFindFirst, staffInviteFindFirst } = buildPrisma({
+      email: 'ama@example.com',
+      phoneE164: null,
+    });
+    const interceptor = new PrismaRlsInterceptor(prisma);
+
+    await lastValueFrom(interceptor.intercept(buildContext(), buildHandler()));
+
+    expect(portalInviteFindFirst).not.toHaveBeenCalled();
+    expect(staffInviteFindFirst).not.toHaveBeenCalled();
+    expect(scopedClinicIds(prisma)).not.toContain('clinic-lapsed-portal');
+  });
+
+  it('widens to the latest invitations by verified email on the renewal route', async () => {
+    const { prisma, portalInviteFindFirst, staffInviteFindFirst } = buildPrisma({
+      email: 'Ama@Example.com',
+      phoneE164: '+233201234567',
+    });
+    const interceptor = new PrismaRlsInterceptor(prisma);
+
+    await lastValueFrom(interceptor.intercept(buildContext([], RenewalController), buildHandler()));
+
+    expect(portalInviteFindFirst).toHaveBeenCalledWith({
+      where: { email: { equals: 'ama@example.com', mode: 'insensitive' } },
+      orderBy: { createdAt: 'desc' },
+      select: { clinicId: true },
+    });
+    expect(staffInviteFindFirst).toHaveBeenCalledWith({
+      where: { email: 'ama@example.com' },
+      orderBy: { createdAt: 'desc' },
+      select: { clinicId: true },
+    });
+    expect(scopedClinicIds(prisma)).toEqual(
+      expect.arrayContaining(['clinic-lapsed-portal', 'clinic-lapsed-staff']),
+    );
+  });
+
+  it('does not look for lapsed invitations without a verified email', async () => {
+    const { prisma, portalInviteFindFirst } = buildPrisma({
+      email: null,
+      phoneE164: '+233201234567',
+    });
+    const interceptor = new PrismaRlsInterceptor(prisma);
+
+    await lastValueFrom(interceptor.intercept(buildContext([], RenewalController), buildHandler()));
+
+    expect(portalInviteFindFirst).not.toHaveBeenCalled();
   });
 
   it('does not look for staff invitations for a user without a verified email', async () => {

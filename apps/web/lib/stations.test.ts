@@ -1,4 +1,5 @@
 import {
+  describePerformerCorrection,
   assignableStaff,
   canCorrectPerformer,
   describeRouteStop,
@@ -214,5 +215,29 @@ describe('describeRouteStop', () => {
     expect(
       describeRouteStop({ ...base, completedBy: null, completedAt: null, status: 'QUEUED' }, at),
     ).toEqual({ struck: false, summary: 'Queued', reason: null });
+  });
+});
+
+describe('describePerformerCorrection (#307)', () => {
+  const at = '2026-11-05T10:04:00.000Z';
+  const correction = {
+    previousPerformer: 'Kofi Boateng',
+    correctedAt: at,
+    correctedBy: { id: 'u1', displayName: 'Ama Mensah' },
+    reason: 'Ama screened, on Kofi’s login',
+  };
+
+  it('keeps the earlier name and says who corrected it, when and why', () => {
+    expect(describePerformerCorrection(correction, (iso) => iso.slice(11, 16))).toEqual({
+      previous: 'Kofi Boateng',
+      summary: 'Corrected by Ama Mensah, 10:04',
+      reason: 'Reason: Ama screened, on Kofi’s login',
+    });
+  });
+
+  it('leaves the reason out when none was given', () => {
+    expect(
+      describePerformerCorrection({ ...correction, reason: null }, () => 'then').reason,
+    ).toBeNull();
   });
 });

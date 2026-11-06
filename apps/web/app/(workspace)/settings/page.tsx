@@ -51,7 +51,9 @@ export default function SettingsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Account</CardTitle>
+            <CardTitle as="h2" className="text-lg">
+              Account
+            </CardTitle>
             <CardDescription>
               Signed in as{' '}
               <span className="font-medium text-foreground">{bootstrap?.displayName ?? 'you'}</span>
@@ -83,7 +85,9 @@ export default function SettingsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">This device</CardTitle>
+            <CardTitle as="h2" className="text-lg">
+              This device
+            </CardTitle>
             <CardDescription>
               Changes you save without a connection wait here until they send. Support may ask for
               these details.
@@ -103,7 +107,9 @@ function AppearanceCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">Appearance</CardTitle>
+        <CardTitle as="h2" className="text-lg">
+          Appearance
+        </CardTitle>
         <CardDescription>Applies on this device only.</CardDescription>
       </CardHeader>
       <CardContent>
@@ -184,7 +190,7 @@ function InstallCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg">
+        <CardTitle as="h2" className="flex items-center gap-2 text-lg">
           <Smartphone className="h-5 w-5 text-primary" aria-hidden="true" />
           Install the app
         </CardTitle>

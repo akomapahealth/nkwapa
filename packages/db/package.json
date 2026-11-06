@@ -96,6 +96,10 @@
     "./staff-name": {
       "types": "./dist/src/staff-name.d.ts",
       "default": "./dist/src/staff-name.js"
+    },
+    "./measurement-units": {
+      "types": "./dist/src/measurement-units.d.ts",
+      "default": "./dist/src/measurement-units.js"
     }
   },
   "scripts": {

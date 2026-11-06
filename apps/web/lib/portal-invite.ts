@@ -55,6 +55,8 @@ export interface PortalInvite {
   createdByName: string | null;
   identity?: PortalInviteIdentity | null;
   emailDelivery: PortalInviteDelivery | null;
+  /** When the invitee asked for a new invitation after this one lapsed (#307). */
+  renewalRequestedAt?: string | null;
 }
 
 export interface PortalAccess {
@@ -234,6 +236,11 @@ export function formatInviteDate(value: string | null): string {
     month: 'short',
     year: 'numeric',
   });
+}
+
+/** "Asked for a new invitation on 5 Nov 2026", or null when they have not asked (#307). */
+export function describeRenewalRequest(at: string | null | undefined): string | null {
+  return at ? `Asked for a new invitation on ${formatInviteDate(at)}` : null;
 }
 
 /** Which contact method the invitation was staged against, for the card and the history rows. */

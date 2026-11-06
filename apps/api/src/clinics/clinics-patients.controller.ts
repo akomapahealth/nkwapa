@@ -43,6 +43,7 @@ import { ToOptionalNumber, ToSanitizedString } from '../common/validation';
 import type { ReqUserWithRoles } from '../auth/guards/rbac.guard';
 import { Track } from '../telemetry/track.decorator';
 import { mergePreviewShape, portalInviteShape } from '../telemetry/track-descriptors';
+import { Idempotent } from '../idempotency/idempotent.decorator';
 
 class SearchPatientsQueryDto {
   @IsOptional()
@@ -68,6 +69,7 @@ export class ClinicsPatientsController {
   ) {}
 
   @Post()
+  @Idempotent()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.PATIENT_CREATE)
   async create(
@@ -273,6 +275,7 @@ export class ClinicsPatientsController {
   }
 
   @Post(':patientId/portal-invite')
+  @Idempotent()
   @Track('portal.invite.create', { describe: portalInviteShape })
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.PATIENT_PORTAL_LINK)
@@ -291,6 +294,7 @@ export class ClinicsPatientsController {
   }
 
   @Post(':patientId/portal-invite/:inviteId/resend')
+  @Idempotent()
   @Track('portal.invite.resend')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.PATIENT_PORTAL_LINK)

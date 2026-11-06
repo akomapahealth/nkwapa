@@ -15,6 +15,7 @@ import {
   RescheduleAppointmentDto,
 } from './dto/appointment-requests.dto';
 import { Track } from '../telemetry/track.decorator';
+import { Idempotent } from '../idempotency/idempotent.decorator';
 
 @Controller('clinics/:clinicId/appointments')
 @UseGuards(JwtAuthGuard, ClinicScopeGuard, RbacGuard)
@@ -39,6 +40,7 @@ export class ClinicAppointmentsController {
   }
 
   @Post(':appointmentId/reschedule')
+  @Idempotent()
   @Track('appointment.reschedule')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.APPOINTMENT_WRITE)
@@ -58,6 +60,7 @@ export class ClinicAppointmentsController {
   }
 
   @Post(':appointmentId/cancel')
+  @Idempotent()
   @Track('appointment.cancel')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.APPOINTMENT_WRITE)
@@ -77,6 +80,7 @@ export class ClinicAppointmentsController {
   }
 
   @Post(':appointmentId/complete')
+  @Idempotent()
   @Track('appointment.complete')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.APPOINTMENT_WRITE)
@@ -96,6 +100,7 @@ export class ClinicAppointmentsController {
   }
 
   @Post(':appointmentId/no-show')
+  @Idempotent()
   @Track('appointment.no_show')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.APPOINTMENT_WRITE)

@@ -1,5 +1,7 @@
 'use client';
 
+import { formatGlucose, formatWeight } from '@nkwapa/db/measurement-units';
+
 import { statusLabel } from '@/lib/status-presentation';
 import Link from 'next/link';
 import {
@@ -11,7 +13,7 @@ import {
   Scale,
   Syringe,
 } from 'lucide-react';
-import { useBootstrap } from '@/lib/bootstrap-context';
+import { useBootstrap, useClinicUnits } from '@/lib/bootstrap-context';
 import {
   fetchAppointmentRequests,
   fetchMeasurements,
@@ -68,6 +70,7 @@ function getPendingRequestCount(requests: AppointmentRequestRecord[]) {
 export function OverviewPortalScreen() {
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const clinicId = getPortalClinicId(bootstrap);
+  const units = useClinicUnits(clinicId);
   const clinicName = getPortalClinicName(bootstrap, clinicId);
 
   const overview = usePortalResource<OverviewData>({
@@ -193,7 +196,10 @@ export function OverviewPortalScreen() {
                     title="Latest glucose"
                     value={
                       latestGlucose
-                        ? `${readTrendNumber(latestGlucose.payload.value) ?? '—'} mg/dL`
+                        ? (formatGlucose(
+                            readTrendNumber(latestGlucose.payload.value),
+                            units.glucoseUnit,
+                          ) ?? '—')
                         : 'No reading yet'
                     }
                     detail={
@@ -207,7 +213,8 @@ export function OverviewPortalScreen() {
                     title="Latest weight"
                     value={
                       latestWeight
-                        ? `${readTrendNumber(latestWeight.payload.kg) ?? '—'} kg`
+                        ? (formatWeight(readTrendNumber(latestWeight.payload.kg), units.bodyUnit) ??
+                          '—')
                         : 'No reading yet'
                     }
                     detail={

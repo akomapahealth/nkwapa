@@ -19,6 +19,7 @@ import { ClinicAndEncounterParamsDto } from '../common/request-dto';
 import { isApiFeatureEnabled } from '../common/feature-flags';
 import { EyeScreeningService } from './eye-screening.service';
 import { UpsertEyeScreeningDto } from './dto/eye-screening.dto';
+import { Idempotent } from '../idempotency/idempotent.decorator';
 
 /** The Eye station's examination. Online only, and part of the station line's flag. */
 @Controller('clinics/:clinicId/encounters/:encounterId/eye-screening')
@@ -35,6 +36,7 @@ export class EyeScreeningController {
   }
 
   @Put()
+  @Idempotent()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.SCREENING_WRITE)
   upsert(

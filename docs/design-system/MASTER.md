@@ -427,6 +427,16 @@ font hosts and verify both applied, loaded faces and first-party preload URLs.
 The four registration screenshot pairs are pixel-identical. No colour tokens or
 type scale values changed. Shipped in [PR #287](https://github.com/akomapahealth/nkwapa/pull/287).
 
+**Committed font files (#316).** The build no longer downloads fonts. The
+latin and latin-ext WOFF2 subsets of both families live in `apps/web/app/fonts/`
+(byte-identical to what `next/font/google` emitted) and load through
+`next/font/local`. Each family is two faces: latin is preloaded and carries the
+fallback metrics; latin-ext declares the Google Fonts `unicode-range`, so it is
+fetched only when a page shows a character such as Ɛ, Ɔ or Ŋ. `globals.css`
+composes `--font-body` and `--font-heading` with the latin-ext face first. The
+cyrillic, greek and vietnamese subsets were dropped (about 105 KB of files no
+clinic name has needed) and fall back to the system font.
+
 ---
 
 ### Semantic type roles (#264)
@@ -1079,7 +1089,7 @@ Removals split by what a mistake costs.
 | Cost                                          | Treatment                                                                                                    | Where                                                                                                                        |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
 | Costly, irreversible, or felt by someone else | `confirmAction()` dialog naming what changes; focus starts on the safe choice; never a row action in a table | Deactivate, remove a role, cancel an appointment, revoke consent, remove a prescription, leave a group, replace a typed note |
-| Cheap and reversible                          | Acts at once; `removeWithUndo()` shows it done, commits after 5 seconds, and offers Undo in the toast        | Cancel a staff invitation (re-invitable), cancel a queued reminder                                                           |
+| Cheap and reversible                          | Acts at once; `removeWithUndo()` shows it done, commits after 5 seconds, and offers Undo in the toast        | Cancel a staff invitation (re-invitable), remove a closed one from the list, cancel a queued reminder                        |
 
 `window.confirm` is not used: it cannot mark the dangerous button, reads as the browser rather than the product, and blocks the tab. A pending undoable removal is committed, not dropped, when the page is left.
 
@@ -1350,6 +1360,26 @@ imported. Impeccable and Taste review used the existing Nkwapa identity as autho
 Shipped in [PR #305](https://github.com/akomapahealth/nkwapa/pull/305), which holds the access mapping and verification.
 
 ---
+
+### Sign-in entry
+
+- **The landing header has a quiet "Log in"** (outline button) beside "Contact the team", tagged
+  "Invite only" from `md` up and named that way to screen readers below it. Under 360px it moves
+  into the menu, with the line "For people invited by their clinic. There is no sign-up."
+  Nothing public offers sign-up: Keycloak keeps `registrationAllowed: false`.
+- **`/login` asks "I am signing in as": Patient or Clinic staff.** A native radio group styled
+  as a segmented control; the filled indicator slides (200 ms, `ease-out-strong`). The choice
+  tailors the help and the last step only. **The account's roles still decide where sign-in
+  lands**, so a wrong pick costs nothing. `?as=patient|staff` selects it from a link; otherwise
+  the device remembers the last choice; otherwise Patient.
+- **Entrance:** blocks rise 8 px and fade in (`animate-rise-in`, 200 ms) 40 ms apart; changed
+  guidance cross-fades with `animate-page-in`. The global reduced-motion rule flattens both.
+- **Photograph:** Akomapa-19 (a volunteer taking a patient's blood pressure, no faces) heads the
+  help column, after the steps on phones so sign-in stays first. It opens from a smaller rounded
+  frame (`animate-photo-reveal`, clip-path, 700 ms) while the picture settles from 1.1 scale
+  (`animate-photo-settle`, 1.4 s). Plain CSS, so it plays on first paint with no script; it is
+  the one entrance on this page longer than section 7's 200 ms, allowed because it is a
+  public page, not a clinical view, and nothing waits on it.
 
 ## 13. Library decisions and open items
 

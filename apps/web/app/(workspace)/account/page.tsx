@@ -39,8 +39,6 @@ export default function AccountPage() {
   const bootstrapCtx = useBootstrap();
   const bootstrap = bootstrapCtx?.bootstrap ?? null;
   const isStaff = bootstrap != null && welcomeTourAudience(bootstrap) === 'staff';
-  const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
-  const canChat = perms.includes('*') || perms.includes('CHAT.READ');
 
   return (
     <div className="space-y-6">
@@ -93,8 +91,8 @@ export default function AccountPage() {
                 <YourDataCard />
               </>
             )}
-            {/* Messages are the only thing that notifies today, so only those who can chat. */}
-            {canChat ? <NotificationsCard /> : null}
+            {/* Staff hear about messages and work; patients about appointment replies (#250). */}
+            <NotificationsCard audience={isStaff ? 'staff' : 'patient'} />
           </div>
         </div>
       )}

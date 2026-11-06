@@ -23,6 +23,7 @@ const ISSUING_HANDLERS: Array<keyof ClinicStaffInvitesController> = [
   'create',
   'resend',
   'cancel',
+  'remove',
 ];
 
 /**

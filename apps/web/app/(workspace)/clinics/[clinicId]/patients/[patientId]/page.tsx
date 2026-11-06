@@ -1,12 +1,14 @@
 'use client';
 
+import { formatGlucose } from '@nkwapa/db/measurement-units';
+
 import { statusLabel } from '@/lib/status-presentation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
-import { useBootstrap } from '@/lib/bootstrap-context';
+import { useBootstrap, useClinicUnits } from '@/lib/bootstrap-context';
 import { apiFetch } from '@/lib/api';
 import { hasPermission, readApiError } from '@/lib/ops';
 import { usePatientCheckIn } from '@/lib/use-patient-check-in';
@@ -106,6 +108,7 @@ function PatientChartWorkspace() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const clinicId = params.clinicId as string;
+  const units = useClinicUnits(clinicId);
   const patientId = params.patientId as string;
   const getToken = useAuth();
   const { isOnline } = useSync();
@@ -968,7 +971,9 @@ function PatientChartWorkspace() {
                               </p>
                             ) : null}
                             {report.glucoseMgDl != null ? (
-                              <p className="text-sm">Glucose: {report.glucoseMgDl} mg/dL</p>
+                              <p className="text-sm">
+                                Glucose: {formatGlucose(report.glucoseMgDl, units.glucoseUnit)}
+                              </p>
                             ) : null}
                             {report.notes ? (
                               <p className="text-sm text-muted-foreground">{report.notes}</p>

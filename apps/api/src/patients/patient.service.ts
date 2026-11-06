@@ -101,6 +101,8 @@ export interface PatientPortalInviteSummary {
   expiresAt: string | null;
   claimedAt: string | null;
   cancelledAt: string | null;
+  /** When the invitee, signed in, asked for a new invitation after this one lapsed (#307). */
+  renewalRequestedAt: string | null;
   /** Who issued it. Staff chasing a wrong-chart invite need to know who to ask. */
   createdByName: string | null;
   /**
@@ -769,6 +771,7 @@ export class PatientService {
       expiresAt: Date | null;
       claimedAt: Date | null;
       cancelledAt: Date | null;
+      renewalRequestedAt?: Date | null;
       identityStatus?: string | null;
       identityProvisionedAt?: Date | null;
       identityFailureReason?: string | null;
@@ -792,6 +795,7 @@ export class PatientService {
       expiresAt: invite.expiresAt?.toISOString() ?? null,
       claimedAt: invite.claimedAt?.toISOString() ?? null,
       cancelledAt: invite.cancelledAt?.toISOString() ?? null,
+      renewalRequestedAt: invite.renewalRequestedAt?.toISOString() ?? null,
       createdByName: invite.createdBy?.displayName ?? null,
       identity: {
         status: invite.identityStatus ?? 'NOT_REQUESTED',

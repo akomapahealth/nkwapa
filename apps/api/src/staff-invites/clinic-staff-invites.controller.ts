@@ -11,6 +11,7 @@ import { ClinicIdParamDto } from '../common/request-dto';
 import { StaffInviteService } from './staff-invite.service';
 import { ClinicStaffInviteParamsDto, CreateStaffInviteDto } from './dto/staff-invite.dto';
 import { Track } from '../telemetry/track.decorator';
+import { Idempotent } from '../idempotency/idempotent.decorator';
 
 type InviteRequest = { user: ReqUserWithRoles; headers?: { 'x-request-id'?: string } };
 
@@ -34,6 +35,7 @@ export class ClinicStaffInvitesController {
   }
 
   @Post()
+  @Idempotent()
   @Track('staff.invite.create')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.CLINIC_STAFF_INVITE)
@@ -52,6 +54,7 @@ export class ClinicStaffInvitesController {
   }
 
   @Post(':inviteId/resend')
+  @Idempotent()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.CLINIC_STAFF_INVITE)
   @RateLimit({ key: 'staff_invite_resend', limit: 5, windowSeconds: 600, scope: 'user' })
@@ -69,6 +72,18 @@ export class ClinicStaffInvitesController {
   @RequirePermission(PERMISSIONS.CLINIC_STAFF_INVITE)
   async cancel(@Param() params: ClinicStaffInviteParamsDto, @Request() req: InviteRequest) {
     return this.staffInviteService.cancel(
+      this.actor(req),
+      params.clinicId,
+      params.inviteId,
+      req.headers?.['x-request-id'] ?? randomUUID(),
+    );
+  }
+
+  @Post(':inviteId/remove')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.CLINIC_STAFF_INVITE)
+  async remove(@Param() params: ClinicStaffInviteParamsDto, @Request() req: InviteRequest) {
+    return this.staffInviteService.remove(
       this.actor(req),
       params.clinicId,
       params.inviteId,

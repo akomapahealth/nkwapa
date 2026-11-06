@@ -56,7 +56,7 @@ async function openInvitations(page) {
   await page.goto('/admin/users');
   const card = page.getByRole('heading', { name: 'Staff invitations' });
   await expect(card).toBeVisible({ timeout: 30_000 });
-  return page.getByRole('list', { name: 'Staff invitations' });
+  return page.getByRole('table', { name: 'Staff invitations' });
 }
 
 async function sendInvitation(page, email, name) {
@@ -119,7 +119,7 @@ test('a director-level admin invites a volunteer, and an account is created', as
   const list = await openInvitations(page);
   await sendInvitation(page, INVITE_EMAIL);
 
-  const row = list.getByRole('listitem').filter({ hasText: INVITE_EMAIL });
+  const row = list.getByRole('row').filter({ hasText: INVITE_EMAIL });
   await expect(row.getByText('Waiting to be accepted')).toBeVisible();
   // Identity and delivery are separate facts, as on the patient chart.
   await expect(row.getByText('Account created')).toBeVisible({ timeout: 30_000 });
@@ -274,7 +274,7 @@ test('an invitation that carries a name goes straight in', async ({ page, browse
 
 test('the admin sees the invitation as accepted, not gone', async ({ page }) => {
   const list = await openInvitations(page);
-  const row = list.getByRole('listitem').filter({ hasText: INVITE_EMAIL });
+  const row = list.getByRole('row').filter({ hasText: INVITE_EMAIL });
   await expect(row.getByText('Accepted', { exact: true })).toBeVisible({ timeout: 30_000 });
 });
 
@@ -282,10 +282,38 @@ test('a cancelled invitation stays visible and stops granting anything', async (
   const list = await openInvitations(page);
   await sendInvitation(page, CANCELLED_EMAIL);
 
-  const row = list.getByRole('listitem').filter({ hasText: CANCELLED_EMAIL });
+  const row = list.getByRole('row').filter({ hasText: CANCELLED_EMAIL });
+  // Cancelling is committed after the Undo window; removal needs it to have landed.
+  const cancelled = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'DELETE' &&
+      /\/staff-invites\/[^/]+$/.test(response.url()) &&
+      response.ok(),
+    { timeout: 30_000 },
+  );
   await row.getByRole('button', { name: `Cancel invitation to ${CANCELLED_EMAIL}` }).click();
   await expect(row.getByText('Cancelled', { exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(row.getByRole('button', { name: /resend/i })).toHaveCount(0);
+
+  await cancelled;
+
+  // Under its own filter, and removable from the list once it will not be resent.
+  await page.getByRole('button', { name: /^Cancelled \d+$/ }).click();
+  await expect(row).toBeVisible();
+  const removed = page.waitForResponse(
+    (response) => /\/staff-invites\/[^/]+\/remove$/.test(response.url()) && response.ok(),
+    { timeout: 30_000 },
+  );
+  await row
+    .getByRole('button', { name: `Remove invitation to ${CANCELLED_EMAIL} from the list` })
+    .click();
+  await expect(row).toHaveCount(0);
+  await removed;
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Staff invitations' })).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(list.getByRole('row').filter({ hasText: CANCELLED_EMAIL })).toHaveCount(0);
 
   await clearMailpitInbox(CANCELLED_EMAIL);
 });

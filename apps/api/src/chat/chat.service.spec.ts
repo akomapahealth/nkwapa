@@ -120,3 +120,54 @@ describe('ChatService.listClinicChatUsers', () => {
     expect(result.map((entry) => entry.id)).toEqual(['user-2']);
   });
 });
+
+describe('ChatService background push (#250)', () => {
+  const savedKey = process.env.CHAT_ENCRYPTION_KEY;
+  beforeAll(() => {
+    process.env.CHAT_ENCRYPTION_KEY = '22'.repeat(32);
+  });
+  afterAll(() => {
+    if (savedKey === undefined) delete process.env.CHAT_ENCRYPTION_KEY;
+    else process.env.CHAT_ENCRYPTION_KEY = savedKey;
+  });
+
+  it('pushes who wrote to the other active members, never what they wrote', async () => {
+    const tx = {
+      message: {
+        create: jest.fn().mockResolvedValue({
+          id: 'm1',
+          content: 'sealed',
+          sender: { id: 'u1', displayName: 'Ama Owusu', firstName: null, lastName: null },
+        }),
+      },
+      conversation: { update: jest.fn() },
+    };
+    const prisma = {
+      conversationParticipant: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'p1' }),
+        findMany: jest.fn().mockResolvedValue([{ userId: 'u2' }, { userId: 'u3' }]),
+      },
+      $transaction: jest.fn((callback) => callback(tx)),
+    };
+    const push = { enabled: true, notify: jest.fn() };
+    const service = new ChatService(
+      prisma as never,
+      { logWrite: jest.fn() } as never,
+      push as never,
+    );
+
+    await service.sendMessage('c1', 'u1', 'clinic-a', 'BP 180/110 for Kofi Mensah', 'r1');
+
+    expect(prisma.conversationParticipant.findMany).toHaveBeenCalledWith({
+      where: { conversationId: 'c1', isActive: true, userId: { not: 'u1' } },
+      select: { userId: true },
+    });
+    expect(push.notify).toHaveBeenCalledWith(['u2', 'u3'], {
+      title: 'New message from Ama Owusu',
+      body: 'Open Nkwapa to read it.',
+      url: '/dashboard?chat=c1',
+      tag: 'chat-c1',
+    });
+    expect(JSON.stringify(push.notify.mock.calls)).not.toContain('Kofi');
+  });
+});

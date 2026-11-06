@@ -31,6 +31,9 @@ import {
   type VitalsFormValues,
 } from '@/lib/clinical-measurements';
 import type { VitalsSection } from '@nkwapa/db/clinical-measurements';
+import { formatHeight, formatWeight, type BodyMeasureUnit } from '@nkwapa/db/measurement-units';
+import { useClinicUnits } from '@/lib/bootstrap-context';
+import { cmToHeightEntry, kgToWeightText, weightUnitLabel } from '@/lib/measurement-entry';
 import { cn } from '@/lib/utils';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { isFullySynced } from '@/lib/sync';
@@ -76,7 +79,11 @@ function displayValue(value?: string | number | null, suffix = '') {
     : `${LABELS[String(value)] ?? value}${suffix}`;
 }
 
-function initialVitals(data?: VitalsRecord | null): VitalsFormValues {
+function initialVitals(
+  data: VitalsRecord | null | undefined,
+  bodyUnit: BodyMeasureUnit,
+): VitalsFormValues {
+  const height = cmToHeightEntry(data?.heightCm);
   return {
     systolicBp: String(data?.systolicBp ?? ''),
     diastolicBp: String(data?.diastolicBp ?? ''),
@@ -93,11 +100,18 @@ function initialVitals(data?: VitalsRecord | null): VitalsFormValues {
     temperatureSourceOther: data?.temperatureSourceOther ?? '',
     respiratoryRate: String(data?.respiratoryRate ?? ''),
     spo2Percent: String(data?.spo2Percent ?? ''),
-    weightKg: String(data?.weightKg ?? ''),
-    heightCm: String(data?.heightCm ?? ''),
+    weight: kgToWeightText(data?.weightKg, bodyUnit),
+    height: height.cm,
+    heightFeet: height.feet,
+    heightInches: height.inches,
+    bodyUnit,
+    stored: { weightKg: data?.weightKg ?? null, heightCm: data?.heightCm ?? null },
     notes: data?.notes ?? '',
   };
 }
+
+/** The form fields that hold typed text. */
+type VitalsTextField = Exclude<keyof VitalsFormValues, 'temperatureUnit' | 'bodyUnit' | 'stored'>;
 
 function initialTobacco(data?: TobaccoScreeningRecord | null): TobaccoFormValues {
   return {
@@ -204,6 +218,7 @@ function ReadOnlyMeasurements({
   vitals?: VitalsRecord | null;
   tobacco?: TobaccoScreeningRecord | null;
 }) {
+  const { bodyUnit } = useClinicUnits();
   const groups = [
     {
       title: 'Blood Pressure',
@@ -238,8 +253,8 @@ function ReadOnlyMeasurements({
       title: 'Anthropometrics',
       icon: Ruler,
       rows: [
-        ['Weight', displayValue(vitals?.weightKg, ' kg')],
-        ['Height', displayValue(vitals?.heightCm, ' cm')],
+        ['Weight', formatWeight(vitals?.weightKg, bodyUnit) ?? 'Not recorded'],
+        ['Height', formatHeight(vitals?.heightCm, bodyUnit) ?? 'Not recorded'],
         ['BMI', displayValue(vitals?.bmi)],
       ],
     },
@@ -310,8 +325,8 @@ const MEASUREMENT_FIELD_ORDER = [
   'respiratoryRate',
   'spo2',
   'temperature',
-  'weightKg',
-  'heightCm',
+  'weight',
+  'height',
   'notes',
 ];
 
@@ -329,7 +344,8 @@ export function VitalsForm({
   const shows = (section: VitalsSection) => !sections || sections.includes(section);
   const vitalsId = useRef(initialData?.id ?? generateClinicalId());
   const tobaccoScreeningId = useRef(initialTobaccoData?.id ?? generateClinicalId());
-  const [vitals, setVitals] = useState(() => initialVitals(initialData));
+  const { bodyUnit } = useClinicUnits(clinicId);
+  const [vitals, setVitals] = useState(() => initialVitals(initialData, bodyUnit));
   const [tobacco, setTobacco] = useState(() => initialTobacco(initialTobaccoData));
   const [localVitals, setLocalVitals] = useState<VitalsRecord | null>(initialData ?? null);
   const [localTobacco, setLocalTobacco] = useState<TobaccoScreeningRecord | null>(
@@ -345,8 +361,8 @@ export function VitalsForm({
   useEffect(() => {
     if (!initialData || initialData.updatedAt === localVitals?.updatedAt) return;
     setLocalVitals(initialData);
-    setVitals(initialVitals(initialData));
-  }, [initialData, localVitals?.updatedAt]);
+    setVitals(initialVitals(initialData, bodyUnit));
+  }, [initialData, localVitals?.updatedAt, bodyUnit]);
 
   useEffect(() => {
     if (!initialTobaccoData || initialTobaccoData.updatedAt === localTobacco?.updatedAt) return;
@@ -354,11 +370,13 @@ export function VitalsForm({
     setTobacco(initialTobacco(initialTobaccoData));
   }, [initialTobaccoData, localTobacco?.updatedAt]);
 
-  const updateVital = (field: keyof VitalsFormValues, value: string) => {
+  const updateVital = (field: VitalsTextField, value: string) => {
     setVitals((current) => ({ ...current, [field]: value }));
     setErrors((current) => {
       const next = { ...current };
       delete next[field];
+      // Feet and inches share one error, keyed by what they make up.
+      if (field === 'heightFeet' || field === 'heightInches') delete next.height;
       return next;
     });
     setStatus(null);
@@ -460,7 +478,7 @@ export function VitalsForm({
   if (!canEdit) return <ReadOnlyMeasurements vitals={initialData} tobacco={initialTobaccoData} />;
 
   const numberField = (
-    id: keyof VitalsFormValues,
+    id: VitalsTextField,
     label: string,
     options?: { step?: string; placeholder?: string },
   ) => (
@@ -709,8 +727,42 @@ export function VitalsForm({
               description="BMI is derived from canonical weight and height."
             />
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {numberField('weightKg', 'Weight (kg)', { step: '0.1', placeholder: '70' })}
-              {numberField('heightCm', 'Height (cm)', { step: '0.1', placeholder: '170' })}
+              {numberField('weight', `Weight (${weightUnitLabel(vitals.bodyUnit)})`, {
+                step: '0.1',
+                placeholder: vitals.bodyUnit === 'US' ? '154' : '70',
+              })}
+              {vitals.bodyUnit === 'US' ? (
+                <fieldset className="space-y-2">
+                  <legend className="text-sm font-medium leading-none">Height (ft and in)</legend>
+                  <div className="flex gap-2">
+                    <Input
+                      id="height"
+                      aria-label="Height, feet"
+                      type="number"
+                      inputMode="numeric"
+                      placeholder="5"
+                      value={vitals.heightFeet}
+                      onChange={(event) => updateVital('heightFeet', event.target.value)}
+                      className="h-11 min-w-0"
+                      {...fieldErrorProps('height', errors.height)}
+                    />
+                    <Input
+                      aria-label="Height, inches"
+                      type="number"
+                      inputMode="decimal"
+                      step="0.1"
+                      placeholder="7"
+                      value={vitals.heightInches}
+                      onChange={(event) => updateVital('heightInches', event.target.value)}
+                      className="h-11 min-w-0"
+                      aria-invalid={Boolean(errors.height)}
+                    />
+                  </div>
+                  <FieldError id="height" message={errors.height} />
+                </fieldset>
+              ) : (
+                numberField('height', 'Height (cm)', { step: '0.1', placeholder: '170' })
+              )}
               <div className="space-y-2">
                 <Label>BMI (kg/m²)</Label>
                 <div

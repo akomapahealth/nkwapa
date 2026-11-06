@@ -861,6 +861,24 @@ enum HypertensionEscalationReason {
   HYPOTENSION
 }
 
+/// Glucose entry and display unit. Stored glucose is always whole mg/dL.
+enum GlucoseUnit {
+  MG_DL
+  MMOL_L
+}
+
+/// Weight and height entry and display units: kg and cm, or lb and feet and inches.
+enum BodyMeasureUnit {
+  METRIC
+  US
+}
+
+/// HbA1c entry and display unit: NGSP % (stored) or IFCC mmol/mol.
+enum Hba1cUnit {
+  PERCENT
+  MMOL_MOL
+}
+
 model Organization {
   id       String @id @default(uuid()) @db.Uuid
   name     String
@@ -880,6 +898,11 @@ model Clinic {
   region         String?
   countryCode    String  @default("GH") @db.VarChar(2) // ISO-3166 alpha-2, v1 default GH
   timezone       String  @default("Africa/Accra") @db.VarChar(64)
+  /// Units staff type and read screening values in. Storage is always mg/dL, kg, cm and %;
+  /// see packages/db/src/measurement-units.ts. Defaults follow countryCode when a clinic is made.
+  glucoseUnit    GlucoseUnit     @default(MMOL_L)
+  bodyUnit       BodyMeasureUnit @default(METRIC)
+  hba1cUnit      Hba1cUnit       @default(PERCENT)
   locationCode   String  @db.VarChar(64)
   zoneCode       String? @db.VarChar(64)
   isActive       Boolean @default(true)
@@ -899,6 +922,7 @@ model Clinic {
   researchExportSchedules   ResearchExportSchedule[]
   auditEvents               AuditEvent[]
   syncMutations             SyncMutation[]
+  idempotencyRecords        IdempotencyRecord[]
   vitals                    Vitals[]
   tobaccoScreenings         TobaccoScreening[]
   diabetesScreening         DiabetesScreening[]
@@ -1022,6 +1046,9 @@ model User {
   eyeScreenings                   EyeScreening[]                  @relation("EyeScreeningAuthor")
   doctorAppointments              Appointment[]                   @relation("AppointmentAssignedDoctor")
   volunteerAppointments           Appointment[]                   @relation("AppointmentAssignedVolunteer")
+  cancelledAppointments           Appointment[]                   @relation("AppointmentCancelledBy")
+  idempotencyRecords              IdempotencyRecord[]
+  pushSubscriptions               PushSubscription[]
   createdPatientPortalInvites     PatientPortalInvite[]           @relation("PatientPortalInviteCreatedBy")
   claimedPatientPortalInvites     PatientPortalInvite[]           @relation("PatientPortalInviteClaimedBy")
   createdStaffInvites             StaffInvite[]                   @relation("StaffInviteCreatedBy")
@@ -2047,19 +2074,21 @@ model PatientAccountLink {
 }
 
 model PatientPortalInvite {
-  id              String                    @id @default(uuid()) @db.Uuid
-  patientId       String                    @db.Uuid
-  clinicId        String                    @db.Uuid
-  status          PatientPortalInviteStatus @default(PENDING)
-  email           String?                   @db.VarChar(320)
-  phoneE164       String?                   @db.VarChar(32)
-  createdByUserId String                    @db.Uuid
-  claimedByUserId String?                   @db.Uuid
-  claimedAt       DateTime?
-  cancelledAt     DateTime?
-  expiresAt       DateTime?
-  createdAt       DateTime                  @default(now())
-  updatedAt       DateTime                  @updatedAt
+  id                 String                    @id @default(uuid()) @db.Uuid
+  patientId          String                    @db.Uuid
+  clinicId           String                    @db.Uuid
+  status             PatientPortalInviteStatus @default(PENDING)
+  email              String?                   @db.VarChar(320)
+  phoneE164          String?                   @db.VarChar(32)
+  createdByUserId    String                    @db.Uuid
+  claimedByUserId    String?                   @db.Uuid
+  claimedAt          DateTime?
+  cancelledAt        DateTime?
+  expiresAt          DateTime?
+  /// When the invitee last asked, signed in, for a new invitation (#307). Staff resend.
+  renewalRequestedAt DateTime?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
 
   // Identity provisioning, recorded so the chart can answer "can this patient actually act
   // on the email we sent?" on every page load rather than only in the response to the
@@ -2095,25 +2124,29 @@ model PatientPortalInvite {
 /// controls that difference demands (a role ceiling, a short expiry, refusing shared inboxes)
 /// live in apps/api/src/common/staff-invite-lifecycle.ts.
 model StaffInvite {
-  id                String            @id @default(uuid()) @db.Uuid
-  clinicId          String            @db.Uuid
+  id                 String            @id @default(uuid()) @db.Uuid
+  clinicId           String            @db.Uuid
   /// Stored lower-cased. Matched against User.email, which only holds a verified address.
-  email             String            @db.VarChar(320)
-  role              UserRole
+  email              String            @db.VarChar(320)
+  role               UserRole
   /// Optional names the inviter knew; copied to the account on accept and sent to Keycloak.
-  firstName         String?           @db.VarChar(120)
-  lastName          String?           @db.VarChar(120)
-  middleInitial     String?           @db.VarChar(1)
-  status            StaffInviteStatus @default(PENDING)
-  createdByUserId   String            @db.Uuid
-  acceptedByUserId  String?           @db.Uuid
-  acceptedAt        DateTime?
-  cancelledByUserId String?           @db.Uuid
-  cancelledAt       DateTime?
+  firstName          String?           @db.VarChar(120)
+  lastName           String?           @db.VarChar(120)
+  middleInitial      String?           @db.VarChar(1)
+  status             StaffInviteStatus @default(PENDING)
+  createdByUserId    String            @db.Uuid
+  acceptedByUserId   String?           @db.Uuid
+  acceptedAt         DateTime?
+  cancelledByUserId  String?           @db.Uuid
+  cancelledAt        DateTime?
   /// Never null: unlike the patient invite, this table has no rows from before expiry existed.
-  expiresAt         DateTime
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  expiresAt          DateTime
+  /// When the invitee last asked, signed in, for a new invitation (#307). Staff resend.
+  renewalRequestedAt DateTime?
+  /// When a director took this closed invitation out of the admin list. The audit row says who.
+  removedAt          DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
   // Identity provisioning, the same shape PatientPortalInvite records, so the admin view can
   // say whether the invitee can act on the email rather than only whether it was sent.
@@ -2366,11 +2399,16 @@ model Appointment {
   assignedDoctorId    String?           @db.Uuid
   assignedVolunteerId String?           @db.Uuid
   notes               String?           @db.Text
+  /// Set by the cancel transition (#307). Backfilled from APPT.CANCEL audit events.
+  cancelledAt         DateTime?
+  cancelledByUserId   String?           @db.Uuid
+  cancelReason        String?           @db.Text
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 
   clinic            Clinic               @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   patient           Patient              @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  cancelledBy       User?                @relation("AppointmentCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
   linkedRequest     AppointmentRequest?  @relation("AppointmentLinkedRequest", fields: [linkedRequestId], references: [id], onDelete: SetNull)
   changeRequests    AppointmentRequest[] @relation("AppointmentSourceChangeRequest")
   assignedDoctor    User?                @relation("AppointmentAssignedDoctor", fields: [assignedDoctorId], references: [id], onDelete: SetNull)
@@ -2767,6 +2805,51 @@ model SyncMutation {
   @@unique([clinicId, idempotencyKey])
   @@index([clinicId])
   @@index([clinicId, createdAt, id])
+}
+
+/// A stored response for an online write that carried an Idempotency-Key (#307).
+///
+/// Written in the same transaction as the write it describes, so a key exists exactly when its
+/// write committed. A repeat replays the stored response; a repeat with another body is refused.
+/// Kept 24 hours, then purged by IdempotencyRetentionSweep.
+model IdempotencyRecord {
+  id             String   @id @default(uuid()) @db.Uuid
+  clinicId       String   @db.Uuid
+  userId         String   @db.Uuid
+  key            String   @db.VarChar(128)
+  method         String   @db.VarChar(10)
+  path           String   @db.VarChar(512)
+  /// SHA-256 of the request body, hex.
+  requestHash    String   @db.VarChar(64)
+  responseStatus Int
+  responseBody   Json?
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([expiresAt])
+}
+
+/// A browser's Web Push subscription (#250), so a notification reaches a device while Nkwapa is
+/// closed. Owned by one user and no clinic: the endpoint is per browser profile, whichever clinic
+/// is active. The endpoint is the push service URL the browser handed out, unique across users.
+model PushSubscription {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  endpoint   String    @unique @db.VarChar(1024)
+  /// The browser's P-256 public key and auth secret, base64url, as PushSubscription.toJSON() gives.
+  p256dh     String    @db.VarChar(256)
+  auth       String    @db.VarChar(64)
+  userAgent  String?   @db.VarChar(512)
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Conversation {

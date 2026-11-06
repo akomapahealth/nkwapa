@@ -27,6 +27,7 @@ import {
   ReassignAssignmentDto,
   ShiftCheckInDto,
 } from './dto/ops.dto';
+import { Idempotent } from '../idempotency/idempotent.decorator';
 
 @Controller('clinics/:clinicId')
 @UseGuards(JwtAuthGuard, ClinicScopeGuard, RbacGuard)
@@ -34,6 +35,7 @@ export class OpsController {
   constructor(private readonly opsService: OpsService) {}
 
   @Post('shifts/check-in')
+  @Idempotent()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.OPS_SHIFT_WRITE)
   async checkIn(
@@ -75,6 +77,7 @@ export class OpsController {
   }
 
   @Post('checkins')
+  @Idempotent()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.OPS_CHECKIN_CREATE)
   async createCheckIn(
@@ -99,6 +102,7 @@ export class OpsController {
   }
 
   @Post('assignments')
+  @Idempotent()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.OPS_ASSIGNMENT_MANAGE)
   async createAssignment(
@@ -162,6 +166,7 @@ export class OpsController {
   }
 
   @Post('checkins/:checkinId/start-intake')
+  @Idempotent()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.ENCOUNTER_CREATE)
   async startIntake(
