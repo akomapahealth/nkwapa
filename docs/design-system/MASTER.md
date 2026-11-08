@@ -599,8 +599,37 @@ its default heading is `h2`, with `titleAs="h3"` for nested sections.
 
 `DataTable` retains its sorting, pagination, filtering, server/client modes and
 mobile renderer. Its optional `toolbar` slot holds caller-owned filters; it does
-not fetch or change filter state. The table has a strong top rule, tabular data,
-a quiet header and 44px sorting controls.
+not fetch or change filter state. R1.6 replaces the strong top rule with 1px
+`--border` edges and quiet row dividers, a `--card` body, sticky `--surface-2`
+headers, and `--surface-2` hover/focus-within rows. Numeric data remains tabular;
+column metadata retains right alignment and cell classes. Sorting controls remain
+44px; cells retain their 44px desktop / 52px coarse-pointer floors.
+
+`renderMobileRow(row.original)` is the existing card slot. Its presence makes the
+root an inline-size container: below **60rem available width** it shows cards;
+from 60rem it shows the table. This is a local content threshold, independent of
+viewport width or shell mode. Patient contact/identifier columns and two record
+actions need more space than the pilot's reduced phone table; 60rem reserves that
+space without changing the rendering API. Both current consumers, patient registry
+and staff invitations, inherit it. Cards include a wrapping "Sort by" fieldset
+using the same headers and sorting handlers, with accessible direction text.
+Caller filters and shared pagination remain outside the presentation switch.
+
+There is one TanStack row model and one sort/filter/page state in client and
+controlled-server modes. CSS changes visibility without mounting a new table,
+resetting state or requesting data. Inactive presentations use `display: none`,
+removing their controls from the accessibility tree. Renderers retain ownership
+of record content and actions; `onRowClick`, when used, also supports Enter in
+cards and must not be combined with nested actions. Row IDs identify both
+presentations. Refresh feedback sits above either presentation, out of flow;
+empty cards and tables share the supplied empty state or "Nothing to show."
+fallback. No row arrival animation is added.
+
+Without a card renderer, the table always retains its named keyboard-focusable
+horizontal/vertical scroll area, caption, sticky header and `aria-sort`. Browsers
+without container queries also retain that complete scrollable table. Existing
+`hideOnMobile` column metadata continues to mean the viewport `md` breakpoint;
+this unit does not change independent responsive layouts in other routes.
 
 `StatusLabel` is the shared badge for system states. `statusLabel` in
 `lib/status-presentation.ts` owns plain-language labels, reuses the hypertension

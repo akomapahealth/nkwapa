@@ -88,7 +88,7 @@ export type DataTableColumn<TData extends RowData> = ColumnDef<DataTableFeatures
  *  - Client: hand it every row. It sorts, filters (`globalFilter`) and pages them itself.
  *  - Server: pass `rowCount` with controlled `sorting` / `pagination`. It asks; you fetch.
  *
- * Below `md` the table becomes `renderMobileRow` cards when given one: a twelve-column grid does
+ * Below 60rem of available container width, `renderMobileRow` supplies cards: a twelve-column grid does
  * not read on a phone, and every screen used to hand-roll that list beside its grid.
  */
 export function DataTable<TData extends RowData>({
@@ -190,24 +190,17 @@ export function DataTable<TData extends RowData>({
   const last = Math.min(total, (pagination.pageIndex + 1) * pagination.pageSize);
 
   return (
-    <div className={cn('min-w-0 max-w-full space-y-3', className)}>
+    <div
+      className={cn(
+        'min-w-0 max-w-full space-y-3',
+        renderMobileRow && 'data-table-adaptive',
+        className,
+      )}
+    >
       {toolbar ? (
         <div className="flex flex-wrap items-end justify-between gap-3">{toolbar}</div>
       ) : null}
-      {renderMobileRow ? (
-        <div className="space-y-3 md:hidden">
-          {rows.length === 0
-            ? emptyState
-            : rows.map((row) => <div key={row.id}>{renderMobileRow(row.original)}</div>)}
-        </div>
-      ) : null}
-
-      <div
-        className={cn(
-          'relative min-w-0 max-w-full overflow-hidden border-t-2 border-rule-strong',
-          renderMobileRow && 'hidden md:block',
-        )}
-      >
+      <div className="relative min-w-0 max-w-full">
         {/* Out of flow, so a refresh cannot move the rows beneath it (MASTER.md section 11). */}
         <div
           aria-hidden="true"
@@ -218,73 +211,36 @@ export function DataTable<TData extends RowData>({
         >
           <div className="h-full w-1/4 animate-refresh-sweep bg-primary" />
         </div>
-        <div
-          className={cn(
-            'overflow-auto',
-            keyboardScroll &&
-              'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
-          )}
-          style={{ maxHeight }}
-          tabIndex={keyboardScroll ? 0 : undefined}
-          role="region"
-          aria-label={caption}
-        >
-          <table className="type-data w-full caption-bottom border-collapse">
-            <caption className="sr-only">{caption}</caption>
-            <thead className="sticky top-0 z-10 bg-muted">
-              {table.getHeaderGroups().map((group) => (
-                <tr key={group.id} className="border-b border-rule">
-                  {group.headers.map((header) => {
-                    const meta = header.column.columnDef.meta;
-                    const sorted = header.column.getIsSorted();
-                    return (
-                      <th
-                        key={header.id}
-                        scope="col"
-                        aria-sort={
-                          sorted === 'asc'
-                            ? 'ascending'
-                            : sorted === 'desc'
-                              ? 'descending'
-                              : header.column.getCanSort()
-                                ? 'none'
-                                : undefined
-                        }
-                        className={cn(
-                          'type-label h-11 whitespace-nowrap px-3 text-left align-middle text-foreground',
-                          meta?.align === 'right' && 'text-right',
-                          meta?.hideOnMobile && 'hidden md:table-cell',
-                          meta?.className,
-                        )}
-                      >
-                        {header.isPlaceholder ? null : header.column.getCanSort() ? (
-                          <SortButton column={header.column} align={meta?.align}>
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                          </SortButton>
-                        ) : (
-                          flexRender(header.column.columnDef.header, header.getContext())
-                        )}
-                      </th>
-                    );
-                  })}
-                </tr>
-              ))}
-            </thead>
-            <tbody>
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={table.getAllLeafColumns().length} className="p-0">
-                    {emptyState ?? (
-                      <p className="px-4 py-10 text-center text-sm text-muted-foreground">
-                        Nothing to show.
-                      </p>
-                    )}
-                  </td>
-                </tr>
-              ) : (
-                rows.map((row) => (
-                  <tr
+        {renderMobileRow ? (
+          <section className="data-table-cards flex flex-col gap-3" aria-label={caption}>
+            {table
+              .getHeaderGroups()
+              .some((group) => group.headers.some((header) => header.column.getCanSort())) ? (
+              <fieldset className="min-w-0 border-b border-border pb-2">
+                <legend className="type-label text-muted-foreground">Sort by</legend>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 px-2">
+                  {table.getHeaderGroups().flatMap((group) =>
+                    group.headers
+                      .filter((header) => !header.isPlaceholder && header.column.getCanSort())
+                      .map((header) => (
+                        <SortButton key={header.id} column={header.column} announceDirection>
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                        </SortButton>
+                      )),
+                  )}
+                </div>
+              </fieldset>
+            ) : null}
+            {rows.length === 0
+              ? (emptyState ?? (
+                  <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+                    Nothing to show.
+                  </p>
+                ))
+              : rows.map((row) => (
+                  <div
                     key={row.id}
+                    data-row-id={row.id}
                     tabIndex={onRowClick ? 0 : undefined}
                     onClick={onRowClick ? () => onRowClick(row.original) : undefined}
                     onKeyDown={
@@ -295,35 +251,124 @@ export function DataTable<TData extends RowData>({
                         : undefined
                     }
                     className={cn(
-                      'border-b border-rule transition-colors duration-fast last:border-b-0 hover:bg-muted/50',
                       onRowClick &&
-                        'cursor-pointer focus-visible:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+                        'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
                     )}
                   >
-                    {row.getAllCells().map((cell) => {
-                      const meta = cell.column.columnDef.meta;
+                    {renderMobileRow(row.original)}
+                  </div>
+                ))}
+          </section>
+        ) : null}
+        <div className={cn('border-y border-border bg-card', renderMobileRow && 'data-table-grid')}>
+          <div
+            className={cn(
+              'overflow-auto',
+              keyboardScroll &&
+                'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
+            )}
+            style={{ maxHeight }}
+            tabIndex={keyboardScroll ? 0 : undefined}
+            role="region"
+            aria-label={caption}
+          >
+            <table className="type-data w-full caption-bottom border-collapse">
+              <caption className="sr-only">{caption}</caption>
+              <thead className="sticky top-0 z-10 bg-surface-2">
+                {table.getHeaderGroups().map((group) => (
+                  <tr key={group.id} className="border-b border-border">
+                    {group.headers.map((header) => {
+                      const meta = header.column.columnDef.meta;
+                      const sorted = header.column.getIsSorted();
                       return (
-                        <td
-                          key={cell.id}
+                        <th
+                          key={header.id}
+                          scope="col"
+                          aria-sort={
+                            sorted === 'asc'
+                              ? 'ascending'
+                              : sorted === 'desc'
+                                ? 'descending'
+                                : header.column.getCanSort()
+                                  ? 'none'
+                                  : undefined
+                          }
                           className={cn(
-                            // One line per cell by default: a date or a code broken over two lines is
-                            // misread. Long prose opts back in with `whitespace-normal`; the
-                            // table scrolls sideways inside its own container rather than wrap.
-                            'h-11 whitespace-nowrap px-3 py-1.5 align-middle text-foreground [@media(pointer:coarse)]:h-[52px]',
+                            'type-label h-11 whitespace-nowrap px-3 text-left align-middle text-foreground',
                             meta?.align === 'right' && 'text-right',
                             meta?.hideOnMobile && 'hidden md:table-cell',
                             meta?.className,
                           )}
                         >
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </td>
+                          {header.isPlaceholder ? null : header.column.getCanSort() ? (
+                            <SortButton column={header.column} align={meta?.align}>
+                              {flexRender(header.column.columnDef.header, header.getContext())}
+                            </SortButton>
+                          ) : (
+                            flexRender(header.column.columnDef.header, header.getContext())
+                          )}
+                        </th>
                       );
                     })}
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ))}
+              </thead>
+              <tbody>
+                {rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={table.getAllLeafColumns().length} className="p-0">
+                      {emptyState ?? (
+                        <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+                          Nothing to show.
+                        </p>
+                      )}
+                    </td>
+                  </tr>
+                ) : (
+                  rows.map((row) => (
+                    <tr
+                      key={row.id}
+                      data-row-id={row.id}
+                      tabIndex={onRowClick ? 0 : undefined}
+                      onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                      onKeyDown={
+                        onRowClick
+                          ? (event) => {
+                              if (event.key === 'Enter') onRowClick(row.original);
+                            }
+                          : undefined
+                      }
+                      className={cn(
+                        'border-b border-border transition-colors duration-fast last:border-b-0 hover:bg-surface-2 focus-within:bg-surface-2',
+                        onRowClick &&
+                          'cursor-pointer focus-visible:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+                      )}
+                    >
+                      {row.getAllCells().map((cell) => {
+                        const meta = cell.column.columnDef.meta;
+                        return (
+                          <td
+                            key={cell.id}
+                            className={cn(
+                              // One line per cell by default: a date or a code broken over two lines is
+                              // misread. Long prose opts back in with `whitespace-normal`; the
+                              // table scrolls sideways inside its own container rather than wrap.
+                              'h-11 whitespace-nowrap px-3 py-1.5 align-middle text-foreground [@media(pointer:coarse)]:h-[52px]',
+                              meta?.align === 'right' && 'text-right',
+                              meta?.hideOnMobile && 'hidden md:table-cell',
+                              meta?.className,
+                            )}
+                          >
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -387,9 +432,11 @@ function SortButton<TData extends RowData>({
   column,
   align,
   children,
+  announceDirection = false,
 }: {
   column: Column<DataTableFeatures, TData, unknown>;
   align?: 'left' | 'right';
+  announceDirection?: boolean;
   children: React.ReactNode;
 }) {
   const sorted = column.getIsSorted();
@@ -400,12 +447,17 @@ function SortButton<TData extends RowData>({
       onClick={column.getToggleSortingHandler()}
       className={cn(
         // The header cell is the target; the visible control stays compact.
-        '-mx-2 inline-flex h-11 min-w-11 items-center gap-1.5 rounded-md px-2 text-sm font-medium transition-colors duration-fast hover:bg-background/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        '-mx-2 inline-flex h-11 min-w-11 items-center gap-1.5 rounded-md px-2 text-sm font-medium transition-colors duration-fast hover:bg-selected focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         align === 'right' && 'flex-row-reverse',
         sorted ? 'text-primary' : 'text-foreground',
       )}
     >
       {children}
+      {announceDirection ? (
+        <span className="sr-only">
+          {sorted === 'asc' ? ', ascending' : sorted === 'desc' ? ', descending' : ', unsorted'}
+        </span>
+      ) : null}
       <Icon
         aria-hidden="true"
         className={cn('h-3.5 w-3.5 shrink-0', sorted ? 'opacity-100' : 'opacity-40')}

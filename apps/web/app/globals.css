@@ -565,3 +565,32 @@ html:has([data-landing]) {
 .anchored-tooltip[data-state='instant-open'] {
   transition-duration: 0s !important;
 }
+
+/* DataTable: one row model, with presentation determined by its available width.
+   60rem accommodates patient identifiers, contact data and two 44px actions.
+   Without container-query support the complete scrollable table remains available. */
+@supports (container-type: inline-size) {
+  .data-table-adaptive {
+    container: data-table / inline-size;
+  }
+
+  .data-table-adaptive .data-table-grid {
+    display: none;
+  }
+
+  @container data-table (min-width: 60rem) {
+    .data-table-cards {
+      display: none;
+    }
+
+    .data-table-adaptive .data-table-grid {
+      display: block;
+    }
+  }
+}
+
+@supports not (container-type: inline-size) {
+  .data-table-cards {
+    display: none;
+  }
+}
