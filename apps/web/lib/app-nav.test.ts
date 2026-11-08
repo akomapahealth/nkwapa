@@ -125,3 +125,20 @@ describe('the account menu icons (#318)', () => {
     expect(clinicSettings?.icon).not.toBe(Settings);
   });
 });
+
+describe('station navigation flags', () => {
+  const original = process.env.NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED;
+  afterEach(() => {
+    if (original === undefined) delete process.env.NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED;
+    else process.env.NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED = original;
+  });
+  it.each(['true', 'false'])('preserves independent destinations with station flag %s', (flag) => {
+    process.env.NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED = flag;
+    const worker = bootstrapAs(['VOLUNTEER'], ['OPS.STATION.WORK', 'OPS.ASSIGNMENT.READ_SELF']);
+    expect(hrefsFor(worker)).toEqual(
+      flag === 'true' ? ['/dashboard', '/stations'] : ['/dashboard', '/my/assigned'],
+    );
+    const director = bootstrapAs(['DIRECTOR'], ['OPS.CHECKIN.READ']);
+    expect(hrefsFor(director)).toEqual(['/dashboard', '/today']);
+  });
+});

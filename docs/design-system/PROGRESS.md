@@ -3,7 +3,7 @@
 **Direction:** Layered Clinical Workspace  
 **Base branch:** `release/dev`  
 **Program:** Frontend-only visual refinement  
-**Status:** R0 completed 2026-11-07. R1.1 through R1.6 built on `ui-refresh/r1-1-tokens` and in review. The open-overlay axe finding remains unresolved, including Rows per page in R1.6. Next: R2, adaptive app shell.
+**Status:** R0 completed 2026-11-07. R1.1 through R1.6 built on `ui-refresh/r1-1-tokens` and in review. The open-overlay axe finding remains unresolved, including Rows per page in R1.6. R2.1 sidebar/rail is built and in review. Next: R2.2 BottomNav + More.
 
 ## Phase Status
 
@@ -11,7 +11,7 @@
 | ----- | -------------------------------------- | ----------- |
 | R0    | Current UI audit and design pilot      | Completed   |
 | R1    | Design tokens and shared components    | In review   |
-| R2    | Desktop, tablet, and mobile app shells | Not started |
+| R2    | Desktop, tablet, and mobile app shells | In progress |
 | R3    | Volunteer and clinical workflows       | Not started |
 | R4    | Clinical review and oversight          | Not started |
 | R5    | Patient portal and authentication      | Not started |
@@ -262,7 +262,45 @@ Verify zoom, long content, virtual-keyboard behavior, and PWA installed display 
 **Before/after screenshots:** Baseline `ui-refresh/evidence/r1-5/after/` (the local staff registry baseline was inspected); after `ui-refresh/evidence/r1-6/after/`: **168 synthetic PNGs**, consisting of 114 route shots, 30 shared component/table shots and 24 actual-consumer shots. Beside `after/`: `route-audit.json`, `validation-summary.json` and filtered diagnostic logs. Consumer per-case open-Select axe JSON is under `after/consumers/`. All evidence remains local and git-ignored; nothing force-added.
 **Ranked review:** Full hierarchy, consistency, touch-target, focus, motion, accessibility, dark-mode and edge-case review in `ui-refresh/R1.6-REVIEW.md`. P0 none found. P1 open-overlay focus/background semantics deferred to the dedicated release review. P2 fixed: hidden card sorting, viewport-based adaptation, missing empty fallback and card refresh. P2 deferred: existing short menu rows, real-device/non-Chromium verification. P3 retained: R2 shell clearance and flag-aware expectations, earlier R1.4/crisis gaps. Skills used: Impeccable adapt/craft floor/context and detector, shadcn guidance; no independent reviewer or isolated-agent critique was run.
 **Outstanding problems:** The open Select findings above remain a release concern. No old-build comparison of those findings ran, so attribution to unchanged Radix modal semantics remains a strong inference from R1.5 investigation, not a new baseline comparison. Physical devices, Safari/Firefox and old-browser fallback execution remain unverified. Shell heading/navigation expectations need flag-aware R2 follow-up; no product heading/navigation was changed to satisfy them. Other HANDOFF-R1.6 exclusions remain unchanged.
-**Next unit:** R2, adaptive app shell, beginning with R2.1 sidebar/rail; use R0-AUDIT section 9 and NKWAPA-UI-REFRESH-MASTER sections 6 and 12. Preserve R1.5 overlay motion, this DataTable contract, and the open findings above.
+**Next unit:** R2, adaptive app shell, beginning with R2.1 sidebar/rail; use R0-AUDIT section 9 and NKWAPA-UI-REFRESH-MASTER sections 6 and 12. Preserve R1.5 overlay motion, this DataTable contract, and the open findings above. Clean-session instructions: `ui-refresh/HANDOFF-R2.1.md`.
+
+## 2026-11-08 — R2.1 sidebar and labelled tablet rail
+
+**Unit ID:** R2.1
+
+**Phase:** R2, adaptive app shell
+
+**Screen(s) or components:** Sidebar, AppNavList, AppLayout and necessary Header breakpoint integration
+
+**Branch/commit/PR:** `ui-refresh/r1-1-tokens`; local unit commit, no push or PR
+
+**Status:** In review, not an unconditional release/accessibility sign-off
+
+**Design changes:** Approved-pilot geometry: 232px expanded / 64px collapsed from 1200px; a distinct 76px labelled rail from 600 to 1199px. Earlier R0 prose says 248/88px and elsewhere 76px desktop collapse; those conflict with the shipped pilot and round-3 feedback. Use 232/76/64 as the implementation baseline, without inventing a new owner approval. Tablet labels use the pilot's 11.5px role in rem, wrapping real navigation names with 74px available and inset focus. Current state uses selected/primary tokens; inactive labels use muted ink and surface-2 hover. Native disabled clinic controls retain readable ink. Desktop defaults expanded; guarded storage preserves either preference through compact modes and reload. Header toggle and `[` work only from 1200px, with instant keyboard changes, guarded editable/modifier handling, 200ms interruptible pointer width motion and reduced-motion handling. Collapsed navigation uses the shared R1.5 Tooltip with a configured 300ms first hover delay. One card-token workspace sheet is inset 8px from 600px, with 12px corners and quiet borders; document/main scroll ownership and existing shell services remain. Staff Message delivery is exposed from 600px so the phone-trigger breakpoint cannot conceal it at 600–767px. Phone sheet remains below 600px and closes through its existing lifecycle when resizing into persistent navigation. Main bottom clearance is 6rem plus the safe area, narrowly covering a final action above chat. No R2.2 BottomNav or wider Header/Sheet/Portal redesign.
+
+**Files changed:** `apps/web/components/{Sidebar,AppLayout,Header}.tsx`, `components/app-shell/AppNavList.tsx`; `lib/app-nav.test.ts`; `e2e/{shell-navigation,responsive-migration}.spec.js`, new `e2e/{shell-responsive,shell-consumers}.spec.js`; `MASTER.md`, this tracker, `ui-refresh/R2.1-REVIEW.md`. The existing uncommitted R2.1 handoff and tracker link are preserved.
+
+**Desktop tested:** Fresh preference and stored true/false; 1199/1200 and 1440; expanded/collapsed, reload, first eight mount frames, unavailable localStorage, interrupted pointer width transition, repeated keyboard collapse, modifier/editable guards.
+
+**Tablet tested:** 600, 744, 767, 768, 1024 and 1199; visible labels, complete-word width and text bounds, 44px target floors, last destination at 640px viewport height, desktop round trips, root text scaling. Patient/invitation layouts retain state when shell space crosses the 60rem card threshold.
+
+**Phone tested:** 390 and 599; all five staff-role destinations and account utilities remain in the existing sheet; no-clinic disabled controls and resizing an open sheet into the rail.
+
+**Dark mode:** Both themes in shell boundaries and actual-consumer supplements; route audit result below.
+
+**Keyboard and accessibility:** Skip-to-main focus, Enter navigation, nested active-route identity, visible focus, current state, disabled clinic destinations, tooltip scanning/cleanup, reduced motion and guard behavior. Existing accessibility/overlay specs passed in the main run. Their documented exclusions do not establish that the known full-page open-overlay findings are cleared.
+
+**Offline/sync regression:** Main focused run passed responsive/offline route inventory, loaded/offline/error-state checks and both-theme sync/table fixtures. No sync implementation changed.
+
+**Tests executed and results:** Production audit-flag builds pass, including the final source state; the initial sandboxed Turbopack attempt stalled and was interrupted, then the approved outside-sandbox build passed. Standalone TypeScript, changed-file ESLint (`--max-warnings 0`), Prettier, whitespace checks and the legacy-path Node detector pass (silent detector exit 0). ESLint emits the existing root-cwd pages-directory advisory; no lint error or warning-count failure. Jest `--maxWorkers=2`: **92 suites / 1015 tests passed**, including independent nav checks for both station flag modes. Main 14-spec Playwright invocation, one worker/max three failures: **194 passed**, including six authentication setups (**188 browser checks**). All five role snapshots pass with independent flag-on/off expected sets; `/today` migration now expects Station line only when its flag is enabled. A consumer supplement was interrupted on an incorrect View locator for cards (existing label View record), then **8/8 browser cases passed** with current stored auth, including two repeated boundary captures and six new consumer/no-clinic/mount cases. Two strengthened invitation sort/page/action assertions also passed in an isolated rerun. Screenshot review and a complete-word-width assertion caught Appointments splitting; two intermediate final-focused runs each had **44 passed / 2 failed**, one boundary failure per theme. A temporary read-only font measurement found Appointments 73.12px at 11.5px; the final rail gives labels 74px and keeps the assertion. The temporary measurement spec was removed. **Final source-state focused rerun: 46/46 passed**, including six authentication setups (**40 browser checks**): shell-navigation, shell-responsive, shell-consumers, overlay-motion and data-table-surfaces. Six-role normal route audit: **12/12 tests passed**, including six authentication setups and six role sweeps; **228 route/theme/width rows**, **zero errors, serious/critical or other axe violations, and zero horizontal overflow**. These are normal-state results and do not clear the known open-overlay findings. No full e2e suite or flag-off browser build ran.
+
+**Before/after screenshots:** Baseline `ui-refresh/evidence/r1-6/after/` exists; synthetic staff dashboard baseline inspected. After `ui-refresh/evidence/r2-1/after/`, **179 synthetic PNGs**: 114 normal route shots, 39 shell/consumer boundary and focus shots, 26 shared table/component shots. Beside `after/`: `route-audit.json`, `validation-summary.json`, and filtered diagnostic logs plus rendered navigation font measurements in `diagnostics/`. Evidence remains local and git-ignored. No real/third-party references were used or force-added.
+
+**Ranked review:** `ui-refresh/R2.1-REVIEW.md`, covering P0–P3 hierarchy, consistency, touch, focus, motion, accessibility, dark mode and edge cases. Skills: Impeccable context/adapt/craft floor/detector and installed shadcn guidance. No isolated-agent critique.
+
+**Outstanding problems:** P1 full-page open-overlay focus/background findings remain unresolved; modal/focus-trap semantics and axe exclusions were not changed. Existing short dropdown action rows, physical devices, Safari/Firefox, installed-PWA and manual screen-reader/motion checks remain open. The final-action sentinel proves only shell-end clearance; other interception paths and Sunday appointment lifecycle failures are not declared fixed. Earlier R1.4/Vitals/Crisis/backend acknowledgement and handoff exclusions remain.
+
+**Next unit:** R2.2 BottomNav + More, derived from existing accessible navigation helpers. R2.3 Header/sync, R2.4 draggable Sheet and R2.5 Portal shell remain unbuilt.
 
 ## Required Entry for Every Completed Unit
 

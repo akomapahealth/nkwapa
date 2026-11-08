@@ -58,7 +58,7 @@ export function Header({
 }: {
   sidebarCollapsed?: boolean;
   /** Omitted where there is no sidebar to toggle, as on the patient portal. */
-  onToggleSidebar?: () => void;
+  onToggleSidebar?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   mobileOpen?: boolean;
   onMobileOpenChange?: (open: boolean) => void;
 }) {
@@ -173,11 +173,20 @@ export function Header({
     );
 
   return (
-    <header className="pt-safe sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur">
+    <header
+      className={cn(
+        'pt-safe sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur',
+        onToggleSidebar && 'compact:rounded-t-xl compact:bg-card/95',
+      )}
+    >
       <div className="flex h-14 items-center gap-2 px-4 md:px-6">
         <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="md:hidden">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={onToggleSidebar ? 'compact:hidden' : 'md:hidden'}
+            >
               <Menu className="h-5 w-5" />
               <span className="sr-only">Open navigation</span>
             </Button>
@@ -250,7 +259,7 @@ export function Header({
                   aria-expanded={!sidebarCollapsed}
                   aria-controls="workspace-sidebar"
                   aria-keyshortcuts="["
-                  className="hidden md:inline-flex"
+                  className="hidden desktop:inline-flex"
                 >
                   {sidebarCollapsed ? (
                     <PanelLeft aria-hidden="true" className="h-[18px] w-[18px]" />
@@ -290,7 +299,9 @@ export function Header({
                     size="icon"
                     disabled
                     aria-label={`${item.label}: select a clinic first`}
-                    className="hidden md:inline-flex"
+                    className={
+                      onToggleSidebar ? 'hidden compact:inline-flex' : 'hidden md:inline-flex'
+                    }
                   >
                     <Icon aria-hidden="true" className="h-[18px] w-[18px]" />
                   </Button>
@@ -305,7 +316,7 @@ export function Header({
                       variant="ghost"
                       size="icon"
                       className={cn(
-                        'hidden md:inline-flex',
+                        onToggleSidebar ? 'hidden compact:inline-flex' : 'hidden md:inline-flex',
                         active && 'bg-primary/10 text-primary',
                       )}
                     >

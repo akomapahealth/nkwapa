@@ -13,7 +13,7 @@ const { storageStateFor } = require('../playwright/roles');
  * icon) and Clinic settings (the account menu). UTILITIES is where each role finds them now; with
  * EXPECTED it is the same set every role had before.
  */
-const EXPECTED = {
+const FLAG_OFF = {
   staff: [
     ['Dashboard', '/dashboard'],
     ['Today Board', '/today'],
@@ -83,6 +83,82 @@ const EXPECTED = {
   ],
 };
 
+// Independent station-enabled expectations, from the seeded roles' permissions in
+// apps/api/src/auth/constants/permissions.ts: director cannot work stations.
+// Keep flag-off sets above as the historical contract, without importing production nav helpers.
+const FLAG_ON = {
+  staff: [
+    ['Dashboard', '/dashboard'],
+    ['Today Board', '/today'],
+    ['Stations', '/stations'],
+    ['Queues', '/queues'],
+    ['Patients', '/clinics/:clinicId/patients'],
+    ['Appointments', '/appointments'],
+    ['New Patient', '/clinics/:clinicId/patients/new'],
+    ['Audit', '/audit'],
+    ['Volunteers', '/volunteers'],
+    ['Staff activity', '/staff-activity'],
+    ['Metrics', '/metrics'],
+    ['Research exports', '/research'],
+    ['Clinics', '/admin/clinics'],
+    ['Staff', '/admin/users'],
+    ['Organization report', '/reports/organization'],
+    ['Duplicate review', '/admin/duplicates'],
+    ['Data requests', '/admin/data-requests'],
+    ['Cross-clinic duplicates', '/admin/duplicates/cross-clinic'],
+  ],
+  doctor: [
+    ['Dashboard', '/dashboard'],
+    ['Stations', '/stations'],
+    ['Queues', '/queues'],
+    ['Patients', '/clinics/:clinicId/patients'],
+    ['Appointments', '/appointments'],
+    ['New Patient', '/clinics/:clinicId/patients/new'],
+  ],
+  volunteer: [
+    ['Dashboard', '/dashboard'],
+    ['Stations', '/stations'],
+    ['Queues', '/queues'],
+    ['Patients', '/clinics/:clinicId/patients'],
+    ['Appointments', '/appointments'],
+    ['New Patient', '/clinics/:clinicId/patients/new'],
+  ],
+  manager: [
+    ['Dashboard', '/dashboard'],
+    ['Today Board', '/today'],
+    ['Stations', '/stations'],
+    ['Queues', '/queues'],
+    ['Patients', '/clinics/:clinicId/patients'],
+    ['Appointments', '/appointments'],
+    ['New Patient', '/clinics/:clinicId/patients/new'],
+    ['Audit', '/audit'],
+    ['Volunteers', '/volunteers'],
+    ['Staff activity', '/staff-activity'],
+    ['Metrics', '/metrics'],
+    ['Staff', '/admin/users'],
+    ['Duplicate review', '/admin/duplicates'],
+    ['Data requests', '/admin/data-requests'],
+  ],
+  director: [
+    ['Dashboard', '/dashboard'],
+    ['Today Board', '/today'],
+    ['Queues', '/queues'],
+    ['Patients', '/clinics/:clinicId/patients'],
+    ['Appointments', '/appointments'],
+    ['Audit', '/audit'],
+    ['Volunteers', '/volunteers'],
+    ['Staff activity', '/staff-activity'],
+    ['Metrics', '/metrics'],
+    ['Research exports', '/research'],
+    ['Clinics', '/admin/clinics'],
+    ['Staff', '/admin/users'],
+    ['Duplicate review', '/admin/duplicates'],
+    ['Data requests', '/admin/data-requests'],
+  ],
+};
+const EXPECTED =
+  process.env.NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED === 'true' ? FLAG_ON : FLAG_OFF;
+
 const MESSAGE_DELIVERY = ['Message delivery', '/notifications'];
 const CLINIC_SETTINGS = ['Clinic settings', '/settings/clinic'];
 const UTILITIES = {
@@ -131,6 +207,13 @@ for (const role of Object.keys(EXPECTED)) {
       await page.getByRole('button', { name: 'Collapse navigation' }).click();
       await expectNav(rail, role);
 
+      await page.setViewportSize({ width: 744, height: 844 });
+      await expectNav(rail, role);
+      await expect.poll(() => rail.evaluate((el) => el.getBoundingClientRect().width)).toBe(76);
+      for (const link of await rail.locator('nav a').all()) {
+        const label = link.locator('span');
+        expect(await label.evaluate((el) => getComputedStyle(el).position)).not.toBe('absolute');
+      }
       await page.setViewportSize({ width: 390, height: 844 });
       await page.getByRole('button', { name: 'Open navigation' }).click();
       await expectNav(page.getByRole('dialog'), role);

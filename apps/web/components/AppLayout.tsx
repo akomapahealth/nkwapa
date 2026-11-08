@@ -9,18 +9,9 @@ import { PendingStaffInviteNotice } from '@/components/staff/PendingStaffInviteN
 
 const SIDEBAR_STORAGE_KEY = 'nkwapa.sidebar.collapsed';
 
-/**
- * Resolve the rail's starting width before the first paint rather than after it.
- *
- * This used to start `false` and get corrected in an effect, so on any screen at or below 1280px
- * the sidebar painted expanded and then snapped to its collapsed width — a visible jump on every cold load, and
- * exactly the layout shift the design system forbids.
- *
- * Reading storage in the initializer is safe here because `AppLayout` never appears in the
- * server-rendered HTML: `KeycloakProvider` renders `PageSkeleton` until its session check
- * resolves in an effect, so this tree only ever mounts on the client. There is no server pass to
- * disagree with, and therefore no hydration mismatch to trade the flash for.
- */
+/** AppLayout mounts after KeycloakProvider's client session check, so storage is
+ * resolved before paint without disagreeing with server-rendered shell markup.
+ * This is a desktop preference; forced tablet/phone layout never writes it. */
 function resolveInitialSidebarCollapsed(): boolean {
   if (typeof window === 'undefined') {
     return false;
@@ -33,15 +24,36 @@ function resolveInitialSidebarCollapsed(): boolean {
     }
   } catch {
     // localStorage throws outright in some privacy modes. A preference we cannot read is not a
-    // reason to fail to render a clinical workspace; fall through to the viewport default.
+    // reason to fail to render a clinical workspace; fall through to the expanded desktop default.
   }
 
-  return window.matchMedia('(max-width: 1280px)').matches;
+  return false;
 }
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(resolveInitialSidebarCollapsed);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [desktop, setDesktop] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1200px)').matches,
+  );
+  const [animateSidebar, setAnimateSidebar] = useState(false);
+
+  useEffect(() => {
+    const desktopQuery = window.matchMedia('(min-width: 1200px)');
+    const compactQuery = window.matchMedia('(min-width: 600px)');
+    const update = () => {
+      setDesktop(desktopQuery.matches);
+      setAnimateSidebar(false);
+      if (compactQuery.matches) setMobileNavOpen(false);
+    };
+    update();
+    desktopQuery.addEventListener('change', update);
+    compactQuery.addEventListener('change', update);
+    return () => {
+      desktopQuery.removeEventListener('change', update);
+      compactQuery.removeEventListener('change', update);
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -56,18 +68,22 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   /*
     `[` collapses and expands the rail, as the label at its foot says. Ignored while typing, with
-    a modifier held, or below `md`, where the rail is not shown and the menu sheet replaces it.
+    a modifier held, or below desktop, where navigation has a fixed presentation.
   */
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== '[' || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key !== '[' || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey)
+        return;
       const target = event.target as HTMLElement | null;
       if (
-        target?.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]')
+        target?.closest(
+          'input, textarea, select, [contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"]',
+        )
       )
         return;
-      if (!window.matchMedia('(min-width: 768px)').matches) return;
+      if (!window.matchMedia('(min-width: 1200px)').matches) return;
       event.preventDefault();
+      setAnimateSidebar(false);
       setSidebarCollapsed((current) => !current);
     };
     window.addEventListener('keydown', onKeyDown);
@@ -93,18 +109,22 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         the product for no informational reason.
       */}
       <div className="flex min-h-screen">
-        <Sidebar collapsed={sidebarCollapsed} />
-        <div className="flex min-w-0 flex-1 flex-col">
+        <Sidebar collapsed={desktop && sidebarCollapsed} rail={!desktop} animate={animateSidebar} />
+        <div className="flex min-w-0 flex-1 flex-col bg-card compact:my-2 compact:mr-2 compact:rounded-xl compact:border compact:border-border">
           <Header
             sidebarCollapsed={sidebarCollapsed}
-            onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
+            onToggleSidebar={(event) => {
+              if (!window.matchMedia('(min-width: 1200px)').matches) return;
+              setAnimateSidebar(event.detail > 0);
+              setSidebarCollapsed((current) => !current);
+            }}
             mobileOpen={mobileNavOpen}
             onMobileOpenChange={setMobileNavOpen}
           />
           <main
             id="main-content"
             tabIndex={-1}
-            className="min-w-0 flex-1 overflow-auto px-4 py-5 pb-[calc(6rem+env(safe-area-inset-bottom))] focus-visible:outline-none md:px-6 md:pb-[calc(2rem+env(safe-area-inset-bottom))] lg:px-8"
+            className="min-w-0 flex-1 overflow-auto px-4 py-5 pb-[calc(6rem+env(safe-area-inset-bottom))] focus-visible:outline-none compact:px-6 desktop:px-8"
           >
             <div className="mx-auto w-full max-w-[1440px] space-y-6">
               <PendingStaffInviteNotice />

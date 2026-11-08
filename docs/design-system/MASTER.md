@@ -673,28 +673,45 @@ for Playwright and creates no public route or production dependency.
 
 ### Staff shell (#266)
 
-The rail is 232px on the canvas (`--background`, a `--border` hairline edge) and
-collapses to 64px of icons. Group names come from `app-nav.ts`; collapsed, a
-`border-rule` hairline separates the groups. Rows are 44px in both widths. The
-selected row takes a `bg-primary/10` tint, a semibold label and a primary icon,
-with `aria-current="page"`; nothing else is teal. Item descriptions no longer show
-in the rail. The aside stretches with the page and only its contents are sticky,
-so its edge runs the full height of a long page. `[` toggles the rail from `md` up,
-except while typing or with a modifier held; the header button keeps
-`aria-expanded` / `aria-controls`. Below 1280px the rail still starts collapsed.
+R2.1 uses the approved pilot's shipped geometry: 232px expanded and 64px
+icon-only from 1200px; a distinct 76px labelled rail from 600 to 1199px.
+The earlier R0 prose says 248/88px and elsewhere 76px desktop collapse. These
+conflict with the pilot and round-3 feedback; 232/76/64 is the implementation
+baseline, not a new owner approval. Under 600px the existing phone sheet remains
+until R2.2. New Patient and all permission-filtered destinations remain available.
 
-Collapsed icons are named by the shadcn `tooltip` (`components/ui/tooltip.tsx`,
-`@radix-ui/react-tooltip` ^1.4.1, the #263 "adopt selectively" decision). It opens
-on hover and on keyboard focus; each link also keeps its label as `sr-only` text.
-`InfoHint` remains the only help bubble.
+The rail sits on `--background`, beside one `--card` workspace sheet inset 8px
+from 600px, with a quiet border and 12px corners. Main keeps its existing overflow
+behavior and the document remains the vertical scroll owner. The aside stretches
+with the document; its contents stick at the top in a dynamic-viewport-height
+column with an independently scrolling navigation area. Main has 6rem plus safe-area
+bottom clearance so a final action can clear the fixed chat launcher.
 
-The header is 56px: the rail toggle, one clinic switcher, the sync control and the
-account menu. The switcher shows the clinic name with the active clinic's roles
-after it as plain muted text (no badges); with one clinic it is text, with several
-a borderless `Select` whose accessible name carries both. On phones the role text
-is `sr-only` and also shown at the top of the menu sheet, and the sheet no longer
-repeats the picker. The sync control's "Sync now" is the shell's only refresh.
-The `--sidebar` tokens are kept but have no consumer in the staff shell now.
+`AppNavList` keeps `app-nav.ts` as its sole permissions/flag/placement filter.
+Desktop groups retain their names; compact modes separate groups with quiet
+hairlines, with tablet group names retained for assistive technology. Tablet icons
+sit over visible 11.5px wrapping labels, including long administration names. Desktop
+labels also wrap instead of clipping. Controls keep a 44px floor. Current links use
+`--selected`, semibold `--primary`, and `aria-current="page"`; unselected labels use
+muted ink with `--surface-2` hover and a visible 2px focus ring. Disabled clinic
+controls remain native disabled buttons, without a contrast-reducing opacity.
+
+Desktop starts expanded with no saved preference. Guarded localStorage reads happen
+before the first shell paint, after KeycloakProvider's client session check.
+Forced rail/phone presentation never overwrites the desktop preference. The header
+toggle and `[` work only from 1200px; typing, editable content and modifier guards
+remain. Keyboard toggles, including keyboard activation of the header button, are
+instant. Pointer toggles transition width for 200ms with the shared drawer curve,
+reverse from the current frame, and crossfade the logo; reduced motion removes
+movement. The shared R1.5 Tooltip provides desktop collapsed labels with a 300ms
+first hover delay, instant keyboard access and the shared 300ms scanning window.
+
+The header retains the clinic picker, sync and account controls at every width.
+Message delivery becomes visible from 600px in the staff shell so hiding the phone
+trigger cannot conceal it at 600 to 767px. Clinic settings remains in the account
+menu. Portal header breakpoints remain unchanged. Resizing an open phone sheet into
+the persistent rail closes it using the existing Sheet lifecycle. R2.2 adds BottomNav
+and More; R2.3 owns further compact-header work. No new navigation counts or routes.
 
 ### Navigation utilities (#267)
 
