@@ -247,11 +247,7 @@ export function MeasurementComposerScreen() {
                 <div className="flex items-center justify-between gap-3">
                   <Icon aria-hidden="true" className="h-5 w-5 text-primary" />
                   <span className="mr-auto font-medium text-foreground">{option.label}</span>
-                  {isActive && (
-                    <Badge variant="secondary" className="rounded-full">
-                      Selected
-                    </Badge>
-                  )}
+                  {isActive && <Badge variant="info">Selected</Badge>}
                 </div>
                 <p
                   className={cn(

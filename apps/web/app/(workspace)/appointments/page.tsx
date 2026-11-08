@@ -187,7 +187,7 @@ function AppointmentReminderStatus({
   const summary = appointment.reminderSummary;
   if (!summary || summary.total === 0) {
     return (
-      <Badge variant="outline" className="w-fit gap-1 rounded-full bg-background/80">
+      <Badge variant="outline" className="w-fit gap-1">
         <BellRing className="h-3.5 w-3.5" />
         No reminders
       </Badge>
@@ -211,7 +211,7 @@ function AppointmentReminderStatus({
 
   return (
     <div className="flex flex-col gap-1">
-      <Badge variant={variant} className="w-fit gap-1 rounded-full">
+      <Badge variant={variant} className="w-fit gap-1">
         <BellRing className="h-3.5 w-3.5" />
         {label}
       </Badge>
@@ -743,7 +743,7 @@ export default function StaffAppointmentsPage() {
                 label="Schedule range"
                 value={viewMode}
                 onChange={setViewMode}
-                className="w-[260px] p-1"
+                className="w-[260px]"
                 options={[
                   { value: 'day', label: 'Day', description: 'Show one day of appointments.' },
                   { value: 'week', label: 'Week', description: 'Show one week of appointments.' },

@@ -15,7 +15,7 @@ export function HeroSection() {
     <section
       id="top"
       aria-labelledby="hero-title"
-      className="relative isolate flex min-h-[calc(100svh-4rem)] flex-col overflow-hidden lg:justify-end bg-[hsl(200_25%_8%)] text-white"
+      className="relative isolate flex min-h-[calc(100svh-4rem)] flex-col overflow-hidden lg:justify-end bg-[hsl(192_29.4%_8%)] text-white"
     >
       <div
         data-hero-photo
@@ -36,7 +36,7 @@ export function HeroSection() {
             foot, darkest where the copy sits, so the volunteer's face stays clear at the top. */}
         <div
           aria-hidden
-          className="absolute inset-0 bg-[linear-gradient(to_top,hsl(200_25%_8%)_0%,transparent_40%)] lg:bg-[linear-gradient(to_top,hsl(200_25%_6%/0.92)_0%,hsl(200_25%_6%/0.7)_45%,hsl(200_25%_6%/0.15)_85%)]"
+          className="absolute inset-0 bg-[linear-gradient(to_top,hsl(192_29.4%_8%)_0%,transparent_40%)] lg:bg-[linear-gradient(to_top,hsl(192_29.4%_6%/0.92)_0%,hsl(192_29.4%_6%/0.7)_45%,hsl(192_29.4%_6%/0.15)_85%)]"
         />
       </div>
 
@@ -59,7 +59,7 @@ export function HeroSection() {
               asChild
               size="lg"
               variant="gold"
-              className="focus-visible:ring-white focus-visible:ring-offset-[hsl(200_25%_8%)]"
+              className="focus-visible:ring-white focus-visible:ring-offset-[hsl(192_29.4%_8%)]"
             >
               <a href={CONTACT_HREF} data-cta="contact">
                 Contact the team
@@ -69,7 +69,7 @@ export function HeroSection() {
               asChild
               size="lg"
               variant="ghost"
-              className="border border-white/70 text-white hover:bg-white/10 hover:text-white focus-visible:ring-white focus-visible:ring-offset-[hsl(200_25%_8%)]"
+              className="border border-white/70 text-white hover:bg-white/10 hover:text-white focus-visible:ring-white focus-visible:ring-offset-[hsl(192_29.4%_8%)]"
             >
               <a href={AKOMAPA_HREF} data-cta="akomapa" rel="noopener">
                 Learn about Akomapa

@@ -385,37 +385,32 @@ export default function EncounterDetailPage() {
             onValueChange={isFinalized ? setActiveTab : handleTabChange}
             className="w-full"
           >
-            <div
-              className="max-w-full overflow-x-auto pb-1"
-              aria-label="Encounter clinical sections"
-            >
-              <TabsList className="w-max justify-start gap-2 rounded-lg border border-border bg-card p-2">
-                {stationWorkflowEnabled && isClinicalUser ? (
-                  <TabsTrigger value="station-session" disabled={savingBeforeSwitch}>
-                    Station session
-                  </TabsTrigger>
-                ) : null}
-                <TabsTrigger value="vitals" disabled={savingBeforeSwitch}>
-                  Vitals
+            <TabsList aria-label="Encounter clinical sections">
+              {stationWorkflowEnabled && isClinicalUser ? (
+                <TabsTrigger value="station-session" disabled={savingBeforeSwitch}>
+                  Station session
                 </TabsTrigger>
-                <TabsTrigger value="diabetes" disabled={savingBeforeSwitch}>
-                  Diabetes
+              ) : null}
+              <TabsTrigger value="vitals" disabled={savingBeforeSwitch}>
+                Vitals
+              </TabsTrigger>
+              <TabsTrigger value="diabetes" disabled={savingBeforeSwitch}>
+                Diabetes
+              </TabsTrigger>
+              <TabsTrigger value="hypertension" disabled={savingBeforeSwitch}>
+                Hypertension
+              </TabsTrigger>
+              {canFinalize && (
+                <TabsTrigger value="careplan" disabled={savingBeforeSwitch}>
+                  Care Plan
                 </TabsTrigger>
-                <TabsTrigger value="hypertension" disabled={savingBeforeSwitch}>
-                  Hypertension
+              )}
+              {clinicalNotesEnabled && isClinicalUser ? (
+                <TabsTrigger value="clinical-note" disabled={savingBeforeSwitch}>
+                  Clinical Note
                 </TabsTrigger>
-                {canFinalize && (
-                  <TabsTrigger value="careplan" disabled={savingBeforeSwitch}>
-                    Care Plan
-                  </TabsTrigger>
-                )}
-                {clinicalNotesEnabled && isClinicalUser ? (
-                  <TabsTrigger value="clinical-note" disabled={savingBeforeSwitch}>
-                    Clinical Note
-                  </TabsTrigger>
-                ) : null}
-              </TabsList>
-            </div>
+              ) : null}
+            </TabsList>
             {stationWorkflowEnabled && isClinicalUser ? (
               <TabsContent value="station-session">
                 <StationSessionPanel

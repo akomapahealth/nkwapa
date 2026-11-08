@@ -47,7 +47,7 @@ typefaces rather than the application's. Closed by [#83](https://github.com/akom
 
 A Keycloak theme cannot import `globals.css` -- different origin, different process -- so
 `infra/nkwapa/keycloak/themes/nkwapa/login/resources/css/styles.css` still declares its own
-variables. They now mirror this document token for token, each one annotated with the token it
+variables. They now mirror this document (and `ui-refresh/R0-AUDIT.md` section 4) token for token, each one annotated with the token it
 mirrors, under a header saying the two files must move together. **Changing a value in section 3
 means changing it there too.** `apps/web/e2e/login-theme.spec.js` is what notices if they part
 company again: it asserts the typeface, the primary fill, the radius ceiling and the absence of
@@ -76,46 +76,49 @@ Defined in `apps/web/app/globals.css` under `:root`. Consume via Tailwind utilit
 
 ### Surfaces
 
-| Token                        | Value         | Hex       | Used for                     | Contrast                    |
-| ---------------------------- | ------------- | --------- | ---------------------------- | --------------------------- |
-| `--background`               | `54 63% 97%`  | `#FCFBF3` | Page canvas                  | 14.30:1 with `--foreground` |
-| `--card`                     | `50 33% 98%`  | `#FCFBF8` | Cards, panels, popovers      | 14.31:1                     |
-| `--sidebar`                  | `148 32% 88%` | `#D7EAE0` | Nav rail                     | 11.82:1                     |
-| `--sidebar-border`           | `148 24% 70%` | `#A0C5B1` | Sidebar edge, group dividers | decorative                  |
-| `--sidebar-muted-foreground` | `200 14% 32%` | `#46555D` | Sidebar group labels         | 6.13:1                      |
-| `--muted`                    | `45 30% 93%`  | `#F3F0E8` | Table headers, inert fills   | 4.94:1                      |
-| `--accent`                   | `47 60% 92%`  | `#F7F2DE` | Row hover, subtle emphasis   | 13.16:1                     |
+Layered Clinical Workspace (UI refresh R1.1). The values below mirror the as-built tables in `docs/design-system/ui-refresh/R0-AUDIT.md` section 4, which is the source of truth when the two disagree. Every neutral is tinted from the logo teal (hue 180 to 198).
 
-**The canvas is warm cream, not white.** #61's original wording says "white canvas"; that wording is superseded. The warm neutral family (`background`, `card`, `muted`, `accent`) is coherent and already measured, and switching to pure white would require re-deriving all four.
+| Token                        | Value               | Hex       | Used for                         | Contrast                    |
+| ---------------------------- | ------------------- | --------- | -------------------------------- | --------------------------- |
+| `--background`               | `180 23.8% 95.9%`   | `#F2F7F7` | Page canvas                      | 14.04:1 with `--foreground` |
+| `--card` / `--popover`       | `0 0% 100%`         | `#FFFFFF` | The one sheet, panels, popovers  | 15.18:1                     |
+| `--sidebar`                  | `180 23.8% 95.9%`   | `#F2F7F7` | Nav rail (the canvas itself)     | 14.04:1                     |
+| `--sidebar-border`           | `190.9 18% 88%`     | `#DBE4E6` | Sidebar edge, group dividers     | decorative                  |
+| `--sidebar-muted-foreground` | `197.5 12.4% 38%`   | `#55666D` | Sidebar group labels             | 5.55:1                      |
+| `--muted` / `--surface-2`    | `180 23.1% 97.5%`   | `#F7FAFA` | Table headers, recessed fills    | 5.72:1 muted text on        |
+| `--accent` / `--selected`    | `186.3 46.3% 92%`   | `#E1F2F4` | Row hover, selected row          | 4.53:1 action teal on       |
+| `--mint` / `--mint-line`     | `171.4 38.9% 92.9%` | `#E6F4F2` | Next-action hero                 | 5.30:1 muted text on        |
+| `--gold-surface`             | `46.7 100% 92.9%`   | `#FFF7DB` | Highlight such as a "new" marker | 6.31:1 with `--gold-ink`    |
+| `--deep`                     | `190.2 74.7% 17.1%` | `#0B414C` | One high-emphasis brand surface  | 11.18:1 white on            |
 
-**The sidebar is deliberately at 88% lightness.** That is the shallowest tint that still reads as a separate panel against the cream canvas (1.21:1). At 91% the separation drops to 1.14:1 and the two surfaces merge, which fails #66's requirement that the sidebar be visually distinct.
-
-**The sidebar has its own foreground tokens.** At 88%, the standard `--muted-foreground` lands on the sidebar at 4.49:1, failing by 0.01. Rather than lighten the sidebar and lose panel separation, sidebar text uses `--foreground` for nav items (11.82:1) and `--sidebar-muted-foreground` for group labels (6.13:1).
+**One white sheet on a teal-tinted canvas.** The cream canvas and the separate mint sidebar are retired. The rail sits on the canvas and the white sheet beside it is what separates the panels, which keeps #66's requirement that the sidebar read as distinct without a tinted panel. Sidebar text can use the standard foreground tokens again; `--sidebar-muted-foreground` stays as an alias so call sites need not change.
 
 ### Ink
 
-| Token                | Value         | Hex       | Used for                        | On canvas |
-| -------------------- | ------------- | --------- | ------------------------------- | --------- |
-| `--foreground`       | `200 25% 15%` | `#1D2930` | Body, headings, clinical values | 14.30:1   |
-| `--muted-foreground` | `200 10% 40%` | `#5C6970` | Labels, units, secondary text   | 5.44:1    |
+| Token                | Value               | Hex       | Used for                        | On canvas |
+| -------------------- | ------------------- | --------- | ------------------------------- | --------- |
+| `--foreground`       | `197.1 29.6% 13.9%` | `#19282E` | Body, headings, clinical values | 14.04:1   |
+| `--muted-foreground` | `197.5 12.4% 38%`   | `#55666D` | Labels, units, secondary text   | 5.55:1    |
+| `--faint`            | `195.7 10.9% 58.6%` | `#8A9BA1` | Placeholder and disabled only   | 2.89:1    |
 
 ### Brand and action
 
-| Token         | Value          | Hex       | Used for                           | Contrast           |
-| ------------- | -------------- | --------- | ---------------------------------- | ------------------ |
-| `--primary`   | `188 100% 27%` | `#00778A` | Primary buttons, active nav, links | 5.22:1 white on    |
-| `--secondary` | `47 100% 55%`  | `#FFCD1A` | Brand accent, highlights           | 9.90:1 dark ink on |
-| `--ring`      | `188 100% 27%` | `#00778A` | Focus ring                         | 5.04:1 on canvas   |
+| Token         | Value            | Hex       | Used for                           | Contrast                    |
+| ------------- | ---------------- | --------- | ---------------------------------- | --------------------------- |
+| `--primary`   | `188 100% 27%`   | `#00778A` | Primary buttons, active nav, links | 5.22:1 white on             |
+| `--secondary` | `47 100% 55%`    | `#FFCD1A` | Brand accent, highlights           | 9.90:1 dark ink on          |
+| `--ring`      | `188 100% 27%`   | `#00778A` | Focus ring                         | 4.83:1 on canvas            |
+| `--brand`     | `188.1 100% 32%` | `#008DA3` | Logo teal, decoration only         | 3.93:1 on white: never text |
 
-`--primary` also passes as _text_: 5.04:1 on canvas, **4.58:1 on `--muted`**. That second pairing matters because `DataTable` sets column headers on `--muted`, so teal header links land there.
+`--primary` also passes as _text_: 4.83:1 on canvas, **4.98:1 on `--muted`** and 4.53:1 on `--selected`. That second pairing matters because `DataTable` sets column headers on `--muted`, so teal header links land there.
 
 ### Status
 
-| Token           | Value         | Hex       | Used for                         | Contrast           |
-| --------------- | ------------- | --------- | -------------------------------- | ------------------ |
-| `--success`     | `152 65% 30%` | `#1B7E50` | In range, synced, cosigned       | 5.05:1 white on    |
-| `--warning`     | `32 90% 48%`  | `#E9820C` | Out of range, expiring, unsynced | 5.39:1 dark ink on |
-| `--destructive` | `0 72% 51%`   | `#DC2828` | Critical values, delete, merge   | 4.80:1 white on    |
+| Token           | Value         | Hex       | Used for                         | Contrast                                  |
+| --------------- | ------------- | --------- | -------------------------------- | ----------------------------------------- |
+| `--success`     | `152 65% 30%` | `#1B7E50` | In range, synced, cosigned       | 5.05:1 white on                           |
+| `--warning`     | `32 90% 48%`  | `#E9820C` | Out of range, expiring, unsynced | 5.39:1 dark ink on                        |
+| `--destructive` | `0 72% 49%`   | `#D72323` | Critical values, delete, merge   | 5.06:1 white on, 4.68:1 as text on canvas |
 
 **Warning is orange, not amber, because the brand accent is gold.** If warning shared hue 47 with `--secondary`, a warning badge would be indistinguishable from decorative brand furniture. At hue 32 the separation is **ΔE 24.2**, 23° apart in Lab hue.
 
@@ -132,6 +135,12 @@ Status colour is never the only signal. Pair every status fill with a label or i
 | `--destructive-ink` | `0 72% 38%`   | `#A71B1B` | 6.20:1                     |
 
 The tinted badge pattern is `bg-<token>/12` plus `text-<token>-ink`.
+
+**Tags (R1.3).** `Badge` is the pilot `.tag`: 24px minimum height (it wraps rather than overflow), 4px radius, 12.5px semibold, no shadow, no hover. No call site may round it into a pill. Variants: `secondary` neutral (`--surface-2` fill, `--border` edge, muted ink, 5.72:1); `info` for selected or suggested (`--selected` with `--primary`, 4.53:1); `gold` for "new" highlights only (6.31:1), never a state; `draft`, `review`, `finalized`, `warning` as before; `severe`; `destructive` filled.
+
+**Blood-pressure severity (R1.3, audit A8).** One map, `HYPERTENSION_BADGE_VARIANTS` in `lib/hypertension.ts`, feeds `statusVariant()` and the hypertension history panel: Normal and Elevated neutral, Stage 1 `warning`, Stage 2 `severe` (`--severe-surface` / `--severe-ink`, hue 20, 5.67:1 light, 6.72:1 dark), Crisis filled `destructive`. The text label always names the stage, so the scale never relies on colour alone. The classifier and saved values are unchanged. The dashboard distribution chart (`HYPERTENSION_TONES`) follows the same ladder for the stages: Stage 1 `warning`, Stage 2 `severe` (bar fill `--severe`, 4.34:1 on the card), Crisis `destructive`; Normal stays success green and Elevated warning there, because a chart needs Normal to differ from Not classified. The station results summary shows the stage as the same tag.
+
+**Panels (R1.3).** `Card` is the bordered panel on the one white sheet: 8px radius, 1px `--border`, `--card` fill, no shadow. Panels sit side by side or in sequence. Never nest a `Card` in a `Card`.
 
 **All four statuses have an ink token.** Destructive did not until #94, and it was the one status
 still using its fill as text on its own tint, on nine surfaces including
@@ -165,10 +174,10 @@ a clinician reads before prescribing.
 
 ### Lines
 
-| Token      | Value         | Hex       | Used for                        | On canvas       |
-| ---------- | ------------- | --------- | ------------------------------- | --------------- |
-| `--border` | `45 20% 87%`  | `#E4E1D7` | Decorative dividers, card edges | 1.26:1 — exempt |
-| `--input`  | `200 15% 52%` | `#728B97` | **Every form control boundary** | 3.47:1          |
+| Token      | Value           | Hex       | Used for                        | On canvas                         |
+| ---------- | --------------- | --------- | ------------------------------- | --------------------------------- |
+| `--border` | `190.9 18% 88%` | `#DBE4E6` | Decorative dividers, card edges | 1.29:1 on white — exempt          |
+| `--input`  | `200 15% 52%`   | `#728B97` | **Every form control boundary** | 3.59:1 on white, 3.33:1 on canvas |
 
 **`--input` is split from `--border` and must stay split.** WCAG 1.4.11 requires 3:1 for boundaries needed to identify a control. Form fields qualify; card edges and decorative dividers do not. Before this split both were `45 20% 87%` at 1.26:1, meaning every text input, select, and textarea in the product had an effectively invisible boundary.
 
@@ -284,24 +293,27 @@ was removed with the 2026-10 redesign (`docs/design/landing-page-redesign.md`).
 
 Defined under `.dark`. Dark mode inverts which side carries the ink: fills stay bright and take dark text. The tinted badge inverts too, becoming a dark tint of the hue carrying light ink.
 
-| Token                        | Value         | Hex       | Contrast               |
-| ---------------------------- | ------------- | --------- | ---------------------- |
-| `--sidebar`                  | `155 20% 14%` | `#1D2B25` | 12.68:1                |
-| `--sidebar-border`           | `155 18% 26%` | `#364E44` | decorative             |
-| `--sidebar-muted-foreground` | `155 8% 66%`  | `#A1AFA9` | 6.51:1                 |
-| `--primary`                  | `188 80% 47%` | `#18BED8` | 7.77:1 dark ink on     |
-| `--secondary`                | `47 85% 52%`  | `#EDC01D` | 10.00:1 dark ink on    |
-| `--success`                  | `152 55% 50%` | `#39C684` | 7.89:1 dark ink on     |
-| `--warning`                  | `35 90% 58%`  | `#F4A434` | 8.43:1 dark ink on     |
-| `--input`                    | `200 14% 50%` | `#6E8591` | 4.74:1                 |
-| `--info`                     | `200 60% 58%` | `#54A9D4` | workflow state         |
-| `--success-ink`              | `152 40% 74%` | `#A2D7BE` | 6.82:1 on its tint     |
-| `--warning-ink`              | `35 75% 74%`  | `#EEC58B` | 6.74:1 on its tint     |
-| `--info-ink`                 | `200 45% 74%` | `#9FC7DB` | 6.49:1 on its tint     |
-| `--destructive-ink`          | `0 50% 80%`   | `#E6B3B3` | 8.06:1 on its tint     |
-| `--destructive`              | `0 62% 66%`   | `#DE7373` | 5.48:1 as text on card |
+| Token                           | Value               | Hex       | Contrast               |
+| ------------------------------- | ------------------- | --------- | ---------------------- |
+| `--background` / `--sidebar`    | `192 29.4% 6.7%`    | `#0C1416` | 15.74:1 with ink       |
+| `--card`                        | `195 23.1% 10.2%`   | `#141D20` | 14.48:1                |
+| `--muted` / `--surface-2`       | `192.9 21.9% 12.5%` | `#192427` | 6.54:1 muted text on   |
+| `--accent` / `--selected`       | `188.1 42.5% 17.1%` | `#19393E` | 5.54:1 action teal on  |
+| `--border` / `--sidebar-border` | `198 20.8% 18.8%`   | `#26343A` | decorative             |
+| `--sidebar-muted-foreground`    | `190 9.8% 63.9%`    | `#9AA9AC` | 7.66:1 on canvas       |
+| `--primary`                     | `188 80% 47%`       | `#18BED8` | 8.34:1 dark ink on     |
+| `--secondary`                   | `47 85% 52%`        | `#EDC01D` | 10.73:1 dark ink on    |
+| `--success`                     | `152 55% 50%`       | `#39C684` | 8.47:1 dark ink on     |
+| `--warning`                     | `35 90% 58%`        | `#F4A434` | 9.05:1 dark ink on     |
+| `--input`                       | `192.4 11.8% 48%`   | `#6C8389` | 4.27:1 on card         |
+| `--info`                        | `200 60% 58%`       | `#54A9D4` | workflow state         |
+| `--success-ink`                 | `152 40% 74%`       | `#A2D7BE` | 6.82:1 on its tint     |
+| `--warning-ink`                 | `35 75% 74%`        | `#EEC58B` | 6.74:1 on its tint     |
+| `--info-ink`                    | `200 45% 74%`       | `#9FC7DB` | 6.49:1 on its tint     |
+| `--destructive-ink`             | `0 50% 80%`         | `#E6B3B3` | 8.06:1 on its tint     |
+| `--destructive`                 | `0 62% 66%`         | `#DE7373` | 5.48:1 as text on card |
 
-All other `.dark` values are unchanged and already correct.
+"Dark ink" on a dark-mode fill is the dark canvas, `192 29.4% 6.7%` (`#0C1416`), for every `*-foreground` that sits on a bright fill (R1.2 follow-up; was `200 25% 10%`). Light `--warning-foreground` is the ink `#19282E` (5.52:1 on warning).
 
 **`--destructive` is lighter in dark mode than in light, and carries dark ink.** That inversion is
 forced, not stylistic. `text-destructive` is how every field error, error notice and destructive
@@ -310,7 +322,7 @@ on the dark canvas, so every destructive word in the product failed AA in dark m
 cannot serve both uses at that lightness: text on the card needs L >= 60 and white on the fill
 needs L <= 54, and those windows do not overlap. Flipping `--destructive-foreground` to dark ink
 is the usual dark-theme answer and clears all four pairings at 66% -- 5.92:1 on the canvas, 5.48:1
-on the card, 4.67:1 on its own 12% tint, and 5.60:1 for the ink on the fill.
+on the card, 4.67:1 on its own 12% tint, and 5.60:1 for the ink on the fill (6.01:1 since R1.2 moved the dark ink to the canvas).
 
 It was found by `e2e/dark-mode.spec.js`, on `/appointments`, where the "Decline" action is the
 first thing axe reaches. Nothing had looked before, which is the whole argument for that spec.
@@ -358,18 +370,18 @@ Several of these are bound to raw palette values (`dark:bg-amber-900/30`, `dark:
 
 ## 5. Radius
 
-`--radius` is `0.625rem` (10px).
+`--radius` is `0.5rem` (8px), so the scale is 4 / 6 / 8 / 12 (UI refresh R1.1, R0-AUDIT section 4).
 
-| Step | Value | Used for                 |
-| ---- | ----- | ------------------------ |
-| `sm` | 6px   | Badges, chips, pills     |
-| `md` | 8px   | Buttons, inputs, selects |
-| `lg` | 10px  | Cards, panels            |
-| `xl` | 14px  | Dialogs, sheets          |
+| Step | Value | Used for                             |
+| ---- | ----- | ------------------------------------ |
+| `sm` | 4px   | Badges, tags, chips, tooltips, focus |
+| `md` | 6px   | Buttons, inputs, selects             |
+| `lg` | 8px   | Panels, popovers, menus              |
+| `xl` | 12px  | The sheet, dialogs, side sheets      |
 
-All four steps are real Tailwind classes. `xl` was added to `tailwind.config.js` during the Phase 6 migration because Tailwind's stock `rounded-xl` is 12px, not the 14px this table specifies.
+All four steps are real Tailwind classes, derived from `--radius` in `tailwind.config.js`.
 
-**Nothing rounder than 14px.** That rules out `rounded-2xl` (16px) and `rounded-3xl` (24px) as well as the arbitrary values. On a dense clinical table a 28px corner reads as a consumer app and costs vertical space the Today board does not have.
+**Nothing rounder than 12px, and no squircles.** That rules out `rounded-2xl` (16px) and `rounded-3xl` (24px) as well as arbitrary values. Circles stay for avatars, status dots and route stops only. The one exception is the landing page's phone mock-up bezel in `components/landing/ProductFrames.tsx`, which depicts hardware rather than interface.
 
 Measured before the Phase 6 migration: `rounded-[28px]` in 32 files (78 occurrences), plus `[24px]`, `[26px]`, `[30px]` and `[32px]` — five arbitrary radii inside one product, three of them inside the fallback components alone.
 
@@ -476,6 +488,8 @@ already migrated to these roles. Shipped in [PR #288](https://github.com/akomapa
 
 ## 7. Motion
 
+**The owner's 20 motion principles and the seven added rules are in `NKWAPA-UI-REFRESH-MASTER.md` section 9.1 and mapped to Nkwapa in `ui-refresh/R0-AUDIT.md` section 6. They supersede anything below that disagrees.** The pilot values: enter 200ms and exit 160ms, sheets 240ms in and 190ms out, popovers from `scale(.95)` at the trigger, 30ms row stagger capped at 6 rows.
+
 - **150ms** for colour and opacity.
 - **200ms** for position.
 - Nothing longer in a clinical view.
@@ -490,18 +504,27 @@ already migrated to these roles. Shipped in [PR #288](https://github.com/akomapa
 
 ## 8. Density, targets, breakpoints
 
-| Rule                       | Value                   |
-| -------------------------- | ----------------------- |
-| Table row height, desktop  | 44px                    |
-| Table row height, touch    | 52px                    |
-| Minimum interactive target | 44px                    |
-| Breakpoints                | 375 / 768 / 1024 / 1440 |
+| Rule                       | Value                                                                                             |
+| -------------------------- | ------------------------------------------------------------------------------------------------- |
+| Table row height, desktop  | 44px                                                                                              |
+| Table row height, touch    | 52px                                                                                              |
+| Minimum interactive target | 44px                                                                                              |
+| Form control height, touch | 48px (`Input`, `SelectTrigger` under `pointer: coarse`)                                           |
+| Breakpoints                | 375 / 768 / 1024 / 1440 (audit widths); named screens `compact` 600, `tablet` 840, `desktop` 1200 |
 
 Both row heights are set by `DataTable` (`components/ui/data-table.tsx`, TanStack Table v9). Row actions are real buttons in a right-aligned final column, one primary at most, so they line up down the column. It also makes the numerals tabular and sticks the column headers, because a roster that runs past a viewport is unreadable once its headers scroll away.
 
 The 44px floor is enforced in the primitives rather than per call site: `Button`, `Input`, `Select` and its menu rows, `Tabs` triggers, and the two help triggers. Where the glyph must stay small — a help icon, a toast dismiss — the target is a centred pseudo-element rather than a `min-height` on the visible box. `.touch-target` set `min-height`/`min-width` on the element itself, which silently overrode every size a call site asked for and pushed metric-card headers around by 20px.
 
+**Buttons (R1.2).** Flat fills, semibold labels, 6px radius, no shadow. Primary hovers to `--primary-hover` (`#006A7A`, darker, 6.27:1 with white). `outline` and `secondary` are the same secondary action: white `--card` fill with the 3:1 `--input` boundary, hovering to `--muted` (R0-AUDIT A4). Gold is only the explicit `gold` variant. Destructive keeps `/95` on hover; `/90` falls to 4.51:1. Controls drop their shadow; placeholders stay `--muted-foreground` (5.99:1), not `--faint`.
+
 Focus rings are `ring-2 ring-ring` everywhere. They were `ring-1` on form controls and `ring-2` on everything else.
+
+**Segmented controls and tabs (R1.4).** Two looks, one job each (master §5.3):
+
+- `SegmentedControl` is for a mutually exclusive view or filter that reshapes one list (Day/Week, time windows, status filters). It is the pilot `.seg`: a `--surface-2` track with a 1px `--border` inset, and a raised `--card` knob that holds the active label in `--primary` (5.22:1 light, 7.67:1 dark). It stays toggle buttons with `aria-pressed`, not tabs. The knob is one shared Motion element (`layoutId`, re-measured only when the value changes) that moves in 220ms `--ease-in-out` and stretches to 1.12 on x mid-move. The active label colour is wiped in by `clip-path`, never by tweening text colour. Only the change a pointer press made animates. A keyboard press, the first render and a change made elsewhere (a reset, back navigation) snap into place. Four options sit 2x2 on a phone and 1x4 from `sm`. Other counts auto-fit at 7rem or wider. The focus ring is inset. Reduced motion removes all of it. Targets are 42px inside the 3px track (48px total), and 48px under `pointer: coarse`.
+- `Tabs` is for substantial record sections with real panels. It is the pilot `.tabs`: muted labels on a `--rule`, the active label in ink with a 2px `--primary` underline. The underline is a shared `layoutId` element that moves in 200ms `--ease-in-out` after a pointer press and snaps for the arrow keys and for changes made elsewhere. The label weight stays 500 in both states, so the active tab never widens and pushes its neighbours. Tabs never wrap. `TabsList` brings its own `overflow-x-auto` wrapper (a Motion `layoutScroll` element, so the underline measures correctly after a press scrolls a tab into view), so call sites add none. The focus ring is inset, because that wrapper clips anything outside the tab. Radix keeps the roles, `aria-selected` and the arrow keys. Targets are 44px, and 48px under `pointer: coarse`.
+- Gold is never a selected state. Neither control has a filled teal segment or a bordered box any more.
 
 ---
 

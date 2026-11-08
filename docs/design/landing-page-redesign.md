@@ -18,15 +18,15 @@ Contemporary editorial healthcare: plain sentences about real clinic work, real 
 
 ## 3. Brand: source of truth
 
-From `docs/design-system/MASTER.md` and `app/globals.css`, unchanged:
+From `docs/design-system/MASTER.md` and `app/globals.css`, retinted by UI refresh R1.1 (`docs/design-system/ui-refresh/R0-AUDIT.md` section 4):
 
-| Use                     | Token                        | Value                          |
-| ----------------------- | ---------------------------- | ------------------------------ |
-| Canvas (warm off-white) | `--background`               | `54 63% 97%`                   |
-| Teal band, buttons      | `--primary`                  | `188 100% 27%` (logo teal, AA) |
-| Gold highlight          | `--secondary`                | `47 100% 55%` (logo gold)      |
-| Pale gold band          | `--accent`                   | `47 60% 92%`                   |
-| Dark product band       | `.dark` scope on the section | `--background 200 25% 8%`      |
+| Use                  | Token                        | Value                          |
+| -------------------- | ---------------------------- | ------------------------------ |
+| Canvas (teal-tinted) | `--background`               | `180 23.8% 95.9%` (`#F2F7F7`)  |
+| Teal band, buttons   | `--primary`                  | `188 100% 27%` (logo teal, AA) |
+| Gold highlight       | `--secondary`                | `47 100% 55%` (logo gold)      |
+| Pale teal band       | `--accent`                   | `186.3 46.3% 92%` (`#E1F2F4`)  |
+| Dark product band    | `.dark` scope on the section | `--background 192 29.4% 6.7%`  |
 
 **Typography.** Source Serif 4 for display headlines (the product's heading face) and IBM Plex Sans for everything else. The landing page no longer uses Poppins or Circular Std, so both font requests are gone. The public brand and the clinical workspace now share one type system, and the serif becomes the recognisable part of it. Headline scale and alignment change from section to section on purpose.
 

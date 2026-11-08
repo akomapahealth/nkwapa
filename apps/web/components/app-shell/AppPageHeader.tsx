@@ -70,7 +70,8 @@ export function AppPageHeader({
           ) : null}
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-          {badges}
+          {/* Own row: in the phone column a bare tag stretched to the full width like a bar. */}
+          {badges ? <div className="flex flex-wrap items-center gap-2">{badges}</div> : null}
           {actions}
         </div>
       </div>

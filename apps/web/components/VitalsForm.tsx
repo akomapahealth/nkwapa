@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, Cigarette, HeartPulse, Ruler, Thermometer } from 'lucide-react';
+import { classifyBloodPressure } from '@nkwapa/db';
 import { Button } from '@/components/ui/button';
+import { confirmAction } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -330,6 +332,14 @@ const MEASUREMENT_FIELD_ORDER = [
   'notes',
 ];
 
+/** "182/96" when a saved reading classifies as crisis, otherwise null. */
+function crisisKey(record: VitalsRecord | null | undefined): string | null {
+  if (!record || classifyBloodPressure(record.systolicBp, record.diastolicBp) !== 'CRISIS') {
+    return null;
+  }
+  return `${record.systolicBp ?? '–'}/${record.diastolicBp ?? '–'}`;
+}
+
 export function VitalsForm({
   clinicId,
   encounterId,
@@ -343,6 +353,9 @@ export function VitalsForm({
 }: VitalsFormProps) {
   const shows = (section: VitalsSection) => !sections || sections.includes(section);
   const vitalsId = useRef(initialData?.id ?? generateClinicalId());
+  // The crisis reading last alerted on, so editing another field and saving again does not alert
+  // a second time, and reopening a visit whose crisis reading was already saved does not either.
+  const crisisAlerted = useRef(crisisKey(initialData));
   const tobaccoScreeningId = useRef(initialTobaccoData?.id ?? generateClinicalId());
   const { bodyUnit } = useClinicUnits(clinicId);
   const [vitals, setVitals] = useState(() => initialVitals(initialData, bodyUnit));
@@ -437,6 +450,18 @@ export function VitalsForm({
               ? 'Review saved on this device and pending sync.'
               : 'Measurements saved on this device and pending sync.',
           );
+        }
+        // The reading is saved before this, so the alert never holds data back. Awaiting it holds
+        // back whatever the page does next (another tab, the next station) until it is answered.
+        const key = crisisKey(result.vitalsRecord);
+        if (key && key !== crisisAlerted.current) {
+          crisisAlerted.current = key;
+          await confirmAction({
+            acknowledgeOnly: true,
+            title: 'This visit needs a clinician now',
+            description: `${key} mmHg is in the hypertensive crisis range (180/120 or higher). The reading is saved. Tell a clinician before the patient moves on.`,
+            confirmLabel: "I've told a clinician",
+          });
         }
         onSaved?.();
       } finally {

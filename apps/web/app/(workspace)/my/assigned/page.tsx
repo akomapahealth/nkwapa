@@ -40,6 +40,7 @@ import {
   opsOfflineHint,
 } from '@/components/ops/OpsShared';
 import { Button } from '@/components/ui/button';
+import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
 import {
   RecordSection as Card,
   RecordSectionContent as CardContent,
@@ -460,24 +461,18 @@ export default function MyAssignedPage() {
                       Cases aligned to your current clinic role.
                     </CardDescription>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {(['ALL', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED'] as const).map((value) => (
-                      <Button
-                        key={value}
-                        type="button"
-                        variant={statusFilter === value ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setStatusFilter(value)}
-                        aria-pressed={statusFilter === value}
-                      >
-                        {value === 'ALL'
-                          ? 'All'
-                          : value === 'IN_PROGRESS'
-                            ? 'In Progress'
-                            : value.charAt(0) + value.slice(1).toLowerCase()}
-                      </Button>
-                    ))}
-                  </div>
+                  <SegmentedControl
+                    label="Filter assigned patients"
+                    value={statusFilter}
+                    onChange={setStatusFilter}
+                    className="sm:w-[30rem]"
+                    options={[
+                      { value: 'ALL', label: 'All' },
+                      { value: 'ASSIGNED', label: 'Assigned' },
+                      { value: 'IN_PROGRESS', label: 'In Progress' },
+                      { value: 'COMPLETED', label: 'Completed' },
+                    ]}
+                  />
                 </div>
               </CardHeader>
               <CardContent>

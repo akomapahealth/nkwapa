@@ -247,10 +247,7 @@ export function OverviewPortalScreen() {
                               Ends {formatPortalDateTime(nextAppointment.endsAt)}
                             </p>
                           </div>
-                          <AppointmentStatusBadge
-                            status={nextAppointment.status}
-                            className="rounded-full"
-                          />
+                          <AppointmentStatusBadge status={nextAppointment.status} />
                         </div>
                         {nextAppointment.notes && (
                           <p className="mt-3 text-sm leading-6 text-muted-foreground">
@@ -294,9 +291,7 @@ export function OverviewPortalScreen() {
                                 {statusLabel(reminder.status)}
                               </p>
                             </div>
-                            <Badge variant="outline" className="rounded-full border-border">
-                              {reminder.channel}
-                            </Badge>
+                            <Badge variant="outline">{reminder.channel}</Badge>
                           </div>
                         ))}
                       </div>
@@ -332,14 +327,10 @@ export function OverviewPortalScreen() {
                       me.recommendations?.medicationPrescribed ? (
                         <span className="flex flex-wrap gap-2">
                           {me.recommendations?.counselingGiven && (
-                            <Badge variant="secondary" className="rounded-full">
-                              Counseling completed
-                            </Badge>
+                            <Badge variant="secondary">Counseling completed</Badge>
                           )}
                           {me.recommendations?.medicationPrescribed && (
-                            <Badge variant="secondary" className="rounded-full">
-                              Medication prescribed
-                            </Badge>
+                            <Badge variant="secondary">Medication prescribed</Badge>
                           )}
                         </span>
                       ) : (

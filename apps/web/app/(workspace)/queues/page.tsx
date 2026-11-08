@@ -306,7 +306,7 @@ export default function QueuesPage() {
             </RecordSectionDescription>
           </RecordSectionHeader>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 rounded-none border-0 border-b border-rule bg-transparent p-0 pb-2">
+            <TabsList>
               {canDrafts && (
                 <TabsTrigger value="drafts">
                   Drafts

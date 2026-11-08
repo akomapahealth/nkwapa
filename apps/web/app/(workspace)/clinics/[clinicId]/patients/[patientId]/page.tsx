@@ -836,10 +836,7 @@ function PatientChartWorkspace() {
                                         {user.alreadyLinked ? ' · linked' : ''}
                                       </span>
                                       {user.isSuggestedMatch ? (
-                                        <Badge
-                                          variant="secondary"
-                                          className="rounded-full whitespace-nowrap"
-                                        >
+                                        <Badge variant="info" className="whitespace-nowrap">
                                           Suggested match
                                         </Badge>
                                       ) : null}

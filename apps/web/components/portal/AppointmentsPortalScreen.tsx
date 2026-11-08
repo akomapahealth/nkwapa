@@ -179,9 +179,9 @@ function AppointmentRow({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <AppointmentStatusBadge status={appointment.status} className="rounded-full" />
+            <AppointmentStatusBadge status={appointment.status} />
             {pendingChangeRequest ? (
-              <Badge variant="warning" className="rounded-full">
+              <Badge variant="warning">
                 {getAppointmentRequestTypeLabel(pendingChangeRequest.requestType)} pending
               </Badge>
             ) : null}
@@ -251,10 +251,8 @@ function RequestRow({ request }: { request: AppointmentRequestRecord }) {
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="rounded-full border-border">
-              {typeLabel}
-            </Badge>
-            <AppointmentRequestStatusBadge status={request.status} className="rounded-full" />
+            <Badge variant="outline">{typeLabel}</Badge>
+            <AppointmentRequestStatusBadge status={request.status} />
           </div>
           <h3 className="font-medium tabular-nums text-foreground">
             Dates you requested: {getRequestWindow(request)}
@@ -497,10 +495,7 @@ export function AppointmentsPortalScreen() {
                         Ends {formatPortalDateTime(nextAppointment.endsAt)}
                       </p>
                     </div>
-                    <AppointmentStatusBadge
-                      status={nextAppointment.status}
-                      className="rounded-full"
-                    />
+                    <AppointmentStatusBadge status={nextAppointment.status} />
                   </div>
                   <Button
                     type="button"

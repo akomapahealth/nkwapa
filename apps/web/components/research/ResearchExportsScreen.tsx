@@ -692,10 +692,10 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                         </div>
 
                         {item.status === 'PROCESSING' ? (
-                          <div className="inline-flex items-center gap-2 rounded-full bg-info/10 px-3 py-1 text-xs font-medium text-info-ink">
+                          <Badge variant="review">
                             <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
                             Background job running
-                          </div>
+                          </Badge>
                         ) : null}
                       </div>
 
@@ -704,12 +704,9 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                           {rows.length > 0 ? (
                             <div className="flex flex-wrap gap-2">
                               {rows.map(([key, value]) => (
-                                <span
-                                  key={key}
-                                  className="rounded-full border border-border/80 bg-muted/40 px-3 py-1 text-xs font-medium text-muted-foreground"
-                                >
+                                <Badge key={key} variant="secondary">
                                   {key}: {value}
-                                </span>
+                                </Badge>
                               ))}
                             </div>
                           ) : (

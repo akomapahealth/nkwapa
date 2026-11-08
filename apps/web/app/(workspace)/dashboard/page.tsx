@@ -357,10 +357,7 @@ export default function DashboardPage() {
                   }}
                   className="space-y-6"
                 >
-                  <TabsList
-                    aria-label="Dashboard view"
-                    className="flex h-auto w-full flex-wrap justify-start gap-1 bg-transparent p-0"
-                  >
+                  <TabsList aria-label="Dashboard view">
                     {roleSections.map((section) => (
                       <TabsTrigger key={section.id} value={section.id}>
                         {section.label}

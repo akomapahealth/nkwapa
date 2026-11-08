@@ -31,6 +31,11 @@ export interface ConfirmOptions {
   cancelLabel?: string;
   /** Red confirm button. Default true: this exists for costly actions. */
   destructive?: boolean;
+  /**
+   * An alert that must be answered: one button, and Escape or a click outside does nothing, so it
+   * closes only when the person says it was done. Resolves `true`.
+   */
+  acknowledgeOnly?: boolean;
 }
 
 type Pending = ConfirmOptions & { resolve: (confirmed: boolean) => void };
@@ -71,8 +76,11 @@ export function ConfirmHost() {
   };
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (next ? undefined : answer(false))}>
-      <DialogContent className="max-w-md">
+    <Dialog
+      open={open}
+      onOpenChange={(next) => (next || shown?.acknowledgeOnly ? undefined : answer(false))}
+    >
+      <DialogContent className="max-w-md" role={shown?.acknowledgeOnly ? 'alertdialog' : 'dialog'}>
         {shown ? (
           <>
             <DialogHeader>
@@ -81,12 +89,15 @@ export function ConfirmHost() {
             </DialogHeader>
             <DialogFooter className="gap-2 sm:gap-0">
               {/* Focus starts on the safe choice, so Enter on a misread dialog does no harm. */}
-              <Button variant="outline" onClick={() => answer(false)} autoFocus>
-                {shown.cancelLabel ?? 'Keep it'}
-              </Button>
+              {shown.acknowledgeOnly ? null : (
+                <Button variant="outline" onClick={() => answer(false)} autoFocus>
+                  {shown.cancelLabel ?? 'Keep it'}
+                </Button>
+              )}
               <Button
                 variant={shown.destructive === false ? 'default' : 'destructive'}
                 onClick={() => answer(true)}
+                autoFocus={shown.acknowledgeOnly}
               >
                 {shown.confirmLabel}
               </Button>

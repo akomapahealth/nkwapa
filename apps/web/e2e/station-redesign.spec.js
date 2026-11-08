@@ -164,56 +164,65 @@ for (const theme of ['light', 'dark']) {
   });
 }
 
+/** A new synthetic patient, checked in, moved to blood pressure and claimed; the page is on the visit. */
+async function openBloodPressureVisit(page, lastName) {
+  const { apiRequestAs } = require('../playwright/api-client');
+  await page.goto('/patients/new');
+  await page.getByLabel('First name', { exact: true }).fill('Synthetic');
+  await page.getByLabel('Last name', { exact: true }).fill(lastName);
+  await page.getByLabel('National ID', { exact: true }).fill(`E2E-${lastName}-${Date.now()}`);
+  await page.getByRole('button', { name: 'Create patient' }).click();
+  await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/);
+  const [, , clinicId, , patientId] = new URL(page.url()).pathname.split('/');
+  const check = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+    clinicId,
+    data: { patientId },
+  });
+  expect(check.ok(), check.text()).toBeTruthy();
+  const shift = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/shifts/check-in`, {
+    clinicId,
+    data: { roleAtShift: 'VOLUNTEER' },
+  });
+  if (!shift.ok()) expect(shift.json().code).toBe('SHIFT_ALREADY_ACTIVE');
+  const board = await apiRequestAs('staff', 'get', `/clinics/${clinicId}/stations/board`, {
+    clinicId,
+  });
+  const bp = board.json().stations.find((station) => station.kind === 'BLOOD_PRESSURE');
+  const move = await apiRequestAs(
+    'staff',
+    'post',
+    `/clinics/${clinicId}/checkins/${check.json().id}/move`,
+    { clinicId, data: { stationId: bp.id, reason: 'Synthetic screening validation test' } },
+  );
+  expect(move.ok(), move.text()).toBeTruthy();
+  const updated = await apiRequestAs('staff', 'get', `/clinics/${clinicId}/stations/board`, {
+    clinicId,
+  });
+  const visit = updated
+    .json()
+    .stations.flatMap((station) => station.visits)
+    .find((visit) => visit.checkInId === check.json().id);
+  const claim = await apiRequestAs(
+    'staff',
+    'post',
+    `/clinics/${clinicId}/station-visits/${visit.id}/claim`,
+    { clinicId },
+  );
+  expect(claim.ok(), claim.text()).toBeTruthy();
+  await page.goto(`/stations/visits/${visit.id}`);
+  return { apiRequestAs, clinicId, encounterId: claim.json().encounterId };
+}
+
 test.describe('screening error recovery', () => {
   test.use({ storageState: storageStateFor('staff') });
   test('blood pressure errors link to fields, retain corrections and preserve saved units', async ({
     page,
   }) => {
-    const { apiRequestAs } = require('../playwright/api-client');
     test.setTimeout(90_000);
-    await page.goto('/patients/new');
-    await page.getByLabel('First name', { exact: true }).fill('Synthetic');
-    await page.getByLabel('Last name', { exact: true }).fill('Screening271');
-    await page.getByLabel('National ID', { exact: true }).fill(`E2E-SCREENING-271-${Date.now()}`);
-    await page.getByRole('button', { name: 'Create patient' }).click();
-    await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/);
-    const [, , clinicId, , patientId] = new URL(page.url()).pathname.split('/');
-    const check = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
-      clinicId,
-      data: { patientId },
-    });
-    expect(check.ok(), check.text()).toBeTruthy();
-    const shift = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/shifts/check-in`, {
-      clinicId,
-      data: { roleAtShift: 'VOLUNTEER' },
-    });
-    if (!shift.ok()) expect(shift.json().code).toBe('SHIFT_ALREADY_ACTIVE');
-    const board = await apiRequestAs('staff', 'get', `/clinics/${clinicId}/stations/board`, {
-      clinicId,
-    });
-    const bp = board.json().stations.find((station) => station.kind === 'BLOOD_PRESSURE');
-    const move = await apiRequestAs(
-      'staff',
-      'post',
-      `/clinics/${clinicId}/checkins/${check.json().id}/move`,
-      { clinicId, data: { stationId: bp.id, reason: 'Synthetic screening validation test' } },
+    const { apiRequestAs, clinicId, encounterId } = await openBloodPressureVisit(
+      page,
+      'Screening271',
     );
-    expect(move.ok(), move.text()).toBeTruthy();
-    const updated = await apiRequestAs('staff', 'get', `/clinics/${clinicId}/stations/board`, {
-      clinicId,
-    });
-    const visit = updated
-      .json()
-      .stations.flatMap((station) => station.visits)
-      .find((visit) => visit.checkInId === check.json().id);
-    const claim = await apiRequestAs(
-      'staff',
-      'post',
-      `/clinics/${clinicId}/station-visits/${visit.id}/claim`,
-      { clinicId },
-    );
-    expect(claim.ok(), claim.text()).toBeTruthy();
-    await page.goto(`/stations/visits/${visit.id}`);
     await page.getByLabel('Systolic BP (mmHg)').fill('301');
     await page.getByLabel('Diastolic BP (mmHg)').fill('80');
     await page.getByLabel('Measurement site', { exact: true }).click();
@@ -229,10 +238,41 @@ test.describe('screening error recovery', () => {
     await page.getByRole('button', { name: 'Save measurements' }).click();
     await expect(page.getByText('Measurements saved and synced.')).toBeVisible();
     await expect(summary).toHaveCount(0);
-    const saved = await apiRequestAs('staff', 'get', `/encounters/${claim.json().encounterId}`, {
+    const saved = await apiRequestAs('staff', 'get', `/encounters/${encounterId}`, {
       clinicId,
     });
     expect(saved.json().vitals).toMatchObject({ systolicBp: 128, diastolicBp: 80 });
+  });
+
+  test('a crisis reading saves, then interrupts until a clinician is told', async ({ page }) => {
+    test.setTimeout(90_000);
+    const { apiRequestAs, clinicId, encounterId } = await openBloodPressureVisit(page, 'Crisis304');
+    await page.getByLabel('Systolic BP (mmHg)').fill('184');
+    await page.getByLabel('Diastolic BP (mmHg)').fill('96');
+    await page.getByLabel('Measurement site', { exact: true }).click();
+    await page.getByRole('option', { name: /left arm/i }).click();
+    await page.getByRole('button', { name: 'Save measurements' }).click();
+
+    const alert = page.getByRole('alertdialog', { name: 'This visit needs a clinician now' });
+    await expect(alert).toBeVisible();
+    await expect(alert).toContainText('184/96 mmHg');
+    // Saved before the alert: the interruption never holds the reading back.
+    const saved = await apiRequestAs('staff', 'get', `/encounters/${encounterId}`, { clinicId });
+    expect(saved.json().vitals).toMatchObject({ systolicBp: 184, diastolicBp: 96 });
+    await expect(alert.getByRole('button')).toHaveCount(1);
+    await page.keyboard.press('Escape');
+    await expect(alert).toBeVisible();
+    const axe = await new AxeBuilder({ page }).include('[role="alertdialog"]').analyze();
+    expect(axe.violations).toEqual([]);
+
+    await alert.getByRole('button', { name: "I've told a clinician" }).click();
+    await expect(alert).toHaveCount(0);
+    await expect(page.getByText('Measurements saved and synced.')).toBeVisible();
+
+    // Saving again without changing the reading does not alert a second time.
+    await page.getByRole('button', { name: 'Save measurements' }).click();
+    await expect(page.getByText('Measurements saved and synced.')).toBeVisible();
+    await expect(alert).toHaveCount(0);
   });
 });
 

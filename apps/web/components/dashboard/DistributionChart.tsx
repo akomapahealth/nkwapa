@@ -18,12 +18,13 @@ import { ChartFrame } from './ChartFrame';
 import { hasRenderableDistributionData, toDistributionChartData } from './chart-utils';
 
 /** A clinical reading of a category, for the charts where one exists. */
-export type DistributionTone = 'neutral' | 'success' | 'warning' | 'destructive';
+export type DistributionTone = 'neutral' | 'success' | 'warning' | 'severe' | 'destructive';
 
 const TONE_FILL: Record<DistributionTone, string> = {
   neutral: 'hsl(var(--muted-foreground))',
   success: 'hsl(var(--success))',
   warning: 'hsl(var(--warning))',
+  severe: 'hsl(var(--severe))',
   destructive: 'hsl(var(--destructive))',
 };
 

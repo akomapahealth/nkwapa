@@ -42,9 +42,9 @@ Built around the physical screening day: a patient walks between stations, each 
 
 ## Brand Commitments
 
-- Logo teal `#008BA1` and logo gold `#FFCD1A` (wordmark "nkwapa" with a gold plus). Accessible action teal `#00778A` is derived by lightness only.
+- Logo teal `#008DA3` and logo gold `#FFCD1A` (wordmark "nkwapa" with a gold plus). Accessible action teal `#00778A` is derived by lightness only.
 - Source Serif 4 for headings, IBM Plex Sans for interface and data. Brief-pinned; do not replace.
-- Warm neutral canvas `#FCFBF3`, ink `#1D2930`. Values and their measured contrast live in `docs/design-system/MASTER.md`.
+- Teal-tinted canvas `#F2F7F7` with one white sheet `#FFFFFF` on it, ink `#19282E`, every neutral tinted from the logo teal (Layered Clinical Workspace, UI refresh R1.1). Values and their measured contrast live in `docs/design-system/ui-refresh/R0-AUDIT.md` section 4, mirrored in `docs/design-system/MASTER.md`.
 - Heidi Health is a quality reference only. Its burgundy and yellow, logo, fonts and layouts are not to be reproduced.
 - Target identity named by the client: "Modern Clinical Editorial". Calm, warm, trustworthy, efficient.
 

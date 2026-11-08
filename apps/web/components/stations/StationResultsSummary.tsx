@@ -6,7 +6,7 @@ import { formatGlucose, formatHeight, formatWeight } from '@nkwapa/db/measuremen
 import { classifyBloodPressure, isHypoglycemic } from '@nkwapa/db';
 import type { DiabetesScreeningRecord, VitalsRecord } from '@/lib/db';
 import { summarizeEyeScreening, type EyeScreeningRecord } from '@/lib/eye-screening';
-import { HYPERTENSION_LABELS } from '@/lib/hypertension';
+import { StatusLabel } from '@/components/ui/status-label';
 import { formatOpsDateTime } from '@/lib/ops';
 import { performerLabel, type StationKind, type StationVisit } from '@/lib/stations';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -66,7 +66,7 @@ export function StationResultsSummary({
   const rows: Array<{
     label: string;
     value: string;
-    detail?: string;
+    detail?: React.ReactNode;
     flag: boolean;
     by: string;
   }> = [
@@ -76,7 +76,8 @@ export function StationResultsSummary({
         vitals?.systolicBp != null && vitals?.diastolicBp != null
           ? `${vitals.systolicBp}/${vitals.diastolicBp} mmHg`
           : 'Not recorded',
-      detail: bp !== 'UNKNOWN' ? HYPERTENSION_LABELS[bp] : undefined,
+      // The stage as its severity tag, so Crisis does not read like Stage 1 in the shared amber box.
+      detail: bp !== 'UNKNOWN' ? <StatusLabel value={bp} className="mt-1" /> : undefined,
       flag: bpFlag,
       by: recordedAt('BLOOD_PRESSURE'),
     },

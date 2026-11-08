@@ -1,7 +1,8 @@
 /*
   Nkwapa Keycloak login theme.
 
-  THE VALUES BELOW ARE MIRRORED FROM docs/design-system/MASTER.md AND MUST BE UPDATED WITH IT.
+  THE VALUES BELOW ARE MIRRORED FROM docs/design-system/ui-refresh/R0-AUDIT.md SECTION 4 (the
+  as-built Layered Clinical Workspace tokens in apps/web/app/globals.css) AND MUST BE UPDATED WITH IT.
 
   A Keycloak theme cannot import the application's stylesheet -- it is served from a different
   origin by a different process -- so the tokens are duplicated here by necessity. Duplication is
@@ -49,19 +50,20 @@
      theme does not follow prefers-color-scheme. */
   color-scheme: light;
 
-  /* Surfaces --------------------------------------------------- MASTER.md section 3 */
-  --nkwapa-bg: #fcfbf3; /* --background        hsl(54 63% 97%)  */
-  --nkwapa-surface: #fcfbf8; /* --card              hsl(50 33% 98%)  */
-  --nkwapa-muted-surface: #f3f0e8; /* --muted             hsl(45 30% 93%)  */
+  /* Surfaces -------------------------------------------- R0-AUDIT section 4: one white sheet on
+     a teal-tinted canvas. */
+  --nkwapa-bg: #f2f7f7; /* --background        hsl(180 23.8% 95.9%) */
+  --nkwapa-surface: #ffffff; /* --card              hsl(0 0% 100%)       */
+  --nkwapa-muted-surface: #f7fafa; /* --muted             hsl(180 23.1% 97.5%) */
 
-  /* Ink -------------------------------------------------------- 14.37:1 / 5.47:1 on surface */
-  --nkwapa-text: #1d2930; /* --foreground        hsl(200 25% 15%) */
-  --nkwapa-muted: #5c6970; /* --muted-foreground  hsl(200 10% 40%) */
+  /* Ink ------------------------------- 15.17:1 / 5.99:1 on surface, 14.03:1 / 5.55:1 on canvas */
+  --nkwapa-text: #19282e; /* --foreground        hsl(197.1 29.6% 13.9%) */
+  --nkwapa-muted: #55666d; /* --muted-foreground  hsl(197.5 12.4% 38%)   */
 
   /* Lines. Two tokens, deliberately: WCAG 1.4.11 wants 3:1 on a control boundary and nothing on
      a decorative divider. Collapsing them is what made every field in the app invisible. */
-  --nkwapa-border: #e4e1d7; /* --border            1.26:1, exempt   */
-  --nkwapa-border-strong: #728b97; /* --input             3.47:1 on surface */
+  --nkwapa-border: #dbe4e6; /* --border            1.29:1, exempt   */
+  --nkwapa-border-strong: #728b97; /* --input             3.59:1 on surface */
 
   /* Brand and action ------------------------------------------- */
   --nkwapa-primary: #00778a; /* --primary           5.24:1 white on  */
@@ -69,33 +71,33 @@
   --nkwapa-accent: #ffcd1a; /* --secondary, the logo gold exactly   */
   /* Derived from --primary by lightness alone, hsl(188 100% 18%): the primary button's hover. */
   --nkwapa-primary-deep: #00505c;
-  --nkwapa-primary-soft: #e3eeed; /* --primary at 10% over --card         */
+  --nkwapa-primary-soft: #e1f2f4; /* --selected; primary on it 4.55:1    */
 
   /* Status. MASTER.md section 3 is explicit that a status fill must never be used as text on its
      own tint -- measured here at 3.87:1 error, 4.18:1 success, 3.97:1 info, 2.36:1 warning, all
      below AA. The -ink tokens are the same hue and saturation darkened until they clear. */
-  --nkwapa-danger: #dc2828; /* --destructive                        */
+  --nkwapa-danger: #d72323; /* --destructive       hsl(0 72% 49%)   */
   --nkwapa-danger-ink: #a71b1b; /* hsl(0 72% 38%)      6.01:1 on tint   */
-  --nkwapa-danger-soft: #f8e2df; /* --destructive at 12% over --card     */
-  --nkwapa-danger-line: #f4c6c4; /* --destructive at 25% over --card     */
+  --nkwapa-danger-soft: #f8e2df; /* --destructive-surface                */
+  --nkwapa-danger-line: #f5c8c8; /* --destructive at 25% over --card     */
 
   --nkwapa-success: #1b7e50; /* --success                            */
   --nkwapa-success-ink: #176d45; /* --success-ink       5.23:1 on tint   */
-  --nkwapa-success-soft: #e1ece4;
-  --nkwapa-success-line: #c4dcce;
+  --nkwapa-success-soft: #e1ece4; /* --success-surface */
+  --nkwapa-success-line: #c6dfd3;
 
   --nkwapa-info: #297aa3; /* --info                               */
-  --nkwapa-info-ink: #1b506a; /* --info-ink          7.28:1 on tint   */
-  --nkwapa-info-soft: #e3ecee;
-  --nkwapa-info-line: #c7dbe3;
+  --nkwapa-info-ink: #1b506a; /* --info-ink          7.27:1 on tint   */
+  --nkwapa-info-soft: #e2ecee; /* --info-surface */
+  --nkwapa-info-line: #cadee8;
 
-  --nkwapa-warning-ink: #884c07; /* --warning-ink       5.87:1 on tint   */
-  --nkwapa-warning-soft: #faecdc;
-  --nkwapa-warning-line: #f7ddbd;
+  --nkwapa-warning-ink: #884c07; /* --warning-ink       5.86:1 on tint   */
+  --nkwapa-warning-soft: #f9ecdc; /* --warning-surface */
+  --nkwapa-warning-line: #fae0c2;
 
   /* Ruled Chart (MASTER.md section 12): a 2px ink rule tops each group, hairlines divide rows. */
   --nkwapa-rule: var(--nkwapa-border); /* --rule        */
-  --nkwapa-rule-strong: #1d2930; /* --rule-strong, which is --foreground */
+  --nkwapa-rule-strong: #19282e; /* --rule-strong, which is --foreground */
   --nkwapa-on-primary: #ffffff; /* --primary-foreground 5.24:1 on --primary */
 
   /* Type -------------------------------------------------------- MASTER.md section 6.
@@ -105,12 +107,12 @@
   --nkwapa-font-heading: 'Source Serif 4', Georgia, serif;
   --nkwapa-font-body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
-  /* Radius ------------------------------------------------------ MASTER.md section 5.
-     "Nothing rounder than 14px." This file previously ran 30 / 20 / 18 / 16 / 12. */
-  --nkwapa-radius-sm: 6px; /* chips           */
-  --nkwapa-radius-md: 8px; /* controls        */
-  --nkwapa-radius-lg: 10px; /* panels, alerts  */
-  --nkwapa-radius-xl: 14px; /* the card itself */
+  /* Radius ------------------------------------------- R0-AUDIT section 4: 4 / 6 / 8 / 12, the
+     app's rounded-sm/md/lg/xl at --radius 0.5rem. No squircles. This file once ran 30 / 20 / 18. */
+  --nkwapa-radius-sm: 4px; /* chips, focus    */
+  --nkwapa-radius-md: 6px; /* controls        */
+  --nkwapa-radius-lg: 8px; /* panels, alerts  */
+  --nkwapa-radius-xl: 12px; /* the sheet       */
 
   /* Motion ------------------------------------------------------ MASTER.md section 7 */
   --nkwapa-duration: 150ms;

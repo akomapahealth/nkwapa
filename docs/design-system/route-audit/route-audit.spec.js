@@ -131,6 +131,14 @@ for (const [role, routes] of Object.entries(PLAN)) {
                   impact: v.impact,
                   nodes: v.nodes.map((n) => n.target.join(' ')),
                 }));
+              // SHOTS_DIR=<abs dir> also saves a light-theme screenshot per route (UI refresh R0 "before" set).
+              if (process.env.SHOTS_DIR && theme === 'light') {
+                const name = `${role}${route === 'patient-record' ? '-patient-record' : route.replace(/\//g, '-')}-${width}.png`;
+                await page.screenshot({
+                  path: path.join(process.env.SHOTS_DIR, name),
+                  fullPage: width > 390,
+                });
+              }
               row.minor = r.violations
                 .filter((v) => !['serious', 'critical'].includes(v.impact))
                 .map((v) => v.id);

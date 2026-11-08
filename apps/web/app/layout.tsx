@@ -21,6 +21,17 @@ const ibmPlexSans = localFont({
   variable: '--font-body-latin',
   fallback: ['system-ui', 'sans-serif'],
 });
+// Record numbers, readings and times. Not preloaded: no first-paint text uses it.
+const ibmPlexMono = localFont({
+  src: [
+    { path: './fonts/ibm-plex-mono-400-latin.woff2', weight: '400' },
+    { path: './fonts/ibm-plex-mono-500-latin.woff2', weight: '500' },
+  ],
+  display: 'swap',
+  variable: '--font-mono',
+  preload: false,
+  fallback: ['ui-monospace', 'monospace'],
+});
 const ibmPlexSansExt = localFont({
   src: './fonts/ibm-plex-sans-latin-ext.woff2',
   weight: '100 700',
@@ -150,7 +161,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // suppressHydrationWarning: themeBootScript mutates <html> before React hydrates.
     <html
       lang="en"
-      className={`${ibmPlexSans.variable} ${ibmPlexSansExt.variable} ${sourceSerif4.variable} ${sourceSerif4Ext.variable}`}
+      className={`${ibmPlexSans.variable} ${ibmPlexSansExt.variable} ${ibmPlexMono.variable} ${sourceSerif4.variable} ${sourceSerif4Ext.variable}`}
       suppressHydrationWarning
     >
       <head>

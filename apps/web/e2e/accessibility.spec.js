@@ -58,7 +58,18 @@ async function analyze(page) {
  * A disabled rule is only honest with something in its place, so the caller proves the access
  * axe cannot see: it drives the picker open, down and closed by keyboard alone.
  */
-function analyzeOpenPopup(page) {
+async function analyzeOpenPopup(page) {
+  // Let the popup's open animation finish first: mid-fade, axe measures the half-transparent text
+  // (2.0 to 3.8:1 measured) and fails a menu that settles at full contrast. Infinite animations
+  // (spinners) are skipped so this cannot hang.
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+        .map((a) => a.finished.catch(() => {})),
+    ),
+  );
   return new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .exclude('[data-aria-hidden="true"]')

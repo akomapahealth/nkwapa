@@ -264,14 +264,10 @@ export function HealthPortalScreen() {
                         me.recommendations.medicationPrescribed ? (
                           <span className="flex flex-wrap gap-2">
                             {me.recommendations.counselingGiven && (
-                              <Badge variant="secondary" className="rounded-full">
-                                Counseling
-                              </Badge>
+                              <Badge variant="secondary">Counseling</Badge>
                             )}
                             {me.recommendations.medicationPrescribed && (
-                              <Badge variant="secondary" className="rounded-full">
-                                Medication
-                              </Badge>
+                              <Badge variant="secondary">Medication</Badge>
                             )}
                           </span>
                         ) : (
@@ -367,9 +363,7 @@ export function HealthPortalScreen() {
                         >
                           <div className="space-y-1">
                             <div className="flex flex-wrap items-center gap-2">
-                              <Badge variant="outline" className="rounded-full border-border">
-                                {formatMeasurementLabel(entry.type)}
-                              </Badge>
+                              <Badge variant="outline">{formatMeasurementLabel(entry.type)}</Badge>
                               <span className="text-sm font-medium tabular-nums text-foreground">
                                 {formatMeasurementValue(entry, units)}
                               </span>

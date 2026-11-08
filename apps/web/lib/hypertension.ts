@@ -40,10 +40,27 @@ export const HYPERTENSION_LABELS: Record<HypertensionClassification, string> = {
 export const HYPERTENSION_TONES: Record<string, DistributionTone> = {
   [HYPERTENSION_LABELS.NORMAL]: 'success',
   [HYPERTENSION_LABELS.ELEVATED]: 'warning',
-  [HYPERTENSION_LABELS.STAGE1]: 'destructive',
-  [HYPERTENSION_LABELS.STAGE2]: 'destructive',
+  [HYPERTENSION_LABELS.STAGE1]: 'warning',
+  [HYPERTENSION_LABELS.STAGE2]: 'severe',
   [HYPERTENSION_LABELS.CRISIS]: 'destructive',
   [HYPERTENSION_LABELS.UNKNOWN]: 'neutral',
+};
+
+/**
+ * Badge tones for a classification (audit A8). Stage 1 is common and is a warning, not an
+ * emergency; only Crisis is destructive. Normal and Elevated stay neutral so the scale starts
+ * quiet. Presentation only: the classifier and the saved values are untouched.
+ */
+export const HYPERTENSION_BADGE_VARIANTS: Record<
+  HypertensionClassification,
+  'draft' | 'warning' | 'severe' | 'destructive'
+> = {
+  NORMAL: 'draft',
+  ELEVATED: 'draft',
+  STAGE1: 'warning',
+  STAGE2: 'severe',
+  CRISIS: 'destructive',
+  UNKNOWN: 'draft',
 };
 
 /** Severity order, expressed in the labels the chart's axis actually shows. */

@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 export const DESKTOP_ALT =
   "Nkwapa clinic dashboard on a laptop: the care delivery menu on the left, and today's patients, draft visits, visits waiting for review and measurement coverage for one clinic.";
 export const PHONE_ALT =
-  "The same Nkwapa clinic dashboard on a phone, with today's patients, visits and drafts stacked in one column.";
+  "A volunteer's Nkwapa dashboard on a phone: what needs them now, with buttons to open their station and their draft visits, above today's clinic totals in one column.";
 
 interface FrameProps {
   className?: string;
@@ -37,7 +37,7 @@ export function DesktopFrame({
   return (
     <div
       className={cn(
-        'overflow-hidden rounded-xl border border-foreground/15 bg-[hsl(200_20%_9%)] shadow-[0_40px_80px_-40px_hsl(200_25%_8%/0.55)]',
+        'overflow-hidden rounded-xl border border-foreground/15 bg-[hsl(195_23.1%_10.2%)] shadow-[0_40px_80px_-40px_hsl(192_29.4%_8%/0.55)]',
         className,
       )}
     >
@@ -67,7 +67,7 @@ export function PhoneFrame({ className, sizes, priority }: Omit<FrameProps, 'chi
   return (
     <div
       className={cn(
-        'rounded-[1.75rem] border border-foreground/15 bg-[hsl(200_20%_9%)] p-1.5 shadow-[0_30px_60px_-30px_hsl(200_25%_8%/0.6)]',
+        'rounded-[1.75rem] border border-foreground/15 bg-[hsl(195_23.1%_10.2%)] p-1.5 shadow-[0_30px_60px_-30px_hsl(192_29.4%_8%/0.6)]',
         className,
       )}
     >

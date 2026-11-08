@@ -239,9 +239,7 @@ export function PortalAccessCard({
             */}
             <p className="type-label font-normal text-muted-foreground">Portal status</p>
             <p className="mt-2">
-              <Badge variant={accessState.variant} className="rounded-full text-sm">
-                {accessState.label}
-              </Badge>
+              <Badge variant={accessState.variant}>{accessState.label}</Badge>
             </p>
             <p className="mt-2 text-sm text-muted-foreground">{accessState.detail}</p>
 
@@ -308,7 +306,6 @@ export function PortalAccessCard({
                           variant={getStatusVariant(
                             currentInvite.emailDelivery?.status ?? 'QUEUED',
                           )}
-                          className="rounded-full"
                         >
                           {currentInvite.emailDelivery
                             ? `Invite email ${currentInvite.emailDelivery.status.toLowerCase()}`
@@ -332,9 +329,7 @@ export function PortalAccessCard({
                     <div className="space-y-1">
                       <dt className="sr-only">Patient account</dt>
                       <dd>
-                        <Badge variant={identity.variant} className="rounded-full">
-                          {identity.label}
-                        </Badge>
+                        <Badge variant={identity.variant}>{identity.label}</Badge>
                       </dd>
                       <dd className="text-xs leading-relaxed text-muted-foreground">
                         {identity.detail}
@@ -487,9 +482,7 @@ export function PortalAccessCard({
                     return (
                       <li key={invite.id} className="border-b border-rule py-3 text-sm">
                         <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant={state.variant} className="rounded-full">
-                            {state.label}
-                          </Badge>
+                          <Badge variant={state.variant}>{state.label}</Badge>
                           <span className="text-xs text-muted-foreground">
                             {formatInviteDate(settledAt)}
                           </span>

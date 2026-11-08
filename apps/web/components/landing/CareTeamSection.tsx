@@ -3,20 +3,26 @@ import { LANDING_BLUR } from '@/lib/landing-blur';
 import { DesktopFrame } from './ProductFrames';
 import { SectionRule } from './SectionRule';
 
-// shortcut: every card shows the clinic dashboard until each role's own dashboard is captured;
-// swap in `src` and `alt` (3840x2160, like desktop.png) per role when the screenshots exist.
+// Each role's own dashboard, captured at 3840x2160 in dark mode from synthetic seed data
+// (the demo clinic), never from a real clinic.
 const DECK = [
   {
     role: 'Volunteers',
     text: 'Register, check in and measure at their station.',
+    src: '/dashboards/volunteer.png',
+    alt: "A volunteer's Nkwapa dashboard: what needs them now, with the next patient at their station and a draft visit to submit, then today's clinic totals and their own work today.",
   },
   {
     role: 'Doctors',
     text: "Review visits with the patient's history alongside, then sign them off.",
+    src: '/dashboards/doctor.png',
+    alt: "A doctor's Nkwapa dashboard: one visit waiting for their sign-off, today's clinic totals, and their doctor queue with visits finalized today and this week.",
   },
   {
     role: 'Clinic managers',
     text: 'Run the day: shifts, assignments, stations and wait times.',
+    src: '/dashboards/manager.png',
+    alt: "A clinic manager's Nkwapa dashboard: a visit waiting for a doctor's sign-off, today's clinic totals, and station flow showing the wait and staffing at each station.",
   },
 ];
 
@@ -84,7 +90,12 @@ export function CareTeamSection() {
                   </p>
                 </div>
                 <div data-deck-card className="lg:col-span-7 lg:col-start-6">
-                  <DesktopFrame priority sizes="(min-width: 1024px) 56vw, 92vw">
+                  <DesktopFrame
+                    priority
+                    sizes="(min-width: 1024px) 56vw, 92vw"
+                    src={item.src}
+                    alt={item.alt}
+                  >
                     <span className="absolute left-3 top-3 rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground sm:left-5 sm:top-5 sm:text-sm">
                       {item.role}
                     </span>

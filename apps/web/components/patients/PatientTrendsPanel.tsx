@@ -27,7 +27,7 @@ import {
 } from '@/lib/patient-trends';
 import { MeasurementTrendChart } from '@/components/portal/MeasurementTrendChart';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
 import {
   RecordSection as Card,
   RecordSectionContent as CardContent,
@@ -141,12 +141,8 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
       <Card>
         <CardHeader className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary" className="rounded-full px-3 py-1">
-              Trends
-            </Badge>
-            <Badge variant="outline" className="rounded-full bg-background/80 px-3 py-1">
-              Patient + encounter readings
-            </Badge>
+            <Badge variant="secondary">Trends</Badge>
+            <Badge variant="outline">Patient + encounter readings</Badge>
           </div>
           <div className="space-y-2">
             <h2 className="type-section-title">Trend view for clinic and home readings</h2>
@@ -158,21 +154,16 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            {TREND_RANGE_OPTIONS.map((days) => (
-              <Button
-                key={days}
-                type="button"
-                variant={days === rangeDays ? 'default' : 'outline'}
-                size="sm"
-                className="min-h-11"
-                aria-pressed={days === rangeDays}
-                onClick={() => setRangeDays(days)}
-              >
-                {days} days
-              </Button>
-            ))}
-          </div>
+          <SegmentedControl
+            label="Time window"
+            value={String(rangeDays)}
+            onChange={(value) => setRangeDays(Number(value) as TrendRangeDays)}
+            options={TREND_RANGE_OPTIONS.map((days) => ({
+              value: String(days),
+              label: `${days} days`,
+            }))}
+            className="sm:w-[24rem]"
+          />
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {FOLLOW_UP_LABELS.map((item) => (
               <div key={item.key} className="border-b border-rule py-3">
@@ -201,9 +192,7 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
               <CardHeader className="space-y-3">
                 <div className="flex items-center justify-between">
                   <HeartPulse className="h-5 w-5 text-muted-foreground" />
-                  <Badge variant="outline" className="rounded-full">
-                    Blood pressure
-                  </Badge>
+                  <Badge variant="outline">Blood pressure</Badge>
                 </div>
                 <div>
                   <p className="type-metric">{trends?.bp.length ?? 0}</p>
@@ -217,9 +206,7 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
               <CardHeader className="space-y-3">
                 <div className="flex items-center justify-between">
                   <Syringe className="h-5 w-5 text-muted-foreground" />
-                  <Badge variant="outline" className="rounded-full">
-                    Glucose
-                  </Badge>
+                  <Badge variant="outline">Glucose</Badge>
                 </div>
                 <div>
                   <p className="type-metric">{trends?.glucose.length ?? 0}</p>
