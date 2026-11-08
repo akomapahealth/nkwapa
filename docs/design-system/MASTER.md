@@ -494,11 +494,38 @@ already migrated to these roles. Shipped in [PR #288](https://github.com/akomapa
 - **200ms** for position.
 - Nothing longer in a clinical view.
 - **No transform-based hover.** Scale and translate on hover cause layout shift, which #63 and #66 both prohibit. Use colour or opacity.
-- `prefers-reduced-motion` is already handled globally in `globals.css` and is correct. Do not duplicate it per component.
+- `prefers-reduced-motion` is handled globally in `globals.css`. R1.5 anchored overlays override the global 0.01ms clamp only to preserve opacity fades, with all scaling removed. Keep that exception shared rather than per component.
 - **Curves and durations are tokens.** `--ease-out`, `--ease-in-out`, `--ease-drawer`, `--duration-fast` (150ms) and `--duration-base` (200ms) in `globals.css`, exposed as `ease-out-strong`, `ease-in-out-strong`, `ease-drawer`, `duration-fast` and `duration-base`. Enter with `ease-out-strong`; never `ease-in`, which delays the moment the user is watching.
 - **Press feedback is allowed.** `Button` scales to 0.97 on `:active`. That answers a press, not a hover, and scale does not change the box, so nothing moves.
 - **Busy buttons keep their width.** `Button loading` hides the label under a spinner rather than swapping text (section 11).
 - **Toasts are Sonner**, through `useToast()` in `components/ui/toast.tsx`. Pass the id a loading toast returned to settle it in place as success or error, or use `toastPromise`. Error toasts are announced assertively through a visually hidden `role="alert"` copy; every other tone stays in Sonner's polite region (#280, section 13).
+
+### Anchored overlays (R1.5)
+
+Dropdown menus (including submenus), Select and InfoHint use `.anchored-overlay`:
+200ms in (`--duration-base`), 160ms out (`--duration-exit`), `--ease-out`, opacity
+and scale 0.95 to 1. Each uses its Radix content transform origin on both paths.
+Select uses Radix's 4px side offset for static placement, leaving the content
+transform free for scaling.
+
+CSS `@starting-style` supplies the entrance; transitions reverse from the current
+frame. A nonvisual `anchored-presence` animation keeps Radix Presence mounted
+through the exit, because Presence listens for animationend rather than
+transitionend. Do not replace the transitions with enter/exit keyframes. Browsers
+without `@starting-style` show the open content immediately.
+
+Tooltip uses 150/120ms (`--duration-fast` / `--duration-fast-exit`). Its provider
+keeps a 300ms skip-delay window, overridable through the existing prop, and
+`instant-open` skips the entrance transition too. The custom filtering Combobox
+stays instant: focus and typing are routine operations, and it is not a Radix
+Popover. InfoHint is the only direct Radix Popover consumer.
+
+`useOverlayInput` shares one set of capture listeners across mounted overlay
+roots. Pointer activity enables motion; keyboard activity disables both enter
+and exit immediately, including Escape on a pointer-opened popup. Native
+`:focus-visible` is insufficient here: Radix's focus handoff can match it even
+after a pointer press. Reduced motion keeps the opacity fade and removes scaling;
+keyboard and tooltip scanning remain instant under that preference too.
 
 ---
 

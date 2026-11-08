@@ -53,6 +53,8 @@ module.exports = {
       transitionDuration: {
         fast: 'var(--duration-fast)',
         base: 'var(--duration-base)',
+        exit: 'var(--duration-exit)',
+        'fast-exit': 'var(--duration-fast-exit)',
       },
       keyframes: {
         // Landing hero entrance. CSS rather than GSAP so it plays on first paint, before hydration.

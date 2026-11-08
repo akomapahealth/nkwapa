@@ -120,6 +120,8 @@
     --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
     --duration-fast: 150ms;
     --duration-base: 200ms;
+    --duration-exit: 160ms;
+    --duration-fast-exit: 120ms;
     /*
       Five series, derived and then measured -- see scripts/check-chart-palette.mjs, which runs
       these same checks in CI. The palette this replaced was two brand hues at two lightnesses
@@ -485,4 +487,81 @@ html:has([data-landing]) {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* R1.5: CSS transitions reverse from the current frame, including during an exit.
+   Radix Presence waits for an animation, not a transition. This nonvisual clock keeps
+   the node mounted for the exit; it never drives opacity or transform itself. */
+@keyframes anchored-presence {
+  from {
+    --anchored-presence: 0;
+  }
+  to {
+    --anchored-presence: 1;
+  }
+}
+
+.anchored-overlay {
+  --overlay-enter: var(--duration-base);
+  --overlay-exit: var(--duration-exit);
+  opacity: 1;
+  transform: scale(1);
+  transition-property: opacity, transform;
+  transition-duration: var(--overlay-enter);
+  transition-timing-function: var(--ease-out);
+}
+
+.anchored-tooltip {
+  --overlay-enter: var(--duration-fast);
+  --overlay-exit: var(--duration-fast-exit);
+}
+
+@starting-style {
+  .anchored-overlay {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+.anchored-overlay[data-state='closed'] {
+  opacity: 0;
+  transform: scale(0.95);
+  pointer-events: none;
+  transition-duration: var(--overlay-exit);
+  animation: anchored-presence var(--overlay-exit) linear;
+}
+
+/* Scanning neighbouring icons skips the transition as well as the hover delay. */
+.anchored-tooltip[data-state='instant-open'] {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anchored-overlay {
+    transform: none;
+    /* Deliberately override the global 0.01ms clamp for this opacity-only fade. */
+    transition-duration: var(--overlay-enter) !important;
+  }
+  .anchored-overlay[data-state='closed'] {
+    transform: none;
+    transition-duration: var(--overlay-exit) !important;
+    animation-duration: var(--overlay-exit) !important;
+  }
+  @starting-style {
+    .anchored-overlay {
+      transform: none;
+    }
+  }
+}
+
+/* Routine keyboard operations never wait for an entrance or exit. The shared
+   input tracker survives Radix's programmatic focus handoff into the popup. */
+:root:not([data-overlay-input='pointer']) .anchored-overlay {
+  transition-duration: 0s !important;
+  /* Keep the clock's name: cancelling it mid-exit can strand Radix Presence. */
+  animation-duration: 0.01ms !important;
+}
+
+.anchored-tooltip[data-state='instant-open'] {
+  transition-duration: 0s !important;
 }

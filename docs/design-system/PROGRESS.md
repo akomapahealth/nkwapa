@@ -3,7 +3,7 @@
 **Direction:** Layered Clinical Workspace  
 **Base branch:** `release/dev`  
 **Program:** Frontend-only visual refinement  
-**Status:** R0 completed 2026-11-07. R1.1, R1.1b, R1.2, R1.2b, R1.3 and R1.4 built on `ui-refresh/r1-1-tokens` (uncommitted, in review). Next: R1.5.
+**Status:** R0 completed 2026-11-07. R1.1 through R1.5 built on `ui-refresh/r1-1-tokens`, committed locally and in review. R1.5 has a documented open-overlay axe finding. Next: R1.6.
 
 ## Phase Status
 
@@ -225,6 +225,25 @@ Verify zoom, long content, virtual-keyboard behavior, and PWA installed display 
 **Before/after screenshots:** `ui-refresh/evidence/r1-4/after/staff-stations-setup-{1440,390}.png`. No screenshot of the dialog (e2e only)
 **Outstanding problems:** Recording the acknowledgement needs an API endpoint and sync ordering. Spec in `ui-refresh/TASK-crisis-acknowledgement.md`, a separate backend branch, and its offline design is still open. The "no second alert" e2e check is weak: the same status text appears on both saves, so it can pass before a late dialog would open. Not checked: the encounter Vitals tab and new-encounter page in a browser (same component, covered by the station visit test only)
 **Next unit:** R1.5 (`ui-refresh/HANDOFF-R1.5.md`)
+
+**Unit ID:** R1.5
+**Phase:** R1, shared components
+**Screen(s) or components:** DropdownMenu and submenus, Select, Tooltip, direct Radix Popover in InfoHint; Combobox reviewed and deliberately kept instant
+**Branch/commit/PR:** `ui-refresh/r1-1-tokens`; local commit `UI refresh R1.5: anchor overlay motion to triggers`. No push or new PR
+**Status:** In review. Motion implemented and verified; open-overlay axe finding deferred
+**Design changes:** Trigger-origin scale 0.95 and opacity, 200ms enter / 160ms exit with existing ease-out. Tooltips 150/120ms, explicit 300ms skip-delay window, instant-open skips the transition. Shared CSS transitions reverse from the current frame; a nonvisual animation holds Radix Presence through exits. Shared input tracking makes keyboard interactions immediate. Reduced motion keeps opacity only through a scoped exception to the global clamp. Select uses Radix sideOffset for the existing 4px gap, freeing transform for scale. Combobox stays instant because focus, typing and suggestion selection are frequent
+**Files changed:** `apps/web/components/ui/{dropdown-menu,select,tooltip,info-hint}.tsx`, new `use-overlay-input.ts`, `app/globals.css`, `tailwind.config.js`, new `e2e/overlay-motion.spec.js`; `MASTER.md` motion contract, this tracker, `ui-refresh/R1.5-REVIEW.md` consumer inventory and ranked review; synthetic evidence under `ui-refresh/evidence/r1-5/`
+**Desktop tested:** Chromium at 1440, both themes in route audit; actual menu/Select transitions sampled at intermediate frames, header and row action origins checked on enter and exit
+**Tablet tested:** Open header menu, Select and help popover at 744 and 1024, light/dark. Bounds checks and captures completed; full-page open-menu axe findings remain below
+**Phone tested:** Route harness at 390, light/dark; open overlays at 390, both themes; existing help collision check at 375. No physical device
+**Dark mode:** All route families scanned; open-overlay captures at 390/744/1024. Existing semantic tokens retained
+**Keyboard and accessibility:** Keyboard menu and Select open/close instantly and restore focus; tooltip scanning skips delay and motion, Escape removes both current and exiting tooltips. Help pseudo-target measured 44x44px. Dark help axe passes. All 228 route rows have zero serious/critical findings and zero overflow. Full-page axe with a menu or Select open reports aria-hidden-focus on background .px-safe in all six viewport scenarios. The finding persists with all motion disabled and menu focus active; pre-existing Radix semantics are a strong inference, not a tested old-build baseline
+**Offline/sync regression:** No source changes to offline, synchronization, validation, permissions, clinical logic, API or database schema. Station workflow regressions passed; #197 offline tests excluded as instructed
+**Tests executed and results:** Production build and standalone tsc passed; changed-file ESLint, Prettier and impeccable Node detector clean. Jest 92 suites / 1013 tests, max two workers. 58 distinct focused browser regressions passed, including six new motion tests; six route audit tests produced 228 clean rows. Six supplemental viewport tests completed geometry checks and screenshots but retain failing full-page axe assertions, with findings recorded rather than suppressed. Motion-disabled diagnostic reproduced the menu finding. Three existing shell navigation snapshots failed because the station flag intentionally substitutes Stations for My Assigned; five incompatible navigation scenarios were excluded from the remaining run, while account-menu/tooltip and station checks passed
+**Critique and polish:** Impeccable, Animate and Shadcn guidance applied; plain Node impeccable detector ran. Per the non-Claude handoff, a written hierarchy, consistency, target, focus, motion, semantics, dark-mode and edge-case review substitutes for `/critique`, `/polish`, web-design-guidelines, accessibility commands and isolated-agent critique. Each P0-P3 item is fixed or explicitly deferred in `ui-refresh/R1.5-REVIEW.md`
+**Before/after screenshots:** Before: `ui-refresh/evidence/r1-4/after/` (114). After: `ui-refresh/evidence/r1-5/after/` (114 route shots plus 18 open-overlay shots). Intermediate browser motion measurements in `motion-samples.json`; totals and limitations in `validation-summary.json`; route rows and open-overlay axe findings alongside them. Evidence remains local and git-ignored under the existing repository policy. Temporary viewport spec removed after capture
+**Outstanding problems:** P1 open-overlay background aria-hidden-focus finding requires a dedicated focus-management review before release; changing Radix modal behavior was deferred from this motion unit. Existing short dropdown rows remain below the design's 44px target, deferred to density work. Shell navigation snapshots need station-flag-aware expectations. Non-Chromium and physical-device checks remain open. R1.4 motion and crisis-dialog gaps in HANDOFF-R1.5 remain unchanged
+**Next unit:** R1.6, DataTable header and row surfaces plus the narrow-width card-render slot (`ui-refresh/R0-AUDIT.md` section 9)
 
 ## Required Entry for Every Completed Unit
 

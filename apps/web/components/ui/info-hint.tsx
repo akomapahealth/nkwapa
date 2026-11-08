@@ -4,6 +4,7 @@ import * as Popover from '@radix-ui/react-popover';
 import { CircleHelp } from 'lucide-react';
 import { useCallback, useEffect, useId, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { useOverlayInput } from './use-overlay-input';
 
 /**
  * Every open hint's close function.
@@ -48,6 +49,7 @@ export function InfoHint({
   side?: 'top' | 'bottom' | 'left' | 'right';
   className?: string;
 }) {
+  useOverlayInput();
   const contentId = useId();
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
@@ -97,9 +99,7 @@ export function InfoHint({
             'z-[120] w-72 max-w-[calc(100vw-24px)] rounded-lg border border-border/80 bg-popover px-4 py-3 type-body text-left text-popover-foreground shadow-md outline-none',
             // Scales from the trigger, not from its own centre. Exit is quicker than entry: the
             // user has already decided to move on.
-            'origin-[--radix-popover-content-transform-origin]',
-            'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:duration-150',
-            'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:duration-100',
+            'anchored-overlay origin-[--radix-popover-content-transform-origin]',
           )}
         >
           {children ? (
