@@ -3,7 +3,7 @@
 **Direction:** Layered Clinical Workspace  
 **Base branch:** `release/dev`  
 **Program:** Frontend-only visual refinement  
-**Status:** R0 completed 2026-11-07. R1.1 through R1.6 built on `ui-refresh/r1-1-tokens` and in review. The open-overlay axe finding remains unresolved, including Rows per page in R1.6. R2.1 sidebar/rail and R2.2 BottomNav + More are built and in review. Next: R2.3 compact Header/sync.
+**Status:** R0 completed 2026-11-07. R1.1 through R1.6 and R2.1 through R2.4 are built on `ui-refresh/r1-1-tokens` and in review. The prior open-Select/menu accessibility finding remains unresolved. Next: R2.5 patient portal shell.
 
 ## Phase Status
 
@@ -440,3 +440,37 @@ For every unit, confirm:
 5. Preserve previous design documentation as historical context.
 6. Do not restart completed work simply because a new agent takes over.
 7. Keep the next implementation task clearly documented for handoff.
+
+## R2.4: draggable Sheet (2026-11-08)
+
+**Unit ID:** R2.4
+
+**Phase:** R2 adaptive app shell
+
+**Branch:** `ui-refresh/r1-1-tokens`, local commit only; no push.
+
+**Status:** Complete within the validation boundaries below.
+
+**Screen(s) or components:** Shared Radix Sheet and all six call sites: Header navigation, public menu, More, sync, duplicate comparison and staff access. All four edges have primitive coverage; top has no production consumer and the existing portal Header left menu remains dormant pending R2.5.
+
+**Design changes:** A separate handle, 64 by 44px at default text size, closes by click/keyboard or drags outward along the configured edge. Only the handle owns capture and touch panning, leaving bodies and controls scrollable. Held displacement follows the pointer directly with no tween; inward movement meets rubber-band resistance. Distance/flick release dismisses through the existing Radix close control; reversal/cancellation restores through an interruptible physical spring carrying velocity. Reduced motion removes the release spring. Capture loss, resize, blur, visibility, history, pathname changes, external close and unmount have explicit cleanup. Movement in either axis suppresses a trailing click, avoiding accidental cross-axis dismissal. Default focus return remembers the opener or falls back to main, including triggerless/replaced-trigger panels. Custom More/sync focus callbacks retain precedence; no modal/focus-trap override, clinical save, queue action, permission, provider or backend change.
+
+**Files changed:** `components/ui/sheet.tsx`, new `components/ui/use-sheet-drag.ts`, new `e2e/component-fixtures/DraggableSheet.tsx`, `e2e/sheet-drag.spec.js`, `e2e/sheet-consumers.spec.js`; MASTER, this tracker, `ui-refresh/R2.4-REVIEW.md` and `ui-refresh/HANDOFF-R2.5.md`.
+
+**Desktop/tablet and phone tested:** Bottom/right primitives at 320/390/599/600/744/767/768/1024/1199/1200/1440 in both themes. All four edges exercise tracking, resistance, reversal, cancellation, dismissal and return focus. Long bodies scroll to final actions; 320px bottom presentation covers 200% root text. Tests cover held Escape, lost capture, regrab, resize reset, history, repeated opening, reduced motion, Chromium touch/secondary-pointer exclusion, short outward flick and 12px/90px cross-axis drags. Actual More/sync, comparison, staff access and public-menu drag flows pass in both themes. Patient portal eligibility/navigation remains unchanged; no dormant left-menu flow is claimed as live.
+
+**Dark mode and accessibility:** Both themes, 44px target floors, preserved title/description and Radix focus containment, click/keyboard alternatives, More-to-sync sequencing, actual entry-point return and replaced-trigger main focus. Four new open-fixture full-page axe assertions and two actual open-More scans are clean. Existing Header/sync, public keyboard/reduced-motion and shared recovery checks pass. These scopes do not clear earlier open-Select/menu findings.
+
+**Tests executed and results:** Final audit-flag build, standalone TypeScript, changed-file ESLint/Prettier, whitespace and detector checks passed. ESLint retains its existing root Pages-directory configuration notice while exiting successfully. Jest with two workers: **93 suites / 1019 tests passed**. Final-source focused selection: **77/77 passed**, including six auth setups and **71 distinct browser checks**, after the focus and cross-axis fixes. Existing patient/invitation table-state, real sync conflict recovery and once-only offline replay checks pass. No full e2e suite or flag-off browser build is claimed.
+
+**Correction history:** Intermediate failures exposed both spec mistakes and real source bugs. Chromium zero-translation serialization, an accidental flick in the settle setup, an ineligible patient-sync assumption and asynchronous resize delivery were corrected in specs. A strengthened disconnected-trigger check found the body-to-main focus fallback bug, fixed in the primitive. A 75/75 candidate still missed cross-axis click dismissal; stronger open-state assertions failed both added cases and the source now counts movement across either axis. Exact candidate counts, interruptions and retained logs are in R2.4-REVIEW. The final 77/77 is a single green run, not combined candidate coverage. Production queue/clinical logic and modal semantics were not weakened.
+
+**Route audit:** **12/12 passed**, with six fresh authentication setups and six role sweeps. **228 route/theme/width rows**, **zero recorded errors, zero axe violations including minor findings, zero horizontal overflow**. Normal-state evidence does not clear open-overlay findings.
+
+**Evidence:** **193 synthetic PNGs** under ignored `ui-refresh/evidence/r2-4/after/`: 114 light-theme route images, 54 Sheet fixture/consumer images and 25 shell images. Supplements include both themes. Two open-More axe JSON files are clean. `route-audit.json`, `validation-summary.json` and retained diagnostics sit beside `after/`. R2.3's 232 local PNGs remain the before baseline. No real-patient or third-party reference directories were inspected; evidence remains untracked.
+
+**Ranked review:** `ui-refresh/R2.4-REVIEW.md`. Live pilot/frame, checked-in pilot, animate/Apple guidance, shadcn composition, accessibility, Impeccable audit/craft/detector and current Web Interface Guidelines consulted. No separate agent review ran.
+
+**Outstanding problems:** Prior P1 open-Select/menu background accessibility findings and short dropdown rows remain. Physical gesture feel, screen readers, Safari/Firefox, physical devices, installed PWA, virtual keyboard and real safe-area checks remain manual. Root-text scaling and CDP touch input are bounded browser evidence. Earlier R1.4/Vitals/Crisis/backend acknowledgement work and Sunday appointment lifecycle findings remain separate.
+
+**Next unit:** R2.5 patient portal shell; use `ui-refresh/HANDOFF-R2.5.md`. R3 content remains unbuilt.

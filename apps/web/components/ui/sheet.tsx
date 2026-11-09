@@ -6,6 +6,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { X } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { useSheetDrag } from './use-sheet-drag';
 
 const Sheet = SheetPrimitive.Root;
 
@@ -57,18 +58,72 @@ interface SheetContentProps
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Content>,
   SheetContentProps
->(({ side = 'right', className, children, ...props }, ref) => (
-  <SheetPortal>
-    <SheetOverlay />
-    <SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} {...props}>
-      <SheetPrimitive.Close className="absolute right-[max(1rem,env(safe-area-inset-right))] top-4 flex h-11 w-11 items-center justify-center rounded-sm opacity-70 ring-offset-background transition-opacity duration-fast ease-out-strong hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary">
-        <X className="h-4 w-4" />
-        <span className="sr-only">Close</span>
-      </SheetPrimitive.Close>
-      {children}
-    </SheetPrimitive.Content>
-  </SheetPortal>
-));
+>(({ side = 'right', className, children, onOpenAutoFocus, onCloseAutoFocus, ...props }, ref) => {
+  const { setNode, closeRef, handleProps } = useSheetDrag(side ?? 'right');
+  const returnFocusTo = React.useRef<HTMLElement | null>(null);
+  const contentRef = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      setNode(node);
+      if (typeof ref === 'function') ref(node);
+      else if (ref) ref.current = node;
+    },
+    [ref, setNode],
+  );
+  return (
+    <SheetPortal>
+      <SheetOverlay />
+      <SheetPrimitive.Content
+        ref={contentRef}
+        className={cn(sheetVariants({ side }), className)}
+        {...props}
+        onOpenAutoFocus={(event) => {
+          returnFocusTo.current = document.activeElement as HTMLElement | null;
+          onOpenAutoFocus?.(event);
+        }}
+        onCloseAutoFocus={(event) => {
+          onCloseAutoFocus?.(event);
+          if (event.defaultPrevented) return;
+          // Provider/selection-controlled Sheets can have no Radix Trigger at all.
+          const previous = returnFocusTo.current;
+          const target =
+            previous?.isConnected && previous !== document.body && previous.getClientRects().length
+              ? previous
+              : document.getElementById('main-content');
+          if (target && target !== document.body) {
+            event.preventDefault();
+            target.focus();
+          }
+        }}
+      >
+        <SheetPrimitive.Close
+          ref={closeRef}
+          className="absolute right-[max(1rem,env(safe-area-inset-right))] top-4 flex h-11 w-11 items-center justify-center rounded-sm opacity-70 ring-offset-background transition-opacity duration-fast ease-out-strong hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary"
+        >
+          <X className="h-4 w-4" />
+          <span className="sr-only">Close</span>
+        </SheetPrimitive.Close>
+        <div className="flex h-11 shrink-0 justify-center">
+          <button
+            {...handleProps}
+            type="button"
+            aria-label={`Close sheet (or drag ${side === 'bottom' ? 'down' : side === 'top' ? 'up' : side} to dismiss)`}
+            className="flex h-11 w-16 touch-none select-none items-center justify-center rounded-sm text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing"
+            style={{ cursor: side === 'top' || side === 'bottom' ? 'ns-resize' : 'ew-resize' }}
+          >
+            <span
+              aria-hidden="true"
+              className={cn(
+                'rounded-full bg-current',
+                side === 'top' || side === 'bottom' ? 'h-1 w-8' : 'h-6 w-1',
+              )}
+            />
+          </button>
+        </div>
+        {children}
+      </SheetPrimitive.Content>
+    </SheetPortal>
+  );
+});
 SheetContent.displayName = SheetPrimitive.Content.displayName;
 
 const SheetHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (

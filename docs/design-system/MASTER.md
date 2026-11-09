@@ -500,6 +500,41 @@ already migrated to these roles. Shipped in [PR #288](https://github.com/akomapa
 - **Busy buttons keep their width.** `Button loading` hides the label under a spinner rather than swapping text (section 11).
 - **Toasts are Sonner**, through `useToast()` in `components/ui/toast.tsx`. Pass the id a loading toast returned to settle it in place as success or error, or use `toastPromise`. Error toasts are announced assertively through a visually hidden `role="alert"` copy; every other tone stays in Sonner's polite region (#280, section 13).
 
+### Draggable Sheets (R2.4)
+
+The shared Radix Sheet retains its dialog, title/description, focus trap, Escape,
+outside dismissal and explicit close control. A separate handle, 64 by 44px at default text size, closes
+on click or keyboard activation and supports an outward drag on each configured
+edge: down for bottom, up for top, left for left and right for right. Only the
+handle owns pointer capture and disables native touch panning and text selection;
+the body keeps normal scrolling, selection and form interactions. No clinical or
+queue action is attached to the gesture.
+
+While held, CSS `translate` follows the pointer directly without a transition.
+Movement towards the attached edge meets increasing rubber-band resistance.
+Release dismisses after 30% of the Sheet's dimension (capped at 160px), or an
+outward flick above 0.5px/ms after at least 24px. A release moving inward restores
+the Sheet. Restoration uses the installed Motion physical spring, with response
+0.3s and damping ratio 0.8 mapped to mass/stiffness/damping, carrying release
+velocity. Duration-based Motion springs intentionally discard velocity and are
+not used. Regrabbing stops the spring at its current position. Reduced motion
+retains direct manipulation but restores immediately without a release spring;
+existing reduced-motion entrance/exit rules remain.
+
+Cancellation and lost capture restore without dismissal. Resize, visual-viewport
+resize, window blur and page hiding release capture and reset displacement.
+Browser history and pathname changes close through the existing Radix close
+control. External closes stop a held gesture or spring, and cleanup cancels it on
+unmount. A trailing pointer click after a moved/cancelled gesture is suppressed.
+
+Custom focus-return callbacks still take precedence, preserving the sequential
+More-to-sync handoff. Without a custom override, the Sheet remembers the actual
+opening control, including selection-controlled panels with no Radix Trigger,
+and returns focus there if still connected and visible, otherwise to main content.
+This does not change modal or focus-trap semantics. All current consumers retain
+their existing side, data, action and save contracts; portal navigation remains
+R2.5 work.
+
 ### Anchored overlays (R1.5)
 
 Dropdown menus (including submenus), Select and InfoHint use `.anchored-overlay`:
@@ -758,9 +793,10 @@ Navigation/history closes it without remounting page content. Opening the existi
 sync center waits for More to release its focus trap. The provider-controlled
 sync sheet remembers its actual entry point and restores focus on close, falling
 back to main if that control is gone or hidden. Its focus trap and queue behavior
-are unchanged. R2.4 owns draggable Sheet
-behavior; no drag handle or new modal semantics were introduced. Portal BottomNav
-remains R2.5. The known open-overlay accessibility findings remain unresolved.
+are unchanged. R2.4 adds the shared drag handle and interruption contract described
+in section 7, retaining these custom focus handlers and existing modal semantics.
+Portal BottomNav remains R2.5. The known open-overlay accessibility findings remain
+unresolved.
 
 ### Navigation utilities (#267)
 
